@@ -5,7 +5,6 @@ import {
   CircleAlert,
   CircleCheck,
   MessageSquare,
-  Quote,
   RotateCcw,
   X,
 } from "lucide-react";
@@ -70,18 +69,25 @@ export function CommentsPanel({
   pending,
   onCancelPending,
   activeId,
+  hoveredId,
+  onHover,
   onActivate,
   actions,
   fileContext,
   versionHref,
   onClose,
   hint,
+  blockingEffect,
 }: {
   threads: readonly ThreadView[];
   canComment: boolean;
   pending: PendingComment | null;
   onCancelPending: () => void;
   activeId: string | null;
+  // The thread under the pointer (here or in the text): its card and its
+  // passage are marked together.
+  hoveredId: string | null;
+  onHover: (threadId: string | null) => void;
   onActivate: (threadId: string) => void;
   actions: CommentActions;
   fileContext: FileContext;
@@ -89,6 +95,8 @@ export function CommentsPanel({
   versionHref: (commitId: string) => { href: string; label: string } | null;
   onClose?: () => void;
   hint: string;
+  // What an open blocking discussion holds back on this page.
+  blockingEffect: string;
 }) {
   const [showResolved, setShowResolved] = useState(false);
   const open = threads.filter((t) => t.thread.status === "open");
@@ -109,7 +117,9 @@ export function CommentsPanel({
           {blocking ? (
             <>
               {" · "}
-              <span className="text-destructive">{blocking} blocking</span>
+              <span className="font-medium text-destructive">
+                {blocking} blocking
+              </span>
             </>
           ) : null}
         </span>
@@ -125,6 +135,11 @@ export function CommentsPanel({
           </Button>
         )}
       </div>
+      {blocking > 0 && (
+        <p className="-mt-1 text-xs leading-5 text-muted-foreground">
+          {blockingEffect}
+        </p>
+      )}
       {pending && canComment && (
         <NewThread
           key={JSON.stringify(pending.anchor)}
@@ -144,6 +159,8 @@ export function CommentsPanel({
           key={view.thread.id}
           view={view}
           active={view.thread.id === activeId}
+          hovered={view.thread.id === hoveredId}
+          onHover={onHover}
           onActivate={onActivate}
           canComment={canComment}
           actions={actions}
@@ -159,6 +176,8 @@ export function CommentsPanel({
           key={view.thread.id}
           view={view}
           active={view.thread.id === activeId}
+          hovered={view.thread.id === hoveredId}
+          onHover={onHover}
           onActivate={onActivate}
           canComment={canComment}
           actions={actions}
@@ -187,6 +206,8 @@ export function CommentsPanel({
             key={view.thread.id}
             view={view}
             active={view.thread.id === activeId}
+            hovered={view.thread.id === hoveredId}
+            onHover={onHover}
             onActivate={onActivate}
             canComment={canComment}
             actions={actions}
@@ -210,24 +231,27 @@ function useMentionable() {
   return useWorkspace().directory.members;
 }
 
+// The commented passage, drawn with the tint its text has in the page (a
+// quote whose text is no longer on screen stays neutral and italic).
 function QuoteBlock({
   quote,
   muted,
+  blocking,
   onClick,
 }: {
   quote: string;
   muted?: boolean;
+  blocking?: boolean;
   onClick?: () => void;
 }) {
-  const content = (
-    <>
-      <Quote className="mt-1 size-3 shrink-0" aria-hidden />
-      <span className="line-clamp-3 text-left">{quote}</span>
-    </>
-  );
+  const content = <span className="line-clamp-4 text-left">{quote}</span>;
   const className = cn(
-    "flex w-full gap-2 rounded-md bg-muted/60 px-2 py-1.5 text-[13px] text-muted-foreground",
-    muted && "italic",
+    "block w-full rounded-r-md border-l-2 px-2.5 py-1 text-[13px] leading-5 text-foreground/80",
+    muted
+      ? "border-foreground/15 bg-muted/60 text-muted-foreground italic"
+      : blocking
+        ? "border-destructive/50 bg-destructive/6"
+        : "border-warning/60 bg-warning/8",
   );
   return onClick ? (
     <button
@@ -249,6 +273,8 @@ function QuoteBlock({
 function ThreadCard({
   view,
   active,
+  hovered,
+  onHover,
   onActivate,
   canComment,
   actions,
@@ -257,6 +283,8 @@ function ThreadCard({
 }: {
   view: ThreadView;
   active: boolean;
+  hovered: boolean;
+  onHover: (threadId: string | null) => void;
   onActivate: (threadId: string) => void;
   canComment: boolean;
   actions: CommentActions;
@@ -292,15 +320,19 @@ function ThreadCard({
       ? versionHref(thread.anchor.commitId)
       : null;
   const author = memberName(thread.authorId);
+  const linked = placement === "here" && isOpen;
   return (
     <article
       ref={ref}
       data-thread-id={thread.id}
       aria-label={`${thread.blocking && isOpen ? "Blocking comment" : "Comment"} by ${author}`}
+      onMouseEnter={linked ? () => onHover(thread.id) : undefined}
+      onMouseLeave={linked ? () => onHover(null) : undefined}
       className={cn(
-        "rounded-xl bg-card text-[13px] ring-1 ring-foreground/8 transition-shadow",
-        isOpen && thread.blocking && "ring-destructive/30",
-        active && "ring-2 ring-ring/50",
+        "rounded-xl bg-card text-[13px] ring-1 ring-foreground/10 transition-[box-shadow] duration-150 ease-out",
+        isOpen && thread.blocking && "ring-destructive/25",
+        hovered && !active && "ring-foreground/25",
+        active && "ring-2 ring-ring/55",
       )}
     >
       <header className="flex flex-wrap items-center gap-2 px-3 pt-2.5 text-xs text-muted-foreground">
@@ -319,9 +351,11 @@ function ThreadCard({
             </span>
           </button>
         ) : thread.blocking ? (
-          <Badge tone="danger">
-            <CircleAlert className="size-3" aria-hidden /> Blocking
-          </Badge>
+          <span title="Must be resolved before this page's changes can merge.">
+            <Badge tone="danger">
+              <CircleAlert className="size-3" aria-hidden /> Blocking
+            </Badge>
+          </span>
         ) : null}
         {placement === "otherDraft" && <span>Written on an earlier draft</span>}
         {placement === "changed" && <span>The quoted text changed</span>}
@@ -352,6 +386,7 @@ function ThreadCard({
           <QuoteBlock
             quote={quote}
             muted={placement !== "here"}
+            blocking={isOpen && thread.blocking}
             onClick={
               placement === "here" ? () => onActivate(thread.id) : undefined
             }

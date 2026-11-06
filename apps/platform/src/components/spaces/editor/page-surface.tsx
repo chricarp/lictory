@@ -26,6 +26,7 @@ import {
   type Anchoring,
 } from "@lictory/platform/components/spaces/comments/controller";
 import { usePageDiscussions } from "@lictory/platform/components/spaces/comments/store";
+import { blockingEffect } from "@lictory/platform/components/spaces/space-meta";
 
 // The page's content with its discussions: a published (or selected)
 // commit rendered read-only, or the line's live draft for the people who
@@ -50,7 +51,7 @@ export type PageSurfaceProps = {
   onCommentsOpenChange: (open: boolean) => void;
   commentsSlot: HTMLElement | null;
   commentsWide: boolean;
-  // Where the live draft puts Done and Publish (the page header's toolbar).
+  // Where the live draft puts Close editor and Publish (the page header's toolbar).
   actionsSlot?: HTMLElement | null;
 };
 
@@ -81,6 +82,7 @@ export default function PageSurface(props: PageSurfaceProps) {
 }
 
 function Surface({
+  space,
   page,
   history,
   line,
@@ -215,6 +217,7 @@ function Surface({
           wide={commentsWide}
           fileContext={fileContext}
           versionHref={versionHref}
+          blockingEffect={blockingEffect(space)}
         />
       )}
     </>

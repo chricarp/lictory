@@ -1,4 +1,4 @@
-import { useId, useRef } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { BookOpen } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Popover, usePopover } from "@lictory/ui/popover";
@@ -42,7 +42,7 @@ function decode(value: string): HomeChoice {
       : { kind: "organization", projectId: null, teamId: null };
 }
 
-// One picker for the whole home: the organization, an active project, or an
+// One picker for the whole home (labelled "Location"): the organization, an active project, or an
 // active team of a project. A current home that was archived stays listed so
 // the control shows the truth.
 export function HomeFields({
@@ -51,11 +51,14 @@ export function HomeFields({
   disabled,
   hint,
   inline = false,
+  status,
 }: {
   value: HomeChoice;
   onChange: (home: HomeChoice) => void;
   disabled?: boolean;
   hint?: string;
+  // A settings row's save state, beside the label.
+  status?: ReactNode;
   // A settings row: the label and the picker on one line, the hint below
   // (the layout of SegmentedChoice).
   inline?: boolean;
@@ -78,7 +81,10 @@ export function HomeFields({
   const select = (
     <DropdownSelect
       id={id}
-      className={inline ? "w-full sm:w-64" : "w-full"}
+      className={cn(
+        "border-foreground/15",
+        inline ? "w-full sm:w-64" : "w-full",
+      )}
       disabled={disabled}
       value={encode(value)}
       onValueChange={(next) => onChange(decode(next))}
@@ -108,16 +114,19 @@ export function HomeFields({
     return (
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <label htmlFor={id} className="text-xs font-medium">
-            Home
-          </label>
+          <span className="flex items-center gap-2">
+            <label htmlFor={id} className="text-xs font-medium">
+              Location
+            </label>
+            {status}
+          </span>
           {select}
         </div>
         <p className="text-xs leading-5 text-muted-foreground">{text}</p>
       </div>
     );
   return (
-    <Field label="Home" htmlFor={id} hint={text}>
+    <Field label="Location" htmlFor={id} hint={text}>
       {select}
     </Field>
   );
@@ -193,7 +202,7 @@ export function IconPicker({
           aria-label={value ? `Icon: ${value}` : "Icon: none"}
           title="Choose an icon"
           className={cn(
-            "grid size-10 shrink-0 place-items-center rounded-xl border border-input bg-card text-xl shadow-xs transition-[background-color,scale] duration-150 ease-out outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60",
+            "grid size-10 shrink-0 place-items-center rounded-xl border border-foreground/15 bg-card text-xl shadow-xs transition-[background-color,scale] duration-150 ease-out outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60",
             className,
           )}
         >

@@ -138,6 +138,8 @@ export async function pageSummaries(
       commitId: s.pageCommit.id,
       title: s.pageCommit.title,
       publishedAt: s.pageCommit.createdAt,
+      publishedById: s.pageCommit.authorId,
+      publishedMessage: s.pageCommit.message,
       approverIds: s.pageCommit.approverIds,
       draft: s.spaceDraft,
     })
@@ -219,7 +221,17 @@ export async function pageSummaries(
     open.set(c.pageId, entry);
   }
   return rows.map(
-    ({ page, publishing, commitId, title, publishedAt, approverIds, draft }) =>
+    ({
+      page,
+      publishing,
+      commitId,
+      title,
+      publishedAt,
+      publishedById,
+      publishedMessage,
+      approverIds,
+      draft,
+    }) =>
       row(
         {
           id: page.id,
@@ -239,6 +251,8 @@ export async function pageSummaries(
           createdById: page.createdById,
           createdAt: iso(page.createdAt),
           updatedAt: iso(publishedAt),
+          publishedById,
+          publishedMessage,
           archivedAt: isoOrNull(page.archivedAt),
           openThreads: open.get(page.id)?.openThreads ?? 0,
           blockingThreads: open.get(page.id)?.blockingThreads ?? 0,

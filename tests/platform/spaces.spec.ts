@@ -71,7 +71,12 @@ test("a project's space: pages are created, nested, moved and archived @smoke", 
   const create = page.getByRole("dialog", { name: "New space" });
   await create.getByLabel("Name").fill("Payments handbook");
   await expect(create.getByLabel("Handle")).toHaveValue("payments-handbook");
-  await create.getByLabel("Home").click();
+  // Access & publishing start as a one-line summary of the defaults.
+  await expect(
+    create.getByRole("button", { name: /Access & publishing/ }),
+  ).toContainText("Northwind · everyone can edit · direct publishing");
+  await create.getByRole("button", { name: /Access & publishing/ }).click();
+  await create.getByLabel("Location").click();
   await page
     .getByRole("option", { name: "Northwind project", exact: true })
     .click();

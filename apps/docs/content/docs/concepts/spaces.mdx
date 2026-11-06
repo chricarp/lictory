@@ -32,13 +32,18 @@ navigation) and who can edit it by default. Moving work items between teams
 never changes a space.
 
 Create a space with **New space** in the sidebar, or **Create space** in the
-command palette. Give it a name, a **Handle** (its address,
-`/<organization>/spaces/<handle>`), an optional description, a **Home** and
-its **Access** (**Inherited** or **Restricted**,
-[below](#access)). **Settings** on the space's page changes these later and
-chooses its [publishing policy](#publishing-direct-or-reviewed). Archiving a
-space hides it from navigation and freezes its pages; nothing is deleted, and
-its administrators can restore it.
+command palette. Give it a name, an optional icon and description, and if you
+like change its **Handle** (its address, `/<organization>/spaces/<handle>`).
+Where it lives, who can open it and how it publishes start from defaults,
+summarized in one line under **Access & publishing** (for example _Northwind ·
+everyone can edit · direct publishing_); **Change** picks its **Location**
+(the home), its **Access** (**Inherited** or **Restricted**,
+[below](#access)) and its [publishing policy](#publishing-direct-or-reviewed).
+**Settings** on the space's page changes these later; each setting saves as
+soon as you change it and says **Saved** beside it, and moving a space whose
+access is inherited first says who will be able to edit it. Archiving a space
+hides it from navigation and freezes its pages; nothing is deleted, and its
+administrators can restore it.
 
 ## Pages and the page tree
 
@@ -53,7 +58,11 @@ one never breaks a link.
 pages** in the tree, then **Restore**. Restoring a page brings back the
 subpages that were archived with it. There is no permanent delete.
 
-The command palette finds spaces and page titles you can read.
+**Find a page** on a space's home narrows its pages to the titles that
+match, wherever they sit in the tree. Beside a page, **Hide pages** puts the
+tree away for more room (this browser remembers it) and **Show pages** brings
+it back; while comments are open on a narrower screen the tree steps aside on
+its own. The command palette finds spaces and page titles you can read.
 
 ## Live editing
 
@@ -64,7 +73,11 @@ time. Everyone sees each other's cursors with their names, and the header
 says who else is there, for example _Anna is editing_.
 
 Write in the editor directly, use Markdown shortcuts, or type `/` for blocks
-(headings, lists, tables, code, images, a work item, a page link). Paste,
+(headings, lists, tables, code, images, a work item, a page link). The
+toolbar keeps undo, bold, italic, strikethrough, code, **Link** and
+**Comment** at hand; **Text** changes the block (heading, list, quote, code
+block) and **Insert** adds a table, divider, image, work item or page link.
+**Close editor** goes back to the published page; the draft stays saved. Paste,
 drop or choose images to attach them to the page; like other attachments
 they are stored privately and need your installation's file storage.
 
@@ -163,7 +176,9 @@ a deleted branch keeps its versions in the page's history.
 Select text and choose **Comment** (or press **Mod+Alt+M** in the editor) to
 start a discussion on exactly that text, or comment on the whole page. The
 **Comments** panel lists the page's discussions in document order, beside the
-page on wide screens and as a sheet on narrow ones.
+page on wide screens and as a sheet on narrow ones. Commented text is tinted
+(red for blocking comments); pointing at a comment or at its text marks the
+other.
 
 - Comments stay attached to their text as people keep typing, and to the
   version they were written on once a draft is published or committed.
@@ -196,7 +211,9 @@ Access is decided per space, never per page.
   **Can view** (read pages and their history), **Can comment** (also take
   part in discussions and review) or **Can edit** (also create, move and
   publish pages). In an Inherited space named access only adds to what the
-  home gives.
+  home gives: **Access** settings show what each named person can do in the
+  end and why (_Can edit · member of Payments_, _Can comment · named
+  access_), and **Remove named access** says what they keep.
 - A **Restricted** space ignores home membership: only named people can open
   it. Whoever restricts a space keeps edit access, and switching back to
   Inherited keeps the named access.

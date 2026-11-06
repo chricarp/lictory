@@ -651,8 +651,10 @@ service, with `resolveDraftDocument` mapping document names
 values, a union separate from `Entity`. With a NULL `page_id`: `space`,
 `spaceGrant` (id `{spaceId}:{userId}`) and `page` summaries (title and commit
 of main's head as `publishedCommitId`, `approvedCommitId` when that commit
-merged with valid approvals in a Reviewed space, `mainDraft` in Direct
-spaces, `openThreads` and `blockingThreads`). Carrying their page:
+merged with valid approvals in a Reviewed space, who published it and its
+message as `publishedById` and `publishedMessage` (so the space home says
+what changed without loading histories), `mainDraft` in Direct spaces,
+`openThreads` and `blockingThreads`). Carrying their page:
 
 - `pageCommit`: parents, title, content, Markdown, hash, message, author,
   contributors, `pullRequestId` and `approverIds`. Every commit carries its
@@ -772,6 +774,13 @@ attributed to the anonymized account, like specification threads.
   does the same without a pointer. Trees over 120 visible rows render only
   the rows in view. Archived pages are hidden unless shown, and archiving
   offers an undo.
+  Beside a page the tree can be put away ("Hide pages", remembered in this
+  browser like the sidebar's state; "Show pages" brings it back), and it
+  steps aside while comments are open on frames under 80rem. The space home
+  has "Find a page" (titles anywhere in the tree, with their path) and
+  "Recently updated" with who published what (`publishedById`,
+  `publishedMessage` of the page summary). Breadcrumbs keep the immediate
+  parent and fold the ancestors between the space and it into "…".
 - **Reading.** A page shows main's latest commit, a branch's head
   (`?branch=<branchId>`) or a version picked with `?commit=<commitId>`,
   rendered by a read-only Tiptap editor from the commit's canonical JSON with
@@ -802,6 +811,11 @@ attributed to the anonymized account, like specification threads.
   (blocks, image, work item, page link) and from Markdown shortcuts; "#"
   picks a work item and "[[" a page from what I can read. Images are pasted,
   dropped or chosen and stored as page files (`/api/files/{id}`).
+- **Toolbar.** Undo and redo, the inline marks (bold, italic, strikethrough,
+  code, link) and "Comment" stay visible; block styles are one "Text" menu,
+  table, divider, image, work item and page link one "Insert" menu, and a
+  "Table" menu appears inside a table. "Close editor" returns to the
+  published page (main of a Direct space); the draft stays saved.
 - **Save state**, beside the title: "Saving…" while the provider has edits
   the service has not acknowledged, "Saved" when it has none (the service
   stores before it acknowledges, so this means stored), "Offline — changes
@@ -856,7 +870,19 @@ attributed to the anonymized account, like specification threads.
   request threads are left to the pull request. The header shows the page's
   open and blocking counts and toggles the panel: beside the page on wide
   frames (open by default when the page has comments), a sheet on narrow
-  ones.
+  ones. The count of blocking threads says what they block ("blocks merging
+  pull requests" in Direct spaces, whose Publish they do not stop; "blocks
+  merging" in Reviewed ones). Highlights are tints in the thread's colour;
+  the selected thread and the one pointed at, in the panel or in the text,
+  are tinted more on both sides.
+- **Space settings.** Every setting applies when it changes (text fields
+  when left or on Enter) and shows "Saving…", then "Saved", or the refusal
+  beside it. Moving an Inherited space to another location asks first,
+  since it changes who edits; restricting asks first too. The home is
+  labelled "Location" in the interface. Named access rows show the
+  effective level and its source (named access, or membership of the
+  location, computed for display from the directory with the server's
+  rule) and what removing the named access leaves.
 - **Loading.** The space home and tree load none of this: the page surface
   (Tiptap, the reader, comments) is its own chunk, and the live editor (Yjs,
   y-tiptap, the Hocuspocus provider) another one that only editors load.

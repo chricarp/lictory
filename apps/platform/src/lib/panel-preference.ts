@@ -16,8 +16,14 @@ function read(key: string) {
 export function usePanelCollapsed(
   organizationId: string,
   // "sidebar-views" stores whether the sidebar's Views group is expanded;
-  // "sidebar-spaces" whether its Spaces group is collapsed.
-  panel: "sidebar" | "work-item-list" | "sidebar-views" | "sidebar-spaces",
+  // "sidebar-spaces" whether its Spaces group is collapsed; "space-page-tree"
+  // whether the page tree beside a space's pages is put away.
+  panel:
+    | "sidebar"
+    | "work-item-list"
+    | "sidebar-views"
+    | "sidebar-spaces"
+    | "space-page-tree",
 ) {
   const key = `lictory:panel-collapsed:${organizationId}:${panel}`;
   const subscribe = useCallback(

@@ -95,6 +95,8 @@ export function predictPageTree(
           createdById: context.userId,
           createdAt: context.now,
           updatedAt: context.now,
+          publishedById: context.userId,
+          publishedMessage: null,
           archivedAt: null,
           openThreads: 0,
           blockingThreads: 0,

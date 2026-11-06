@@ -186,6 +186,7 @@ export function PageComments({
   wide,
   fileContext,
   versionHref,
+  blockingEffect,
 }: {
   editor: Editor | null;
   pageId: string;
@@ -200,11 +201,15 @@ export function PageComments({
   wide: boolean;
   fileContext: FileContext;
   versionHref: (commitId: string) => { href: string; label: string } | null;
+  // What an open blocking discussion holds back on this page.
+  blockingEffect: string;
 }) {
   const { mutateConfirmed } = useWorkspace();
   const editor = useMountedEditor(created);
   const [located, setLocated] = useState<Located[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  // The thread under the pointer, in the panel or in the text.
+  const [hovered, setHovered] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingComment | null>(null);
   const anchoringRef = useRef(anchoring);
   useEffect(() => {
@@ -233,7 +238,7 @@ export function PageComments({
           to: l.range!.to,
           blocking: l.thread.blocking,
         }));
-      showHighlights(editor.view, highlights, active);
+      showHighlights(editor.view, highlights, active, hovered);
       const key = next.map((l) => `${l.thread.id}:${l.placement}`).join();
       if (key !== lastKey) {
         lastKey = key;
@@ -249,7 +254,7 @@ export function PageComments({
       editor.off("update", schedule);
       cancelAnimationFrame(frame);
     };
-  }, [editor, discussions.threads, active]);
+  }, [editor, discussions.threads, active, hovered]);
 
   // Clicking highlighted text opens its thread.
   useEffect(() => {
@@ -265,8 +270,22 @@ export function PageComments({
         onOpenChange(true);
       }
     };
+    // Pointing at highlighted text marks its thread in the panel.
+    const onOver = (event: MouseEvent) => {
+      const target = (event.target as HTMLElement | null)?.closest?.(
+        "[data-thread]",
+      );
+      setHovered(target?.getAttribute("data-thread") ?? null);
+    };
+    const onLeave = () => setHovered(null);
     dom.addEventListener("click", onClick);
-    return () => dom.removeEventListener("click", onClick);
+    dom.addEventListener("mouseover", onOver);
+    dom.addEventListener("mouseleave", onLeave);
+    return () => {
+      dom.removeEventListener("click", onClick);
+      dom.removeEventListener("mouseover", onOver);
+      dom.removeEventListener("mouseleave", onLeave);
+    };
   }, [editor, onOpenChange]);
 
   const views = useMemo<ThreadView[]>(
@@ -378,11 +397,14 @@ export function PageComments({
       pending={pending}
       onCancelPending={() => setPending(null)}
       activeId={active}
+      hoveredId={hovered}
+      onHover={setHovered}
       onActivate={activate}
       actions={actions}
       fileContext={fileContext}
       versionHref={versionHref}
       onClose={() => onOpenChange(false)}
+      blockingEffect={blockingEffect}
       hint={
         canComment
           ? "No open comments. Select text to comment on it, or comment on the whole page."

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from "react";
-import { Archive, Lock, Plus, Search, ShieldAlert } from "lucide-react";
+import { Archive, Lock, Plus, Search, ShieldAlert, X } from "lucide-react";
 import type { SpaceAccessLevel } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
@@ -81,6 +81,7 @@ export function SpacesIndex() {
                 value={query}
                 onChange={setQuery}
                 count={shown.length}
+                total={active.length}
               />
             )}
             <Button onClick={() => openCreateSpace()} className="shrink-0">
@@ -159,13 +160,16 @@ function SpaceFilter({
   value,
   onChange,
   count,
+  total,
 }: {
   value: string;
   onChange: (value: string) => void;
   count: number;
+  total: number;
 }) {
+  const filtering = value.trim() !== "";
   return (
-    <div className="relative min-w-0 flex-1 sm:w-60 sm:flex-none">
+    <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
       <Search
         className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
         aria-hidden
@@ -177,23 +181,39 @@ function SpaceFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && value && onChange("")}
-        className="h-8 w-full min-w-0 rounded-full border border-input bg-card pr-3 pl-8 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground/80 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base [&::-webkit-search-cancel-button]:hidden"
+        className={cn(
+          "h-8 w-full min-w-0 rounded-full border border-foreground/15 bg-card pl-8 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 touch:text-base [&::-webkit-search-cancel-button]:hidden",
+          filtering ? "pr-32" : "pr-3",
+        )}
       />
-      <span role="status" className="sr-only">
-        {value.trim()
-          ? count === 1
-            ? "1 space matches"
-            : `${count} spaces match`
-          : ""}
-      </span>
+      <div className="pointer-events-none absolute inset-y-0 right-1 flex items-center gap-1">
+        <span
+          role="status"
+          className="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+        >
+          {filtering ? `${count} of ${total} spaces` : ""}
+        </span>
+        {filtering && (
+          <button
+            type="button"
+            aria-label="Clear filter"
+            title="Clear filter"
+            onClick={() => onChange("")}
+            className="pointer-events-auto grid size-6 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 // Rows share one grid with their group header, so the column names line up
-// with the values under them at every width.
+// with the values under them at every width. Wide lists give names and
+// purposes a column each, so descriptions start on one line.
 const columns =
-  "grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-4 @min-[40rem]/list:grid-cols-[minmax(0,1fr)_3.5rem_5rem]";
+  "grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-x-4 @min-[40rem]/list:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_3.5rem_5rem] @min-[40rem]/list:gap-x-5";
 
 function SpaceList({ groups }: { groups: Group[] }) {
   return (
@@ -216,7 +236,7 @@ function SpaceGroup({ group, first }: { group: Group; first: boolean }) {
           !first && "border-t",
         )}
       >
-        <div className="flex min-w-0 items-baseline gap-2 text-xs">
+        <div className="flex min-w-0 items-baseline gap-2 text-xs @min-[40rem]/list:col-span-2">
           <h2 id={headingId} className="truncate font-medium">
             {group.title}
           </h2>
@@ -272,15 +292,15 @@ function SpaceRow({ space }: { space: Space }) {
       href={paths.space(organization.slug, space.slug)}
       className={cn(
         columns,
-        "min-h-13 px-4 py-2 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
+        "min-h-13 px-4 py-2.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted">
           <SpaceIcon space={space} className="-translate-y-px text-base" />
         </span>
-        <span className="min-w-0 flex-1 @min-[40rem]/list:flex @min-[40rem]/list:items-center @min-[40rem]/list:gap-2.5">
-          <span className="flex min-w-0 shrink-0 items-center gap-1.5 @min-[40rem]/list:max-w-[55%]">
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-sm font-medium">{space.name}</span>
             {home.kind === "team" && (
               <Badge className="shrink-0">{home.teamName} team</Badge>
@@ -294,19 +314,15 @@ function SpaceRow({ space }: { space: Space }) {
               <Badge className="shrink-0">{levelLabels[level]}</Badge>
             )}
           </span>
-          {space.description && (
-            <span className="block min-w-0 truncate text-[13px] text-muted-foreground">
-              {space.description}
-            </span>
-          )}
-          {/* Narrow lists have no page column: without a description the
-              count fills the second line. */}
-          {!space.description && (
-            <span className="block text-xs text-muted-foreground tabular-nums @min-[40rem]/list:hidden">
-              {pageCount}
-            </span>
-          )}
+          {/* Narrow lists keep the purpose under the name (two lines), or
+              the page count when there is none. */}
+          <span className="mt-0.5 line-clamp-2 text-[13px] leading-[1.125rem] text-muted-foreground @min-[40rem]/list:hidden">
+            {space.description?.length ? space.description : pageCount}
+          </span>
         </span>
+      </span>
+      <span className="hidden min-w-0 truncate text-[13px] text-muted-foreground @min-[40rem]/list:block">
+        {space.description}
       </span>
       <span className="hidden text-right text-[13px] text-muted-foreground tabular-nums @min-[40rem]/list:block">
         {live.length}

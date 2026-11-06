@@ -126,7 +126,7 @@ export type LiveDraftProps = {
   onDone?: () => void;
   onEditor: (editor: Editor | null, anchoring: Anchoring | null) => void;
   canComment: boolean;
-  // The page header's toolbar, where Done and Publish go.
+  // The page header's toolbar, where Close editor and Publish go.
   actionsSlot?: HTMLElement | null;
 };
 
@@ -586,12 +586,12 @@ function DraftEditor({
           <>
             {onDone && (
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
-                title="Back to the published page"
+                title="Back to the published page. The draft stays saved."
                 onClick={onDone}
               >
-                Done
+                Close editor
               </Button>
             )}
             {target && (

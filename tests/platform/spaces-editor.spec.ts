@@ -321,7 +321,7 @@ test("comments on draft text are seen, answered, resolved and reopened", async (
 
   // On the published page a comment anchors to the commit's block; the
   // live draft, which keeps block ids, highlights the same words.
-  await ben.page.getByRole("button", { name: "Done" }).click();
+  await ben.page.getByRole("button", { name: "Close editor" }).click();
   const published = ben.page.getByRole("document", { name: /content/ });
   await expect(published).toContainText("Escalate disputes to finance.");
   await selectText(ben.page, "finance");

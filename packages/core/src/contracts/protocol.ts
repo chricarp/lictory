@@ -1139,6 +1139,11 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     createdAt: z.string(),
     // When main last moved (the published commit's time).
     updatedAt: z.string(),
+    // Who made the published commit and its message, so lists can say what
+    // changed without the page's history (absent on rows projected before
+    // they were added, until the projection is rebuilt).
+    publishedById: id.optional(),
+    publishedMessage: z.string().nullable().optional(),
     archivedAt: z.string().nullable(),
     // Open discussions on the page, and how many of them block merging.
     openThreads: z.number().int().min(0),

@@ -1,18 +1,19 @@
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { Archive, ArchiveRestore, FileQuestion, Plus } from "lucide-react";
+  Archive,
+  ArchiveRestore,
+  FileQuestion,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+} from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Bone } from "@lictory/ui/skeleton";
 import { MissingState } from "@lictory/ui/status-page";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
+import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import {
   ancestorsOf,
   type PageCommit,
@@ -54,18 +55,24 @@ const PageSurface = lazy(
 // one calm header (breadcrumbs, title, what is on screen and one toolbar),
 // and its discussions in a column of their own beside the text. Widths come
 // from the frame: the comments column shows from 48rem (narrower frames
-// open a sheet), the tree from 56rem, and while comments are open the tree
-// steps aside below 72rem (84rem while editing) so the text keeps a readable
-// measure.
+// open a sheet) and the tree from 56rem. The tree can be put away (the
+// choice is remembered in this browser), and while comments are open it
+// steps aside below 80rem so the text keeps a readable measure; "Pages"
+// brings it back on request.
 export function PageView() {
   const { page: pageId } = useParams<{ page: string }>();
   const space = useSpace();
+  const { organization } = useWorkspace();
   const pages = useSpacePages(space.id);
   const page = pages.find((p) => p.id === pageId);
   const [commentsSlot, setCommentsSlot] = useState<HTMLElement | null>(null);
   const [roomyProbe, setRoomyProbe] = useState<HTMLElement | null>(null);
+  const [treeProbe, setTreeProbe] = useState<HTMLElement | null>(null);
+  const [besideProbe, setBesideProbe] = useState<HTMLElement | null>(null);
   const commentsWide = useLaidOut(commentsSlot);
   const roomy = useLaidOut(roomyProbe);
+  const treeFits = useLaidOut(treeProbe);
+  const treeFitsBeside = useLaidOut(besideProbe);
   // Until someone chooses, comments are open beside a page that has any
   // when everything fits; once open by default they stay open (resolving
   // the last thread does not fold the panel away under the reader).
@@ -85,8 +92,31 @@ export function PageView() {
     [pageId],
   );
   const column = commentsOpen && commentsWide;
-  // The live editor's toolbar needs more room than reading does.
-  const [editing, setEditing] = useState(false);
+  const [treeAway, , setTreeAway] = usePanelCollapsed(
+    organization.id,
+    "space-page-tree",
+  );
+  // Asked for while comments leave it little room: shown anyway.
+  const [treeAsked, setTreeAsked] = useState(false);
+  const treeShown = !treeAway && (!column || treeFitsBeside || treeAsked);
+  // One toggle in the page header puts the tree away and brings it back.
+  const treeToggle = treeFits
+    ? treeShown
+      ? {
+          shown: true,
+          toggle: () => {
+            setTreeAway(true);
+            setTreeAsked(false);
+          },
+        }
+      : {
+          shown: false,
+          toggle: () => {
+            setTreeAway(false);
+            setTreeAsked(true);
+          },
+        }
+    : undefined;
   return (
     <div className="flex h-full min-h-0">
       <span
@@ -94,15 +124,21 @@ export function PageView() {
         aria-hidden
         className="hidden @min-[72rem]/frame:block"
       />
+      <span
+        ref={setTreeProbe}
+        aria-hidden
+        className="hidden @min-[56rem]/frame:block"
+      />
+      <span
+        ref={setBesideProbe}
+        aria-hidden
+        className="hidden @min-[80rem]/frame:block"
+      />
       <aside
         aria-label={`${space.name} pages`}
         className={cn(
           "hidden w-60 shrink-0 flex-col border-r",
-          !column
-            ? "@min-[56rem]/frame:flex"
-            : editing
-              ? "@min-[84rem]/frame:flex"
-              : "@min-[72rem]/frame:flex",
+          treeShown && "@min-[56rem]/frame:flex",
         )}
       >
         <SpacePaneHeader />
@@ -118,7 +154,7 @@ export function PageView() {
             onCommentsOpenChange={setCommentsOpen}
             commentsSlot={commentsSlot}
             commentsWide={commentsWide}
-            onEditingChange={setEditing}
+            treeToggle={treeToggle}
           />
         ) : (
           <PageNotFound />
@@ -174,7 +210,7 @@ function PageArticle({
   onCommentsOpenChange,
   commentsSlot,
   commentsWide,
-  onEditingChange,
+  treeToggle,
 }: {
   page: SpacePage;
   pages: readonly SpacePage[];
@@ -182,7 +218,8 @@ function PageArticle({
   onCommentsOpenChange: (open: boolean) => void;
   commentsSlot: HTMLElement | null;
   commentsWide: boolean;
-  onEditingChange: (editing: boolean) => void;
+  // Puts the page tree away or brings it back (frames wide enough for it).
+  treeToggle?: { shown: boolean; toggle: () => void };
 }) {
   const space = useSpace();
   const { canEdit, restorePage } = usePageActions();
@@ -199,8 +236,7 @@ function PageArticle({
   const [editingMain, setEditingMain] = useState(false);
   const editing =
     line.writable && (!line.isMain || editingMain) && !line.viewed;
-  useEffect(() => onEditingChange(editing), [editing, onEditingChange]);
-  // Where the live draft puts Done and Publish: the header's toolbar, the
+  // Where the live draft puts Close editor and Publish: the header's toolbar, the
   // same place Edit takes while reading.
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   return (
@@ -209,7 +245,23 @@ function PageArticle({
           one line saying what is on screen. Phones put the toolbar under
           that line. */}
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-48">
+        <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5">
+          {treeToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={treeToggle.shown ? "Hide pages" : "Show pages"}
+              title={treeToggle.shown ? "Hide pages" : "Show pages"}
+              className="-ml-2 shrink-0 text-muted-foreground"
+              onClick={treeToggle.toggle}
+            >
+              {treeToggle.shown ? (
+                <PanelLeftClose className="size-4" aria-hidden />
+              ) : (
+                <PanelLeftOpen className="size-4" aria-hidden />
+              )}
+            </Button>
+          )}
           <SpaceBreadcrumbs
             space={space}
             ancestors={ancestors}
@@ -220,6 +272,7 @@ function PageArticle({
         <div className="flex shrink-0 items-center gap-1.5 max-sm:order-last">
           <LineSwitcher page={page} history={history} />
           <CommentsToggle
+            space={space}
             page={page}
             open={commentsOpen}
             onToggle={() => onCommentsOpenChange(!commentsOpen)}

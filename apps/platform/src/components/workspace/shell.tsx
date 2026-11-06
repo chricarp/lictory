@@ -438,6 +438,10 @@ export function Shell({
                     <SpaceIcon space={routeSpace} />
                     <span className="truncate">{routeSpace.name}</span>
                   </span>
+                ) : pathname.split("/")[2] === "spaces" ? (
+                  // Spaces of the whole organization: not the project the
+                  // sidebar remembers.
+                  <span className="truncate text-sm font-medium">Spaces</span>
                 ) : (
                   <span className="truncate text-sm font-medium">
                     {project?.name ?? organization.name}

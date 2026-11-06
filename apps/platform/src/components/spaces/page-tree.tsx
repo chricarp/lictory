@@ -491,7 +491,7 @@ function TreeItem({
       onDragOver={onDragOver}
       onDrop={onDrop}
       style={{
-        paddingLeft: 4 + (depth - 1) * 16,
+        paddingLeft: 2 + (depth - 1) * 16,
         ...(top !== undefined
           ? { position: "absolute", top, left: 0, right: 0 }
           : {}),
@@ -526,17 +526,17 @@ function TreeItem({
             event.stopPropagation();
             onToggle();
           }}
-          className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
         >
           <ChevronRight
             className={cn(
-              "size-3.5 transition-transform duration-150 ease-out",
+              "size-3.5 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out",
               expanded && "rotate-90",
             )}
           />
         </span>
       ) : (
-        <span aria-hidden className="size-5 shrink-0" />
+        <span aria-hidden className="size-6 shrink-0" />
       )}
       <FileText
         aria-hidden

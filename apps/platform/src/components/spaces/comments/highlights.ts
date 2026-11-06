@@ -15,7 +15,13 @@ export type Highlight = {
 };
 
 type State = { decorations: DecorationSet };
-type Meta = { highlights: readonly Highlight[]; active: string | null };
+// The thread that is selected and the one under the pointer (in the
+// panel or in the text) read as one: their passage is tinted more strongly.
+type Meta = {
+  highlights: readonly Highlight[];
+  active: string | null;
+  hovered: string | null;
+};
 
 const key = new PluginKey<State>("pageCommentHighlights");
 
@@ -31,7 +37,8 @@ function build(state: EditorState, meta: Meta) {
           class: [
             "page-comment",
             h.blocking && "page-comment-blocking",
-            h.threadId === meta.active && "page-comment-active",
+            (h.threadId === meta.active || h.threadId === meta.hovered) &&
+              "page-comment-active",
           ]
             .filter(Boolean)
             .join(" "),
@@ -72,11 +79,12 @@ export function showHighlights(
   view: EditorView,
   highlights: readonly Highlight[],
   active: string | null,
+  hovered: string | null,
 ) {
   if (view.isDestroyed) return;
   view.dispatch(
     view.state.tr
-      .setMeta(key, { highlights, active } satisfies Meta)
+      .setMeta(key, { highlights, active, hovered } satisfies Meta)
       .setMeta("addToHistory", false),
   );
 }

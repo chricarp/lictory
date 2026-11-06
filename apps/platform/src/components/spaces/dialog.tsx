@@ -176,7 +176,7 @@ export function Field({
         )}
       </label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -253,6 +253,7 @@ export function SegmentedChoice<T extends string>({
   options,
   onChange,
   disabled,
+  status,
 }: {
   label: string;
   name: string;
@@ -260,6 +261,8 @@ export function SegmentedChoice<T extends string>({
   options: { value: T; label: string; description?: ReactNode }[];
   onChange: (value: T) => void;
   disabled?: boolean;
+  // A settings row's save state, beside the label.
+  status?: ReactNode;
 }) {
   const labelId = useId();
   const descriptionId = useId();
@@ -267,8 +270,11 @@ export function SegmentedChoice<T extends string>({
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-        <span id={labelId} className="text-xs font-medium">
-          {label}
+        <span className="flex items-center gap-2">
+          <span id={labelId} className="text-xs font-medium">
+            {label}
+          </span>
+          {status}
         </span>
         <div
           role="radiogroup"

@@ -134,3 +134,22 @@ export const publishingDescriptions = {
   reviewed:
     "Changes are proposed on a branch and published only after a review approves them.",
 } as const;
+
+// What open blocking discussions hold back: merging, never a Direct space's
+// Publish.
+export function blockingEffect(space: Pick<Space, "publishing">) {
+  return space.publishing === "reviewed"
+    ? "Blocking discussions keep changes to this page from merging until they are resolved."
+    : "Blocking discussions keep this page’s pull requests from merging. Publishing is not blocked.";
+}
+
+export function blockingSummary(
+  space: Pick<Space, "publishing">,
+  count: number,
+) {
+  const what =
+    count === 1 ? "1 blocking discussion" : `${count} blocking discussions`;
+  return space.publishing === "reviewed"
+    ? `${what} · blocks merging`
+    : `${what} · blocks merging pull requests`;
+}

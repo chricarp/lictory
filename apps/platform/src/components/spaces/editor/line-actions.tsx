@@ -8,8 +8,13 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
-import type { PageBranch, SpacePage } from "@lictory/platform/data/spaces";
+import type {
+  PageBranch,
+  Space,
+  SpacePage,
+} from "@lictory/platform/data/spaces";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { blockingSummary } from "@lictory/platform/components/spaces/space-meta";
 import {
   useSelectLine,
   type PageLine,
@@ -36,16 +41,23 @@ export function EditButton({
   );
 }
 
+// The count of open discussions, and of blocking ones with what they block
+// (merging; a Direct space still publishes).
 export function CommentsToggle({
+  space,
   page,
   open,
   onToggle,
 }: {
+  space: Pick<Space, "publishing">;
   page: SpacePage;
   open: boolean;
   onToggle: () => void;
 }) {
-  const label = `Comments: ${page.openThreads} open${page.blockingThreads ? `, ${page.blockingThreads} blocking` : ""}`;
+  const blocking = page.blockingThreads
+    ? blockingSummary(space, page.blockingThreads)
+    : null;
+  const label = `Comments: ${page.openThreads} open${blocking ? `, ${blocking}` : ""}`;
   return (
     <button
       type="button"
@@ -63,7 +75,8 @@ export function CommentsToggle({
       <MessageSquare className="size-3.5" aria-hidden />
       <span className="tabular-nums">{page.openThreads}</span>
       {page.blockingThreads > 0 && (
-        <span className="-mr-1 inline-flex h-5 items-center gap-1 rounded-full bg-destructive/8 px-1.5 text-[11px] text-destructive tabular-nums ring-1 ring-destructive/20 ring-inset">
+        <span className="-mr-1 inline-flex h-5 items-center gap-1 rounded-full bg-destructive/6 px-1.5 text-[11px] text-destructive tabular-nums">
+          <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
           {page.blockingThreads} blocking
         </span>
       )}
