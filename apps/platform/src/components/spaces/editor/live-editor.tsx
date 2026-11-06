@@ -3,6 +3,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -26,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { DRAFT_UPDATE_BYTES } from "@lictory/core/spaces/collaboration-protocol";
 import { Button } from "@lictory/ui/button";
 import { Avatar } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
@@ -178,6 +180,7 @@ export function LiveDraft(props: LiveDraftProps) {
     <DraftEditor
       key={`${documentName}:${opening}`}
       session={session}
+      reopened={opening > 0}
       onReopen={() => setOpening((n) => n + 1)}
       recovery={draftRecoveryStore(recoveryKey)}
       {...props}
@@ -317,10 +320,12 @@ function DraftEditor({
   onEditor,
   canComment,
   actionsSlot,
+  reopened,
   onReopen,
 }: LiveDraftProps & {
   session: DraftSession;
   recovery: DraftRecoveryStore;
+  reopened: boolean;
   onReopen: () => void;
 }) {
   const { userId, memberName, organization, items, projects } = useWorkspace();
@@ -501,6 +506,28 @@ function DraftEditor({
     editor.on("mount", apply);
     return () => {
       editor.off("mount", apply);
+    };
+  }, [editor, editable]);
+
+  // Reopening removed the focused button: once the new session can be
+  // edited, focus returns to the editor, unless it went somewhere else.
+  const focusWhenEditable = useRef(reopened);
+  useEffect(() => {
+    if (!focusWhenEditable.current || !editor || !editable) return;
+    // Tiptap's view is ready for focus once the editor is created.
+    const focus = () => {
+      if (!focusWhenEditable.current || editor.isDestroyed) return;
+      if (!editor.isInitialized || !editor.isEditable) return;
+      focusWhenEditable.current = false;
+      const active = document.activeElement;
+      if (!active || active === document.body) editor.commands.focus("end");
+    };
+    focus();
+    editor.on("create", focus);
+    editor.on("mount", focus);
+    return () => {
+      editor.off("create", focus);
+      editor.off("mount", focus);
     };
   }, [editor, editable]);
 
@@ -773,6 +800,11 @@ function RecoveredText({
       {entries.map((entry) => {
         const blocks = insertableBlocks(entry);
         const preview = recoveredText(entry);
+        // The service would refuse it as one change: copy and paste in parts.
+        const tooLarge =
+          !!blocks &&
+          new TextEncoder().encode(JSON.stringify(blocks)).length >
+            DRAFT_UPDATE_BYTES;
         return (
           <section
             key={entry.id}
@@ -793,6 +825,12 @@ function RecoveredText({
               <p className="mt-1 line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
                 {preview}
               </p>
+              {tooLarge && (
+                <p className="mt-1 text-muted-foreground">
+                  It is too large to insert at once. Copy it and paste it in
+                  smaller parts.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-1">
               <Button
@@ -813,7 +851,7 @@ function RecoveredText({
               >
                 <Copy className="size-3.5" aria-hidden /> Copy text
               </Button>
-              {blocks && (
+              {blocks && !tooLarge && (
                 <Button
                   size="sm"
                   variant="secondary"

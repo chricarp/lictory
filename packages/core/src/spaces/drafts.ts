@@ -21,7 +21,10 @@ import {
   documentToMarkdown,
   draftStateToDocument,
 } from "@lictory/core/spaces/document";
-import { SAVE_REFUSALS } from "@lictory/core/spaces/collaboration-protocol";
+import {
+  DRAFT_UPDATE_BYTES,
+  SAVE_REFUSALS,
+} from "@lictory/core/spaces/collaboration-protocol";
 import { refreshDraftProjections } from "@lictory/core/spaces/projections";
 
 // One epoch of one draft. A new epoch replaces the content (restore, merging
@@ -43,7 +46,7 @@ export type DraftAccess = (
 
 export const DRAFT_LIMITS = {
   // A single Yjs update (one message from one editor).
-  updateBytes: 512 * 1024,
+  updateBytes: DRAFT_UPDATE_BYTES,
   // One group-commit transaction.
   batchBytes: 4 * 1024 * 1024,
   // Waiting to be stored per draft; beyond it new changes are refused and the

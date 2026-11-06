@@ -568,11 +568,20 @@ test("a change the service refuses shows Save failed, keeps the text and offers 
     "The editor closed before some of your changes were saved. Your text is kept on this device.",
   );
   await expect(notice).toContainText("Typed after the refusal.");
-  // The reopened editor starts from what is stored and saves again.
+  // Inserting it as one change would be refused again.
+  await expect(notice).toContainText(
+    "It is too large to insert at once. Copy it and paste it in smaller parts.",
+  );
+  await expect(
+    notice.getByRole("button", { name: "Insert at end" }),
+  ).toHaveCount(0);
+  await expect(notice.getByRole("button", { name: "Copy text" })).toBeVisible();
+  // The reopened editor starts from what is stored, takes the keyboard
+  // focus back, and saves again.
   await expect(liveEditor(ada.page)).toContainText("Refunds take five days.");
   await expect(liveEditor(ada.page)).not.toContainText("Imported appendix");
   await expect(failed).toBeHidden();
-  await liveEditor(ada.page).click();
+  await expect(liveEditor(ada.page)).toBeFocused();
   await ada.page.keyboard.press("ControlOrMeta+End");
   await ada.page.keyboard.type(" Partial refunds too.");
   await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });

@@ -7,7 +7,9 @@ import {
 import {
   CLOSE_REASONS,
   DRAFT_SEQUENCE_REQUEST,
+  draftProviderOptions,
   saveRefusalOf,
+  stopSendingDraft,
   storedSequenceOf,
 } from "@lictory/core/spaces/collaboration-protocol";
 import { ownClock } from "@lictory/platform/components/spaces/editor/recovery";
@@ -130,11 +132,7 @@ export class DraftSession {
     this.provider = new HocuspocusProvider({
       websocketProvider,
       name: documentName,
-      // Each session addresses the service under its own key on the shared
-      // socket, so nothing sent for an earlier session of this draft (the
-      // service queues messages for a closed draft and applies them when the
-      // key opens again) is applied or acknowledged to this one.
-      sessionAwareness: true,
+      ...draftProviderOptions,
       document: this.doc,
       // The session cookie authenticates; the service never reads a token.
       token: "",
@@ -153,11 +151,13 @@ export class DraftSession {
         const kind = closedKindOf(event.reason);
         if (kind) this.set({ closed: kind });
         // The service closed this draft's connection over a change it would
-        // not store: nothing this session sends is stored any more.
+        // not store: nothing this session sends is stored any more, so it
+        // stops sending; the editor reopens the draft in a new session, which
+        // keeps the unstored text (`retire`) and offers it back.
         else {
           const refused = saveRefusalOf(event.reason);
           if (refused) {
-            this.stopSending();
+            stopSendingDraft(this.provider);
             this.set({ refused });
           }
         }
@@ -278,19 +278,6 @@ export class DraftSession {
         JSON.stringify({ type: DRAFT_SEQUENCE_REQUEST }),
       );
     });
-  }
-
-  // After a refusal the provider stops sending: the service would only
-  // queue what arrives for the closed draft (until the socket closes), a
-  // close message included. The document keeps every edit; the editor
-  // reopens the draft in a new session, which keeps the unstored text
-  // (`retire`) and offers it back.
-  private stopSending() {
-    const websocket = this.provider.configuration.websocketProvider;
-    const providers = websocket.configuration.providerMap;
-    if (providers.get(this.provider.effectiveName) === this.provider)
-      providers.delete(this.provider.effectiveName);
-    this.provider.detach();
   }
 
   // Whether this tab typed something the service has not stored.

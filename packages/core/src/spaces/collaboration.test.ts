@@ -21,8 +21,10 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { executeMutation } from "@lictory/core/domain/service";
 import { draftCollaboration } from "@lictory/core/spaces/collaboration";
 import {
+  draftProviderOptions,
   SAVE_REFUSALS,
   saveRefusalOf,
+  stopSendingDraft,
 } from "@lictory/core/spaces/collaboration-protocol";
 import {
   draftDocumentName,
@@ -344,18 +346,18 @@ void test("a long outage resets the connection and the edits are saved after rec
 void test("a refused change closes only its draft with a reason the editor recognises; a new session on the same socket stores truthfully", async () => {
   const { organizationId, alice, bob } = await organization();
   const ref = await draft(organizationId);
+  const other = await draft(organizationId);
   const instance = await server();
   // One socket for Alice's sessions, as in the browser.
   const socket = new HocuspocusProviderWebsocket({
     url: `ws://127.0.0.1:${instance.port}`,
   });
-  const session = () => {
+  const session = (draftRef = ref) => {
     const document = new Y.Doc();
     const provider = new HocuspocusProvider({
       websocketProvider: socket,
-      name: documentName(ref),
-      // As DraftSession: each session under its own key.
-      sessionAwareness: true,
+      name: documentName(draftRef),
+      ...draftProviderOptions,
       token: sessions.get(alice)!.token,
       document,
     });
@@ -368,8 +370,11 @@ void test("a refused change closes only its draft with a reason the editor recog
   };
   const a = session();
   const b = connect(instance, ref, bob);
+  const elsewhere = session(other);
   try {
-    await until(() => a.provider.synced && b.provider.synced);
+    await until(
+      () => a.provider.synced && b.provider.synced && elsewhere.provider.synced,
+    );
     // Over the update limit, under the frame limit: the service refuses it.
     a.text.insert(0, "x".repeat(600 * 1024));
     await until(() => a.reasons.length > 0);
@@ -386,10 +391,13 @@ void test("a refused change closes only its draft with a reason the editor recog
     // id of its own, so the service could apply it without the refused one.)
     a.document.clientID += 1;
     a.document.getText("late").insert(0, "Sent before the refusal arrived.");
-    await new Promise((r) => setTimeout(r, 200));
-    // DraftSession.stopSending: leave the socket without a close message.
-    socket.configuration.providerMap.delete(a.provider.effectiveName);
-    a.provider.detach();
+    // Delivered: the service stored a later frame of the same socket (it
+    // queues a frame for a closed draft as it receives it).
+    elsewhere.text.insert(0, "Later on the same socket.");
+    await until(() => !elsewhere.provider.hasUnsyncedChanges);
+    assert.equal(await stored(other), "Later on the same socket.");
+    // As DraftSession on a refusal.
+    stopSendingDraft(a.provider);
     a.text.insert(0, "Typed after the refusal. ");
     await new Promise((r) => setTimeout(r, 300));
     assert.equal(await stored(ref), "");
@@ -415,6 +423,7 @@ void test("a refused change closes only its draft with a reason the editor recog
   } finally {
     a.provider.destroy();
     b.provider.destroy();
+    elsewhere.provider.destroy();
     socket.destroy();
     await instance.destroy();
   }
