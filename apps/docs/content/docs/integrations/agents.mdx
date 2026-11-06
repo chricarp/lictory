@@ -1,11 +1,11 @@
 ---
 title: AI agents and MCP
-description: Connect a terminal or editor agent to Lictory, read specifications and propose reviewed changes using your own permissions.
+description: Connect a terminal or editor agent to Lictory, read specifications and pages, and propose reviewed changes using your own permissions.
 ---
 
 Lictory exposes an MCP server so a coding agent in your terminal or editor can
-work with the same specifications, discussions and delivery items you see in
-the browser. The connection uses your agent client's model; it does not require
+work with the same specifications, discussions, delivery items and pages you
+see in the browser. The connection uses your agent client's model; it does not require
 Lictory Intelligence or an OpenAI key on the Lictory server.
 
 The `lictory` server administration command is a separate tool. Use the
@@ -125,11 +125,43 @@ Commands can carry a `mutationId`: reusing it for a retry prevents the same
 change from being applied twice. A stale `baseRevisionId` returns a conflict
 with the current revision, so the agent must read and reconcile the new state.
 
+## Spaces
+
+Agents read and change [spaces and pages](/concepts/spaces) with your space
+access: a space you cannot read does not exist for your agent either.
+
+| Capability                                                 | What it does                                                                                                   |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `listSpaces`                                               | Spaces you can read with your access level, home, access mode and publishing policy                            |
+| `listPages`                                                | One space's page tree in reading order                                                                         |
+| `getPage`                                                  | A page's published title and Markdown, or any earlier version with `commitId`; never an unpublished live draft |
+| `listPageCommits`, `diffPageCommits`                       | A page's history and live branches; what changed between two versions                                          |
+| `previewPageMerge`                                         | A page pull request's (or a branch update's) merge as it would happen now, with any conflicts                  |
+| `listPageThreads`, `createPageThread`, `replyToPageThread` | Read a page's discussions; start one on the page or a quoted range, and reply                                  |
+| `proposePageChange`                                        | A new version of a page from Markdown, on a new branch with an open pull request: the way agents change pages  |
+| `createSpace`, `createPage`, `movePage`, `archivePage`     | Organize spaces and the page tree, as your access allows                                                       |
+
+Ask, for example:
+
+> Read the refund runbook in the Payments space and PAY-142's current
+> specification. Propose an updated runbook that matches the new timeout
+> behavior, and open a pull request for the team. Do not merge it.
+
+Agents cannot type into live drafts, so unpublished edits that people are
+making stay theirs. Branches, pull requests, review requests and conflict
+resolution (`createPageBranch`, `createPagePullRequest`, `requestPageReview`,
+`syncPageBranch`) are available as well, and space administrators can change
+access (`setSpaceAccessMode`, `setSpaceGrant`; recorded in the audit log). Publishing a live draft
+(`commitDraft`), deciding reviews (`decidePagePullRequest`), merging
+(`mergePagePullRequest`) and resolving, reopening or marking discussions
+blocking are human decisions, as below; nobody can approve a page change
+they contributed to, and that includes an agent acting for them.
+
 ## Permissions and human decisions
 
 An agent acts as the person who created its token. Project disciplines determine
 work item permissions; organization or project administrator roles do not grant
-them. A read-only token exposes queries only. Changing memberships or revoking
+them. Space access (view, comment or edit) determines what it can do in Spaces. A read-only token exposes queries only. Changing memberships or revoking
 the token takes effect on subsequent requests.
 
 Approving reviews, merging, accepting delivery scope, resolving discussions,

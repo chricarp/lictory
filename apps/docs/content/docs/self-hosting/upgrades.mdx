@@ -64,16 +64,19 @@ fails:
    the gateway configuration.
 2. **Migrate**: if the release has migrations, take a backup, apply them,
    and wait until zero-cache has replicated them.
-3. **Activate**: replace zero-cache, the proxy, the API and the worker one by
-   one, each waiting for its health check, then verify the application and
-   the realtime connection. If anything fails, the previous release's images
+3. **Activate**: replace zero-cache, the proxy, the API, the worker and the
+   collaboration service one by one, each waiting for its health check, then
+   verify the application, the realtime connection and live editing. If anything fails, the previous release's images
    are restored automatically, and the command says whether the environment
    runs the previous release again and is healthy, or needs attention now
    (`lictory doctor`).
 
 The proxy holds requests for up to 30 seconds while the API is replaced, so
 API restarts drop no requests. Replacing the proxy itself refuses connections
-for about two seconds; open browser tabs reconnect on their own.
+for about two seconds; open browser tabs reconnect on their own. Replacing
+the collaboration service pauses live editing of pages for a few seconds:
+saved edits are already stored, and editors' unsaved edits are sent again
+when they reconnect.
 
 ## Roll back
 

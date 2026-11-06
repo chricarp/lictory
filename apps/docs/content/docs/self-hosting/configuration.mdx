@@ -197,6 +197,22 @@ Lictory Intelligence may run for their organization (**Organization settings
 → Lictory Intelligence**). Content people ask it to analyze is sent to
 OpenAI; uploaded documents are converted to text on your server first.
 
+## Live editing
+
+Live editing of [pages in Spaces](/concepts/spaces) needs no setup: the
+`collaboration` service uses the same database, sign-in and address as the
+rest of Lictory, and the gateway routes `/collaboration` to it. Behind your
+own proxy, pass that path's WebSocket upgrades
+([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+
+| Setting                   | Meaning                                                    |
+| ------------------------- | ---------------------------------------------------------- |
+| `COLLABORATION_MEM_LIMIT` | Memory limit of the collaboration service (default `384m`) |
+| `COLLABORATION_HEAP_MB`   | Its JavaScript heap, below the limit (default `256`)       |
+
+Run exactly one collaboration service per database: editors of a page must
+share one service to see each other, so a second copy refuses to start.
+
 ## Legal notices
 
 | Setting             | Meaning                                         |

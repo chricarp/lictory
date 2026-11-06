@@ -4,8 +4,8 @@ description: Run Lictory behind nginx, Traefik or an ingress, with an internal C
 ---
 
 The bundled gateway is always the entry point of an installation: it routes
-the API, server-sent events, AI streams, the realtime WebSocket and the
-application's assets, sets the security headers and checks the WebSocket
+the API, server-sent events, AI streams, the realtime and live editing
+WebSockets and the application's assets, sets the security headers and checks the WebSocket
 `Origin`. What varies is who terminates TLS.
 
 | Setup                             | TLS terminated by        | Settings                                                       |
@@ -50,7 +50,9 @@ ACME_EMAIL=ops@example.com
 Your proxy must:
 
 - forward the original `Host`;
-- pass WebSocket upgrades for `/zero/*` with the browser's `Origin` unchanged;
+- pass WebSocket upgrades for `/zero/*` (realtime updates) and
+  `/collaboration` (live editing of pages in Spaces) with the browser's
+  `Origin`, the session cookie and the path unchanged;
 - not buffer responses (at least `/api/` and `/relay/`): server-sent events
   and AI answers stream;
 - allow at least 300 seconds for reading responses and for idle connections;
@@ -59,8 +61,12 @@ Your proxy must:
   `CADDY_TRUSTED_PROXIES` set to the address(es) it connects from. Otherwise
   every user shares one sign-in rate limit. Never trust all private ranges.
 
-Do not publish the API, zero-cache or PostgreSQL directly, and do not strip
-the gateway's security headers.
+Do not publish the API, zero-cache, the collaboration service or PostgreSQL
+directly, and do not strip the gateway's security headers.
+
+The nginx example below sends every path, both WebSockets included, through
+one `location /`. If you split locations, give `/zero/` and `/collaboration`
+the same upgrade headers, no buffering and long timeouts.
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -94,6 +100,10 @@ server {
 
 Traefik and Kubernetes ingress examples are in the
 [reverse proxy runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/reverse-proxy.md).
+
+After changing the proxy, check sign-in, live updates between two browsers,
+and editing one page of a space from two browsers: both editors should see
+each other's typing and **Saved**.
 
 ## Internal CA
 

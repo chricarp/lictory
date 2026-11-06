@@ -93,7 +93,7 @@ export const commands = {
   logs: {
     usage: "lictory logs [service] [-f] [--tail N] [--since 2h]",
     summary:
-      "Show the logs of every service, or of one (proxy, api, worker, zero-cache, and postgres unless the database is external).",
+      "Show the logs of every service, or of one (proxy, api, worker, collaboration, zero-cache, and postgres unless the database is external).",
   },
   "support-bundle": {
     usage: "sudo lictory support-bundle [--since 24h]",

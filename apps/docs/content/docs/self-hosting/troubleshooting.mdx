@@ -70,6 +70,27 @@ The realtime connection is a WebSocket under `/zero/`. A proxy in front of
 Lictory must pass WebSocket upgrades with the browser's `Origin` unchanged
 ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
 
+### "Live editing unavailable" on pages in Spaces
+
+Reading pages, their history and comments works, but the editor cannot connect. Live
+editing is a WebSocket under `/collaboration`, served by the `collaboration`
+service. Check that the service runs and why it stopped:
+
+```sh
+lictory status
+lictory logs collaboration --tail 100
+```
+
+- Behind your own proxy, pass WebSocket upgrades for `/collaboration` exactly
+  as for `/zero/` ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+- `collaboration.owner_busy` in the log means another copy of the service
+  holds the installation's editing lock: only one may run per database
+  (another environment pointed at the same database, or a container started
+  by hand). Stop the other copy; this one restarts on its own.
+- After a restart, editors reconnect by themselves. Edits the editor had
+  shown as **Saved** are stored; unsaved ones are sent again from the open
+  tab.
+
 ### Everyone shares one sign-in rate limit
 
 Behind a proxy, the gateway sees every request coming from the proxy's

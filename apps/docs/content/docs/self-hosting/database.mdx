@@ -27,7 +27,8 @@ fails, nothing is migrated.
   such as `rds_replication`. No superuser.
 - **A free replication slot and WAL sender**, plus a spare of each for a
   replica reset.
-- **A direct connection** for migrations and the sync engine: never
+- **A direct connection** for migrations, the sync engine and the live
+  editing service (which holds a session lock so only one copy runs): never
   PgBouncer, Supavisor or RDS Proxy. The check recognises pooler addresses
   and poolers that answer in PostgreSQL's place.
 - **TLS** for a database outside the server: `verify-full` (recommended,
