@@ -811,13 +811,23 @@ function requireInspectedHeads(
 }
 
 // Deleting a branch or merging a pull request removes discussions; people
-// confirm the counts they were shown (`discussionsToRemove`). When they
-// differ, nothing is removed and the person is asked to look again.
+// confirm the counts they were shown (`discussionsToRemove`). Without a
+// confirmation (clients and agents that predate the warning) or when it
+// differs, nothing is removed and the person is asked to look again.
 function requireConfirmedRemoval(
   expected: number | undefined,
   counts: DiscussionCounts,
 ) {
-  if (expected === undefined || expected === discussionTotal(counts)) return;
+  const total = discussionTotal(counts);
+  if (expected === total) return;
+  if (expected === undefined) {
+    if (!total) return;
+    fail(
+      `This permanently deletes ${describeDiscussions(counts)}. Confirm the deletion first: reload to see the warning, or pass discussionsToRemove: ${total}.`,
+      "conflict",
+      "discussions_unconfirmed",
+    );
+  }
   fail(
     `The discussions this removes changed since you confirmed: it now removes ${describeDiscussions(counts)}. Review the warning and confirm again.`,
     "conflict",

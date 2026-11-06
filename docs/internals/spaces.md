@@ -500,7 +500,9 @@ whether the source branch is deleted and that discussions on the target and
 other branches are kept. The confirmed total travels with the command
 (`discussionsToRemove`); if it no longer matches, the command is refused
 ("The discussions this removes changed since you confirmed…") and nothing is
-removed. Agents get the same counts and the same check.
+removed. A command that would remove discussions without a confirmed total
+(a browser tab loaded before the warning existed, an agent that did not look)
+is refused the same way. Agents get the same counts and the same check.
 
 Discussions left on branches deleted before this rule are held by nothing
 (the merge gate ignores lines that no longer exist) and are removed by the

@@ -443,6 +443,13 @@ void test("deleting a branch removes every discussion on it, whatever its state,
     undefined,
   );
 
+  // Without a confirmation (a client from before the warning) nothing is
+  // removed.
+  await rejects(
+    f.run(f.alice, { type: "deletePageBranch", branchId }),
+    "conflict",
+    /Confirm the deletion first: .* discussionsToRemove: 5\./,
+  );
   // Confirming outdated counts removes nothing.
   await rejects(
     f.run(f.alice, {
@@ -521,7 +528,13 @@ void test("merging into main removes the source's and the pull request's discuss
     discussions: { open: 2, openBlocking: 0, resolved: 4, resolvedBlocking: 2 },
   });
 
-  // A stale confirmation is refused before anything changes.
+  // An unconfirmed or stale confirmation is refused before anything
+  // changes.
+  await rejects(
+    f.run(f.owner, { type: "mergePagePullRequest", pullRequestId, ...heads }),
+    "conflict",
+    /This permanently deletes 6 discussions/,
+  );
   await rejects(
     f.run(f.owner, {
       type: "mergePagePullRequest",

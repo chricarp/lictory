@@ -1056,11 +1056,12 @@ void test("pull requests: reviews bind to the result, go stale on change, and ga
       decision,
       ...(await heads()),
     });
-  const merge = async (userId = f.owner) =>
+  const merge = async (userId = f.owner, discussionsToRemove?: number) =>
     f.run(userId, {
       type: "mergePagePullRequest",
       pullRequestId,
       ...(await heads()),
+      ...(discussionsToRemove === undefined ? {} : { discussionsToRemove }),
     });
 
   await rejects(decide(f.carol, "approve"), "conflict", /draft/);
@@ -1180,7 +1181,8 @@ void test("pull requests: reviews bind to the result, go stale on change, and ga
 
   // Commenters cannot merge into main; editors can.
   await rejects(merge(f.carol), "forbidden");
-  const merged = (await merge())!;
+  // The resolved discussion goes with the merge, once confirmed.
+  const merged = (await merge(f.owner, 1))!;
   const { commit: head } = await headOf(mainBranchId);
   assert.equal(head.id, merged.commitId);
   assert.deepEqual(head.approverIds, [f.carol]);
@@ -1345,7 +1347,17 @@ void test("merging into another branch moves only that branch; direct spaces nee
     .where(eq(s.pageThread.id, threadId));
   assert.equal(resolved!.status, "resolved");
   assert.equal(await projection(`pagePullRequest:${closing}`), undefined);
-  await f.run(f.bob, { type: "deletePageBranch", branchId: source });
+  // Deleting the branch removes the closed pull request's discussion with
+  // it, once confirmed.
+  await f.run(f.bob, {
+    type: "deletePageBranch",
+    branchId: source,
+    discussionsToRemove: 1,
+  });
+  assert.deepEqual(
+    await db.select().from(s.pageThread).where(eq(s.pageThread.id, threadId)),
+    [],
+  );
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });
 
