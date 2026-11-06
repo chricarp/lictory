@@ -1,9 +1,10 @@
 name: CodeQL
 
 # Static analysis of the TypeScript code and of these workflows. Results go to
-# the Security tab (code scanning). Code scanning on a private repository needs
-# GitHub Code Security, so the job is skipped unless the repository is public;
-# see docs/operations/open-source.md ("Security scanning"). No schedule:
+# the Security tab (code scanning). The repository is public, so the job runs;
+# code scanning on a private repository needs GitHub Code Security, so the
+# visibility condition skips it in private forks. See
+# docs/operations/open-source.md ("Security scanning"). No schedule:
 # scheduled events carry no repository payload to check, and every change to
 # main is analyzed anyway.
 on:
