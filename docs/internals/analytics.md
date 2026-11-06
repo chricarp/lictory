@@ -76,7 +76,7 @@ analytics. Both relays share one implementation
 - **Application:** the API relays for its installation, configured by
   `POSTHOG_HOST` and `POSTHOG_PROJECT_TOKEN`. The visitor's IP is the first
   `X-Forwarded-For` entry set by the installation's reverse proxy.
-- **Website (`lictory.com`):** the Cloudflare Worker
+- **Websites (`lictory.com`, `docs.lictory.com`):** the Cloudflare Worker
   (`deploy/cloudflare/src/worker.ts`) relays straight to the `POSTHOG_HOST`
   Worker variable; no Lictory backend is involved. The visitor's IP is
   Cloudflare's `CF-Connecting-IP`; any client-sent `X-Forwarded-For` is
@@ -156,6 +156,13 @@ Both carry `publication_id`, `publication_status`, `item_count` and per-outcome
 counts (`created_count`, `failed_count`, `conflict_count`, etc.). Do not treat a
 partial publication as an all-or-nothing success. Background recovery retains the
 requesting user's identity without assigning it to an unrelated browser session.
+
+The documentation site (`apps/docs`) adds a small funnel, all with
+`site: "docs"`: `docs_search_opened`, `docs_search_result_selected` (`path` of
+the chosen page, never the query), `code_copied` (`surface: cli | mdx`, a
+stable `command` id for CLI blocks, never the copied text) and `cta_clicked`
+(`cta: github | website`, `placement: nav`, `href`). The website and the
+documentation register `site` as a super property in `ConsentProvider`.
 
 ## Data boundaries
 

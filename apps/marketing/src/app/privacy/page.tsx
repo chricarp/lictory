@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <>
       <LegalDocument
         title="Privacy Notice"
-        introduction="This notice explains which personal data is processed when you visit lictory.com or docs.lictory.com, why, and what rights you have. The websites have no accounts or forms: they only serve pages and, on lictory.com, count visits with privacy-friendly analytics that work without cookies unless you allow them."
+        introduction="This notice explains which personal data is processed when you visit lictory.com or docs.lictory.com, why, and what rights you have. The websites have no accounts or forms: they only serve pages and count visits with privacy-friendly analytics that work without cookies unless you allow them."
         sections={privacySections}
       />
       <JsonLd data={publicPageStructuredData("/privacy")} />

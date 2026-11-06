@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Callout } from "fumadocs-ui/components/callout";
-import { CodeBlock, Pre } from "fumadocs-ui/components/codeblock";
+import { Pre } from "fumadocs-ui/components/codeblock";
 import { highlight } from "fumadocs-core/highlight";
 
+import { TrackedCodeBlock } from "@lictory/docs/components/analytics";
 import { bootstrap, commands, type CliCommand } from "@lictory/docs/lib/cli";
 
 function usage(command: CliCommand) {
@@ -14,16 +15,22 @@ function usage(command: CliCommand) {
  * the Markdown code blocks around it (same themes, padded `.line` rows).
  */
 export async function Cli({ command }: { command: CliCommand | CliCommand[] }) {
-  const lines = (Array.isArray(command) ? command : [command]).map(usage);
+  const names = Array.isArray(command) ? command : [command];
+  const lines = names.map(usage);
   return highlight(lines.join("\n"), {
     lang: "sh",
     themes: { light: "github-light", dark: "github-dark" },
     defaultColor: false,
     components: {
       pre: (props) => (
-        <CodeBlock title="lictory CLI">
+        // The copy event names the block by its commands, never its text.
+        <TrackedCodeBlock
+          title="lictory CLI"
+          surface="cli"
+          command={names.join("+")}
+        >
           <Pre {...props} />
-        </CodeBlock>
+        </TrackedCodeBlock>
       ),
     },
   });

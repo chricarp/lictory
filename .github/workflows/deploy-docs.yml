@@ -54,18 +54,29 @@ jobs:
           key: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-${{ github.sha }}
           restore-keys: next-docs-${{ runner.os }}-${{ hashFiles('bun.lock') }}-
       - run: bun install --frozen-lockfile
-      # No secrets and no analytics: the build sees only the public origin.
+      # Public build settings only: they are compiled into the pages. The same
+      # PostHog project as the website; empty variables build without analytics.
       - name: Build the static site
+        env:
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          NEXT_PUBLIC_ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
         run: bun run --cwd apps/docs build:cloudflare
       # The only step that receives the Cloudflare token.
       - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
         run: |
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_API_TOKEN"
-          bun run --cwd apps/docs deploy:cloudflare
+          # The Worker relays consented analytics straight to PostHog.
+          if [ -n "$POSTHOG_HOST" ]; then
+            bun run --cwd apps/docs deploy:cloudflare --var "POSTHOG_HOST:$POSTHOG_HOST"
+          else
+            bun run --cwd apps/docs deploy:cloudflare
+          fi
       # The commit this site now serves: the next Release compares against it.
       - name: Record the deployed commit
         env:

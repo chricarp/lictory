@@ -39,7 +39,11 @@ import {
 // - Strict (ANALYTICS_CONSENT=strict): PostHog loads only after Analytics
 //   consent, and server events are sent only for people who granted it.
 // Withdrawing consent clears PostHog storage and c15t reloads the page.
-function consentScripts() {
+// `site` is a super property on every event, so PostHog can tell the public
+// websites apart in one project. Opting out in cookieless mode (every visit
+// before a choice, and after rejecting) resets PostHog, which clears super
+// properties, so `before_send` also adds it to each event.
+function consentScripts(site: "marketing" | "docs" | undefined) {
   const analytics = browserAnalyticsSettings();
   if (!analytics) return [];
   const strict = analytics.consent === "strict";
@@ -74,13 +78,19 @@ function consentScripts() {
           event: { properties: Record<string, unknown> } | null,
         ) => {
           if (!event) return event;
+          if (site) event.properties.site = site;
           sanitizeAnalyticsProperties(event.properties);
           if (!hasAnalyticsConsent()) {
             minimizeAnonymousAnalyticsProperties(event.properties);
           }
           return event;
         },
-        loaded: onPostHogLoaded,
+        loaded: (client: {
+          register: (p: Record<string, unknown>) => void;
+        }) => {
+          if (site) client.register({ site });
+          onPostHogLoaded(client);
+        },
       },
     }),
   ];
@@ -89,11 +99,13 @@ function consentScripts() {
 export function ConsentProvider({
   children,
   privacyHref,
+  site,
 }: {
   children: ReactNode;
   privacyHref?: string;
+  site?: "marketing" | "docs";
 }) {
-  const [scripts] = useState(consentScripts);
+  const [scripts] = useState(() => consentScripts(site));
   if (!analyticsConfigured()) return children;
   return (
     <ConsentManagerProvider
