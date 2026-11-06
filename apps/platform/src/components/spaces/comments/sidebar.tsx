@@ -120,12 +120,20 @@ export function CommentsPanel({
   const onPage = open.filter((t) => t.placement === "page");
   const headingId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // After switching lines from this panel, focus lands on its heading (the
-  // button that was pressed is gone, and the panel may have been rebuilt).
+  // After switching lines from this panel, focus lands on the heading of the
+  // destination's panel: the button that was pressed is gone, and the panel
+  // may be rebuilt more than once while the line's editor opens. Focus is
+  // only taken while it is lost or still in the panel.
   useEffect(() => {
-    if (!focusHeadingAfterSwitch) return;
-    focusHeadingAfterSwitch = false;
-    headingRef.current?.focus({ preventScroll: true });
+    const request = headingFocusRequest;
+    const heading = headingRef.current;
+    if (!request || !heading) return;
+    if (request.line !== lineName || Date.now() > request.until) return;
+    const current = document.activeElement;
+    const panel = heading.closest("section");
+    if (current && current !== document.body && !panel?.contains(current))
+      return;
+    heading.focus({ preventScroll: true });
   }, [lineName]);
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
@@ -262,7 +270,8 @@ export function CommentsPanel({
   );
 }
 
-let focusHeadingAfterSwitch = false;
+// The line whose panel heading should take focus, briefly after a switch.
+let headingFocusRequest: { line: string; until: number } | null = null;
 
 // The page's other lines with open discussions, each a way to switch to it
 // (the panel stays open there).
@@ -278,7 +287,10 @@ function OtherLines({ lines }: { lines: readonly OtherLine[] }) {
               type="button"
               aria-label={`Show ${openDiscussionsLabel(open)}${blocking ? ` (${blocking} blocking)` : ""} on ${branch.name}`}
               onClick={() => {
-                focusHeadingAfterSwitch = true;
+                headingFocusRequest = {
+                  line: branch.name,
+                  until: Date.now() + 10_000,
+                };
                 selectLine(branch.isMain ? null : branch.id);
               }}
               className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"

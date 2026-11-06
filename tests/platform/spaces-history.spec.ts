@@ -402,6 +402,16 @@ test("the comments count and panel follow the branch on screen and point to othe
     markdown: "Give up after thirty seconds.",
     message: "Propose a timeout",
   });
+  // A line nobody has discussed.
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId: crypto.randomUUID(),
+    branchName: "spare-notes",
+    title: "Timeouts",
+    markdown: "Give up after a minute.",
+    message: "Propose a longer timeout",
+  });
   const discuss = (
     body: string,
     extra: { branchId?: string; pullRequestId?: string; blocking?: boolean },
@@ -476,8 +486,29 @@ test("the comments count and panel follow the branch on screen and point to othe
   );
   await expect(panel.getByText("On other branches")).toHaveCount(0);
 
-  // The branch menu says where discussions are before switching back.
+  // A line without any discussion shows none, not the previous line's.
   await page.getByRole("button", { name: "Branch: timeout-notes" }).click();
+  await page
+    .getByRole("menu", { name: "Branches of this page" })
+    .getByRole("menuitemradio", { name: /^spare-notes/ })
+    .click();
+  await expect(
+    panel.getByRole("heading", { name: "Comments on spare-notes" }),
+  ).toBeVisible();
+  await expect(toggle).toHaveText("Comments");
+  await expect(
+    panel.getByText(/^No open discussions on spare-notes\./),
+  ).toBeVisible();
+  await expect(panel.getByText("Branch note about timeouts")).toHaveCount(0);
+  await expect(panel.getByText(/resolved/)).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", {
+      name: "Show 1 open discussion (1 blocking) on timeout-notes",
+    }),
+  ).toBeVisible();
+
+  // The branch menu says where discussions are before switching back.
+  await page.getByRole("button", { name: "Branch: spare-notes" }).click();
   const menu = page.getByRole("menu", { name: "Branches of this page" });
   await expect(menu.getByText("1 open discussion")).toBeVisible();
   await menu.getByRole("menuitemradio", { name: /^main/ }).click();

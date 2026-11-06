@@ -227,7 +227,9 @@ export function PageComments({
   useEffect(() => {
     if (!editor) return;
     let frame = 0;
-    let lastKey = "";
+    // Undefined until the first pass, so an empty list (a line without
+    // threads) still replaces what the previous line showed.
+    let lastKey: string | undefined;
     const run = () => {
       frame = 0;
       if (!hasView(editor)) return;
