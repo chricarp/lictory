@@ -4,6 +4,7 @@ import {
   spaceLevelAtLeast,
   type PageDiscussionCommand,
   type PageThreadAnchor,
+  type StoredPageThreadAnchor,
 } from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
@@ -254,9 +255,11 @@ export async function applyPageDiscussionCommand(
     kind: "page_mentioned",
     detail: { threadId, excerpt: messageExcerpt(body), group: "message" },
   });
+  // Counters (open and blocking threads) also feed the mergeability of
+  // the page's pull requests.
   const project = (pageId: string, counters: boolean) =>
     writeSpaceProjections(tx, organizationId, {
-      ...(counters ? { pages: [pageId] } : {}),
+      ...(counters ? { pages: [pageId], pageLines: [pageId] } : {}),
       pageDiscussions: [pageId],
     });
 
@@ -271,6 +274,25 @@ export async function applyPageDiscussionCommand(
         c.anchor,
         c.branchId,
       );
+      if (c.pullRequestId) {
+        const [pr] = await tx
+          .select({
+            pageId: s.pagePullRequest.pageId,
+            deletedAt: s.pagePullRequest.deletedAt,
+          })
+          .from(s.pagePullRequest)
+          .where(
+            and(
+              eq(s.pagePullRequest.organizationId, organizationId),
+              eq(s.pagePullRequest.id, c.pullRequestId),
+            ),
+          );
+        if (pr?.pageId !== page.id || pr.deletedAt)
+          throw new DomainError(
+            "not_found",
+            "This pull request is unavailable on this page.",
+          );
+      }
       const blocking = c.blocking ?? false;
       await tx.insert(s.pageThread).values({
         id: c.threadId,
@@ -280,6 +302,7 @@ export async function applyPageDiscussionCommand(
         blocking,
         anchor: c.anchor,
         ...line,
+        pullRequestId: c.pullRequestId ?? null,
       });
       await tx.insert(s.pageThreadMessage).values({
         id: c.messageId,
@@ -292,6 +315,7 @@ export async function applyPageDiscussionCommand(
         threadId: c.threadId,
         blocking,
         anchor: c.anchor.kind,
+        ...(c.pullRequestId ? { pullRequestId: c.pullRequestId } : {}),
       });
       await notify(page.id, [
         mentions(c.body, c.threadId),
@@ -437,7 +461,7 @@ export type PageThreadSummary = {
   id: string;
   status: "open" | "resolved";
   blocking: boolean;
-  anchor: PageThreadAnchor;
+  anchor: StoredPageThreadAnchor;
   commitId: string | null;
   branchId: string | null;
   pullRequestId: string | null;
@@ -500,7 +524,7 @@ export async function listPageThreads(
       id: t.id,
       status: t.status,
       blocking: t.blocking,
-      anchor: t.anchor as PageThreadAnchor,
+      anchor: t.anchor as StoredPageThreadAnchor,
       commitId: t.commitId,
       branchId: t.branchId,
       pullRequestId: t.pullRequestId,

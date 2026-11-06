@@ -239,6 +239,15 @@ export const pageCommit = pgTable(
     draftId: text("draft_id"),
     draftEpoch: integer("draft_epoch"),
     draftSequence: integer("draft_sequence"),
+    // A merge of a pull request: the pull request and the reviewers whose
+    // approval of exactly this result was valid when it merged, so
+    // "Approved" names the approved commit. Not a foreign key: the pull
+    // request already references its merge commit.
+    pullRequestId: text("pull_request_id"),
+    approverIds: text("approver_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     createdAt: createdAt(),
   },
   (t) => [
@@ -414,6 +423,154 @@ export const spaceDraftUpdate = pgTable(
   ],
 );
 
+// A proposal to merge one branch of a page into main or another branch
+// (docs/internals/spaces.md#history-commits-branches-and-pull-requests).
+// Merging records the merge commit; deleting an unmerged pull request keeps
+// its row, reviews and discussions (`deleted_at`).
+export const pagePullRequestStatus = pgEnum("page_pull_request_status", [
+  "draft",
+  "open",
+  "merged",
+]);
+export const pagePullRequest = pgTable(
+  "page_pull_request",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    pageId: text("page_id").notNull(),
+    sourceBranchId: text("source_branch_id").notNull(),
+    targetBranchId: text("target_branch_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: pagePullRequestStatus("status").default("open").notNull(),
+    authorId: actor("author_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    mergedAt: timestamp("merged_at"),
+    mergedById: optionalActor("merged_by_id"),
+    mergeCommitId: text("merge_commit_id"),
+    deletedAt: timestamp("deleted_at"),
+    deletedById: optionalActor("deleted_by_id"),
+  },
+  (t) => [
+    unique("page_pull_request_org_id_unique").on(t.organizationId, t.id),
+    unique("page_pull_request_page_id_unique").on(
+      t.organizationId,
+      t.pageId,
+      t.id,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.pageId],
+      foreignColumns: [page.organizationId, page.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.sourceBranchId],
+      foreignColumns: [
+        pageBranch.organizationId,
+        pageBranch.pageId,
+        pageBranch.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.targetBranchId],
+      foreignColumns: [
+        pageBranch.organizationId,
+        pageBranch.pageId,
+        pageBranch.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.mergeCommitId],
+      foreignColumns: [
+        pageCommit.organizationId,
+        pageCommit.pageId,
+        pageCommit.id,
+      ],
+    }).onDelete("restrict"),
+    index("page_pull_request_page_idx").on(t.organizationId, t.pageId),
+    check(
+      "page_pull_request_branches",
+      sql`${t.sourceBranchId} <> ${t.targetBranchId}`,
+    ),
+    check("page_pull_request_title_present", sql`length(trim(${t.title})) > 0`),
+    check(
+      "page_pull_request_merge_consistent",
+      sql`(${t.status} = 'merged') = (${t.mergedAt} IS NOT NULL)
+        AND (${t.mergedAt} IS NULL) = (${t.mergedById} IS NULL)
+        AND (${t.mergedAt} IS NULL) = (${t.mergeCommitId} IS NULL)`,
+    ),
+    check(
+      "page_pull_request_delete_consistent",
+      sql`(${t.deletedAt} IS NULL) = (${t.deletedById} IS NULL)
+        AND (${t.deletedAt} IS NULL OR ${t.status} <> 'merged')`,
+    ),
+  ],
+);
+
+// People asked to review a page pull request. Pages have no disciplines:
+// reviews are requested from people who can comment on the page. Required
+// reviewers gate the merge.
+export const pagePullRequestReviewer = pgTable(
+  "page_pull_request_reviewer",
+  {
+    organizationId: organizationId(),
+    pullRequestId: text("pull_request_id").notNull(),
+    userId: actor("user_id"),
+    required: boolean("required").default(true).notNull(),
+    requestedById: actor("requested_by_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.pullRequestId, t.userId] }),
+    foreignKey({
+      columns: [t.organizationId, t.pullRequestId],
+      foreignColumns: [pagePullRequest.organizationId, pagePullRequest.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+// Review decisions on a page pull request, bound to the fingerprint of the
+// complete merge result (`result_hash`, `documentHash` of the merged title
+// and content) and the heads that were inspected. Append-only: a new
+// decision withdraws the reviewer's previous one (`withdrawn_at`, also
+// "revoke"), and any change of the result marks current decisions stale
+// (`stale_at`, `stale_reason`).
+export const pageReviewDecision = pgEnum("page_review_decision", [
+  "approved",
+  "changes_requested",
+]);
+export const pagePullRequestReview = pgTable(
+  "page_pull_request_review",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    pullRequestId: text("pull_request_id").notNull(),
+    reviewerId: actor("reviewer_id"),
+    decision: pageReviewDecision("decision").notNull(),
+    resultHash: text("result_hash").notNull(),
+    sourceHeadId: text("source_head_id").notNull(),
+    targetHeadId: text("target_head_id").notNull(),
+    staleAt: timestamp("stale_at"),
+    staleReason: text("stale_reason"),
+    withdrawnAt: timestamp("withdrawn_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.pullRequestId],
+      foreignColumns: [pagePullRequest.organizationId, pagePullRequest.id],
+    }).onDelete("restrict"),
+    index("page_pull_request_review_pr_idx").on(
+      t.organizationId,
+      t.pullRequestId,
+    ),
+    check(
+      "page_pull_request_review_stale",
+      sql`(${t.staleAt} IS NULL) = (${t.staleReason} IS NULL)`,
+    ),
+  ],
+);
+
 // Discussions on pages (docs/internals/spaces.md#comments). A thread is
 // anchored to a commit range (frozen: commits never change), to a live draft
 // (Yjs relative positions within one epoch, frozen to a commit range when
@@ -421,10 +578,12 @@ export const spaceDraftUpdate = pgTable(
 // protocol shape (`PageThreadAnchor`) and the checks keep its references and
 // the columns consistent. `commit_id` names the commit the thread concerns
 // (always the commit of a commit anchor); `branch_id` the line the thread
-// was written on (required for draft anchors: the draft's branch). `pull_request_id` will name the pull request a thread was opened
-// on: page pull requests are added with the page history commands, which
-// add its foreign key. Resolving keeps every message; reopening clears who
-// resolved it, and `page_activity` keeps both events.
+// was written on (required for draft anchors: the draft's branch);
+// `pull_request_id` the pull request it was opened on. A `detached` anchor
+// is a draft anchor whose text no longer existed when the draft was
+// committed: it keeps its quote and names that commit ("Original text
+// removed"). Resolving keeps every message; reopening clears who resolved
+// it, and `page_activity` keeps both events.
 export const pageThreadStatus = pgEnum("page_thread_status", [
   "open",
   "resolved",
@@ -474,14 +633,22 @@ export const pageThread = pgTable(
     index("page_thread_pull_request_idx")
       .on(t.organizationId, t.pullRequestId)
       .where(sql`${t.pullRequestId} IS NOT NULL`),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.pullRequestId],
+      foreignColumns: [
+        pagePullRequest.organizationId,
+        pagePullRequest.pageId,
+        pagePullRequest.id,
+      ],
+    }).onDelete("restrict"),
     check(
       "page_thread_anchor_kind",
       sql`coalesce(${t.anchor}->>'v', '') = '1'
-        AND coalesce(${t.anchor}->>'kind', '') IN ('commit', 'draft', 'page')`,
+        AND coalesce(${t.anchor}->>'kind', '') IN ('commit', 'draft', 'page', 'detached')`,
     ),
     check(
       "page_thread_commit_anchor",
-      sql`${t.anchor}->>'kind' <> 'commit'
+      sql`${t.anchor}->>'kind' NOT IN ('commit', 'detached')
         OR (${t.commitId} IS NOT NULL AND ${t.commitId} = ${t.anchor}->>'commitId')`,
     ),
     check(

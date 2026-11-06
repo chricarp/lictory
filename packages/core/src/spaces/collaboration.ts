@@ -12,9 +12,11 @@ import type {
   Extension,
   Hocuspocus,
   beforeHandleMessagePayload,
+  connectedPayload,
   onAuthenticatePayload,
   onConfigurePayload,
   onLoadDocumentPayload,
+  onStatelessPayload,
 } from "@hocuspocus/server";
 import { Forbidden, MessageTooBig, ResetConnection } from "@hocuspocus/common";
 import * as decoding from "lib0/decoding";
@@ -109,8 +111,23 @@ function refusal(error: unknown) {
   );
 }
 
+// Stateless messages telling editors the last stored sequence of their
+// draft epoch, the cut `commitDraft` seals (`expectedSequence`). Sent to
+// every editor after each stored batch and to an editor when it connects;
+// an editor may ask again with `{ "type": "lictory.draft.sequence" }`.
+export const DRAFT_STORED_MESSAGE = "lictory.draft.stored";
+const DRAFT_SEQUENCE_REQUEST = "lictory.draft.sequence";
+export const draftStoredPayload = (sequence: number) =>
+  JSON.stringify({ type: DRAFT_STORED_MESSAGE, sequence });
+
 export function draftCollaboration(options: Options) {
   const writers = new Map<string, DraftWriter>();
+  // Last stored sequence of each loaded document.
+  const stored = new Map<string, number>();
+  const remember = (documentName: string, sequence: number) => {
+    stored.set(documentName, Math.max(stored.get(documentName) ?? 0, sequence));
+    return stored.get(documentName)!;
+  };
 
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -158,8 +175,9 @@ export function draftCollaboration(options: Options) {
       context,
     }: onLoadDocumentPayload) {
       const { ref } = context as CollaborationContext;
-      const { state } = await loadDraft(options.db, ref);
+      const { state, sequence } = await loadDraft(options.db, ref);
       Y.applyUpdate(document, state);
+      remember(documentName, sequence);
       writers.set(
         documentName,
         new DraftWriter(options.db, ref, options.canEdit, options.retryForMs),
@@ -185,7 +203,7 @@ export function draftCollaboration(options: Options) {
       const writer = writers.get(documentName);
       if (!writer) throw forbidden("This draft is no longer available.");
       const { userId, sessionId } = connection.context as CollaborationContext;
-      await writer
+      const sequence = await writer
         .submit({ userId, sessionId }, change.update)
         .catch((error: unknown) => {
           const event = refusal(error);
@@ -195,11 +213,41 @@ export function draftCollaboration(options: Options) {
             connection.webSocket.close(event.code, event.reason);
           throw event;
         });
+      document.broadcastStateless(
+        draftStoredPayload(remember(documentName, sequence)),
+      );
+    },
+
+    async connected({ connection, documentName }: connectedPayload) {
+      const sequence = stored.get(documentName);
+      if (sequence !== undefined)
+        connection.sendStateless(draftStoredPayload(sequence));
+    },
+
+    async onStateless({
+      connection,
+      documentName,
+      payload,
+    }: onStatelessPayload) {
+      let request: unknown;
+      try {
+        request = JSON.parse(payload);
+      } catch {
+        return;
+      }
+      const sequence = stored.get(documentName);
+      if (
+        (request as { type?: unknown } | null)?.type ===
+          DRAFT_SEQUENCE_REQUEST &&
+        sequence !== undefined
+      )
+        connection.sendStateless(draftStoredPayload(sequence));
     },
 
     async afterUnloadDocument({ documentName }) {
       await writers.get(documentName)?.idle();
       writers.delete(documentName);
+      stored.delete(documentName);
     },
 
     async onDestroy() {

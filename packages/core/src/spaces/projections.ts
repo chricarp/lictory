@@ -3,15 +3,22 @@ import * as s from "@lictory/core/db/schema";
 import {
   spaceEntityKey,
   spaceEntitySchema,
-  type PageThreadAnchor,
   type SpaceEntity,
+  type StoredPageThreadAnchor,
 } from "@lictory/core/contracts/protocol";
 import { canonicalJson } from "@lictory/core/domain/projections";
-import type { Database, Tx } from "@lictory/core/domain/service";
+import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import {
   refreshSpaceAccess,
   spaceAccessDrift,
 } from "@lictory/core/spaces/access";
+import {
+  commitSnapshots,
+  draftSummary,
+  evaluatePullRequest,
+  pageLineStates,
+  pullRequestCommitIds,
+} from "@lictory/core/spaces/history-state";
 
 // Spaces read projections (`space_entity`), replicated to browsers by Zero
 // and kept apart from `sync_entity`. Writers call `writeSpaceProjections` in
@@ -21,7 +28,8 @@ import {
 // whole organization (operator recovery and the test invariant).
 //
 // Scopes: rows with a NULL `page_id` are space-level (`space`, `spaceGrant`,
-// `page` summaries); `pageCommit` and `pageBranch` rows (history) and
+// `page` summaries); `pageCommit` rows (immutable history), the page's
+// lines (`pageBranch`, `pagePullRequest`, `pagePullRequestReview`) and
 // `pageThread`, `pageThreadMessage` and `pageActivity` rows (discussions)
 // carry their page.
 
@@ -126,11 +134,21 @@ export async function pageSummaries(
   const rows = await db
     .select({
       page: s.page,
+      publishing: s.space.publishing,
       commitId: s.pageCommit.id,
       title: s.pageCommit.title,
       publishedAt: s.pageCommit.createdAt,
+      approverIds: s.pageCommit.approverIds,
+      draft: s.spaceDraft,
     })
     .from(s.page)
+    .innerJoin(
+      s.space,
+      and(
+        eq(s.space.organizationId, s.page.organizationId),
+        eq(s.space.id, s.page.spaceId),
+      ),
+    )
     .innerJoin(
       s.pageBranch,
       and(
@@ -145,6 +163,13 @@ export async function pageSummaries(
         eq(s.pageCommit.organizationId, s.pageBranch.organizationId),
         eq(s.pageCommit.pageId, s.pageBranch.pageId),
         eq(s.pageCommit.id, s.pageBranch.headCommitId),
+      ),
+    )
+    .leftJoin(
+      s.spaceDraft,
+      and(
+        eq(s.spaceDraft.organizationId, s.pageBranch.organizationId),
+        eq(s.spaceDraft.branchId, s.pageBranch.id),
       ),
     )
     .where(
@@ -193,26 +218,33 @@ export async function pageSummaries(
     if (c.blocking) entry.blockingThreads += c.threads;
     open.set(c.pageId, entry);
   }
-  return rows.map(({ page, commitId, title, publishedAt }) =>
-    row(
-      {
-        id: page.id,
-        organizationId,
-        spaceId: page.spaceId,
-        type: "page",
-        parentId: page.parentId,
-        rank: page.rank,
-        title,
-        publishedCommitId: commitId,
-        createdById: page.createdById,
-        createdAt: iso(page.createdAt),
-        updatedAt: iso(publishedAt),
-        archivedAt: isoOrNull(page.archivedAt),
-        openThreads: open.get(page.id)?.openThreads ?? 0,
-        blockingThreads: open.get(page.id)?.blockingThreads ?? 0,
-      },
-      null,
-    ),
+  return rows.map(
+    ({ page, publishing, commitId, title, publishedAt, approverIds, draft }) =>
+      row(
+        {
+          id: page.id,
+          organizationId,
+          spaceId: page.spaceId,
+          type: "page",
+          parentId: page.parentId,
+          rank: page.rank,
+          title,
+          publishedCommitId: commitId,
+          // "Approved" only where reviews are the policy; Direct spaces say
+          // "Published".
+          approvedCommitId:
+            publishing === "reviewed" && approverIds.length ? commitId : null,
+          mainDraft:
+            publishing === "direct" ? draftSummary(draft ?? undefined) : null,
+          createdById: page.createdById,
+          createdAt: iso(page.createdAt),
+          updatedAt: iso(publishedAt),
+          archivedAt: isoOrNull(page.archivedAt),
+          openThreads: open.get(page.id)?.openThreads ?? 0,
+          blockingThreads: open.get(page.id)?.blockingThreads ?? 0,
+        },
+        null,
+      ),
   );
 }
 
@@ -290,7 +322,7 @@ async function pageDiscussionRows(
           authorId: t.authorId,
           status: t.status,
           blocking: t.blocking,
-          anchor: t.anchor as PageThreadAnchor,
+          anchor: t.anchor as StoredPageThreadAnchor,
           commitId: t.commitId,
           branchId: t.branchId,
           pullRequestId: t.pullRequestId,
@@ -346,41 +378,88 @@ async function pageDiscussionRows(
   return rows;
 }
 
-// A page's history: every commit and every live branch.
-async function pageHistoryRows(
+// Commits (immutable) of the given pages or with the given ids.
+async function commitRows(
+  db: Database | Tx,
+  organizationId: string,
+  filter: { pageIds?: string[]; commitIds?: string[] },
+) {
+  const commits = await db
+    .select({ commit: s.pageCommit, spaceId: s.page.spaceId })
+    .from(s.pageCommit)
+    .innerJoin(
+      s.page,
+      and(
+        eq(s.page.organizationId, s.pageCommit.organizationId),
+        eq(s.page.id, s.pageCommit.pageId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.pageCommit.organizationId, organizationId),
+        filter.pageIds
+          ? inArray(s.pageCommit.pageId, filter.pageIds)
+          : undefined,
+        filter.commitIds
+          ? inArray(s.pageCommit.id, filter.commitIds)
+          : undefined,
+      ),
+    );
+  return commits.map(({ commit: c, spaceId }) =>
+    row(
+      {
+        id: c.id,
+        organizationId,
+        spaceId,
+        type: "pageCommit",
+        pageId: c.pageId,
+        parentIds: c.parentIds,
+        title: c.title,
+        content: c.content,
+        markdown: c.markdown,
+        hash: c.hash,
+        schemaVersion: c.schemaVersion,
+        message: c.message,
+        authorId: c.authorId,
+        contributorIds: c.contributorIds,
+        pullRequestId: c.pullRequestId,
+        approverIds: c.approverIds,
+        createdAt: iso(c.createdAt),
+      },
+      c.pageId,
+    ),
+  );
+}
+
+// Row types of a page's lines: what moves when a head, a draft's committed
+// state, a pull request or a review changes.
+const lineTypes = [
+  "pageBranch",
+  "pagePullRequest",
+  "pagePullRequestReview",
+] satisfies SpaceEntity["type"][];
+
+// A page's lines: live branches with their drafts, unmerged and merged pull
+// requests (deleted ones are history in the database only) with their
+// mergeability, and every review decision.
+async function lineRows(
   db: Database | Tx,
   organizationId: string,
   pageIds?: string[],
 ) {
-  const [pages, commits, branches, collaborators] = await Promise.all([
-    db
-      .select({ id: s.page.id, spaceId: s.page.spaceId })
-      .from(s.page)
-      .where(
-        and(
-          eq(s.page.organizationId, organizationId),
-          pageIds ? inArray(s.page.id, pageIds) : undefined,
-        ),
+  const pages = await db
+    .select({ id: s.page.id, spaceId: s.page.spaceId })
+    .from(s.page)
+    .where(
+      and(
+        eq(s.page.organizationId, organizationId),
+        pageIds ? inArray(s.page.id, pageIds) : undefined,
       ),
-    db
-      .select()
-      .from(s.pageCommit)
-      .where(
-        and(
-          eq(s.pageCommit.organizationId, organizationId),
-          pageIds ? inArray(s.pageCommit.pageId, pageIds) : undefined,
-        ),
-      ),
-    db
-      .select()
-      .from(s.pageBranch)
-      .where(
-        and(
-          eq(s.pageBranch.organizationId, organizationId),
-          isNull(s.pageBranch.deletedAt),
-          pageIds ? inArray(s.pageBranch.pageId, pageIds) : undefined,
-        ),
-      ),
+    );
+  if (!pages.length) return [];
+  const ids = pages.map((p) => p.id);
+  const [states, collaborators] = await Promise.all([
+    pageLineStates(db, organizationId, ids),
     db
       .select({
         branchId: s.pageBranchCollaborator.branchId,
@@ -400,63 +479,112 @@ async function pageHistoryRows(
       .where(
         and(
           eq(s.pageBranchCollaborator.organizationId, organizationId),
-          pageIds ? inArray(s.pageBranch.pageId, pageIds) : undefined,
+          inArray(s.pageBranch.pageId, ids),
         ),
       )
       .orderBy(asc(s.pageBranchCollaborator.userId)),
   ]);
-  const spaceOf = new Map(pages.map((p) => [p.id, p.spaceId]));
   const rows: SpaceProjectionRow[] = [];
-  for (const c of commits) {
-    const spaceId = spaceOf.get(c.pageId);
-    if (!spaceId) continue;
-    rows.push(
-      row(
-        {
-          id: c.id,
-          organizationId,
-          spaceId,
-          type: "pageCommit",
-          pageId: c.pageId,
-          parentIds: c.parentIds,
-          title: c.title,
-          content: c.content,
-          markdown: c.markdown,
-          hash: c.hash,
-          schemaVersion: c.schemaVersion,
-          message: c.message,
-          authorId: c.authorId,
-          contributorIds: c.contributorIds,
-          createdAt: iso(c.createdAt),
-        },
-        c.pageId,
-      ),
+  for (const { id: pageId, spaceId } of pages) {
+    const state = states.get(pageId);
+    if (!state) continue;
+    const base = { organizationId, spaceId, pageId };
+    for (const b of state.branches)
+      rows.push(
+        row(
+          {
+            ...base,
+            id: b.id,
+            type: "pageBranch",
+            name: b.name,
+            isMain: b.isMain,
+            headCommitId: b.headCommitId,
+            baseCommitId: b.baseCommitId,
+            authorId: b.authorId,
+            collaboratorIds: collaborators
+              .filter((x) => x.branchId === b.id)
+              .map((x) => x.userId),
+            draft: draftSummary(state.drafts.find((d) => d.branchId === b.id)),
+            createdAt: iso(b.createdAt),
+          },
+          pageId,
+        ),
+      );
+    const unmerged = state.pullRequests.filter((p) => p.status !== "merged");
+    const snapshots = await commitSnapshots(
+      db,
+      organizationId,
+      pullRequestCommitIds(state, unmerged),
     );
-  }
-  for (const b of branches) {
-    const spaceId = spaceOf.get(b.pageId);
-    if (!spaceId) continue;
-    rows.push(
-      row(
-        {
-          id: b.id,
-          organizationId,
-          spaceId,
-          type: "pageBranch",
-          pageId: b.pageId,
-          name: b.name,
-          isMain: b.isMain,
-          headCommitId: b.headCommitId,
-          baseCommitId: b.baseCommitId,
-          authorId: b.authorId,
-          collaboratorIds: collaborators
-            .filter((x) => x.branchId === b.id)
-            .map((x) => x.userId),
-          createdAt: iso(b.createdAt),
-        },
-        b.pageId,
-      ),
-    );
+    for (const p of state.pullRequests) {
+      const evaluation = evaluatePullRequest(state, p, snapshots);
+      rows.push(
+        row(
+          {
+            ...base,
+            id: p.id,
+            type: "pagePullRequest",
+            sourceBranchId: p.sourceBranchId,
+            targetBranchId: p.targetBranchId,
+            title: p.title,
+            description: p.description,
+            status: p.status,
+            authorId: p.authorId,
+            reviewers: state.reviewers
+              .filter((r) => r.pullRequestId === p.id)
+              .map((r) => ({
+                userId: r.userId,
+                required: r.required,
+                requestedById: r.requestedById,
+              })),
+            createdAt: iso(p.createdAt),
+            updatedAt: iso(p.updatedAt),
+            mergedAt: isoOrNull(p.mergedAt),
+            mergedById: p.mergedById,
+            mergeCommitId: p.mergeCommitId,
+            mergeability: evaluation
+              ? {
+                  sourceHeadId: evaluation.source.headCommitId,
+                  targetHeadId: evaluation.target.headCommitId,
+                  baseCommitId: evaluation.base?.id ?? null,
+                  resultHash: evaluation.resultHash,
+                  conflicts: evaluation.merge?.conflicts.length ?? 0,
+                  contributorIds: evaluation.contributorIds,
+                  blockingThreads: evaluation.blockingThreads,
+                  requiredReviews: evaluation.required.length,
+                  requiredApprovals: evaluation.requiredApproved.length,
+                  approvals: evaluation.approvals.length,
+                  changesRequested: evaluation.changesRequested.length,
+                  staleReviews: evaluation.staleReviews,
+                  blockers: evaluation.blockers,
+                }
+              : null,
+          },
+          pageId,
+        ),
+      );
+    }
+    for (const r of state.reviews)
+      rows.push(
+        row(
+          {
+            ...base,
+            id: r.id,
+            type: "pagePullRequestReview",
+            pullRequestId: r.pullRequestId,
+            reviewerId: r.reviewerId,
+            decision: r.decision,
+            resultHash: r.resultHash,
+            sourceHeadId: r.sourceHeadId,
+            targetHeadId: r.targetHeadId,
+            staleAt: isoOrNull(r.staleAt),
+            staleReason: r.staleReason,
+            withdrawnAt: isoOrNull(r.withdrawnAt),
+            createdAt: iso(r.createdAt),
+          },
+          pageId,
+        ),
+      );
   }
   return rows;
 }
@@ -542,13 +670,17 @@ async function reconcile(
 }
 
 // What a command touched: space summaries with their grants, page summaries
-// (the tree and its discussion counters), page histories (every page-level
-// row: commits, branches and discussions) and page discussions only
-// (threads, messages and discussion events, without rereading commits).
+// (the tree, discussion counters, main's draft), page histories (every
+// page-level row), new commits by id (commits never change, so only new
+// ones are written), page lines (branches with their drafts, pull requests
+// with their mergeability, reviews) and page discussions (threads, messages
+// and discussion events).
 export type SpaceProjectionTarget = {
   spaces?: string[];
   pages?: string[];
   pageHistories?: string[];
+  commits?: string[];
+  pageLines?: string[];
   pageDiscussions?: string[];
 };
 
@@ -594,19 +726,59 @@ export async function writeSpaceProjections(
     ]);
     await reconcile(tx, organizationId, expected, stored);
   }
-  if (target.pageHistories?.length) {
-    const [history, discussions, stored] = await Promise.all([
-      pageHistoryRows(tx, organizationId, target.pageHistories),
-      pageDiscussionRows(tx, organizationId, target.pageHistories),
+  const histories = target.pageHistories ?? [];
+  if (histories.length) {
+    const [commits, lines, discussions, stored] = await Promise.all([
+      commitRows(tx, organizationId, { pageIds: histories }),
+      lineRows(tx, organizationId, histories),
+      pageDiscussionRows(tx, organizationId, histories),
       tx
         .select()
         .from(s.spaceEntity)
-        .where(where(inArray(s.spaceEntity.pageId, target.pageHistories))),
+        .where(where(inArray(s.spaceEntity.pageId, histories))),
     ]);
-    await reconcile(tx, organizationId, [...history, ...discussions], stored);
+    await reconcile(
+      tx,
+      organizationId,
+      [...commits, ...lines, ...discussions],
+      stored,
+    );
+  }
+  if (target.commits?.length) {
+    const [expected, stored] = await Promise.all([
+      commitRows(tx, organizationId, { commitIds: target.commits }),
+      tx
+        .select()
+        .from(s.spaceEntity)
+        .where(
+          where(
+            inArray(
+              s.spaceEntity.key,
+              target.commits.map((id) => `pageCommit:${id}`),
+            ),
+          ),
+        ),
+    ]);
+    await reconcile(tx, organizationId, expected, stored);
+  }
+  const lines = target.pageLines?.filter((id) => !histories.includes(id));
+  if (lines?.length) {
+    const [expected, stored] = await Promise.all([
+      lineRows(tx, organizationId, lines),
+      tx
+        .select()
+        .from(s.spaceEntity)
+        .where(
+          where(
+            inArray(s.spaceEntity.pageId, lines),
+            inArray(s.spaceEntity.type, lineTypes),
+          ),
+        ),
+    ]);
+    await reconcile(tx, organizationId, expected, stored);
   }
   const discussions = target.pageDiscussions?.filter(
-    (id) => !target.pageHistories?.includes(id),
+    (id) => !histories.includes(id),
   );
   if (discussions?.length) {
     const [expected, stored] = await Promise.all([
@@ -625,6 +797,38 @@ export async function writeSpaceProjections(
   }
 }
 
+// The draft writer's coarse transition (docs/internals/spaces.md#uncommitted-changes):
+// when stored edits first go beyond a draft's committed sequence, the
+// "uncommitted changes" flags of its page (main's draft on the page
+// summary, the branch, pull requests merging from or into it) are rewritten
+// here, in a transaction of its own that takes the organization lock in
+// exclusive mode like every domain write, after the draft writer's
+// transaction committed. The flag never changes back here: only commits
+// and new epochs (domain commands) clear it.
+export async function refreshDraftProjections(
+  db: Database,
+  organizationId: string,
+  draftId: string,
+) {
+  await db.transaction(async (tx) => {
+    await lock(tx, organizationId);
+    const [draft] = await tx
+      .select({ pageId: s.spaceDraft.pageId })
+      .from(s.spaceDraft)
+      .where(
+        and(
+          eq(s.spaceDraft.organizationId, organizationId),
+          eq(s.spaceDraft.id, draftId),
+        ),
+      );
+    if (!draft) return;
+    await writeSpaceProjections(tx, organizationId, {
+      pages: [draft.pageId],
+      pageLines: [draft.pageId],
+    });
+  });
+}
+
 // Every Spaces projection row the organization should have.
 export async function expectedSpaceProjections(
   tx: Database | Tx,
@@ -633,7 +837,8 @@ export async function expectedSpaceProjections(
   const rows = [
     ...(await spaceRows(tx, organizationId)),
     ...(await pageSummaries(tx, organizationId)),
-    ...(await pageHistoryRows(tx, organizationId)),
+    ...(await commitRows(tx, organizationId, {})),
+    ...(await lineRows(tx, organizationId)),
     ...(await pageDiscussionRows(tx, organizationId)),
   ];
   return new Map(rows.map((r) => [r.key, r]));

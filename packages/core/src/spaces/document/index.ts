@@ -4,6 +4,7 @@ export {
   emptyDocument,
   documentHash,
   PageDocumentError,
+  stableSerialize,
   type PageNode,
 } from "./canonical";
 export { documentToMarkdown } from "./markdown";
@@ -17,3 +18,4 @@ export {
   type MergeChoice,
 } from "./merge";
 export { diffDocuments, type BlockChange } from "./diff";
+export { markdownToDocument } from "./from-markdown";

@@ -13,8 +13,11 @@ Git-inspired history as specifications.
 > settings) are implemented as described under [Implementation](#implementation),
 > [the collaboration service in operation](#the-collaboration-service-in-operation)
 > and [Interface](#interface); the domain of page discussions, page files and
-> page notifications as described under [Comments](#comments). The page
-> editor, history commands, reviews and the discussion interface follow.
+> page notifications as described under [Comments](#comments); the page
+> history (commits, publishing, branches, pull requests, reviews, merges and
+> conflict resolution) as described under
+> [History in practice](#history-in-practice). The page editor, the history
+> and review interface and the discussion interface follow.
 
 ## Concepts
 
@@ -111,6 +114,116 @@ three-way merge over blocks:
 Branches are never merged by replaying CRDT updates into each other. Yjs
 reconciles concurrent typing **within** one draft; between branches, conflicts
 are always surfaced to people.
+
+### History in practice
+
+The commands (`packages/core/src/spaces/history.ts`, all through
+`applyMutation`) and the rules they enforce:
+
+| Command                                          | What it does                                                                                                                                                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `commitDraft`                                    | Seals a line's draft (`draftId`, `epoch`) at exactly `expectedSequence` with a `title` and optional `message`. On main in a Direct space it is "Publish"                                                                                   |
+| `restorePageCommit`                              | A new commit on a line with an earlier commit's title and content (`expectedHead` names the head you saw); the line's draft starts a new epoch from it                                                                                     |
+| `createPageBranch`                               | A named branch from main's head or `fromCommitId`, with its own draft seeded from that commit                                                                                                                                              |
+| `setPageBranchCollaborator`                      | The branch author invites or removes an editor of the space                                                                                                                                                                                |
+| `deletePageBranch`                               | The author or an editor of the space deletes a branch no unmerged pull request uses; its draft is fenced, its commits stay                                                                                                                 |
+| `syncPageBranch`                                 | Merges main (or `fromBranchId`) into a branch with a two-parent merge commit; conflicts are refused until `resolutions` names a choice for each                                                                                            |
+| `createPagePullRequest`, `updatePagePullRequest` | Opens a pull request into main (default) or another branch, optionally as a draft; changes title, description and draft state                                                                                                              |
+| `requestPageReview`, `cancelPageReview`          | Asks someone who can comment on the page to review, `required` or not (the reviewer is notified); reviewers may decline                                                                                                                    |
+| `decidePagePullRequest`                          | `approve`, `request_changes` or `revoke`, bound to the merge result of `inspectedSourceHead` and `inspectedTargetHead`                                                                                                                     |
+| `mergePagePullRequest`                           | Merges after the gates below; into main it publishes and records the valid approvals on the new commit                                                                                                                                     |
+| `deletePagePullRequest`                          | The author or an editor of the space closes an unmerged pull request; it stays in the database with its reviews, and its open discussions are resolved (each recorded)                                                                     |
+| `proposePageChange`                              | A branch from main, a commit with the given title and content (GitHub-flavoured Markdown through `markdownToDocument`, or canonical JSON) and an open pull request into main, in one step: how agents change pages without publishing them |
+
+Who may do what:
+
+- Writing to a line (commit, restore, sync, opening a pull request from it)
+  needs `canEditDraft`: edit access to the active space and page, and for a
+  named branch being its author or a collaborator. Main is written only in
+  Direct spaces; in Reviewed spaces commits, restores and drafts on main are
+  refused and changes arrive through pull requests.
+- Creating branches and proposing changes needs edit access to the space.
+- Reviewing needs `canReviewPageChange`: comment access to the active page
+  (pages have no disciplines) and not being a contributor to the result.
+  Contributors are the authors and contributors of every commit the merge
+  brings in (reachable from the source head and not from the target head).
+  Unlike specifications, the only member of an organization gets no
+  exception: a person working alone uses a Direct space.
+- Merging into main needs edit access to the space; merging into a branch
+  needs to be its author or a collaborator.
+
+**Sealing.** The server reads the epoch's snapshot and the updates up to
+exactly `expectedSequence` (refused if the stored sequence is lower: the
+editor must wait for "Saved"; refused if it is below `committed_sequence`),
+converts them with the document engine and rejects invalid content with the
+engine's reason. Contributors are the authors of the updates since the last
+committed sequence of the epoch, plus the person sealing. A commit equal to
+the head (title and content) is refused as "Nothing to commit"; when edits
+since the last commit cancel out, the cut is recorded as committed without a
+commit (`nothingToCommit`), so a draft never keeps "uncommitted changes" it
+cannot get rid of. Page titles live in commits only: the editor sends the
+title with `commitDraft`, and there is no rename command.
+
+**Epochs.** Every head move that does not come from sealing a line's own
+draft (restore, sync, merging into the line, reopening main when a space goes
+back to Direct) starts a new epoch of that line's draft whose snapshot is the
+new head's Yjs state (`documentToDraftState`), so the live draft starts with
+exactly the committed content. The `space_draft` trigger closes the old
+epoch's rooms. Restoring is refused while the draft has uncommitted changes
+unless `discardDraftChanges` is passed; discarded edits stay in the fenced
+epoch's update log (and in exports) for recovery.
+
+**Merging and conflicts.** Merges use the merge base of the two heads
+(refused when there is none or more than one: restore the wanted version on
+a branch instead) and `mergePages`: the title merges like a block
+(conflict id `page-conflict:title`) and the content through the engine's
+`mergeDocuments` (conflict ids `page-conflict:<path>`). In a pull request,
+"ours" is the source and "theirs" the target, as in a sync. A conflicted sync
+or merge is refused with kind `page_merge_conflicts` and writes nothing; the
+read `previewPageMerge` returns the conflicts (and the browser, which has the
+same engine and the commits, computes the identical result). A second
+`syncPageBranch` sends `resolutions` keyed by conflict id: `"ours"`,
+`"theirs"`, `"both"` or `{ manual: blocks }`, and for the title `"ours"`,
+`"theirs"` or `{ title }`. Conflicts are resolved on the source branch;
+a pull request with conflicts can be neither reviewed nor merged.
+
+**Reviews.** A decision is a row bound to the result hash (`documentHash` of
+the merged title and content) and the heads that were inspected. A new
+decision withdraws the reviewer's previous one; `revoke` withdraws without a
+new one. After every head move of a page, current decisions whose result
+hash no longer matches their pull request's result become stale with the
+reason ("policy changed after this review…"), and the approvers are told
+(`page_approval_invalidated`). A stale or withdrawn decision never counts.
+
+**Merge gates**, checked in this order: the pull request is open (not a
+draft); the inspected heads are current; no uncommitted changes in the source
+or target draft; a single merge base and no conflicts; changes remain; no
+open blocking thread of the pull request (merging into main: of the whole
+page); no current request for changes of this result; every required
+reviewer has a current approval of this result and still can review the
+page; in a Reviewed space merging into main, at least one required review.
+Direct spaces need no review, but a request for changes still blocks.
+
+**Merging into main** creates a two-parent commit on main (the target head
+first) whose contributors are the change's contributors plus the person
+merging, records the pull request and the valid approvers on it
+(`approver_ids`: "Approved" names that commit in Reviewed spaces), moves the
+published pointer (main's head), starts a new epoch of main's draft in
+Direct spaces and retires the source branch (recorded as `branch_deleted`
+with `automatic: true`) unless another unmerged pull request uses it. A merge
+into another branch moves only that branch (and starts a new epoch of its
+draft).
+
+**Reverse states.** Commits are never undone; restore makes a new commit.
+A decision is revoked; a review request cancelled; a pull request returns to
+draft or is closed. A deleted branch is not restored: create a new branch
+from its last commit (its commits stay in the history and `listPageCommits`).
+
+Page activity (`page_activity`) records the history events a commit graph
+does not show: branches created, deleted (automatically or not) and their
+collaborators, restores, syncs, proposals, pull requests created, changed,
+merged and closed, review requests and decisions. Commits themselves are not
+repeated there.
 
 ## Access
 
@@ -212,8 +325,9 @@ configuration change of the organization. The exception is narrow:
   make a draft unloadable, and each update is stored once per draft epoch
   (keyed by its digest): retrying after a commit whose acknowledgement was lost
   does not duplicate it.
-- State that projections show ("this page has unpublished changes", draft
-  contributors) changes through `applyMutation` at coarse transitions only.
+- State that projections show ("this page has unpublished changes") changes
+  at coarse transitions only (see
+  [uncommitted changes](#uncommitted-changes)).
 - Commits, publishing, merges and every other decision go through
   `applyMutation` as usual.
 
@@ -292,6 +406,12 @@ removes or alters commits.
   to 15 seconds (a replaced container releasing it), then logs
   `collaboration.owner_busy` and exits. If the lock's connection ends, the
   service stops at once and its supervisor restarts it.
+- **Stored sequence.** After each stored batch the service sends every
+  editor of the document a stateless message
+  `{"type":"lictory.draft.stored","sequence":N}` (`DRAFT_STORED_MESSAGE`),
+  and sends it to an editor when it connects; an editor may ask again with
+  `{"type":"lictory.draft.sequence"}`. `N` is the `expectedSequence` the
+  editor passes to `commitDraft`: the cut it has seen stored.
 - **Restarts lose nothing stored.** All draft state is in PostgreSQL. SIGTERM
   refuses new connections, closes open ones and waits (bounded) for pending
   saves; editors keep their unsaved changes and resend them when they
@@ -355,11 +475,25 @@ was written on (`branchId`), which must be a live branch of the page.
 **Freezing draft anchors is the commit command's job** (it has the document
 engine): when a draft is committed, each open thread anchored to that draft
 and epoch is rewritten in the same transaction to a commit anchor on the new
-commit (block id, offsets and the quote as committed) with `commit_id` set,
-and threads whose text no longer exists keep their quote and point at the
-commit that removed it ("Original text removed"). Starting a new epoch
-without committing leaves old draft anchors as they are: they then show their
-quote only. This is the only change ever made to an anchor.
+commit with `commit_id` set. The relative positions are resolved against the
+Yjs document reconstructed at the sealed sequence: the anchor's block is the
+textblock containing the start (found by its path, so it is the committed
+block's id even when canonicalization assigned it), `from` and `to` are
+ProseMirror offsets into that block's content (a character counts 1, an
+inline atom or line break counts 1), a range running into later blocks is
+cut at the end of its first block, and the quote is the committed text (the
+original quote when that is empty). Threads whose text no longer exists keep
+their quote and point at the commit that removed it:
+
+```ts
+{ v: 1, kind: "detached", commitId, quote } // "Original text removed"
+```
+
+Clients never create `detached` anchors (`storedPageThreadAnchorSchema` is
+what is stored and synchronized; `pageThreadAnchorSchema` what commands
+accept). Starting a new epoch without committing leaves old draft anchors as
+they are: they then show their quote only. This is the only change ever made
+to an anchor.
 
 ### Notifications
 
@@ -429,22 +563,26 @@ History uses restrictive deletes.
 | `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance             |
 | `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                           |
 | `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                      |
-| `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), resolution; messages (never edited)                                      |
+| `page_pull_request`                       | Pull requests: source and target branch, title, description, `status` (draft, open, merged), merge (who, when, `merge_commit_id`), close (`deleted_at`)         |
+| `page_pull_request_reviewer`              | Review requests: person, `required`, who asked                                                                                                                  |
+| `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                          |
+| `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), `pull_request_id`, resolution; messages (never edited)                   |
 | `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed) with actor, time and delegating agent                                                          |
 | `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                   |
 
-`page_thread.pull_request_id` will name the pull request a thread was
-opened on; it has no foreign key until page pull requests exist, and the
-history commands add both the table and the key. `page_activity` exists
+`page_thread.pull_request_id` names the pull request a thread was opened on
+(a foreign key within the page). `page_commit` also records the pull request
+a merge commit came from and its valid approvers (`approver_ids`), written
+once with the commit. `page_activity` exists
 because a thread's row shows only its current state: who resolved it, who
 reopened it and when it became blocking would otherwise be lost. Page files
 are `file_object` rows with a `page_id` instead of a work item (see
 [file storage](file-storage.md#page-files)).
 
-`hash` is the SHA-256 of the canonical JSON of `{ title, content,
-schemaVersion }`. Until the document engine lands, a new page's first commit is
-an empty document from `initialPageCommit` (`packages/core/src/spaces/commands.ts`)
-and a new main draft starts with empty Yjs state; the engine replaces both.
+`hash` is `documentHash(title, content)`: the SHA-256 of the canonical JSON
+of `{ title, content, schemaVersion }`. A new page's first commit is the
+engine's canonical empty document (`initialPageCommit`), and every new draft
+or epoch starts from its base commit's Yjs state.
 
 ### Commands
 
@@ -452,9 +590,11 @@ Protocol version **16** adds `createSpace`, `updateSpace`,
 `setSpaceAccessMode`, `setSpaceGrant`, `archiveSpace` (with `archived`),
 `createPage` (main branch, first commit and, in Direct spaces, main's draft;
 its receipt names `pageId`, `mainBranchId`, `commitId` and `draftId`),
-`movePage` and `archivePage` (with `archived`), and the page discussion
-commands `createPageThread` (`pageId`, `threadId`, `messageId`, `anchor`,
-`body`, optional `blocking` and `branchId`), `replyToPageThread`,
+`movePage` and `archivePage` (with `archived`), the page history commands
+listed under [History in practice](#history-in-practice), and the page
+discussion commands `createPageThread` (`pageId`, `threadId`, `messageId`,
+`anchor`, `body`, optional `blocking`, `branchId` and `pullRequestId`),
+`replyToPageThread`,
 `resolvePageThread`, `reopenPageThread` and `setPageThreadBlocking`
 (`packages/core/src/spaces/discussions.ts`). They run through
 `applyMutation` like every command, so they are capabilities on every surface;
@@ -488,18 +628,71 @@ service, with `resolveDraftDocument` mapping document names
 ### Projections and Zero
 
 `space_entity` rows (`key` = `{type}:{id}`) hold protocol `SpaceEntity`
-values, a union separate from `Entity`: `space`, `spaceGrant` (id
-`{spaceId}:{userId}`) and `page` summaries (title and commit of main's head,
-`openThreads` and `blockingThreads`) with a NULL `page_id`; `pageCommit`
-(with content), `pageBranch` (with collaborators), `pageThread`,
-`pageThreadMessage` (one row per message, so a reply replicates one row) and
-`pageActivity` carry their page. Discussion commands rewrite only the page's
-discussion rows and its summary (`pageDiscussions` and `pages` targets),
-never its commits. `writeSpaceProjections` rewrites what a
-command touched; `rebuildSpaceProjections`, called by `rebuildProjections`,
-reconciles `space_entity` and `space_reader`, and the projection invariant
-the test suites check includes both. No `space_entity` row depends on who
-reads it, so access changes rewrite only `space_reader`.
+values, a union separate from `Entity`. With a NULL `page_id`: `space`,
+`spaceGrant` (id `{spaceId}:{userId}`) and `page` summaries (title and commit
+of main's head as `publishedCommitId`, `approvedCommitId` when that commit
+merged with valid approvals in a Reviewed space, `mainDraft` in Direct
+spaces, `openThreads` and `blockingThreads`). Carrying their page:
+
+- `pageCommit`: parents, title, content, Markdown, hash, message, author,
+  contributors, `pullRequestId` and `approverIds`. Every commit carries its
+  content: the history view, diffs and the browser's merge preview need
+  heads, merge bases and old versions, and pages are bounded (about 1 MB).
+  If the history of large pages becomes too heavy to replicate, older
+  commits' content moves to on-demand reads (`getPage` with `commitId`)
+  without changing any command.
+- `pageBranch`: live branches with collaborators and `draft`
+  (`PageDraftSummary`: `id`, `epoch`, `documentName` — the collaboration
+  document name the browser connects to — `committedSequence` and
+  `uncommittedChanges`; null for main in Reviewed spaces).
+- `pagePullRequest`: unmerged and merged pull requests (closed ones are not
+  projected) with reviewers and, while unmerged, `mergeability`: heads,
+  merge base, `resultHash` (null with conflicts), `conflicts`,
+  `contributorIds`, `blockingThreads`, `requiredReviews`,
+  `requiredApprovals`, `approvals`, `changesRequested`, `staleReviews` and
+  `blockers` (`draft`, `no_merge_base`, `conflicts`, `no_changes`,
+  `uncommitted_source`, `uncommitted_target`, `blocking_threads`,
+  `no_required_review`, `review_pending`, `changes_requested`). It is
+  computed from page data only; access of the moment (a reviewer who left)
+  is checked when merging.
+- `pagePullRequestReview`: every decision, current or not.
+- `pageThread`, `pageThreadMessage` (one row per message, so a reply
+  replicates one row) and `pageActivity`.
+
+`writeSpaceProjections` rewrites what a command touched: `pages`
+(summaries), `commits` (new commits by id: commits never change), `pageLines`
+(branches, pull requests, reviews), `pageDiscussions` and `pageHistories`
+(all page-level rows). Discussion commands that change counters also rewrite
+the page's lines (blocking threads feed mergeability). `rebuildSpaceProjections`,
+called by `rebuildProjections`, reconciles `space_entity` and `space_reader`,
+and the projection invariant the test suites check includes both. No
+`space_entity` row depends on who reads it, so access changes rewrite only
+`space_reader`.
+
+#### Uncommitted changes
+
+A draft's stored `sequence` advances with every typing batch through the
+draft writer, outside `applyMutation`; it is never projected. What is
+projected is whether stored edits exist beyond the last commit
+(`sequence > committed_sequence`), and that changes only at two coarse
+transitions:
+
+- clean → dirty: when the draft writer's batch is the first beyond the
+  committed sequence (`becameDirty`), it calls `refreshDraftProjections`
+  after its transaction committed and after the authors were told "Saved".
+  That is a transaction of its own taking the organization lock in
+  **exclusive** mode, like every domain write, that rewrites the page's
+  summary and lines from the tables. The writer's own transaction keeps the
+  shared lock and never writes projections, so the narrow exception above
+  is unchanged. If the refresh fails the flag shows late (until the next
+  history command on the page or a rebuild); every gate reads the draft
+  itself.
+- dirty → clean: only commits and new epochs (domain commands), which
+  rewrite the projections in their own transaction.
+
+The browser connected to a draft also knows the stored sequence from the
+collaboration service's stored messages, so the editor can say
+"uncommitted changes" without waiting for the projection.
 
 Both tables are in the `lictory_zero` publication. The synced queries
 `spaces({ organizationId })` (space-level rows), `page({ organizationId,
@@ -513,10 +706,19 @@ organization membership; `organization` and `workItem` read only
 The capabilities `listSpaces` (readable spaces with the reader's level, plus
 the restricted spaces the person administers without reading them, names
 only), `listPages` (one space's tree in reading order), `getPage` (main's
-latest title and Markdown, never a draft) and `listPageThreads` (a page's
+latest title and Markdown, or any commit with `commitId`; never a draft),
+`listPageCommits` (the history, newest first, optionally of one line),
+`diffPageCommits` (title and block changes between two commits),
+`previewPageMerge` (a pull request's or a sync's merge now: conflicts with
+their ids, result hash, Markdown) and `listPageThreads` (a page's
 discussions with their messages; resolved ones on request) are available on
-every surface. Organization export includes spaces, grants, pages, commits,
-branches, collaborators, drafts (binary Yjs state as base64), threads,
+every surface. Agents cannot type into live drafts: they change pages with
+`proposePageChange`. `commitDraft` (publishing, on main), deciding reviews
+and merging are `decision` commands like their specification counterparts
+([human decisions](capabilities.md#human-decisions)): agents call them only
+when the person asked, and Litto asks for confirmation first. Organization export includes spaces, grants, pages, commits,
+branches, collaborators, pull requests with their review requests and
+decisions, drafts (binary Yjs state as base64), threads,
 messages, page activity and page files, an additive change that keeps
 archive format version 1; organization deletion removes them before projects
 and teams. Deleting an account keeps the person's threads and messages,

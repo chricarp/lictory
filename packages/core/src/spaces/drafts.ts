@@ -16,6 +16,7 @@ import {
   type Tx,
 } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
+import { refreshDraftProjections } from "@lictory/core/spaces/projections";
 
 // One epoch of one draft. A new epoch replaces the content (restore, merging
 // main into a branch); writes for an older epoch are refused.
@@ -56,15 +57,16 @@ async function currentDraft(
     organization_id: string;
     epoch: number;
     sequence: number;
+    committed_sequence: number;
     fenced_at: Date | null;
     snapshot: Buffer | null;
     snapshot_sequence: number;
   }>(
     forUpdate
-      ? sql`select organization_id, epoch, sequence, fenced_at, null::bytea as snapshot, snapshot_sequence
+      ? sql`select organization_id, epoch, sequence, committed_sequence, fenced_at, null::bytea as snapshot, snapshot_sequence
               from space_draft where id = ${ref.draftId} and organization_id = ${ref.organizationId}
               for update`
-      : sql`select organization_id, epoch, sequence, fenced_at, snapshot, snapshot_sequence
+      : sql`select organization_id, epoch, sequence, committed_sequence, fenced_at, snapshot, snapshot_sequence
               from space_draft where id = ${ref.draftId} and organization_id = ${ref.organizationId}`,
   );
   const draft = rows[0];
@@ -182,7 +184,12 @@ export async function appendDraftUpdates(
         sql`update space_draft set sequence = ${sequence}, updated_at = now()
               where id = ${ref.draftId}`,
       );
-    return { sequence, denied };
+    // The first stored edit beyond the last commit: projections show
+    // "uncommitted changes" from now on (`refreshDraftProjections`).
+    const becameDirty =
+      draft.sequence <= draft.committed_sequence &&
+      sequence > draft.committed_sequence;
+    return { sequence, denied, becameDirty };
   });
 }
 
@@ -273,7 +280,7 @@ export class DraftWriter {
           bytes += this.pending[count++]!.update.byteLength;
         const batch = this.pending.splice(0, count);
         try {
-          const { sequence, denied } = await this.append(batch);
+          const { sequence, denied, becameDirty } = await this.append(batch);
           for (const entry of batch)
             if (denied.has(authorKey(entry)))
               entry.reject(
@@ -283,6 +290,15 @@ export class DraftWriter {
                 ),
               );
             else entry.resolve(sequence);
+          // After the authors were told "Saved": a failure here only delays
+          // the flag until the next commit or projection rebuild, and the
+          // merge gates read the draft itself.
+          if (becameDirty)
+            await refreshDraftProjections(
+              this.db,
+              this.ref.organizationId,
+              this.ref.draftId,
+            ).catch(() => undefined);
         } catch (error) {
           for (const entry of batch) entry.reject(error);
         } finally {

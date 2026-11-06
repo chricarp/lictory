@@ -90,6 +90,8 @@ export function predictPageTree(
           // The first commit gets its id on the server; the page's history
           // arrives with it.
           publishedCommitId: command.pageId,
+          approvedCommitId: null,
+          mainDraft: null,
           createdById: context.userId,
           createdAt: context.now,
           updatedAt: context.now,

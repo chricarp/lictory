@@ -92,6 +92,20 @@ export const commandEvents = {
   resolvePageThread: "page_thread_resolved",
   reopenPageThread: "page_thread_reopened",
   setPageThreadBlocking: "page_thread_blocking_changed",
+  commitDraft: "page_draft_committed",
+  restorePageCommit: "page_commit_restored",
+  createPageBranch: "page_branch_created",
+  setPageBranchCollaborator: "page_branch_collaborator_changed",
+  deletePageBranch: "page_branch_deleted",
+  syncPageBranch: "page_branch_synced",
+  createPagePullRequest: "page_pull_request_created",
+  updatePagePullRequest: "page_pull_request_updated",
+  deletePagePullRequest: "page_pull_request_deleted",
+  requestPageReview: "page_review_requested",
+  cancelPageReview: "page_review_cancelled",
+  decidePagePullRequest: "page_review_decided",
+  mergePagePullRequest: "page_pull_request_merged",
+  proposePageChange: "page_change_proposed",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.

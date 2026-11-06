@@ -446,8 +446,9 @@ export async function canPublishPage(
   return Boolean(row && active(row) && spaceLevelAtLeast(row.level, "edit"));
 }
 
-// Decide a review of a proposed page change: an editor of the space who did
-// not contribute to the result (pass the result's contributors).
+// Review a proposed page change (be asked to, approve, request changes):
+// someone who may comment on the active page (pages have no disciplines)
+// and did not contribute to the result (pass the result's contributors).
 export async function canReviewPageChange(
   tx: Database | Tx,
   actor: SpaceActor,
@@ -455,7 +456,7 @@ export async function canReviewPageChange(
   contributorIds: readonly string[] = [],
 ) {
   if (contributorIds.includes(actor.userId)) return false;
-  return canPublishPage(tx, actor, pageId);
+  return canCommentOnPage(tx, actor, pageId);
 }
 
 // Manage access, publishing, home and archiving: the space's creator,

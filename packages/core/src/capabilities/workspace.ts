@@ -180,6 +180,81 @@ const commandDocs: Record<CommandType, CommandDoc> = {
       "Commenters: mark a page discussion blocking (it blocks merging the page's changes while open) or non-blocking. Recorded in the page's activity.",
     decision: true,
   },
+  commitDraft: {
+    title: "Commit page draft",
+    description:
+      "Seal the live draft of a page line (`branchId`, its `draftId` and `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw, into an immutable commit with `title` and an optional `message`. Later edits stay uncommitted. On main in a Direct space this publishes the page. Allowed for editors of the space; a named branch only for its author and collaborators; main in a Reviewed space is protected (use proposePageChange or a branch and pull request). Edits that cancel out record the cut without a commit (`nothingToCommit`). Agents cannot type into live drafts; they propose changes with proposePageChange.",
+    decision: true,
+  },
+  restorePageCommit: {
+    title: "Restore page version",
+    description:
+      "Create a new commit on a line (`branchId`, at `expectedHead`) with the title and content of an earlier commit of the page; history is never rewritten, and the line's live draft starts again from the new commit. Refused while the draft has uncommitted changes unless `discardDraftChanges` is true (the stored edits stay recoverable). Main of a Reviewed space is restored through a branch and pull request.",
+  },
+  createPageBranch: {
+    title: "Create page branch",
+    description:
+      "Editors of a space: create a named branch of a page from main's latest commit or `fromCommitId`, with its own live draft. The author and the collaborators they invite edit it. Names follow Git's branch rules; `main` is reserved.",
+  },
+  setPageBranchCollaborator: {
+    title: "Set page branch collaborator",
+    description:
+      "The branch author: invite (`collaborator: true`) or remove a person who can edit the space as a collaborator on a page branch.",
+  },
+  deletePageBranch: {
+    title: "Delete page branch",
+    description:
+      "The branch author or an editor of the space: delete a page branch that no unmerged pull request uses. Its editors are disconnected; its commits stay in the page's history. To continue, create a new branch from its last commit.",
+    destructive: true,
+  },
+  syncPageBranch: {
+    title: "Update page branch",
+    description:
+      'Bring the changes of main (or `fromBranchId`) into a page branch with a merge commit; `expectedHead` and `expectedTargetHead` name the heads you inspected. Refused while the branch has uncommitted changes. When both lines changed the same blocks or the title, the command is refused with kind `page_merge_conflicts`: read the conflicts with previewPageMerge and send `resolutions` keyed by conflict id ("ours", "theirs", "both" or { manual: blocks }; the title conflict takes "ours", "theirs" or { title }). Returns `commitId`, or `alreadyUpToDate`.',
+  },
+  createPagePullRequest: {
+    title: "Open page pull request",
+    description:
+      "Propose merging a page branch into main (default) or `targetBranchId`, optionally as a draft. Request reviews with requestPageReview; in Reviewed spaces merging into main needs at least one required review.",
+  },
+  updatePagePullRequest: {
+    title: "Update page pull request",
+    description:
+      "The author or a source branch collaborator: change a page pull request's title or description, or mark it draft or ready for review.",
+  },
+  deletePagePullRequest: {
+    title: "Close page pull request",
+    description:
+      "The author or an editor of the space: close an unmerged page pull request. Its reviews and discussions are kept; open discussions on it are resolved and recorded.",
+    destructive: true,
+  },
+  requestPageReview: {
+    title: "Request page review",
+    description:
+      "Ask someone with comment or edit access to review a page pull request; `required` reviews gate the merge. People who contributed to the change cannot approve it. The reviewer is notified.",
+  },
+  cancelPageReview: {
+    title: "Cancel page review request",
+    description:
+      "Withdraw a review request from a page pull request (reviewers may decline their own).",
+  },
+  decidePagePullRequest: {
+    title: "Review page pull request",
+    description:
+      "Approve, request changes on, or revoke your decision on a page pull request. The decision binds to the complete merge result of `inspectedSourceHead` and `inspectedTargetHead`; any later change makes it stale. Contributors to the change cannot approve it. Refused while the merge has conflicts.",
+    decision: true,
+  },
+  mergePagePullRequest: {
+    title: "Merge page pull request",
+    description:
+      "Merge an open page pull request whose heads you inspected. Requires no conflicts, no uncommitted draft changes on either line, no open blocking discussions (of the pull request, or of the page when merging into main), no current request for changes and every required reviewer's approval of the current result; Reviewed spaces also need at least one required review to merge into main. Merging into main publishes a commit that records the valid approvals and deletes the source branch unless another pull request uses it. Returns `commitId`.",
+    decision: true,
+  },
+  proposePageChange: {
+    title: "Propose page change",
+    description:
+      "Propose a new version of a page without publishing it: creates a branch from main, a commit with `title` and the new content (`markdown`, GitHub-flavoured, or canonical Tiptap JSON `content`) and an open pull request into main titled by the first line of `message`. People review and merge it. Returns `branchId`, `commitId`, `pullRequestId` and `draftId` (the branch's live draft).",
+  },
   createProject: {
     title: "Create project",
     description:

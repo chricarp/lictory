@@ -12,6 +12,18 @@ import {
   spaceAccess,
   type SpaceActor,
 } from "@lictory/core/spaces/access";
+import {
+  diffDocuments,
+  documentToMarkdown,
+} from "@lictory/core/spaces/document";
+import {
+  commitMetas,
+  commitSnapshots,
+  pageLineStates,
+  pullRequestCommitIds,
+  pullRequestMerge,
+  reachable,
+} from "@lictory/core/spaces/history-state";
 import { pageSummaries } from "@lictory/core/spaces/projections";
 
 // On-demand reads of Lictory Spaces for capabilities (MCP, Litto, browser
@@ -149,29 +161,22 @@ export async function listPages(
   }, readOnly);
 }
 
-// A page as published: main's latest commit (title and Markdown). Live
-// drafts are never returned.
+// A page as published (main's latest commit), or any commit of its history
+// with `commitId`: title and Markdown. Live drafts are never returned.
 export async function getPage(
   db: Database,
   userId: string,
   organizationId: string,
   pageId: string,
+  options: { commitId?: string } = {},
 ) {
   return db.transaction(async (tx) => {
     await authorize(tx, userId, organizationId);
     const found = await pageAccess(tx, { organizationId, userId }, pageId);
     if (!found?.level) throw unavailablePage();
-    const [published] = await tx
-      .select({ commit: s.pageCommit })
+    const [main] = await tx
+      .select({ headCommitId: s.pageBranch.headCommitId })
       .from(s.pageBranch)
-      .innerJoin(
-        s.pageCommit,
-        and(
-          eq(s.pageCommit.organizationId, s.pageBranch.organizationId),
-          eq(s.pageCommit.pageId, s.pageBranch.pageId),
-          eq(s.pageCommit.id, s.pageBranch.headCommitId),
-        ),
-      )
       .where(
         and(
           eq(s.pageBranch.organizationId, organizationId),
@@ -179,7 +184,18 @@ export async function getPage(
           eq(s.pageBranch.isMain, true),
         ),
       );
-    if (!published) throw unavailablePage();
+    if (!main) throw unavailablePage();
+    const [commit] = await tx
+      .select()
+      .from(s.pageCommit)
+      .where(
+        and(
+          eq(s.pageCommit.organizationId, organizationId),
+          eq(s.pageCommit.pageId, pageId),
+          eq(s.pageCommit.id, options.commitId ?? main.headCommitId),
+        ),
+      );
+    if (!commit) throw unavailableCommit();
     const { page, space } = found;
     return {
       page: {
@@ -189,12 +205,234 @@ export async function getPage(
         parentId: page.parentId,
         archivedAt: page.archivedAt?.toISOString() ?? null,
       },
-      title: published.commit.title,
-      markdown: published.commit.markdown,
-      commitId: published.commit.id,
-      publishedAt: published.commit.createdAt.toISOString(),
-      publishedBy: published.commit.authorId,
+      title: commit.title,
+      markdown: commit.markdown,
+      commitId: commit.id,
+      // Whether this commit is what readers see now.
+      published: commit.id === main.headCommitId,
+      publishedAt: commit.createdAt.toISOString(),
+      publishedBy: commit.authorId,
+      message: commit.message,
+      contributorIds: commit.contributorIds,
+      approverIds: commit.approverIds,
       level: found.level,
+    };
+  }, readOnly);
+}
+
+const unavailableCommit = () =>
+  new DomainError("not_found", "This version of the page is unavailable.");
+
+async function readablePageIn(
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  userId: string,
+  organizationId: string,
+  pageId: string,
+) {
+  await authorize(tx, userId, organizationId);
+  const found = await pageAccess(tx, { organizationId, userId }, pageId);
+  if (!found?.level) throw unavailablePage();
+  return found;
+}
+
+// A page's history, newest first: every commit (or those reachable from
+// one line), with its parents, message, author, contributors and the
+// approvals recorded when it merged, and the page's live lines.
+export async function listPageCommits(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  pageId: string,
+  options: { branchId?: string; limit?: number } = {},
+) {
+  return db.transaction(async (tx) => {
+    await readablePageIn(tx, userId, organizationId, pageId);
+    const [commits, branches] = await Promise.all([
+      commitMetas(tx, organizationId, [pageId]),
+      tx
+        .select()
+        .from(s.pageBranch)
+        .where(
+          and(
+            eq(s.pageBranch.organizationId, organizationId),
+            eq(s.pageBranch.pageId, pageId),
+          ),
+        ),
+    ]);
+    let selected = commits;
+    if (options.branchId) {
+      const branch = branches.find((b) => b.id === options.branchId);
+      if (!branch)
+        throw new DomainError(
+          "not_found",
+          "This branch is unavailable on this page.",
+        );
+      const lineage = reachable(commits, branch.headCommitId);
+      selected = commits.filter((c) => lineage.has(c.id));
+    }
+    return {
+      branches: branches
+        .filter((b) => !b.deletedAt)
+        .map((b) => ({
+          id: b.id,
+          name: b.name,
+          isMain: b.isMain,
+          headCommitId: b.headCommitId,
+          authorId: b.authorId,
+        })),
+      commits: [...selected]
+        .reverse()
+        .slice(0, options.limit ?? 100)
+        .map((c) => ({
+          id: c.id,
+          parentIds: c.parentIds,
+          title: c.title,
+          message: c.message,
+          hash: c.hash,
+          authorId: c.authorId,
+          contributorIds: c.contributorIds,
+          approverIds: c.approverIds,
+          pullRequestId: c.pullRequestId,
+          createdAt: c.createdAt.toISOString(),
+        })),
+      total: selected.length,
+    };
+  }, readOnly);
+}
+
+// What changed between two commits of a page: the title and each block
+// (added, removed, changed, moved) with its Markdown before and after.
+export async function diffPageCommits(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  pageId: string,
+  fromCommitId: string,
+  toCommitId: string,
+) {
+  return db.transaction(async (tx) => {
+    await readablePageIn(tx, userId, organizationId, pageId);
+    const metas = await commitMetas(tx, organizationId, [pageId]);
+    if (
+      ![fromCommitId, toCommitId].every((id) => metas.some((c) => c.id === id))
+    )
+      throw unavailableCommit();
+    const snapshots = await commitSnapshots(tx, organizationId, [
+      fromCommitId,
+      toCommitId,
+    ]);
+    const from = snapshots.get(fromCommitId)!;
+    const to = snapshots.get(toCommitId)!;
+    return {
+      from: { commitId: fromCommitId, title: from.title },
+      to: { commitId: toCommitId, title: to.title },
+      titleChanged: from.title !== to.title,
+      changes: diffDocuments(from.content, to.content).filter(
+        (change) => change.kind !== "unchanged",
+      ),
+    };
+  }, readOnly);
+}
+
+// The merge of two lines of a page as it would happen now: a pull
+// request's source into its target, or `fromBranchId` (default main) into
+// `branchId` (what syncPageBranch does). Lists every conflict with its id
+// (what `resolutions` are keyed by), the result's fingerprint when clean
+// and its Markdown (conflicts keep ours provisionally).
+export async function previewPageMerge(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  input:
+    { pullRequestId: string } | { branchId: string; fromBranchId?: string },
+) {
+  return db.transaction(async (tx) => {
+    await authorize(tx, userId, organizationId);
+    let ours: string;
+    let theirs: string | undefined;
+    let pageId: string;
+    if ("pullRequestId" in input) {
+      const [pr] = await tx
+        .select()
+        .from(s.pagePullRequest)
+        .where(
+          and(
+            eq(s.pagePullRequest.organizationId, organizationId),
+            eq(s.pagePullRequest.id, input.pullRequestId),
+          ),
+        );
+      if (!pr || pr.deletedAt)
+        throw new DomainError("not_found", "This pull request is unavailable.");
+      pageId = pr.pageId;
+      ours = pr.sourceBranchId;
+      theirs = pr.targetBranchId;
+    } else {
+      const [branch] = await tx
+        .select({ pageId: s.pageBranch.pageId })
+        .from(s.pageBranch)
+        .where(
+          and(
+            eq(s.pageBranch.organizationId, organizationId),
+            eq(s.pageBranch.id, input.branchId),
+          ),
+        );
+      if (!branch)
+        throw new DomainError(
+          "not_found",
+          "This branch is unavailable on this page.",
+        );
+      pageId = branch.pageId;
+      ours = input.branchId;
+      theirs = input.fromBranchId;
+    }
+    try {
+      await readablePageIn(tx, userId, organizationId, pageId);
+    } catch {
+      throw new DomainError(
+        "not_found",
+        "This branch or pull request is unavailable.",
+      );
+    }
+    const state = (await pageLineStates(tx, organizationId, [pageId])).get(
+      pageId,
+    )!;
+    const line = state.branches.find((b) => b.id === ours);
+    const from = theirs
+      ? state.branches.find((b) => b.id === theirs)
+      : state.branches.find((b) => b.isMain);
+    if (!line || !from)
+      throw new DomainError(
+        "not_found",
+        "This branch is unavailable on this page.",
+      );
+    const pr = { sourceBranchId: line.id, targetBranchId: from.id };
+    const snapshots = await commitSnapshots(
+      tx,
+      organizationId,
+      pullRequestCommitIds(state, [pr]),
+    );
+    const merged = pullRequestMerge(state, pr, snapshots);
+    return {
+      ours: {
+        branchId: line.id,
+        name: line.name,
+        headCommitId: line.headCommitId,
+      },
+      theirs: {
+        branchId: from.id,
+        name: from.name,
+        headCommitId: from.headCommitId,
+      },
+      baseCommitId: merged?.base?.id ?? null,
+      alreadyUpToDate: reachable(state.commits, line.headCommitId).has(
+        from.headCommitId,
+      ),
+      conflicts: merged?.merge?.conflicts ?? [],
+      resultHash: merged?.resultHash ?? null,
+      title: merged?.merge?.title ?? null,
+      markdown: merged?.merge
+        ? documentToMarkdown(merged.merge.content.document)
+        : null,
     };
   }, readOnly);
 }

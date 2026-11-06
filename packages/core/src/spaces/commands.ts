@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
   isPageDiscussionCommand,
+  isPageHistoryCommand,
   spaceLevelAtLeast,
   type Directory,
   type SpaceAccessLevel,
@@ -10,7 +10,6 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { rankBetween } from "@lictory/core/contracts/rank";
 import { DomainError } from "@lictory/core/domain/errors";
-import { canonicalJson } from "@lictory/core/domain/projections";
 import type { Tx } from "@lictory/core/domain/service";
 import {
   canManageSpaceAccess,
@@ -20,6 +19,16 @@ import {
   type SpaceActor,
 } from "@lictory/core/spaces/access";
 import { applyPageDiscussionCommand } from "@lictory/core/spaces/discussions";
+import {
+  documentHash,
+  documentToMarkdown,
+  emptyDocument,
+  PAGE_SCHEMA_VERSION,
+} from "@lictory/core/spaces/document";
+import {
+  applyPageHistoryCommand,
+  openLineDraft,
+} from "@lictory/core/spaces/history";
 import {
   writeSpaceProjections,
   type SpaceProjectionTarget,
@@ -54,47 +63,16 @@ const fail = (
   throw new DomainError(category, message);
 };
 
-// Version 1 of the canonical page content: a Tiptap (ProseMirror) document.
-export const PAGE_SCHEMA_VERSION = 1;
-
-// The fingerprint of a commit's complete content. Reviews of page changes
-// bind to it, so it covers the title, the canonical content and the schema
-// version that interprets it.
-export function pageContentHash(input: {
-  title: string;
-  content: Record<string, unknown>;
-  schemaVersion: number;
-}) {
-  return createHash("sha256")
-    .update(
-      canonicalJson({
-        title: input.title,
-        content: input.content,
-        schemaVersion: input.schemaVersion,
-      }),
-    )
-    .digest("hex");
-}
-
-// The first commit of a new page: its title and an empty document.
-// Placeholder until the document engine (packages/core/src/spaces/document)
-// lands: replace this single function with the engine's canonical empty
-// document and Markdown serializer.
+// The first commit of a new page: its title and the engine's canonical
+// empty document.
 export function initialPageCommit(title: string) {
-  const content: Record<string, unknown> = {
-    type: "doc",
-    content: [{ type: "paragraph" }],
-  };
+  const content = emptyDocument();
   return {
     title,
-    content,
-    markdown: "",
+    content: content as unknown as Record<string, unknown>,
+    markdown: documentToMarkdown(content),
     schemaVersion: PAGE_SCHEMA_VERSION,
-    hash: pageContentHash({
-      title,
-      content,
-      schemaVersion: PAGE_SCHEMA_VERSION,
-    }),
+    hash: documentHash(title, content),
   };
 }
 
@@ -335,53 +313,6 @@ async function requireNewId(tx: Tx, table: "page" | "space", id: string) {
     fail(`This ${table} id is already used. Retry with a new id.`, "conflict");
 }
 
-// Main's live draft for a page, opened (or reopened as a new epoch) at the
-// given commit. Its Yjs state starts empty: seeding it from the commit's
-// content is the document engine's job.
-async function openMainDraft(
-  tx: Tx,
-  organizationId: string,
-  pageId: string,
-  branchId: string,
-  commitId: string,
-) {
-  const [existing] = await tx
-    .select()
-    .from(s.spaceDraft)
-    .where(
-      and(
-        eq(s.spaceDraft.organizationId, organizationId),
-        eq(s.spaceDraft.branchId, branchId),
-      ),
-    );
-  if (!existing) {
-    const id = crypto.randomUUID();
-    await tx.insert(s.spaceDraft).values({
-      id,
-      organizationId,
-      pageId,
-      branchId,
-      baseCommitId: commitId,
-    });
-    return id;
-  }
-  if (!existing.fencedAt) return existing.id;
-  // A new epoch replaces the content: clients of the old one are refused.
-  await tx
-    .update(s.spaceDraft)
-    .set({
-      epoch: existing.epoch + 1,
-      baseCommitId: commitId,
-      committedSequence: existing.sequence,
-      snapshot: null,
-      snapshotSequence: existing.sequence,
-      fencedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(s.spaceDraft.id, existing.id));
-  return existing.id;
-}
-
 // Main branches of a space's pages with their drafts.
 async function mainLines(tx: Tx, organizationId: string, spaceId: string) {
   return tx
@@ -452,8 +383,9 @@ async function changePublishing(
         );
     return;
   }
+  // Seeded from main's head, so editors start from the published content.
   for (const line of lines)
-    await openMainDraft(
+    await openLineDraft(
       tx,
       organizationId,
       line.pageId,
@@ -478,6 +410,7 @@ export async function applySpaceCommand(
   c: SpaceCommand,
 ): Promise<SpaceCommandSummary | undefined> {
   if (isPageDiscussionCommand(c)) return applyPageDiscussionCommand(tx, ctx, c);
+  if (isPageHistoryCommand(c)) return applyPageHistoryCommand(tx, ctx, c);
   const { organizationId, userId, roster } = ctx;
   const actor: SpaceActor = { organizationId, userId };
   const now = new Date();
@@ -590,7 +523,15 @@ export async function applySpaceCommand(
         );
       if (homeChanged)
         await refreshSpaceAccess(tx, organizationId, { spaceIds: [space.id] });
-      await project({ spaces: [space.id] });
+      // The policy decides main's draft, the "Approved" label and the
+      // review gates of pull requests into main.
+      const pageIds = publishingChanged
+        ? (await pagesOfSpace(tx, organizationId, space.id)).map((p) => p.id)
+        : [];
+      await project({
+        spaces: [space.id],
+        ...(pageIds.length ? { pages: pageIds, pageLines: pageIds } : {}),
+      });
       return undefined;
     }
 
@@ -744,15 +685,21 @@ export async function applySpaceCommand(
       // Reviewed spaces protect main: it has no writable draft.
       const draftId =
         space.publishing === "direct"
-          ? await openMainDraft(
-              tx,
-              organizationId,
-              c.pageId,
-              branchId,
-              commitId,
-            )
+          ? (
+              await openLineDraft(
+                tx,
+                organizationId,
+                c.pageId,
+                branchId,
+                commitId,
+              )
+            ).id
           : undefined;
-      await project({ pages: [c.pageId], pageHistories: [c.pageId] });
+      await project({
+        pages: [c.pageId],
+        pageLines: [c.pageId],
+        commits: [commitId],
+      });
       return {
         pageId: c.pageId,
         mainBranchId: branchId,

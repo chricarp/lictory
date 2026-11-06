@@ -23,6 +23,7 @@ import {
   refreshMemberships,
 } from "@lictory/core/domain/projections";
 import { executeMutation } from "@lictory/core/domain/service";
+import { documentHash } from "@lictory/core/spaces/document";
 import {
   CapabilityError,
   noEffects,
@@ -750,11 +751,19 @@ void test("a new page has main, an immutable first commit and, in Direct spaces 
     .where(eq(s.pageCommit.pageId, created.pageId));
   assert.equal(commit?.id, created.commitId);
   assert.equal(commit?.title, "Retries");
-  assert.deepEqual(commit?.content, {
-    type: "doc",
-    content: [{ type: "paragraph" }],
-  });
+  // The engine's canonical empty document: one paragraph with a stable id.
+  const content = commit?.content as {
+    type: string;
+    content: { type: string; attrs: { id: string } }[];
+  };
+  assert.equal(content.type, "doc");
+  assert.deepEqual(
+    content.content.map((n) => n.type),
+    ["paragraph"],
+  );
+  assert.match(content.content[0]!.attrs.id, /^[0-9a-f-]{36}$/);
   assert.equal(commit?.markdown, "");
+  assert.equal(commit?.hash, documentHash("Retries", commit.content));
   assert.match(commit.hash, /^[0-9a-f]{64}$/);
   assert.deepEqual(commit?.contributorIds, [f.alice]);
   const [main] = await db
