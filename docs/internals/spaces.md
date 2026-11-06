@@ -12,8 +12,9 @@ Git-inspired history as specifications.
 > interface (navigation, spaces, the page tree, published pages and space
 > settings) are implemented as described under [Implementation](#implementation),
 > [the collaboration service in operation](#the-collaboration-service-in-operation)
-> and [Interface](#interface); the page editor, history commands, reviews and
-> comments follow.
+> and [Interface](#interface); the domain of page discussions, page files and
+> page notifications as described under [Comments](#comments). The page
+> editor, history commands, reviews and the discussion interface follow.
 
 ## Concepts
 
@@ -300,14 +301,94 @@ removes or alters commits.
 
 Threads are anchored and keep their history like specification threads:
 
-- on a commit: the commit, the block path and range, and the quoted text. A
+- on a commit: the commit, the block and range, and the quoted text. A
   commit never changes, so the anchor never moves;
 - on a live draft: Yjs relative positions, which follow concurrent edits within
-  that draft and epoch, frozen to a commit range when the draft is committed.
+  that draft and epoch, frozen to a commit range when the draft is committed;
+- on the whole page.
 
 When anchored text is deleted, the thread shows "Original text removed" with
 the quote and a link to the version it was written on. Threads are never
 silently re-attached elsewhere.
+
+### Who does what
+
+Discussions follow the rules of specification threads, translated to space
+access: whoever may comment on the page (`canCommentOnPage`: comment or edit
+access to an active space and page) starts a thread, replies, resolves,
+reopens and marks it blocking or non-blocking. Viewers read threads but
+cannot write them; people without access cannot tell a thread exists.
+Messages are never edited or deleted (specification messages are not
+either), and resolving keeps every message. Archived pages and spaces are
+read-only, discussions included.
+
+A blocking thread blocks merging the page's changes while it is open; the
+history commands check it with `openBlockingPageThreads`
+(`packages/core/src/spaces/discussions.ts`, see
+[History](#history-commits-branches-and-pull-requests)).
+
+### Anchors
+
+The anchor is a versioned protocol shape (`PageThreadAnchor`,
+`pageThreadAnchorSchema` in `packages/core/src/contracts/protocol.ts`):
+
+```ts
+{ v: 1, kind: "commit", commitId, blockId, from, to, quote }
+{ v: 1, kind: "draft", draftId, epoch, start, end, quote }
+{ v: 1, kind: "page" }
+```
+
+- `blockId` is the block's stable id; `from` < `to` are offsets into that
+  block's text, frozen with the commit.
+- `start` and `end` are base64 encodings of Yjs relative positions
+  (`Y.encodeRelativePosition`) in the draft's current epoch.
+- `quote` is the selected text, 1 to 2000 characters (clients shorten longer
+  selections).
+
+The server checks the shape and bounds, that the commit belongs to the page,
+and that the draft belongs to the page, is open and is at that epoch (an old
+epoch's positions point into replaced content, so they are refused with
+"select the text again"). It never resolves positions. A draft thread
+records the draft's branch as its line; any thread may name the branch it
+was written on (`branchId`), which must be a live branch of the page.
+
+**Freezing draft anchors is the commit command's job** (it has the document
+engine): when a draft is committed, each open thread anchored to that draft
+and epoch is rewritten in the same transaction to a commit anchor on the new
+commit (block id, offsets and the quote as committed) with `commit_id` set,
+and threads whose text no longer exists keep their quote and point at the
+commit that removed it ("Original text removed"). Starting a new epoch
+without committing leaves old draft anchors as they are: they then show their
+quote only. This is the only change ever made to an anchor.
+
+### Notifications
+
+Page notifications use the shared machinery
+([notifications](notifications.md#lictory-spaces)) with their own kinds, and
+reach only people who can read the space, checked when written and again
+whenever one is read or emailed:
+
+| Kind                        | Who                                                                   | Default        |
+| --------------------------- | --------------------------------------------------------------------- | -------------- |
+| `page_mentioned`            | People mentioned in a message (`@[label](mention:USER_ID)`)           | In app + email |
+| `page_thread_reply`         | The thread's earlier participants                                     | In app         |
+| `page_blocking_thread`      | Authors and contributors of the page's commits                        | In app + email |
+| `page_review_requested`     | Reviewers asked to review a page change (`notifyPageReviewRequested`) | In app + email |
+| `page_approval_invalidated` | Reviewers whose approval went stale (`notifyPageApprovalInvalidated`) | In app + email |
+
+Opening or resolving a non-blocking thread notifies nobody: discussions are
+read where they are, and notifications exist to unblock work. The two review
+entry points (`packages/core/src/spaces/notifications.ts`) take
+`{ organizationId, pageId, actorId, reviewerIds, pullRequestId,
+pullRequestTitle }` and run in the command's transaction.
+
+### Files
+
+A page can own files ([private file storage](file-storage.md#page-files)).
+Commenters attach them, readers of the space list and download them, and
+the editor inserts them with the same stable `/api/files/{id}` reference
+specifications use (Markdown `![name](/api/files/{id})`, an image node's
+`src`).
 
 ## Integration with the rest of Lictory
 
@@ -348,7 +429,17 @@ History uses restrictive deletes.
 | `page_commit`                             | Immutable snapshots: parents, title, `content` (Tiptap JSON), `markdown`, `hash`, `schema_version`, message, author, contributors, draft provenance             |
 | `page_branch`, `page_branch_collaborator` | Pointers (`head_commit_id`, `base_commit_id`), exactly one `is_main` per page that is never deleted, author and invited collaborators                           |
 | `space_draft`, `space_draft_update`       | Live drafts (one per line, `branch_id` unique) with epoch, sequence, `committed_sequence`, base commit, snapshot and fence; the update log                      |
+| `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), resolution; messages (never edited)                                      |
+| `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed) with actor, time and delegating agent                                                          |
 | `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                   |
+
+`page_thread.pull_request_id` will name the pull request a thread was
+opened on; it has no foreign key until page pull requests exist, and the
+history commands add both the table and the key. `page_activity` exists
+because a thread's row shows only its current state: who resolved it, who
+reopened it and when it became blocking would otherwise be lost. Page files
+are `file_object` rows with a `page_id` instead of a work item (see
+[file storage](file-storage.md#page-files)).
 
 `hash` is the SHA-256 of the canonical JSON of `{ title, content,
 schemaVersion }`. Until the document engine lands, a new page's first commit is
@@ -361,7 +452,11 @@ Protocol version **16** adds `createSpace`, `updateSpace`,
 `setSpaceAccessMode`, `setSpaceGrant`, `archiveSpace` (with `archived`),
 `createPage` (main branch, first commit and, in Direct spaces, main's draft;
 its receipt names `pageId`, `mainBranchId`, `commitId` and `draftId`),
-`movePage` and `archivePage` (with `archived`). They run through
+`movePage` and `archivePage` (with `archived`), and the page discussion
+commands `createPageThread` (`pageId`, `threadId`, `messageId`, `anchor`,
+`body`, optional `blocking` and `branchId`), `replyToPageThread`,
+`resolvePageThread`, `reopenPageThread` and `setPageThreadBlocking`
+(`packages/core/src/spaces/discussions.ts`). They run through
 `applyMutation` like every command, so they are capabilities on every surface;
 the handlers live in `packages/core/src/spaces/commands.ts`. Restoring a page
 restores the subpages archived together with it; subpages archived earlier
@@ -394,9 +489,13 @@ service, with `resolveDraftDocument` mapping document names
 
 `space_entity` rows (`key` = `{type}:{id}`) hold protocol `SpaceEntity`
 values, a union separate from `Entity`: `space`, `spaceGrant` (id
-`{spaceId}:{userId}`) and `page` summaries (title and commit of main's head)
-with a NULL `page_id`; `pageCommit` (with content) and `pageBranch` (with
-collaborators) carry their page. `writeSpaceProjections` rewrites what a
+`{spaceId}:{userId}`) and `page` summaries (title and commit of main's head,
+`openThreads` and `blockingThreads`) with a NULL `page_id`; `pageCommit`
+(with content), `pageBranch` (with collaborators), `pageThread`,
+`pageThreadMessage` (one row per message, so a reply replicates one row) and
+`pageActivity` carry their page. Discussion commands rewrite only the page's
+discussion rows and its summary (`pageDiscussions` and `pages` targets),
+never its commits. `writeSpaceProjections` rewrites what a
 command touched; `rebuildSpaceProjections`, called by `rebuildProjections`,
 reconciles `space_entity` and `space_reader`, and the projection invariant
 the test suites check includes both. No `space_entity` row depends on who
@@ -413,12 +512,15 @@ organization membership; `organization` and `workItem` read only
 
 The capabilities `listSpaces` (readable spaces with the reader's level, plus
 the restricted spaces the person administers without reading them, names
-only), `listPages` (one space's tree in reading order) and `getPage` (main's
-latest title and Markdown, never a draft) are available on every surface.
-Organization export includes spaces, grants, pages, commits, branches,
-collaborators and drafts (binary Yjs state as base64), an additive change
-that keeps archive format version 1; organization deletion removes them
-before projects and teams.
+only), `listPages` (one space's tree in reading order), `getPage` (main's
+latest title and Markdown, never a draft) and `listPageThreads` (a page's
+discussions with their messages; resolved ones on request) are available on
+every surface. Organization export includes spaces, grants, pages, commits,
+branches, collaborators, drafts (binary Yjs state as base64), threads,
+messages, page activity and page files, an additive change that keeps
+archive format version 1; organization deletion removes them before projects
+and teams. Deleting an account keeps the person's threads and messages,
+attributed to the anonymized account, like specification threads.
 
 ### Interface
 

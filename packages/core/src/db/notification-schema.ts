@@ -37,6 +37,12 @@ export const notification = pgTable(
     projectId: text("project_id"),
     teamId: text("team_id"),
     workItemId: text("work_item_id"),
+    // Lictory Spaces notifications name their space and page. Reading one
+    // (inbox, unread counts, email) requires current access to that space,
+    // not only organization membership, so nobody who lost access sees a
+    // page title or excerpt again.
+    spaceId: text("space_id"),
+    pageId: text("page_id"),
     // Rendering context captured at event time (item key and title, thread
     // excerpt, review responsibility…). Links resolve against live data.
     detail: jsonb("detail")

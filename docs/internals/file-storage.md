@@ -130,15 +130,41 @@ retryable error; repeating the removal finishes the move (and reports
 Files are online-only and are not persisted in the workspace's offline mutation
 queue; the attachment list is a membership-checked live query. Deleting an organization deletes all of its objects (pending, ready and
 removed) before its metadata ([organization deletion](./organization-deletion.md)).
-Files inherit the
+Work item files inherit the
 current organization-wide work item visibility policy. If private projects are
-introduced, extend both the file API and sync ACLs together.
+introduced, extend both the file API and sync ACLs together. Page files follow
+their space's access (see [page files](#page-files)).
 
 The accepted list follows Jira's documented image, document, media and
 archive categories, with Markdown and WebP included for software teams. The 25 MB per-file cap matches Linear's
 documented email intake cap; Jira's web attachment limit is larger and
 configurable. This product limit should become a deliberate policy before
 raising it, including upload abuse controls and storage cost limits.
+
+## Page files
+
+Lictory Spaces pages own files the same way work items do: a `file_object`
+row names exactly one owner, a work item (with its project) or a page
+(`page_id`), and a check constraint keeps it that way. The same capabilities
+serve both (`startAttachmentUpload`, `finishAttachmentUpload`,
+`listAttachments`, `removeAttachment`, `getAttachmentDownloadUrl`, taking
+`pageId` instead of `workItemId`), with the same validation, keys, presigned
+URL lifetimes and two-step removal. What differs is who may act, because
+space access, not organization membership, governs a page:
+
+- attaching needs comment access to an active space and page
+  (`canCommentOnPage`): commenters already add content every reader sees;
+- listing, downloading, finishing one's own upload and removing it need read
+  access to the space; people without it get "not found" and cannot tell the
+  file exists;
+- every `/api/files/{id}` read checks current access, so losing access ends
+  new downloads at once (a link issued before still works until it expires,
+  within a minute, as for attachments).
+
+Pages reference files with the same stable `/api/files/{id}` URL as
+specifications (an image node's `src`, or Markdown `![name](/api/files/{id})`
+in derived Markdown). Organization export includes page files' metadata and
+bytes; organization deletion removes them with every other object.
 
 ## Profile photos
 

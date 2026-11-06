@@ -21,6 +21,7 @@ export function describeNotification(
 ): { headline: string; body: string | null } {
   const d = n.detail;
   const item = str(d.itemKey) ?? "an item";
+  const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
   const excerpt = str(d.excerpt);
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
@@ -185,6 +186,29 @@ export function describeNotification(
         headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
         body: `${num(d.total)} items exported.`,
       };
+    case "page_review_requested":
+      return {
+        headline: `${actor} asked you to review a change to ${page}`,
+        body: str(d.pullRequestTitle),
+      };
+    case "page_approval_invalidated":
+      return {
+        headline: `Your approval of a change to ${page} needs review again`,
+        body: str(d.pullRequestTitle)
+          ? `${actor} changed “${str(d.pullRequestTitle)}” after you approved it.`
+          : `${actor} changed it after you approved it.`,
+      };
+    case "page_mentioned":
+      return { headline: `${actor} mentioned you on ${page}`, body: excerpt };
+    case "page_blocking_thread":
+      return {
+        headline: d.marked
+          ? `${actor} marked a discussion on ${page} as blocking`
+          : `${actor} opened a blocking discussion on ${page}`,
+        body: excerpt,
+      };
+    case "page_thread_reply":
+      return { headline: `${actor} replied on ${page}`, body: excerpt };
     case "organization_deletion_scheduled":
       return {
         headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
@@ -213,6 +237,16 @@ export function notificationHref(
   const key = str(d.itemKey);
   if (key)
     return `${paths.itemByKey(orgSlug, key)}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;
+  const spaceSlug = str(d.spaceSlug);
+  const pageId = str(d.pageId);
+  if (spaceSlug && pageId) {
+    const query = str(d.threadId)
+      ? `?thread=${encodeURIComponent(str(d.threadId)!)}`
+      : str(d.pullRequestId)
+        ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}`
+        : "";
+    return `${paths.spacePage(orgSlug, spaceSlug, pageId)}${query}`;
+  }
   const projectKey = str(d.projectKey);
   const iterationId = str(d.iterationId);
   if (projectKey && iterationId)

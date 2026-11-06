@@ -6,11 +6,13 @@ import {
   organizationId,
   type AnyCapability,
 } from "@lictory/core/capabilities/core";
+import { listPageThreads } from "@lictory/core/spaces/discussions";
 import { getPage, listPages, listSpaces } from "@lictory/core/spaces/reads";
 
-// Reads of Lictory Spaces for the browser, MCP and Litto. Space and page
-// commands are workspace commands (createSpace, createPage, …), generated
-// from the protocol like every other command.
+// Reads of Lictory Spaces for the browser, MCP and Litto. Space, page and
+// page discussion commands are workspace commands (createSpace, createPage,
+// createPageThread, …), generated from the protocol like every other
+// command.
 
 const listSpacesCapability = defineCapability({
   name: "listSpaces",
@@ -59,8 +61,27 @@ const getPageCapability = defineCapability({
     getPage(ctx.db, ctx.principal.userId, q.organizationId, q.pageId),
 });
 
+const listPageThreadsCapability = defineCapability({
+  name: "listPageThreads",
+  title: "List page discussions",
+  description:
+    "Discussions on a page with all their messages, oldest first: status, blocking, the anchor (whole page, a commit range with its quote, or a live draft range with its quote) and the line it was written on. Resolved discussions are omitted unless includeResolved is true. Start or answer one with createPageThread and replyToPageThread.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    pageId: id,
+    includeResolved: z.boolean().default(false),
+  }),
+  run: (ctx, q) =>
+    listPageThreads(ctx.db, ctx.principal.userId, q.organizationId, q.pageId, {
+      includeResolved: q.includeResolved,
+    }),
+});
+
 export const spaceCapabilities = [
   listSpacesCapability,
   listPagesCapability,
   getPageCapability,
+  listPageThreadsCapability,
 ] as AnyCapability[];

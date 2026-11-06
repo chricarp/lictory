@@ -270,7 +270,8 @@ export function webRoutes() {
       return json(
         await invokeForWeb(c.req.raw, "listAttachments", {
           organizationId: c.req.query("organizationId") ?? "",
-          workItemId: c.req.query("workItemId") ?? "",
+          workItemId: c.req.query("workItemId"),
+          pageId: c.req.query("pageId"),
         }),
         store,
       );

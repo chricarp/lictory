@@ -10,6 +10,7 @@ import {
   describeNotification,
   notificationHref,
 } from "@lictory/core/notifications/format";
+import { spaceNotificationReadable } from "@lictory/core/notifications/service";
 
 const MAX_ATTEMPTS = 5;
 const LEASE_MS = 2 * 60_000;
@@ -103,11 +104,18 @@ export async function dispatchNotificationEmails(
           eq(s.member.userId, s.notification.userId),
         ),
       )
-      .where(eq(s.notification.id, row.notificationId));
+      .where(
+        and(
+          eq(s.notification.id, row.notificationId),
+          spaceNotificationReadable,
+        ),
+      );
     if (!n || n.notification.archivedAt || !n.email) {
       await settle({
         status: "skipped",
-        lastError: n ? null : "Recipient is no longer a member.",
+        lastError: n
+          ? null
+          : "Recipient is no longer a member or can no longer read the space.",
       });
       outcome.skipped++;
       continue;

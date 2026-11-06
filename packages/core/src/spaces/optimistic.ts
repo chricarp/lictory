@@ -94,6 +94,8 @@ export function predictPageTree(
           createdAt: context.now,
           updatedAt: context.now,
           archivedAt: null,
+          openThreads: 0,
+          blockingThreads: 0,
         },
       ];
     }

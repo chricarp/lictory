@@ -152,6 +152,34 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     description:
       "Editors of a space: archive (archived: true) a page with its subpages, or restore it with the subpages archived together with it. History is kept; nothing is deleted.",
   },
+  createPageThread: {
+    title: "Start page discussion",
+    description:
+      'Commenters (comment or edit access): start a discussion on a page with its first message. `anchor` is { v: 1, kind: "page" } (the whole page), { v: 1, kind: "commit", commitId, blockId, from, to, quote } (a range of one block of a commit, offsets into the block\'s text) or { v: 1, kind: "draft", draftId, epoch, start, end, quote } (base64 Yjs relative positions in the current epoch of one of the page\'s live drafts). `quote` is the selected text (at most 2000 characters). `branchId` names the line the discussion is about. `blocking` discussions block merging the page\'s changes until resolved. Mentions (@[label](mention:USER_ID)) notify people who can read the space.',
+  },
+  replyToPageThread: {
+    title: "Reply to page discussion",
+    description:
+      "Commenters: reply to a page discussion. Messages are never edited or deleted. Mentions notify people who can read the space; earlier participants are told about the reply.",
+  },
+  resolvePageThread: {
+    title: "Resolve page discussion",
+    description:
+      "Commenters: resolve a page discussion. Every message is kept and the event is recorded in the page's activity.",
+    decision: true,
+  },
+  reopenPageThread: {
+    title: "Reopen page discussion",
+    description:
+      "Commenters: reopen a resolved page discussion. The event is recorded in the page's activity.",
+    decision: true,
+  },
+  setPageThreadBlocking: {
+    title: "Mark page discussion blocking",
+    description:
+      "Commenters: mark a page discussion blocking (it blocks merging the page's changes while open) or non-blocking. Recorded in the page's activity.",
+    decision: true,
+  },
   createProject: {
     title: "Create project",
     description:

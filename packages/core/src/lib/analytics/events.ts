@@ -87,6 +87,11 @@ export const commandEvents = {
   createPage: "page_created",
   movePage: "page_moved",
   archivePage: "page_archive_changed",
+  createPageThread: "page_thread_created",
+  replyToPageThread: "page_thread_replied",
+  resolvePageThread: "page_thread_resolved",
+  reopenPageThread: "page_thread_reopened",
+  setPageThreadBlocking: "page_thread_blocking_changed",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.
@@ -179,6 +184,10 @@ export function commandEvent(command: Command): AnalyticsEvent {
   if (command.type === "createThread") {
     properties.anchored = Boolean(command.quote) || Boolean(command.section);
     properties.context = command.suggestionId ? "suggestion" : "specification";
+  }
+  if (command.type === "createPageThread") {
+    properties.anchor = command.anchor.kind;
+    properties.blocking = command.blocking === true;
   }
   return { event: commandEvents[command.type], properties };
 }

@@ -994,6 +994,57 @@ export function spaceLevelAtLeast(
   );
 }
 const inSpace = { id, organizationId: id, spaceId: id };
+// Where a page discussion is anchored (docs/internals/spaces.md#comments).
+// Versioned: `v` changes when a shape changes, and readers keep
+// understanding older versions.
+// - commit: a range of one block of an immutable commit. `from` and `to`
+//   are offsets into the block's text, `quote` the text they covered; a
+//   commit never changes, so the anchor never moves.
+// - draft: a range of a live draft within one epoch, as base64 encodings of
+//   Yjs relative positions (`Y.encodeRelativePosition`), which follow
+//   concurrent edits. Committing the draft freezes it to a commit anchor.
+// - page: the whole page.
+// The server checks the shape, the bounds and that the commit or draft
+// belongs to the page; it never resolves positions.
+export const PAGE_THREAD_QUOTE_MAX = 2000;
+const anchorQuote = z.string().min(1).max(PAGE_THREAD_QUOTE_MAX);
+const relativePosition = z
+  .string()
+  .min(4)
+  .max(512)
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/, "Use a base64 Yjs relative position.");
+export const pageThreadAnchorSchema = z.discriminatedUnion("kind", [
+  z
+    .strictObject({
+      v: z.literal(1),
+      kind: z.literal("commit"),
+      commitId: id,
+      // The block's stable id (Tiptap UniqueID).
+      blockId: z
+        .string()
+        .min(1)
+        .max(128)
+        .regex(/^[A-Za-z0-9_-]+$/, "Use the block's id."),
+      from: z.number().int().min(0),
+      to: z.number().int().min(0),
+      quote: anchorQuote,
+    })
+    .refine((a) => a.from < a.to, {
+      message: "An anchor range ends after it starts.",
+      path: ["to"],
+    }),
+  z.strictObject({
+    v: z.literal(1),
+    kind: z.literal("draft"),
+    draftId: id,
+    epoch: z.number().int().positive(),
+    start: relativePosition,
+    end: relativePosition,
+    quote: anchorQuote,
+  }),
+  z.strictObject({ v: z.literal(1), kind: z.literal("page") }),
+]);
+export type PageThreadAnchor = z.infer<typeof pageThreadAnchorSchema>;
 export const spaceEntitySchema = z.discriminatedUnion("type", [
   // Space-level rows (`page_id` NULL): the space, its named grants and its
   // page tree. No per-reader data: effective access is `space_reader`.
@@ -1038,6 +1089,9 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     // When main last moved (the published commit's time).
     updatedAt: z.string(),
     archivedAt: z.string().nullable(),
+    // Open discussions on the page, and how many of them block merging.
+    openThreads: z.number().int().min(0),
+    blockingThreads: z.number().int().min(0),
   }),
   // Page-level rows (`page_id` set): the page's history.
   z.object({
@@ -1068,6 +1122,44 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     collaboratorIds: z.array(id),
     createdAt: z.string(),
   }),
+  // A discussion on the page. Messages are separate rows, so a reply
+  // replicates one new row instead of the whole thread.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageThread"),
+    pageId: id,
+    authorId: id,
+    status: z.enum(["open", "resolved"]),
+    blocking: z.boolean(),
+    anchor: pageThreadAnchorSchema,
+    commitId: id.nullable(),
+    branchId: id.nullable(),
+    pullRequestId: id.nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    resolvedById: id.nullable(),
+    resolvedAt: z.string().nullable(),
+  }),
+  z.object({
+    ...inSpace,
+    type: z.literal("pageThreadMessage"),
+    pageId: id,
+    threadId: id,
+    authorId: id,
+    body: z.string(),
+    createdAt: z.string(),
+  }),
+  // Discussion events (opened, resolved, reopened, blocking changed) that
+  // the threads' current state no longer shows.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageActivity"),
+    pageId: id,
+    actorId: id,
+    action: z.string(),
+    detail: z.record(z.string(), z.unknown()),
+    createdAt: z.string(),
+  }),
 ]);
 export type SpaceEntity = z.infer<typeof spaceEntitySchema>;
 export type SpaceEntityType = SpaceEntity["type"];
@@ -1079,8 +1171,8 @@ export type SpaceEntityOf<T extends SpaceEntityType> = Extract<
 export function spaceEntityKey(e: Pick<SpaceEntity, "type" | "id">) {
   return `${e.type}:${e.id}`;
 }
-// Protocol 16 adds Lictory Spaces commands; their projections use the
-// separate `space_entity` table.
+// Protocol 16 adds Lictory Spaces commands (spaces, pages and page
+// discussions); their projections use the separate `space_entity` table.
 export const PROTOCOL = 16 as const;
 export const pageSchema = z.object({
   protocol: z.literal(PROTOCOL),
@@ -1223,6 +1315,34 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("archivePage"),
     pageId: id,
     archived: z.boolean(),
+  }),
+  // Discussions on pages: commenters (comment or edit access) start, answer,
+  // resolve and reopen them and mark them blocking, as on specifications.
+  // Messages are never edited or deleted.
+  z.object({
+    type: z.literal("createPageThread"),
+    pageId: id,
+    threadId: z.uuid(),
+    messageId: z.uuid(),
+    anchor: pageThreadAnchorSchema,
+    body: text,
+    blocking: z.boolean().optional(),
+    // The line the thread was written on; required for draft anchors
+    // (the draft's branch) and otherwise optional.
+    branchId: id.optional(),
+  }),
+  z.object({
+    type: z.literal("replyToPageThread"),
+    threadId: id,
+    messageId: z.uuid(),
+    body: text,
+  }),
+  z.object({ type: z.literal("resolvePageThread"), threadId: id }),
+  z.object({ type: z.literal("reopenPageThread"), threadId: id }),
+  z.object({
+    type: z.literal("setPageThreadBlocking"),
+    threadId: id,
+    blocking: z.boolean(),
   }),
   // Organization administrators create and archive projects. The creator
   // becomes a project administrator and joins its first discipline.
@@ -1828,9 +1948,33 @@ export type SpaceCommand = Extract<
       | "archiveSpace"
       | "createPage"
       | "movePage"
-      | "archivePage";
+      | "archivePage"
+      | PageDiscussionCommand["type"];
   }
 >;
+export type PageDiscussionCommand = Extract<
+  Command,
+  {
+    type:
+      | "createPageThread"
+      | "replyToPageThread"
+      | "resolvePageThread"
+      | "reopenPageThread"
+      | "setPageThreadBlocking";
+  }
+>;
+const pageDiscussionCommandTypes = new Set<string>([
+  "createPageThread",
+  "replyToPageThread",
+  "resolvePageThread",
+  "reopenPageThread",
+  "setPageThreadBlocking",
+]);
+export function isPageDiscussionCommand(
+  c: Command,
+): c is PageDiscussionCommand {
+  return pageDiscussionCommandTypes.has(c.type);
+}
 const spaceCommandTypes = new Set<string>([
   "createSpace",
   "updateSpace",
@@ -1840,6 +1984,7 @@ const spaceCommandTypes = new Set<string>([
   "createPage",
   "movePage",
   "archivePage",
+  ...pageDiscussionCommandTypes,
 ]);
 export function isSpaceCommand(c: Command): c is SpaceCommand {
   return spaceCommandTypes.has(c.type);

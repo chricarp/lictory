@@ -33,6 +33,8 @@ const page = (
   createdAt: "2026-11-01T00:00:00.000Z",
   updatedAt: "2026-11-01T00:00:00.000Z",
   archivedAt,
+  openThreads: 0,
+  blockingThreads: 0,
 });
 const space = (id: string, slug: string, archivedAt: string | null = null) =>
   ({

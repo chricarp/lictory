@@ -414,6 +414,142 @@ export const spaceDraftUpdate = pgTable(
   ],
 );
 
+// Discussions on pages (docs/internals/spaces.md#comments). A thread is
+// anchored to a commit range (frozen: commits never change), to a live draft
+// (Yjs relative positions within one epoch, frozen to a commit range when
+// the draft is committed) or to the whole page; `anchor` holds the versioned
+// protocol shape (`PageThreadAnchor`) and the checks keep its references and
+// the columns consistent. `commit_id` names the commit the thread concerns
+// (always the commit of a commit anchor); `branch_id` the line the thread
+// was written on (required for draft anchors: the draft's branch). `pull_request_id` will name the pull request a thread was opened
+// on: page pull requests are added with the page history commands, which
+// add its foreign key. Resolving keeps every message; reopening clears who
+// resolved it, and `page_activity` keeps both events.
+export const pageThreadStatus = pgEnum("page_thread_status", [
+  "open",
+  "resolved",
+]);
+export const pageThread = pgTable(
+  "page_thread",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    pageId: text("page_id").notNull(),
+    authorId: actor("author_id"),
+    status: pageThreadStatus("status").default("open").notNull(),
+    blocking: boolean("blocking").default(false).notNull(),
+    anchor: jsonb("anchor").$type<Record<string, unknown>>().notNull(),
+    commitId: text("commit_id"),
+    branchId: text("branch_id"),
+    pullRequestId: text("pull_request_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    resolvedById: optionalActor("resolved_by_id"),
+    resolvedAt: timestamp("resolved_at"),
+  },
+  (t) => [
+    unique("page_thread_org_id_unique").on(t.organizationId, t.id),
+    unique("page_thread_page_id_unique").on(t.organizationId, t.pageId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.pageId],
+      foreignColumns: [page.organizationId, page.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.commitId],
+      foreignColumns: [
+        pageCommit.organizationId,
+        pageCommit.pageId,
+        pageCommit.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.pageId, t.branchId],
+      foreignColumns: [
+        pageBranch.organizationId,
+        pageBranch.pageId,
+        pageBranch.id,
+      ],
+    }).onDelete("restrict"),
+    index("page_thread_page_idx").on(t.organizationId, t.pageId),
+    index("page_thread_pull_request_idx")
+      .on(t.organizationId, t.pullRequestId)
+      .where(sql`${t.pullRequestId} IS NOT NULL`),
+    check(
+      "page_thread_anchor_kind",
+      sql`coalesce(${t.anchor}->>'v', '') = '1'
+        AND coalesce(${t.anchor}->>'kind', '') IN ('commit', 'draft', 'page')`,
+    ),
+    check(
+      "page_thread_commit_anchor",
+      sql`${t.anchor}->>'kind' <> 'commit'
+        OR (${t.commitId} IS NOT NULL AND ${t.commitId} = ${t.anchor}->>'commitId')`,
+    ),
+    check(
+      "page_thread_draft_anchor",
+      sql`${t.anchor}->>'kind' <> 'draft' OR ${t.branchId} IS NOT NULL`,
+    ),
+    check(
+      "page_thread_resolution",
+      sql`(${t.status} = 'resolved') = (${t.resolvedAt} IS NOT NULL)
+        AND (${t.resolvedAt} IS NULL) = (${t.resolvedById} IS NULL)`,
+    ),
+  ],
+);
+
+// The messages of a page thread, in order. Like specification messages they
+// are never edited or deleted (bodies are Markdown; mentions are
+// `@[label](mention:USER_ID)` tokens).
+export const pageThreadMessage = pgTable(
+  "page_thread_message",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    threadId: text("thread_id").notNull(),
+    authorId: actor("author_id"),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.threadId],
+      foreignColumns: [pageThread.organizationId, pageThread.id],
+    }).onDelete("restrict"),
+    index("page_thread_message_thread_idx").on(
+      t.organizationId,
+      t.threadId,
+      t.createdAt,
+    ),
+    check("page_thread_message_body_present", sql`length(trim(${t.body})) > 0`),
+  ],
+);
+
+// What happened on a page that its threads' current state no longer shows:
+// a discussion opened, resolved, reopened, marked blocking or non-blocking,
+// by whom and when (and through which surface, for agents). Append-only.
+// Commits are the page's content history and are not repeated here.
+export const pageActivity = pgTable(
+  "page_activity",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    pageId: text("page_id").notNull(),
+    actorId: actor("actor_id"),
+    action: text("action").notNull(),
+    detail: jsonb("detail")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.pageId],
+      foreignColumns: [page.organizationId, page.id],
+    }).onDelete("restrict"),
+    index("page_activity_page_idx").on(t.organizationId, t.pageId, t.createdAt),
+  ],
+);
+
 // Spaces read projections replicated to browsers by Zero, kept apart from
 // `sync_entity` so space data can never reach the organization or work item
 // queries (or the directory). `data` holds a protocol `SpaceEntity`. Rows with

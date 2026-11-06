@@ -2002,7 +2002,7 @@ export async function applyMutation(
       // access; no `sync_entity` row and no directory input changes.
       const summary = await applySpaceCommand(
         tx,
-        { organizationId, userId, roster },
+        { organizationId, userId, roster, delegation: delegation(actor) },
         c,
       );
       return receipt(

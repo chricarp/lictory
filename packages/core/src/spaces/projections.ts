@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
   spaceEntityKey,
   spaceEntitySchema,
+  type PageThreadAnchor,
   type SpaceEntity,
 } from "@lictory/core/contracts/protocol";
 import { canonicalJson } from "@lictory/core/domain/projections";
@@ -20,7 +21,9 @@ import {
 // whole organization (operator recovery and the test invariant).
 //
 // Scopes: rows with a NULL `page_id` are space-level (`space`, `spaceGrant`,
-// `page` summaries); `pageCommit` and `pageBranch` rows carry their page.
+// `page` summaries); `pageCommit` and `pageBranch` rows (history) and
+// `pageThread`, `pageThreadMessage` and `pageActivity` rows (discussions)
+// carry their page.
 
 export type SpaceProjectionRow = {
   key: string;
@@ -151,6 +154,45 @@ export async function pageSummaries(
         filter.spaceIds ? inArray(s.page.spaceId, filter.spaceIds) : undefined,
       ),
     );
+  const counts = rows.length
+    ? await db
+        .select({
+          pageId: s.pageThread.pageId,
+          blocking: s.pageThread.blocking,
+          threads: count(),
+        })
+        .from(s.pageThread)
+        .innerJoin(
+          s.page,
+          and(
+            eq(s.page.organizationId, s.pageThread.organizationId),
+            eq(s.page.id, s.pageThread.pageId),
+          ),
+        )
+        .where(
+          and(
+            eq(s.pageThread.organizationId, organizationId),
+            eq(s.pageThread.status, "open"),
+            filter.pageIds
+              ? inArray(s.pageThread.pageId, filter.pageIds)
+              : undefined,
+            filter.spaceIds
+              ? inArray(s.page.spaceId, filter.spaceIds)
+              : undefined,
+          ),
+        )
+        .groupBy(s.pageThread.pageId, s.pageThread.blocking)
+    : [];
+  const open = new Map<
+    string,
+    { openThreads: number; blockingThreads: number }
+  >();
+  for (const c of counts) {
+    const entry = open.get(c.pageId) ?? { openThreads: 0, blockingThreads: 0 };
+    entry.openThreads += c.threads;
+    if (c.blocking) entry.blockingThreads += c.threads;
+    open.set(c.pageId, entry);
+  }
   return rows.map(({ page, commitId, title, publishedAt }) =>
     row(
       {
@@ -166,10 +208,142 @@ export async function pageSummaries(
         createdAt: iso(page.createdAt),
         updatedAt: iso(publishedAt),
         archivedAt: isoOrNull(page.archivedAt),
+        openThreads: open.get(page.id)?.openThreads ?? 0,
+        blockingThreads: open.get(page.id)?.blockingThreads ?? 0,
       },
       null,
     ),
   );
+}
+
+// Discussion row types, all carrying their page.
+const discussionTypes = [
+  "pageThread",
+  "pageThreadMessage",
+  "pageActivity",
+] satisfies SpaceEntity["type"][];
+
+// A page's discussions: threads, their messages and the discussion events.
+async function pageDiscussionRows(
+  db: Database | Tx,
+  organizationId: string,
+  pageIds?: string[],
+) {
+  const [pages, threads, messages, activity] = await Promise.all([
+    db
+      .select({ id: s.page.id, spaceId: s.page.spaceId })
+      .from(s.page)
+      .where(
+        and(
+          eq(s.page.organizationId, organizationId),
+          pageIds ? inArray(s.page.id, pageIds) : undefined,
+        ),
+      ),
+    db
+      .select()
+      .from(s.pageThread)
+      .where(
+        and(
+          eq(s.pageThread.organizationId, organizationId),
+          pageIds ? inArray(s.pageThread.pageId, pageIds) : undefined,
+        ),
+      ),
+    db
+      .select({ message: s.pageThreadMessage, pageId: s.pageThread.pageId })
+      .from(s.pageThreadMessage)
+      .innerJoin(
+        s.pageThread,
+        and(
+          eq(s.pageThread.organizationId, s.pageThreadMessage.organizationId),
+          eq(s.pageThread.id, s.pageThreadMessage.threadId),
+        ),
+      )
+      .where(
+        and(
+          eq(s.pageThreadMessage.organizationId, organizationId),
+          pageIds ? inArray(s.pageThread.pageId, pageIds) : undefined,
+        ),
+      ),
+    db
+      .select()
+      .from(s.pageActivity)
+      .where(
+        and(
+          eq(s.pageActivity.organizationId, organizationId),
+          pageIds ? inArray(s.pageActivity.pageId, pageIds) : undefined,
+        ),
+      ),
+  ]);
+  const spaceOf = new Map(pages.map((p) => [p.id, p.spaceId]));
+  const rows: SpaceProjectionRow[] = [];
+  for (const t of threads) {
+    const spaceId = spaceOf.get(t.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: t.id,
+          organizationId,
+          spaceId,
+          type: "pageThread",
+          pageId: t.pageId,
+          authorId: t.authorId,
+          status: t.status,
+          blocking: t.blocking,
+          anchor: t.anchor as PageThreadAnchor,
+          commitId: t.commitId,
+          branchId: t.branchId,
+          pullRequestId: t.pullRequestId,
+          createdAt: iso(t.createdAt),
+          updatedAt: iso(t.updatedAt),
+          resolvedById: t.resolvedById,
+          resolvedAt: isoOrNull(t.resolvedAt),
+        },
+        t.pageId,
+      ),
+    );
+  }
+  for (const { message: m, pageId } of messages) {
+    const spaceId = spaceOf.get(pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: m.id,
+          organizationId,
+          spaceId,
+          type: "pageThreadMessage",
+          pageId,
+          threadId: m.threadId,
+          authorId: m.authorId,
+          body: m.body,
+          createdAt: iso(m.createdAt),
+        },
+        pageId,
+      ),
+    );
+  }
+  for (const a of activity) {
+    const spaceId = spaceOf.get(a.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: a.id,
+          organizationId,
+          spaceId,
+          type: "pageActivity",
+          pageId: a.pageId,
+          actorId: a.actorId,
+          action: a.action,
+          detail: a.detail,
+          createdAt: iso(a.createdAt),
+        },
+        a.pageId,
+      ),
+    );
+  }
+  return rows;
 }
 
 // A page's history: every commit and every live branch.
@@ -368,11 +542,14 @@ async function reconcile(
 }
 
 // What a command touched: space summaries with their grants, page summaries
-// (the tree), and page histories (commits and branches).
+// (the tree and its discussion counters), page histories (every page-level
+// row: commits, branches and discussions) and page discussions only
+// (threads, messages and discussion events, without rereading commits).
 export type SpaceProjectionTarget = {
   spaces?: string[];
   pages?: string[];
   pageHistories?: string[];
+  pageDiscussions?: string[];
 };
 
 // Rewrites the named rows from the domain tables, in the caller's
@@ -418,12 +595,31 @@ export async function writeSpaceProjections(
     await reconcile(tx, organizationId, expected, stored);
   }
   if (target.pageHistories?.length) {
-    const [expected, stored] = await Promise.all([
+    const [history, discussions, stored] = await Promise.all([
       pageHistoryRows(tx, organizationId, target.pageHistories),
+      pageDiscussionRows(tx, organizationId, target.pageHistories),
       tx
         .select()
         .from(s.spaceEntity)
         .where(where(inArray(s.spaceEntity.pageId, target.pageHistories))),
+    ]);
+    await reconcile(tx, organizationId, [...history, ...discussions], stored);
+  }
+  const discussions = target.pageDiscussions?.filter(
+    (id) => !target.pageHistories?.includes(id),
+  );
+  if (discussions?.length) {
+    const [expected, stored] = await Promise.all([
+      pageDiscussionRows(tx, organizationId, discussions),
+      tx
+        .select()
+        .from(s.spaceEntity)
+        .where(
+          where(
+            inArray(s.spaceEntity.pageId, discussions),
+            inArray(s.spaceEntity.type, discussionTypes),
+          ),
+        ),
     ]);
     await reconcile(tx, organizationId, expected, stored);
   }
@@ -438,6 +634,7 @@ export async function expectedSpaceProjections(
     ...(await spaceRows(tx, organizationId)),
     ...(await pageSummaries(tx, organizationId)),
     ...(await pageHistoryRows(tx, organizationId)),
+    ...(await pageDiscussionRows(tx, organizationId)),
   ];
   return new Map(rows.map((r) => [r.key, r]));
 }

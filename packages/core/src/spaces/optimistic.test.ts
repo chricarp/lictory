@@ -29,6 +29,8 @@ const page = (
   createdAt: "2026-11-01T00:00:00.000Z",
   updatedAt: "2026-11-01T00:00:00.000Z",
   archivedAt: null,
+  openThreads: 0,
+  blockingThreads: 0,
 });
 
 void test("only page tree commands are predicted", () => {

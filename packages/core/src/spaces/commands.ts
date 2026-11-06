@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
+  isPageDiscussionCommand,
   spaceLevelAtLeast,
   type Directory,
   type SpaceAccessLevel,
@@ -18,6 +19,7 @@ import {
   spaceAccess,
   type SpaceActor,
 } from "@lictory/core/spaces/access";
+import { applyPageDiscussionCommand } from "@lictory/core/spaces/discussions";
 import {
   writeSpaceProjections,
   type SpaceProjectionTarget,
@@ -36,6 +38,9 @@ export type SpaceCommandContext = {
   organizationId: string;
   userId: string;
   roster: Directory;
+  // How the command arrived when not from the web (surface and agent),
+  // recorded with page activity like work item activity.
+  delegation?: Record<string, string | null>;
 };
 
 // What a command created, kept in the mutation receipt so a retry returns
@@ -472,6 +477,7 @@ export async function applySpaceCommand(
   ctx: SpaceCommandContext,
   c: SpaceCommand,
 ): Promise<SpaceCommandSummary | undefined> {
+  if (isPageDiscussionCommand(c)) return applyPageDiscussionCommand(tx, ctx, c);
   const { organizationId, userId, roster } = ctx;
   const actor: SpaceActor = { organizationId, userId };
   const now = new Date();
