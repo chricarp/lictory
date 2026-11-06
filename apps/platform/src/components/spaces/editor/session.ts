@@ -354,7 +354,8 @@ export const SETTLE_SAVE_MS = 1000;
 
 export type SaveTiming = {
   kind: SaveState["kind"];
-  // When the save state became `kind` (ms, same clock as `now` below).
+  // When the save state became `kind` (`performance.now()`, a monotonic
+  // clock: a wall-clock change must not make "Saved" appear early).
   since: number;
   // "Saved" came straight from "Saving…": shown once it holds.
   settling: boolean;
@@ -388,7 +389,10 @@ function withSaveTiming(
   prev: SaveTiming | null,
   s: Omit<SessionSnapshot, "save">,
 ): SessionSnapshot {
-  return { ...s, save: nextSaveTiming(prev, saveStateOf(s).kind, Date.now()) };
+  return {
+    ...s,
+    save: nextSaveTiming(prev, saveStateOf(s).kind, performance.now()),
+  };
 }
 
 export type ShownSaveState = {

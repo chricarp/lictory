@@ -837,15 +837,16 @@ function RecoveredText({
 // Shows when the shown save state changes on its own (a save turned slow,
 // "Saved" settled): one timer at a time, none while nothing is pending.
 function useShownSaveState(snapshot: SessionSnapshot) {
-  const [now, setNow] = useState(() => Date.now());
+  // The session times its states on the same monotonic clock.
+  const [now, setNow] = useState(() => performance.now());
   // A stale `now` only delays "slow" and "Saved", never shows them early.
   const shown = shownSaveState(snapshot, now);
   const { wakeAt } = shown;
   useEffect(() => {
     if (wakeAt === null) return;
     const timer = setTimeout(
-      () => setNow(Math.max(Date.now(), wakeAt)),
-      wakeAt - Date.now(),
+      () => setNow(Math.max(performance.now(), wakeAt)),
+      wakeAt - performance.now(),
     );
     return () => clearTimeout(timer);
   }, [wakeAt]);
