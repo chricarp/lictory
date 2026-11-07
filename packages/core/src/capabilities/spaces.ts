@@ -61,7 +61,7 @@ const getPageCapability = defineCapability({
   name: "getPage",
   title: "Get page",
   description:
-    "A page as published: the title and Markdown of the latest commit on its main line, with the commit id. Pass `commitId` for any earlier version from listPageCommits (`published` tells whether it is the current one). Unpublished live drafts are never included.",
+    "A page as published: the title and Markdown of the latest commit on its main line, with the commit id and its version number (cite both). Pass `commitId` for any earlier version from listPageCommits (`published` tells whether it is the current one). Unpublished live drafts are never included.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({ organizationId, pageId: id, commitId: id.optional() }),

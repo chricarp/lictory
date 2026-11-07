@@ -618,7 +618,8 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 ## Integration with the rest of Lictory
 
 - Navigation: Spaces in the organization sidebar, and each project's and team's
-  spaces in their navigation. Page titles are in the command palette.
+  spaces in their navigation. Page titles are in the command palette, and
+  what pages say is found by [content search](#search-and-product-knowledge).
 - Work item mentions (`PAY-142`) in pages render as live references (status,
   refinement state, readiness) for readers who can see the item.
 - Pages and work refer to each other through
@@ -634,6 +635,51 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
   review requests, stale approvals and blocking comments, never every edit.
 - Access changes are recorded in the [audit log](audit.md); organization data
   export, organization deletion and account anonymization cover Spaces.
+
+### Search and product knowledge
+
+`searchKnowledge` finds a phrase in what the person can read: published
+pages, work items (title and current specification), recorded decisions and
+approved or delivered specification revisions. The command palette shows its
+results under its instant title matches ("In pages", "In specifications",
+"Decisions"), and a page result opens at the block that matched
+(`#block-<id>`).
+
+- **Published only.** A page is searched as the head commit of its main line.
+  Live drafts, branches and pull requests are never searched, so text nobody
+  published cannot be found, quoted or cited.
+- **Readable only.** Pages come from active spaces the person reads
+  (`space_reader` and a current organization membership, the same predicate
+  as `pageAccess`): restricted spaces only for their named readers, never for
+  administrators without a grant. Archived pages, the pages under them and
+  archived spaces are left out; restoring brings them back. Nothing about an
+  unreadable page reaches the result: no title, excerpt, version or count.
+  Work items follow organization membership (every member reads every
+  project); archived items and projects are left out with their decisions.
+- **One snapshot.** Membership and every search are read in one read-only,
+  repeatable-read transaction, so a change in the middle of a search cannot
+  mix old and new access.
+- **Exact versions.** Each result names its kind, the page's commit and
+  version number ("version N", main's first-parent position, as the history
+  numbers it) or the revision number, a link to that version, an excerpt
+  with the matched ranges and whether the title or only the content matched.
+- **Simple matching.** A case-insensitive phrase match (LIKE wildcards are
+  literal; Markdown escapes such as `refund\_limit` do not hide a match),
+  title matches first, then the most recent, at most `limit` results of each
+  kind. Trigram indexes make it fast; there is no separate search index to
+  keep in sync, because results come from the same rows readers see.
+
+A search hit is not evidence of authority. `searchProductKnowledge`, which
+grounds Litto and agents before they describe established behavior, adds
+published pages as their own evidence kind (`page`, with the space's
+publishing policy, the commit and version) beside recorded decisions and
+approved or delivered revisions. For equal match quality agreements and
+decisions rank above pages published through review, and those above pages
+published directly; a title match ranks above content-only matches. Its
+description tells agents that published documentation is neither agreed
+intent nor delivered behavior (see the
+[evidence ladder](ai.md#evidence-and-citations)). Proposal intake keeps to
+agreements and decisions.
 
 ## Capacity
 
@@ -834,7 +880,9 @@ their organization membership; `organization` and `workItem` read only
 The capabilities `listSpaces` (readable spaces with the reader's level, plus
 the restricted spaces the person administers without reading them, names
 only), `listPages` (one space's tree in reading order), `getPage` (main's
-latest title and Markdown, or any commit with `commitId`; never a draft),
+latest title and Markdown with its commit and version number, or any commit
+with `commitId`; never a draft), `searchKnowledge` (content search, see
+above),
 `listPageCommits` (the history, newest first, optionally of one line),
 `diffPageCommits` (title and block changes between two commits),
 `previewPageMerge` (a pull request's or a sync's merge now: conflicts with

@@ -405,6 +405,7 @@ function RelatedKnowledge() {
                   projectId: item.projectId,
                   query,
                   limit: 5,
+                  kinds: ["decision", "approved", "delivered"],
                 },
               )
                 .then((r) => setResults(r.results))
