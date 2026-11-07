@@ -97,7 +97,7 @@ const describePageLinksCapability = defineCapability({
   name: "describePageLinks",
   title: "Describe page links",
   description:
-    "Details of pages you can read that refer to work, for showing a link in context: for each page its published title, `publishedCommitId` and `publishedVersion` (version numbers count main's history, as the page history does), the version number of each commit of the page in `versions`, and for `blocks` (a commit of the page and top-level block ids, as in getWorkItemKnowledge's `referencedIn`) each block's section `heading` and a short `excerpt`. Pages you cannot read are left out.",
+    "Details of pages you can read that refer to work, for showing a link in context: for each page its published title, `publishedCommitId` and `publishedVersion` (version numbers count main's history, as the page history does), the version number of each commit of the page in `versions`, and for `blocks` (a commit of the page and top-level block ids, as in getWorkItemKnowledge's `referencedIn`) each block's section `heading` and a short `excerpt`; with `pinned` (another commit of the page, such as a pinned version) the same blocks as that commit has them in `pinnedBlocks`. Pages you cannot read are left out.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({
@@ -109,6 +109,7 @@ const describePageLinksCapability = defineCapability({
           blocks: z
             .object({ commitId: id, blockIds: z.array(z.string()).max(20) })
             .optional(),
+          pinned: z.object({ commitId: id }).optional(),
           versions: z.array(id).max(20).optional(),
         }),
       )

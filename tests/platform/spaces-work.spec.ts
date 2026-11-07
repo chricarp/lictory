@@ -389,6 +389,29 @@ test("decision cards and live work lists render what Work holds now", async ({
       timeout: 1000,
     });
   }).toPass({ timeout: 20_000 });
+  // Archived again while the page cannot reach the server: the card keeps
+  // the decision it read but says it could not check it, instead of
+  // presenting it as current; Retry shows the archive once it can.
+  const offline = "**/api/capabilities/getDecisions";
+  await ada.page.route(offline, (route) => route.abort());
+  await archive(true);
+  await expect(async () => {
+    await refocus("focus");
+    await expect(card).toContainText("Couldn’t refresh", { timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(card).toContainText("Refunds reuse the original payment");
+  await expect(card.locator(".decision-card-archived")).toHaveCount(0);
+  await ada.page.unroute(offline);
+  await card.getByRole("button", { name: "Retry" }).click();
+  await expect(card.locator(".decision-card-archived")).toHaveText("Archived");
+  await expect(card).not.toContainText("Couldn’t refresh");
+  await archive(false);
+  await expect(async () => {
+    await refocus("visibilitychange");
+    await expect(card.locator(".decision-card-archived")).toHaveCount(0, {
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 20_000 });
 
   const children = reader(ada.page)
     .getByTestId("work-list")

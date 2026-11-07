@@ -1035,10 +1035,14 @@ void test("page branches remember the work item revision they were proposed from
   const proposed = origins.find((o) => o.branchId === proposal.branchId)!;
   assert.equal(proposed.workItemId, workItemId);
   assert.equal(proposed.revisionId, revisionId);
+  // Readers name the change by its pull request and the revision it came
+  // from, not by the branch.
+  assert.equal(proposed.revisionNumber, 1);
   assert.ok(proposed.deletedAt, "the merged source branch is retired");
   assert.deepEqual(proposed.pullRequests, [
     {
       id: proposal.pullRequestId,
+      title: `Change ${proposal.branchId.slice(0, 6)}`,
       status: "merged",
       targetBranchId: proposed.pullRequests[0]!.targetBranchId,
       mergeCommitId: merged,

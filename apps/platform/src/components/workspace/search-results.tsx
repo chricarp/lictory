@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BadgeCheck, BookOpen, FileText, Loader, Search } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
@@ -19,13 +26,21 @@ import {
   Highlighted,
   MIN_CONTENT_QUERY,
 } from "@lictory/platform/components/workspace/content-search";
+import {
+  useSearchFreshness,
+  useVisibleRefresh,
+} from "@lictory/platform/components/workspace/search-freshness";
 
 // "See all results" (docs/internals/spaces.md#search-and-product-knowledge):
 // everything searchKnowledge finds for a query, beyond the palette's first
-// few, filtered by kind and project, a bounded batch at a time. The query
-// and filters live in the address (`/{org}/search?q=&kind=&project=`), so a
-// result list can be shared and reopened; what was loaded belongs to one
-// person, organization and query and is dropped when any of them changes.
+// few, filtered by kind and project, a bounded batch at a time (each batch
+// continues after the previous one's position, so results added meanwhile
+// never repeat). The query and filters live in the address
+// (`/{org}/search?q=&kind=&project=`), so a result list can be shared and
+// reopened; what was loaded belongs to one person, organization and query
+// and is dropped when any of them changes. Every loaded batch is read again
+// when synchronized access, publication or item state changes and at a
+// bounded interval while visible (search-freshness.ts).
 
 const filters = [
   { id: "all", label: "All", kinds: undefined },
@@ -52,17 +67,58 @@ const ALL_KINDS: KnowledgeKind[] = [
 // Per kind and batch (the capability's bound).
 const BATCH = 20;
 
-type Want = { key: string; offset: number; kinds: readonly KnowledgeKind[] };
+// One batch: where it starts (null: the beginning) and which kinds it reads.
+type Request = { cursor: string | null; kinds: readonly KnowledgeKind[] };
+type Answer = {
+  results: KnowledgeResult[];
+  // Kinds with more results after this batch, and where they continue.
+  more: KnowledgeKind[];
+  cursor: string | null;
+};
 type Loaded = {
   key: string;
-  // The request this answers.
-  request: Want;
-  results: KnowledgeResult[];
-  // Kinds with more results after the request's batch.
-  more: KnowledgeKind[];
-  status: "done" | "error";
+  // The batches asked for, in order, and the answers that arrived (as many
+  // as there are requests once nothing is loading).
+  requests: Request[];
+  answers: Answer[];
   error?: string;
+  // What the synchronized rows said about the results when they were read.
+  facts: string;
 };
+
+const fetchBatch = (
+  organizationId: string,
+  query: string,
+  projectId: string | undefined,
+  request: Request,
+) =>
+  callCapability<Answer>("searchKnowledge", {
+    organizationId,
+    query,
+    kinds: request.kinds,
+    limit: BATCH,
+    ...(request.cursor ? { cursor: request.cursor } : {}),
+    ...(projectId ? { projectId } : {}),
+  });
+
+// Every batch in order, each result once. An agreement names that exact
+// revision more precisely than the item it belongs to, whichever batch it
+// arrived in.
+function merge(answers: readonly Answer[]) {
+  const all = answers.flatMap((a) => a.results);
+  const agreed = new Set(
+    all
+      .filter((r) => r.kind === "approved" || r.kind === "delivered")
+      .map((r) => r.id),
+  );
+  const seen = new Set<string>();
+  return all.filter((r) => {
+    const id = `${r.kind}:${r.id}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return !(r.kind === "item" && r.revisionId && agreed.has(r.revisionId));
+  });
+}
 
 const kindLabel: Record<KnowledgeKind, string> = {
   page: "Page",
@@ -80,86 +136,135 @@ function useSearchResults(
   projectId: string | undefined,
 ) {
   const key = JSON.stringify([userId, organizationId, query, kinds, projectId]);
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [want, setWant] = useState<Want>({ key, offset: 0, kinds });
-  // A new person, organization, query or filter starts again from nothing.
-  if (want.key !== key) setWant({ key, offset: 0, kinds });
   const active = query.length >= MIN_CONTENT_QUERY;
+  const fresh = useSearchFreshness();
+  const factsOf = useRef(fresh.facts);
   useEffect(() => {
-    if (!active || want.key !== key) return;
+    factsOf.current = fresh.facts;
+  });
+  const [loaded, setLoaded] = useState<Loaded>(() => ({
+    key,
+    requests: [{ cursor: null, kinds }],
+    answers: [],
+    facts: "",
+  }));
+  // A new person, organization, query or filter starts again from nothing.
+  const mine = useMemo<Loaded>(
+    () =>
+      loaded.key === key
+        ? loaded
+        : { key, requests: [{ cursor: null, kinds }], answers: [], facts: "" },
+    [loaded, key, kinds],
+  );
+  if (mine !== loaded) setLoaded(mine);
+  const waiting = mine.answers.length < mine.requests.length;
+  const nextRequest =
+    waiting && !mine.error ? mine.requests[mine.answers.length] : null;
+
+  // The batch asked for and not answered yet.
+  useEffect(() => {
+    if (!active || !nextRequest) return;
     let current = true;
-    callCapability<{ results: KnowledgeResult[]; more: KnowledgeKind[] }>(
-      "searchKnowledge",
-      {
-        organizationId,
-        query,
-        kinds: want.kinds,
-        limit: BATCH,
-        offset: want.offset,
-        ...(projectId ? { projectId } : {}),
-      },
-    ).then(
-      ({ results, more }) => {
+    fetchBatch(organizationId, query, projectId, nextRequest).then(
+      (answer) => {
         if (!current) return;
         setLoaded((prev) => {
-          const before =
-            want.offset > 0 && prev?.key === key ? prev.results : [];
-          // An agreement names that exact revision more precisely than the
-          // item it belongs to, whichever batch it arrived in.
-          const agreed = new Set(
-            [...before, ...results]
-              .filter((r) => r.kind === "approved" || r.kind === "delivered")
-              .map((r) => r.id),
-          );
-          const seen = new Set<string>();
-          const merged = [...before, ...results].filter((r) => {
-            const id = `${r.kind}:${r.id}`;
-            if (seen.has(id)) return false;
-            seen.add(id);
-            return !(
-              r.kind === "item" &&
-              r.revisionId &&
-              agreed.has(r.revisionId)
-            );
-          });
-          return { key, request: want, results: merged, more, status: "done" };
+          if (
+            prev.key !== key ||
+            prev.requests[prev.answers.length] !== nextRequest
+          )
+            return prev;
+          const answers = [...prev.answers, answer];
+          return {
+            ...prev,
+            answers,
+            error: undefined,
+            facts: factsOf.current(merge(answers)),
+          };
         });
       },
       (error: unknown) => {
         if (!current) return;
-        setLoaded((prev) => ({
-          key,
-          request: want,
-          results: prev?.key === key ? prev.results : [],
-          more: prev?.key === key ? prev.more : [],
-          status: "error",
-          error:
-            error instanceof Error
-              ? error.message
-              : "The search failed. Try again.",
-        }));
+        setLoaded((prev) =>
+          prev.key !== key
+            ? prev
+            : {
+                ...prev,
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "The search failed. Try again.",
+              },
+        );
       },
     );
     return () => {
       current = false;
     };
-  }, [active, key, want, organizationId, query, projectId]);
-  const mine = loaded?.key === key ? loaded : null;
+  }, [active, key, nextRequest, organizationId, query, projectId]);
+
+  // Every loaded batch again, from the same positions. What it no longer
+  // finds leaves; a failure keeps what is shown (the next refresh retries).
+  const refreshing = useRef<Request[] | null>(null);
+  const refresh = useCallback(() => {
+    if (!active || waiting || mine.error) return;
+    const requests = mine.requests;
+    if (refreshing.current === requests) return;
+    refreshing.current = requests;
+    void Promise.all(
+      requests.map((r) => fetchBatch(organizationId, query, projectId, r)),
+    )
+      .then(
+        (answers) =>
+          setLoaded((prev) =>
+            prev.key !== key || prev.requests !== requests
+              ? prev
+              : { ...prev, answers, facts: factsOf.current(merge(answers)) },
+          ),
+        () => undefined,
+      )
+      .finally(() => {
+        if (refreshing.current === requests) refreshing.current = null;
+      });
+  }, [active, waiting, mine, key, organizationId, query, projectId]);
+
+  const merged = useMemo(() => merge(mine.answers), [mine.answers]);
+  // Synchronized rows changed what they say about these results: read them
+  // again (shortly, so a burst of changes is one read).
+  const facts = fresh.facts(merged);
+  const changed = !waiting && mine.answers.length > 0 && facts !== mine.facts;
+  useEffect(() => {
+    if (!changed) return;
+    const timer = setTimeout(refresh, 300);
+    return () => clearTimeout(timer);
+  }, [changed, facts, refresh]);
+  useVisibleRefresh(refresh, active && !waiting);
+  const visibleResults = useMemo(
+    () => (active ? fresh.visible(merged) : []),
+    [active, fresh, merged],
+  );
+
+  const last = mine.answers.at(-1);
   const status = !active
     ? "idle"
-    : mine?.request === want
-      ? mine.status
-      : "loading";
+    : mine.error
+      ? "error"
+      : waiting
+        ? "loading"
+        : "done";
   return {
-    results: active ? (mine?.results ?? []) : [],
+    results: visibleResults,
     status,
-    error: mine?.error,
-    more: status === "done" && (mine?.more.length ?? 0) > 0,
+    error: mine.error,
+    more: status === "done" && Boolean(last?.cursor && last.more.length),
     loadMore: () => {
-      if (!mine?.more.length) return;
-      setWant({ key, offset: mine.request.offset + BATCH, kinds: mine.more });
+      if (!last?.cursor || !last.more.length) return;
+      setLoaded({
+        ...mine,
+        requests: [...mine.requests, { cursor: last.cursor, kinds: last.more }],
+      });
     },
-    retry: () => setWant({ ...want }),
+    retry: () => setLoaded({ ...mine, error: undefined }),
   } as const;
 }
 
@@ -392,7 +497,20 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
             {version ? ` · ${version}` : ""}
           </span>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{where}</p>
+        <p className="flex min-w-0 items-baseline gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">{where}</span>
+          {r.kind !== "page" && r.kind !== "item" && (
+            // The title opens the revision this result is about; this opens
+            // the item as it is now.
+            <Link
+              href={r.currentHref}
+              aria-label={`Open ${r.key} as it is now`}
+              className="relative z-10 shrink-0 rounded-sm underline decoration-foreground/30 underline-offset-2 outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              Open current
+            </Link>
+          )}
+        </p>
         {r.snippet.text && (
           <p className="mt-1 line-clamp-2 text-xs leading-[1.45] text-foreground/80">
             <Highlighted

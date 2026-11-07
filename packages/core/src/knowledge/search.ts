@@ -17,9 +17,32 @@ export type SearchScope = {
   // Trimmed; empty matches everything (most recent first).
   query: string;
   limit: number;
-  // Rows to skip, for a following batch (same order).
-  offset?: number;
+  // A following batch: the rows after this position (same order).
+  after?: SearchCursor;
 };
+
+// A position in a search's order (title matches first, then newest, then
+// id): every returned row carries its own, and the last row's starts the
+// next batch. The next batch begins strictly after it by value rather than
+// by count, so rows published, recorded or archived in between never repeat
+// or push others out of what follows, and there is no depth limit. `at` is
+// the ordering timestamp as PostgreSQL prints it (microseconds survive the
+// round trip).
+export type SearchCursor = { title: boolean; at: string; id: string };
+
+// Rows after `c` in the order (title desc, at desc, id desc).
+function after(
+  c: SearchCursor | undefined,
+  title: SQL,
+  at: SQL | AnyPgColumn,
+  id: SQL | AnyPgColumn,
+): SQL | undefined {
+  if (!c) return undefined;
+  const position = sql`(${at}, ${id}) < (${c.at}::timestamp, ${c.id}::text)`;
+  return c.title
+    ? sql`(not (${title}) or ${position})`
+    : sql`(not (${title}) and ${position})`;
+}
 
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -74,6 +97,7 @@ export type PublishedPageRow = {
   authorId: string;
   approverIds: string[];
   pullRequestId: string | null;
+  cursor: SearchCursor;
   // Main's first-parent position of the commit: what readers call
   // "version N".
   version: number;
@@ -112,6 +136,7 @@ export async function searchPublishedPages(
       authorId: s.pageCommit.authorId,
       approverIds: s.pageCommit.approverIds,
       pullRequestId: s.pageCommit.pullRequestId,
+      cursorAt: sql<string>`${s.pageCommit.createdAt}::text`,
     })
     .from(s.pageBranch)
     .innerJoin(
@@ -173,6 +198,7 @@ export async function searchPublishedPages(
               matches(s.pageCommit.markdown, scope.query, true),
             )
           : undefined,
+        after(scope.after, titleMatch, s.pageCommit.createdAt, s.page.id),
       ),
     )
     .orderBy(
@@ -180,8 +206,7 @@ export async function searchPublishedPages(
       desc(s.pageCommit.createdAt),
       desc(s.page.id),
     )
-    .limit(scope.limit)
-    .offset(scope.offset ?? 0);
+    .limit(scope.limit);
   if (!found.length) return [];
   const commitIds = found.map((f) => f.commitId);
   const pageIds = found.map((f) => f.pageId);
@@ -203,8 +228,9 @@ export async function searchPublishedPages(
     pageAncestors(tx, org, pageIds),
   ]);
   const body = new Map(bodies.map((b) => [b.id, b]));
-  return found.map((f) => ({
+  return found.map(({ cursorAt, ...f }) => ({
     ...f,
+    cursor: { title: Boolean(f.titleMatch), at: cursorAt, id: f.pageId },
     version: versions.get(f.commitId) ?? 1,
     path: ancestors.get(f.pageId) ?? [],
     excerpt: body.get(f.commitId)?.excerpt ?? "",
@@ -330,25 +356,33 @@ export async function searchWorkItems(tx: Tx, scope: SearchScope) {
         )`
     : sql`select w.id, false as title_match from work_item w
       where w.organization_id = ${org}`;
+  // Items are ordered by their last change: one edited between two batches
+  // moves ahead of the cursor and is not shown twice.
   const found = await tx.execute<{
     id: string;
     revision_id: string | null;
     title_match: boolean;
+    cursor_at: string;
   }>(sql`
-    with matched(id, title_match) as (${matched})
-    select w.id, bool_or(m.title_match) as title_match,
+    with matched(id, title_match) as (${matched}),
+    grouped as (
+      select w.id, w.updated_at, bool_or(m.title_match) as title_match
+      from matched m
+      join work_item w on w.organization_id = ${org} and w.id = m.id
+      join project p on p.organization_id = ${org} and p.id = w.project_id
+      where w.archived_at is null
+        and p.archived_at is null
+        ${scope.projectId ? sql`and w.project_id = ${scope.projectId}` : sql``}
+      group by w.id, w.updated_at
+    )
+    select g.id, g.title_match, g.updated_at::text as cursor_at,
       (select l.id from specification_revision l
-        where l.organization_id = ${org} and l.work_item_id = w.id
+        where l.organization_id = ${org} and l.work_item_id = g.id
         order by l.number desc limit 1) as revision_id
-    from matched m
-    join work_item w on w.organization_id = ${org} and w.id = m.id
-    join project p on p.organization_id = ${org} and p.id = w.project_id
-    where w.archived_at is null
-      and p.archived_at is null
-      ${scope.projectId ? sql`and w.project_id = ${scope.projectId}` : sql``}
-    group by w.id, w.updated_at
-    order by title_match desc, w.updated_at desc, w.id desc
-    limit ${scope.limit} offset ${scope.offset ?? 0}
+    from grouped g
+    where ${after(scope.after, sql`g.title_match`, sql`g.updated_at`, sql`g.id`) ?? sql`true`}
+    order by g.title_match desc, g.updated_at desc, g.id desc
+    limit ${scope.limit}
   `);
   if (!found.length) return [];
   const revisionIds = found.flatMap((f) =>
@@ -405,6 +439,11 @@ export async function searchWorkItems(tx: Tx, scope: SearchScope) {
     return {
       ...item.get(f.id)!,
       titleMatch: Boolean(f.title_match),
+      cursor: {
+        title: Boolean(f.title_match),
+        at: f.cursor_at,
+        id: f.id,
+      } satisfies SearchCursor,
       revisionId: r?.id ?? null,
       revisionNumber: r?.number ?? null,
       window: r?.window ?? "",
@@ -436,6 +475,7 @@ export function searchDecisions(tx: Tx, q: SearchScope) {
       authorId: s.decision.authorId,
       sourceThreadId: s.decision.sourceThreadId,
       createdAt: s.decision.createdAt,
+      cursorAt: sql<string>`${s.decision.createdAt}::text`,
     })
     .from(s.decision)
     .innerJoin(
@@ -472,6 +512,7 @@ export function searchDecisions(tx: Tx, q: SearchScope) {
               matches(s.decision.body, q.query, true),
             )
           : undefined,
+        after(q.after, titleMatch, s.decision.createdAt, s.decision.id),
       ),
     )
     .orderBy(
@@ -480,7 +521,16 @@ export function searchDecisions(tx: Tx, q: SearchScope) {
       desc(s.decision.id),
     )
     .limit(q.limit)
-    .offset(q.offset ?? 0);
+    .then((rows) =>
+      rows.map(({ cursorAt, ...d }) => ({
+        ...d,
+        cursor: {
+          title: Boolean(d.titleMatch),
+          at: cursorAt,
+          id: d.id,
+        } satisfies SearchCursor,
+      })),
+    );
 }
 
 // Each unarchived work item contributes at most two candidate revisions: its
@@ -506,6 +556,7 @@ export async function searchSpecifications(tx: Tx, q: SearchScope) {
     id: string;
     delivered: boolean;
     title_match: boolean;
+    cursor_at: string;
   }>(sql`
     with candidate as materialized (
       select r.id, r.created_at,
@@ -540,10 +591,12 @@ export async function searchSpecifications(tx: Tx, q: SearchScope) {
           )
         )
     )
-    select id, delivered, title_match from candidate
+    select id, delivered, title_match, created_at::text as cursor_at
+    from candidate
     where matches
+      and ${after(q.after, sql`title_match`, sql`created_at`, sql`id`) ?? sql`true`}
     order by title_match desc, created_at desc, id desc
-    limit ${q.limit} offset ${q.offset ?? 0}
+    limit ${q.limit}
   `);
   if (!found.length) return [];
   const rows = await tx
@@ -588,5 +641,10 @@ export async function searchSpecifications(tx: Tx, q: SearchScope) {
     ...byId.get(f.id)!,
     delivered: Boolean(f.delivered),
     titleMatch: Boolean(f.title_match),
+    cursor: {
+      title: Boolean(f.title_match),
+      at: f.cursor_at,
+      id: f.id,
+    } satisfies SearchCursor,
   }));
 }

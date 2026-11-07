@@ -657,8 +657,10 @@ page shows of it is read live with the reader's own access.
   commit stores only that query. Readers see the matching items they can
   see now (key, title, status, refinement, estimate; in external-delivery
   projects the status read back from the delivery tool) with "N of M done",
-  counting only those items (canceled ones count toward neither). Nothing in
-  a list changes an item. A list is not a snapshot: an old version shows
+  counting only those items (canceled ones count toward neither). A list
+  shows ten rows and grows ten at a time; on narrow screens titles take up
+  to two lines and the status moves under them. Nothing in a list changes
+  an item. A list is not a snapshot: an old version shows
   today's items. The commit's derived Markdown states the list's label and
   "(live list in Lictory)"; exports that run with a reader's access (`getPage`,
   for agents and Litto) resolve it at that moment into static `[KEY](item:ID)`
@@ -672,8 +674,11 @@ page shows of it is read live with the reader's own access.
   for readers it cannot be resolved for. Archiving or restoring elsewhere
   reaches an open page without a reload: what is on screen is read again
   when the window regains focus or becomes visible and every minute while
-  visible, the cache belongs to one person and organization, and a failed
-  read offers Retry.
+  visible, and the cache belongs to one person and organization. A failed
+  first read offers Retry; a failed refresh keeps the decision it read
+  (being offline is no reason to hide it) but marks it stale with when it
+  was last checked, and the card says "Couldn't refresh · Retry" instead of
+  presenting it as current. Every later refresh retries it.
   Work's Decisions section offers "Add to a page", which proposes a page
   change (`proposePageChange` with the item revision as `origin`) appending
   the card; main is never edited directly.
@@ -727,13 +732,29 @@ results under its instant title matches ("In pages", "In specifications",
 "Decisions"), and a page result opens at the block that matched
 (`#block-<id>`). "See all results" opens the search results view
 (`/{org}/search?q=`, with `kind` and `project` filters in the address):
-every match a batch of 20 per kind at a time ("Show more results" asks
-for the next batch of the kinds that have more, `offset` and `more` on the
-capability, offsets bounded at 500), each with its space path or key,
-version and excerpt. What it loaded belongs to one person, organization,
-query and filter, and the palette's answers to one organization and query;
-a change of any of them starts again, so nothing is shown from another
-scope or from access since lost.
+every match a batch of 20 per kind at a time, each with its space path or
+key, version and excerpt. "Show more results" asks for the next batch of
+the kinds that have more: the capability returns `more` and an opaque
+`cursor`, the position of each kind's last row in its order, and the next
+batch starts strictly after that position. A page published or a decision
+recorded meanwhile sorts before the position, so batches never repeat or
+skip a result, and there is no depth limit (no offset to bound). What it
+loaded belongs to one person, organization, query and filter, and the
+palette's answers to one person, organization and query; a change of any of
+them starts again, so nothing is shown from another scope.
+
+Open results also follow what changes while they are on screen
+(`search-freshness.ts`). The browser already synchronizes my access to each
+space, each page's published version and archiving, and each item's
+archiving, revision, refinement and delivered revision. A result those rows
+say I can no longer read (its space, page, item or project gone or
+archived) leaves at once; when they change anything about the loaded
+results, every loaded batch (and the palette's answer) is read again from
+its same position, and the server decides what remains, such as a
+superseded publication or approval. What no synchronized row reports (a
+decision archived on an item I have not opened) is caught by the same
+re-read at a bounded interval (60 seconds) while the window is visible and
+on return to it. A failed re-read keeps what is shown and is retried.
 
 - **Published only.** A page is searched as the head commit of its main line.
   Live drafts, branches and pull requests are never searched, so text nobody
@@ -753,10 +774,14 @@ scope or from access since lost.
   version number ("version N", main's first-parent position, as the history
   numbers it) or the revision number, a link to that version, an excerpt
   with the matched ranges and whether the title or only the content matched.
+  An approved or delivered revision opens as that revision in the item's
+  history (`?history=<revisionId>&compare=none`), and a decision as the
+  revision it was recorded on, even after the specification moved on;
+  `currentHref` ("Open current") opens the item as it is now.
 - **Simple matching.** A case-insensitive phrase match (LIKE wildcards are
   literal; Markdown escapes such as `refund\_limit` do not hide a match),
-  title matches first, then the most recent (ties by id, so batches are
-  stable), at most `limit` results of each kind. Trigram indexes make it fast; there is no separate search index to
+  title matches first, then the most recent (ties by id, so a position is
+  exact), at most `limit` results of each kind. Trigram indexes make it fast; there is no separate search index to
   keep in sync, because results come from the same rows readers see.
 
 A search hit is not evidence of authority. `searchProductKnowledge`, which

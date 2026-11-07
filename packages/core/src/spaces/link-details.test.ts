@@ -228,4 +228,66 @@ void test("only readers of a page learn where it mentions work and which version
   });
   const mixed = await describe(ids.reader, other.commitId);
   assert.deepEqual(mixed.pages[0]!.versions, { [first.commitId!]: 1 });
+
+  // Version 3 rewrites the mentioned block. Asked with a pin at version 2,
+  // the same block is described as each version has it, so a reader can
+  // tell the latest mention from what the pinned version said.
+  const rewrite = crypto.randomUUID();
+  const changed = await run({
+    type: "proposePageChange",
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId: rewrite,
+    title: "Incident runbook",
+    content: {
+      type: "doc",
+      content: [
+        block("heading", "h-escalate", text("Escalation")),
+        block("paragraph", "p-page", text("Open an incident channel first.")),
+      ],
+    } as unknown as Record<string, never>,
+    message: "Channel first",
+  });
+  await run({
+    type: "mergePagePullRequest",
+    pullRequestId: rewrite,
+    inspectedSourceHead: changed.commitId!,
+    inspectedTargetHead: published,
+  });
+  const latest = await mainHead();
+  const pinnedAs = async (pinned: string) =>
+    (
+      (await invoke(
+        {
+          db,
+          principal: { userId: ids.reader, surface: "web" },
+          effects: noEffects,
+        },
+        "describePageLinks",
+        {
+          organizationId,
+          pages: [
+            {
+              pageId,
+              blocks: { commitId: latest, blockIds: ["p-page"] },
+              pinned: { commitId: pinned },
+            },
+          ],
+        },
+      )) as {
+        pages: {
+          blocks: { excerpt: string }[];
+          pinnedBlocks: { excerpt: string }[];
+        }[];
+      }
+    ).pages[0]!;
+  const both = await pinnedAs(published);
+  assert.deepEqual(
+    [both.blocks[0]!.excerpt, both.pinnedBlocks[0]!.excerpt],
+    ["Open an incident channel first.", "Page the on-call engineer."],
+  );
+  // A version without the block, or a commit of another page, describes
+  // nothing.
+  assert.deepEqual((await pinnedAs(first.commitId!)).pinnedBlocks, []);
+  assert.deepEqual((await pinnedAs(other.commitId!)).pinnedBlocks, []);
 });

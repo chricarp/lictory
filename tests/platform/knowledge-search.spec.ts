@@ -1,6 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
 import { clientAddress } from "../helpers/client-address";
-import { seedWorkspace, signIn } from "../helpers/seed";
+import {
+  currentRevision,
+  seedItem,
+  seedWorkspace,
+  signIn,
+} from "../helpers/seed";
 
 // Content search from the command palette: a phrase written only in the
 // body of a published page is found on the server (searchKnowledge), shown
@@ -221,17 +226,96 @@ test("See all results lists every match a batch at a time, by kind, and forgets 
   await expect(results.getByRole("listitem")).toHaveCount(20);
   await expect(results).toContainText("Secret kumquat");
 
-  // Losing access to the restricted space: the next search no longer
-  // lists its page.
+  // Every batch loaded, and the palette open over the results with the
+  // restricted page among its answers.
+  await page.getByRole("button", { name: "Show more results" }).click();
+  await expect(results.getByRole("listitem")).toHaveCount(24);
+  const open = await openPalette(page);
+  await open.getByRole("textbox", { name: "Search" }).fill("kumquat");
+  const secretOption = open.getByRole("option", { name: /Secret kumquat/ });
+  await expect(secretOption).toBeVisible();
+
+  // Losing access to the restricted space while both are open: the page
+  // leaves the palette and every loaded batch of the results, without a
+  // reload or another query.
   await seeded.command({
     type: "setSpaceGrant",
     spaceId: secret,
     userId: seeded.users[1]!.id,
     level: null,
   });
-  await page.reload();
-  await expect(results.getByRole("listitem")).toHaveCount(20);
-  await page.getByRole("button", { name: "Show more results" }).click();
+  await expect(secretOption).toHaveCount(0);
+  await expect(open.getByRole("textbox", { name: "Search" })).toHaveValue(
+    "kumquat",
+  );
+  await page.keyboard.press("Escape");
   await expect(results.getByRole("listitem")).toHaveCount(23);
   await expect(results).not.toContainText("Secret kumquat");
+  // The server agrees: the batches read again offer nothing more.
+  await expect(
+    page.getByRole("button", { name: "Show more results" }),
+  ).toHaveCount(0);
+});
+
+test("a delivered revision found by search opens that revision after the specification moved on", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({
+    name: "Ledgers",
+    key: "LED",
+    users: ["Lena Owner"],
+  });
+  const workItemId = await seedItem(seeded, {
+    title: "Retry ledger",
+    description: "Retries write a new entry.",
+  });
+  const edit = async (content: string) => {
+    const base = await currentRevision(workItemId);
+    await seeded.command({
+      type: "updateSpecification",
+      workItemId,
+      baseRevisionId: base.id,
+      title: "Retry ledger",
+      content,
+    });
+    return currentRevision(workItemId);
+  };
+  // Revision 2 is delivered; revisions 3 and 4 change the behavior.
+  const delivered = await edit("Retries reuse the quince ledger entry.");
+  await seeded.command({
+    type: "acceptDeliveryScope",
+    workItemId,
+    baseRevisionId: delivered.id,
+  });
+  await seeded.command({
+    type: "updateWorkItem",
+    workItemId,
+    statusId: seeded.roster.statuses.find(
+      (x) => x.projectId === seeded.projectId && x.category === "done",
+    )!.id,
+  });
+  await edit("Retries write a new ledger entry.");
+  expect((await edit("Retries write a new entry per attempt.")).number).toBe(4);
+
+  await signIn(page, seeded.owner.email);
+  await page.goto(`/${seeded.slug}/search?q=quince+ledger`);
+  const results = page.getByRole("list", {
+    name: "Results for “quince ledger”",
+  });
+  const hit = results
+    .getByRole("listitem")
+    .filter({ hasText: "Delivered · revision 2" });
+  await expect(hit).toHaveCount(1);
+  // The item as it is now is a separate, explicit way in.
+  await expect(
+    hit.getByRole("link", { name: "Open LED-1 as it is now" }),
+  ).toHaveAttribute("href", seeded.itemPath(1));
+  await hit.getByRole("link", { name: "Retry ledger" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`[?&]history=${delivered.id}&compare=none`),
+  );
+  await expect(page.getByRole("heading", { name: /Revision 2/ })).toBeVisible();
+  await expect(
+    page.getByText("Retries reuse the quince ledger entry."),
+  ).toBeVisible();
 });
