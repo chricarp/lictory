@@ -22,6 +22,7 @@ import {
   capabilitiesOf,
   entitySchema,
   estimateOptions,
+  isKnowledgeCommand,
   isProjectConfigurationCommand,
   isSpaceCommand,
   isTypeCommand,
@@ -72,6 +73,11 @@ import {
 import { auditConfiguration } from "@lictory/core/domain/audit";
 import { applySpaceCommand } from "@lictory/core/spaces/commands";
 import { refreshSpaceAccess } from "@lictory/core/spaces/access";
+import {
+  applyKnowledgeCommand,
+  recordWorkItemSource,
+} from "@lictory/core/spaces/knowledge-commands";
+import { indexSpecificationRevisions } from "@lictory/core/spaces/knowledge";
 import { applyDecisionCommand } from "@lictory/core/domain/decisions";
 import {
   refreshDirectoryProjection,
@@ -86,6 +92,15 @@ import {
   pullRequestResultHash,
   resultHash,
 } from "@lictory/core/domain/branches";
+import {
+  followSpecificationDrafts,
+  markSealed,
+  openSpecificationDraft,
+  requireOpenDraft,
+  sealedSpecificationDraft,
+  specificationDraftEntities,
+} from "@lictory/core/domain/specification-drafts";
+import { signalSpaceAccess } from "@lictory/core/spaces/signals";
 import { becameMergeable } from "@lictory/core/contracts/merge-readiness";
 import { notifyItemActivity } from "@lictory/core/notifications/server";
 import {
@@ -1702,6 +1717,9 @@ async function snapshotItems(
     ...detailItems.map((item) => readinessEntity(item, items, ctx)),
   );
   entities.push(...runs);
+  entities.push(
+    ...(await specificationDraftEntities(tx, organizationId, workItemIds)),
+  );
   return entities;
 }
 
@@ -2005,6 +2023,44 @@ export async function applyMutation(
         { organizationId, userId, roster, delegation: delegation(actor) },
         c,
       );
+      // A new page that is also a context page (iteration notes): linked in
+      // the same transaction, so a refused link creates no page.
+      if (c.type === "createPage" && c.contextLink)
+        await applyKnowledgeCommand(
+          tx,
+          {
+            organizationId,
+            userId,
+            admin: isAdmin(membership),
+            roster,
+            delegation: delegation(actor),
+          },
+          { type: "linkContextPage", ...c.contextLink, pageId: c.pageId },
+        );
+      return receipt(
+        tx,
+        organizationId,
+        mutation.id,
+        userId,
+        fingerprint,
+        summary,
+      );
+    }
+    if (isKnowledgeCommand(c)) {
+      // Knowledge links (pages attached to items, context pages) are
+      // projected with their page (`space_entity`): no `sync_entity` row
+      // and no directory input changes.
+      const summary = await applyKnowledgeCommand(
+        tx,
+        {
+          organizationId,
+          userId,
+          admin: isAdmin(membership),
+          roster,
+          delegation: delegation(actor),
+        },
+        c,
+      );
       return receipt(
         tx,
         organizationId,
@@ -2053,6 +2109,23 @@ export async function applyMutation(
           projectId: c.projectId,
           ...("userId" in c ? { userIds: [c.userId] } : {}),
         });
+      // Disciplines decide who edits specification drafts: the collaboration
+      // service rechecks the live draft connections of the people whose
+      // capabilities may have changed (after commit).
+      if (
+        c.type === "setProjectMember" ||
+        c.type === "setDisciplineMember" ||
+        (c.type === "updateDiscipline" &&
+          (c.capabilities !== undefined || c.archived !== undefined))
+      )
+        await signalSpaceAccess(
+          tx,
+          organizationId,
+          "userId" in c
+            ? [c.userId]
+            : (roster.disciplines.find((d) => d.id === c.disciplineId)
+                ?.userIds ?? []),
+        );
       // Readiness and activity live in each item's own scope.
       const itemChanges =
         c.type === "publishReadinessChecks"
@@ -2221,6 +2294,11 @@ export async function applyMutation(
         changeSummary: summary?.trim() ? summary.trim() : null,
         authorId: userId,
       });
+      // The references it writes (items, pages, decisions) are indexed with
+      // it (docs/internals/knowledge-links.md).
+      await indexSpecificationRevisions(tx, organizationId, [
+        { id: revisionId, workItemId: workItemId!, content },
+      ]);
       await recordMain(
         tx,
         {
@@ -2628,17 +2706,25 @@ export async function applyMutation(
               createdById: userId,
             })),
           );
-          await tx.insert(s.specificationRevision).values(
-            children.map((child) => ({
-              organizationId,
-              workItemId: child.workItemId,
-              number: 1,
-              title: child.title,
-              content: child.description,
-              changeSummary: "Accepted delivery breakdown",
-              authorId: userId,
-            })),
-          );
+          const childRevisions = await tx
+            .insert(s.specificationRevision)
+            .values(
+              children.map((child) => ({
+                organizationId,
+                workItemId: child.workItemId,
+                number: 1,
+                title: child.title,
+                content: child.description,
+                changeSummary: "Accepted delivery breakdown",
+                authorId: userId,
+              })),
+            )
+            .returning({
+              id: s.specificationRevision.id,
+              workItemId: s.specificationRevision.workItemId,
+              content: s.specificationRevision.content,
+            });
+          await indexSpecificationRevisions(tx, organizationId, childRevisions);
           await tx.insert(s.activity).values(
             numbered.map(({ child, childType, number }) => ({
               id: crypto.randomUUID(),
@@ -2725,6 +2811,10 @@ export async function applyMutation(
           // Each touched item's own scope (revisions, activity, readiness);
           // work item rows are project-wide and follow the command's diff.
           for (const id of touched) {
+            // A child whose revision changed: its live drafts follow.
+            await followSpecificationDrafts(tx, organizationId, id, {
+              close: false,
+            });
             const entities = await snapshot(tx, {
               organizationId,
               projectId,
@@ -2974,6 +3064,16 @@ export async function applyMutation(
           "Created",
           undefined,
         );
+        // Provenance of work created from committed page content: checked
+        // against the actor's access to the page's space, kept immutably and
+        // projected with the page (never on the organization-wide item).
+        if (c.source)
+          await recordWorkItemSource(
+            tx,
+            { organizationId, userId },
+            workItemId!,
+            c.source,
+          );
         if (
           projectRow!.deliveryMode === "native" &&
           ["started", "done"].includes(status.category)
@@ -3796,6 +3896,103 @@ export async function applyMutation(
           );
         await revision(c.title, c.content, c.summary);
         break;
+      // Live drafts (docs/internals/specification-drafts.md). Opening a line's
+      // draft needs the right to write that line: main as for
+      // updateSpecification, a branch as its author or a collaborator.
+      case "openSpecificationDraft": {
+        if (c.branchId) {
+          const [branch] = await tx
+            .select()
+            .from(s.specificationBranch)
+            .where(
+              and(
+                eq(s.specificationBranch.organizationId, organizationId),
+                eq(s.specificationBranch.workItemId, workItemId!),
+                eq(s.specificationBranch.id, c.branchId),
+                isNull(s.specificationBranch.deletedAt),
+              ),
+            );
+          if (!branch || branch.name === "main")
+            throw new DomainError(
+              "not_found",
+              "This branch or pull request is unavailable.",
+            );
+          require(branch.authorId === userId ||
+            branch.collaboratorIds.includes(
+              userId,
+            ), "Only invited collaborators can edit this branch.");
+        } else {
+          requireCapability(capabilities, "editSpecifications");
+          if (item!.mainProtected)
+            throw new DomainError(
+              "conflict",
+              "This specification is ready. Use a branch and pull request to change main.",
+            );
+        }
+        await openSpecificationDraft(
+          tx,
+          {
+            organizationId,
+            workItemId: workItemId!,
+            branchId: c.branchId ?? null,
+          },
+          { discardChanges: c.discardChanges },
+        );
+        break;
+      }
+      // "Save revision": seals main's draft at the stored cut into the next
+      // revision, exactly like updateSpecification (approvals marked
+      // outdated, reviews re-requested). Branch drafts are sealed in
+      // applyBranchCommand.
+      case "commitSpecificationDraft": {
+        const draft = await requireOpenDraft(
+          tx,
+          organizationId,
+          workItemId!,
+          c.draftId,
+          c.epoch,
+        );
+        if (draft.branchId) break;
+        requireCapability(capabilities, "editSpecifications");
+        if (item!.mainProtected)
+          throw new DomainError(
+            "conflict",
+            "This specification is ready. Use a branch and pull request to change main.",
+          );
+        const cut = await sealedSpecificationDraft(
+          tx,
+          draft,
+          c.expectedSequence,
+        );
+        const title = cut.title || latest!.title;
+        if (title === latest!.title && cut.markdown === latest!.content) {
+          if (c.expectedSequence === draft.committedSequence)
+            throw new DomainError(
+              "validation",
+              `Nothing to save: the draft equals revision ${latest!.number}.`,
+            );
+          // Edits that cancel out: the cut is saved without a revision.
+          await markSealed(tx, draft, {
+            committedSequence: c.expectedSequence,
+            revisionId: latest!.id,
+          });
+          break;
+        }
+        const revisionId = await revision(title, cut.markdown, c.message);
+        await markSealed(tx, draft, {
+          committedSequence: c.expectedSequence,
+          revisionId,
+        });
+        // Who wrote the sealed edits, beside who saved them.
+        const revised = activities.findLast((a) => a.action === "revised");
+        if (revised)
+          revised.detail = {
+            ...revised.detail,
+            liveDraft: true,
+            contributorIds: cut.authorIds,
+          };
+        break;
+      }
       case "createThread": {
         if (!typeOf(item!.typeId).hasSpecification && c.blocking)
           throw new DomainError(
@@ -3866,6 +4063,7 @@ export async function applyMutation(
             kind: "document",
             section: c.section,
             ...(c.quote ? { quote: c.quote } : {}),
+            ...(c.quote && c.occurrence ? { occurrence: c.occurrence } : {}),
           },
         });
         await tx.insert(s.threadMessage).values({
@@ -4640,6 +4838,18 @@ export async function applyMutation(
         after = await snapshot(tx, scope);
       }
     }
+    // Live drafts follow their line's head: a head moved from outside the
+    // draft starts a new epoch, protection or deletion closes it
+    // (docs/internals/specification-drafts.md).
+    if (
+      workItemId &&
+      c.type !== "createWorkItem" &&
+      (await followSpecificationDrafts(tx, organizationId, workItemId))
+    )
+      after = await snapshot(tx, scope);
+    // A removed collaborator's open branch draft closes (after commit).
+    if (c.type === "setBranchCollaborator" && !c.assigned)
+      await signalSpaceAccess(tx, organizationId, [c.userId]);
     if (workItemId && activities.length) {
       // Activity is the only thing this insert changes in the item scope,
       // so append it instead of projecting the scope again.
@@ -4833,6 +5043,8 @@ const specCommands = new Set<string>([
   "cancelReview",
   "decideReview",
   "signOffReadinessCheck",
+  "openSpecificationDraft",
+  "commitSpecificationDraft",
 ]);
 
 // Scheduled job (the worker): starts and completes automatic cycles.

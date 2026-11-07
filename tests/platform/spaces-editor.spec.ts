@@ -5,6 +5,7 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import { fillMarkdown } from "../helpers/editor";
 import { consentStatePath } from "../consent-setup";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import { clientAddress } from "../helpers/client-address";
@@ -332,8 +333,11 @@ test("comments on draft text are seen, answered, resolved and reopened", async (
 
   await selectText(ada.page, "five days");
   await ada.page.getByRole("button", { name: "Comment", exact: true }).click();
-  const composer = ada.page.getByLabel("Comment on the selected text");
-  await composer.fill("Business days or calendar days?");
+  await fillMarkdown(
+    ada.page,
+    "Comment on the selected text",
+    "Business days or calendar days?",
+  );
   await ada.page
     .getByRole("complementary", { name: "Page comments" })
     .getByRole("button", { name: "Comment", exact: true })
@@ -353,7 +357,7 @@ test("comments on draft text are seen, answered, resolved and reopened", async (
   await expectNoAccessibilityViolations(ben.page, "live editor with comments");
 
   await thread.getByRole("button", { name: "Reply" }).click();
-  await thread.getByLabel("Reply to Ada Owner").fill("Business days.");
+  await fillMarkdown(thread, "Reply to Ada Owner", "Business days.");
   await thread
     .getByRole("button", { name: "Reply", exact: true })
     .last()
@@ -382,9 +386,11 @@ test("comments on draft text are seen, answered, resolved and reopened", async (
   await expect(published).toContainText("Escalate disputes to finance.");
   await selectText(ben.page, "finance");
   await ben.page.getByRole("button", { name: "Comment", exact: true }).click();
-  await ben.page
-    .getByLabel("Comment on the selected text")
-    .fill("Which finance team?");
+  await fillMarkdown(
+    ben.page,
+    "Comment on the selected text",
+    "Which finance team?",
+  );
   await comments.getByRole("button", { name: "Comment", exact: true }).click();
   await expect(published.locator(".page-comment")).toHaveText("finance");
   await expect(

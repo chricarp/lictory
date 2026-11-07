@@ -1,0 +1,166 @@
+---
+title: Blocks and chips
+description: Show work items, other pages and recorded decisions in a page, add a live list of work, and know what each reader sees.
+---
+
+A page can show the work it is about without copying it. Item and page
+chips, decision cards and live work lists are read from Lictory Work each
+time someone opens the page, with that reader's own access. The page stores
+only which item, page, decision or list it means; the work keeps its own
+state, and nothing on a page changes it.
+
+![A published page with item chips in a sentence, a decision card on its own line and a live work list of an epic’s children](/screenshots/spaces-page-reader.webp)
+
+## When to use it
+
+- **Item chips** when a sentence is about a piece of work: _Retries follow
+  #PAY-2_.
+- **Page chips** to send readers to another page, or to cite one exact
+  version of it.
+- **Decision cards** to show an agreed conclusion where people read about
+  the topic, without retyping it.
+- **Work lists** for the work behind a page: an epic's stories on its
+  requirements page, a sprint's items on its notes.
+
+## Item chips
+
+Type `#` and pick an item, or choose **Insert → Work item**
+([writing together](/spaces/editing#work-items-page-links-and-decisions)).
+Readers see a chip with the item's status, key and current title.
+
+![The card of the PAY-2 chip: Story, Retry failed card captures, In Progress, In review, 2 of 4 checks with what is still missing (a blocking discussion, and Engineering and QA reviews of revision 2), owner Dev Patel, Sprint 1 and Open PAY-2](/screenshots/detail-item-chip-card.webp)
+
+Point at a chip or focus it for its card:
+
+| In the card    | What it shows                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Status**     | The item's delivery status. In a project that delivers in Jira, the status read back from Jira (_In Progress in Jira_, _Not handed off to Jira_) |
+| **Refinement** | The refinement state, for types with a specification                                                                                             |
+| Readiness      | How many checks pass (_2 of 4 checks_) and up to two that are still missing                                                                      |
+| **Owner**      | Who it is assigned to, or _Unassigned_; the delivery tool's assignee for external projects                                                       |
+| **Iteration**  | The sprint or cycle it is planned in, when it has one                                                                                            |
+| **Open PAY-2** | Opens the item                                                                                                                                   |
+
+An archived item says **Archived**. Escape closes the card.
+
+## Page chips
+
+Type `[[` and pick a page, or choose **Insert → Link to a page**. The chip
+shows the space's icon and the page's current title, even after the page is
+renamed or moved.
+
+To cite one exact version, press `Shift Enter` in the picker, or choose
+**Pin this version** beside the option: the chip adds `vN`, opens that
+version, and shows a small marker once a newer version is published. Its
+card names the space and path, who published it last, and for a pinned chip
+_Version N is published._ with **Compare in history**; **Open this version**
+or **Open page** follows the link.
+
+People who cannot open the linked page see _Unavailable page_ and no card.
+
+## Decision cards
+
+A decision is recorded on a work item during refinement
+([decisions](/specifications/decisions)). A page can show it:
+
+1. In the editor, type `/` and choose **Decision**, or **Insert → Decision**.
+2. **Find a decision…**: decisions you can read, by title.
+3. Press Enter. On a line of its own the decision becomes a **card**; inside
+   a sentence it is a chip with its title.
+
+![A decision card: Decision, the title “Retries reuse the original idempotency key”, its conclusion, the item PAY-2 Retry failed card captures and “Recorded on revision 1”](/screenshots/detail-decision-card.webp)
+
+The card shows the decision's title and conclusion, the work item it was
+recorded on and _Recorded on revision N_. The words stay in Work: when the
+decision is withdrawn there, the card says _Archived: withdrawn from active
+product knowledge, kept for history_, and an open page notices without a
+reload (when you return to the window, and every minute while it is
+visible).
+
+If the page cannot check the decision again, for example while you are
+offline, the card keeps what it read and says so: _Couldn’t refresh · last
+checked 3m ago_ with **Retry**. A decision that cannot be read at all shows
+_This decision is unavailable._
+
+You can also start from the work item: **Add to a page** on one of its
+decisions proposes a change that adds the card to a page you can edit
+(**Add the decision to a page**, find the page, **Propose change**). It opens
+a pull request; the page gets the decision once it is merged, never by
+editing the published page directly.
+
+## Live work lists
+
+<Steps>
+<Step>
+
+**Insert.** In the editor, type `/` and choose **Work list**.
+
+</Step>
+<Step>
+
+**Choose what to list** under **Show**:
+
+- **An epic's work**: the children of one epic.
+- **An iteration**: everything planned in a sprint or cycle.
+- **A label**: work with one label in a project.
+- **Work this page mentions**: the items mentioned with `#` on this page.
+
+Pick the **Project** and the epic, iteration or label, and optionally a
+**Title** (otherwise the list is named after what it lists, such as
+_Children of PAY-1_). Choose **Insert list**.
+
+</Step>
+<Step>
+
+**Publish** the page as usual. Readers see the list from then on.
+
+</Step>
+</Steps>
+
+![A live work list titled “Resilient card captures: delivery”, “Children of PAY-1 · 0 of 5 done”: each row has the item’s status, key, title, delivery status, refinement state and estimate, and “Live from Lictory Work. Open an item to change it.” below](/screenshots/detail-work-list.webp)
+
+Each row shows the item's status, key, title, refinement state and estimate
+(the delivery tool's status in external projects, without estimates). The
+header counts _N of M done_ among the items shown; canceled items count as
+neither. A list shows ten rows, and **Show N more** adds ten at a time.
+
+To change a list, open the editor and use the list's settings button
+(**Change what this list shows**), then **Save**. Nothing in a list edits an
+item: open the item to change it.
+
+## Who sees what
+
+| Block     | Readers who can see the target       | Everyone else who can read the page                              |
+| --------- | ------------------------------------ | ---------------------------------------------------------------- |
+| Item chip | Status, key, title, and the card     | The key stored in the page, no card                              |
+| Page chip | The current title, version and card  | _Unavailable page_, no card                                      |
+| Decision  | Title, conclusion, item and revision | The title stored in the page, or _This decision is unavailable._ |
+| Work list | The matching items they can see now  | Only the items they can see; counts cover only those             |
+
+Everything is read with the reader's own access at the moment they read.
+Work items are visible to every member of the organization; pages follow
+their space's [access](/spaces/access). A chip or list never grants access
+to what it shows.
+
+## What to watch for
+
+- **Lists are not snapshots.** A work list stores its query, not its items.
+  An old version of the page shows today's items.
+- **Agents and Litto get a plain list.** When an agent or
+  [Litto](/ai/litto) reads a page, each work list is turned into ordinary
+  item references as of that moment, read with their access. Pasting that
+  Markdown back gives plain references, not a live list.
+- **Links follow published versions.** A chip typed in a live draft links
+  the page to the item only once the page is published
+  ([knowledge links](/knowledge#references-follow-published-versions)).
+- **External projects** show the delivery tool's status and owner. Native
+  delivery details (estimates, iterations) do not apply to them.
+
+## Tips
+
+- Put a live work list on each requirements page and design doc, so readers
+  see how far the work is without leaving the page.
+- Cite decisions instead of retyping them: when a decision is withdrawn, the
+  card says so everywhere it appears.
+- Pin a page chip when the exact wording matters (a policy, an agreed
+  limit), and leave it unpinned when readers should always get the latest.

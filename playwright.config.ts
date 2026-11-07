@@ -10,7 +10,9 @@ const platformURL = process.env.E2E_PLATFORM_URL ?? "http://localhost:3001";
 const marketingURL = process.env.E2E_MARKETING_URL ?? "http://localhost:3101";
 const docsURL = process.env.E2E_DOCS_URL ?? "http://localhost:3201";
 
-// A CI shard runs only the files scripts/e2e-selection.ts assigned to it.
+// A run executes only the files scripts/test-e2e.ts gives it: its CI shard
+// (scripts/e2e-selection.ts) and phase (with or without the scripted AI
+// provider).
 const shardFiles = process.env.E2E_FILES
   ? (JSON.parse(process.env.E2E_FILES) as string[]).map(
       (file) =>

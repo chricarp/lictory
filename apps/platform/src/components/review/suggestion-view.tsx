@@ -18,7 +18,7 @@ import {
   type EntityOf,
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -677,17 +677,10 @@ function SuggestionEditor({
         }}
         value={content}
         onValueChange={setContent}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-            e.preventDefault();
-            void submit();
-          } else if (e.key === "Escape") onDone();
-        }}
-        spellCheck
+        onSubmit={() => void submit()}
+        onEscape={onDone}
         aria-label="Proposed specification"
-        className="min-h-80 px-4 pt-4 font-mono"
-        previewClassName="min-h-[320px] px-4 pt-4"
-        style={{ fieldSizing: "content" }}
+        minHeight="20rem"
       />
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="ghost" size="md" onClick={onDone}>

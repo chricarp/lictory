@@ -1,14 +1,12 @@
 import { useEffect } from "react";
-import type { AnyExtension, Editor, Extension, Node } from "@tiptap/core";
+import type { AnyExtension, Editor, Extension } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
-import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { pageExtensions } from "@lictory/core/spaces/document/schema";
 import { CommentHighlights } from "@lictory/platform/components/spaces/comments/highlights";
-import {
-  PageReference,
-  WorkItemReference,
-} from "@lictory/platform/components/spaces/editor/references";
-import "@lictory/platform/components/spaces/editor/page-document.css";
+import { withNodeViews } from "@lictory/platform/components/editor/node-views";
+import "@lictory/platform/components/editor/document.css";
+import { withWorkBlockPlugins } from "@lictory/platform/components/spaces/blocks/views";
 
 // The page schema as the browser renders it: the shared extensions (so a
 // commit renders exactly as it was written), live reference views and
@@ -21,21 +19,13 @@ export function documentExtensions(
     | { updateDocument: false } = { updateDocument: false },
 ): AnyExtension[] {
   return [
-    ...(pageExtensions() as AnyExtension[]).map((extension) => {
-      if (extension.name === "uniqueID")
-        return (extension as Extension).configure(uniqueId);
-      if (extension.name === "workItemRef")
-        return (extension as Node).extend({
-          addNodeView: () =>
-            ReactNodeViewRenderer(WorkItemReference, { as: "span" }),
-        });
-      if (extension.name === "pageRef")
-        return (extension as Node).extend({
-          addNodeView: () =>
-            ReactNodeViewRenderer(PageReference, { as: "span" }),
-        });
-      return extension;
-    }),
+    ...withNodeViews(
+      (pageExtensions() as AnyExtension[]).map((extension) =>
+        extension.name === "uniqueID"
+          ? (extension as Extension).configure(uniqueId)
+          : extension,
+      ),
+    ).map(withWorkBlockPlugins),
     CommentHighlights,
   ];
 }

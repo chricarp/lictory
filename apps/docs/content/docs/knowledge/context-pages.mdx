@@ -1,0 +1,146 @@
+---
+title: Context pages
+description: Keep the pages a project, a team or an iteration relies on one click away from the board, the backlog and the iteration report, and create iteration notes.
+---
+
+A **context page** is a page a delivery surface keeps at hand: the goal of a
+sprint, the design the team is building, the runbook for what it operates,
+last iteration's retrospective. Each project, each of its teams and each of
+its iterations has a short, ordered list of them. A context page is
+context, not delivery state: linking or removing one never moves work.
+
+![The Context popover on the board: the project's pages and Sprint 1's pages, each with its space, Add page and Create iteration notes](/screenshots/detail-context-pages.webp)
+
+## When to use it
+
+- **For an iteration**: its goal and notes during the sprint, its
+  retrospective after it.
+- **For a team**: the team's working agreement, the runbooks of what it
+  operates.
+- **For the project**: the requirements, designs and decision records most
+  of its work refers to.
+
+For a page that belongs to one work item, [attach it](/knowledge/in-work#attach-a-page)
+to the item instead.
+
+## Where context pages show
+
+The **Context** control (a book icon, with the number of pages) sits in the
+header of each delivery surface and lists the pages of the lists in view:
+
+| Surface                       | Lists shown                                                     |
+| ----------------------------- | --------------------------------------------------------------- |
+| **Board**                     | The project's, the filtered team's and the selected iteration's |
+| **Backlog**                   | The project's and the filtered team's                           |
+| Each iteration in the backlog | That iteration's, as a compact icon with its count              |
+| A team's backlog              | The team's and the project's                                    |
+| The iteration report          | The iteration's, listed under **Pages**                         |
+
+Each page shows its title and space and opens the page. You see only pages
+you can read, and the count counts only those. An iteration's compact
+control is hidden while it has no pages and you cannot add any.
+
+## Add a context page
+
+<Steps>
+<Step>
+
+**Open the list.** Choose **Context** on the board, backlog or team backlog,
+or the iteration's icon, or go to the iteration report's **Pages**.
+
+</Step>
+<Step>
+
+**Add page.** Under the list you want (the project, the team or the
+iteration), choose **Add page** and search by title or space (_Add a page to
+Sprint 1_).
+
+</Step>
+<Step>
+
+**Pick the page.** It joins the end of the list.
+
+</Step>
+</Steps>
+
+### Order and remove
+
+Each page in a list has buttons to move it up or down (_Move "…" up_) and
+to remove it (_Remove "…" from Sprint 1_). Removing offers **Undo**; the
+page's activity keeps who linked and removed it. Put the page people need
+first at the top.
+
+## Create iteration notes
+
+An iteration can get its notes page in one step:
+
+<Steps>
+<Step>
+
+**Create iteration notes.** In the iteration's list (the board's or the
+iteration's **Context**, or the iteration report's **Pages**), choose
+**Create iteration notes**.
+
+</Step>
+<Step>
+
+**Choose where.** _Notes for Sprint 1_ asks for the **Space** (spaces you can
+edit, the project's own first) and the **Title** (_Sprint 1 notes_). It
+explains what you get: _A new page with the goal, a live list of the
+iteration's work, risks and a retrospective, kept with this iteration._
+
+</Step>
+<Step>
+
+**Create and open.** Lictory creates the page from the
+[iteration notes template](/spaces/templates) with the iteration's goal
+filled in, links it to the iteration and opens it.
+
+</Step>
+</Steps>
+
+![Sprint 1 notes in the Payments space: the Goal, a live work list of the sprint’s items with their status, then Risks, Notes and the Retrospective headings to fill in](/screenshots/delivery-iteration-notes.webp)
+
+Creating the page publishes its first version, as **New page** does in the
+space. Creating and linking happen together: if the link is refused, no page
+is created, and trying again after a lost connection creates one page, never
+two. Work never changes an existing page by itself: the notes are yours to
+edit like any other page.
+
+If you can edit no space yet, the form says so: ask for edit access to a
+project space, or create one.
+
+## Who can manage context pages
+
+The people who plan: project administrators and project members whose
+discipline can change item properties. They can also add pages to an
+iteration that is already completed, since retrospectives come afterwards.
+Everyone else sees the lists without the controls. Managing a list also
+needs read access to the page you add.
+
+## In external projects
+
+A project that delivers in Jira or another tool has no native board,
+backlog or iterations, so there is no iteration context. Its teams' pages
+still show the **Context** control with the team's and the project's
+lists, and every other knowledge link works as in a native project
+([knowledge links](/knowledge)).
+
+## What to watch for
+
+- **Readable pages only.** Two people can see different lists, and
+  different counts, on the same board. A page from a Restricted space shows
+  only to its readers.
+- **Archived pages leave the list** until they are restored, and pages of an
+  archived space with them.
+- **A team or an iteration, not both.** Each list belongs to the project,
+  one team or one iteration.
+- **Teams must be active**: an archived team takes no new context pages.
+
+## Tips
+
+- Give each sprint a context page: create its notes when you start it, and
+  keep the retrospective there when you complete it.
+- Keep each list short. Three well-chosen pages are read; ten are not.
+- Link the project's main requirements page and design doc to the project,
+  so everyone on the board is one click from the why.

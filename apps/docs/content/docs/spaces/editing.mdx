@@ -8,6 +8,13 @@ everyone allowed to edit it changes at the same time. Main has one in a
 [Direct space](/spaces/publishing#direct-spaces); every branch has its own
 ([branches](/spaces/branches)).
 
+Pages use the same editor as everything you write in Lictory Work:
+specifications, descriptions, discussions and decisions. The toolbar, the
+`/`, `#` and `[[` pickers, the reference chips and the keyboard shortcuts
+are the same everywhere; see [the specification editor](/specifications/editor).
+What differs is what is stored: a page keeps a rich document, a
+specification keeps Markdown.
+
 ## Open the editor
 
 On a page of a Direct space, choose **Edit**, or **Edit unpublished draft**
@@ -16,7 +23,7 @@ collaborate on, the page opens straight in that branch's draft. **Close
 editor** returns to the published page; the draft stays saved and is there
 the next time anyone opens it.
 
-![The live draft of the Payments service page: "Live draft · based on v2 · Saved · Unpublished changes · Dev Patel is editing", the formatting toolbar, Dev Patel's caret with their name label at the end of a new sentence, Close editor and Publish, and the comments panel with one blocking discussion](/screenshots/spaces-live-editor.webp)
+![Two people in the live draft of Capture retry design: the status line “Live draft · based on v1 · Saving… · Unpublished changes” with Dev Patel is editing, the toolbar, Dev Patel’s named caret in the text, and Close editor and Publish](/screenshots/spaces-live-editor.webp)
 
 The line under the title tells you where you are:
 
@@ -32,7 +39,9 @@ The line under the title tells you where you are:
 
 Type directly, use Markdown shortcuts (`#` and a space for a heading, `-` for
 a list, `[ ]` for a task, `>` for a quote, three backticks for code), or
-type `/` for any block. The title is part of the draft too: everyone editing
+type `/` for any block: text styles, lists, quote, code block, table,
+divider, image, and the work blocks **Decision** and **Work list**
+([blocks](/spaces/blocks)). The title is part of the draft too: everyone editing
 sees the same title, and it is published with the content. From the title,
 Enter or Arrow Down moves into the page.
 
@@ -41,10 +50,10 @@ Enter or Arrow Down moves into the page.
 | Control                                  | What it does                                                                                             |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Undo, Redo                               | Undo or redo **your own** changes; other editors' changes are theirs                                     |
-| **Text**                                 | The current block's style: Text, Heading 1-3, Bulleted list, Numbered list, Task list, Quote, Code block |
+| **Text style**                           | The current block's style: Text, Heading 1-3, Bulleted list, Numbered list, Task list, Quote, Code block |
 | Bold, Italic, Strikethrough, Inline code | Inline marks                                                                                             |
 | **Link**                                 | Add a link to the selection, or edit the link under the cursor                                           |
-| **Insert**                               | Table, Divider, Image, Work item, Link to page                                                           |
+| **Insert**                               | Table, Divider, Image, Work item, Link to a page, Decision                                               |
 | **Table**                                | Appears inside a table: Add row below, Add column after, Delete row, Delete column                       |
 | **Comment on selection**                 | Starts a discussion on the selected text (see [comments](/spaces/comments))                              |
 
@@ -61,20 +70,29 @@ move between its controls. On a phone it is one scrolling row.
 | Mod+Z, Mod+Shift+Z | Undo, redo                               |
 | Mod+Alt+M          | Comment on the selection                 |
 | `/`, `#`, `[[`     | Insert a block, a work item, a page link |
+| Shift+Enter        | In the `[[` picker: pin the version      |
 
 _Mod_ is ⌘ on a Mac and Ctrl elsewhere.
 
-### Work items and page links
+### Work items, page links and decisions
 
 - Type `#` (or **Insert → Work item**) and pick an item you can see. Readers
-  see it as a live chip with its key, title, status, refinement state and
-  readiness as they can see the item at that moment.
-- Type `[[` (or **Insert → Link to page**) and pick a page of any space you
+  see it as a live chip with its key, title and status, and a card with its
+  refinement state, readiness, owner and iteration, as they can see the item
+  at that moment.
+- Type `[[` (or **Insert → Link to a page**) and pick a page of any space you
   can read. The link always shows the page's current title, and readers who
-  cannot open that page see _Unavailable page_ instead.
+  cannot open that page see _Unavailable page_ instead. Press `Shift Enter`
+  (or the option's **Pin this version**) to cite the version published now:
+  the chip then shows `vN` and says when a newer version exists.
+- Type `/` and choose **Decision** (or **Insert → Decision**) to show a
+  decision recorded on a work item: **Find a decision…**, then Enter. Alone
+  on its line it becomes a card; inside a sentence, a chip.
+- Type `/` and choose **Work list** for a live list of work items.
 
 The pickers open as a list while you keep typing to narrow it: Arrow Up and
-Down choose, Enter or Tab inserts, Escape closes.
+Down choose, Enter or Tab inserts, Escape closes. What each block shows to
+whom is in [blocks and chips](/spaces/blocks).
 
 ### Images
 

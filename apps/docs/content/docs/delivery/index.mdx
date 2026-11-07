@@ -1,0 +1,210 @@
+---
+title: Deliver the work
+description: Choose where a project's work is delivered, and turn a ready specification into an accepted, delivered agreement.
+---
+
+Refinement ends with a specification the team agrees on. Delivery is where
+that agreement gets built. Each project chooses one place to deliver:
+
+- **In Lictory**: a board, a ranked backlog, sprints or cycles, estimates and
+  reports, next to the specifications.
+- **In Jira**: Lictory refines, reviews and approves; ready work is handed
+  off to Jira, which runs delivery. See [Deliver in Jira](/integrations/jira).
+
+Exactly one system owns delivery state for a project's work. A native
+project's status, assignee and iterations live in Lictory. A Jira project's
+status and assignee live in Jira and are only read back. Nothing is tracked
+twice. Refinement, reviews, approvals and readiness work the same in both
+modes.
+
+## Choose the delivery mode
+
+<Steps>
+<Step>
+
+### Open the project's delivery settings
+
+Project administrators open **Project settings → Delivery**. The section
+**Where work is delivered** offers two choices.
+
+</Step>
+<Step>
+
+### Pick a mode
+
+- **Deliver in Lictory**: board, backlog, sprints or cycles and estimates;
+  readiness can gate starting spec-backed work; nothing is exported.
+- **Hand off to Jira**: ready work is exported to one Jira project; status
+  and assignee are read back; iterations and estimates are planned in Jira.
+
+</Step>
+<Step>
+
+### Confirm the switch
+
+Switching to Jira turns off iterations and estimates for the project and
+replaces the board and backlog with the **Hand-off** view. Items,
+specifications and history are kept, and you can switch back later. If a
+sprint or cycle is active, complete it first so its report is frozen and its
+unfinished work has a home.
+
+</Step>
+</Steps>
+
+## Ready is not accepted
+
+Two different facts tell you where a specification stands:
+
+- **Ready for delivery** means the project's readiness checks pass for the
+  current revision. It is eligibility: the work _can_ be selected. See
+  [readiness](/review/readiness).
+- **Accept for delivery** is the decision that the team will build it. It
+  records the exact revision it accepted.
+
+Planning an item into a sprint or giving it a **Todo** status does not
+accept it. Until someone accepts the scope, the plan stays tentative.
+
+Once a revision is accepted, the item shows **Accepted for delivery** and the
+revision it covers. When the item moves to a done status, Lictory records
+that revision as **Delivered**. Both stay visible on the item and in its
+[version history](/specifications/history).
+
+## Accept a specification for delivery
+
+Native projects only. You need a discipline that can **Change properties**
+in the project.
+
+<Steps>
+<Step>
+
+### Find ready work
+
+The **Ready for delivery** queue on **Refinement** lists specifications whose
+checks pass and that nobody has accepted yet. The backlog links to it with
+**Choose ready work →**.
+
+</Step>
+<Step>
+
+### Accept the revision
+
+![PAY-7 Refund reason codes, accepted for delivery: the workflow card shows Ready, revision 1 and 4 of 4 checks, and Accepted revision 1 under Delivery; both required reviews approved revision 1](/screenshots/accepted-scope.webp)
+
+Open the item. Its workflow card says **Ready for delivery** and offers
+**Accept revision N for delivery**. Accepting records revision N as the
+team's agreement. An item still in a backlog status moves to the first
+unstarted status of the workflow (**Todo** by default).
+
+</Step>
+<Step>
+
+### Plan and build it
+
+Plan it into a [sprint or cycle](/delivery/iterations), break it down into
+[child items](/delivery/breakdown) and move it across the
+[board](/delivery/board).
+
+</Step>
+</Steps>
+
+### Accepting automatically
+
+You don't have to accept by hand. Moving an item into a started status (such
+as **In Progress**) records the current revision as accepted when no
+agreement exists yet. Moving it straight to a done status records it as
+accepted and delivered at once. The project's readiness policy applies to
+this first commitment exactly as it does to the button.
+
+### Plain work
+
+Items without a specification, such as Tasks and Bugs, have no refinement.
+Their scope is recorded when they start. A plain item under a specification
+follows that specification's readiness: splitting unsettled behavior into
+Tasks does not get around the gate.
+
+### Epics
+
+Higher-level items (Epic by default) are delivered through their children.
+They don't appear on the board or the backlog; their Stories and Tasks do.
+An Epic's own specification is still refined, reviewed, approved and
+accepted like any other. Its workflow card offers **View breakdown** to see
+the work below it.
+
+## When the specification changes later
+
+![The workflow card of PAY-2 after revision 3: “Revision 3 changes the accepted specification. Accept it to change what the team delivers.”, Compare with accepted revision, Accept revision 3 for delivery, and the warning that accepting now records an exception because readiness checks are incomplete](/screenshots/detail-scope-amendment.webp)
+
+An accepted revision stays the agreement while a later revision is refined.
+Changing the specification never moves the agreement silently.
+
+When the current revision differs from the accepted one, the item says so:
+_Revision N changes the accepted specification. Accept it to change what the
+team delivers._ The workflow card says delivery continues with the accepted
+revision, and offers:
+
+- **Compare with accepted revision**, which opens the two revisions side by
+  side in the version history;
+- **Accept revision N for delivery**, once the team agrees to build the
+  change.
+
+Work on the accepted revision keeps going in the meantime: the amendment
+losing readiness does not stop the item or its children from starting.
+Missing evidence on the accepted revision itself, such as a new blocking
+discussion on it, still applies the policy.
+
+Delivered work is history. A done or canceled item cannot accept a new
+revision; reopen it first. Completing the reopened item records its new
+delivered revision, and the earlier one stays in its activity.
+
+## Readiness policy
+
+The project's readiness policy decides what happens when work that is not
+ready starts or is accepted. Project administrators set it in **Project
+settings → Readiness**, under **When work starts before it's ready**:
+
+| Choice    | What happens                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Allow** | Readiness is informative only.                                                                                                                    |
+| **Warn**  | The default. The move or acceptance goes through, the failing checks are recorded in the item's activity, and the item shows it was an exception. |
+| **Block** | Only ready specifications can start. The board refuses the move, and the accept button stays disabled until the checks pass.                      |
+
+With **Warn**, an accept button for work that is not ready is marked as an
+exception: _Readiness checks are incomplete: accepting now records an
+exception._ With **Block**: _Complete the readiness checks before accepting
+this revision._
+
+In Jira projects the policy does not apply: only ready specifications are
+handed off at all.
+
+## What to watch for
+
+- **Jira projects accept by handing off.** There is no **Accept for
+  delivery** in external mode; the handed-off revision is the scope boundary.
+  See [Deliver in Jira](/integrations/jira).
+- **Agents ask first.** Litto and MCP agents cannot start or complete a
+  specification that has no accepted revision. They ask you to accept the
+  scope, which you confirm. Plain work keeps its fast path. See
+  [agents](/integrations/agents).
+- **Old items may have no recorded scope.** Items delivered before scope was
+  recorded say _No delivery scope was recorded for this historical item._
+  Lictory does not guess what was agreed.
+- **Done is not deployed.** Delivered records the revision the team accepted
+  and finished. It does not claim the change was deployed or verified.
+
+## Tips
+
+- Accept on purpose. Accept a revision when the team commits to it, not when
+  it is merely planned; the record then answers "what did we agree to
+  build?".
+- Review amendments before accepting them. **Compare with accepted
+  revision** shows exactly what the change adds to the team's work.
+- Keep goals and runbooks one click away from the work with
+  [context pages](/knowledge/context-pages) on the board, backlog and each
+  sprint.
+
+<Cards>
+  <Card title="Break down a specification" href="/delivery/breakdown" />
+  <Card title="The board" href="/delivery/board" />
+  <Card title="Sprints and cycles" href="/delivery/iterations" />
+  <Card title="Deliver in Jira" href="/integrations/jira" />
+</Cards>

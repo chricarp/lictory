@@ -12,60 +12,86 @@ person, or a current member of the assigned discipline, can decide the
 review: **Approve** or **Request changes**. Holding a discipline never
 approves anything by itself.
 
-Requesting a review moves a draft or refining specification to _in review_. A request notifies the reviewers it
-is assigned to; a decision notifies the item's owners and whoever requested
-the review.
+A review is **required** (it counts for readiness) or **optional** (it
+informs). Requesting a review moves a draft or refining specification to _in
+review_. A request notifies the reviewers it is assigned to; a decision
+notifies the item's owners and whoever requested the review. When the
+specification is revised, every active review is requested again on the new
+revision with the same assignments. See [request
+reviews](/review/requests).
 
 ## Discussions
 
-A **thread** is a discussion attached to its context: a quoted range of the
-specification, a revision, or a pull request commit. The quote is read
-against the revision the thread was started on, and Lictory tells you when
-that text no longer appears, so nobody has to ask what a comment referred to.
+A **thread** is a discussion attached to its context: a quoted passage of the
+specification (with the heading it is under), the specification as a whole,
+or a pull request. It keeps the revision it was written on. In later
+revisions Lictory looks for the quoted text again and says when it changed or
+was removed, so nobody has to ask what a comment referred to, and a comment
+is never moved to other text.
 
 Threads are **blocking** or **non-blocking**. An open blocking thread on a
 specification keeps it from becoming ready (when the project's checks include
 it, as they do by default); an open blocking thread on a pull request keeps
-that pull request from merging.
-Resolving and reopening never delete messages; the activity keeps every
-step. When a thread reaches an important conclusion, record it as a
-[decision](/concepts/specifications#decisions).
+that pull request from merging. Resolving and reopening never delete
+messages; the activity keeps every step. When a thread reaches an important
+conclusion, record it as a [decision](/specifications/decisions). See
+[discuss a specification](/specifications/discussions).
 
 ## Approvals belong to revisions
 
 An **approval** states that a reviewer accepted one specific revision for
 their discipline. It is never a permanent flag on the item:
 
-- A material change creates a new revision and makes the earlier approvals
-  **stale**, recording who caused it, when and why. Every active review is
-  requested again on the new revision with the same assignments; the old
-  decisions stay in history.
-- The item shows the difference plainly, for example _Engineering approved
-  revision 12; the current revision is 14; Engineering's approval requires
-  review._
-- On a pull request, approvals record a fingerprint of the complete result
-  of the merge. Any change to the source or target that alters that result
-  makes them stale; changes that leave it identical keep them. Contributors
-  cannot approve their own changes, unless they are the organization's only
-  member.
+- A change to the title or text creates a new revision and makes the earlier
+  approvals **stale**, recording who caused it, when and why. The reviewers
+  are notified and asked again on the new revision; the old decisions stay in
+  history.
+- The item shows the difference plainly: _Engineering approved revision 12;
+  the current revision is 14; Engineering's approval requires review._
+- Property changes (status, assignee, iteration, estimate…) are not revisions
+  and never affect approvals.
 
-A pull request merges only when every required review approves its current
-result, nobody currently requests changes, no blocking thread is open and no
-conflict remains.
+On a pull request, approvals record a fingerprint of the complete result of
+the merge, breakdown included. Any change to the source or the target that
+alters that result makes them stale; changes that leave it identical keep
+them. People who authored commits in a pull request cannot approve it, unless
+they are the organization's only member. A pull request merges only when every
+required review approves its current result, nobody currently requests
+changes, no blocking thread is open and no conflict remains. Merging carries
+its valid approvals to the new revision, so the team does not approve the
+same text twice. See [approve or request changes](/review/approvals).
 
 ## Lictory Intelligence is a check, not an approval
 
 Lictory Intelligence raises findings and questions and can propose changes on
 its own branches. A project can require a clean Lictory Intelligence review as
-a [readiness check](/concepts/readiness#definition-of-ready), but it never
-counts as a discipline's approval and is always required beside a person's
-decision. Anyone holding a discipline can override the check for one
+a [readiness check](/review/readiness#lictory-intelligence-check), but it
+never counts as a discipline's approval and is always required beside a
+person's decision. Anyone holding a discipline can override the check for one
 revision. Litto or an MCP agent can record an approval only on a person's
 explicit instruction, and the approval is that person's.
 
 ## Reviewing a breakdown
 
-![A pull request ready to merge after its required QA approval, with the proposed breakdown below](/screenshots/reviewed-breakdown.webp)
+![A pull request on PAY-4 proposing a breakdown into three subtasks, part of what its reviewers approve](/screenshots/reviewed-breakdown.webp)
 
 The proposed breakdown is reviewed with the resulting specification. The child
-work is created or updated only when the pull request is merged.
+work is created or updated only when the pull request is merged. See [break
+down a specification](/delivery/breakdown).
+
+## Learn more
+
+<Cards>
+  <Card title="Discuss a specification" href="/specifications/discussions">
+    Anchored comments, blocking discussions, resolving and reopening.
+  </Card>
+  <Card title="Branches and pull requests" href="/specifications/branches">
+    Propose a change, review the exact result and merge it.
+  </Card>
+  <Card title="Request reviews" href="/review/requests">
+    Ask the disciplines that must agree, and find what waits for you.
+  </Card>
+  <Card title="Approve or request changes" href="/review/approvals">
+    Decide a review and see when an approval went stale.
+  </Card>
+</Cards>

@@ -17,6 +17,9 @@ export const paths = {
   // Resolves any work item identifier (PAY-142) to its project route.
   itemByKey: (org: string, key: string) => `/${org}/items/${key}`,
   inbox: (org: string) => `/${org}/inbox`,
+  // Content search results: `q`, and optionally `kind` and `project`.
+  search: (org: string, params: Record<string, string>) =>
+    withSearchParams(`/${org}/search`, new URLSearchParams(params)),
   notificationSettings: (org: string) => `/${org}/inbox/settings`,
   // Organization settings: general, members, projects, security, audit, types,
   // integrations, intelligence.

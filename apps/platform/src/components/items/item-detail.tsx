@@ -5,10 +5,13 @@ import {
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
+  ChevronLeft,
   ChevronRight,
+  CornerLeftUp,
   GitCompareArrows,
   Link2,
   MoreHorizontal,
@@ -71,9 +74,16 @@ import {
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
 import { Attachments } from "@lictory/platform/components/items/attachments";
+import {
+  ItemKnowledge,
+  KnowledgeJump,
+} from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
-import { WorkItemListToggle } from "@lictory/platform/components/items/split-view";
+import {
+  useListPanel,
+  WorkItemListToggle,
+} from "@lictory/platform/components/items/split-view";
 import { Discussions } from "@lictory/platform/components/review/threads";
 import {
   BranchEntry,
@@ -99,9 +109,21 @@ import {
   originParams,
 } from "@lictory/platform/components/items/queues";
 import {
+  HistoryNav,
   RevisionPanel,
-  CompareRevisions,
+  SpecVersions,
+  type HistoryScreen,
 } from "@lictory/platform/components/review/revisions";
+import {
+  SpecDiscussionsContext,
+  useSpecDiscussionsState,
+} from "@lictory/platform/components/review/spec-discussions";
+import {
+  DiscussionsToggle,
+  SpecDiscussionPanel,
+} from "@lictory/platform/components/review/discussion-panel";
+import { DiscussionSheet } from "@lictory/platform/components/discussions/presentation";
+import { useElementWidth } from "@lictory/platform/components/discussions/width";
 import { diffStats } from "@lictory/ui/diff";
 import {
   ExportDialog,
@@ -117,8 +139,31 @@ export type DetailMode =
   | { kind: "read" }
   | { kind: "edit" }
   | BranchScreen
-  | { kind: "compare"; from: string; to: string }
+  | HistoryScreen
   | { kind: "ai"; id: string };
+
+// The surface a URL names: Litto's review, a pull request, a branch, the
+// branch list, the specification's history, or the specification.
+function modeFrom(params: URLSearchParams): DetailMode {
+  const pr = params.get("pr"),
+    branch = params.get("branch"),
+    ai = params.get("ai"),
+    history = params.get("history");
+  if (ai) return { kind: "ai", id: ai };
+  if (pr) return { kind: "pr", id: pr };
+  if (branch) return { kind: "branch", id: branch };
+  if (params.has("branches")) return { kind: "branches" };
+  if (history !== null)
+    return {
+      kind: "history",
+      revision: history || null,
+      compare: params.get("compare"),
+      thread: params.get("thread"),
+    };
+  return { kind: "read" };
+}
+const sameMode = (a: DetailMode, b: DetailMode) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 const seenKey = (id: string) => `lictory:seen:${id}`;
 
@@ -179,20 +224,9 @@ export function ItemDetail({
     mutateConfirmed: workspace.mutateConfirmed,
   });
   // Branch and pull request workspaces are linkable and survive navigation.
-  const [mode, setModeState] = useState<DetailMode>(() => {
-    const pr = searchParams.get("pr"),
-      branch = searchParams.get("branch"),
-      ai = searchParams.get("ai");
-    return ai
-      ? { kind: "ai", id: ai }
-      : pr
-        ? { kind: "pr", id: pr }
-        : branch
-          ? { kind: "branch", id: branch }
-          : searchParams.has("branches")
-            ? { kind: "branches" }
-            : { kind: "read" };
-  });
+  const [mode, setModeState] = useState<DetailMode>(() =>
+    modeFrom(new URLSearchParams(searchParams.toString())),
+  );
   const setMode = useCallback(
     (next: DetailMode) => {
       track("specification_mode_selected", {
@@ -208,6 +242,14 @@ export function ItemDetail({
       params.delete("branch");
       params.delete("branches");
       params.delete("ai");
+      params.delete("history");
+      params.delete("compare");
+      params.delete("thread");
+      if (next.kind === "history") {
+        params.set("history", next.revision ?? "");
+        if (next.compare) params.set("compare", next.compare);
+        if (next.thread) params.set("thread", next.thread);
+      }
       if (next.kind === "ai") params.set("ai", next.id);
       if (next.kind === "pr") params.set("pr", next.id);
       if (next.kind === "branch") params.set("branch", next.id);
@@ -219,7 +261,8 @@ export function ItemDetail({
       if (
         next.kind === "branches" ||
         next.kind === "branch" ||
-        next.kind === "pr"
+        next.kind === "pr" ||
+        next.kind === "history"
       )
         router.push(href, { scroll: false });
       else router.replace(href, { scroll: false });
@@ -233,38 +276,80 @@ export function ItemDetail({
       item.id,
     ],
   );
-  const queryPR = searchParams.get("pr"),
-    queryBranch = searchParams.get("branch"),
-    queryBranches = searchParams.has("branches"),
-    queryAi = searchParams.get("ai");
+  const query = searchParams.toString();
   useEffect(() => {
-    // Keep browser back/forward and incoming PR links aligned with the surface.
+    // Keep browser back/forward and incoming links aligned with the surface.
+    const next = modeFrom(new URLSearchParams(query));
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setModeState((current) => {
-      const next: DetailMode = queryAi
-        ? { kind: "ai", id: queryAi }
-        : queryPR
-          ? { kind: "pr", id: queryPR }
-          : queryBranch
-            ? { kind: "branch", id: queryBranch }
-            : queryBranches
-              ? { kind: "branches" }
-              : { kind: "read" };
-      if (
-        next.kind === current.kind &&
-        (!("id" in next) || ("id" in current && next.id === current.id))
-      )
-        return current;
-      return next;
-    });
-  }, [queryAi, queryPR, queryBranch, queryBranches]);
+    setModeState((current) => (sameMode(current, next) ? current : next));
+  }, [query]);
   const branchScreen =
-    mode.kind === "branch" || mode.kind === "pr" || mode.kind === "branches";
+    mode.kind === "branch" ||
+    mode.kind === "pr" ||
+    mode.kind === "branches" ||
+    mode.kind === "history";
   // Full-width surfaces that replace the specification.
   const focusScreen = branchScreen || mode.kind === "ai";
+  const showHistory = useCallback(
+    (screen: Omit<HistoryScreen, "kind">) =>
+      setMode({ kind: "history", ...screen }),
+    [setMode],
+  );
+  // Discussions of the specification, beside its text: a column next to
+  // the review rail while the text keeps a readable measure (the item list
+  // steps aside for it first, like a page tree beside comments), in the
+  // rail's place when only one of them fits, a sheet when neither does.
+  const [row, setRow] = useState<HTMLElement | null>(null);
+  const list = useListPanel();
+  const frameWidth = useElementWidth(
+    (row?.closest("[data-item-split]") as HTMLElement | null) ?? row,
+  );
+  const listWidth = list && !list.collapsed ? list.width : 0;
+  // The rail as laid out (0 while folded into a drawer on narrow frames;
+  // its last width while discussions hold its place).
+  const [railElement, setRailElement] = useState<HTMLElement | null>(null);
+  const railWidth = useElementWidth(railElement);
+  const wide = frameWidth >= DISCUSSIONS_WIDTH + READABLE;
+  const room = (list: number, rail: number) =>
+    frameWidth - list - rail - DISCUSSIONS_WIDTH;
+  const roomy = room(listWidth, railWidth) >= ROOMY;
+  const discussions = useSpecDiscussionsState({
+    content: ctx.current?.content ?? "",
+    threads: ctx.threads,
+    reviewable: ctx.reviewable,
+    roomy,
+    onShowRevision: useCallback(
+      (revision: string, thread?: string) =>
+        setMode({ kind: "history", revision, compare: "none", thread }),
+      [setMode],
+    ),
+  });
+  const discussionsShown =
+    ctx.reviewable &&
+    !pendingCreate &&
+    (mode.kind === "read" || mode.kind === "edit");
+  const discussionsColumn = discussionsShown && discussions.panelOpen && wide;
+  const listAside = discussionsColumn && room(listWidth, railWidth) < READABLE;
+  const railHidden =
+    listAside && railWidth > 0 && room(0, railWidth) < READABLE;
+  const setListAside = list?.setAside;
+  useEffect(() => {
+    setListAside?.(listAside);
+  }, [setListAside, listAside]);
+  useEffect(() => () => setListAside?.(false), [setListAside]);
+  const [discussionsSlot, setDiscussionsSlot] = useState<HTMLElement | null>(
+    null,
+  );
   const [panelOpen, setPanelOpen] = useState(false);
   const rail = usePaneResize<HTMLElement>(railPane);
   const { attach: attachRail } = rail.pane;
+  const attachMeasuredRail = useCallback(
+    (element: HTMLElement | null) => {
+      attachRail(element);
+      if (element) setRailElement(element);
+    },
+    [attachRail],
+  );
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
   // Hand-off is offered for ready specifications of projects delivered in an
@@ -274,6 +359,7 @@ export function ItemDetail({
     exportAvailability.configured &&
     exportAvailability.allowed &&
     !item.archivedAt;
+  // A comment being written on plain work (specifications use the panel).
   const [draft, setDraft] = useState<{
     quote?: string;
     section: string;
@@ -328,6 +414,29 @@ export function ItemDetail({
     itemOrigin(searchParams),
     searchParams,
   );
+  const parentHref = parent
+    ? paths.item(
+        workspace.organization.slug,
+        project.key,
+        identifier(project, parent.number),
+        originParams(searchParams),
+      )
+    : undefined;
+  const compareRevisions =
+    ctx.revisions.length > 1 && !branchScreen
+      ? () =>
+          showHistory({
+            revision: current!.id,
+            compare: (changedSinceSeen?.from ?? ctx.revisions[1])!.id,
+          })
+      : undefined;
+  const involved =
+    // Merging a breakdown makes no one the owner of its children
+    // (notifications/server.ts owners()).
+    (item.createdById === workspace.userId && !item.sourceRevisionId) ||
+    item.assigneeId === workspace.userId ||
+    ctx.messages.some((m) => m.authorId === workspace.userId) ||
+    ctx.suggestions.some((x) => x.authorId === workspace.userId);
   const update = (
     patch: Omit<
       Extract<Parameters<typeof ctx.mutate>[0], { type: "updateWorkItem" }>,
@@ -517,9 +626,7 @@ export function ItemDetail({
       </section>
       {ctx.reviewable ? (
         <>
-          <RevisionPanel
-            onCompare={(from, to) => setMode({ kind: "compare", from, to })}
-          />
+          <RevisionPanel onHistory={showHistory} />
         </>
       ) : (
         <p className="text-xs text-muted-foreground">
@@ -531,450 +638,585 @@ export function ItemDetail({
   );
   return (
     <ItemContext.Provider value={ctx}>
-      {!pendingCreate && (
-        <DockItemSource
-          viewing={mode.kind === "ai" ? mode.id : null}
-          onOpen={openAiReview}
-        />
-      )}
-      <div className="flex h-full flex-col">
-        <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px]">
-          <WorkItemListToggle />
-          <nav
-            aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-1 text-muted-foreground"
-          >
-            <Link href={origin.href} className="shrink-0 hover:text-foreground">
-              {origin.label}
-            </Link>
-            {parent && (
-              <>
-                <ChevronRight className="size-3.5 shrink-0" />
-                <Link
-                  href={paths.item(
-                    workspace.organization.slug,
-                    project.key,
-                    identifier(project, parent.number),
-                    originParams(searchParams),
-                  )}
-                  className="flex min-w-0 items-center gap-1 hover:text-foreground"
-                  title={parent.title}
-                >
-                  <TypeIcon type={typeOf(workspace.delivery, parent)} />
-                  <span className="truncate max-sm:sr-only @max-[62rem]/frame:sr-only">
-                    {parent.title}
-                  </span>
-                </Link>
-              </>
-            )}
-            <ChevronRight className="size-3.5 shrink-0" />
-            <TypeIcon type={type} />
-            <IssueIdentifier
-              project={project}
-              number={item.number}
-              copyable
-              className="shrink-0 text-foreground"
-            />
-          </nav>
-          {item.archivedAt && <Badge tone="warning">Archived</Badge>}
-          {!pendingCreate && <Presence itemId={item.id} />}
-          <div className="ml-auto flex items-center gap-1">
-            {mode.kind === "compare" ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setMode({ kind: "read" })}
+      <SpecDiscussionsContext.Provider value={discussions}>
+        {!pendingCreate && (
+          <DockItemSource
+            viewing={mode.kind === "ai" ? mode.id : null}
+            onOpen={openAiReview}
+          />
+        )}
+        <div className="flex h-full flex-col">
+          {/* On phones the header keeps the way back, the item's key and
+              the actions a reviewer reaches for (Knowledge, Discussions,
+              Review & details); the parent and the rest move into More. */}
+          <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px] max-sm:gap-1 max-sm:pl-1.5">
+            <WorkItemListToggle />
+            <nav
+              aria-label="Breadcrumb"
+              className="flex min-w-0 items-center gap-1 text-muted-foreground"
+            >
+              <Link
+                href={origin.href}
+                title={origin.label}
+                className="shrink-0 hover:text-foreground max-sm:grid max-sm:size-8 max-sm:place-items-center max-sm:rounded-full max-sm:hover:bg-muted"
               >
-                <X className="size-3.5" /> Close comparison
-              </Button>
-            ) : (
-              ctx.revisions.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Compare revisions"
-                  onClick={() =>
-                    setMode({
-                      kind: "compare",
-                      from: (changedSinceSeen?.from ?? ctx.revisions[1])!.id,
-                      to: current!.id,
-                    })
-                  }
-                >
-                  <GitCompareArrows className="size-3.5" />
-                  <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
-                    Changes
-                  </span>
-                </Button>
-              )
-            )}
-            {canExport && exportAvailability.external && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={item.refinementState !== "ready"}
-                title={
-                  item.refinementState === "ready"
-                    ? `Export to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
-                    : "Only ready items can be exported."
-                }
-                onClick={() => setExporting(true)}
-              >
-                <Upload className="size-3.5" /> Export to{" "}
-                {exportAvailability.tool.name}
-              </Button>
-            )}
-            {!pendingCreate && (
-              <WatchButton
-                organizationId={workspace.organization.id}
-                workItemId={item.id}
-                involved={
-                  // Merging a breakdown makes no one the owner of its
-                  // children (notifications/server.ts owners()).
-                  (item.createdById === workspace.userId &&
-                    !item.sourceRevisionId) ||
-                  item.assigneeId === workspace.userId ||
-                  ctx.messages.some((m) => m.authorId === workspace.userId) ||
-                  ctx.suggestions.some((x) => x.authorId === workspace.userId)
-                }
+                <ChevronLeft className="size-4 sm:hidden" aria-hidden />
+                <span className="max-sm:sr-only">{origin.label}</span>
+              </Link>
+              {parent && (
+                <>
+                  <ChevronRight className="size-3.5 shrink-0 max-sm:hidden" />
+                  <Link
+                    href={parentHref!}
+                    className="flex min-w-0 items-center gap-1 hover:text-foreground max-sm:hidden"
+                    title={parent.title}
+                  >
+                    <TypeIcon type={typeOf(workspace.delivery, parent)} />
+                    <span className="truncate @max-[62rem]/frame:sr-only">
+                      {parent.title}
+                    </span>
+                  </Link>
+                </>
+              )}
+              <ChevronRight className="size-3.5 shrink-0 max-sm:hidden" />
+              <TypeIcon type={type} />
+              <IssueIdentifier
+                project={project}
+                number={item.number}
+                copyable
+                className="shrink-0 text-foreground"
               />
-            )}
-            <Popover
-              width={200}
-              align="end"
-              trigger={(props) => (
+            </nav>
+            {item.archivedAt && <Badge tone="warning">Archived</Badge>}
+            {!pendingCreate && <Presence itemId={item.id} />}
+            <div className="ml-auto flex items-center gap-1">
+              {!pendingCreate && (
+                <KnowledgeJump
+                  item={item}
+                  project={project}
+                  inline={!focusScreen}
+                />
+              )}
+              {discussionsShown && (
+                <DiscussionsToggle controls="item-discussions" />
+              )}
+              {mode.kind === "history" ? (
                 <Button
-                  {...props}
-                  variant="ghost"
-                  size="icon"
-                  aria-label="More actions"
+                  variant="secondary"
+                  size="sm"
+                  className="max-sm:size-8 max-sm:px-0"
+                  onClick={() => setMode({ kind: "read" })}
                 >
-                  <MoreHorizontal className="size-4" />
+                  <X className="size-3.5" aria-hidden />
+                  <span className="max-sm:sr-only">Close history</span>
+                </Button>
+              ) : (
+                compareRevisions && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Compare revisions"
+                    className="max-sm:hidden"
+                    onClick={compareRevisions}
+                  >
+                    <GitCompareArrows className="size-3.5" />
+                    <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
+                      Changes
+                    </span>
+                  </Button>
+                )
+              )}
+              {canExport && exportAvailability.external && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="max-sm:hidden"
+                  disabled={item.refinementState !== "ready"}
+                  title={
+                    item.refinementState === "ready"
+                      ? `Export to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
+                      : "Only ready items can be exported."
+                  }
+                  onClick={() => setExporting(true)}
+                >
+                  <Upload className="size-3.5" /> Export to{" "}
+                  {exportAvailability.tool.name}
                 </Button>
               )}
-            >
-              {(close) => (
-                <div className="p-1">
-                  <button
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-                    onClick={async () => {
-                      await navigator.clipboard?.writeText(
-                        window.location.href,
-                      );
-                      close();
-                    }}
+              {!pendingCreate && (
+                <WatchButton
+                  organizationId={workspace.organization.id}
+                  workItemId={item.id}
+                  involved={involved}
+                  className="max-sm:hidden"
+                />
+              )}
+              <Popover
+                width={200}
+                align="end"
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="icon"
+                    aria-label="More actions"
                   >
-                    <Link2 className="size-3.5 text-muted-foreground" /> Copy
-                    link
-                  </button>
-                  {canExport && !exportAvailability.external && (
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                )}
+              >
+                {(close) => (
+                  <div className="p-1">
+                    {/* Phones: what the header has no room for. */}
+                    {parent && (
+                      <Link
+                        href={parentHref!}
+                        onClick={close}
+                        className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
+                      >
+                        <CornerLeftUp
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 truncate">
+                          Parent ·{" "}
+                          <span className="font-mono text-xs">
+                            {identifier(project, parent.number)}
+                          </span>{" "}
+                          {parent.title}
+                        </span>
+                      </Link>
+                    )}
+                    {mode.kind !== "history" && compareRevisions && (
+                      <button
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
+                        onClick={() => {
+                          close();
+                          compareRevisions();
+                        }}
+                      >
+                        <GitCompareArrows
+                          className="size-3.5 text-muted-foreground"
+                          aria-hidden
+                        />
+                        Compare revisions
+                      </button>
+                    )}
+                    {!pendingCreate && (
+                      <WatchButton
+                        organizationId={workspace.organization.id}
+                        workItemId={item.id}
+                        involved={involved}
+                        appearance="menuitem"
+                        className="sm:hidden"
+                      />
+                    )}
+                    <button
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+                      onClick={async () => {
+                        await navigator.clipboard?.writeText(
+                          window.location.href,
+                        );
+                        close();
+                      }}
+                    >
+                      <Link2 className="size-3.5 text-muted-foreground" /> Copy
+                      link
+                    </button>
+                    {canExport && (
+                      <button
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50",
+                          // External delivery has its own header button
+                          // where there is room for it.
+                          exportAvailability.external && "sm:hidden",
+                        )}
+                        disabled={item.refinementState !== "ready"}
+                        title={
+                          item.refinementState === "ready"
+                            ? undefined
+                            : "Only ready items can be exported."
+                        }
+                        onClick={() => {
+                          close();
+                          setExporting(true);
+                        }}
+                      >
+                        <Upload className="size-3.5 text-muted-foreground" />
+                        Export to {exportAvailability.tool.name}…
+                      </button>
+                    )}
                     <button
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
-                      disabled={item.refinementState !== "ready"}
+                      disabled={!ctx.capabilities.changeProperties}
                       title={
-                        item.refinementState === "ready"
+                        ctx.capabilities.changeProperties
                           ? undefined
-                          : "Only ready items can be exported."
+                          : "Your roles cannot archive or restore items."
                       }
                       onClick={() => {
                         close();
-                        setExporting(true);
+                        void ctx.mutate({
+                          type: "archiveWorkItem",
+                          workItemId: item.id,
+                          archived: !item.archivedAt,
+                        });
                       }}
                     >
-                      <Upload className="size-3.5 text-muted-foreground" />
-                      Export to {exportAvailability.tool.name}…
+                      {item.archivedAt ? (
+                        <ArchiveRestore className="size-3.5 text-muted-foreground" />
+                      ) : (
+                        <Archive className="size-3.5 text-muted-foreground" />
+                      )}
+                      {item.archivedAt ? "Restore" : "Archive"}
                     </button>
-                  )}
-                  <button
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
-                    disabled={!ctx.capabilities.changeProperties}
-                    title={
-                      ctx.capabilities.changeProperties
-                        ? undefined
-                        : "Your roles cannot archive or restore items."
-                    }
-                    onClick={() => {
-                      close();
-                      void ctx.mutate({
-                        type: "archiveWorkItem",
-                        workItemId: item.id,
-                        archived: !item.archivedAt,
-                      });
-                    }}
-                  >
-                    {item.archivedAt ? (
-                      <ArchiveRestore className="size-3.5 text-muted-foreground" />
-                    ) : (
-                      <Archive className="size-3.5 text-muted-foreground" />
-                    )}
-                    {item.archivedAt ? "Restore" : "Archive"}
-                  </button>
-                </div>
-              )}
-            </Popover>
-            {/* The review rail folded away: say what it holds. */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="max-sm:size-8 max-sm:px-0 @min-[53rem]/frame:hidden"
-              aria-label="Review & details"
-              onClick={() => setPanelOpen(true)}
-            >
-              <PanelRight className="size-4" />
-              <span className="max-sm:hidden">Review & details</span>
-            </Button>
-            {!pendingCreate && (
-              <>
-                <span
-                  aria-hidden
-                  className="mx-1 h-4 w-px bg-border max-lg:hidden"
-                />
-                <LittoConcerns />
-                <LittoLauncher />
-              </>
-            )}
-          </div>
-        </header>
-        <div className="flex min-h-0 flex-1">
-          <div data-pane-document className="min-w-0 flex-1 overflow-y-auto">
-            <div
-              className={
-                branchScreen
-                  ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
-                  : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
-              }
-            >
-              {changedSinceSeen && !focusScreen && mode.kind !== "compare" && (
-                <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
-                  <GitCompareArrows className="size-4 text-primary" />
-                  <span>
-                    Changed since you last looked: revision{" "}
-                    {changedSinceSeen.from.number} →{" "}
-                    {changedSinceSeen.to.number}
-                    {" · "}
-                    <span className="text-success">
-                      +{changedSinceSeen.added}
-                    </span>{" "}
-                    <span className="text-destructive">
-                      −{changedSinceSeen.removed}
-                    </span>{" "}
-                    lines
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="ml-auto"
-                    onClick={() =>
-                      setMode({
-                        kind: "compare",
-                        from: changedSinceSeen.from.id,
-                        to: changedSinceSeen.to.id,
-                      })
-                    }
-                  >
-                    View changes
-                  </Button>
-                </div>
-              )}
-              {!focusScreen && <InlineTitle />}
-              {!focusScreen && (
-                <ItemWorkflow
-                  onStartRefinement={
-                    canChange
-                      ? () => update({ refinementState: "refinement" })
-                      : undefined
-                  }
-                  onReview={() => {
-                    if (window.innerWidth < 1280) setPanelOpen(true);
-                    else
-                      document
-                        .querySelector(
-                          "[data-desktop-item-panel] [data-review-panel]",
-                        )
-                        ?.scrollIntoView({ block: "start" });
-                  }}
-                  onBreakdown={() =>
-                    document
-                      .querySelector("[data-item-breakdown]")
-                      ?.scrollIntoView({ block: "start" })
-                  }
-                >
-                  {scopeInDocument && (
-                    <DeliveryScope
-                      embedded
-                      onCompare={(from, to) =>
-                        setMode({ kind: "compare", from, to })
-                      }
-                    />
-                  )}
-                </ItemWorkflow>
-              )}
-              {!focusScreen && (
+                  </div>
+                )}
+              </Popover>
+              {/* The review rail folded away: say what it holds. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "max-sm:size-8 max-sm:px-0",
+                  !railHidden && "@min-[53rem]/frame:hidden",
+                )}
+                aria-label="Review & details"
+                onClick={() => setPanelOpen(true)}
+              >
+                <PanelRight className="size-4" />
+                <span className="max-sm:hidden">Review & details</span>
+              </Button>
+              {!pendingCreate && (
                 <>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 @min-[53rem]/frame:hidden">
-                    {/* Once a revision is accepted the workflow card shows the
-                        delivery status; the panel still changes it. */}
-                    {native && item.committedRevisionNumber == null && (
-                      <IssueStatus
-                        projectId={item.projectId}
-                        statusId={item.statusId}
-                        onChange={
-                          canChange
-                            ? (statusId) => update({ statusId })
-                            : undefined
+                  <span
+                    aria-hidden
+                    className="mx-1 h-4 w-px bg-border max-lg:hidden"
+                  />
+                  <LittoConcerns />
+                  <LittoLauncher />
+                </>
+              )}
+            </div>
+          </header>
+          <div ref={setRow} className="flex min-h-0 flex-1">
+            <div data-pane-document className="min-w-0 flex-1 overflow-y-auto">
+              <div
+                className={
+                  branchScreen
+                    ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
+                    : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
+                }
+              >
+                {changedSinceSeen && !focusScreen && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
+                    <GitCompareArrows className="size-4 text-primary" />
+                    <span>
+                      Changed since you last looked: revision{" "}
+                      {changedSinceSeen.from.number} →{" "}
+                      {changedSinceSeen.to.number}
+                      {" · "}
+                      <span className="text-success">
+                        +{changedSinceSeen.added}
+                      </span>{" "}
+                      <span className="text-destructive">
+                        −{changedSinceSeen.removed}
+                      </span>{" "}
+                      lines
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="ml-auto"
+                      onClick={() =>
+                        showHistory({
+                          revision: changedSinceSeen.to.id,
+                          compare: changedSinceSeen.from.id,
+                        })
+                      }
+                    >
+                      View changes
+                    </Button>
+                  </div>
+                )}
+                {!focusScreen && <InlineTitle />}
+                {!focusScreen && (
+                  <ItemWorkflow
+                    onStartRefinement={
+                      canChange
+                        ? () => update({ refinementState: "refinement" })
+                        : undefined
+                    }
+                    onReview={() => {
+                      // The rail steps aside for discussions on mid-size
+                      // frames; asking for the review brings it back.
+                      if (railHidden) discussions.setPanelOpen(false);
+                      if (window.innerWidth < 1280) setPanelOpen(true);
+                      else
+                        document
+                          .querySelector(
+                            "[data-desktop-item-panel] [data-review-panel]",
+                          )
+                          ?.scrollIntoView({ block: "start" });
+                    }}
+                    onBreakdown={() =>
+                      document
+                        .querySelector("[data-item-breakdown]")
+                        ?.scrollIntoView({ block: "start" })
+                    }
+                  >
+                    {scopeInDocument && (
+                      <DeliveryScope
+                        embedded
+                        onCompare={(from, to) =>
+                          showHistory({ revision: to, compare: from })
                         }
-                        hint={startHint}
                       />
                     )}
-                    <IssuePriority
-                      priority={item.priority}
-                      onChange={
-                        canChange
-                          ? (priority) => update({ priority })
-                          : undefined
-                      }
-                    />
-                    {native && (
-                      // Shares the row with priority instead of taking a line.
-                      <div className="min-w-40 flex-1">
-                        <AssigneePicker
-                          assigneeId={item.assigneeId}
+                  </ItemWorkflow>
+                )}
+                {!focusScreen && (
+                  <>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1 @min-[53rem]/frame:hidden">
+                      {/* Once a revision is accepted the workflow card shows the
+                        delivery status; the panel still changes it. */}
+                      {native && item.committedRevisionNumber == null && (
+                        <IssueStatus
+                          projectId={item.projectId}
+                          statusId={item.statusId}
                           onChange={
                             canChange
-                              ? (assigneeId) => update({ assigneeId })
+                              ? (statusId) => update({ statusId })
                               : undefined
                           }
+                          hint={startHint}
+                        />
+                      )}
+                      <IssuePriority
+                        priority={item.priority}
+                        onChange={
+                          canChange
+                            ? (priority) => update({ priority })
+                            : undefined
+                        }
+                      />
+                      {native && (
+                        // Shares the row with priority instead of taking a line.
+                        <div className="min-w-40 flex-1">
+                          <AssigneePicker
+                            assigneeId={item.assigneeId}
+                            onChange={
+                              canChange
+                                ? (assigneeId) => update({ assigneeId })
+                                : undefined
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                <div className="mt-6">
+                  {mode.kind === "history" ? (
+                    <div className="space-y-6">
+                      <HistoryNav
+                        current="versions"
+                        onVersions={() =>
+                          showHistory({ revision: null, compare: null })
+                        }
+                        onBranches={() => setMode({ kind: "branches" })}
+                      />
+                      <SpecVersions screen={mode} onChange={setMode} />
+                    </div>
+                  ) : mode.kind === "ai" ? (
+                    <AiReviewView
+                      runId={mode.id}
+                      onClose={() => setMode({ kind: "read" })}
+                      onOpenRun={(id) => setMode({ kind: "ai", id })}
+                    />
+                  ) : mode.kind === "branch" ||
+                    mode.kind === "pr" ||
+                    mode.kind === "branches" ? (
+                    <BranchWorkspace
+                      screen={mode}
+                      onNavigate={setMode}
+                      onMain={() => setMode({ kind: "read" })}
+                      nav={
+                        ctx.reviewable ? (
+                          <HistoryNav
+                            current="branches"
+                            onVersions={() =>
+                              showHistory({ revision: null, compare: null })
+                            }
+                            onBranches={() => setMode({ kind: "branches" })}
+                          />
+                        ) : undefined
+                      }
+                    />
+                  ) : (
+                    <SuggestingSpecification
+                      mode={mode.kind}
+                      setMode={(kind) => setMode({ kind })}
+                      onQuote={discussions.startDiscussion}
+                      onNavigate={setMode}
+                    />
+                  )}
+                </div>
+                {!focusScreen && ctx.reviewable && (
+                  <BranchEntry onNavigate={setMode} />
+                )}
+                {!focusScreen && (
+                  <>
+                    <section
+                      data-item-breakdown
+                      aria-label="Breakdown"
+                      className="mt-10 scroll-mt-4"
+                    >
+                      <Breakdown onNavigate={setMode} />
+                    </section>
+                    {/* Reading context for the specification, beside the
+                      item's other links (Relations). */}
+                    {!pendingCreate && (
+                      <div className="mt-10">
+                        <ItemKnowledge
+                          item={item}
+                          project={project}
+                          canChange={canChange}
                         />
                       </div>
                     )}
-                  </div>
-                </>
-              )}
-              <div className="mt-6">
-                {mode.kind === "compare" ? (
-                  <CompareRevisions
-                    from={mode.from}
-                    to={mode.to}
-                    onChange={(from, to) =>
-                      setMode({ kind: "compare", from, to })
-                    }
-                  />
-                ) : mode.kind === "ai" ? (
-                  <AiReviewView
-                    runId={mode.id}
-                    onClose={() => setMode({ kind: "read" })}
-                    onOpenRun={(id) => setMode({ kind: "ai", id })}
-                  />
-                ) : mode.kind === "branch" ||
-                  mode.kind === "pr" ||
-                  mode.kind === "branches" ? (
-                  <BranchWorkspace
-                    screen={mode}
-                    onNavigate={setMode}
-                    onMain={() => setMode({ kind: "read" })}
-                  />
-                ) : (
-                  <SuggestingSpecification
-                    mode={mode.kind}
-                    setMode={(kind) => setMode({ kind })}
-                    onQuote={(quote, section) => setDraft({ quote, section })}
-                    onNavigate={setMode}
+                    <section className="mt-10">
+                      <Relations item={item} canChange={canChange} />
+                    </section>
+                    <DecisionComposerScope>
+                      {/* Specifications discuss in the panel beside the text;
+                        plain work keeps its comments under the
+                        description. */}
+                      {ctx.reviewable ? (
+                        discussionsShown &&
+                        discussions.panelOpen &&
+                        (wide ? (
+                          discussionsSlot &&
+                          createPortal(
+                            <SpecDiscussionPanel
+                              onClose={() => discussions.setPanelOpen(false)}
+                            />,
+                            discussionsSlot,
+                          )
+                        ) : (
+                          <DiscussionSheet
+                            label="Discussions"
+                            onClose={() => discussions.setPanelOpen(false)}
+                          >
+                            <div id="item-discussions" data-discussions>
+                              <SpecDiscussionPanel
+                                onClose={() => discussions.setPanelOpen(false)}
+                                onLeave={() => discussions.setPanelOpen(false)}
+                              />
+                            </div>
+                          </DiscussionSheet>
+                        ))
+                      ) : (
+                        <section className="mt-10">
+                          <Discussions draft={draft} onDraftChange={setDraft} />
+                        </section>
+                      )}
+                      <section className="mt-10">
+                        <Decisions />
+                      </section>
+                    </DecisionComposerScope>
+                  </>
+                )}
+                {!pendingCreate && (
+                  <Attachments
+                    context={{
+                      organizationId: item.organizationId,
+                      workItemId: item.id,
+                    }}
+                    userId={workspace.userId}
                   />
                 )}
+                {/* Room for the Intelligence dock at the bottom. */}
+                <section className="mt-10 mb-24">
+                  <Activity />
+                </section>
               </div>
-              {!focusScreen && ctx.reviewable && (
-                <BranchEntry onNavigate={setMode} />
-              )}
-              {!focusScreen && (
-                <>
-                  <section
-                    data-item-breakdown
-                    aria-label="Breakdown"
-                    className="mt-10 scroll-mt-4"
-                  >
-                    <Breakdown onNavigate={setMode} />
-                  </section>
-                  <section className="mt-10">
-                    <Relations item={item} canChange={canChange} />
-                  </section>
-                  <DecisionComposerScope>
-                    <section className="mt-10">
-                      <Discussions draft={draft} onDraftChange={setDraft} />
-                    </section>
-                    <section className="mt-10">
-                      <Decisions />
-                    </section>
-                  </DecisionComposerScope>
-                </>
-              )}
-              {!pendingCreate && (
-                <Attachments
-                  context={{
-                    organizationId: item.organizationId,
-                    workItemId: item.id,
-                  }}
-                  userId={workspace.userId}
-                />
-              )}
-              {/* Room for the Intelligence dock at the bottom. */}
-              <section className="mt-10 mb-24">
-                <Activity />
-              </section>
             </div>
-          </div>
-          {!branchScreen && (
-            <>
-              <PaneResizer
-                resize={rail.handle}
-                className="hidden @min-[53rem]/frame:block"
-              />
+            {discussionsColumn && (
               <aside
-                id={rail.pane.id}
-                ref={attachRail}
-                style={rail.pane.style}
-                data-desktop-item-panel
+                ref={setDiscussionsSlot}
+                id="item-discussions"
+                data-discussions
+                aria-label="Discussions"
+                style={{ width: DISCUSSIONS_WIDTH }}
+                className="flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l px-4 pb-6"
+              />
+            )}
+            {!branchScreen && !railHidden && (
+              <>
+                <PaneResizer
+                  resize={rail.handle}
+                  className="hidden @min-[53rem]/frame:block"
+                />
+                <aside
+                  id={rail.pane.id}
+                  ref={attachMeasuredRail}
+                  style={rail.pane.style}
+                  data-desktop-item-panel
+                  className={cn(
+                    "hidden shrink-0 overflow-y-auto border-l bg-shell/60 @min-[53rem]/frame:block",
+                    rail.pane.sized
+                      ? "w-(--pane-w)"
+                      : "w-72 @min-[100rem]/frame:w-80",
+                  )}
+                >
+                  {panel}
+                </aside>
+              </>
+            )}
+            {panelOpen && (
+              <div
                 className={cn(
-                  "hidden shrink-0 overflow-y-auto border-l bg-shell/60 @min-[53rem]/frame:block",
-                  rail.pane.sized
-                    ? "w-(--pane-w)"
-                    : "w-72 @min-[100rem]/frame:w-80",
+                  "fixed inset-0 z-40",
+                  !railHidden && "@min-[53rem]/frame:hidden",
                 )}
               >
-                {panel}
-              </aside>
-            </>
-          )}
-          {panelOpen && (
-            <div className="fixed inset-0 z-40 @min-[53rem]/frame:hidden">
-              <button
-                aria-label="Close details"
-                className="absolute inset-0 bg-black/30"
-                onClick={() => setPanelOpen(false)}
-              />
-              <aside className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl">
-                <div className="flex h-11 items-center justify-between border-b px-4 text-sm font-medium">
-                  Review & details
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Close"
-                    onClick={() => setPanelOpen(false)}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </div>
-                {panel}
-              </aside>
-            </div>
-          )}
+                <button
+                  aria-label="Close details"
+                  className="absolute inset-0 bg-black/30"
+                  onClick={() => setPanelOpen(false)}
+                />
+                <aside className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl">
+                  <div className="flex h-11 items-center justify-between border-b px-4 text-sm font-medium">
+                    Review & details
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Close"
+                      onClick={() => setPanelOpen(false)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                  {panel}
+                </aside>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      {exporting && (
-        <ExportDialog item={item} onClose={() => setExporting(false)} />
-      )}
+        {exporting && (
+          <ExportDialog item={item} onClose={() => setExporting(false)} />
+        )}
+      </SpecDiscussionsContext.Provider>
     </ItemContext.Provider>
   );
 }
+
+// The discussions column, the document's readable minimum beside it and
+// the room from which discussions open by default.
+const DISCUSSIONS_WIDTH = 304;
+const READABLE = 420;
+const ROOMY = 640;
 
 // Review & details beside the document: 18rem, 20rem on large frames.
 const railPane: PaneSpec = {

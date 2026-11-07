@@ -39,7 +39,6 @@ import {
   usePathname,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
-import { useSpaces } from "@lictory/platform/components/spaces/store";
 import type { SpacePage } from "@lictory/platform/data/spaces";
 import { documentExtensions } from "@lictory/platform/components/spaces/editor/document";
 import { personColor } from "@lictory/platform/components/spaces/editor/colors";
@@ -63,14 +62,16 @@ import {
   MenuStore,
   SuggestionMenu,
   suggestionExtension,
-} from "@lictory/platform/components/spaces/editor/suggestions";
+} from "@lictory/platform/components/editor/suggestions";
 import {
   insertImages,
   pageItems,
   slashItems,
   workItemItems,
-} from "@lictory/platform/components/spaces/editor/commands";
-import { Toolbar } from "@lictory/platform/components/spaces/editor/toolbar";
+} from "@lictory/platform/components/editor/commands";
+import { Toolbar } from "@lictory/platform/components/editor/toolbar";
+import { DecisionPicker } from "@lictory/platform/components/editor/decision-picker";
+import { workBlockSlashItems } from "@lictory/platform/components/spaces/blocks/insert-store";
 import {
   PublishButton,
   type PublishOutcome,
@@ -81,7 +82,7 @@ import {
   type PageHistory,
   type PageLine,
 } from "@lictory/platform/components/spaces/editor/line";
-import { identifier } from "@lictory/core/lib/work-items";
+import { useReferences } from "@lictory/platform/components/references/data";
 import {
   COMMENT_SELECTION_EVENT,
   type Anchoring,
@@ -198,7 +199,7 @@ class Latest<T> {
   }
 }
 
-function caretElement(user: Record<string, unknown>) {
+export function caretElement(user: Record<string, unknown>) {
   const caret = document.createElement("span");
   caret.className = "collaboration-carets__caret";
   caret.setAttribute("aria-hidden", "true");
@@ -328,8 +329,7 @@ function DraftEditor({
   reopened: boolean;
   onReopen: () => void;
 }) {
-  const { userId, memberName, organization, items, projects } = useWorkspace();
-  const { index } = useSpaces();
+  const { userId, memberName, organization } = useWorkspace();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const attachments = useAttachmentsAvailable();
   const pathname = usePathname();
@@ -341,6 +341,7 @@ function DraftEditor({
   );
   const titleId = useId();
   const [uploading, setUploading] = useState(0);
+  const [decisionOpen, setDecisionOpen] = useState(false);
   // The last publish result, with the stored sequence it was about: "No
   // changes to publish" disappears once there are new edits.
   const [outcome, setOutcome] = useState<
@@ -349,12 +350,11 @@ function DraftEditor({
 
   // Menus and uploads read the latest workspace data from a holder updated
   // after each render, so the editor is created once per session.
-  const [data] = useState(
-    () => new Latest({ items, projects, index, attachments }),
-  );
+  const references = useReferences();
+  const [data] = useState(() => new Latest({ references, attachments }));
   useEffect(() => {
-    data.set({ items, projects, index, attachments });
-  }, [data, items, projects, index, attachments]);
+    data.set({ references, attachments });
+  }, [data, references, attachments]);
   const [menus] = useState(() => ({
     slash: new MenuStore(),
     items: new MenuStore(),
@@ -428,23 +428,20 @@ function DraftEditor({
           title: "Insert",
           empty: "No matching blocks",
           store: menus.slash,
-          items: (query) =>
-            slashItems(query, {
+          items: (query) => [
+            ...slashItems(query, {
               image: data.get().attachments ? pickImage : undefined,
+              decision: () => setDecisionOpen(true),
             }),
+            ...workBlockSlashItems(query),
+          ],
         }),
         suggestionExtension("workItemMenu", {
           char: "#",
           title: "Work items",
           empty: "No matching work items you can see",
           store: menus.items,
-          items: (query) => {
-            const { items: all, projects: list } = data.get();
-            const byId = new Map(list.map((p) => [p.id, p]));
-            return workItemItems(query, all, (item) =>
-              identifier(byId.get(item.projectId), item.number),
-            );
-          },
+          items: (query) => workItemItems(query, data.get().references.items()),
         }),
         suggestionExtension("pageMenu", {
           char: "[[",
@@ -452,20 +449,8 @@ function DraftEditor({
           title: "Pages",
           empty: "No matching pages",
           store: menus.pages,
-          items: (query) => {
-            const { index: spaces } = data.get();
-            return pageItems(
-              query,
-              [...spaces.pageById.values()]
-                .filter((p) => !p.archivedAt)
-                .map((p) => ({
-                  id: p.id,
-                  title: p.title,
-                  space: spaces.spaceById.get(p.spaceId)?.name ?? "",
-                })),
-              page.id,
-            );
-          },
+          items: (query) =>
+            pageItems(query, data.get().references.pages(), page.id),
         }),
         PageEditing.configure({ upload }),
       ],
@@ -737,6 +722,7 @@ function DraftEditor({
             editor={editor}
             disabled={!editable}
             onImage={attachments ? pickImage : undefined}
+            onDecision={() => setDecisionOpen(true)}
             onComment={
               canComment
                 ? () =>
@@ -770,6 +756,12 @@ function DraftEditor({
       <SuggestionMenu store={menus.slash} />
       <SuggestionMenu store={menus.items} />
       <SuggestionMenu store={menus.pages} />
+      {decisionOpen && editor && (
+        <DecisionPicker
+          editor={editor}
+          onClose={() => setDecisionOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -902,14 +894,20 @@ function useShownSaveState(snapshot: SessionSnapshot) {
   return shown;
 }
 
-function SaveIndicator({
+export function SaveIndicator({
   id,
   snapshot,
   uploading,
+  savedLabel,
+  savedTitle = "Every edit is stored by the server.",
 }: {
   id: string;
   snapshot: SessionSnapshot;
   uploading: number;
+  // What "Saved" means where the draft is not the published or committed
+  // text ("Draft saved" in a specification).
+  savedLabel?: string;
+  savedTitle?: string;
 }) {
   const { state, slow, announcement } = useShownSaveState(snapshot);
   const icon =
@@ -935,7 +933,7 @@ function SaveIndicator({
           state.kind === "offline"
             ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
             : state.kind === "saved"
-              ? "Every edit is stored by the server."
+              ? savedTitle
               : state.kind === "failed"
                 ? "The server refused your latest edits. They are kept in this tab; reopen the editor to keep working."
                 : undefined
@@ -943,7 +941,7 @@ function SaveIndicator({
         className="inline-flex items-center gap-1"
       >
         {icon}
-        {state.label}
+        {state.kind === "saved" && savedLabel ? savedLabel : state.label}
         {uploading > 0 &&
           ` · Uploading ${uploading === 1 ? "image" : `${uploading} images`}…`}
       </span>
@@ -956,7 +954,7 @@ function SaveIndicator({
 
 // Who else has this draft open (one avatar per person, whatever the
 // number of tabs).
-function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
+export function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
   const { userId } = useWorkspace();
   const people = [
     ...new Map(
@@ -998,7 +996,7 @@ function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
 // request, from what is stored, offering the unsaved text back (copy,
 // insert, discard). Nothing is resent on its own. The save state's status
 // region announces it.
-function SaveFailedNotice({
+export function SaveFailedNotice({
   reason,
   onReopen,
 }: {

@@ -1,0 +1,117 @@
+---
+title: Instance administration
+description: Manage your installation's accounts, instance administrators and organizations from the admin console, and understand the access policy.
+---
+
+One Lictory installation serves one company. **Instance administrators**
+manage the installation itself: who has an account, who else administers
+the installation, and which organizations exist. They are different from
+organization administrators, who run one organization
+([organization and access](/organization)).
+
+The two are independent. Being an instance administrator gives no access to
+any organization's work: an instance administrator who is not a member sees
+nothing inside it, and adding themselves is a recorded action. An
+organization owner has no say over the installation.
+
+The first instance administrator is created when the server is installed;
+with shell access to the server, `sudo lictory admin grant <email>` appoints
+one ([terminal guide](/self-hosting/terminal)).
+
+## The admin console
+
+Instance administrators open it from their name at the bottom of the
+sidebar → **Admin console** (or `https://<your host>/admin`). Agents cannot
+use it: installation administration happens only in the browser or on the
+server.
+
+![The admin console: Overview with counts of accounts, administrators, organizations and pending invitations, and the access policy](/screenshots/admin-console.webp)
+
+### Overview
+
+Counts of **Accounts**, **Instance administrators**, **Organizations** and
+**Pending invitations**, warnings when something needs attention (anyone can
+sign up on an open installation, no outbound email is configured, only one
+person administers the installation), and the **Access policy** below.
+
+### People
+
+Every account on the installation. Search by name, email or handle and
+filter by **Everyone**, **Active**, **Administrators** or **Deactivated**.
+
+- **New account** creates an account for any email address, optionally as
+  an **Instance administrator**, with a password you share privately, or
+  without one (they sign in with single sign-on or choose a password with
+  "Forgot password").
+- For an account: **Make administrator** or **Remove administrator**,
+  **Send password reset link**, **Set a new password** (which signs them out
+  everywhere), and **Deactivate…** or **Reactivate**.
+
+**Deactivating** signs a person out everywhere and refuses every sign-in
+method and every agent token from then on. Nothing else changes: their
+memberships, history, reviews and approvals stay, so **Reactivate** restores
+the account as it was. You cannot deactivate yourself, and the console
+refuses to remove or deactivate the last active instance administrator.
+
+The console does not delete accounts; people
+[delete their own](/basics/account#delete-your-account). A deleted account
+is listed as **Deleted**, and nothing about it can be changed.
+
+### Organizations
+
+Every organization, with its owners. **New organization** creates one and
+makes the person you name its owner; it is set up exactly like one created
+in guided setup. **Add** puts someone in an organization as a member,
+administrator or owner; the organization's own audit log records it,
+naming you.
+
+Organizations scheduled for deletion show their date (or **Being
+deleted**). Instance administrators cannot cancel or bring forward a
+deletion; only the organization's owners can cancel it.
+
+### Activity
+
+Accounts created, deactivated and reactivated, administrators granted and
+removed, organizations created, and organization deletions scheduled,
+cancelled and completed, whether done in the console or on the server.
+Entries cannot be edited or deleted.
+
+## Access policy
+
+The operator sets the policy in the server's configuration, so it is
+reviewed and deployed like the rest of the setup; the console shows it
+read-only.
+
+| Setting                   | Choices                                                                                                             | Default                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| **New accounts**          | By invitation only (a pending invitation is needed), closed (only instance administrators create accounts), or open | By invitation           |
+| **Email domains**         | The domains self-service and single sign-on accounts must use                                                       | Any domain              |
+| **New organizations**     | Instance administrators create them, or anyone with an account                                                      | Instance administrators |
+| **Organization deletion** | The grace period before a scheduled deletion happens                                                                | 30 days                 |
+
+The console also shows the **Sign-in** methods the installation offers and
+whether **Outbound email** is configured.
+
+The rules apply in this order: accounts an administrator creates are always
+allowed; every other new account must use an allowed domain; your company
+identity provider decides who gets an account through single sign-on; and
+everyone else follows the sign-up mode. The server enforces this for every
+sign-in method; the app only hides what would fail. The settings are in
+[configuration](/self-hosting/configuration#access-policy).
+
+## History
+
+The installation keeps its own history, which no organization owns: the
+activity above, and what it must remember after an organization is gone (who
+scheduled its deletion and what was removed). It names the administrator or
+the server's command line, never passwords.
+
+## Tips
+
+- Keep at least two instance administrators, so access never depends on one
+  account.
+- Prefer **Deactivate** to anything permanent when someone leaves: it is
+  reversible, and their history stays attributed.
+- Leave sign-up on invitation and organization creation with
+  administrators unless the installation is on a private network for
+  evaluation.

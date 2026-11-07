@@ -2,9 +2,13 @@ import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
+  type Options,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Link, Root, Text } from "mdast";
+import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { cn } from "@lictory/core/lib/utils";
+import { ReferenceChip } from "@lictory/platform/components/references/chips";
 
 function textContent(value: ReactNode): string {
   return Children.toArray(value)
@@ -17,6 +21,28 @@ function textContent(value: ReactNode): string {
     })
     .join("");
 }
+
+// Whether a word diff marked (part of) a reference's text as added or
+// removed (review/markdown-marks.ts).
+function diffOf(value: ReactNode): "added" | "removed" | null {
+  for (const child of Children.toArray(value)) {
+    if (!isValidElement<{ children?: ReactNode; "data-diff"?: string }>(child))
+      continue;
+    const kind = child.props["data-diff"];
+    if (kind === "added" || kind === "removed") return kind;
+    const inner = diffOf(child.props.children);
+    if (inner) return inner;
+  }
+  return null;
+}
+
+// A changed reference keeps its chip, tinted like the words around it.
+const diffChip = {
+  added:
+    "rounded-md no-underline [&>[data-reference]]:!bg-success/18 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--success)_45%,transparent)]",
+  removed:
+    "rounded-md [&>[data-reference]]:!bg-destructive/14 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--destructive)_40%,transparent)] [&_span]:line-through [&_span]:decoration-destructive",
+};
 
 const components: Components = {
   h1: ({ children }) => (
@@ -68,8 +94,29 @@ const components: Components = {
     </h6>
   ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
-  a: ({ children, href }) =>
-    href?.startsWith("mention:") ? (
+  a: ({ children, href }) => {
+    // Work items, pages and decisions as live chips (contracts/references).
+    const target = parseReferenceTarget(href);
+    if (target) {
+      const chip = (
+        <ReferenceChip target={target} label={textContent(children)} />
+      );
+      const diff = diffOf(children);
+      if (diff === "added")
+        return (
+          <ins className={diffChip.added} data-diff="added">
+            {chip}
+          </ins>
+        );
+      if (diff === "removed")
+        return (
+          <del className={diffChip.removed} data-diff="removed">
+            {chip}
+          </del>
+        );
+      return chip;
+    }
+    return href?.startsWith("mention:") ? (
       <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
         {children}
       </span>
@@ -81,7 +128,8 @@ const components: Components = {
       >
         {children}
       </a>
-    ),
+    );
+  },
   ul: ({ children, className }) => (
     <ul
       className={cn(
@@ -146,33 +194,103 @@ const components: Components = {
       className="my-4 max-h-128 max-w-full rounded-md object-contain shadow-[0_0_0_1px_oklch(0_0_0/0.1)]"
     />
   ),
-  del: ({ children }) => (
-    <del className="text-muted-foreground decoration-current">{children}</del>
+  // Task list boxes say what they show; the item's text follows them.
+  input: ({ type, checked, disabled }) =>
+    type === "checkbox" ? (
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        disabled={disabled}
+        readOnly
+        aria-label={checked ? "Done" : "Not done"}
+      />
+    ) : null,
+  // Strikethrough reads muted; words a diff marks as removed keep their
+  // own class (review/markdown-marks.ts).
+  del: ({ children, className }) => (
+    <del
+      className={
+        className?.includes("diff-word")
+          ? className
+          : "text-muted-foreground decoration-current"
+      }
+    >
+      {children}
+    </del>
   ),
 };
 
-// Mentions (`@[Name](mention:ID)`) survive URL sanitising and render as chips;
-// every other URL goes through react-markdown's safe default.
+// Mentions (`@[Name](mention:ID)`) and references (`item:`, `page:`,
+// `decision:`) survive URL sanitising and render as chips; every other URL
+// goes through react-markdown's safe default.
 const urlTransform = (url: string) =>
-  /^mention:[A-Za-z0-9_-]+$/.test(url) ? url : defaultUrlTransform(url);
+  /^mention:[A-Za-z0-9_-]+$/.test(url) || parseReferenceTarget(url)
+    ? url
+    : defaultUrlTransform(url);
 
-const remarkPlugins = [remarkGfm];
+// The older page form `[[page:ID]]` in text reads as a page reference.
+function remarkLegacyPageLinks() {
+  const pattern = /\[\[page:([A-Za-z0-9_-]{1,160})\]\]/g;
+  const visit = (node: { children?: unknown[] }) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child) => {
+      const c = child as Text | { type: string; children?: unknown[] };
+      if (c.type === "code" || c.type === "inlineCode") return [child];
+      if (c.type !== "text") {
+        visit(c as { children?: unknown[] });
+        return [child];
+      }
+      const value = (c as Text).value;
+      if (!value.includes("[[page:")) return [child];
+      const out: (Text | Link)[] = [];
+      let last = 0;
+      for (const match of value.matchAll(pattern)) {
+        if (match.index > last)
+          out.push({ type: "text", value: value.slice(last, match.index) });
+        out.push({
+          type: "link",
+          url: `page:${match[1]}`,
+          children: [{ type: "text", value: "Linked page" }],
+        });
+        last = match.index + match[0].length;
+      }
+      if (last < value.length)
+        out.push({ type: "text", value: value.slice(last) });
+      return out;
+    });
+  };
+  return (tree: Root) => visit(tree);
+}
+
+const remarkPlugins = [remarkGfm, remarkLegacyPageLinks];
+type Plugins = NonNullable<Options["remarkPlugins"]>;
 
 // CommonMark plus GitHub-flavored tables, task lists, strikethrough and
 // autolinks. react-markdown emits React nodes and does not execute raw HTML.
 // Parsing is the expensive part, so a document is only re-parsed when its
 // source changes.
+//
+// `marks` are remark plugins that wrap passages of the readable text
+// (discussion highlights, changed words; editor/markdown-text.ts). They run
+// on the tree as parsed, before Lictory's own rewrites, so their offsets
+// are those of the readable text. Pass a stable array.
 export const Markdown = memo(function Markdown({
   source,
   className,
+  marks,
 }: {
   source: string;
   className?: string;
+  marks?: Plugins;
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
       <ReactMarkdown
-        remarkPlugins={remarkPlugins}
+        remarkPlugins={
+          marks?.length
+            ? [remarkGfm, ...marks, remarkLegacyPageLinks]
+            : remarkPlugins
+        }
         components={components}
         urlTransform={urlTransform}
       >

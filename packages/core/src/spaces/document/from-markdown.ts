@@ -2,6 +2,7 @@ import type { Nodes, PhrasingContent, RootContent } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";
+import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { canonicalizeDocument, type PageNode } from "./canonical";
 import { isSafePageLink } from "./schema";
 
@@ -10,9 +11,12 @@ import { isSafePageLink } from "./schema";
 // `documentToMarkdown` for what pages support: headings (deeper levels
 // become level 3), paragraphs, emphasis, strike, code, safe links, lists,
 // task lists, quotes, code blocks, rules, tables, images with a Lictory file
-// reference or HTTPS URL and `[[page:ID]]` references. Anything else
-// degrades to its plain text instead of failing; work item keys stay text.
-// Every block receives a new stable id.
+// reference or HTTPS URL, and references (`[PAY-2](item:ID)`,
+// `[Title](page:ID)`, `[Title](page:ID@COMMIT)`, `[label](decision:ID)` and
+// the older `[[page:ID]]`), so a page exported to Markdown and read back keeps
+// what it refers to. Anything else degrades to its plain text instead of
+// failing; a bare work item key stays text. Every block receives a new
+// stable id.
 
 type Mark = NonNullable<PageNode["marks"]>[number];
 
@@ -60,13 +64,39 @@ function inline(nodes: PhrasingContent[], marks: Mark[] = []): PageNode[] {
         return node.value
           ? [{ type: "text", text: node.value, marks: [{ type: "code" }] }]
           : [];
-      case "link":
+      case "link": {
+        const target = parseReferenceTarget(node.url);
+        const label = plain(node).trim();
+        if (target?.kind === "item")
+          return [
+            {
+              type: "workItemRef",
+              attrs: { workItemId: target.id, key: label || "Work item" },
+            },
+          ];
+        if (target?.kind === "page")
+          return [
+            {
+              type: "pageRef",
+              attrs: target.commitId
+                ? { pageId: target.id, commitId: target.commitId }
+                : { pageId: target.id },
+            },
+          ];
+        if (target?.kind === "decision")
+          return [
+            {
+              type: "decisionRef",
+              attrs: { decisionId: target.id, label: label || "Decision" },
+            },
+          ];
         return inline(
           node.children,
           isSafePageLink(node.url)
             ? [...marks, { type: "link", attrs: { href: node.url } }]
             : marks,
         );
+      }
       case "break":
         return [{ type: "hardBreak" }];
       case "image":

@@ -1,0 +1,132 @@
+---
+title: Projects and their settings
+description: Create a project, what each section of project settings controls, and how to archive and restore a project.
+---
+
+A project is a product area: it owns its work items and their keys, its
+people and disciplines, its workflow, its planning and where its work is
+delivered. Organization administrators create and archive projects;
+project administrators configure them.
+
+## Create a project
+
+The first project of a new organization is created in guided setup (see
+[getting started](/getting-started#create-your-first-project)). Later ones:
+
+1. Go to **Organization settings → Projects** and choose **New project**.
+2. Enter a **Name** (it can change later) and a **Key**: 2 to 10 capital
+   letters or digits, starting with a letter, such as `PAY`. Items are
+   numbered `PAY-1`, `PAY-2`… and the key **never changes**, so links and
+   references stay valid. Add a description if you like.
+3. **Create project**. It starts with the default workflow, every work item
+   type and the Product, Engineering and QA disciplines, and you become its
+   admin. Its settings open next.
+
+## Project settings
+
+Open them from the gear beside the project's name in the sidebar, or from
+**Organization settings → Projects**. Everyone can read them; project
+administrators and organization administrators change them.
+
+![Project settings for Payments: the section list on the left (General, Members, Disciplines, Teams, Workflow & types, Readiness, Planning, Delivery, Labels & milestones, Intelligence context) and General on the right](/screenshots/project-settings.webp)
+
+| Section                  | What it controls                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **General**              | Name, description and the key (read-only); archiving the project                                                                                   |
+| **Members**              | Who is in the project, their project role (admin or member) and their disciplines ([members](/organization/members#add-people-to-a-project))       |
+| **Disciplines**          | The kinds of work in the project and what each may do with work items ([disciplines](/organization/disciplines))                                   |
+| **Teams**                | Groups working on one part of the project, and their members ([teams](/delivery/teams))                                                            |
+| **Workflow & types**     | The project's statuses and their categories, and which of the organization's work item types it uses ([board](/delivery/board))                    |
+| **Readiness**            | The Definition of Ready for each type, and the readiness policy: what happens when work starts before it is ready ([readiness](/review/readiness)) |
+| **Planning**             | Iterations (none, sprints or cycles), their length and start day, and the estimate scale ([iterations](/delivery/iterations))                      |
+| **Delivery**             | Where work is delivered (Lictory or Jira), the Jira target, pull request actions and Lictory Intelligence on pull requests ([delivery](/delivery)) |
+| **Labels & milestones**  | Labels and milestones for grouping and planning; anyone whose discipline changes properties can manage them                                        |
+| **Intelligence context** | Product facts, vocabulary and standards Lictory Intelligence uses in reviews of this project's work ([context](/ai/context))                       |
+
+### Workflow
+
+Every item in the project moves through the same statuses, whichever team
+works on it. Each status belongs to a fixed category (backlog, unstarted,
+started, done, canceled), so boards, reports and readiness mean the same
+everywhere. Any transition is allowed. You can rename, recolor, reorder and
+archive statuses; archiving one asks where its items go.
+
+![Workflow & types: the project's statuses with their categories, and the work item types it uses](/screenshots/project-workflow.webp)
+
+### Readiness
+
+The **Definition of Ready** lists the checks for each type. Lictory starts
+with its defaults; publishing a change creates a new version, and the history
+keeps every version. **Readiness policy** decides what happens when someone
+starts spec-backed work that is not ready, in projects delivered in Lictory:
+
+- **Allow**: readiness is informative only.
+- **Warn** (the default): allowed, and recorded in activity.
+- **Block**: only ready specifications can start.
+
+![Readiness: the Definition of Ready per type (Epic and Story) with its built-in checks switched on, options to require a section, a discipline’s approval, a Lictory Intelligence review or a sign-off, and When work starts before it’s ready set to Warn](/screenshots/project-readiness.webp)
+
+### Planning
+
+**Iterations**: **None** (a ranked backlog), **Sprints** (plan, start and
+complete by hand) or **Cycles** (scheduled, with automatic rollover of
+unfinished work). Cycles take a length, a start day and how many upcoming
+cycles to keep ready. **Estimates**: none, points (0, 1, 2, 3, 5, 8, 13, 21),
+points (0–8) or T-shirt sizes (XS–XL).
+
+![Planning: Sprints selected, two-week length, and the estimate scale](/screenshots/project-planning.webp)
+
+### Delivery
+
+**Where work is delivered** chooses one system for all of the project's
+work:
+
+- **Deliver in Lictory**: board, backlog, sprints or cycles and estimates;
+  readiness can gate starting spec-backed work; nothing is exported.
+- **Hand off to Jira**: refine and approve here; Jira runs delivery. Ready
+  work is exported to one Jira project, and status and assignee are read
+  back.
+
+Switching to Jira needs the active iteration completed first, so its report
+is frozen. Iterations and estimates are then turned off, boards and
+backlogs are replaced by the hand-off view, and existing items,
+specifications and history are kept. You can switch back later. See
+[Jira](/integrations/jira).
+
+The same section sets **Pull request actions** (notify the author and
+collaborators when a specification pull request is ready to merge) and
+**Lictory Intelligence on pull requests** (**Off**, **Advisory** or
+**Required**; see [AI reviews](/ai/reviews)).
+
+![Delivery: Deliver in Lictory selected, with pull request actions and Lictory Intelligence on pull requests](/screenshots/project-delivery.webp)
+
+## Archive a project
+
+In **General**, **Archive…** removes the project from everyone's navigation
+and stops new work in it. Items, specifications, reviews and history are
+kept, and it stays read-only. Only organization administrators can archive
+and restore projects. Archived projects are listed under **Organization
+settings → Projects**; **Restore** brings back its board, backlog and work
+items for everyone.
+
+## What to watch for
+
+- **Keys are permanent.** Choose one people will recognize in links
+  (`PAY-142`); the name can change, the key cannot.
+- **There are no private projects.** Every organization member can read
+  every project. Use a [restricted space](/spaces/access) for knowledge that
+  must stay with named people.
+- **Work item types are shared.** The list of types and their hierarchy
+  belongs to the organization (**Organization settings → Work item types**);
+  a project only chooses which types it uses.
+- **Items do not move between projects.** Create the item in the project
+  that will own it.
+
+## Tips
+
+- Give each project a description: it shows in the project list and helps
+  new members (and Lictory Intelligence) understand what belongs where.
+- Start with the default Definition of Ready and add a required section
+  (such as _Failure behavior_) once you notice reviewers asking for it.
+- Leave the readiness policy at **Warn** while the team learns the flow,
+  then move to **Block** when starting unready work should be an exception.

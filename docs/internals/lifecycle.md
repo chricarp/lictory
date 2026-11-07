@@ -67,6 +67,64 @@ pull request. Archiving is reversible and refused while the child has active
 children. Changing a child's type and relations between children stay explicit
 shared actions, as do ownership, ranking and iterations.
 
+## Reviewing a specification
+
+Reviewing a specification reads like reviewing a page: the text first, its
+discussions beside it, and its history in one place. The presentation is
+shared with Lictory Spaces; the rules are Work's. A thread keeps the
+revision it was written on, resolving and reopening never remove a message,
+approvals belong to revisions and the required disciplines, readiness and
+breakdown fingerprints decide what is ready and mergeable. Nothing here
+deletes a discussion, and page approval rules do not apply.
+
+**Discussions beside the text.** The item header counts the open
+discussions of the current revision (a red marker when some block
+readiness) and opens them beside the specification: a column next to the
+review rail while the text keeps a readable measure, in the rail's place
+when only one fits ("Review & details" then opens the rail as a drawer),
+a sheet on phones. The panel lists threads whose passage is in the current
+revision in document order, then those whose text changed or was removed,
+then discussions of the whole specification; resolved threads are folded
+away until asked for. Open passages are tinted in the text (blocking ones
+red); pointing at a passage or a thread, or selecting one, tints both more.
+Whether the panel is open is remembered in this browser; until someone
+chooses, it opens by default beside a specification with open discussions
+when the frame is roomy. Pull request and suggestion threads stay with
+their change. Comments on plain work are a conversation under the
+description, since there is no specification to anchor them to.
+
+**Anchors.** A thread on selected text records the quote, the heading it is
+under (`section`, a heading of that revision, as readiness reads them) and
+which copy of those words under that heading was selected (`occurrence`,
+optional: threads written before it existed have none and mean the first
+copy). The reader, the panel and history agree on one readable text of the
+Markdown (`packages/core/src/editor/markdown-text.ts`): the quote is looked
+for under its heading in the revision on screen. When it is not there the
+thread says "The quoted text changed" (its heading still exists) or
+"Original text removed" (the heading is gone too) and links to the revision
+it was written on, where the quote is marked. A quote that left its heading
+is still found when it occurs exactly once; several copies elsewhere are
+ambiguous and the thread is never attached to one of them. Placement is
+presentation: no anchor is ever rewritten.
+
+**Changes.** Differences between revisions, a pull request's merge result
+and a branch's proposal read as blocks of the editor's block model
+(`packages/core/src/editor/markdown-diff.ts`): an edited block before and
+after with the changed words marked, added and removed blocks, and long
+unchanged runs folded; "Show full text" reads the whole result with the
+changes in place. Revisions, merges and conflicts stay line based; this is
+presentation only.
+
+**History.** "History" (the review rail, the header's "Changes" and the
+"changed since you last looked" notice) opens Versions: every revision with
+who wrote it, its summary, whether it is current, accepted for delivery or
+delivered, and the approvals given on it, valid, outdated, carried or
+revoked. Any two revisions compare; a revision can be read in full;
+restoring one creates a new revision (main unprotected, with edit
+access). "Branches & pull requests" is the same history's other view.
+Addresses: `?history=<revision>&compare=<revision|none>` (`&thread=` marks
+a discussion's quote), `?branches=1`, `?branch=`, `?pr=`.
+
 ## Completion and subsequent change
 
 Done records the scope accepted for delivery, even if a newer specification

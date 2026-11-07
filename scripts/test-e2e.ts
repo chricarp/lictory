@@ -11,6 +11,12 @@
 // (scripts/e2e-selection.ts); E2E_UPDATE_TIMINGS=1 records this run's
 // durations for that balance. The applications build concurrently, and the
 // documentation is built and served only when the selected tests include it.
+//
+// External services are local stand-ins (scripts/e2e-fakes): a Jira Cloud
+// site and, for the workflows of Lictory Intelligence (*.ai.spec.ts), a
+// scripted AI provider. Those workflows run last, against the API and worker
+// restarted with the provider configured: every other workflow keeps a
+// server without AI, as a default installation has.
 import { spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,6 +30,8 @@ import {
   shardFiles,
   updateTimings,
 } from "./e2e-selection";
+import { FAKE_JIRA_SITE, startFakeJira } from "./e2e-fakes/jira";
+import { startScriptedAi } from "./e2e-fakes/openai";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -40,6 +48,8 @@ const ports = {
   docsInspector: 9301 + offset,
   zero: 4858 + offset * 10,
   zeroChangeStreamer: 4859 + offset * 10,
+  fakeJira: 3005 + offset,
+  scriptedAi: 3006 + offset,
 };
 const platformUrl = `http://localhost:${ports.edge}`;
 const siteUrl = `http://localhost:${ports.marketing}`;
@@ -69,8 +79,11 @@ function oidcEnv(issuer: string | undefined) {
 // Application settings shared by the API, the worker and the collaboration
 // service. Integrations stay disabled; placeholder OAuth clients let tests
 // reach provider redirects.
+// Never a developer's own AI endpoint.
+const inherited = { ...process.env };
+delete inherited.OPENAI_BASE_URL;
 const appEnv = {
-  ...process.env,
+  ...inherited,
   NODE_ENV: "production" as const,
   DATABASE_URL: url,
   DATABASE_URL_UNPOOLED: url,
@@ -83,6 +96,11 @@ const appEnv = {
   OAUTH_PROXY_SECRET: "",
   OAUTH_PROXY_TRUSTED_ORIGINS: "",
   RESEND_API_KEY: "",
+  // Production requires an explicit key before Jira can be connected (the
+  // fake Jira site in tests/platform/knowledge-handoff.spec.ts).
+  DELIVERY_CREDENTIALS_KEY: "e2e-delivery-credentials-key-local-only",
+  // No AI provider, except for the workflows of Lictory Intelligence (the
+  // scripted provider below).
   OPENAI_API_KEY: "",
   // No file storage: the suite checks that attachments explain they are
   // unavailable, even when a developer's .env points S3_* at MinIO.
@@ -208,7 +226,7 @@ function start(
   );
   child.stderr?.on("data", (c: Buffer) => console.error(prefix(c)));
   child.on("exit", (code, signal) => {
-    if (stopping) return;
+    if (stopping || retired.has(child)) return;
     console.error(`[${label}] exited (${code ?? signal})`);
     // Fail fast instead of letting every remaining test time out against it.
     crashed.push(label);
@@ -239,6 +257,9 @@ async function waitFor(label: string, check: string, timeoutMs = 180_000) {
 }
 
 let stopping = false;
+// Services stopped on purpose during the run (restarted with another
+// configuration): their exit is not a crash.
+const retired = new Set<ChildProcess>();
 
 // A stale server on one of these ports would silently answer instead of the
 // build under test.
@@ -261,53 +282,55 @@ async function assertPortsFree() {
     }
 }
 await assertPortsFree();
+function stop(child: ChildProcess) {
+  return new Promise<void>((resolve) => {
+    if (child.exitCode !== null || child.signalCode) return resolve();
+    const signal = (name: NodeJS.Signals) => {
+      try {
+        process.kill(-child.pid!, name);
+      } catch {
+        // Already gone.
+      }
+    };
+    const timer = setTimeout(() => signal("SIGKILL"), 15_000);
+    child.on("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    signal("SIGTERM");
+  });
+}
 async function stopAll() {
   stopping = true;
-  await Promise.all(
-    children.map(
-      ({ child }) =>
-        new Promise<void>((resolve) => {
-          if (child.exitCode !== null || child.signalCode) return resolve();
-          const signal = (name: NodeJS.Signals) => {
-            try {
-              process.kill(-child.pid!, name);
-            } catch {
-              // Already gone.
-            }
-          };
-          const timer = setTimeout(() => signal("SIGKILL"), 15_000);
-          child.on("exit", () => {
-            clearTimeout(timer);
-            resolve();
-          });
-          signal("SIGTERM");
-        }),
-    ),
-  );
+  await Promise.all(children.map(({ child }) => stop(child)));
 }
 
 const playwrightArgs = process.argv.slice(2);
 const shard = parseShard(process.env.E2E_SHARD);
 const listed = await listTests(playwrightArgs);
-let files: string[] | undefined;
+// The listing decides which services start and which workflows need the
+// scripted AI provider.
+if (!listed) throw new Error("The browser tests could not be listed.");
+let files = [...listed.keys()];
 if (shard) {
-  if (!listed)
-    throw new Error("The browser tests could not be listed to shard them.");
   files = shardFiles(listed, shard.index, shard.total);
   console.log(
     `Shard ${shard.index}/${shard.total}: ${files.length ? files.join(", ") : "no test files"}.`,
   );
   if (!files.length) process.exit(0);
 }
-// Without a listing, every application is started.
-const projects =
-  listed &&
-  new Set(
-    [...listed]
-      .filter(([file]) => !files || files.includes(file))
-      .flatMap(([, file]) => [...file.projects]),
-  );
-const docsNeeded = !projects || projects.has("docs");
+if (!files.length) throw new Error("No browser tests match these arguments.");
+// Workflows of Lictory Intelligence run after the others, against the API and
+// worker restarted with the scripted AI provider.
+const needsAi = (file: string) => file.endsWith(".ai.spec.ts");
+const phases = [
+  { ai: false, files: files.filter((file) => !needsAi(file)) },
+  { ai: true, files: files.filter(needsAi) },
+].filter((phase) => phase.files.length);
+const projects = new Set(
+  files.flatMap((file) => [...(listed.get(file)?.projects ?? [])]),
+);
+const docsNeeded = projects.has("docs");
 if (!docsNeeded)
   console.log("No documentation tests selected: the docs site is not built.");
 // File durations are recorded only from a complete run: a filtered or sharded
@@ -317,8 +340,9 @@ if (process.env.E2E_UPDATE_TIMINGS && (shard || playwrightArgs.length))
 const reportDir = process.env.E2E_UPDATE_TIMINGS
   ? mkdtempSync(join(tmpdir(), "lictory-e2e-report-"))
   : undefined;
-const jsonReport = reportDir && join(reportDir, "report.json");
 
+let fakeJira: Awaited<ReturnType<typeof startFakeJira>> | undefined;
+let scriptedAi: Awaited<ReturnType<typeof startScriptedAi>> | undefined;
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
 try {
@@ -385,16 +409,44 @@ try {
     ]);
   }
 
-  start("api", "node", ["apps/api/dist/index.js"], {
+  // Stand-ins for external services, local to this run (scripts/e2e-fakes).
+  fakeJira = await startFakeJira(ports.fakeJira);
+  scriptedAi = await startScriptedAi(ports.scriptedAi);
+  // The API and the worker reach the fake Jira site through a preloaded
+  // route that only this script passes; with `ai`, the scripted provider
+  // through the AI SDK's OPENAI_BASE_URL.
+  const scriptedAiKey = "e2e-scripted-ai-key";
+  const backendEnv = (ai: boolean): NodeJS.ProcessEnv => ({
     ...appEnv,
-    PORT: String(ports.api),
-    PLATFORM_DIST_DIR: "apps/platform/dist",
+    E2E_FAKE_ROUTES: JSON.stringify({ [FAKE_JIRA_SITE]: fakeJira!.url }),
+    ...(ai && {
+      OPENAI_API_KEY: scriptedAiKey,
+      OPENAI_BASE_URL: `${scriptedAi!.url}/v1`,
+      LICTORY_AI_MODEL: "e2e-scripted",
+    }),
   });
-  if (workerAvailable)
-    start("worker", "node", ["apps/worker/dist/index.js"], {
-      ...appEnv,
-      WORKER_HEALTH_PORT: String(ports.workerHealth),
-    });
+  const preload = ["--import", "./scripts/e2e-fakes/route-fake-sites.ts"];
+  let backend: ChildProcess[] = [];
+  const startBackend = async (ai: boolean) => {
+    for (const child of backend) retired.add(child);
+    await Promise.all(backend.map(stop));
+    backend = [
+      start("api", "node", [...preload, "apps/api/dist/index.js"], {
+        ...backendEnv(ai),
+        PORT: String(ports.api),
+        PLATFORM_DIST_DIR: "apps/platform/dist",
+      }),
+      ...(workerAvailable
+        ? [
+            start("worker", "node", [...preload, "apps/worker/dist/index.js"], {
+              ...backendEnv(ai),
+              WORKER_HEALTH_PORT: String(ports.workerHealth),
+            }),
+          ]
+        : []),
+    ];
+  };
+  await startBackend(phases[0]!.ai);
   // Live draft editing; browsers reach it through the edge proxy's
   // /collaboration route, exactly as in production.
   if (collaborationAvailable)
@@ -479,34 +531,60 @@ try {
   await waitFor("marketing", `${siteUrl}/`);
   if (docsNeeded) await waitFor("docs", `${docsUrl}/`);
 
-  const child = spawn("bunx", ["playwright", "test", ...playwrightArgs], {
-    stdio: "inherit",
-    detached: true,
-    env: {
-      ...process.env,
-      DATABASE_URL: url,
-      E2E_PLATFORM_URL: platformUrl,
-      E2E_MARKETING_URL: siteUrl,
-      E2E_DOCS_URL: docsUrl,
-      // This shard's files (playwright.config.ts restricts the run to them).
-      E2E_FILES: files && JSON.stringify(files),
-      E2E_JSON_REPORT: jsonReport,
-    },
-  });
-  foreground.add(child);
-  process.exitCode = await new Promise<number>((resolve) =>
-    child.on("exit", (code) => resolve(code ?? 1)),
-  );
+  let failed = false;
+  for (const [index, phase] of phases.entries()) {
+    if (index > 0) {
+      console.log(
+        `Restarting the API and worker ${phase.ai ? "with" : "without"} the scripted AI provider for ${phase.files.join(", ")}.`,
+      );
+      await startBackend(phase.ai);
+      await waitFor("api", `http://localhost:${ports.api}/readyz`);
+    }
+    if (workerAvailable)
+      await waitFor("worker", `http://127.0.0.1:${ports.workerHealth}/healthz`);
+    const jsonReport = reportDir && join(reportDir, `report-${index}.json`);
+    const child = spawn("bunx", ["playwright", "test", ...playwrightArgs], {
+      stdio: "inherit",
+      detached: true,
+      env: {
+        ...process.env,
+        DATABASE_URL: url,
+        E2E_PLATFORM_URL: platformUrl,
+        E2E_MARKETING_URL: siteUrl,
+        E2E_DOCS_URL: docsUrl,
+        // The test's side of the fakes (what people do in Jira, what was
+        // sent to the AI provider).
+        E2E_FAKE_JIRA_URL: fakeJira.url,
+        ...(phase.ai && { E2E_SCRIPTED_AI_URL: scriptedAi.url }),
+        // Tests seed through the domain writer, which records in each
+        // organization's directory whether the server has an AI provider:
+        // the same answer as the API and worker of this phase.
+        OPENAI_API_KEY: phase.ai ? scriptedAiKey : "",
+        // This phase's files (playwright.config.ts restricts the run to them).
+        E2E_FILES: JSON.stringify(phase.files),
+        E2E_JSON_REPORT: jsonReport,
+      },
+    });
+    foreground.add(child);
+    const code = await new Promise<number>((resolve) =>
+      child.on("exit", (exit) => resolve(exit ?? 1)),
+    );
+    if (code !== 0) failed = true;
+    if (crashed.length || interrupted) break;
+    if (code === 0 && jsonReport && existsSync(jsonReport))
+      updateTimings(jsonReport);
+  }
+  process.exitCode = failed ? 1 : 0;
   if (crashed.length) {
     console.error(
       `${crashed.join(", ")} exited during the run; the results are invalid.`,
     );
     process.exitCode = 1;
-  } else if (process.exitCode === 0 && jsonReport && existsSync(jsonReport))
-    updateTimings(jsonReport);
+  }
 } finally {
   if (interrupted) process.exitCode = 130;
   await stopAll();
+  await Promise.all([fakeJira?.close(), scriptedAi?.close()]);
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.
   await admin`

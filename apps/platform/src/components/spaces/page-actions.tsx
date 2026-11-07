@@ -12,7 +12,10 @@ import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
+import {
+  iterationLabel,
+  spaceLevelAtLeast,
+} from "@lictory/core/contracts/protocol";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import {
   isWithin,
@@ -36,6 +39,12 @@ import {
   Field,
   RadioCards,
 } from "@lictory/platform/components/spaces/dialog";
+import {
+  pageTemplateKinds,
+  pageTemplates,
+  type PageTemplateContext,
+  type PageTemplateKind,
+} from "@lictory/core/spaces/template-catalog";
 
 // Page tree actions of one space, shared by the tree, the space home and the
 // page header so each action has one implementation and one dialog. Page
@@ -148,14 +157,25 @@ export function PageActionsProvider({
             creating.parentId ? titleOf(creating.parentId) : undefined
           }
           onClose={() => setCreating(undefined)}
-          onCreate={(title) => {
+          projectId={space.projectId}
+          onCreate={async (title, template, context) => {
             const pageId = crypto.randomUUID();
+            // A template is the page's first version; blank stays empty.
+            // The document engine loads only when a template is chosen (a
+            // failed load throws: the dialog stays open to try again).
+            const content =
+              template === "blank"
+                ? undefined
+                : (
+                    await import("@lictory/core/spaces/templates")
+                  ).templatePageContent(template, context);
             void mutate({
               type: "createPage",
               spaceId: space.id,
               pageId,
               parentId: creating.parentId,
               title,
+              ...(content ? { content } : {}),
             });
             setCreating(undefined);
             setAnnouncement(`Created “${title}”.`);
@@ -185,18 +205,56 @@ export function PageActionsProvider({
 
 function NewPageDialog({
   parentTitle,
+  projectId,
   onClose,
   onCreate,
 }: {
   parentTitle?: string;
+  // The project homing the space: iteration notes can list an iteration.
+  projectId: string | null;
   onClose: () => void;
-  onCreate: (title: string) => void;
+  onCreate: (
+    title: string,
+    template: PageTemplateKind,
+    context: PageTemplateContext,
+  ) => Promise<void>;
 }) {
   const id = useId();
+  const iterationFieldId = useId();
+  const { projects, delivery } = useWorkspace();
   const [title, setTitle] = useState("");
-  const submit = () => {
+  const [template, setTemplate] = useState<PageTemplateKind>("blank");
+  const project = projects.find((p) => p.id === projectId);
+  const iterations = [...delivery.iterations.values()]
+    .filter((i) => i.projectId === projectId && i.state !== "completed")
+    .sort((a, b) => a.number - b.number);
+  const [iterationId, setIterationId] = useState<string>(
+    iterations.find((i) => i.state === "active")?.id ?? "",
+  );
+  const listsIteration =
+    template === "iteration-notes" || template === "retrospective";
+  // Creating waits for the template to load: one page per submit, and a
+  // failure stays in the dialog with what to do next.
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async () => {
     const trimmed = title.trim();
-    if (trimmed) onCreate(trimmed);
+    if (!trimmed || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await onCreate(trimmed, template, {
+        projectId,
+        iterationId: listsIteration ? iterationId || null : null,
+      });
+    } catch {
+      setError(
+        template === "blank"
+          ? "The page was not created. Check your connection and try again."
+          : `The ${pageTemplates[template].name} template could not be loaded, so no page was created. Check your connection and try again, or start from a blank page.`,
+      );
+      setPending(false);
+    }
   };
   return (
     <Dialog
@@ -207,30 +265,77 @@ function NewPageDialog({
           : "Adds a page at the end of this space."
       }
       onClose={onClose}
-      onSubmit={submit}
-      width="max-w-md"
+      onSubmit={() => void submit()}
+      width="max-w-xl"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!title.trim()}>
-            Create page
+          <Button type="submit" disabled={!title.trim() || pending}>
+            {pending ? "Creating…" : "Create page"}
           </Button>
         </>
       }
     >
-      <Field label="Title" htmlFor={id}>
-        <Input
-          id={id}
-          data-autofocus
-          value={title}
-          maxLength={200}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Refund runbook"
-          autoComplete="off"
+      <div className="space-y-4">
+        <Field label="Title" htmlFor={id}>
+          <Input
+            id={id}
+            data-autofocus
+            value={title}
+            maxLength={200}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Refund runbook"
+            autoComplete="off"
+          />
+        </Field>
+        <RadioCards
+          legend="Start from"
+          name="page-template"
+          value={template}
+          onChange={setTemplate}
+          options={pageTemplateKinds.map((kind) => ({
+            value: kind,
+            label: pageTemplates[kind].name,
+            description: pageTemplates[kind].description,
+          }))}
         />
-      </Field>
+        {listsIteration && project && iterations.length > 0 && (
+          <Field
+            label="Iteration"
+            htmlFor={iterationFieldId}
+            optional
+            hint="The page lists this iteration’s work, live."
+          >
+            <select
+              id={iterationFieldId}
+              value={iterationId}
+              onChange={(e) => setIterationId(e.target.value)}
+              className="h-10 w-full rounded-xl border border-input bg-card px-3 text-[13px]"
+            >
+              <option value="">No live list</option>
+              {iterations.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {project.key} {iterationLabel(i, project.iterationMode)}
+                  {i.state === "active" ? " (active)" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {template !== "blank" && (
+          <p className="text-xs text-muted-foreground">
+            The template becomes the page’s first version. Edit it like any
+            other page.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
     </Dialog>
   );
 }

@@ -23,6 +23,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useLifecycleQueues } from "@lictory/platform/components/items/queues";
 import { IssueList } from "@lictory/platform/components/items/issue-list";
+import { ProjectKnowledge } from "@lictory/platform/components/knowledge/project-knowledge";
 
 const viewIllustrations: Record<ViewId, IllustrationKind> = {
   all: "proposal",
@@ -197,7 +198,10 @@ export function ViewPage({
         overview
           ? proposals
             ? "A place for rough ideas. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs."
-            : "Clarify behavior, resolve questions and review changes together. When the checks pass, the work is ready for delivery."
+            : // The queue holds specifications not yet in delivery (and
+              // amendments of accepted ones): a story under way with its
+              // accepted revision is delivery work, whatever its review.
+              "Clarify behavior, resolve questions and review changes together until the work is accepted for delivery. Work already in delivery returns here only when its specification changes."
           : meta.description
       }
       emptyTitle={
@@ -235,7 +239,9 @@ export function ViewPage({
             <span>
               {stage === "ready"
                 ? "Specifications appear here when their readiness checks pass and they are not yet accepted for delivery."
-                : "Open a proposal and start refinement to work through the behavior, acceptance criteria and review concerns."}
+                : stage === "review"
+                  ? "Specifications waiting on reviews appear here until they are accepted for delivery. Work already in delivery is not listed while its accepted revision is current."
+                  : "Open a proposal and start refinement to work through the behavior, acceptance criteria and review concerns."}
               <Link
                 className="mt-3 block text-primary hover:underline"
                 href={paths.proposals(organization.slug, project.key)}
@@ -296,6 +302,7 @@ export function ViewPage({
                 </Link>
               ))}
             </nav>
+            <ProjectKnowledge project={project} />
             {stage === "ready" && (
               <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/15 px-5 py-3 text-xs">
                 <span>

@@ -1,0 +1,129 @@
+---
+title: The board
+description: Move work through the project's workflow on a kanban board, narrow it to a sprint, a team or a person, and keep context pages at hand.
+---
+
+The **Board** shows a native project's work as cards in columns, one column
+per workflow status. Drag a card to change its status; drag it within a
+column to change its rank. Open it from the sidebar: **Board**, under the
+project's delivery section.
+
+<Tabs items={["Light", "Dark"]}>
+<Tab value="Light">
+
+![The Payments board for Sprint 1: one column per workflow status, cards showing their specification state and estimate, and the Sprint, team, assignee, type and Context controls in the header](/screenshots/delivery-board.webp)
+
+</Tab>
+<Tab value="Dark">
+
+![The same board in dark mode: Todo, In Progress and Done cards with their keys, specification state, estimates and the blocker on PAY-2](/screenshots/delivery-board-dark.webp)
+
+</Tab>
+</Tabs>
+
+## What the board shows
+
+- **Columns** are the project's workflow statuses in order. Each status
+  belongs to a fixed category (backlog, unstarted, started, done, canceled),
+  which gives it meaning for readiness, reports and progress. The
+  **Canceled** column is hidden until you turn on **Show canceled column**.
+  The default workflow is **Backlog**, **Todo**, **In Progress**, **In
+  Review**, **Done** and **Canceled**; project administrators change it in
+  **Project settings → Workflow & types** (the gear on the board opens it).
+- **Cards** show the identifier, title, assignee, priority, estimate and
+  team. Spec-backed items also show their refinement (`Spec: ready`, or
+  `Spec: in review · 3/5 checks`), open blockers and, for parents, how many
+  children are done.
+- **Implementation work only.** Epics and other higher-level items are not
+  cards: their children are. See [Epics](/delivery#epics).
+- **Recent closed work.** Done and canceled items leave the board two weeks
+  after their last change when you view all work. They stay in
+  [All items](/delivery/organize#all-items) and in iteration reports.
+
+## Move work
+
+<Steps>
+<Step>
+
+### Drag a card
+
+Drop it in another column to change its status, or between two cards to
+rank it. You need a discipline that can **Change properties** in the
+project.
+
+</Step>
+<Step>
+
+### Respect the readiness policy
+
+Moving a spec-backed item into a started status follows the project's
+[readiness policy](/delivery#readiness-policy). With **Warn**, the move goes
+through and the board tells you the item started before its specification
+was ready. With **Block**, the board refuses the move and names the failing
+checks.
+
+</Step>
+</Steps>
+
+The first move into a started status also records the item's current
+revision as [accepted for delivery](/delivery#accepting-automatically), if
+no one accepted it yet.
+
+To create an item in a column, use the **+** in the column's header. New
+items go into the sprint you are viewing and the team you narrowed to.
+
+## Narrow the board
+
+The controls in the header combine, and live in the address, so a link
+shares the same view:
+
+- **Sprint** or **Cycle**: the active iteration (the default when the
+  project uses iterations), a planned one, or **All work**.
+- **Team**: **All teams**, one team, or **No team**. See
+  [teams](/delivery/teams).
+- **Assignee**: **Anyone**, chosen people, or **Unassigned**.
+- **Types**: **All types** or chosen work item types.
+- **Board options**: swimlanes by **Assignee**, **Parent** or **Priority**
+  (or **No swimlanes**), and **Show canceled column**. Dragging between
+  swimlanes also changes the assignee or priority.
+
+When the project uses sprints and none is active, the board says so and
+offers **Plan in the backlog**.
+
+## Preview an item
+
+Click a card to preview it beside the board without leaving it. See
+[preview an item](/delivery/relations#preview-an-item). Hold `Ctrl` or `⌘`
+while clicking to open the item in a new tab instead.
+
+## Context pages
+
+**Context** in the header lists the pages the work relies on: the
+project's, the narrowed team's and the viewed sprint's, each in its own
+list. Project administrators and people who can **Change properties** can
+**Add page**, reorder and remove them, and create
+[iteration notes](/delivery/iterations#iteration-notes). You only see pages
+you can read.
+
+![The Context popover on the Payments board: the project's pages in one list, Sprint 1's pages in another, with Add page and Create iteration notes](/screenshots/detail-context-pages.webp)
+
+See [context pages](/knowledge/context-pages) for what to keep there.
+
+## What to watch for
+
+- **Jira projects have no board.** In a project that hands off to Jira,
+  **Board** is replaced by **Hand-off**. See
+  [Deliver in Jira](/integrations/jira).
+- **No transition rules.** Any status can move to any other. Categories
+  carry the meaning; there are no rules to configure.
+- **Viewers can't drag.** Without **Change properties**, cards open but
+  don't move.
+
+## Tips
+
+- Narrow the board to your team and link it in the team's channel: the
+  address keeps the filters.
+- Use swimlanes by **Parent** during a sprint to see how each Story's tasks
+  are progressing.
+- Keep the sprint's goal and the runbooks the work depends on in
+  **Context**, so nobody has to search for them during standup.

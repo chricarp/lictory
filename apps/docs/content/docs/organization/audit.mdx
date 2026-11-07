@@ -1,0 +1,68 @@
+---
+title: Audit log
+description: See who changed membership, roles, access tokens and configuration, and what agents did on someone's behalf; filter it and export it.
+---
+
+The audit log answers "who changed this, when, and to whom" for the parts of
+an organization that decide who can do what: who belongs, who administers,
+which tokens can act in it, how it is configured, and what agents did for
+people. Only organization administrators can read it.
+
+It is separate from an item's activity. Revisions, reviews, approvals,
+discussions and merges are recorded on each work item and page, where
+everyone who can read the item sees them.
+
+![Organization settings, Audit log: filters for activity, person and dates, Export CSV, and configuration entries such as adding Dev Patel to Product and creating a team, a milestone and labels in Payments](/screenshots/org-audit.webp)
+
+## What is recorded
+
+| Activity            | Entries                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Members & roles** | Members added, joined (accepted an invitation), removed, left or deleted their account; application role changes; invitations sent, withdrawn or declined                                                                               |
+| **Access tokens**   | Agent tokens created (with access level and expiry) and revoked, in every organization the token's owner belongs to; two-factor requirement changes and resets                                                                          |
+| **Organization**    | The organization created, renamed or given a new handle; data exports requested and downloaded; the audit log exported; deletion scheduled or cancelled                                                                                 |
+| **Configuration**   | Every configuration change, with the previous definition: project settings, members and project roles, disciplines, teams, workflow, types, labels and milestones, readiness, spaces and their access, integrations (never credentials) |
+| **Agent calls**     | Every call an agent made through MCP and every action Litto took: the person, the token's name, the operation and its outcome                                                                                                           |
+
+Each entry names who acted (or **Lictory** when the system did), with their
+name and email at the time, what they acted on, and when. Passwords, token
+values, credentials and specification content are never recorded.
+
+Not recorded here: sign-ins and changes people make to their own account
+(password, email, sessions), which belong to the person rather than an
+organization.
+
+## Find something
+
+1. Go to **Organization settings → Audit log**.
+2. Narrow it with **Activity** (**All activity**, **Members & roles**,
+   **Access tokens**, **Organization**, **Configuration**, **Agent calls**),
+   **Person** (or **Anyone**), and **From** and **To** dates (UTC days).
+3. **Show older entries** loads more.
+
+## Export it
+
+**Export CSV** downloads the entries matching the current filters as a
+spreadsheet. The export itself is recorded in the log, with its filters.
+
+## What to watch for
+
+- **Entries cannot be edited or deleted**, not even by administrators. They
+  are kept for the life of the organization; there is no automatic expiry.
+- **Deleting the organization deletes its audit log.** The installation's
+  own history keeps a record that the organization was deleted, by whom and
+  what was removed ([instance administration](/organization/instance#history)).
+- **A deleted account's entries stay**, with the name and email recorded at
+  the time; that person's agent call records are removed.
+- **Agents cannot read the log.** It is reserved for administrators in the
+  browser.
+
+## Tips
+
+- Filter on **Agent calls** and a person to review what an agent did before
+  you trust it with a read/write token for longer.
+- Export the log before you schedule an organization's deletion if your
+  company must keep it; the [data export](/organization/data) includes it
+  too.
+- Name agent tokens after their job ("Claude spec reviewer"): the log shows
+  the token's name on every call.

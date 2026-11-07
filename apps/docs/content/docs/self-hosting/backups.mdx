@@ -7,9 +7,10 @@ description: What to back up, where encrypted backups go, how to restore and how
 
 PostgreSQL is the only state that must survive. Everything else is either in
 another system (attachments in your bucket, email at your provider) or
-rebuilt from PostgreSQL (zero-cache's replica). Spaces adds nothing to back
-up: pages, their history and even unpublished live drafts are stored in
-PostgreSQL, and the collaboration service keeps no state of its own.
+rebuilt from PostgreSQL (zero-cache's replica). Live editing adds nothing to
+back up: pages, their history and even unpublished live drafts of pages and
+specifications are stored in PostgreSQL, and the collaboration service keeps
+no state of its own.
 
 | Data                 | Protection                                                |
 | -------------------- | --------------------------------------------------------- |

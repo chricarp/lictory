@@ -14,11 +14,13 @@ building this_” without a meeting for every requirement.
 ## Requirements, reviewed like code
 
 A specification in Lictory is not a document with comments. It has
-[revisions](/concepts/specifications), reviewers, discussions anchored to the
-text, proposed changes, [approvals that belong to the revision they
-reviewed](/concepts/reviews), and [readiness checks](/concepts/readiness)
-that work like CI for requirements. At any time you can see what changed, who
-changed it, who approved which revision and what is still unresolved.
+[revisions](/specifications/history), a [live draft](/specifications/live-drafts)
+people edit together, reviewers, [discussions](/specifications/discussions)
+anchored to the text, proposed changes on [branches](/specifications/branches),
+[approvals that belong to the revision they reviewed](/review/approvals), and
+[readiness checks](/review/readiness) that work like CI for requirements. At
+any time you can see what changed, who changed it, who approved which
+revision and what is still unresolved.
 
 Product, Engineering, QA and any other discipline a project configures take
 part as equals: each reviews the concerns it owns. Lictory Intelligence can
@@ -37,7 +39,17 @@ in both.
 | **External (Jira)**  | Lictory    | Jira: ready work is handed off, Jira's status is read back             |
 
 Exactly one system owns delivery for a project's work, so nothing is tracked
-twice. See [delivery](/concepts/delivery).
+twice. See [delivery](/delivery).
+
+## Knowledge next to the work
+
+[Spaces](/spaces) hold the pages a team writes together: runbooks,
+architecture notes, decision records, how the team works. Pages and work are
+linked both ways: a specification cites the page version it relies on, a
+page mentions and lists live work, a work item can start from a passage of a
+page, and delivered work can propose the page update it needs. Each item's
+[Knowledge](/knowledge) shows the pages about it, and [search](/search) finds
+both.
 
 ## Work from your terminal or editor
 
@@ -53,13 +65,43 @@ and operating a server, use the guided [lictory CLI](/self-hosting/terminal).
     Install your server, create an organization and a project, invite your team
     and take a first specification from proposal to delivery.
   </Card>
-  <Card title="Concepts" href="/concepts/specifications">
-    Specifications, revisions, reviews, approvals, readiness, delivery and
-    spaces of pages.
+  <Card title="First steps" href="/basics/navigation">
+    Find your way around, set up your account, learn the shortcuts and the words
+    Lictory uses.
+  </Card>
+  <Card title="Refine" href="/specifications">
+    Proposals, the specification editor, live drafts, history, discussions,
+    branches and decisions.
+  </Card>
+  <Card title="Review and readiness" href="/review/requests">
+    Request reviews, approve revisions and see what still blocks readiness.
+  </Card>
+  <Card title="Deliver" href="/delivery">
+    Breakdown, board, backlog, sprints and cycles, reports, relations and teams.
   </Card>
   <Card title="Spaces" href="/spaces">
     Pages your team writes together, edited live and changed through reviewed
     versions.
+  </Card>
+  <Card title="Knowledge" href="/knowledge">
+    How pages and work items link, and how to keep them in step.
+  </Card>
+  <Card title="Search" href="/search">
+    Find items, pages and decisions, and the agreements that answer a question.
+  </Card>
+  <Card title="Lictory Intelligence" href="/ai">
+    AI reviews, Litto and the context they use, under your organization's
+    policy.
+  </Card>
+  <Card title="Inbox" href="/inbox">
+    What needs you, and the notifications you choose to receive.
+  </Card>
+  <Card title="Organization and access" href="/organization">
+    Members, projects, disciplines, security, audit and data.
+  </Card>
+  <Card title="Concepts" href="/concepts/specifications">
+    Short overviews of specifications, reviews, readiness, delivery,
+    organizations and spaces.
   </Card>
   <Card title="Self-hosting" href="/self-hosting">
     Run Lictory on your own server.

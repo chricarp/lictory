@@ -25,6 +25,8 @@ import {
   reachable,
 } from "@lictory/core/spaces/history-state";
 import { pageSummaries } from "@lictory/core/spaces/projections";
+import { workListResolver } from "@lictory/core/spaces/work-lists";
+import { commitVersions } from "@lictory/core/knowledge/search";
 
 // On-demand reads of Lictory Spaces for capabilities (MCP, Litto, browser
 // routes). Browsers read the synchronized projections; these read the domain
@@ -197,6 +199,13 @@ export async function getPage(
       );
     if (!commit) throw unavailableCommit();
     const { page, space } = found;
+    const resolver = await workListResolver(tx, organizationId, commit.content);
+    const exported = resolver
+      ? documentToMarkdown(commit.content, resolver)
+      : null;
+    const version = (await commitVersions(tx, organizationId, [commit.id])).get(
+      commit.id,
+    );
     return {
       page: {
         id: page.id,
@@ -206,8 +215,12 @@ export async function getPage(
         archivedAt: page.archivedAt?.toISOString() ?? null,
       },
       title: commit.title,
-      markdown: commit.markdown,
+      // Live work lists are resolved now, into static references.
+      markdown: exported ?? commit.markdown,
       commitId: commit.id,
+      // Main's first-parent position of the commit: "version N", as the
+      // page history numbers it. Cite this with the commitId.
+      version: version ?? 1,
       // Whether this commit is what readers see now.
       published: commit.id === main.headCommitId,
       publishedAt: commit.createdAt.toISOString(),

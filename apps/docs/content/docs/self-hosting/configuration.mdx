@@ -126,11 +126,12 @@ allow it. Instance administrators always can, in the admin console
 `lictory install` asks for these settings (`--signup-mode`,
 `--allowed-email-domains`, `--organization-creation`).
 
-| Setting                         | Meaning                                                                                                                                                       |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LICTORY_SIGNUP_MODE`           | `invite` (default): a new account needs a pending invitation. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
-| `LICTORY_ALLOWED_EMAIL_DOMAINS` | Comma-separated email domains for self-service accounts, single sign-on included (empty: any)                                                                 |
-| `LICTORY_ORGANIZATION_CREATION` | `administrators` (default) or `everyone`                                                                                                                      |
+| Setting                                    | Meaning                                                                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LICTORY_SIGNUP_MODE`                      | `invite` (default): a new account needs a pending invitation. `closed`: only instance administrators create accounts. `open`: anyone who can reach the server |
+| `LICTORY_ALLOWED_EMAIL_DOMAINS`            | Comma-separated email domains for self-service accounts, single sign-on included (empty: any)                                                                 |
+| `LICTORY_ORGANIZATION_CREATION`            | `administrators` (default) or `everyone`                                                                                                                      |
+| `LICTORY_ORGANIZATION_DELETION_GRACE_DAYS` | Days between an owner scheduling an organization's deletion and the deletion (1 to 365, default 30). Applies to deletions scheduled after the change          |
 
 The rules hold for password sign-up, Google and Microsoft alike, and the
 server enforces them. Your company identity provider is the directory: with
@@ -139,7 +140,8 @@ every mode, limited to the allowed domains.
 
 Instance administration is separate from organization roles: instance
 administrators manage accounts, organizations and other instance
-administrators; organization owners and admins manage their own organization.
+administrators; organization owners and admins manage their own organization
+([instance administration](/organization/instance)).
 From the server, `sudo lictory admin grant <email>` appoints one and
 `sudo lictory admin set-password <email>` recovers a lost password.
 
@@ -199,7 +201,8 @@ OpenAI; uploaded documents are converted to text on your server first.
 
 ## Live editing
 
-Live editing of [pages in Spaces](/spaces/editing) needs no setup: the
+Live editing of [pages in Spaces](/spaces/editing) and of
+[specification drafts](/specifications/live-drafts) needs no setup: the
 `collaboration` service uses the same database, sign-in and address as the
 rest of Lictory, and the gateway routes `/collaboration` to it. Behind your
 own proxy, pass that path's WebSocket upgrades
@@ -210,8 +213,9 @@ own proxy, pass that path's WebSocket upgrades
 | `COLLABORATION_MEM_LIMIT` | Memory limit of the collaboration service (default `384m`) |
 | `COLLABORATION_HEAP_MB`   | Its JavaScript heap, below the limit (default `256`)       |
 
-Run exactly one collaboration service per database: editors of a page must
-share one service to see each other, so a second copy refuses to start.
+Run exactly one collaboration service per database: editors of a page or a
+specification must share one service to see each other, so a second copy
+refuses to start.
 
 ## Legal notices
 

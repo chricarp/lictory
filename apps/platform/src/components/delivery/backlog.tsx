@@ -1,3 +1,4 @@
+import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -290,6 +291,21 @@ function ProjectBacklog({ project }: { project: Project }) {
             {project.name} · Backlog
           </h1>
           <TeamFilterPicker filter={teamFilter} />
+          <ContextControl
+            project={project}
+            lists={[
+              { label: project.name },
+              ...(teamFilter.value && teamFilter.value !== "none"
+                ? [
+                    {
+                      label:
+                        delivery.teams.get(teamFilter.value)?.name ?? "Team",
+                      teamId: teamFilter.value,
+                    },
+                  ]
+                : []),
+            ]}
+          />
           {averageVelocity !== undefined &&
             project.estimateScale !== "none" && (
               <span
@@ -390,6 +406,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 it.id,
                 rows,
                 <IterationHeader
+                  project={project}
                   iteration={it}
                   iterationMode={project.iterationMode}
                   rows={rows}
@@ -518,6 +535,7 @@ function ProjectBacklog({ project }: { project: Project }) {
 }
 
 function IterationHeader({
+  project,
   iteration,
   rows,
   points,
@@ -533,6 +551,7 @@ function IterationHeader({
   onRename,
   iterationMode,
 }: {
+  project: Project;
   iteration: Iteration;
   rows: WorkItem[];
   points: number;
@@ -587,6 +606,17 @@ function IterationHeader({
             ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
         </span>
         <div className="ml-auto flex items-center gap-1">
+          <ContextControl
+            project={project}
+            compact
+            lists={[
+              {
+                label: iterationLabel(iteration, iterationMode),
+                iterationId: iteration.id,
+                iteration,
+              },
+            ]}
+          />
           {iteration.state === "active" && (
             <Link href={reportHref} className="contents">
               <Button variant="ghost" size="sm">

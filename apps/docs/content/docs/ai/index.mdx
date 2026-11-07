@@ -1,0 +1,154 @@
+---
+title: Lictory Intelligence
+description: What Lictory Intelligence does and does not do, how an organization turns it on, and what keeps working when it is off or unavailable.
+---
+
+**Lictory Intelligence** is the AI in Lictory. It finds missing information,
+contradictions and ambiguity in specifications. It answers questions about
+your work and drafts changes for people to review. **Litto** is its
+assistant: the chat you open beside any page.
+
+It proposes. People decide. Everything it produces is marked as a proposal,
+and nothing it suggests becomes part of a specification, a page or delivery
+until a person accepts it.
+
+## What it does
+
+- **Litto, the assistant.** Ask about the open item, page or board, find
+  agreements, draft proposals from notes, and have it prepare changes for
+  review. See [Litto](/ai/litto).
+- **Reviews of specifications.** Assess an item and its child items for gaps,
+  or review every commit of a pull request against the specification it
+  changes. See [AI reviews](/ai/reviews).
+- **A readiness check.** A project can require a clean Lictory Intelligence
+  review before an item is **Ready**, beside the human decisions it already
+  requires ([readiness](/review/readiness)).
+- **Context.** Administrators give it the vocabulary, rules and conventions
+  it should know ([Intelligence context](/ai/context)).
+- **Dictation.** Speak into Litto's composer instead of typing.
+
+## What it never does
+
+- **It never approves.** A Lictory Intelligence review is a check, not a
+  discipline's approval, and it never counts toward a required review.
+- **It never writes the agreed specification directly.** Its fixes are
+  commits on its own branches, or suggestions a person commits. They go
+  through the same pull requests and reviews as anyone's changes.
+- **It never resolves discussions, merges or publishes on its own.** Litto
+  can do these only when you ask, and asks you to approve each one first.
+- **It never decides readiness alone.** A project that requires its check
+  must also require a person's decision, and people can override the check.
+
+## Turn it on for your organization
+
+![Organization settings, Lictory Intelligence on a server without an AI provider: the switch, Off, who can use it, what data is sent and who can change it, the note that no provider is connected, and Lictory Intelligence Context](/screenshots/org-intelligence.webp)
+
+Lictory Intelligence is off until an organization administrator turns it
+on. Until then, no organization content is sent to an AI provider.
+
+<Steps>
+<Step>
+
+Open **Organization settings → Lictory Intelligence**.
+
+</Step>
+<Step>
+
+Read what turning it on means:
+
+- **Who can use it**: members who can request reviews in a project.
+- **Data sent**: reviewed items (specifications, open discussions, pull
+  request changes) and the context that applies to them.
+- **Who can change this**: organization administrators.
+
+</Step>
+<Step>
+
+Turn on **Allow Lictory Intelligence**. The status changes from **Off** to
+**On**.
+
+</Step>
+</Steps>
+
+Guided setup of your first project asks the same question (**Enable
+Lictory Intelligence** or **Keep Lictory Intelligence off**). You can change
+the answer here later.
+
+Turning it off takes effect at once: queued reviews fail before anything is
+sent, and Litto stops answering. Earlier reviews, findings and conversations
+stay readable.
+
+<Callout title="The server needs a provider first">
+  An organization can only turn Lictory Intelligence on when the server has an
+  AI provider connected. Otherwise the setting says **This server has no AI
+  provider connected** and the switch is disabled. Connecting a provider is the
+  operator's job: see
+  [configuration](/self-hosting/configuration#lictory-intelligence) and
+  [privacy](/self-hosting/privacy).
+</Callout>
+
+## Project settings
+
+With Lictory Intelligence on, each project decides how much it relies on it:
+
+| Setting                                   | Where                                       | Choices                                                                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lictory Intelligence on pull requests** | **Project settings → Delivery**             | **Off** (runs only when someone asks), **Advisory** (reviews every commit; findings inform), **Required** (merge waits for a review of the latest commit; blockers open blocking discussions) |
+| **Require a Lictory Intelligence review** | **Project settings → Readiness**            | Add it as a readiness check for a work item type.                                                                                                                                             |
+| **Intelligence context**                  | **Project settings → Intelligence context** | Notes and documents for the project and its teams.                                                                                                                                            |
+
+See [AI reviews](/ai/reviews) and [Intelligence context](/ai/context).
+
+## When it is off, unavailable or failing
+
+Lictory works fully without AI. Proposals, specifications, live drafts,
+branches, pull requests, discussions, reviews, approvals, readiness,
+decisions, delivery, Spaces, search and the Inbox do not depend on it.
+
+What changes when Lictory Intelligence is **off** or the server has **no
+provider**:
+
+![The Litto page on a server without an AI provider: “Litto isn’t available yet”, the note that everything else in Lictory works without it, and Open Lictory Intelligence settings](/screenshots/ai-off.webp)
+
+- **The Litto page** says **Litto is turned off** or **Litto isn't
+  available yet**, with **Open Lictory Intelligence settings** for
+  administrators. The organization's home page opens your last project
+  instead of Litto.
+- **Ask Litto** disappears from page headers, text selections and the
+  keyboard shortcut. The command palette offers **Litto setup** instead.
+- **Create work item** from a page selection has no **Draft with Litto**
+  choice; you write the item yourself.
+- **AI reviews** cannot be started. Earlier ones stay readable.
+- **Pull requests** are not held back. A **Required** review action only
+  applies while Lictory Intelligence is on and configured; project settings
+  say the policy has no effect.
+- **The readiness check** does not pass by itself. Items pass it only when a
+  person chooses **Override for this revision**. Turning AI off never makes
+  work Ready silently, and never traps it.
+
+When it is **on but failing** (wrong key, unavailable model, rate limit,
+timeout, no network), the review, the assessment or Litto's answer stops
+with a message that says what happened. In Litto, for example: **The AI provider is
+rate limiting requests. Retry in a few minutes.** or **The AI provider
+rejected the configured credentials. Ask an administrator to check
+OPENAI_API_KEY.** Nothing else in the workspace is affected; run it again
+once the problem is fixed.
+
+## What to watch for
+
+- **Content leaves the server.** With Lictory Intelligence on, the content
+  it reviews or reads for you is sent to the configured AI provider. See
+  [what reaches the provider](/ai/context#what-reaches-the-ai-provider).
+- **Findings are not facts.** A finding is the model's reading of the text.
+  Check its evidence before acting on it.
+- **AI and people are not independent reviewers.** Several agents acting for
+  one person count as that person.
+
+## Tips
+
+- Turn it on for one project first and set its review action to
+  **Advisory**. Move to **Required** once the findings are useful.
+- Add a few [context](/ai/context) notes before the first reviews: product
+  vocabulary and the rules people repeat in every discussion.
+- Treat a finding you disagree with as a question for the team. **Ask the
+  team** turns it into a discussion on the item.

@@ -75,7 +75,9 @@ Lictory username. They join as organization members when they accept. Then,
 in **Project settings → Members** and **Disciplines**, add them to the project
 and to the disciplines they work in: an engineer to Engineering, a tester to
 QA. Disciplines decide who can be asked to review and what each person may do
-with work items ([roles and disciplines](/concepts/organizations#roles-and-disciplines)).
+with work items ([disciplines](/organization/disciplines)). You can also
+choose the project and disciplines in the invitation itself
+([members](/organization/members)).
 
 </Step>
 <Step>
@@ -85,34 +87,42 @@ with work items ([roles and disciplines](/concepts/organizations#roles-and-disci
 Open the project's **Proposals** and choose **New proposal**. Describe the
 problem and the intended behavior; it is fine to start rough. Add the
 sections your reviewers will look for, such as _Acceptance criteria_ and
-_Failure behavior_. Every saved change of the text is a
-[revision](/concepts/specifications#revisions).
+_Failure behavior_. Type `#` to mention another work item and `[[` to cite a
+page.
+
+Teammates can edit the specification with you at the same time: the text is
+a shared [live draft](/specifications/live-drafts), saved as you type.
+**Save revision N** turns what is written into a
+[revision](/specifications/history), the version people review.
 
 </Step>
 <Step>
 
 ### Request reviews
 
-From the item's review panel, **Request review** from the disciplines that
-need to agree, for example Engineering and QA. Reviewers comment on the exact
-text they are concerned about, mark a thread **blocking** when it must be
-settled first, and **Approve** or **Request changes**.
+From the item's review rail (**Review & details** on a narrow screen),
+**Request review** from the disciplines that need to agree, for example
+Engineering and QA. Reviewers comment on the exact text they are concerned
+about, mark a discussion **blocking** when it must be settled first, and
+**Approve** or **Request changes** ([reviews](/review/requests)).
 
-Revise the specification until the open questions are settled. Each material
+Revise the specification until the open questions are settled, and record
+what you agreed as a [decision](/specifications/decisions). Each material
 revision makes earlier approvals stale and asks the same reviewers again, so
-an approval always refers to the text that was actually reviewed.
+an approval always refers to the text that was actually reviewed
+([approvals](/review/approvals)).
 
 </Step>
 <Step>
 
 ### Reach ready
 
-When every [readiness check](/concepts/readiness) passes (by default: the
-specification is written, no blocking thread is open, and every required
+When every [readiness check](/review/readiness) passes (by default: the
+specification is written, no blocking discussion is open, and every required
 review approved the current revision), the item becomes **ready**. From then
-on its main text is protected: further changes go through a branch and a
-reviewed pull request, which can also propose the breakdown into Stories and
-Tasks.
+on its main text is protected: further changes go through a
+[branch](/specifications/branches) and a reviewed pull request, which can
+also propose the [breakdown](/delivery/breakdown) into Stories and Tasks.
 
 </Step>
 <Step>
@@ -121,7 +131,8 @@ Tasks.
 
 - **In Lictory**: choose **Accept revision N for delivery** to record what
   the team agreed to build, plan it into a sprint or cycle and move it across
-  the **Board**. Moving it to Done records the delivered revision.
+  the **Board**. Moving it to Done records the delivered revision. See
+  [Deliver](/delivery).
 - **In Jira**: connect a Jira site in **Organization settings →
   Integrations**, choose the Jira project and type mapping in **Project
   settings → Delivery**, then **Hand off** the ready work from the project's
@@ -138,6 +149,31 @@ architecture note) belongs in a **space**. Choose **New space** under
 a team, whose members can then edit it), and add a first page with **New
 page**. Teammates can edit it with you at the same time; **Publish** makes
 what you wrote the version everyone reads, and every version stays in the
-page's history. Type `#` to mention a work item. The
-[Spaces guide](/spaces) covers everything else, from comments to reviewed
-publishing.
+page's history. Type `#` to mention a work item: the item then lists the
+page in its **Knowledge**, and a specification can cite the page in turn
+([knowledge](/knowledge)). The [Spaces guide](/spaces) covers everything
+else, from comments to reviewed publishing.
+
+## Where to go next
+
+<Cards>
+  <Card title="Find your way around" href="/basics/navigation">
+    The sidebar, the parts of a work item page, previews and the command
+    palette.
+  </Card>
+  <Card title="Refine a specification" href="/specifications">
+    Proposals, live drafts, discussions, branches and decisions.
+  </Card>
+  <Card title="Review and readiness" href="/review/requests">
+    Request reviews, approve revisions and read the readiness checks.
+  </Card>
+  <Card title="Deliver" href="/delivery">
+    Board, backlog, sprints and cycles, or hand-off to Jira.
+  </Card>
+  <Card title="Organization and access" href="/organization">
+    Members, projects, disciplines and security.
+  </Card>
+  <Card title="Keyboard shortcuts" href="/basics/shortcuts">
+    Everything you can do without the mouse.
+  </Card>
+</Cards>

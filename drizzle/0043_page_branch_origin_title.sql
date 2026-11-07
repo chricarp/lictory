@@ -1,0 +1,1 @@
+ALTER TABLE "page_branch_origin" ADD COLUMN "title" text;

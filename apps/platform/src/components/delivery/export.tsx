@@ -221,6 +221,28 @@ export function ExportDialog({
   const blockedByConflict = exportable.filter(
     (e) => e.conflict?.length && !overwrite.has(e.workItemId),
   );
+  // The worker exports after the request returns: follow the publication
+  // until it settles, or the results would say "still in progress" forever.
+  const running =
+    publication?.status === "running" ? publication.id : undefined;
+  useEffect(() => {
+    if (!running) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      deliveryRequest<Publication>({
+        action: "publication",
+        organizationId: organization.id,
+        publicationId: running,
+      }).then(
+        (p) => live && setPublication(p),
+        (e: Error) => live && setError(e.message),
+      );
+    }, 1500);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [running, publication, organization.id]);
   const run = async (retry?: string[]) => {
     setBusy(true);
     setError(undefined);

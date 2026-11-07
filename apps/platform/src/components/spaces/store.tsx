@@ -106,6 +106,11 @@ function useSpacesContext() {
   return value;
 }
 
+// The spaces and pages I can read, when Spaces is loaded (null otherwise).
+export function useOptionalSpaceIndex() {
+  return useContext(SpacesContext)?.index ?? null;
+}
+
 // Every space I can read (archived ones included; filter with `archivedAt`),
 // my level in each, and who may administer it.
 export function useSpaces() {

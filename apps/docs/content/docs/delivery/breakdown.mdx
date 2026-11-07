@@ -1,0 +1,184 @@
+---
+title: Break down a specification
+description: Split an agreed specification into Stories, Tasks and Subtasks, directly or as a reviewed breakdown that is approved with the specification.
+---
+
+A specification says what to build. Its **children** say how the team will
+build it: the Stories under an Epic, the Tasks under a Story, the Subtasks
+under a Task. Each child is an ordinary work item with its own identifier,
+status and owner, and it records the revision of the parent it was derived
+from.
+
+You can add children in two ways:
+
+- **Directly**, from the item's **Children** section. Quick, and right for
+  work the team shapes as it goes.
+- **As a reviewed breakdown**, proposed on a branch and approved in a pull
+  request together with the specification. Right when reviewers should
+  agree on the decomposition before anyone starts.
+
+## When to use it
+
+- An Epic or Story is ready and the team needs pieces it can pick up.
+- Engineering wants to propose how the work splits, and Product and QA
+  should see that plan before it lands.
+- An existing breakdown no longer fits the specification: children need to
+  move, be detached or be archived.
+
+## Add children directly
+
+<Steps>
+<Step>
+
+### Open the parent
+
+The **Children** section of the item lists its children with their status,
+how many are done (`3/5 done`), how many spec-backed children are ready and
+the sum of their estimates.
+
+</Step>
+<Step>
+
+### Add a child
+
+Choose **Add story** (the button names the child type; pick another type
+from the type button beside the title). Type a title and press `Enter` to add
+another, or `Esc` to finish. Only types below the parent in the hierarchy are
+offered.
+
+</Step>
+<Step>
+
+### Order the children
+
+Drag a row by its handle, or focus it and press `Alt ↑` / `Alt ↓`.
+
+</Step>
+</Steps>
+
+Children added directly record the parent's current revision. When the
+parent's specification changes later, the section says how many children
+come _from an earlier revision_, so you can check whether they still match.
+
+Adding children never changes the specification. A ready specification stays
+protected while you prepare its children.
+
+## Propose a reviewed breakdown
+
+<Steps>
+<Step>
+
+### Start the breakdown
+
+In the **Children** section of a specification, choose **Propose
+breakdown**. Lictory opens a branch named `breakdown` for you (or your
+existing breakdown branch). See
+[branches and pull requests](/specifications/branches) for how branches work.
+
+</Step>
+<Step>
+
+### Propose new children
+
+Under **Proposed breakdown**, pick a **Child type**, write a **Title** and a
+**Description** (behavior, scope, acceptance criteria), and choose **Propose
+child**. Repeat for each piece of work, up to 100 per branch. You can edit the
+branch's specification text in the same change.
+
+</Step>
+<Step>
+
+### Propose changes to existing children
+
+Under **Change an existing child**, choose a child and what should happen to
+it, then **Propose change**:
+
+- **Move under another item**: an item higher in the hierarchy, or a child
+  proposed in the same breakdown;
+- **Detach from this parent**;
+- **Archive**;
+- **Rename (work without a specification)**: a new title for plain work.
+
+Only children nobody has accepted, started, finished or canceled are
+offered.
+
+</Step>
+<Step>
+
+### Commit and open a pull request
+
+Commit the branch and create a pull request into main. Reviewers see the
+specification changes and the **Proposed breakdown** in the same place.
+
+</Step>
+<Step>
+
+### Merge
+
+When the pull request is approved and merged, the new children are created
+in one step and record the parent revision the merge produced. The proposed
+changes to existing children are applied at the same moment.
+
+</Step>
+</Steps>
+
+![A pull request on PAY-4 proposing a breakdown: under Proposed breakdown, three new subtasks with their titles and descriptions, created only when the pull request is merged](/screenshots/reviewed-breakdown.webp)
+
+### What reviewers approve
+
+The breakdown is part of what the pull request merges. Approvals cover the
+whole result, so changing only the proposed children (even with the
+specification text unchanged) needs a fresh review. Nothing is created until
+the merge: before that, the proposed children exist only on the branch.
+
+## Changes that are refused at merge
+
+The child stays in charge of itself. Each proposed change remembers the
+revision of the child it was written against, and merge applies it only
+while the child:
+
+- still has that revision;
+- is still a child of this item and not archived;
+- has not been accepted for delivery, started, finished, canceled or handed
+  off.
+
+Otherwise the merge is refused and names the child, so nothing that changed
+in the meantime is overwritten. The branch warns you before you try: _PAY-7
+changed since this was proposed. Merge will refuse this change until it is
+proposed again against the current child._ Drop the change and propose it
+again against the child as it is now.
+
+Archiving is also refused while the child has active children of its own:
+archive or move them first.
+
+## Subtasks
+
+Subtasks are the lowest level. Add them to a Task or Bug from its
+**Children** section, the same way as other children. Boards and backlogs
+show a parent's progress (`2/4 done`), and the [item preview](/delivery/relations#preview-an-item)
+shows **Subtasks done**.
+
+## What to watch for
+
+- **Spec-backed children keep their own text.** A breakdown can move,
+  detach or archive a Story, but changes to a Story's specification are made
+  on that Story, where its own reviewers approve them. Rename applies only to
+  plain work.
+- **Some changes stay outside the breakdown.** Changing a child's type,
+  relations between children, owners, ranking and iterations are ordinary
+  actions on the items themselves.
+- **Each change applies once.** Applied changes and created children stay in
+  the commit history, so a later branch cannot create the same children
+  again.
+- **Archiving is reversible.** An archived child can be restored from its
+  item page. See [organize work](/delivery/organize#archive-and-restore).
+
+## Tips
+
+- Propose the breakdown with the specification when reviewers care about
+  the split (a risky migration, work spread across teams). Add children
+  directly when the team shapes the work as it goes.
+- Put acceptance criteria in each child's description. QA can then review
+  the breakdown for gaps before work starts.
+- When the parent is amended, check children marked _from an earlier
+  revision_ before accepting the new revision for delivery.

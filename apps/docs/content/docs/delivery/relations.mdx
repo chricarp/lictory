@@ -1,0 +1,98 @@
+---
+title: Relations and previews
+description: Link work that blocks, duplicates or relates to other work, set an item's parent, and preview items without leaving the board.
+---
+
+Work rarely stands alone. A Story waits for an API change, a Bug duplicates
+another report, two Tasks touch the same code. **Relations** record those
+links so nobody has to remember them, and **parents** group work into a
+hierarchy.
+
+## Relations
+
+A relation is a directed link between two work items. There are three
+kinds:
+
+| Relation       | Seen from the other item | Use it when                                   |
+| -------------- | ------------------------ | --------------------------------------------- |
+| **Blocks**     | **Blocked by**           | One item cannot finish before the other.      |
+| **Duplicates** | **Duplicated by**        | Two items describe the same work.             |
+| **Related to** | **Related to**           | The items are connected, without an ordering. |
+
+Relations can link items across projects and teams of the organization.
+
+![The Relations section of PAY-2: Blocks PAY-4 Refund status in the customer portal, and Related to PAY-5 Duplicate capture after gateway timeout, each with its status, and Link](/screenshots/detail-relations.webp)
+
+### Add a relation
+
+<Steps>
+<Step>
+
+### Open the item
+
+Scroll to **Relations**, below the item's description and knowledge.
+
+</Step>
+<Step>
+
+### Choose Link
+
+Choose **Link**, pick the kind (**Blocks**, **Related to** or
+**Duplicates**), then search by title or identifier and pick the other item.
+
+</Step>
+</Steps>
+
+To remove a relation, point at it and choose **Remove relation**. You need a
+discipline that can **Change properties** in the project.
+
+### What to watch for
+
+- **No loops of two.** If PAY-3 already blocks PAY-4, PAY-4 cannot also
+  block PAY-3: _These items already block each other the other way round._
+- **Relations inform; they don't enforce.** A blocked item can still be
+  started. The preview and the item show what blocks it, so the team can
+  decide.
+
+## Parents and children
+
+Every item can have one parent of a higher level in the same project: a
+Story under an Epic, a Task under a Story, a Subtask under a Task. Set it
+with **Parent** in the item's **Properties**, or add children from the
+parent's **Children** section. See
+[break down a specification](/delivery/breakdown).
+
+Parents show their children's progress (`2/4 done`) and the sum of their
+estimates. Moving an item to another parent keeps its identifier, status and
+iteration.
+
+## Preview an item
+
+On the board, the backlog and team backlogs, clicking an item opens a
+**preview** beside the list instead of leaving it. The preview lets you plan
+without opening every item:
+
+- change **Status**, **Owner**, **Priority**, **Estimate**, the **Sprint**
+  (or **Cycle**) and the **Team**;
+- see a specification's **Readiness checks**, **Required approvals** and
+  open discussions, and whether starting it would be blocked by the
+  [readiness policy](/delivery#readiness-policy);
+- see **Subtasks done** and the items it is **Blocked by**, each one a click
+  away.
+
+![The preview of PAY-2 beside the backlog: status, owner, priority, estimate, sprint and team, the pages about the item, and its readiness checks, required approvals and discussions](/screenshots/detail-item-peek.webp)
+
+**Open** opens the full item page. `Esc`, **Close preview** or a click
+outside closes it. Clicking another item swaps the preview. The previewed
+item is in the address, so a reload or a shared link opens it again. Hold
+`Ctrl` or `⌘` while clicking to open the item in a new tab instead.
+
+## Tips
+
+- Record a **Blocks** relation as soon as you find a dependency, even across
+  projects. During planning, the preview's **Blocked by** list shows what has
+  to move first.
+- Mark duplicates instead of archiving them silently: the link explains to
+  whoever finds the duplicate later where the work went.
+- Plan a sprint from the backlog with previews: set estimates, priority and
+  the sprint one item after another without leaving the list.

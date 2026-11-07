@@ -42,6 +42,13 @@ that runs it is unaffected.
    serving (each one is written to work with it), API restarts drop no
    requests, and the proxy restarts for about two seconds (below).
 
+On an installation with a long history of specifications and pages, the
+release that links work and pages builds search indexes that pause saving
+specifications and committing pages while they build. To avoid the pause,
+build them beforehand without blocking anyone, as the
+[migration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/migrations.md#prebuilding-indexes-before-an-upgrade)
+describes; the upgrade then skips them.
+
 ## Upgrade
 
 <Cli command="upgrade" />
@@ -74,9 +81,39 @@ fails:
 The proxy holds requests for up to 30 seconds while the API is replaced, so
 API restarts drop no requests. Replacing the proxy itself refuses connections
 for about two seconds; open browser tabs reconnect on their own. Replacing
-the collaboration service pauses live editing of pages for a few seconds:
+the collaboration service pauses live editing of pages and specifications for
+a few seconds:
 saved edits are already stored, and editors' unsaved edits are sent again
 when they reconnect.
+
+## One-time maintenance after an upgrade
+
+Some releases need a one-time job after the upgrade, a **backfill**, to bring
+existing data up to date. Its release notes say so, with its name.
+Backfills run while Lictory keeps serving, can be interrupted and run again
+safely, and never rewrite revisions, approvals, decisions or audit history.
+
+Run one with the version you just installed (`lictory status` shows it):
+
+```sh
+sudo /srv/lictory/bin/deploy.sh production backfill <version> <name>
+```
+
+For example, installations that had pages or specifications before the
+release that links work and pages (each work item's **Knowledge**, pages
+listing the work they mention, citations of page versions) run
+`rebuild-knowledge-index` once. Until then, mentions and citations written
+before the upgrade are missing from Knowledge and from the work linked to a
+page; new ones are indexed as they are published or saved. The job only
+reads pages and revisions and writes the index derived from them; running it
+again changes nothing.
+
+```sh
+sudo /srv/lictory/bin/deploy.sh production backfill <version> rebuild-knowledge-index
+```
+
+Use your environment's name instead of `production`. If it stops with an
+error, fix the cause and run it again.
 
 ## Roll back
 

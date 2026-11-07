@@ -6,6 +6,8 @@
       "entry": [
         "scripts/*.ts",
         "scripts/backfills/*.ts",
+        // Preloaded into the API and worker by scripts/test-e2e.ts.
+        "scripts/e2e-fakes/route-fake-sites.ts",
         "tests/**/*.ts",
         "deploy/docker/*.mjs",
         "deploy/docker/src/*.test.mjs",

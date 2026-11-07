@@ -13,9 +13,11 @@ import {
 export type CommitAnchor = Extract<PageThreadAnchor, { kind: "commit" }>;
 export type Range = { from: number; to: number };
 
-// How inline atoms read in quotes: a work item by its key.
+// How inline atoms read in quotes: a work item by its key, a decision by its
+// stored label (never a page's current title, which a reader may not see).
 export function leafText(node: PMNode) {
   if (node.type.name === "workItemRef") return String(node.attrs.key ?? "");
+  if (node.type.name === "decisionRef") return String(node.attrs.label ?? "");
   if (node.type.name === "hardBreak") return "\n";
   return "";
 }

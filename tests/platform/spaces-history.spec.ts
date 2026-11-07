@@ -624,15 +624,25 @@ test("discussions end with their line: merging and deleting a branch warn first 
   const drafts = page.locator("section").filter({
     has: page.getByRole("heading", { name: "drafts", exact: true }),
   });
-  await drafts
-    .getByRole("button", { name: "Delete branch…", exact: true })
-    .click();
   const deleting = page.getByRole("group", { name: "Delete branch drafts" });
+  // The discussion written above may still be synchronizing when the list
+  // first renders; the confirmation then says its counts changed, and the
+  // person (like this test) cancels and opens it again.
+  await expect(async () => {
+    if (await deleting.count())
+      await deleting
+        .getByRole("button", { name: "Cancel", exact: true })
+        .click();
+    await drafts
+      .getByRole("button", { name: "Delete branch…", exact: true })
+      .click();
+    await expect(deleting).toContainText(
+      "This permanently deletes 1 discussion (1 open, blocking) on this branch, with all their replies.",
+      { timeout: 2_000 },
+    );
+  }).toPass({ timeout: 20_000 });
   // The confirmation takes focus so its warning is read first.
   await expect(deleting).toBeFocused();
-  await expect(deleting).toContainText(
-    "This permanently deletes 1 discussion (1 open, blocking) on this branch, with all their replies.",
-  );
   // A discussion written meanwhile is never deleted unseen: confirming
   // waits until the person looks again.
   const late = await thread({ branchId: draftsId }, false);

@@ -1,0 +1,123 @@
+---
+title: Members and invitations
+description: Invite people to an organization, place them in a project and its disciplines, and manage who administers the organization.
+---
+
+People join an organization by invitation. An organization administrator
+invites them, and they become members when they accept. Everything else
+(which projects they work in, which disciplines they hold) is set in each
+project.
+
+![Organization settings, Members: the invitation form with a project and disciplines, and the member list with roles and projects](/screenshots/org-members.webp)
+
+## Invite someone
+
+<Steps>
+<Step>
+
+### Open Members
+
+Go to **Organization settings → Members**. Only organization administrators
+can invite.
+
+</Step>
+<Step>
+
+### Enter the person
+
+Under **Invite to the organization**, type their email address, or the
+`@username` of someone who already has an account on your installation.
+
+</Step>
+<Step>
+
+### Choose a project and disciplines (optional)
+
+Pick a **Project** (or keep **Organization only**) and tick the disciplines
+they will work in, for example Engineering. These apply when they accept, so
+they arrive ready to review.
+
+</Step>
+<Step>
+
+### Send it
+
+**Send invitation** emails them a link. The page also shows the invitation
+link so you can share it another way. It is accepted by signing in with the
+invited email address.
+
+</Step>
+</Steps>
+
+People who have no account yet create one from the invitation, as your
+installation's [access policy](/organization/instance#access-policy) allows
+(by default, a new account needs a pending invitation). People with an
+account see the invitation when they sign in.
+
+### Pending invitations
+
+**Pending invitations** lists people who have not joined yet. **Withdraw**
+cancels an invitation: its link stops working.
+
+## Accept an invitation
+
+Open the link from the email and sign in with the address you were invited
+at (or create your account the way the page offers), then **Accept
+invitation**. The organization opens; if the invitation placed you in a
+project and disciplines, you are already there. If that project or a
+discipline is no longer available, you still join, and Lictory tells you
+what could not be added so an administrator can add it.
+
+## Roles
+
+The member list shows each person's application role (**Admin**, or
+**Admin · owner**) and the projects they belong to, with their project role.
+
+- **Make admin** lets a member manage the organization and every project.
+  **Make member** takes it back. An organization needs at least one
+  administrator, so the last one cannot be demoted.
+- **Owners** are administrators who can also delete the organization and
+  reset other owners' two-factor. Whoever creates an organization is its
+  owner; an instance administrator can also add someone as an owner from the
+  [admin console](/organization/instance).
+
+Being an administrator grants no work item capabilities: those come from
+[disciplines](/organization/disciplines) in each project.
+
+## Add people to a project
+
+In **Project settings → Members**, **Add people** adds organization
+members to the project. Each person has a project role (admin or member)
+and the disciplines they hold, which you toggle in the same row.
+
+- Organization administrators manage every project without being listed,
+  and are marked **Organization admin** when they are.
+- Adding someone to a discipline or a team also makes them a project member.
+- Removing someone from the project also removes their disciplines and team
+  memberships in it.
+
+## What to watch for
+
+- **Removing someone from the organization** is not available in
+  **Organization settings**. To stop a person's access to the installation,
+  an instance administrator can deactivate their account (reversible) in the
+  [admin console](/organization/instance#people); people can also
+  [delete their own account](/basics/account#delete-your-account). Removing
+  them from projects and disciplines takes away their capabilities there,
+  not their organization membership.
+- **Changing an owner** has no control in Organization settings yet. Plan who
+  owns an organization when it is created.
+- **Invitations by username** reach only people who already have an account.
+  With the installation's sign-up mode set to `closed`, invitations by email
+  reach existing accounts only too.
+- People who leave keep their name on what they contributed, shown as a
+  former member.
+
+## Tips
+
+- Invite with the project and disciplines filled in. A new reviewer who
+  lands in Engineering of the right project can be asked to review on day
+  one.
+- Keep two administrators, so access never depends on one person.
+- Use disciplines, not the administrator role, to let someone review or
+  edit specifications.

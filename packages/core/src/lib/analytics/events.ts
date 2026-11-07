@@ -42,6 +42,8 @@ export const commandEvents = {
   createBranch: "branch_created",
   setBranchCollaborator: "branch_collaborator_changed",
   commitBranch: "branch_committed",
+  openSpecificationDraft: "specification_draft_opened",
+  commitSpecificationDraft: "specification_draft_saved",
   syncBranch: "branch_updated",
   deleteBranch: "branch_deleted",
   createPullRequest: "pull_request_created",
@@ -106,6 +108,11 @@ export const commandEvents = {
   decidePagePullRequest: "page_review_decided",
   mergePagePullRequest: "page_pull_request_merged",
   proposePageChange: "page_change_proposed",
+  attachPage: "page_attached",
+  detachPage: "page_detached",
+  linkContextPage: "context_page_linked",
+  unlinkContextPage: "context_page_unlinked",
+  moveContextPage: "context_page_moved",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.
@@ -175,6 +182,11 @@ export function commandEvent(command: Command): AnalyticsEvent {
   if (command.type === "createWorkItem") {
     properties.has_description = Boolean(command.description);
     properties.is_decomposition = command.parentId !== null;
+    properties.from_page = Boolean(command.source);
+  }
+  if (command.type === "attachPage") {
+    properties.purpose = command.purpose;
+    properties.pinned = Boolean(command.commitId);
   }
   if (command.type === "updateWorkItem") {
     if (command.assigneeId !== undefined)

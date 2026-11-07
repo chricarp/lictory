@@ -1,9 +1,11 @@
 import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
+  knowledgeEntityTypes,
   spaceEntityKey,
   spaceEntitySchema,
   type SpaceEntity,
+  type SpaceEntityOf,
   type StoredPageThreadAnchor,
 } from "@lictory/core/contracts/protocol";
 import { canonicalJson } from "@lictory/core/domain/projections";
@@ -35,16 +37,22 @@ import {
 // `page` summaries); `pageCommit` rows (immutable history), the page's
 // lines (`pageBranch`, `pagePullRequest`, `pagePullRequestReview`) and
 // `pageThread`, `pageThreadMessage` and `pageActivity` rows (discussions)
-// carry their page.
+// carry their page. Knowledge links (`knowledgeEntityTypes`,
+// docs/internals/knowledge-links.md) carry their page too, and the work item
+// or project they concern in `work_item_id` / `project_id`.
 
 export type SpaceProjectionRow = {
   key: string;
   organizationId: string;
   spaceId: string;
   pageId: string | null;
+  workItemId: string | null;
+  projectId: string | null;
   type: SpaceEntity["type"];
   data: Record<string, unknown>;
 };
+
+const knowledgeTypes = new Set<string>(knowledgeEntityTypes);
 
 const iso = (value: Date) => value.toISOString();
 const isoOrNull = (value: Date | null) => (value ? value.toISOString() : null);
@@ -56,6 +64,11 @@ function row(entity: SpaceEntity, pageId: string | null): SpaceProjectionRow {
     organizationId: parsed.organizationId,
     spaceId: parsed.type === "space" ? parsed.id : parsed.spaceId,
     pageId,
+    workItemId:
+      knowledgeTypes.has(parsed.type) && "workItemId" in parsed
+        ? parsed.workItemId
+        : null,
+    projectId: parsed.type === "pageContextLink" ? parsed.projectId : null,
     type: parsed.type,
     data: parsed,
   };
@@ -628,6 +641,321 @@ async function lineRows(
   return rows;
 }
 
+// Knowledge links of the given pages (all when omitted): references in the
+// published version, specification citations, attachments, sources, branch
+// origins and context links. Pages that are archived, or whose space is,
+// have none: readers exclude them.
+export async function knowledgeRows(
+  db: Database | Tx,
+  organizationId: string,
+  pageIds?: string[],
+) {
+  if (pageIds && !pageIds.length) return [];
+  const pages = await db
+    .select({ id: s.page.id, spaceId: s.page.spaceId })
+    .from(s.page)
+    .innerJoin(
+      s.space,
+      and(
+        eq(s.space.organizationId, s.page.organizationId),
+        eq(s.space.id, s.page.spaceId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.page.organizationId, organizationId),
+        pageIds ? inArray(s.page.id, pageIds) : undefined,
+        isNull(s.page.archivedAt),
+        isNull(s.space.archivedAt),
+      ),
+    );
+  if (!pages.length) return [];
+  const spaceOf = new Map(pages.map((p) => [p.id, p.spaceId]));
+  const ids = pageIds ? pages.map((p) => p.id) : undefined;
+  const [references, citations, attachments, sources, origins, links] =
+    await Promise.all([
+      db
+        .select()
+        .from(s.pageReference)
+        .where(
+          and(
+            eq(s.pageReference.organizationId, organizationId),
+            eq(s.pageReference.kind, "item"),
+            ids ? inArray(s.pageReference.pageId, ids) : undefined,
+          ),
+        )
+        .orderBy(asc(s.pageReference.pageId), asc(s.pageReference.position)),
+      db
+        .select({
+          reference: s.specificationReference,
+          number: s.specificationRevision.number,
+        })
+        .from(s.specificationReference)
+        .innerJoin(
+          s.specificationRevision,
+          and(
+            eq(
+              s.specificationRevision.organizationId,
+              s.specificationReference.organizationId,
+            ),
+            eq(
+              s.specificationRevision.workItemId,
+              s.specificationReference.workItemId,
+            ),
+            eq(s.specificationRevision.id, s.specificationReference.revisionId),
+          ),
+        )
+        .where(
+          and(
+            eq(s.specificationReference.organizationId, organizationId),
+            eq(s.specificationReference.kind, "page"),
+            ids ? inArray(s.specificationReference.targetId, ids) : undefined,
+          ),
+        )
+        .orderBy(
+          asc(s.specificationReference.workItemId),
+          asc(s.specificationRevision.number),
+          asc(s.specificationReference.position),
+        ),
+      db
+        .select()
+        .from(s.workItemPageAttachment)
+        .where(
+          and(
+            eq(s.workItemPageAttachment.organizationId, organizationId),
+            isNull(s.workItemPageAttachment.detachedAt),
+            ids ? inArray(s.workItemPageAttachment.pageId, ids) : undefined,
+          ),
+        ),
+      db
+        .select()
+        .from(s.workItemPageSource)
+        .where(
+          and(
+            eq(s.workItemPageSource.organizationId, organizationId),
+            ids ? inArray(s.workItemPageSource.pageId, ids) : undefined,
+          ),
+        ),
+      db
+        .select({
+          origin: s.pageBranchOrigin,
+          branch: s.pageBranch,
+          revisionNumber: s.specificationRevision.number,
+        })
+        .from(s.pageBranchOrigin)
+        .innerJoin(
+          s.pageBranch,
+          and(
+            eq(s.pageBranch.organizationId, s.pageBranchOrigin.organizationId),
+            eq(s.pageBranch.id, s.pageBranchOrigin.branchId),
+          ),
+        )
+        .leftJoin(
+          s.specificationRevision,
+          and(
+            eq(
+              s.specificationRevision.organizationId,
+              s.pageBranchOrigin.organizationId,
+            ),
+            eq(s.specificationRevision.id, s.pageBranchOrigin.revisionId),
+          ),
+        )
+        .where(
+          and(
+            eq(s.pageBranchOrigin.organizationId, organizationId),
+            ids ? inArray(s.pageBranchOrigin.pageId, ids) : undefined,
+          ),
+        ),
+      db
+        .select()
+        .from(s.pageContextLink)
+        .where(
+          and(
+            eq(s.pageContextLink.organizationId, organizationId),
+            isNull(s.pageContextLink.removedAt),
+            ids ? inArray(s.pageContextLink.pageId, ids) : undefined,
+          ),
+        ),
+    ]);
+  const branchIds = origins.map((o) => o.branch.id);
+  const pullRequests = branchIds.length
+    ? await db
+        .select({
+          id: s.pagePullRequest.id,
+          title: s.pagePullRequest.title,
+          sourceBranchId: s.pagePullRequest.sourceBranchId,
+          targetBranchId: s.pagePullRequest.targetBranchId,
+          status: s.pagePullRequest.status,
+          mergeCommitId: s.pagePullRequest.mergeCommitId,
+          deletedAt: s.pagePullRequest.deletedAt,
+        })
+        .from(s.pagePullRequest)
+        .where(
+          and(
+            eq(s.pagePullRequest.organizationId, organizationId),
+            inArray(s.pagePullRequest.sourceBranchId, branchIds),
+          ),
+        )
+        .orderBy(asc(s.pagePullRequest.createdAt), asc(s.pagePullRequest.id))
+    : [];
+  const rows: SpaceProjectionRow[] = [];
+  const referenced = new Map<
+    string,
+    SpaceEntityOf<"pageReference"> & { blockIds: string[] }
+  >();
+  for (const r of references) {
+    const spaceId = spaceOf.get(r.pageId);
+    if (!spaceId) continue;
+    const id = `${r.pageId}:${r.targetId}`;
+    const entry = referenced.get(id) ?? {
+      id,
+      organizationId,
+      spaceId,
+      type: "pageReference" as const,
+      pageId: r.pageId,
+      workItemId: r.targetId,
+      commitId: r.commitId,
+      blockIds: [],
+    };
+    if (r.blockId && !entry.blockIds.includes(r.blockId))
+      entry.blockIds.push(r.blockId);
+    referenced.set(id, entry);
+  }
+  for (const entity of referenced.values())
+    rows.push(row(entity, entity.pageId));
+  const cited = new Map<string, SpaceEntityOf<"specificationCitation">>();
+  for (const { reference: r, number } of citations) {
+    const spaceId = spaceOf.get(r.targetId);
+    if (!spaceId) continue;
+    const id = `${r.workItemId}:${r.targetId}`;
+    const entry = cited.get(id) ?? {
+      id,
+      organizationId,
+      spaceId,
+      type: "specificationCitation" as const,
+      pageId: r.targetId,
+      workItemId: r.workItemId,
+      revisions: [],
+    };
+    let revision = entry.revisions.find((x) => x.revisionId === r.revisionId);
+    if (!revision) {
+      revision = {
+        revisionId: r.revisionId,
+        number,
+        commitIds: [],
+        latest: false,
+      };
+      entry.revisions.push(revision);
+    }
+    if (r.targetCommitId) {
+      if (!revision.commitIds.includes(r.targetCommitId))
+        revision.commitIds.push(r.targetCommitId);
+    } else revision.latest = true;
+    cited.set(id, entry);
+  }
+  for (const entity of cited.values()) rows.push(row(entity, entity.pageId));
+  for (const a of attachments) {
+    const spaceId = spaceOf.get(a.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: a.id,
+          organizationId,
+          spaceId,
+          type: "pageAttachment",
+          pageId: a.pageId,
+          workItemId: a.workItemId,
+          purpose: a.purpose,
+          commitId: a.commitId,
+          createdById: a.createdById,
+          createdAt: iso(a.createdAt),
+        },
+        a.pageId,
+      ),
+    );
+  }
+  for (const source of sources) {
+    const spaceId = spaceOf.get(source.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: source.workItemId,
+          organizationId,
+          spaceId,
+          type: "workItemSource",
+          pageId: source.pageId,
+          workItemId: source.workItemId,
+          commitId: source.commitId,
+          blockId: source.blockId,
+          quote: source.quote,
+          createdById: source.createdById,
+          createdAt: iso(source.createdAt),
+        },
+        source.pageId,
+      ),
+    );
+  }
+  for (const { origin, branch, revisionNumber } of origins) {
+    const spaceId = spaceOf.get(origin.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: origin.branchId,
+          organizationId,
+          spaceId,
+          type: "pageBranchOrigin",
+          pageId: origin.pageId,
+          branchId: origin.branchId,
+          workItemId: origin.workItemId,
+          revisionId: origin.revisionId,
+          revisionNumber,
+          name: branch.name,
+          title: origin.title,
+          authorId: branch.authorId,
+          createdAt: iso(origin.createdAt),
+          deletedAt: isoOrNull(branch.deletedAt),
+          pullRequests: pullRequests
+            .filter((p) => p.sourceBranchId === origin.branchId)
+            .map((p) => ({
+              id: p.id,
+              title: p.title,
+              status: p.deletedAt ? ("closed" as const) : p.status,
+              targetBranchId: p.targetBranchId,
+              mergeCommitId: p.mergeCommitId,
+            })),
+        },
+        origin.pageId,
+      ),
+    );
+  }
+  for (const link of links) {
+    const spaceId = spaceOf.get(link.pageId);
+    if (!spaceId) continue;
+    rows.push(
+      row(
+        {
+          id: link.id,
+          organizationId,
+          spaceId,
+          type: "pageContextLink",
+          pageId: link.pageId,
+          projectId: link.projectId,
+          teamId: link.teamId,
+          iterationId: link.iterationId,
+          rank: link.rank,
+          createdById: link.createdById,
+          createdAt: iso(link.createdAt),
+        },
+        link.pageId,
+      ),
+    );
+  }
+  return rows;
+}
+
 const BATCH = 500;
 
 async function upsertRows(
@@ -650,6 +978,8 @@ async function upsertRows(
         set: {
           spaceId: sql`excluded.space_id`,
           pageId: sql`excluded.page_id`,
+          workItemId: sql`excluded.work_item_id`,
+          projectId: sql`excluded.project_id`,
           type: sql`excluded.type`,
           data: sql`excluded.data`,
           updatedAt: sql`now()`,
@@ -681,6 +1011,8 @@ type StoredRow = typeof s.spaceEntity.$inferSelect;
 const same = (a: SpaceProjectionRow, b: StoredRow) =>
   a.spaceId === b.spaceId &&
   a.pageId === b.pageId &&
+  a.workItemId === b.workItemId &&
+  a.projectId === b.projectId &&
   a.type === b.type &&
   canonicalJson(a.data) === canonicalJson(b.data);
 
@@ -712,8 +1044,10 @@ async function reconcile(
 // (the tree, discussion counters, main's draft), page histories (every
 // page-level row), new commits by id (commits never change, so only new
 // ones are written), page lines (branches with their drafts, pull requests
-// with their mergeability, reviews) and page discussions (threads, messages
-// and discussion events).
+// with their mergeability, reviews), page discussions (threads, messages
+// and discussion events) and the pages' knowledge links. Knowledge links
+// depend on main's head, the page's archive state and its branches, so
+// `pages` and `pageLines` rewrite them too.
 export type SpaceProjectionTarget = {
   spaces?: string[];
   pages?: string[];
@@ -721,6 +1055,7 @@ export type SpaceProjectionTarget = {
   commits?: string[];
   pageLines?: string[];
   pageDiscussions?: string[];
+  knowledge?: string[];
 };
 
 // Rewrites the named rows from the domain tables, in the caller's
@@ -767,10 +1102,11 @@ export async function writeSpaceProjections(
   }
   const histories = target.pageHistories ?? [];
   if (histories.length) {
-    const [commits, lines, discussions, stored] = await Promise.all([
+    const [commits, lines, discussions, knowledge, stored] = await Promise.all([
       commitRows(tx, organizationId, { pageIds: histories }),
       lineRows(tx, organizationId, histories),
       pageDiscussionRows(tx, organizationId, histories),
+      knowledgeRows(tx, organizationId, histories),
       tx
         .select()
         .from(s.spaceEntity)
@@ -779,9 +1115,31 @@ export async function writeSpaceProjections(
     await reconcile(
       tx,
       organizationId,
-      [...commits, ...lines, ...discussions],
+      [...commits, ...lines, ...discussions, ...knowledge],
       stored,
     );
+  }
+  const knowledge = [
+    ...new Set([
+      ...(target.knowledge ?? []),
+      ...(target.pages ?? []),
+      ...(target.pageLines ?? []),
+    ]),
+  ].filter((id) => !histories.includes(id));
+  if (knowledge.length) {
+    const [expected, stored] = await Promise.all([
+      knowledgeRows(tx, organizationId, knowledge),
+      tx
+        .select()
+        .from(s.spaceEntity)
+        .where(
+          where(
+            inArray(s.spaceEntity.pageId, knowledge),
+            inArray(s.spaceEntity.type, [...knowledgeEntityTypes]),
+          ),
+        ),
+    ]);
+    await reconcile(tx, organizationId, expected, stored);
   }
   if (target.commits?.length) {
     const [expected, stored] = await Promise.all([
@@ -879,6 +1237,7 @@ export async function expectedSpaceProjections(
     ...(await commitRows(tx, organizationId, {})),
     ...(await lineRows(tx, organizationId)),
     ...(await pageDiscussionRows(tx, organizationId)),
+    ...(await knowledgeRows(tx, organizationId)),
   ];
   return new Map(rows.map((r) => [r.key, r]));
 }

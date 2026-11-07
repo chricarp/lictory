@@ -1,0 +1,109 @@
+---
+title: Page templates
+description: Start a page from a template (product requirements, design doc, runbook, decision record, retrospective or iteration notes) and know what each one gives you.
+---
+
+A template gives a new page a structure to fill in: the headings a team
+expects, a short prompt under each one, and, where it helps, a live list of
+the related work. A template is only a starting point. Once the page exists
+it is an ordinary page, and nothing links it back to the template.
+
+![The New page dialog: a Title field and Start from with Blank and six templates, each with a one-line description, and Create page](/screenshots/spaces-page-templates.webp)
+
+## When to use it
+
+Use a template when a page has a known shape and readers look for the same
+sections every time: what a feature must do, how a service is designed, what
+to do when an alert fires, why a decision was made. Start from **Blank** for
+everything else.
+
+## Create a page from a template
+
+<Steps>
+<Step>
+
+**Open New page.** Choose **New page** on the space's home or the **+** at
+the top of the page tree, or **New subpage** in a page's actions
+([create a page](/spaces/pages#create-a-page)). You need edit access to the
+space.
+
+</Step>
+<Step>
+
+**Name it and choose the template.** Type a **Title**, then pick one under
+**Start from**. The dialog notes that _The template becomes the page's first
+version. Edit it like any other page._
+
+</Step>
+<Step>
+
+**Choose an iteration** (iteration notes and retrospectives in a project
+space). An optional **Iteration** field offers the project's iterations that are
+not completed, with the active one chosen: _The page lists this iteration's
+work, live._ Choose **No live list** to leave the list out.
+
+</Step>
+<Step>
+
+**Create page.** The page opens with the template as its first, published
+version. Edit it as usual; in a Direct space choose **Edit**, in a Reviewed
+space **Start a branch** ([publishing](/spaces/publishing)).
+
+</Step>
+</Steps>
+
+## The templates
+
+| Template                 | Sections                                                                                                               | Live work list                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Blank**                | An empty page                                                                                                          | None                                                             |
+| **Product requirements** | Problem, Goals, Non-goals, Requirements, Open questions                                                                | **Related work**: the items the page mentions                    |
+| **Design doc**           | Context, Proposal, Alternatives considered, Risks and failure behavior, Rollout, Decisions                             | **Related work**: the items the page mentions                    |
+| **Runbook**              | When to use this runbook, Before you start (tasks: access you need, who to tell), Steps, Verify, Roll back, Escalation | None                                                             |
+| **Decision record**      | Status (_Proposed_), Context, Decision, Options considered, Consequences                                               | None                                                             |
+| **Retrospective**        | What went well, What did not go well, What we learned, Actions                                                         | **Work in the iteration**, when you chose an iteration           |
+| **Iteration notes**      | Goal, Work, Risks, Notes, Retrospective (What went well, What to change), Follow-ups                                   | The iteration's work under **Work**, when you chose an iteration |
+
+Under each heading an italic prompt says what belongs there, for example
+_Describe the expected behavior, including failure cases._ Replace the
+prompts as you write. Some prompts point at what the page can do in Lictory:
+the design doc and decision record suggest typing `/` and choosing
+**Decision** to show a decision recorded on a work item, and the
+requirements prompt suggests selecting a requirement to create a work item
+from it.
+
+## Iteration notes from the board or backlog
+
+Planners can also create iteration notes from the iteration itself:
+**Create iteration notes** in an iteration's context pages (on the board,
+the backlog or the iteration report). Lictory creates the page from this
+template in a space you can edit, with the iteration's goal filled in, and
+keeps it as the iteration's context page in the same step. See
+[context pages](/knowledge/context-pages#create-iteration-notes).
+
+## What to watch for
+
+- **The first version is published at once**, also in a Reviewed space: the
+  template is what a new page starts with, the way a blank page starts
+  empty. Every change after it follows the space's publishing policy.
+- **Live lists show today's work.** A work list stores which items to show,
+  not the items themselves, so reading an old version shows the items as they
+  are now. See [live work lists](/spaces/blocks#live-work-lists).
+- **The iteration list needs a project.** Only a page in a project or team
+  space offers the **Iteration** field, and only for iterations that are
+  not completed. Pages in organization spaces, and pages created without an
+  iteration, have no iteration list; add one later with `/` → **Work list**.
+- **Templates are fixed.** You cannot add your own templates or change the
+  built-in ones. To reuse a structure of your own, keep a page as an example
+  and copy from it.
+
+## Tips
+
+- Write a runbook from the **Runbook** template and attach it to the work
+  items it supports, with the purpose **Runbook**
+  ([attach a page](/knowledge/in-work#attach-a-page)).
+- Start product requirements in a page when the problem spans several items,
+  then select each requirement and **Create work item** from it: every item
+  keeps a quote of the exact version it came from.
+- Give each sprint its notes page from **Create iteration notes**, so the
+  goal, the live list of work and the retrospective live in one place.

@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillMarkdown } from "../helpers/editor";
+import { openDiscussions } from "../helpers/discussions";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
@@ -154,14 +156,19 @@ test("without an AI provider or file storage, refinement works and those feature
   // Core refinement does not depend on AI.
   await page.goto(seeded.itemPath(1));
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Specification" })
-    .fill("# Behavior\n\nStatements close at midnight UTC.");
+  await fillMarkdown(
+    page,
+    "Specification",
+    "# Behavior\n\nStatements close at midnight UTC.",
+  );
   await page.getByRole("button", { name: /Save revision 2/ }).click();
   await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
-  await page
-    .getByRole("textbox", { name: "Start a discussion" })
-    .fill("Which time zone do merchants expect?");
+  await openDiscussions(page);
+  await fillMarkdown(
+    page,
+    "Start a discussion",
+    "Which time zone do merchants expect?",
+  );
   await page.getByRole("button", { name: "Post", exact: true }).click();
   await expect(
     page

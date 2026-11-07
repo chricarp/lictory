@@ -1,3 +1,4 @@
+import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { useParams } from "@lictory/platform/lib/navigation";
@@ -260,6 +261,13 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
             </div>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <ContextControl
+              project={project}
+              lists={[
+                { label: team.name, teamId: team.id },
+                { label: project.name },
+              ]}
+            />
             {native && (
               <Link
                 href={paths.board(org, project.key, team.id)}

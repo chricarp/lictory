@@ -1,0 +1,15 @@
+{
+  "title": "Deliver",
+  "pages": [
+    "index",
+    "breakdown",
+    "board",
+    "backlog",
+    "iterations",
+    "reports",
+    "relations",
+    "teams",
+    "organize",
+    "[Deliver in Jira](/integrations/jira)"
+  ]
+}

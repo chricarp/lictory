@@ -4,7 +4,8 @@ description: Readiness is evidence, not a status label. Each project defines the
 ---
 
 A specification is not ready because someone chose _Ready_ from a menu.
-Lictory computes readiness from facts, like CI for requirements.
+Lictory computes readiness from facts, like CI for requirements. Each check
+states what it verified and, when it fails, what would make it pass.
 
 ## Refinement state
 
@@ -12,7 +13,11 @@ Spec-backed items have a refinement state next to their delivery status:
 `draft`, `refinement`, `in review` and `ready`. The two are never merged into
 one field. Lictory sets `ready` itself when every readiness check passes, and
 takes it away when one stops passing (a new revision, a blocking thread, a
-stale approval).
+stale approval). The first time a specification becomes ready, its main is
+protected: later changes go through reviewed pull requests.
+
+Ready means eligible for delivery. It does not accept, schedule or start the
+work; that is a separate decision.
 
 ## Definition of Ready
 
@@ -36,7 +41,8 @@ A project can add:
   given on one revision; a new revision needs a new sign-off.
 - **A Lictory Intelligence check**: the latest item review found no blocker
   (or no blocker or major finding) on the current revision. It can only be
-  required next to a person's decision.
+  required next to a person's decision, and anyone holding a discipline can
+  override it for one revision.
 
 The Definition of Ready is versioned. Before publishing a change, a preview
 shows which items keep their version, which become ready and which would need
@@ -48,17 +54,31 @@ rules changed.
 
 Readiness connects refinement to delivery. In a native project, the
 **readiness policy** decides what happens when a spec-backed item that is not
-ready moves into a _started_ status:
+ready is accepted for delivery or moves into a _started_ status:
 
-| Policy           | Effect                                                 |
-| ---------------- | ------------------------------------------------------ |
-| `off`            | Readiness is informative only                          |
-| `warn` (default) | The move succeeds; activity records the failing checks |
-| `block`          | The move is refused, naming the failing checks         |
+| Policy             | Effect                                                 |
+| ------------------ | ------------------------------------------------------ |
+| **Allow**          | Readiness is informative only                          |
+| **Warn** (default) | The move succeeds; activity records the failing checks |
+| **Block**          | The move is refused, naming the failing checks         |
 
-The policy applies when work starts on the current revision while it is not
-ready. An item whose earlier revision was already accepted for delivery can
-keep moving while a later change to it is still being refined.
+Plain work under a specification follows that specification's readiness. An
+item whose earlier revision was already accepted for delivery can keep moving
+while a later change to it is still being refined.
 
 In an external project, only ready specifications can be handed off to Jira,
 whatever the policy.
+
+## Learn more
+
+<Cards>
+  <Card title="Readiness checks" href="/review/readiness">
+    Read an item's evidence, edit the Definition of Ready and set the policy.
+  </Card>
+  <Card title="Approve or request changes" href="/review/approvals">
+    Why approvals belong to one revision.
+  </Card>
+  <Card title="Delivery" href="/concepts/delivery">
+    What happens after a specification is ready.
+  </Card>
+</Cards>

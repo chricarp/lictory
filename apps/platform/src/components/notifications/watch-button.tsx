@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
+import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { notificationRequest } from "@lictory/platform/components/notifications/client";
 
@@ -14,10 +15,15 @@ export function WatchButton({
   organizationId,
   workItemId,
   involved,
+  appearance = "button",
+  className,
 }: {
   organizationId: string;
   workItemId: string;
   involved: boolean;
+  // A row of a menu (the item header's More menu on phones).
+  appearance?: "button" | "menuitem";
+  className?: string;
 }) {
   const key = `${organizationId}:${workItemId}`;
   const [explicit, setState] = useState<boolean | null | undefined>(() =>
@@ -63,10 +69,30 @@ export function WatchButton({
       setExplicit(explicit);
     }
   };
+  if (appearance === "menuitem")
+    return (
+      <button
+        type="button"
+        aria-pressed={watching}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted",
+          className,
+        )}
+        onClick={() => void toggle()}
+      >
+        {watching ? (
+          <Bell className="size-3.5 text-muted-foreground" aria-hidden />
+        ) : (
+          <BellOff className="size-3.5 text-muted-foreground" aria-hidden />
+        )}
+        {watching ? "Watching" : "Watch"}
+      </button>
+    );
   return (
     <Button
       variant="ghost"
       size="sm"
+      className={className}
       aria-pressed={watching}
       title={
         watching

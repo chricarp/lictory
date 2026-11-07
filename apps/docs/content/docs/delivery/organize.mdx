@@ -1,0 +1,130 @@
+---
+title: Organize work
+description: Group work with labels and milestones, find any item with All items and its filters, and archive work you no longer need.
+---
+
+Boards and backlogs show what is being worked on now. To find everything
+else (finished work, a release's scope, all the bugs with one label) use
+labels, milestones and **All items**.
+
+## Labels
+
+![Project settings, Labels & milestones: the labels customer-facing and payments-core with how many items carry each, New label, and the milestone Safe captures beta with its target date and Planned](/screenshots/project-labels.webp)
+
+Labels tag work across types and stages: `payments-api`, `customer-facing`,
+`tech-debt`. Each project has its own labels.
+
+- **On an item**, choose **Add label** in its properties. Pick existing
+  labels, or type a **Label name**, pick a color and create a new one.
+- **In Project settings → Labels & milestones**, rename labels, change their
+  color, and archive or restore them.
+
+Project administrators and people whose discipline can **Change properties**
+manage labels. Archiving a label keeps every past assignment.
+
+In a project that hands off to Jira, labels are written to the Jira issue on
+each hand-off. Labels added in Jira are kept.
+
+## Milestones
+
+A milestone is a target the project works toward, such as a release, with
+an optional target date and a status: **Planned**, **Active**,
+**Completed** or **Cancelled**.
+
+- **On an item**, set its **Milestone**, or create one with a **Milestone
+  name** and **Target date**.
+- **In Project settings → Labels & milestones**, change a milestone's name,
+  target date and status, see how many items it holds, and archive or
+  restore it.
+
+Milestones are not iterations: they don't burn down and don't have an
+active one. Use them to group work across sprints toward one goal.
+
+## All items
+
+**All items**, under **Browse** in the project's sidebar, is the project's
+catalog: every proposal, specification and delivery item, including
+completed and canceled work.
+
+![All items in Payments grouped by status (Backlog, Unstarted, Started, Done), the type filters above the list, and each row with labels, milestone, pages, readiness checks, owner and last update](/screenshots/delivery-all-items.webp)
+
+- **Types**: the row of types at the top narrows the list to one type, or
+  **All types**.
+- **Search**: filter by title or identifier.
+- **Filters**: **Status**, **Refinement**, **Type**, **Team**, **Priority**,
+  **Assignee**, **Parent**, **Labels** and **Milestone**. Each applied filter
+  shows as a chip you can remove.
+- **Sort and group**: sort by **Last updated**, **Created**, **Priority**,
+  **Status** or **Identifier**; group by status; **Show archived** includes
+  archived items.
+
+Move through the list with `j` and `k` (or the arrow keys) and open the
+selected item with `Enter` or `o`.
+
+### Keep a view
+
+Filters, sort, grouping and **Show archived** live in the page's address.
+Bookmark it, or share the link, and it opens the same view for anyone who
+can see the project.
+
+### Built-in views
+
+The project's sidebar also has **Views**: **Needs review** (an outstanding
+review request), **Blocked** (an open blocking discussion) and **Recently
+updated** (changed in the last two days). You cannot create your own named
+views; a bookmarked **All items** address serves the same purpose.
+
+## Archive and restore
+
+Archive work that should leave the lists without being deleted: a
+duplicate, an idea the team dropped, an obsolete Story.
+
+<Steps>
+<Step>
+
+### Archive
+
+On the item page, open **More actions** (**⋯**) and choose **Archive**.
+
+</Step>
+<Step>
+
+### Find it again
+
+Turn on **Show archived** in **All items**.
+
+</Step>
+<Step>
+
+### Restore
+
+Open the archived item and choose **More actions → Restore**.
+
+</Step>
+</Steps>
+
+Archiving needs a discipline that can **Change properties**. Nothing is
+deleted: the specification, revisions, discussions, decisions and activity
+stay.
+
+### What to watch for
+
+- **Archiving a parent archives its children.** Its active descendants are
+  archived with it. Restoring the parent does not restore them, so no child
+  comes back unseen: restore each one you still need.
+- **Archived work leaves product knowledge.** Archived items, and the
+  decisions recorded on them, no longer appear in product knowledge search
+  until they are restored. Done and canceled items are not archived and stay
+  searchable. See [product knowledge](/search/product-knowledge).
+- **Cancel instead of archiving finished decisions.** If the team decided
+  not to build something, a canceled status keeps the item visible as
+  history; archiving hides it.
+
+## Tips
+
+- Use labels for cross-cutting themes and milestones for dated goals. Don't
+  encode team or type in labels: teams and types already filter the list.
+- Bookmark the **All items** views you check every week, such as open Bugs
+  of your team.
+- Mark a duplicate with a **Duplicates** [relation](/delivery/relations)
+  before archiving it, so readers find the original.

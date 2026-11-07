@@ -1,0 +1,103 @@
+---
+title: The backlog
+description: Rank a native project's work, plan it into sprints or cycles, and size it with estimates.
+---
+
+The **backlog** is a native project's work in rank order, with the open
+sprints or cycles above it. Rank what matters most to the top, then drag
+work into an iteration to plan when the team takes it on. The sidebar calls
+it **Backlog & sprints**, **Backlog & cycles** or **Backlog**, depending on
+how the project plans.
+
+![The Payments backlog: Sprint 1 (Active) with its items, points and Report button above the ranked Backlog, each row showing the item, its specification state, delivery status and estimate](/screenshots/delivery-backlog.webp)
+
+## What the backlog shows
+
+- **Iterations** that are active or planned, each with its dates, item
+  count and points, and a recent-velocity hint (`12 / ~15 pts`) that turns
+  amber when the plan exceeds it.
+- **Backlog**: open work not planned into any iteration, ranked.
+- **Completed**: finished iterations, each a link to its frozen
+  [report](/delivery/reports).
+
+Each row shows the item, its **Specification** state (ready or not, or plain
+work without one), its **Delivery** status and its estimate (**Est.**).
+Epics are not listed; their children are.
+
+## Rank and plan
+
+<Steps>
+<Step>
+
+### Rank the backlog
+
+Drag rows up or down. Rank is shared: the board, the team backlogs and the
+backlog all use the same order.
+
+</Step>
+<Step>
+
+### Plan into an iteration
+
+Drag a row into a sprint or cycle, or back into **Backlog**. You can also
+set the **Sprint** (or **Cycle**) of an item from its preview or its item
+page.
+
+</Step>
+<Step>
+
+### Accept what you commit to
+
+Planning is tentative. When the team commits to a spec-backed item, accept
+it for delivery (or let starting it do so). See
+[ready is not accepted](/delivery#ready-is-not-accepted).
+
+</Step>
+</Steps>
+
+**Choose ready work →** at the top opens the **Ready for delivery** queue:
+specifications whose checks pass and that nobody has accepted yet.
+
+Planning needs project administration or a discipline that can **Change
+properties**. Without it, the backlog is read-only.
+
+## Create work
+
+**New item** creates an item in the project, already narrowed to the team
+you are viewing. From delivery surfaces, the default type is plain work, so
+the new item shows up where you created it. Choose a spec-backed type when
+the work needs refinement first.
+
+## Estimates
+
+Estimates are whole numbers on items. A project administrator chooses the
+scale in **Project settings → Planning**, under **Estimates**:
+
+| Scale                                 | Values                                       |
+| ------------------------------------- | -------------------------------------------- |
+| **No estimates**                      | Estimates are off.                           |
+| **Points (0, 1, 2, 3, 5, 8, 13, 21)** | Fibonacci points.                            |
+| **Points (0–8)**                      | Linear points.                               |
+| **T-shirt sizes (XS–XL)**             | Stored as points: XS 1, S 2, M 3, L 5, XL 8. |
+
+Set an estimate from the item's preview or its item page (**Estimate**). A parent shows the sum of its children's estimates. Reports use
+estimates for burndown and velocity; see [reports](/delivery/reports).
+
+![The project settings Planning section with Iterations set to Sprints, a two-week length and the estimate scale](/screenshots/project-planning.webp)
+
+## What to watch for
+
+- **Jira projects have no backlog.** Iterations and estimates are Jira's in
+  external mode, so the backlog is replaced by **Hand-off**.
+- **Completed iterations are closed.** Work cannot be planned into a
+  completed sprint or cycle.
+- **Changing the scale doesn't convert values.** Stored estimates stay the
+  numbers they were. Pick the scale before the team starts estimating.
+
+## Tips
+
+- Keep the top of the backlog accepted or ready: work there should be
+  something the team can start tomorrow.
+- Use the velocity hint as a sanity check while planning, not as a target.
+- Narrow the backlog to a team with the team picker in the header, or open
+  the team's own [team backlog](/delivery/teams#team-backlog).

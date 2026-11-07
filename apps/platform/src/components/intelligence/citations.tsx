@@ -1,6 +1,7 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { BookOpen } from "lucide-react";
+import { BookOpen, FileText } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
+import type { PageEvidence } from "@lictory/platform/components/intelligence/chat/activity";
 import {
   scopeLabel,
   type IntelligenceContextUse,
@@ -43,6 +44,69 @@ export function ContextCitations({
         </span>
       ))}
     </p>
+  );
+}
+
+// Pages of Lictory Spaces the assistant read or found, each at the exact
+// version it used: the link opens that version (`?commit=`), so people
+// check the answer against what was actually read, not today's page.
+export function PageCitations({ pages }: { pages: readonly PageEvidence[] }) {
+  if (!pages.length) return null;
+  return (
+    <ul aria-label="Pages used" className="-mx-1 grid">
+      {pages.map((p) => {
+        const version =
+          p.version !== null
+            ? `version ${p.version}`
+            : p.published === false
+              ? "an earlier version"
+              : p.published
+                ? "published version"
+                : null;
+        const detail = [
+          p.space,
+          version,
+          p.publishing === "reviewed"
+            ? "reviewed"
+            : p.publishing === "direct"
+              ? "published directly"
+              : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const content = (
+          <>
+            <FileText
+              aria-hidden
+              className="size-3.5 shrink-0 text-muted-foreground"
+            />
+            <span className="min-w-0 truncate">{p.title}</span>
+            {detail && (
+              <span className="ml-auto shrink-0 truncate text-[11px] text-muted-foreground">
+                {detail}
+              </span>
+            )}
+          </>
+        );
+        return (
+          <li key={`${p.pageId}@${p.commitId ?? ""}`}>
+            {p.href ? (
+              <Link
+                href={p.href}
+                title={version ? `Open ${version} of ${p.title}` : undefined}
+                className="flex min-w-0 items-center gap-2 rounded px-1 py-0.5 hover:bg-muted/60"
+              >
+                {content}
+              </Link>
+            ) : (
+              <span className="flex min-w-0 items-center gap-2 px-1 py-0.5">
+                {content}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

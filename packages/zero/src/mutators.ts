@@ -7,6 +7,7 @@ import {
   type DirectoryProjection,
 } from "@lictory/core/contracts/projection";
 import {
+  isKnowledgeCommand,
   isSpaceCommand,
   mutationSchema,
   type Entity,
@@ -40,6 +41,9 @@ export const mutators = defineMutators({
           await predictSpaceTree(tx, args.organizationId, command, ctx.userID);
         return;
       }
+      // Knowledge links need the page's access checked by the server and
+      // are projected with the page: nothing is predicted.
+      if (isKnowledgeCommand(command)) return;
       const workItemId =
         "workItemId" in command && typeof command.workItemId === "string"
           ? command.workItemId

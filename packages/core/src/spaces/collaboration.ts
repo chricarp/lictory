@@ -32,7 +32,7 @@ import {
   type DraftRef,
 } from "@lictory/core/spaces/drafts";
 import {
-  CLOSE_REASONS,
+  closeReasonsFor,
   DRAFT_SEQUENCE_REQUEST,
   SAVE_REFUSALS,
   draftStoredPayload,
@@ -147,13 +147,15 @@ export function draftCollaboration(options: Options) {
 
     async onAuthenticate(payload: onAuthenticatePayload) {
       const author = await options.authenticate(payload);
-      if (!author) throw forbidden(CLOSE_REASONS.signedOut);
+      if (!author)
+        throw forbidden(closeReasonsFor(payload.documentName).signedOut);
       const ref = await options.resolve(payload.documentName);
       // Unknown, fenced and replaced drafts read the same, so the answer
       // says nothing about drafts the person cannot see.
-      if (!ref) throw forbidden(CLOSE_REASONS.replaced);
+      if (!ref) throw forbidden(closeReasonsFor(payload.documentName).replaced);
       const allowed = await access(author, ref).catch(() => null);
-      if (!allowed) throw forbidden(CLOSE_REASONS.noAccess);
+      if (!allowed)
+        throw forbidden(closeReasonsFor(payload.documentName).noAccess);
       payload.connectionConfig.readOnly = !allowed.edit;
       return { ...author, ref } satisfies CollaborationContext;
     },
@@ -265,14 +267,15 @@ export function draftCollaboration(options: Options) {
       if (!connections.length) return;
       if (!(await stillCurrent(document.name, connections[0]!))) {
         for (const connection of connections)
-          connection.close(forbidden(CLOSE_REASONS.replaced));
+          connection.close(forbidden(closeReasonsFor(document.name).replaced));
         return;
       }
       await Promise.all(
         connections.map(async (connection) => {
           const context = connection.context as CollaborationContext;
           const allowed = await access(context, context.ref).catch(() => null);
-          if (!allowed) connection.close(forbidden(CLOSE_REASONS.revoked));
+          if (!allowed)
+            connection.close(forbidden(closeReasonsFor(document.name).revoked));
           else if (!allowed.edit) connection.readOnly = true;
         }),
       );
@@ -295,7 +298,7 @@ export function draftCollaboration(options: Options) {
         if (!wanted.has(ref.draftId)) return;
         if (await stillCurrent(document.name, first)) return;
         for (const connection of document.getConnections())
-          connection.close(forbidden(CLOSE_REASONS.replaced));
+          connection.close(forbidden(closeReasonsFor(document.name).replaced));
       }),
     );
   }

@@ -74,7 +74,8 @@ Lictory must pass WebSocket upgrades with the browser's `Origin` unchanged
 
 Reading pages, their history and comments works, but the editor cannot connect. Live
 editing is a WebSocket under `/collaboration`, served by the `collaboration`
-service. Check that the service runs and why it stopped:
+service, which also runs the live drafts of specifications: when it is
+unreachable, specification editors show the same message. Check that the service runs and why it stopped:
 
 ```sh
 lictory status

@@ -171,10 +171,56 @@ void test("deterministic GFM includes tables, tasks, references and escaped text
   );
   const markdown = documentToMarkdown(d);
   assert.match(markdown, /## Title/);
-  assert.match(markdown, /PAY-142\[\[page:pg\]\]/);
+  assert.match(markdown, /\[PAY-142\]\(item:wi\)\[\[page:pg\]\]/);
   assert.match(markdown, /- \[x\] done/);
   assert.match(markdown, /\| --- \|/);
   assert.equal(markdown, documentToMarkdown(d));
+});
+void test("page Markdown keeps reference identity through export and import", () => {
+  const d = doc({
+    type: "paragraph",
+    attrs: { id: "refs" },
+    content: [
+      { type: "text", text: "See " },
+      { type: "workItemRef", attrs: { workItemId: "item-1", key: "PAY-2" } },
+      { type: "text", text: ", " },
+      { type: "pageRef", attrs: { pageId: "page-1" } },
+      { type: "text", text: " and " },
+      {
+        type: "pageRef",
+        attrs: { pageId: "page-2", commitId: "commit-9" },
+      },
+      { type: "text", text: " under " },
+      {
+        type: "decisionRef",
+        attrs: { decisionId: "dec-1", label: "Retries reuse the ID" },
+      },
+    ],
+  });
+  const markdown = documentToMarkdown(d);
+  assert.equal(
+    markdown,
+    "See [PAY-2](item:item-1), [[page:page-1]] and [page](page:page-2@commit-9) under [Retries reuse the ID](decision:dec-1)",
+  );
+  const back = markdownToDocument(markdown);
+  const inline = back.content![0]!.content!.filter((n) => n.type !== "text");
+  assert.deepEqual(
+    inline.map((n) => [n.type, n.attrs]),
+    [
+      ["workItemRef", { workItemId: "item-1", key: "PAY-2" }],
+      ["pageRef", { pageId: "page-1" }],
+      ["pageRef", { pageId: "page-2", commitId: "commit-9" }],
+      ["decisionRef", { decisionId: "dec-1", label: "Retries reuse the ID" }],
+    ],
+  );
+  // A second export is identical: identity survives any number of trips.
+  assert.equal(documentToMarkdown(back), markdown);
+  // The older page form is still read.
+  const legacy = markdownToDocument("Read [[page:page-3]] first");
+  assert.deepEqual(
+    legacy.content![0]!.content!.find((n) => n.type === "pageRef")!.attrs,
+    { pageId: "page-3" },
+  );
 });
 function table(text: string): PageNode {
   return {

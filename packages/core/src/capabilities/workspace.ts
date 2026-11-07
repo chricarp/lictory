@@ -194,7 +194,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createPageBranch: {
     title: "Create page branch",
     description:
-      "Editors of a space: create a named branch of a page from main's latest commit or `fromCommitId`, with its own live draft. The author and the collaborators they invite edit it. Names follow Git's branch rules; `main` is reserved.",
+      "Editors of a space: create a named branch of a page from main's latest commit or `fromCommitId`, with its own live draft. The author and the collaborators they invite edit it. Names follow Git's branch rules; `main` is reserved. `origin` { workItemId, revisionId } records the work item revision the branch documents (“Propose page update”), kept after the branch is merged or deleted.",
   },
   setPageBranchCollaborator: {
     title: "Set page branch collaborator",
@@ -253,7 +253,32 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   proposePageChange: {
     title: "Propose page change",
     description:
-      "Propose a new version of a page without publishing it: creates a branch from main, a commit with `title` and the new content (`markdown`, GitHub-flavoured, or canonical Tiptap JSON `content`) and an open pull request into main titled by the first line of `message`. People review and merge it. Returns `branchId`, `commitId`, `pullRequestId` and `draftId` (the branch's live draft).",
+      "Propose a new version of a page without publishing it: creates a branch from main, a commit with `title` and the new content (`markdown`, GitHub-flavoured, or canonical Tiptap JSON `content`) and an open pull request into main titled by the first line of `message`. People review and merge it. `origin` { workItemId, revisionId } records the work item revision the change documents (“Propose page update” from an item), so the item lists the proposal. Returns `branchId`, `commitId`, `pullRequestId` and `draftId` (the branch's live draft).",
+  },
+  attachPage: {
+    title: "Attach page to work item",
+    description:
+      "Attach a page to a work item as context: `purpose` background, design or runbook, optionally pinned to one version (`commitId` from listPageCommits; omitted: the published page). Needs change-properties in the item's project and read access to the page; attaching never gives the item's readers access to the page, and only people who can read the page see the attachment. Attaching an attached page with another purpose or pin replaces the attachment. Returns `attachmentId`. Reverse with detachPage.",
+  },
+  detachPage: {
+    title: "Detach page from work item",
+    description:
+      "Remove a page attachment from a work item (`attachmentId` from getWorkItemKnowledge). Needs change-properties in the item's project and read access to the page. The attachment's history is kept in the page's activity; attach the page again to restore it.",
+  },
+  linkContextPage: {
+    title: "Link context page",
+    description:
+      "Keep a page as context of a project (board and backlog), one of its teams (`teamId`) or one of its iterations (`iterationId`: goals, notes, retrospectives), placed between the context pages `afterId` and `beforeId` of that list (both omitted: last). Project administrators and members whose discipline changes item properties manage context pages; the page must be readable by you, and only its readers see the link. Returns `linkId`. Reverse with unlinkContextPage.",
+  },
+  unlinkContextPage: {
+    title: "Unlink context page",
+    description:
+      "Remove a context page from its project, team or iteration list (`linkId` from listContextPages). The page itself is unchanged; link it again to restore it.",
+  },
+  moveContextPage: {
+    title: "Reorder context page",
+    description:
+      "Move a context page between two others of the same list (`afterId`, `beforeId`; null for an open end).",
   },
   createProject: {
     title: "Create project",
@@ -301,7 +326,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createWorkItem: {
     title: "Create work item",
     description:
-      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision. Unknown fields are rejected. Specification text belongs in `description`, not `content`. Set an estimate afterwards with updateWorkItem. The result includes `key` and `revisionId`.",
+      "Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision. Unknown fields are rejected. Specification text belongs in `description`, not `content`. Set an estimate afterwards with updateWorkItem. `source` { pageId, commitId, blockId?, quote? } records committed page content the item is created from (you must be able to read the page; the commit must be one of its versions, the block one of that version's top-level blocks, the quote at most 2000 characters); only readers of the page see it. The result includes `key` and `revisionId`.",
   },
   updateWorkItem: {
     title: "Update work item properties",
@@ -401,6 +426,17 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     title: "Commit to branch",
     description:
       "Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId, title, description) or a change to an existing direct child (changeId, workItemId, base {revisionId, title} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
+  },
+  openSpecificationDraft: {
+    title: "Open specification draft",
+    description:
+      "Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. `discardChanges: true` starts the draft again from the line's latest Markdown for everyone editing it (the discarded edits stay recoverable on the server). Agents cannot type into live drafts; they change specifications with updateSpecification or a branch commit.",
+  },
+  commitSpecificationDraft: {
+    title: "Save specification draft",
+    description:
+      "Seal the live draft of a specification line (`draftId`, `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw: on main a new revision (`message` is its change summary; existing approvals are marked outdated and reviews re-requested, as for updateSpecification), on a branch a commit (`message` is the commit message; optional `proposedChildren` made from `breakdownBaseCommitId`). The content is what the server stored, never sent. Edits that cancel out record the cut without a revision or commit. Main of a protected specification is refused.",
+    decision: true,
   },
   syncBranch: {
     title: "Sync branch",

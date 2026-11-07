@@ -39,6 +39,7 @@ import {
   touchIcon,
   touchTarget,
 } from "@lictory/platform/components/spaces/touch";
+import { SpaceLinkedWork } from "@lictory/platform/components/spaces/work/space-work";
 
 const RECENT = 5;
 
@@ -233,6 +234,8 @@ export function SpaceHome() {
             </p>
           )}
         </section>
+        {/* Project and team spaces: the work their pages mention. */}
+        {space.projectId && <SpaceLinkedWork spaceId={space.id} />}
         {active.length > 3 && (
           <section aria-labelledby="space-recent" className="mt-10">
             <h2 id="space-recent" className="mb-2 px-1 text-sm font-semibold">

@@ -52,28 +52,47 @@ minor findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
 
-## The page editor's keyboard model
+## The editor's keyboard model
 
-The live page editor (Lictory Spaces) is a rich text field
-(`role="textbox"`, multi-line, named by the page title and described by its
-save state). From the title field, Enter or Arrow Down moves into the
-content.
+Every rich text field (the live page editor and Work's Markdown fields:
+specifications, branch drafts, descriptions, discussions, decisions) is a
+multi-line `role="textbox"` named by its label (the page title in the live
+editor, which is also described by its save state). From a page's title
+field, Enter or Arrow Down moves into the content.
 
 - **Toolbar.** One tab stop (WAI-ARIA toolbar pattern): Arrow Left/Right,
   Home and End move between controls; every control is labelled and toggles
   report `aria-pressed`. Controls that do not apply right now stay focusable
   with `aria-disabled`, so the toolbar keeps its place in the tab order.
   Clicking a control keeps the editor's selection.
-- **Inline pickers.** "/" (blocks), "#" (work items) and "[[" (pages) open a
-  listbox while focus stays in the editor, which points
-  `aria-activedescendant` at the chosen option: Arrow Up/Down choose, Enter
-  or Tab inserts, Escape closes.
+- **Inline pickers.** "/" (blocks), "#" (work items), "[[" (pages) and "@"
+  (people, in fields that mention) open a listbox while focus stays in the
+  editor, which points `aria-activedescendant` at the chosen option: Arrow
+  Up/Down choose, Enter or Tab inserts, Shift+Enter inserts the option's
+  alternative (a page pinned to its published version; the chosen option
+  is described by that instruction, and shows it as a pointer button),
+  Escape closes the picker only. "/" → Decision opens a search field (a combobox) at the caret;
+  Escape returns to the text.
 - **Shortcuts.** Mod+B, Mod+I, Mod+Shift+S, Mod+E for marks, Markdown input
   rules for blocks, Mod+Z / Mod+Shift+Z undo and redo one's own changes,
-  Mod+Alt+M comments on the selection.
+  Mod+Alt+M comments on the selection. In Markdown fields Mod+Enter submits
+  (saves the revision, posts the comment) and Escape cancels where the field
+  has a cancel; "Edit as Markdown" in the toolbar switches to the Markdown
+  text, which is also how text kept as written is changed.
+- **References.** Chips in readers are links (a decision recorded elsewhere,
+  a button); focusing one, or pointing at it, shows its card, which describes
+  the chip (`aria-describedby`) and closes with Escape. In an editor a chip is
+  part of the text: moving the selection onto it shows its card.
 - **Comments.** The comments panel is a labelled region beside the page, or
   a modal sheet on narrow frames (Escape closes it and focus returns to what
-  opened it). Composers post with Mod+Enter.
+  opened it). Composers post with Mod+Enter. A specification's discussions
+  work the same way: the header toggle states the open and blocking counts
+  and whether the panel is expanded, Alt+Arrow Up/Down (Home and End with
+  Alt) move between threads and select the one reached, so its passage is
+  marked, and a thread's quote is a button that brings its passage into
+  view. Mod+Alt+M comments on the text selected in the specification, or
+  opens the panel at the composer when nothing is selected. Threads whose
+  text changed say so in words, not only by colour.
 - **Carets.** Other people's carets and their name labels are decorative
   (`aria-hidden`); who is editing is stated next to the save state.
 
@@ -91,10 +110,15 @@ Not covered automatically, and worth checking by hand when these areas change:
 - **Comments on published page text.** The page reader is read-only, so
   selecting its text needs a pointer (or the browser's caret browsing);
   keyboard users comment on the whole page there, or on text in the live
-  editor, where the selection is keyboard-driven (Mod+Alt+M).
+  editor, where the selection is keyboard-driven (Mod+Alt+M). The same
+  holds for "Create work item" on selected text; an open task's "Create
+  work item" button is reachable with Tab (it appears on focus).
 - **Text selection comments.** Selecting specification text with a mouse
-  offers a selection toolbar (comment, ask); keyboard users start a
-  discussion from the composer instead, without the quoted anchor.
+  offers a selection toolbar (comment, ask). The reader is read-only, so a
+  keyboard selection needs the browser's caret browsing; Mod+Alt+M then
+  comments on it, and without a selection it opens the composer for a
+  discussion without a quoted anchor. Marked passages open their thread
+  with a pointer; from the keyboard, threads are reached in the panel.
 - **Drag and drop.** Board cards, backlog ranking and story order are dragged
   with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
   and a card's status and iteration can be changed from the item's properties;

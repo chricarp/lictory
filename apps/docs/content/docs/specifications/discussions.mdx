@@ -1,0 +1,195 @@
+---
+title: Discuss a specification
+description: Comment on the exact text you are concerned about, mark what must be settled before the work is ready, and resolve discussions without losing their history.
+---
+
+A **discussion** (a thread) is attached to what it is about: a passage of the
+specification, or the specification as a whole. It keeps the revision it was
+written on, so nobody has to ask what a comment referred to, even after the
+text has changed many times.
+
+![The PAY-2 specification with the Discussions panel open beside it: three open discussions, one blocking, in document order, and the blocking one’s quoted passage tinted in the text](/screenshots/work-discussions-panel.webp)
+
+## When to use it
+
+- Ask a question about one sentence, flag a missing case or point out a
+  contradiction: comment on the passage.
+- Raise something that concerns the whole specification (scope, a missing
+  section): start a discussion on the whole specification.
+- Mark a discussion **blocking** when the specification must not become ready
+  until it is settled.
+
+To propose new wording rather than talk about it, change the text on a
+[branch](/specifications/branches) instead, or select the passage and choose
+**Suggest a change**.
+
+## Start a discussion
+
+<Steps>
+<Step>
+
+### Select the text
+
+In the specification's reading view, select the passage you mean. A small
+toolbar appears with **Comment on selection**. You can also press
+`Ctrl Alt M` (`⌘ ⌥ M` on a Mac).
+
+</Step>
+<Step>
+
+### Write your comment
+
+The **Discussions** panel opens with the quoted passage above the composer.
+Write what is unclear or wrong. Type `@` to mention someone; they are
+notified. **Remove quote** turns it into a discussion of the whole
+specification.
+
+</Step>
+<Step>
+
+### Choose whether it blocks
+
+Tick **Blocks readiness** when the point must be settled before the
+specification can become ready. Then choose **Post** (or **Post blocking
+discussion**). The composer shows the revision the discussion will belong to.
+
+</Step>
+</Steps>
+
+To discuss the whole specification, use the composer at the foot of the
+panel (_Ask a question, flag a gap, or raise a concern…_). Pressing
+`Ctrl Alt M` without a selection opens it.
+
+### What a discussion remembers
+
+A discussion on selected text records three things about the passage: the
+quoted words, the heading they are under, and which copy of those words under
+that heading you selected. Repeated phrases therefore never point at the wrong
+place. Discussions are written on the current revision: the reading view, not
+the [live draft](/specifications/live-drafts) you edit. Save your edits as a
+revision before you ask people to comment on them.
+
+## The Discussions panel
+
+The **Discussions** button in the item header counts the open discussions of
+the current revision, with a red dot when some block readiness (_2 open
+discussions · 1 blocking readiness_). It opens the panel:
+
+- **On a wide screen**, beside the specification, next to the review rail.
+  When only one of them fits, the panel takes the rail's place and **Review &
+  details** opens the rail as a drawer.
+- **On a phone**, as a sheet from the bottom. `Escape` closes it.
+
+Lictory remembers in this browser whether you keep the panel open. Until you
+choose, it opens by itself beside a specification that has open discussions,
+when the screen is wide enough.
+
+The panel lists:
+
+1. discussions whose passage is in the current revision, in the order of the
+   text;
+2. discussions whose text has changed or been removed;
+3. discussions **On the whole specification**;
+4. resolved discussions, folded under **Show N resolved**.
+
+![A blocking discussion card: the Blocking badge, the section it is on, the revision it was written on, the quoted passage and Reply, Resolve, Resolve as decision and Mark non-blocking](/screenshots/detail-discussion-thread.webp)
+
+Commented passages are tinted in the text, red for blocking discussions.
+Pointing at a passage or a discussion marks the other more strongly; clicking
+a tinted passage selects its discussion, and clicking the quote in a card
+scrolls to the passage. `Alt ↑` and `Alt ↓` move between discussions
+(`Alt Home` and `Alt End` to the first and last).
+
+Each card says what it is on (_on “Failure behavior”_) and links to the
+revision it was written on, where the quote is marked.
+
+## When the text changes
+
+A discussion is never moved to other text. In each new revision Lictory looks
+for the quoted words under the same heading:
+
+- **Found**: the discussion stays attached to the passage.
+- **_The quoted text changed_**: the heading is still there but the words
+  are not (for example _The quoted text changed since revision 2_). The card
+  keeps showing the original quote.
+- **_Original text removed_**: the heading is gone too.
+
+In both cases the quote is shown in grey and the revision link opens the text
+as it was. If the words moved to another section and occur exactly once in
+the revision, the discussion follows them; if they occur several times, it is
+not attached to any of them.
+
+![A discussion whose quoted text changed: on “Behavior”, revision 1, the warning “The quoted text changed since revision 1” above the original quote “three times with exponential backoff”](/screenshots/detail-detached-anchor.webp)
+
+## Reply, resolve and reopen
+
+- **Reply** adds a message (`Ctrl Enter` / `⌘ Enter` sends).
+- **Resolve** closes the discussion. **Reopen** opens it again.
+- **Mark blocking** and **Mark non-blocking** change what it holds back.
+- **Resolve as decision** resolves it and opens the decision form with its
+  last message as the starting point; **Record decision** does the same for a
+  resolved discussion. See [decisions](/specifications/decisions).
+
+Resolving never deletes anything. Messages cannot be edited or deleted, and
+the item's activity records who resolved or reopened a discussion and when it
+became blocking or non-blocking.
+
+### Blocking discussions
+
+An open blocking discussion fails the readiness check _No blocking discussion
+is open_ (part of the default [Definition of Ready](/review/readiness)). The
+panel says _Blocking discussions hold readiness back until they are
+resolved._ When a ready specification gets a new blocking discussion, it is
+no longer ready until the discussion is resolved.
+
+## Comments on plain work
+
+Plain work (a Task or a Bug, say) has no specification to anchor comments to.
+Its **Discussions** section sits under the description as one conversation:
+start a discussion, reply, resolve and reopen in the same way. Comments on
+plain work cannot be blocking, because plain work has no readiness checks.
+
+## Who can do what
+
+Anyone who can open the item can start discussions, reply, resolve, reopen and
+mark discussions blocking or non-blocking. No discipline is needed. An
+archived item's discussions are read-only.
+
+## Notifications
+
+| Notification                    | Who receives it                            | Default        |
+| ------------------------------- | ------------------------------------------ | -------------- |
+| Mentioned                       | People mentioned in a message              | In app + email |
+| Blocking discussion             | People involved in the item                | In app + email |
+| New discussion                  | People involved in the item (non-blocking) | In app         |
+| Reply                           | People who took part in the discussion     | In app         |
+| Discussion resolved or reopened | People who took part in the discussion     | In app         |
+
+You are involved in an item when you created it, are its assignee, requested
+or were named to review it, wrote in one of its discussions, or watch it.
+Change the defaults in [notification settings](/inbox/notifications).
+
+## What to watch for
+
+- **Discussions belong to revisions, not to the live draft.** You cannot
+  comment inside the editor while you type; comment in the reading view.
+- **Pull request discussions stay on the pull request.** They are about the
+  proposed result, block merging rather than readiness and do not appear in
+  the item's panel. See [branches and pull
+  requests](/specifications/branches#discuss-a-change).
+- **A blocking discussion holds back readiness only where the project's
+  checks include it**, as they do by default.
+- Selecting text needs a pointer. Keyboard users start a discussion of the
+  whole specification, and move between existing discussions with `Alt ↑`
+  and `Alt ↓`.
+
+## Tips
+
+- Quote the smallest passage that carries your point. A short quote survives
+  later edits of the surrounding text.
+- Use blocking sparingly: it says "this must be settled before anyone commits
+  to building it", not "I have a comment".
+- When a long discussion ends in an agreement, choose **Resolve as decision**
+  so the conclusion outlives the thread.
+- Pages in Lictory Spaces work the same way; see [page
+  comments](/spaces/comments).

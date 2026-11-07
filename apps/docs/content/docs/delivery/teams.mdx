@@ -1,0 +1,122 @@
+---
+title: Teams
+description: Split a project's work between the groups doing it, give each team its own backlog and pages, and move work between teams safely.
+---
+
+A **team** is a group of people working on one vertical of a project, such
+as Checkout or Refunds inside Payments. Teams are light: they own no
+workflow, types or settings. The project's workflow, readiness policy and
+iterations apply to every team. A team gives its work a home: a team
+backlog, a board narrowed to it, its own pages.
+
+Every work item belongs to one project and at most one of its teams.
+
+## When to use it
+
+- Several groups share one project and each wants to see its own work.
+- Work arrives in the project and someone has to decide which group takes
+  it.
+- A group keeps its own runbooks, designs or notes and wants them next to
+  its work.
+
+A small project with one group doesn't need teams. The project's board and
+backlog are enough.
+
+## Create a team
+
+<Steps>
+<Step>
+
+### Open the project's teams
+
+![Project settings, Teams: the Checkout team with its description, two members, links to its board and backlog, and Add team](/screenshots/project-teams.webp)
+
+Project administrators open **Project settings → Teams**.
+
+</Step>
+<Step>
+
+### Add the team
+
+Give it a name (for example `Checkout`) and, optionally, a description of
+what it works on.
+
+</Step>
+<Step>
+
+### Add its members
+
+Use the members button on the team's row to add people of the project.
+
+</Step>
+</Steps>
+
+The team then appears under **Teams** in the project's sidebar, your own
+teams first.
+
+Team membership grants no capabilities on work items: what you may do with
+items still comes from your [disciplines](/organization/disciplines) in the
+project. Membership decides who belongs to the team's spaces.
+
+## Team backlog
+
+Open a team from the sidebar to see its backlog. It has three parts:
+
+- **Backlog**: work the team has taken on but not yet planned into a
+  sprint or cycle, in the team's rank order. Drag to rank; use the plan
+  button on a row to put it into a sprint, or release it back to the
+  project (no team).
+- **Planned**: the team's work per iteration, with **Plan sprints** to open
+  the project backlog narrowed to the team.
+- **No team yet**: the project's open work no team has taken. **Take**
+  moves an item into this team.
+
+![The Checkout team backlog: its members, an empty Backlog, the Planned section with Sprint 1 and its items, and No team yet with a Take button](/screenshots/delivery-team-backlog.webp)
+
+The header has **Board** (the project board narrowed to the team),
+**Context** (the team's and the project's [context pages](/knowledge/context-pages))
+and **New item**, which creates an item for the team.
+
+Ranking, taking and planning work need a discipline in the project that can
+**Change properties**.
+
+## Move work between teams
+
+Set an item's **Team** on its item page or in its preview, or use **Take**
+on a team backlog. Moving an item between teams never changes its
+identifier, its status or its iteration: `PAY-142` stays `PAY-142`, in the
+same sprint, in the same column. The move is recorded in the item's
+activity.
+
+On the project's board and backlog, the **Team** picker narrows the view to
+one team, or to **No team**.
+
+## Team spaces and pages
+
+A space can belong to a team: choose the team as the space's **Location**
+when you [create it](/spaces/create). Members of the team can edit its
+pages by default, and everyone else in the organization can read them,
+unless the space is [restricted](/spaces/access).
+
+Keep the pages the team relies on in its **Context** list: they appear on
+the team backlog and on the board when it is narrowed to the team.
+
+## What to watch for
+
+- **Archiving keeps the work.** Archiving a team keeps its items and
+  history; they show no active team until it is restored.
+- **Teams don't change the workflow.** A team cannot have its own statuses,
+  types or sprint cadence. If two groups truly need different workflows,
+  they belong in different projects.
+- **Jira projects too.** In a project that hands off to Jira, a team backlog
+  shows work taken on but not yet handed off, and how many items are in the
+  delivery tool. See [Deliver in Jira](/integrations/jira).
+
+## Tips
+
+- Triage new work from **No team yet** once a week, so nothing sits
+  unclaimed.
+- Put the team's runbooks and on-call notes in a team space and link them
+  as team context pages.
+- Link the team-narrowed board in the team's chat channel: the address
+  keeps the filter.

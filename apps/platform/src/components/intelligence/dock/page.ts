@@ -18,7 +18,14 @@ export type PageKind =
   | "reviews"
   | "view"
   | "handoff"
-  | "project-settings";
+  | "project-settings"
+  // Lictory Spaces.
+  | "spaces"
+  | "space"
+  | "space-page"
+  | "page-history"
+  | "space-pull-requests"
+  | "space-settings";
 
 const labels: Record<PageKind, string> = {
   home: "Home",
@@ -38,11 +45,64 @@ const labels: Record<PageKind, string> = {
   view: "Saved view",
   handoff: "Hand-off",
   "project-settings": "Project settings",
+  spaces: "Spaces",
+  space: "Space",
+  "space-page": "Page",
+  "page-history": "Page history",
+  "space-pull-requests": "Pull requests",
+  "space-settings": "Space settings",
 };
 
-export function pageOf(pathname: string): { kind: PageKind; label: string } {
+// /{org}/spaces[/{space}[/pages/{page}[/history] | /pull-requests | /settings]]
+function spacesPageOf(
+  space: string | undefined,
+  section: string | undefined,
+  pageId: string | undefined,
+  rest: string | undefined,
+): { kind: PageKind; space?: string; pageId?: string } {
+  if (!space) return { kind: "spaces" };
+  if (section === "pages" && pageId)
+    return {
+      kind: rest === "history" ? "page-history" : "space-page",
+      space,
+      pageId,
+    };
+  if (section === "pull-requests")
+    return { kind: "space-pull-requests", space };
+  if (section === "settings") return { kind: "space-settings", space };
+  return { kind: "space", space };
+}
+
+// A malformed escape in the address (typed or pasted by hand) must not
+// throw while rendering; the raw segment then names the space.
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+export function pageOf(pathname: string): {
+  kind: PageKind;
+  label: string;
+  // Lictory Spaces: the space's slug and the page's id in the address.
+  space?: string;
+  pageId?: string;
+} {
   // /{org}/{first}/{second}/{third}
-  const [, first, second, third] = pathname.split("/").filter(Boolean);
+  const [, first, second, third, fourth, fifth] = pathname
+    .split("/")
+    .filter(Boolean);
+  if (first === "spaces") {
+    const found = spacesPageOf(
+      second && decodeSegment(second),
+      third,
+      fourth,
+      fifth,
+    );
+    return { ...found, label: labels[found.kind] };
+  }
   const kind = ((): PageKind => {
     switch (first) {
       case undefined:
@@ -105,6 +165,49 @@ export function pageSuggestions(
 ): Suggestion[] {
   const where = project ? ` in ${project.key}` : "";
   switch (kind) {
+    case "spaces":
+      return [
+        {
+          label: "What is documented where?",
+          prompt:
+            "Which spaces can I read, and what does each one document? Point me to the pages worth reading first.",
+        },
+      ];
+    case "space":
+    case "space-settings":
+      return [
+        {
+          label: "Summarize this space",
+          prompt:
+            "Summarize what this space documents and which of its pages changed recently.",
+        },
+        {
+          label: "What looks out of date?",
+          prompt:
+            "Which pages in this space disagree with the agreed specifications or delivered work they mention?",
+        },
+      ];
+    case "space-pull-requests":
+      return [
+        {
+          label: "What needs review?",
+          prompt:
+            "Which page pull requests in this space wait for review, what does each change, and what blocks them?",
+        },
+      ];
+    case "page-history":
+      return [
+        {
+          label: "What changed recently?",
+          prompt:
+            "What changed on this page in its recent versions, who changed it, and why?",
+        },
+        {
+          label: "Summarize open proposals",
+          prompt:
+            "Summarize the open branches and pull requests of this page: what they change and what blocks them.",
+        },
+      ];
     case "inbox":
       return [
         {
@@ -197,3 +300,49 @@ export function pageSuggestions(
       ];
   }
 }
+
+// A page of Lictory Spaces: what it says, what to do with it, and how it
+// compares with the agreed specifications of the work items it mentions.
+export function spacePageSuggestions(page: {
+  items: readonly { key: string }[];
+}): Suggestion[] {
+  return [
+    {
+      label: "Summarize this page",
+      prompt:
+        "Summarize this page: what it says, what it decides and what looks unclear or out of date.",
+    },
+    {
+      label: "Draft proposals from this page",
+      prompt:
+        "Draft proposals from this page: read it and use it as source material, then let me choose which drafts to create.",
+    },
+    {
+      label: "Which work items does this page mention?",
+      prompt:
+        "Which work items does this page mention, and where does each stand in refinement, readiness and delivery?",
+    },
+    ...page.items.slice(0, 2).map((item) => ({
+      label: `Compare with ${item.key}`,
+      prompt: `Compare this page with the agreed specification of ${item.key}: where do they disagree, and which one should change?`,
+    })),
+  ];
+}
+
+export const pageSelectionSuggestions: Suggestion[] = [
+  {
+    label: "What does this mean?",
+    prompt:
+      "What does this part of the page mean, in the context of the rest of the page?",
+  },
+  {
+    label: "Does this match what was agreed?",
+    prompt:
+      "Does this part of the page match the agreed specifications and recorded decisions? Cite what you compared.",
+  },
+  {
+    label: "Draft a proposal from this",
+    prompt:
+      "Draft a proposal from this part of the page: use it as the source, then let me decide whether to create it.",
+  },
+];

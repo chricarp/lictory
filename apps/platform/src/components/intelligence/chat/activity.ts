@@ -23,6 +23,22 @@ export type RefKind =
 export type Lookup = {
   item(ref: { id?: string; key?: string }): ItemRef | undefined;
   name(kind: RefKind, id: string): string | undefined;
+  // The address of a page of Lictory Spaces the person can read.
+  pageHref?(pageId: string): string | undefined;
+};
+
+// A page version the assistant read or found: what it cites.
+export type PageEvidence = {
+  pageId: string;
+  title: string;
+  space: string | null;
+  commitId: string | null;
+  version: number | null;
+  // Whether it was the published version when read.
+  published: boolean | null;
+  publishing: "direct" | "reviewed" | null;
+  // Opens exactly that version (`?commit=`).
+  href: string | null;
 };
 
 export type StepKind = "read" | "search" | "write";
@@ -35,6 +51,7 @@ export type Outcome = {
   // A one-line summary of what came back, e.g. "12 of 40 work items".
   summary: string | null;
   items: ItemRef[];
+  pages?: PageEvidence[];
   error: string | null;
 };
 
@@ -259,6 +276,50 @@ function asItem(value: unknown, lookup: Lookup): ItemRef | undefined {
   };
 }
 
+const text = (value: unknown) => (typeof value === "string" ? value : null);
+const versionUrl = (base: string | undefined, commitId: string | null) =>
+  base ? (commitId ? `${base}?commit=${commitId}` : base) : null;
+
+// A page in a search result (searchKnowledge, searchProductKnowledge) or the
+// page getPage read, with the exact version it names.
+function asPage(value: unknown, lookup: Lookup): PageEvidence | undefined {
+  const r = record(value);
+  if (!r) return undefined;
+  // getPage: { page: { id, spaceName }, title, commitId, published }
+  const read = record(r.page);
+  if (read && typeof read.id === "string" && typeof r.commitId === "string")
+    return {
+      pageId: read.id,
+      title: text(r.title) ?? "Page",
+      space: text(read.spaceName),
+      commitId: r.commitId,
+      version: typeof r.version === "number" ? r.version : null,
+      published: typeof r.published === "boolean" ? r.published : null,
+      publishing: null,
+      href: versionUrl(lookup.pageHref?.(read.id), r.commitId),
+    };
+  if (r.kind !== "page" || typeof r.title !== "string") return undefined;
+  const pageId = text(r.pageId) ?? text(r.id);
+  if (!pageId) return undefined;
+  const commitId = text(r.commitId);
+  return {
+    pageId,
+    title: r.title,
+    space: text(r.spaceName) ?? text(record(r.space)?.name),
+    commitId,
+    version: typeof r.version === "number" ? r.version : null,
+    published: true,
+    publishing:
+      r.publishing === "direct" || r.publishing === "reviewed"
+        ? r.publishing
+        : null,
+    href:
+      text(r.versionHref) ??
+      (text(r.href)?.includes("?commit=") ? text(r.href) : null) ??
+      versionUrl(lookup.pageHref?.(pageId), commitId),
+  };
+}
+
 // Tool results are `{ ok, result }` or `{ ok: false, error }` (see agentTools).
 function outcomeOf(
   output: unknown,
@@ -281,13 +342,20 @@ function outcomeOf(
     return { summary: result.headline, items: [], error: null };
   const single = asItem(result.item, lookup);
   if (single) return { summary: null, items: [single], error: null };
+  const read = asPage(result, lookup);
+  if (read) return { summary: null, items: [], pages: [read], error: null };
   for (const [key, value] of Object.entries(result)) {
     if (!Array.isArray(value)) continue;
-    const items = value.flatMap((v) => asItem(v, lookup) ?? []);
+    const pages = value.flatMap((v) => asPage(v, lookup) ?? []);
+    const items = value.flatMap((v) =>
+      record(v)?.kind === "page" ? [] : (asItem(v, lookup) ?? []),
+    );
     const noun =
       items.length === value.length && items.length > 0
         ? "work items"
-        : humanize(key).toLowerCase();
+        : pages.length === value.length && pages.length > 0
+          ? "pages"
+          : humanize(key).toLowerCase();
     const total = typeof result.total === "number" ? result.total : null;
     const count =
       total !== null && total !== value.length
@@ -296,6 +364,7 @@ function outcomeOf(
     return {
       summary: value.length === 0 ? `No ${noun}` : `${count} ${noun}`,
       items: items.slice(0, 5),
+      pages: pages.slice(0, 5),
       error: null,
     };
   }
