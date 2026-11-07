@@ -8,7 +8,10 @@ import { callCapability } from "@lictory/core/capabilities/client";
 // when either changes. A decision can be archived (withdrawn from active
 // knowledge) or restored at any time, so what is on screen is read again
 // when the window regains focus or becomes visible and at a bounded interval
-// while it is visible; a failed read offers a retry.
+// while it is visible. A failed first read offers a retry; a failed refresh
+// keeps what was read (offline is no reason to hide a decision) but marks
+// it stale with when it was last checked, so the card never presents an
+// unchecked state as current.
 
 export type PageDecision = {
   id: string;
@@ -25,7 +28,14 @@ type Entry =
   | { state: "loading" }
   | { state: "missing" }
   | { state: "failed" }
-  | { state: "ready"; decision: PageDecision };
+  | {
+      state: "ready";
+      decision: PageDecision;
+      // When the server last confirmed it (ms since the epoch).
+      checkedAt: number;
+      // The last refresh failed: what is shown may no longer be current.
+      stale?: true;
+    };
 
 // Read again while visible, and on focus when older than this.
 export const DECISION_REFRESH_MS = 60_000;
@@ -81,17 +91,26 @@ function flush() {
           const decision = found.get(id);
           entries.set(
             id,
-            decision ? { state: "ready", decision } : { state: "missing" },
+            decision
+              ? { state: "ready", decision, checkedAt: now }
+              : { state: "missing" },
           );
           fetchedAt.set(id, now);
         }
       })
       .catch(() => {
         if (requestScope !== scope) return;
-        // A refresh that fails keeps what was read; a first read fails.
-        for (const id of batch)
-          if (entries.get(id)?.state !== "ready")
-            entries.set(id, { state: "failed" });
+        // A refresh that fails keeps what was read, marked stale; a first
+        // read fails.
+        for (const id of batch) {
+          const known = entries.get(id);
+          entries.set(
+            id,
+            known?.state === "ready"
+              ? { ...known, stale: true }
+              : { state: "failed" },
+          );
+        }
       })
       .finally(() => {
         if (requestScope !== scope) return;
@@ -105,7 +124,13 @@ function request(id: string, maxAge: number) {
   if (inFlight.has(id) || queued.has(id)) return;
   const known = entries.get(id);
   const age = Date.now() - (fetchedAt.get(id) ?? 0);
-  if (known && known.state !== "failed" && age < maxAge) return;
+  if (
+    known &&
+    known.state !== "failed" &&
+    !(known.state === "ready" && known.stale) &&
+    age < maxAge
+  )
+    return;
   // A refresh keeps showing what was read until the answer arrives.
   if (!known || known.state === "failed") {
     entries.set(id, LOADING);

@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { BookOpen } from "lucide-react";
+import { relativeTime } from "@lictory/core/lib/work-items";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useDecision } from "@lictory/platform/components/spaces/blocks/decisions";
@@ -13,7 +14,8 @@ import { useDecision } from "@lictory/platform/components/spaces/blocks/decision
 // it is now, with the item and revision it was recorded on, and says when
 // it was archived. What I cannot find shows only the label stored in the
 // content. The card follows archiving and restoring done elsewhere
-// (decisions.ts reads it again on focus and while visible).
+// (decisions.ts reads it again on focus and while visible); when that
+// re-read fails it keeps the decision and says it could not be checked.
 
 const cardKey = new PluginKey("decisionCards");
 
@@ -105,6 +107,20 @@ export function DecisionCardView({ node }: ReactNodeViewProps) {
               <span>
                 Archived: withdrawn from active product knowledge, kept for
                 history
+              </span>
+            )}
+            {entry.state === "ready" && entry.stale && (
+              <span
+                title={`Last checked ${relativeTime(new Date(entry.checkedAt).toISOString())}`}
+              >
+                Couldn’t refresh
+                <button
+                  type="button"
+                  className="decision-card-retry"
+                  onClick={entry.retry}
+                >
+                  Retry
+                </button>
               </span>
             )}
           </span>
