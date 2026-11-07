@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useContext,
   useEffect,
   useCallback,
@@ -7,7 +9,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Archive, ArchiveRestore, BookOpen, Plus, Search } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  BookOpen,
+  FilePlus2,
+  Plus,
+  Search,
+} from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
@@ -20,6 +29,13 @@ import {
   type EntityOf,
 } from "@lictory/core/contracts/protocol";
 import { Link } from "@lictory/platform/lib/navigation";
+
+// Proposes adding a decision to a page (Lictory Spaces), loaded on demand.
+const AddDecisionToPage = lazy(() =>
+  import("@lictory/platform/components/spaces/work/add-decision").then((m) => ({
+    default: m.AddDecisionToPage,
+  })),
+);
 
 type KnowledgeResult = {
   id: string;
@@ -93,6 +109,7 @@ export function Decisions() {
     (e): e is EntityOf<"decision"> => e.type === "decision",
   );
   const [showArchived, setShowArchived] = useState(false);
+  const [addingToPage, setAddingToPage] = useState<EntityOf<"decision">>();
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -208,6 +225,17 @@ export function Decisions() {
                   </span>
                 )}
               </h3>
+              {!d.archivedAt && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Add to a page: ${d.title}`}
+                  title="Add to a page"
+                  onClick={() => setAddingToPage(d)}
+                >
+                  <FilePlus2 className="size-3.5" />
+                </Button>
+              )}
               {!readOnly && canArchiveDecision(capabilities, d, userId) && (
                 <Button
                   size="icon"
@@ -239,6 +267,16 @@ export function Decisions() {
             </p>
           </article>
         ))}
+      {addingToPage && (
+        <Suspense fallback={null}>
+          <AddDecisionToPage
+            decision={addingToPage}
+            workItemId={item.id}
+            revisionId={addingToPage.revisionId ?? item.revisionId}
+            onClose={() => setAddingToPage(undefined)}
+          />
+        </Suspense>
+      )}
       {decisions.some((d) => d.archivedAt) && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input

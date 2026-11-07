@@ -95,6 +95,18 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // Work items the published pages of one space mention (a space home's
+  // "Linked work"), through the space's readers.
+  spaceWork: defineQuery(
+    z.object({ organizationId: z.string().min(1), spaceId: z.string().min(1) }),
+    ({ args, ctx }) =>
+      zql.spaceEntity
+        .where("organizationId", args.organizationId)
+        .where("spaceId", args.spaceId)
+        .where("type", "pageReference")
+        .whereExists("readers", (r) => r.where("userId", ctx.userID))
+        .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
   // Context pages of a project, its teams and its iterations that I can
   // read (`teamId` / `iterationId` in each row name the list).
   projectContext: defineQuery(projectArgs, ({ args, ctx }) =>

@@ -47,6 +47,9 @@ import {
   EditButton,
   ReviewedNotice,
 } from "@lictory/platform/components/spaces/editor/line-actions";
+import { PageWorkProvider } from "@lictory/platform/components/spaces/work/page-work-actions";
+import { PageWorkPanel } from "@lictory/platform/components/spaces/work/page-work";
+import { BlockInsertHost } from "@lictory/platform/components/spaces/blocks/insert-host";
 import {
   LineSwitcher,
   PageMoreMenu,
@@ -370,33 +373,47 @@ function PageArticle({
         </div>
       )}
       <ReviewedNotice line={line} page={page} branches={history.branches} />
-      <SurfaceBoundary>
-        <Suspense
-          fallback={
-            <div className="mt-8">
-              <PageDocument
-                commit={line.viewed ?? line.head}
-                loading={!history.loaded}
-              />
-            </div>
-          }
-        >
-          <PageSurface
-            space={space}
-            page={page}
-            history={history}
-            line={line}
-            discussions={discussions}
-            editing={editing}
-            onStopEditing={() => setEditingMain(false)}
-            commentsOpen={commentsOpen}
-            onCommentsOpenChange={onCommentsOpenChange}
-            commentsSlot={commentsSlot}
-            commentsWide={commentsWide}
-            actionsSlot={actionsSlot}
-          />
-        </Suspense>
-      </SurfaceBoundary>
+      <PageWorkProvider
+        space={space}
+        page={page}
+        line={line}
+        history={history}
+        editing={editing}
+        onEdit={() => setEditingMain(true)}
+      >
+        <SurfaceBoundary>
+          <Suspense
+            fallback={
+              <div className="mt-8">
+                <PageDocument
+                  commit={line.viewed ?? line.head}
+                  loading={!history.loaded}
+                />
+              </div>
+            }
+          >
+            <PageSurface
+              space={space}
+              page={page}
+              history={history}
+              line={line}
+              discussions={discussions}
+              editing={editing}
+              onStopEditing={() => setEditingMain(false)}
+              commentsOpen={commentsOpen}
+              onCommentsOpenChange={onCommentsOpenChange}
+              commentsSlot={commentsSlot}
+              commentsWide={commentsWide}
+              actionsSlot={actionsSlot}
+            />
+          </Suspense>
+        </SurfaceBoundary>
+      </PageWorkProvider>
+      {/* The work this page knows about, under the published page. */}
+      {line.isMain && !editing && !line.viewed && (
+        <PageWorkPanel pageId={page.id} />
+      )}
+      <BlockInsertHost defaultProjectId={space.projectId} />
     </article>
   );
 }
