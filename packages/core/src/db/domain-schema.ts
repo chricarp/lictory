@@ -879,6 +879,13 @@ export const specificationRevision = pgTable(
       foreignColumns: [workItem.organizationId, workItem.id],
     }).onDelete("restrict"),
     check("revision_positive_number", sql`${t.number} > 0`),
+    // Content search (docs/internals/knowledge-links.md) matches substrings
+    // of specification titles and Markdown.
+    index("revision_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
+    index("revision_content_trgm_idx").using(
+      "gin",
+      t.content.op("gin_trgm_ops"),
+    ),
   ],
 );
 
@@ -1548,8 +1555,7 @@ export const decision = pgTable(
     index("decision_item_idx").on(t.organizationId, t.workItemId),
     // Product knowledge search matches substrings (ILIKE '%term%') across
     // every decision; trigram indexes serve it without changing semantics.
-    // Specification revisions are matched only after candidate selection
-    // (see capabilities/product-knowledge.ts), so they carry no such index.
+    // Specification revisions carry their own (content search).
     index("decision_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
     index("decision_body_trgm_idx").using("gin", t.body.op("gin_trgm_ops")),
   ],

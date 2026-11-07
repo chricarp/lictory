@@ -1,3 +1,4 @@
+import { formatReference } from "@lictory/core/contracts/references";
 import { canonicalizeDocument, type PageNode } from "./canonical";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
@@ -97,7 +98,17 @@ function render(n: PageNode): string {
     case "workItemRef":
       return String(a.key);
     case "pageRef":
-      return `[[page:${String(a.pageId)}]]`;
+      return typeof a.commitId === "string"
+        ? formatReference(
+            { kind: "page", id: String(a.pageId), commitId: a.commitId },
+            "page",
+          )
+        : `[[page:${String(a.pageId)}]]`;
+    case "decisionRef":
+      return formatReference(
+        { kind: "decision", id: String(a.decisionId) },
+        typeof a.label === "string" ? a.label : "decision",
+      );
     default:
       return blocks();
   }

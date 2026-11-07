@@ -66,6 +66,10 @@ import {
   notifyPageApprovalInvalidated,
   notifyPageReviewRequested,
 } from "@lictory/core/spaces/notifications";
+import {
+  indexPublishedPage,
+  revisionOfItem,
+} from "@lictory/core/spaces/knowledge";
 import { writeSpaceProjections } from "@lictory/core/spaces/projections";
 import { signalSpaceAccess } from "@lictory/core/spaces/signals";
 
@@ -640,13 +644,16 @@ async function insertCommit(
   return { id, hash };
 }
 
+// Every head move of a page line goes through here. When main moves, the
+// page's published version changed: its reference index follows in the
+// same transaction (docs/internals/knowledge-links.md).
 async function moveHead(
   tx: Tx,
   organizationId: string,
   branchId: string,
   commitId: string,
 ) {
-  await tx
+  const [moved] = await tx
     .update(s.pageBranch)
     .set({ headCommitId: commitId })
     .where(
@@ -654,7 +661,42 @@ async function moveHead(
         eq(s.pageBranch.organizationId, organizationId),
         eq(s.pageBranch.id, branchId),
       ),
+    )
+    .returning({ pageId: s.pageBranch.pageId, isMain: s.pageBranch.isMain });
+  if (moved?.isMain) await indexPublishedPage(tx, organizationId, moved.pageId);
+}
+
+// The work item revision a branch is opened from ("Propose page update"):
+// any work item of the organization (items are visible to every member)
+// and one of its revisions.
+async function recordBranchOrigin(
+  tx: Tx,
+  organizationId: string,
+  pageId: string,
+  branchId: string,
+  origin: { workItemId: string; revisionId: string } | undefined,
+) {
+  if (!origin) return undefined;
+  if (
+    !(await revisionOfItem(
+      tx,
+      organizationId,
+      origin.workItemId,
+      origin.revisionId,
+    ))
+  )
+    throw new DomainError(
+      "not_found",
+      "The work item revision this branch proposes to document is unavailable.",
     );
+  await tx.insert(s.pageBranchOrigin).values({
+    organizationId,
+    branchId,
+    pageId,
+    workItemId: origin.workItemId,
+    revisionId: origin.revisionId,
+  });
+  return { workItemId: origin.workItemId, revisionId: origin.revisionId };
 }
 
 function validDocument<T>(run: () => T, what: string): T {
@@ -1148,6 +1190,13 @@ export async function applyPageHistoryCommand(
         baseCommitId: from,
         authorId: userId,
       });
+      const origin = await recordBranchOrigin(
+        tx,
+        organizationId,
+        c.pageId,
+        c.branchId,
+        c.origin,
+      );
       const draft = await openLineDraft(
         tx,
         organizationId,
@@ -1159,6 +1208,7 @@ export async function applyPageHistoryCommand(
         branchId: c.branchId,
         name: c.name,
         fromCommitId: from,
+        ...(origin ? { origin } : {}),
       });
       await project(c.pageId);
       return { branchId: c.branchId, draftId: draft.id };
@@ -1943,6 +1993,13 @@ export async function applyPageHistoryCommand(
         baseCommitId: head.id,
         authorId: userId,
       });
+      const origin = await recordBranchOrigin(
+        tx,
+        organizationId,
+        c.pageId,
+        c.branchId,
+        c.origin,
+      );
       const commit = await insertCommit(tx, ctx, {
         pageId: c.pageId,
         parentIds: [head.id],
@@ -1975,6 +2032,7 @@ export async function applyPageHistoryCommand(
         branchId: c.branchId,
         commitId: commit.id,
         pullRequestId: c.pullRequestId,
+        ...(origin ? { origin } : {}),
       });
       await project(c.pageId, { commits: [commit.id] });
       return {

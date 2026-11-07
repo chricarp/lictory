@@ -29,6 +29,7 @@ import {
   applyPageHistoryCommand,
   openLineDraft,
 } from "@lictory/core/spaces/history";
+import { indexPublishedPage } from "@lictory/core/spaces/knowledge";
 import {
   writeSpaceProjections,
   type SpaceProjectionTarget,
@@ -637,7 +638,13 @@ export async function applySpaceCommand(
         spaceId: space.id,
         archived: c.archived,
       });
-      await project({ spaces: [space.id] });
+      // Knowledge links of an archived space's pages leave every reader.
+      await project({
+        spaces: [space.id],
+        knowledge: (await pagesOfSpace(tx, organizationId, space.id)).map(
+          (p) => p.id,
+        ),
+      });
       return undefined;
     }
 
@@ -698,6 +705,7 @@ export async function applySpaceCommand(
         baseCommitId: null,
         authorId: userId,
       });
+      await indexPublishedPage(tx, organizationId, c.pageId);
       // Reviewed spaces protect main: it has no writable draft.
       const draftId =
         space.publishing === "direct"
