@@ -62,8 +62,8 @@ async function user(name: string) {
 
 void test("knowledge rows reach a work item, page or project only through their page's readers", async () => {
   const organizationId = crypto.randomUUID();
-  const [owner, reader, outsider] = await Promise.all(
-    ["Owner", "Reader", "Outsider"].map(user),
+  const [owner, reader, outsider, reviewer] = await Promise.all(
+    ["Owner", "Reader", "Outsider", "Reviewer"].map(user),
   );
   await db.insert(s.organization).values({
     id: organizationId,
@@ -75,6 +75,7 @@ void test("knowledge rows reach a work item, page or project only through their 
     [
       [owner!, "owner"],
       [reader!, "member"],
+      [reviewer!, "member"],
     ].map(([userId, role]) => ({
       id: crypto.randomUUID(),
       organizationId,
@@ -137,6 +138,13 @@ void test("knowledge rows reach a work item, page or project only through their 
     slug: "incidents",
     accessMode: "restricted",
   });
+  // Someone who reviews in both spaces.
+  await run(owner!, {
+    type: "setSpaceGrant",
+    spaceId: restricted,
+    userId: reviewer!,
+    level: "comment",
+  });
   const page = async (spaceId: string, title: string) =>
     (await run(owner!, {
       type: "createPage",
@@ -170,6 +178,14 @@ void test("knowledge rows reach a work item, page or project only through their 
       },
       message: "Mention PAY-1",
     }))!;
+    // A review decision on each page's pull request.
+    await run(reviewer!, {
+      type: "decidePagePullRequest",
+      pullRequestId,
+      decision: "approve",
+      inspectedSourceHead: proposed.commitId!,
+      inspectedTargetHead: p.commitId!,
+    });
     await run(owner!, {
       type: "mergePagePullRequest",
       pullRequestId,
@@ -282,7 +298,15 @@ void test("knowledge rows reach a work item, page or project only through their 
     pageIds: [openPage.pageId!, secretPage.pageId!],
   } as unknown as Record<string, string>;
   assert.deepEqual(
-    await subscribe("pagePullRequestReviews", reader!, reviewArgs),
+    byPage(await subscribe("pagePullRequestReviews", owner!, reviewArgs)),
+    [openPage.pageId!, secretPage.pageId!].sort(),
+  );
+  assert.deepEqual(
+    byPage(await subscribe("pagePullRequestReviews", reader!, reviewArgs)),
+    [openPage.pageId!],
+  );
+  assert.deepEqual(
+    await subscribe("pagePullRequestReviews", outsider!, reviewArgs),
     [],
   );
   // A grant brings the restricted page's rows in.
@@ -294,6 +318,10 @@ void test("knowledge rows reach a work item, page or project only through their 
   });
   assert.deepEqual(
     byPage(await subscribe("workItemKnowledge", reader!, itemArgs)),
+    [openPage.pageId!, secretPage.pageId!].sort(),
+  );
+  assert.deepEqual(
+    byPage(await subscribe("pagePullRequestReviews", reader!, reviewArgs)),
     [openPage.pageId!, secretPage.pageId!].sort(),
   );
 });
