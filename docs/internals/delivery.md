@@ -170,12 +170,13 @@ iteration report lists its iteration's pages. Only pages the viewer can read
 are listed or counted. A link is context, not delivery state: it never moves
 work, and unlinking keeps its history in the page's activity.
 
-"Create iteration notes" makes an ordinary page in a space the person edits
-(a project space first) from a short template: the goal, the iteration's
-items as live references (each shows the item's current status wherever the
-page is read), risks and a retrospective. Work never publishes a page: the
-notes open as a branch with a pull request, which the space's own rules
-publish. The page is linked to the iteration. External projects have no
+"Create iteration notes" creates a new page in a space the person edits (a
+project space first) whose first version is the iteration notes template:
+the goal, a live, read-only list of the iteration's work (each item shows its
+current status wherever the page is read), risks and a retrospective.
+Creating a page publishes its first version exactly as "New page" does in the
+space; Work never changes an existing page by itself. The page is linked to
+the iteration. External projects have no
 native iterations, so no iteration lists.
 
 ## Estimates and reports
