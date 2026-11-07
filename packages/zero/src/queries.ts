@@ -1,5 +1,6 @@
 import { defineQueries, defineQuery } from "@rocicorp/zero";
 import { z } from "zod";
+import { knowledgeEntityTypes } from "@lictory/core/contracts/protocol";
 import "@lictory/zero/context";
 import { zql } from "@lictory/zero/schema";
 
@@ -12,6 +13,11 @@ const workItemArgs = z.object({
   organizationId: z.string().min(1),
   workItemId: z.string().min(1),
 });
+const projectArgs = z.object({
+  organizationId: z.string().min(1),
+  projectId: z.string().min(1),
+});
+const knowledgeTypes = [...knowledgeEntityTypes];
 
 // Server-defined queries. Arguments only narrow; access always comes from the
 // membership relationship evaluated against `ctx.userID`.
@@ -64,6 +70,40 @@ export const queries = defineQueries({
         .where("type", "pagePullRequest")
         .whereExists("readers", (r) => r.where("userId", ctx.userID))
         .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Knowledge links (docs/internals/knowledge-links.md). What pages say
+  // about one work item: pages whose published version references it,
+  // pages its specification revisions cite, attached pages, the page it was
+  // created from and page branches proposed from it. Only rows of spaces I
+  // read reach me, so nothing (not even a count) of other pages does.
+  workItemKnowledge: defineQuery(workItemArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("workItemId", args.workItemId)
+      .where("type", "IN", knowledgeTypes)
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // The work one page knows about (references, citations, attachments,
+  // items created from it, branches proposed from items, context links),
+  // without loading the page's history.
+  pageWork: defineQuery(pageArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("pageId", args.pageId)
+      .where("type", "IN", knowledgeTypes)
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Context pages of a project, its teams and its iterations that I can
+  // read (`teamId` / `iterationId` in each row name the list).
+  projectContext: defineQuery(projectArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("projectId", args.projectId)
+      .where("type", "pageContextLink")
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
   // My effective access level in each space I can read.
   mySpaceAccess: defineQuery(organizationArgs, ({ args, ctx }) =>
