@@ -335,7 +335,7 @@ test("delivery surfaces keep context pages and an iteration gets notes", async (
   await expect(form.getByLabel("Title")).toHaveValue("Sprint 1 notes");
   await form.getByLabel("Space").selectOption({ label: "Delivery handbook" });
   await form.getByRole("button", { name: "Create and open" }).click();
-  await expect(page).toHaveURL(/\/pages\/[^?]+\?branch=/);
+  await expect(page).toHaveURL(/\/pages\/[^?/]+$/);
   await expect(page.getByText("Retrospective").first()).toBeVisible();
 
   // The iteration report lists its pages.

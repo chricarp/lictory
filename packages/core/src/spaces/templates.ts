@@ -162,13 +162,22 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
     case "iteration-notes":
       return [
         h(2, "Goal"),
-        hint("What this iteration should achieve, in one or two sentences."),
+        context.goal?.trim()
+          ? p(context.goal.trim())
+          : hint(
+              "What this iteration should achieve, in one or two sentences.",
+            ),
         ...(workList("iteration", context).length
           ? [h(2, "Work"), ...workList("iteration", context)]
           : []),
+        h(2, "Risks"),
+        bullets(""),
         h(2, "Notes"),
         bullets(""),
-        h(2, "Demo"),
+        h(2, "Retrospective"),
+        h(3, "What went well"),
+        bullets(""),
+        h(3, "What to change"),
         bullets(""),
         h(2, "Follow-ups"),
         tasks(""),

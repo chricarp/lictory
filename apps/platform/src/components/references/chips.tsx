@@ -473,29 +473,25 @@ function PageCard({
 
 // -------------------------------------------------------------- decisions
 
-// Decisions outside the open item are looked up when a card opens, through
-// the same search people use (it authorizes on the server); kept for the tab.
+// Decisions outside the open item are looked up by id when a card opens
+// (getDecisions authorizes on the server and also finds archived or renamed
+// decisions); kept for the tab.
 const fetched = new Map<string, Promise<DecisionReference | null>>();
-function lookupDecision(organizationId: string, id: string, label: string) {
+function lookupDecision(organizationId: string, id: string) {
   const key = `${organizationId}:${id}`;
   let pending = fetched.get(key);
   if (!pending) {
     pending = callCapability<{
-      results: {
-        kind: string;
+      decisions: {
         id: string;
         title: string;
-        key: string;
-        href: string;
-        revisionNumber?: number;
+        key: string | null;
+        href: string | null;
+        revisionNumber: number | null;
       }[];
-    }>("searchProductKnowledge", {
-      organizationId,
-      query: label.slice(0, 200),
-      limit: 20,
-    })
-      .then(({ results }) => {
-        const found = results.find((r) => r.kind === "decision" && r.id === id);
+    }>("getDecisions", { organizationId, decisionIds: [id] })
+      .then(({ decisions }) => {
+        const found = decisions.find((d) => d.id === id);
         return found
           ? {
               id,
@@ -578,13 +574,13 @@ function DecisionCard({
   useEffect(() => {
     if (local) return;
     let live = true;
-    void lookupDecision(organizationId, id, label).then((found) => {
+    void lookupDecision(organizationId, id).then((found) => {
       if (live) setRemote(found);
     });
     return () => {
       live = false;
     };
-  }, [local, organizationId, id, label]);
+  }, [local, organizationId, id]);
   const decision = local ?? remote ?? null;
   return (
     <div className="space-y-2 p-3">

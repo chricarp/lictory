@@ -49,4 +49,6 @@ export type PageTemplateContext = {
   projectId?: string | null;
   iterationId?: string | null;
   epicId?: string | null;
+  /** The iteration's goal, written into iteration notes when it has one. */
+  goal?: string | null;
 };

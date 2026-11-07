@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { identifier, type Project } from "@lictory/core/lib/work-items";
+import type { Project } from "@lictory/core/lib/work-items";
 import {
   iterationLabel,
   type Iteration,
@@ -20,13 +20,12 @@ import { toast } from "@lictory/ui/toast";
 import { Link, useRouter } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
-import { suggestSlug } from "@lictory/platform/data/spaces";
 import {
   contextStep,
   type ContextLink,
   type ContextScope,
 } from "@lictory/platform/data/knowledge";
-import { iterationNotesDocument } from "@lictory/platform/data/iteration-notes";
+import { templatePageContent } from "@lictory/core/spaces/templates";
 import { useProjectContext } from "@lictory/platform/components/knowledge/store";
 import { PagePicker } from "@lictory/platform/components/knowledge/page-picker";
 
@@ -377,9 +376,10 @@ function useNotesSpaces(project: Project) {
   }, [index.spaces, levelOf, project.id]);
 }
 
-// Creates an ordinary page from the iteration notes template in a space I
-// edit, as a branch with an open pull request (Work never publishes a page
-// by itself), links it to the iteration and opens it.
+// Creates a new page from the iteration notes template in a space I edit
+// (its goal and a live list of the iteration's work), links it to the
+// iteration and opens it. Creating a page publishes its first version, as
+// "New page" does in the space; Work never changes existing pages itself.
 export function IterationNotesForm({
   project,
   iteration,
@@ -393,7 +393,7 @@ export function IterationNotesForm({
 }) {
   const labelId = usePopover()?.labelId;
   const router = useRouter();
-  const { organization, items, mutateConfirmed } = useWorkspace();
+  const { organization, mutateConfirmed } = useWorkspace();
   const spaces = useNotesSpaces(project);
   const label = iterationLabel(iteration, project.iterationMode);
   const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
@@ -408,35 +408,17 @@ export function IterationNotesForm({
     setBusy(true);
     setError(undefined);
     const pageId = crypto.randomUUID();
-    const branchId = crypto.randomUUID();
-    const scope = items
-      .filter((i) => i.iterationId === iteration.id && !i.archivedAt)
-      .sort((a, b) => a.number - b.number)
-      .map((i) => ({
-        id: i.id,
-        key: identifier(project, i.number),
-        title: i.title,
-      }));
     try {
       await mutateConfirmed({
         type: "createPage",
         spaceId: space.id,
         pageId,
         title: title.trim(),
-      });
-      await mutateConfirmed({
-        type: "proposePageChange",
-        pageId,
-        branchId,
-        pullRequestId: crypto.randomUUID(),
-        title: title.trim(),
-        content: iterationNotesDocument({
-          label,
+        content: templatePageContent("iteration-notes", {
+          projectId: project.id,
+          iterationId: iteration.id,
           goal: iteration.goal,
-          items: scope,
-        }) as Record<string, never>,
-        message: `Notes for ${label}`,
-        branchName: suggestSlug(`${label} notes`) || "iteration-notes",
+        }),
       });
       await mutateConfirmed({
         type: "linkContextPage",
@@ -451,9 +433,7 @@ export function IterationNotesForm({
       return;
     }
     onDone();
-    router.push(
-      `${paths.spacePage(organization.slug, space.slug, pageId)}?branch=${branchId}`,
-    );
+    router.push(paths.spacePage(organization.slug, space.slug, pageId));
   };
   return (
     <form
@@ -467,8 +447,8 @@ export function IterationNotesForm({
         Notes for {label}
       </h2>
       <p className="text-xs text-muted-foreground">
-        A page with the goal, the iteration’s items, risks and a retrospective.
-        It opens as a proposal to edit; publishing it follows the space’s rules.
+        A new page with the goal, a live list of the iteration’s work, risks and
+        a retrospective, kept with this iteration.
       </p>
       {spaces.length === 0 ? (
         <p role="alert" className="text-xs text-destructive">
