@@ -4,6 +4,7 @@
 /* A decision alone in its paragraph: a quiet card in the text's measure. */
 .page-document .decision-card {
   display: flex;
+  font-size: 15px;
   flex-direction: column;
   gap: 0.25rem;
   margin-block: 0.25rem;
@@ -68,11 +69,19 @@
   font-size: 12px;
   color: var(--muted-foreground);
 }
-/* A card fills its paragraph: no empty line from the editor's trailing
-   break or separator after the atom. */
-.page-document p:has(> .decision-card) > br.ProseMirror-trailingBreak,
-.page-document p:has(> .decision-card) > img.ProseMirror-separator {
-  display: none;
+/* A card fills its paragraph: its renderer is a block, and the editor's
+   separators and trailing break around the atom (inline by ProseMirror's
+   own !important rule) take no height. */
+.page-document p:has(> .react-renderer > .decision-card) {
+  font-size: 0;
+  line-height: 0;
+}
+/* The text's block spacing, which no longer follows from the font size. */
+.page-document > p:has(> .react-renderer > .decision-card):not(:first-child) {
+  margin-top: 0.7rem;
+}
+.page-document p:has(> .react-renderer > .decision-card) > .react-renderer {
+  display: block;
 }
 .page-document .ProseMirror-selectednode.decision-card {
   box-shadow: inset 0 0 0 2px var(--ring);
