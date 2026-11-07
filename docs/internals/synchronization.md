@@ -147,9 +147,14 @@ its domain writes, after taking the organization advisory lock
   status sync, branding, profile photos, handles, `seedOrganization` and the
   Better Auth hooks write projections the same way.
 
-The live draft writer of [Lictory Spaces](spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule)
-is the one writer outside this list: it persists only draft updates, which no
-projection reads, under the organization lock in shared mode.
+The live draft writer is the one writer outside this list, for the live
+drafts of [Lictory Spaces](spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule)
+and of [specifications](specification-drafts.md#writes-tables-and-projections)
+alike: it persists only draft updates and the draft's stored sequence, which
+no projection reads, under the organization lock in shared mode, re-checking
+each author's session, membership and right to write the line in the same
+transaction. Whether a draft holds unsaved changes is projected by separate,
+exclusively locked transactions and by the commands that seal or replace it.
 
 Lictory Spaces keep their projections in a separate table, `space_entity`,
 with the effective access rows `space_reader`; both are in the `lictory_zero`
@@ -294,11 +299,14 @@ suggestions, commit and pull request messages) is copied to a per-user,
 per-organization recovery store in local storage before sending and removed
 when the server accepts the command. A rejected command keeps its text, which
 the synchronization popover offers to copy or discard; after a reload, entries
-whose effect is already synchronized are dropped. Uncommitted branch drafts
-remain personal and are stored under
-`lictory:branch-draft:{user}:{organization}:{item}:{branch}`. Unsaved editor
-keystrokes are not an offline document system, and there is no service worker
-for a completely offline cold start.
+whose effect is already synchronized are dropped. Specification text being
+edited lives in the line's shared [live draft](specification-drafts.md) on the
+server; what the collaboration service has not stored yet stays in the open
+tab and, when the editor closes, in the person's recovery store. A person's
+breakdown edits and commit message on a branch remain personal and are stored
+under `lictory:branch-draft:{user}:{organization}:{item}:{branch}`. Unsaved
+editor keystrokes are not an offline document system, and there is no service
+worker for a completely offline cold start.
 
 Searchable member and Epic selectors, iteration reports and the Definition of
 Ready history are membership-checked capability reads with server-side
@@ -328,6 +336,13 @@ and an earlier revision from the same item; it copies title/content into a new
 revision, stales approvals and retains every historical snapshot and activity.
 It does not restore delivery status, ownership or iteration properties.
 
+In the browser, main is edited in its shared live draft and "Save revision"
+seals the stored cut through the same revision path
+(`commitSpecificationDraft`, see [live drafts](specification-drafts.md#sealing)):
+the same capability, protection, outdated approvals and re-requested reviews.
+`updateSpecification` remains the direct path for agents and the API; a
+revision saved that way starts a new epoch of an open draft.
+
 ## Branches and pull requests
 
 Branches belong to one specification-backed work item. They version its title,
@@ -339,8 +354,12 @@ the reviewed result and become shared work atomically on merge into main; see
 branches can also start from and target other branches. Anyone with organization
 membership can create a branch, but only its author and explicitly invited
 collaborators can commit. Only its author manages collaborators. All branches and
-PRs share the work item's access boundary; an uncommitted draft is personal and
-stored in the browser under user/organization/item/branch identity.
+PRs share the work item's access boundary. A branch's title and content are
+edited in its shared [live draft](specification-drafts.md) by its author and
+collaborators; a commit seals the draft's stored cut, so it never needs a
+merge with the branch head (the API's `commitBranch`, below, still does). The
+breakdown edits a person has not committed are personal and stored in their
+browser under user/organization/item/branch identity.
 
 A commit is an immutable snapshot with parent commit IDs, author and message.
 A branch is a movable pointer. The first branch operation imports the item's
@@ -454,8 +473,7 @@ List filters, sort and grouping live in the URL (`?status=…&label=…&sort=…
 renders in pages of 50. Organization-level SSO setup (company sign-in is
 configured per installation, see [single sign-on](../operations/sso.md)), billing, custom fields,
 comments on items without a specification, saved views, advanced policy
-configuration, SCIM, private projects,
-CRDT editing, multiplayer cursors, service-worker offline
+configuration, SCIM, private projects, service-worker offline
 launch, and server-side pagination of organization-wide summaries
 and large histories are intentionally not implemented. No production UI pretends
 these deferred capabilities exist.

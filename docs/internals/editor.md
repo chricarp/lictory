@@ -47,6 +47,12 @@ repository: byte-identical reuse, fresh output that reads back as the same
 document and is a fixpoint, readiness sections, references and mentions that
 survive.
 
+Specifications are edited collaboratively: main and each branch have a
+shared live draft of this schema, and saving converts the stored cut back to
+Markdown on the server with the same reuse of unchanged blocks (see
+[live drafts of specifications](specification-drafts.md)). Every other field
+edits its Markdown value directly.
+
 Pasted plain text is read as Markdown, so a specification pasted from
 elsewhere keeps its headings, lists and references. Revision and approval
 semantics do not change: a revision is still created exactly when the stored
