@@ -157,6 +157,7 @@ export const browserOperations: readonly BrowserOperation[] = [
       "POST /api/admin/organizations",
       "POST /api/admin/organizations/:id/members",
       "GET /api/admin/activity",
+      "POST /api/admin/ai/check",
     ],
   },
   {
