@@ -98,7 +98,7 @@ const empty: Resolver = {
 
 const ResolverContext = createContext<Resolver | null>(null);
 
-function useResolverValue(): Resolver {
+function useResolverValue(enabled = true): Resolver {
   const workspace = useOptionalWorkspace();
   const index = useOptionalSpaceIndex();
   const items = workspace?.items;
@@ -110,7 +110,15 @@ function useResolverValue(): Resolver {
   const slug = workspace?.organization.slug;
   const organizationId = workspace?.organization.id ?? null;
   return useMemo<Resolver>(() => {
-    if (!items || !projects || !delivery || !directory || !memberName || !slug)
+    if (
+      !enabled ||
+      !items ||
+      !projects ||
+      !delivery ||
+      !directory ||
+      !memberName ||
+      !slug
+    )
       return empty;
     const itemById = new Map(items.map((i) => [i.id, i]));
     const projectById = new Map(projects.map((p) => [p.id, p]));
@@ -227,6 +235,7 @@ function useResolverValue(): Resolver {
       organizationId,
     };
   }, [
+    enabled,
     items,
     projects,
     delivery,
@@ -253,15 +262,11 @@ export function ReferencesProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function useOwnResolver(enabled: boolean) {
-  // Hooks run unconditionally; without a provider this one does the work.
-  const own = useResolverValue();
-  return enabled ? own : empty;
-}
-
 export function useReferences(): Resolver {
   const provided = useContext(ResolverContext);
-  const own = useOwnResolver(!provided);
+  // Hooks run unconditionally; only without a provider does this one build
+  // the lookups (a provider already resolves for everything below it).
+  const own = useResolverValue(!provided);
   return provided ?? own;
 }
 
