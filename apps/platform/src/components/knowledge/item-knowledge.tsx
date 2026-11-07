@@ -32,7 +32,10 @@ import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
 import { Link, useRouter } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { useSpaces } from "@lictory/platform/components/spaces/store";
+import {
+  usePageHistory,
+  useSpaces,
+} from "@lictory/platform/components/spaces/store";
 import {
   proposalState,
   purposeLabels,
@@ -335,9 +338,11 @@ export function ItemKnowledge({
                   ? base
                   : `${base}?branch=${origin.branchId}`;
               const pageTitle = origin.page.title || "Untitled";
-              // Named by the change being reviewed (its pull request), with
-              // the page as context; the branch is machinery, on hover.
-              const change = origin.pullRequests.at(-1)?.title;
+              // Named by the change (its pull request's title, or the title
+              // it was opened with before there is one), with the page as
+              // context; the branch is machinery, on hover.
+              const change =
+                origin.pullRequests.at(-1)?.title ?? origin.title ?? undefined;
               return (
                 <li
                   key={origin.id}
@@ -844,16 +849,25 @@ function ProposePageUpdate({
   );
 }
 
-// "pay-2-retry-failed-card-captures", short enough to read.
-export function suggestedBranchName(itemKey: string, title: string) {
+// "pay-2-retry-failed-card-captures", short enough to read, and not a name
+// already in use on the page.
+export function suggestedBranchName(
+  itemKey: string,
+  title: string,
+  taken: ReadonlySet<string> = new Set(),
+) {
   const words = title
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  const name = `${itemKey.toLowerCase()}-${words}`.slice(0, 48);
-  return finalizeBranchName(name);
+  const root = finalizeBranchName(
+    `${itemKey.toLowerCase()}-${words}`.slice(0, 44),
+  );
+  if (!taken.has(root)) return root;
+  for (let n = 2; ; n += 1)
+    if (!taken.has(`${root}-${n}`)) return `${root}-${n}`;
 }
 
 function ProposeForm({
@@ -872,22 +886,52 @@ function ProposeForm({
   const labelId = usePopover()?.labelId;
   const router = useRouter();
   const { organization, mutateConfirmed } = useWorkspace();
-  const inputId = useId();
-  const [name, setName] = useState(() =>
-    suggestedBranchName(itemKey, item.title),
-  );
+  const { branches } = usePageHistory(choice.page.id);
+  const titleId = useId();
+  const nameId = useId();
+  // What the change is leads; the branch is named after it unless the
+  // person names it themselves (Advanced).
+  const [title, setTitle] = useState("");
+  const [customName, setCustomName] = useState<string>();
+  const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{
+    field: "title" | "name";
+    text: string;
+  }>();
+  const taken = useMemo(
+    () => new Set(branches.map((b) => b.name.toLowerCase())),
+    [branches],
+  );
+  const derived = suggestedBranchName(
+    itemKey,
+    title.trim() || item.title,
+    taken,
+  );
+  const name = customName ?? derived;
   const reviewed = choice.space.publishing === "reviewed";
+  const describedBy = (field: "title" | "name", hint?: string) =>
+    [hint, error?.field === field ? `${titleId}-error` : undefined]
+      .filter(Boolean)
+      .join(" ") || undefined;
   return (
     <form
       className="flex flex-col gap-2.5 p-3 text-[13px]"
       onSubmit={(e) => {
         e.preventDefault();
         if (busy) return;
+        const change = title.trim();
+        if (!change)
+          return setError({
+            field: "title",
+            text: "Say what the change is, so it can be told apart from other updates.",
+          });
         const final = finalizeBranchName(name);
         const problem = branchNameProblem(final);
-        if (problem) return setError(problem);
+        if (problem) {
+          setAdvanced(true);
+          return setError({ field: "name", text: `Branch name: ${problem}` });
+        }
         setBusy(true);
         setError(undefined);
         const branchId = crypto.randomUUID();
@@ -896,7 +940,11 @@ function ProposeForm({
           pageId: choice.page.id,
           branchId,
           name: final,
-          origin: { workItemId: item.id, revisionId: item.revisionId },
+          origin: {
+            workItemId: item.id,
+            revisionId: item.revisionId,
+            title: change,
+          },
         })
           .then(() => {
             onDone();
@@ -905,7 +953,10 @@ function ProposeForm({
             );
           })
           .catch((err: unknown) => {
-            setError(errorText(err));
+            const text = errorText(err);
+            const aboutName = /branch name/i.test(text);
+            if (aboutName) setAdvanced(true);
+            setError({ field: aboutName ? "name" : "title", text });
             setBusy(false);
           });
       }}
@@ -913,32 +964,68 @@ function ProposeForm({
       <h2 id={labelId} className="text-sm font-semibold">
         Propose an update to “{choice.page.title}”
       </h2>
-      <p className="text-xs text-muted-foreground">
+      <p id={`${titleId}-hint`} className="text-xs text-muted-foreground">
         A branch of the page opens in the editor, linked to {itemKey} revision{" "}
         {item.revisionNumber}.{" "}
         {reviewed
           ? "Its changes are published after review."
           : "Nothing is published until you merge it."}
       </p>
-      <label htmlFor={inputId} className="text-xs font-medium">
-        Branch name
+      <label htmlFor={titleId} className="text-xs font-medium">
+        What changes
       </label>
       <input
-        id={inputId}
+        id={titleId}
         autoFocus
-        value={name}
-        maxLength={80}
-        onChange={(e) => setName(sanitizeBranchNameInput(e.target.value))}
-        aria-describedby={error ? `${inputId}-error` : undefined}
-        className="h-8 w-full rounded-md border bg-background px-2 font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
+        value={title}
+        maxLength={200}
+        placeholder="Document the finance approval time"
+        onChange={(e) => {
+          setTitle(e.target.value);
+          if (error?.field === "title") setError(undefined);
+        }}
+        aria-invalid={error?.field === "title" || undefined}
+        aria-describedby={describedBy("title", `${titleId}-hint`)}
+        className="h-8 w-full rounded-md border bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
       />
+      <details
+        open={advanced}
+        onToggle={(e) => setAdvanced(e.currentTarget.open)}
+        className="group text-xs"
+      >
+        <summary className="w-fit cursor-pointer rounded-sm text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+          Advanced
+          {!advanced && (
+            <span className="ml-1.5 font-mono text-[11px]">
+              · branch {name}
+            </span>
+          )}
+        </summary>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label htmlFor={nameId} className="font-medium">
+            Branch name
+          </label>
+          <input
+            id={nameId}
+            value={name}
+            maxLength={80}
+            onChange={(e) => {
+              setCustomName(sanitizeBranchNameInput(e.target.value));
+              if (error?.field === "name") setError(undefined);
+            }}
+            aria-invalid={error?.field === "name" || undefined}
+            aria-describedby={describedBy("name")}
+            className="h-8 w-full rounded-md border bg-background px-2 font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
+          />
+        </div>
+      </details>
       {error && (
         <p
-          id={`${inputId}-error`}
+          id={`${titleId}-error`}
           role="alert"
           className="text-xs text-destructive"
         >
-          {error}
+          {error.text}
         </p>
       )}
       <div className="flex items-center justify-end gap-2">

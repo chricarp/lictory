@@ -254,6 +254,9 @@ test("a page becomes reviewed, delivered work that proposes the page update back
       .getByRole("option", { name: /Missing refund runbook/ })
       .click();
     await propose
+      .getByRole("textbox", { name: "What changes" })
+      .fill("Document the finance approval time");
+    await propose
       .getByRole("button", { name: "Create branch and edit", exact: true })
       .click();
     await expect(ada.page).toHaveURL(/[?&]branch=/);

@@ -107,7 +107,7 @@ for a page that does not exist.
 | `specification_reference`   | Derived: distinct references of each main revision, position, kind, target, pin                |
 | `work_item_page_attachment` | Item ↔ page, `purpose` (background, design, runbook), optional pin, detached by/at             |
 | `work_item_page_source`     | Item → page, commit, block, quote, written once                                                |
-| `page_branch_origin`        | Page branch → item revision, written once                                                      |
+| `page_branch_origin`        | Page branch → item revision and the change's title, written once                               |
 | `page_context_link`         | Project, optional team or iteration → page, rank, removed by/at                                |
 
 The two indexes are maintained in the same transaction as the change they
@@ -178,17 +178,22 @@ visibility rule.
   pin, a quiet "Newer version" offers a comparison in the page history.
   Above: the page the item was created from, as a quote with "Open source"
   at the exact commit and block. Below: page updates proposed from the
-  item, each named by its change (the pull request's title, the page title
-  before there is one), then the page, the revision it was proposed from,
+  item, each named by its change (the pull request's title, or before
+  there is one the title it was opened with, else the page title), then
+  the page, the revision it was proposed from,
   author and time, and its pull request status; the branch is named only
   on hover and to screen readers, so two updates of the same page read as
   two changes. People with `changeProperties`
   attach pages (find the page in a popover, then choose purpose and
   optional pin in the section, above the list) and detach them, with undo.
 - **Propose page update**: pick a page in a space I edit (attached and
-  mentioning pages first), name the branch; `createPageBranch` with `origin`
-  opens it in the page editor. Work never publishes a page directly; the
-  space's rules (reviewed or direct) publish the branch.
+  mentioning pages first), say what changes ("Document the finance approval
+  time"); `createPageBranch` with `origin` (and its `title`) opens a branch
+  in the page editor. The branch is named after the change and the item
+  key (`pay-2-document-the-finance-approval-time`), editable under
+  Advanced. The title names the update before it has a pull request and is
+  that pull request's default title. Work never publishes a page directly;
+  the space's rules (reviewed or direct) publish the branch.
 - **Counts**: item lists and the item preview show "N pages", linking to the
   Knowledge section: the readable pages that section lists (mentioning,
   attached, cited by any revision, or the page the item was created from),

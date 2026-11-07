@@ -1018,7 +1018,8 @@ void test("page branches remember the work item revision they were proposed from
     pageId,
     branchId,
     name: "document-retries",
-    origin: { workItemId, revisionId },
+    // What the change is, before it has a pull request.
+    origin: { workItemId, revisionId, title: "Explain retries to support" },
   });
   const proposal = await f.propose(
     pageId,
@@ -1029,6 +1030,13 @@ void test("page branches remember the work item revision they were proposed from
   assert.deepEqual(
     origins.map((o) => o.branchId).sort(),
     [branchId, proposal.branchId].sort(),
+  );
+  const named = origins.find((o) => o.branchId === branchId)!;
+  assert.equal(named.title, "Explain retries to support");
+  assert.equal(named.pullRequests.length, 0);
+  assert.equal(
+    origins.find((o) => o.branchId === proposal.branchId)!.title,
+    null,
   );
   const merged = await proposal.merge();
   origins = ofType(await knowledge(f), "pageBranchOrigin");

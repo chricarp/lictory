@@ -674,7 +674,8 @@ async function recordBranchOrigin(
   organizationId: string,
   pageId: string,
   branchId: string,
-  origin: { workItemId: string; revisionId: string } | undefined,
+  origin:
+    { workItemId: string; revisionId: string; title?: string } | undefined,
 ) {
   if (!origin) return undefined;
   if (
@@ -689,14 +690,21 @@ async function recordBranchOrigin(
       "not_found",
       "The work item revision this branch proposes to document is unavailable.",
     );
+  // Trimmed and non-empty by the command's schema.
+  const title = origin.title ?? null;
   await tx.insert(s.pageBranchOrigin).values({
     organizationId,
     branchId,
     pageId,
     workItemId: origin.workItemId,
     revisionId: origin.revisionId,
+    title,
   });
-  return { workItemId: origin.workItemId, revisionId: origin.revisionId };
+  return {
+    workItemId: origin.workItemId,
+    revisionId: origin.revisionId,
+    ...(title ? { title } : {}),
+  };
 }
 
 function validDocument<T>(run: () => T, what: string): T {

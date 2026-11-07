@@ -1134,6 +1134,10 @@ export type WorkItemPageSource = z.infer<typeof workItemPageSourceSchema>;
 export const pageBranchOriginSchema = z.strictObject({
   workItemId: id,
   revisionId: id,
+  // What the change is ("Document the finance approval time"): names the
+  // proposal before it has a pull request, and is that pull request's
+  // default title.
+  title: z.string().trim().min(1).max(200).optional(),
 });
 export const pageMergeBlockers = [
   "draft",
@@ -1433,6 +1437,9 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     // projected before it was added; a projection rebuild fills it).
     revisionNumber: z.number().int().nullable().optional(),
     name: z.string(),
+    // What the change is, as named when the branch was opened (absent or
+    // null when it was not named).
+    title: z.string().nullable().optional(),
     authorId: id,
     createdAt: z.string(),
     deletedAt: z.string().nullable(),

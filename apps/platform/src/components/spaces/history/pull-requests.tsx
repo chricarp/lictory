@@ -18,6 +18,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
+import { usePageWork } from "@lictory/platform/components/spaces/work/page-work";
 import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
 import {
   ActionError,
@@ -56,11 +57,15 @@ export function PullRequests({
   onSelect: (id: string | null) => void;
 }) {
   const { pullRequests, branches } = usePageHistory(pageId);
+  const { origins } = usePageWork(pageId);
   const { userId } = useWorkspace();
   const { canEdit } = usePageActions();
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
   const [title, setTitle] = useState("");
+  // The title a branch opened from a work item was named with ("Propose
+  // page update"), offered as its pull request's title.
+  const [offered, setOffered] = useState("");
   const [description, setDescription] = useState("");
   const [draft, setDraft] = useState(false);
   const action = useHistoryAction();
@@ -125,7 +130,15 @@ export function PullRequests({
               required
               className={`${field} mt-1`}
               value={source}
-              onChange={(e) => setSource(e.target.value)}
+              onChange={(e) => {
+                setSource(e.target.value);
+                const named =
+                  origins.find((o) => o.branchId === e.target.value)?.title ??
+                  "";
+                // Never over what the person typed themselves.
+                if (!title.trim() || title === offered) setTitle(named);
+                setOffered(named);
+              }}
             >
               <option value="">Choose branch</option>
               {branches

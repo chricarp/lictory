@@ -913,6 +913,7 @@ export async function knowledgeRows(
           revisionId: origin.revisionId,
           revisionNumber,
           name: branch.name,
+          title: origin.title,
           authorId: branch.authorId,
           createdAt: iso(origin.createdAt),
           deletedAt: isoOrNull(branch.deletedAt),

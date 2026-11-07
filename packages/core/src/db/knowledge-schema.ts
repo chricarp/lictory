@@ -258,6 +258,10 @@ export const pageBranchOrigin = pgTable(
     pageId: text("page_id").notNull(),
     workItemId: text("work_item_id").notNull(),
     revisionId: text("revision_id").notNull(),
+    // What the change is, as the person named it when opening the branch
+    // ("Document the finance approval time"); the default title of its pull
+    // request. Null for branches opened without one.
+    title: text("title"),
     createdAt: createdAt(),
   },
   (t) => [

@@ -258,6 +258,9 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     const propose = ada.page.getByRole("dialog");
     await propose.getByRole("option", { name: /Refund runbook/ }).click();
     await propose
+      .getByRole("textbox", { name: "What changes" })
+      .fill("Document the finance approval time");
+    await propose
       .getByRole("button", { name: "Create branch and edit", exact: true })
       .click();
     await expect(ada.page).toHaveURL(/[?&]branch=/);
@@ -282,10 +285,11 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
 
     // Its pull request, with Engineering as the required reviewer.
     await ada.page.goto(`${runbook.url}/history?view=pulls`);
+    // Its title is the change named when the branch was opened.
     await ada.page.getByLabel("Source branch").selectOption(branchId);
-    await ada.page
-      .getByLabel("Title", { exact: true })
-      .fill("Document the finance approval time");
+    await expect(ada.page.getByLabel("Title", { exact: true })).toHaveValue(
+      "Document the finance approval time",
+    );
     await ada.page
       .getByRole("button", { name: "Create pull request", exact: true })
       .click();

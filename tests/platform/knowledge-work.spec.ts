@@ -279,8 +279,24 @@ test("proposing a page update opens a branch in the editor and the item follows 
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("option", { name: /Refund policy/ }).click();
   await expect(dialog).toContainText("published after review");
+  // What the change is comes first; the branch is named after it, under
+  // Advanced.
+  const change = dialog.getByRole("textbox", { name: "What changes" });
+  await expect(change).toBeFocused();
+  await dialog
+    .getByRole("button", { name: "Create branch and edit", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Say what the change is",
+  );
+  await change.fill("Cap partial refunds");
+  const advanced = dialog.getByText("Advanced");
+  await expect(advanced).toContainText(
+    `branch kw-${number}-cap-partial-refunds`,
+  );
+  await advanced.click();
   await expect(dialog.getByLabel("Branch name")).toHaveValue(
-    `kw-${number}-partial-refund-limits`,
+    `kw-${number}-cap-partial-refunds`,
   );
   await dialog
     .getByRole("button", { name: "Create branch and edit", exact: true })
@@ -288,11 +304,18 @@ test("proposing a page update opens a branch in the editor and the item follows 
   await expect(page).toHaveURL(new RegExp(`/pages/${pageId}\\?branch=`));
   await expect(page.getByRole("textbox").first()).toBeVisible();
 
+  // Before it has a pull request, the update is named by that change.
   await page.goto(seeded.itemPath(number));
   const proposal = knowledge(page)
     .getByRole("listitem")
     .filter({ hasText: "Refund policy" });
-  await expect(proposal).toContainText(`kw-${number}-partial-refund-limits`);
+  await expect(
+    proposal.getByRole("link", { name: "Cap partial refunds", exact: true }),
+  ).toBeVisible();
+  await expect(proposal).toHaveAttribute(
+    "title",
+    `Branch kw-${number}-cap-partial-refunds`,
+  );
   await expect(proposal).toContainText("Not proposed yet");
   // A change proposed with the item as its origin (as Litto proposes
   // one) is listed with its open pull request.
