@@ -80,6 +80,8 @@ type Resolver = {
     id: string;
     title: string;
     space: string;
+    // Ancestor page titles, outermost first.
+    path: readonly string[];
     publishedCommitId: string;
     archived: boolean;
   }[];
@@ -216,6 +218,7 @@ function useResolverValue(): Resolver {
                 id: p.id,
                 title: p.title,
                 space: space?.name ?? "",
+                path: ancestorsOf(index.pageById, p.id).map((a) => a.title),
                 publishedCommitId: p.publishedCommitId,
                 archived: Boolean(p.archivedAt ?? space?.archivedAt),
               };

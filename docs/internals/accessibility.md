@@ -69,8 +69,9 @@ field, Enter or Arrow Down moves into the content.
   (people, in fields that mention) open a listbox while focus stays in the
   editor, which points `aria-activedescendant` at the chosen option: Arrow
   Up/Down choose, Enter or Tab inserts, Shift+Enter inserts the option's
-  alternative (a page pinned to its published version), Escape closes the
-  picker only. "/" → Decision opens a search field (a combobox) at the caret;
+  alternative (a page pinned to its published version; the chosen option
+  is described by that instruction, and shows it as a pointer button),
+  Escape closes the picker only. "/" → Decision opens a search field (a combobox) at the caret;
   Escape returns to the text.
 - **Shortcuts.** Mod+B, Mod+I, Mod+Shift+S, Mod+E for marks, Markdown input
   rules for blocks, Mod+Z / Mod+Shift+Z undo and redo one's own changes,
