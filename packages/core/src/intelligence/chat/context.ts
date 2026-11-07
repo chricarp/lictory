@@ -91,3 +91,123 @@ async function verify(
     archived: (found.page.archivedAt ?? found.space.archivedAt) !== null,
   };
 }
+
+// Earlier turns are sent to the model again with every turn: their tool
+// results (a page read with getPage, a page found by search) and the answers
+// built on them. When the person can no longer read a page those name, the
+// model must not get it back from the transcript either: the tool's input
+// and result are replaced by a note, and so are the words of an earlier
+// answer that used them or that was asked from that page. The stored
+// transcript is unchanged (it is the person's own record); only what the
+// model is sent is withheld.
+export const WITHHELD_RESULT =
+  "Withheld: this read a page the person cannot read now. Do not use or repeat anything from it.";
+export const WITHHELD_ANSWER =
+  "[An earlier answer drawn from a page the person cannot read now; withheld. Do not repeat anything from it.]";
+// More distinct pages than this in one conversation are not checked one by
+// one; the rest count as unreadable.
+const MAX_CHECKED_PAGES = 200;
+
+function pagesNamedIn(value: unknown, into: Set<string>, depth = 0) {
+  if (depth > 12 || value === null || typeof value !== "object") return;
+  if (Array.isArray(value)) {
+    for (const v of value) pagesNamedIn(v, into, depth + 1);
+    return;
+  }
+  for (const [key, v] of Object.entries(value)) {
+    if (key === "pageId" && typeof v === "string" && v.length <= 100)
+      into.add(v);
+    else pagesNamedIn(v, into, depth + 1);
+  }
+}
+
+type Part = ChatMessage["parts"][number];
+const toolPart = (part: Part) =>
+  part.type.startsWith("tool-") || part.type === "dynamic-tool"
+    ? (part as { input?: unknown; output?: unknown; state?: string })
+    : null;
+const pagesOfTool = (part: Part) => {
+  const ids = new Set<string>();
+  const tool = toolPart(part);
+  if (tool) {
+    pagesNamedIn(tool.input, ids);
+    pagesNamedIn(tool.output, ids);
+  }
+  return ids;
+};
+
+export async function withholdUnreadablePages(
+  db: Database,
+  actor: { organizationId: string; userId: string },
+  messages: readonly ChatMessage[],
+  contexts: ReadonlyMap<string, VerifiedPage | null>,
+): Promise<ChatMessage[]> {
+  const named = new Set(
+    messages.flatMap((m) => m.parts.flatMap((p) => [...pagesOfTool(p)])),
+  );
+  const unreadable = new Set<string>();
+  if (named.size)
+    await db.transaction(
+      async (tx) => {
+        let checked = 0;
+        for (const pageId of named) {
+          if (checked++ >= MAX_CHECKED_PAGES) unreadable.add(pageId);
+          else if (!(await pageAccess(tx, actor, pageId))?.level)
+            unreadable.add(pageId);
+        }
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+  const namesUnreadable = (part: Part) =>
+    [...pagesOfTool(part)].some((id) => unreadable.has(id));
+  const askedFromUnreadable = (message: ChatMessage) =>
+    message.parts.some(
+      (p) =>
+        p.type === "data-context" &&
+        p.data.document?.kind === "page" &&
+        !contexts.get(pageContextKey(p.data.document)),
+    );
+  // The words of the turn being answered are left as they are: they were
+  // written with the person's access as it is now.
+  const current = messages.findLastIndex((m) => m.role === "user");
+  let fromUnreadable = false;
+  return messages.map((message, index) => {
+    if (message.role === "user") {
+      fromUnreadable = askedFromUnreadable(message);
+      return message;
+    }
+    const usedUnreadable = message.parts.some(namesUnreadable);
+    const withholdWords = index < current && (fromUnreadable || usedUnreadable);
+    if (!usedUnreadable && !withholdWords) return message;
+    let said = false;
+    const parts = message.parts.flatMap((part): Part[] => {
+      if (namesUnreadable(part)) {
+        const { state, output } = toolPart(part)!;
+        // A refusal (the page was already unreadable) carries no content
+        // and keeps its own words; a result is replaced.
+        const refused =
+          state === "output-error" ||
+          (output as { ok?: unknown } | undefined)?.ok === false;
+        return [
+          {
+            ...part,
+            input: {},
+            ...(state === "output-available" && !refused
+              ? { output: { ok: false, error: { message: WITHHELD_RESULT } } }
+              : {}),
+          } as Part,
+        ];
+      }
+      if (
+        withholdWords &&
+        (part.type === "text" || part.type === "reasoning")
+      ) {
+        if (said) return [];
+        said = true;
+        return [{ type: "text", text: WITHHELD_ANSWER }];
+      }
+      return [part];
+    });
+    return { ...message, parts };
+  });
+}

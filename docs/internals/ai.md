@@ -195,8 +195,15 @@ list.
   named space, and the commit and branch must be the page's. Only then does
   the model learn its title, space, publishing policy and version; otherwise
   it is told the page is unavailable and the quoted text is withheld, even
-  though the transcript still stores it for its owner. Quoted page text is
-  fenced and marked as data written by people, never instructions.
+  though the transcript still stores it for its owner. The same holds for
+  earlier turns, which are sent again with every question: a tool call
+  whose input or result names a page the person cannot read now (a
+  `getPage` result, a search hit) reaches the model as a withheld note, and
+  so does the text of an earlier answer that used one or was asked from that
+  page. The stored transcript is unchanged; only the copy sent to the
+  provider is.
+  Quoted page text is fenced and marked as data written by people, never
+  instructions.
 - **Adapts to the page.** The sheet offers what fits: explaining a
   selection, assessing the open item (or its proposed concerns once
   assessed), questions for the board, backlog, inbox and other pages, and on

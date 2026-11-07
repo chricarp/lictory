@@ -21,7 +21,10 @@ import {
   type ChatMessage,
 } from "@lictory/core/intelligence/chat/shared";
 import type { ChatOwner } from "@lictory/core/intelligence/chat/runs";
-import { verifyPageContexts } from "@lictory/core/intelligence/chat/context";
+import {
+  verifyPageContexts,
+  withholdUnreadablePages,
+} from "@lictory/core/intelligence/chat/context";
 
 export type ChatGenerator = (input: {
   messages: ChatMessage[];
@@ -45,11 +48,13 @@ export function chatGenerator(
     const me = roster.members.find((m) => m.id === owner.userId);
     const message = messages.at(-1)!;
     // Page contexts are re-checked with the person's access now, every turn.
-    const pages = await verifyPageContexts(
-      ctx.db,
-      { organizationId: owner.organizationId, userId: owner.userId },
-      messages,
-    );
+    const actor = {
+      organizationId: owner.organizationId,
+      userId: owner.userId,
+    };
+    const pages = await verifyPageContexts(ctx.db, actor, messages);
+    // Nor do earlier tool results and answers about a page they lost.
+    const sent = await withholdUnreadablePages(ctx.db, actor, messages, pages);
     // The UI message stream reports a failed model call only as text; keep
     // the provider's own error so the run can say what went wrong.
     let failure: unknown;
@@ -64,7 +69,7 @@ export function chatGenerator(
         user: { id: owner.userId, name: me?.name ?? "this person" },
         now: new Date(),
       }),
-      messages: await convertToModelMessages<ChatMessage>(messages, {
+      messages: await convertToModelMessages<ChatMessage>(sent, {
         tools,
         ignoreIncompleteToolCalls: true,
         convertDataPart: (p) =>

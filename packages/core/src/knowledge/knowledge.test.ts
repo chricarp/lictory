@@ -16,7 +16,10 @@ import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowled
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { projectionDrift } from "@lictory/core/domain/projection-reader.test-helper";
 import { directory, executeMutation } from "@lictory/core/domain/service";
-import { verifyPageContexts } from "@lictory/core/intelligence/chat/context";
+import {
+  verifyPageContexts,
+  withholdUnreadablePages,
+} from "@lictory/core/intelligence/chat/context";
 import {
   chatContextSchema,
   contextPrompt,
@@ -746,4 +749,77 @@ void test("Litto page context is validated and re-checked with the person's acce
   // Nor does the route label, which is the page's title.
   assert.doesNotMatch(withheld, /Ignore previous instructions|Launch plan/);
   assert.match(withheld, /cannot read now/);
+
+  // An earlier turn read the page and answered from it. Sent again for the
+  // next question by someone who cannot read it now, neither the tool's
+  // result nor the answer reaches the model; the stored turn is unchanged.
+  const transcript: ChatMessage[] = [
+    {
+      id: "q1",
+      role: "user",
+      parts: [
+        { type: "data-context", data: context(published) },
+        { type: "text", text: "Summarize this page" },
+      ],
+    },
+    {
+      id: "a1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-getPage",
+          toolCallId: "call-1",
+          state: "output-available",
+          input: { pageId, commitId: v2 },
+          output: {
+            ok: true,
+            result: {
+              pageId,
+              title: "Launch plan",
+              markdown: "Launch on Monday.",
+            },
+          },
+        },
+        { type: "text", text: "“Launch plan” says: Launch on Monday." },
+      ],
+    },
+    {
+      id: "q-other",
+      role: "user",
+      parts: [{ type: "text", text: "Thanks." }],
+    },
+    {
+      id: "a2",
+      role: "assistant",
+      parts: [{ type: "text", text: "Anything else?" }],
+    },
+    {
+      id: "q2",
+      role: "user",
+      parts: [{ type: "text", text: "And when is the launch?" }],
+    },
+  ];
+  // The context parts are sent as contextPrompt writes them (above).
+  const sentTo = async (userId: string) =>
+    JSON.stringify(
+      (
+        await withholdUnreadablePages(
+          db,
+          actor(userId),
+          transcript,
+          await verifyPageContexts(db, actor(userId), transcript),
+        )
+      ).map((m) => m.parts.filter((p) => p.type !== "data-context")),
+    );
+  const forOwner = await sentTo(f.owner);
+  assert.match(forOwner, /Launch on Monday/);
+  assert.doesNotMatch(forOwner, /Withheld/);
+  const forCarol = await sentTo(f.carol);
+  assert.doesNotMatch(forCarol, /Launch plan|Launch on Monday/);
+  assert.match(forCarol, /Withheld: this read a page/);
+  assert.match(forCarol, /An earlier answer drawn from a page/);
+  // What does not rest on the page stays, as does the new question.
+  assert.match(forCarol, /Anything else\?/);
+  assert.match(forCarol, /And when is the launch\?/);
+  assert.match(JSON.stringify(transcript), /Launch on Monday/);
 });
