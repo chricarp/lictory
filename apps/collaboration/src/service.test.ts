@@ -13,6 +13,7 @@ import postgres from "postgres";
 import WebSocket from "ws";
 import * as Y from "yjs";
 import * as s from "@lictory/core/db/schema";
+import { SPECIFICATION_CLOSE_REASONS } from "@lictory/core/spaces/collaboration-protocol";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import type * as Db from "@lictory/core/db";
 import type * as Organization from "@lictory/core/domain/organization";
@@ -362,4 +363,161 @@ void test("health probes: live while running, ready until it starts stopping", a
   assert.equal(await probe("/collaboration"), 404);
   await instance.stop();
   await assert.rejects(probe("/livez"));
+});
+
+// Live drafts of specifications (docs/internals/specification-drafts.md):
+// Alice creates a project (she holds every default discipline) with one
+// story; Bob joins the project in Product (he edits specifications) or,
+// with `bobEdits` false, in Engineering (he only reviews).
+async function specification(bobEdits = true) {
+  const [alice, bob] = [await person("Alice"), await person("Bob")];
+  const organizationId = crypto.randomUUID();
+  await db.insert(s.organization).values({
+    id: organizationId,
+    name: "Workspace",
+    slug: organizationId,
+    createdAt: new Date(),
+  });
+  await db.insert(s.member).values(
+    [alice, bob].map((p) => ({
+      id: crypto.randomUUID(),
+      organizationId,
+      userId: p.id,
+      role: p === alice ? "owner" : "member",
+      createdAt: new Date(),
+    })),
+  );
+  await m.seedOrganization(db, organizationId);
+  const projectId = crypto.randomUUID();
+  await mutate(organizationId, alice.id, {
+    type: "createProject",
+    projectId,
+    name: "Payments",
+    key: "PAY",
+  });
+  const disciplines = await db
+    .select()
+    .from(s.discipline)
+    .where(eq(s.discipline.projectId, projectId));
+  const product = disciplines.find((d) => d.name === "Product")!.id;
+  const engineering = disciplines.find((d) => d.name === "Engineering")!.id;
+  await mutate(organizationId, alice.id, {
+    type: "setProjectMember",
+    projectId,
+    userId: bob.id,
+    role: "member",
+  });
+  await mutate(organizationId, alice.id, {
+    type: "setDisciplineMember",
+    projectId,
+    disciplineId: bobEdits ? product : engineering,
+    userId: bob.id,
+    member: true,
+  });
+  const types = await db
+    .select()
+    .from(s.workItemType)
+    .where(eq(s.workItemType.organizationId, organizationId));
+  const workItemId = crypto.randomUUID();
+  await mutate(organizationId, alice.id, {
+    type: "createWorkItem",
+    projectId,
+    workItemId,
+    typeId: types.find((t) => t.name === "Story")!.id,
+    parentId: null,
+    title: "Safe retries",
+    description: "Retries reuse the transaction ID.\n",
+  });
+  const opened = await mutate(organizationId, alice.id, {
+    type: "openSpecificationDraft",
+    workItemId,
+  });
+  return {
+    organizationId,
+    projectId,
+    product,
+    workItemId,
+    alice,
+    bob,
+    draftId: opened.summary?.draftId as string,
+    documentName: opened.summary?.documentName as string,
+  };
+}
+
+void test("specification drafts: editors edit live, people who cannot edit the line are refused", async () => {
+  const { draftId, documentName, alice, bob } = await specification(false);
+  const instance = await service();
+  const a = connect(instance, documentName, alice);
+  const b = connect(instance, documentName, bob);
+  try {
+    await until(() => a.provider.synced);
+    assert.equal(a.provider.authorizedScope, "read-write");
+    // Bob reviews in Engineering: without the edit-specifications
+    // capability he cannot open main's live draft either.
+    await until(() => b.refused.length > 0);
+    assert.deepEqual(b.refused, [SPECIFICATION_CLOSE_REASONS.noAccess]);
+    // Alice's edit is stored before the service acknowledges it.
+    const paragraph = a.provider.document
+      .getXmlFragment("default")
+      .get(0) as Y.XmlElement;
+    (paragraph.get(0) as Y.XmlText).insert(0, "Live: ");
+    await until(() => !a.provider.hasUnsyncedChanges);
+    const [row] = await db
+      .select({ sequence: s.specificationDraft.sequence })
+      .from(s.specificationDraft)
+      .where(eq(s.specificationDraft.id, draftId));
+    assert.equal(row?.sequence, 1);
+  } finally {
+    a.provider.destroy();
+    b.provider.destroy();
+    await instance.stop();
+  }
+});
+
+void test("specification drafts: a revoked discipline closes that editor; a revision saved elsewhere replaces the draft", async () => {
+  const f = await specification();
+  const instance = await service();
+  const a = connect(instance, f.documentName, f.alice);
+  const b = connect(instance, f.documentName, f.bob);
+  try {
+    await until(() => a.provider.synced && b.provider.synced);
+    assert.equal(b.provider.authorizedScope, "read-write");
+    // Bob leaves Product: the command signals him after commit.
+    await mutate(f.organizationId, f.alice.id, {
+      type: "setDisciplineMember",
+      projectId: f.projectId,
+      disciplineId: f.product,
+      userId: f.bob.id,
+      member: false,
+    });
+    await until(() => b.closed.length > 0);
+    assert.deepEqual(b.closed, [SPECIFICATION_CLOSE_REASONS.revoked]);
+    assert.deepEqual(a.closed, []);
+    // A revision saved another way (an agent, the API) starts a new epoch:
+    // the room closes and the old name no longer opens.
+    const [revision] = await db
+      .select()
+      .from(s.specificationRevision)
+      .where(eq(s.specificationRevision.workItemId, f.workItemId));
+    await mutate(f.organizationId, f.alice.id, {
+      type: "updateSpecification",
+      workItemId: f.workItemId,
+      baseRevisionId: revision!.id,
+      title: revision!.title,
+      content: "Retries reuse the original transaction ID.\n",
+    });
+    await until(() => a.closed.length > 0);
+    assert.deepEqual(a.closed, [SPECIFICATION_CLOSE_REASONS.replaced]);
+    const again = connect(instance, f.documentName, f.alice);
+    try {
+      await until(() => again.refused.length > 0);
+      assert.deepEqual(again.refused, [SPECIFICATION_CLOSE_REASONS.replaced]);
+    } finally {
+      again.provider.destroy();
+    }
+  } finally {
+    a.provider.destroy();
+    b.provider.destroy();
+    await instance.stop();
+  }
 });

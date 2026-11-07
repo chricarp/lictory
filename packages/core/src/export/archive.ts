@@ -62,6 +62,11 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.specificationCommit },
   { table: s.specificationBranch },
   { table: s.specificationPullRequest },
+  // Live drafts as the working trees they are (Yjs state, base64; each
+  // epoch's seed with the Markdown it started from), never as revisions.
+  { table: s.specificationDraft },
+  { table: s.specificationDraftUpdate },
+  { table: s.specificationDraftSeed },
   { table: s.pullRequestReview },
   { table: s.review },
   { table: s.reviewAssignment },
