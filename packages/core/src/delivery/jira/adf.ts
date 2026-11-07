@@ -52,6 +52,10 @@ export function markdownToAdf(markdown: string): AdfDocument {
             },
           ];
         case "link":
+          // Lictory references and mentions (`item:`, `page:`, `decision:`,
+          // `mention:`) mean nothing outside Lictory: their label is text.
+          if (/^(item|page|decision|mention):/.test(node.url))
+            return inline(node.children, marks);
           return inline(node.children, [
             ...marks,
             { type: "link", attrs: { href: node.url } },

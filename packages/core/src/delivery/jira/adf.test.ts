@@ -70,3 +70,13 @@ void test("lists, code, quotes and tables map to their ADF nodes", () => {
 void test("empty specifications produce a valid empty document", () => {
   assert.deepEqual(markdownToAdf(""), { type: "doc", version: 1, content: [] });
 });
+
+void test("Lictory references and mentions export as their label", () => {
+  const doc = markdownToAdf(
+    "See [PAY-2](item:i1), [Runbook](page:p1@c1) and @[ada](mention:u1).",
+  );
+  const text = JSON.stringify(doc);
+  assert.ok(text.includes('"text":"PAY-2"'));
+  assert.ok(text.includes('"text":"Runbook"'));
+  assert.ok(!/item:|page:|mention:/.test(text));
+});
