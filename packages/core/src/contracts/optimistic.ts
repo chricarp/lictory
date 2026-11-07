@@ -231,6 +231,7 @@ export function optimistic(
             kind: "document",
             section: c.section,
             ...(c.quote ? { quote: c.quote } : {}),
+            ...(c.quote && c.occurrence ? { occurrence: c.occurrence } : {}),
           },
         };
         next[`message:${c.messageId}`] = {

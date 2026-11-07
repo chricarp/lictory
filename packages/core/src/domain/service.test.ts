@@ -5168,3 +5168,48 @@ void test("archiving a decision requires a current project capability, authorshi
   await archive(decisionId, false, f.userId);
   assert.equal(await archivedAt(decisionId), null);
 });
+
+void test("an anchored discussion keeps its quote, the copy that was selected and its revision", async () => {
+  const f = await fixture();
+  const revision = await f.current();
+  const threadId = crypto.randomUUID();
+  await f.command({
+    type: "createThread",
+    workItemId: f.proposalId,
+    baseRevisionId: revision.id,
+    threadId,
+    messageId: crypto.randomUUID(),
+    body: "Which of the two?",
+    section: "",
+    quote: "the client",
+    occurrence: 1,
+    blocking: false,
+  });
+  const anchorOf = async () => {
+    const thread = (await f.entities()).find(
+      (e) => e.type === "thread" && e.id === threadId,
+    );
+    assert.ok(thread?.type === "thread");
+    return { anchor: thread.anchor, revisionId: thread.revisionId };
+  };
+  assert.deepEqual(await anchorOf(), {
+    anchor: {
+      version: 1,
+      kind: "document",
+      section: "",
+      quote: "the client",
+      occurrence: 1,
+    },
+    revisionId: revision.id,
+  });
+  // Resolving and reopening change the state, never the anchor.
+  for (const resolved of [true, false])
+    await f.command({
+      type: "setThreadState",
+      workItemId: f.proposalId,
+      threadId,
+      resolved,
+      blocking: false,
+    });
+  assert.equal((await anchorOf()).anchor?.occurrence, 1);
+});

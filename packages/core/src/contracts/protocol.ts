@@ -347,6 +347,9 @@ export const entitySchema = z.discriminatedUnion("type", [
         kind: z.literal("document"),
         section: z.string(),
         quote: z.string().optional(),
+        // Which copy of the quote under its section was selected (0 is the
+        // first), so repeated words never attach to another copy.
+        occurrence: z.number().int().min(0).optional(),
       })
       .nullable(),
   }),
@@ -2021,6 +2024,15 @@ export const commandSchema = z.discriminatedUnion("type", [
         "Heading this discussion is anchored to. An empty string anchors the thread to the whole text. An unknown heading is rejected.",
       ),
     quote: z.string().max(2000).optional(),
+    occurrence: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .optional()
+      .describe(
+        "When the quote appears more than once under its section: which appearance (0 is the first).",
+      ),
     // Discuss a suggestion's proposed text instead of the specification.
     suggestionId: id.optional(),
     pullRequestId: id.optional(),
