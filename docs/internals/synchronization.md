@@ -270,8 +270,9 @@ review requests and cancellations. In Lictory Spaces only the page tree's
 structure is predicted (creating, moving and archiving pages, on
 `space_entity`); creating a space and every access change wait for the server. Everything else predicts nothing and waits
 for the server: revisions, restores, branch commits, pull requests, every
-suggestion command, review decisions, merges, readiness sign-offs and
-configuration. A local prediction is never shown as a confirmed human decision.
+suggestion command, review decisions, merges, readiness sign-offs,
+configuration and [knowledge links](knowledge-links.md) (their page's access
+is checked by the server). A local prediction is never shown as a confirmed human decision.
 Zero rebases predictions onto authoritative rows as they replicate and removes
 the prediction of a rejected mutation. The frontend still checks a known
 blocking readiness policy before sending a status change; the server remains
