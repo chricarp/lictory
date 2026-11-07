@@ -71,9 +71,13 @@ test("an instance administrator connects a provider in the console, tests it, sa
   // Text: OpenAI's protocol through a custom endpoint (a gateway).
   await choose(page, "Language model provider", "OpenAI");
   const text = page.locator("#ai-provider");
-  await text.getByLabel("Base URL (optional)").fill(provider());
-  await text.getByLabel("Model (optional)").fill("e2e-scripted");
-  await text.getByLabel("API key").fill("e2e-console-key");
+  await text
+    .getByLabel("Base URL (optional)", { exact: true })
+    .fill(provider());
+  await text
+    .getByLabel("Model (optional)", { exact: true })
+    .fill("e2e-scripted");
+  await text.getByLabel("API key", { exact: true }).fill("e2e-console-key");
 
   // Dictation by recorded clips with the same vendor: its key and endpoint
   // are reused.
@@ -90,7 +94,7 @@ test("an instance administrator connects a provider in the console, tests it, sa
   await expect(
     result.getByText(/These providers work with Lictory Intelligence/),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(result.getByLabel("Passed")).toHaveCount(4);
+  await expect(result.getByLabel("Passed", { exact: true })).toHaveCount(4);
   const tested = (await sentToProvider()).slice(before);
   expect(tested.some((r) => r.body === "[audio clip]")).toBe(true);
   for (const r of tested) expect(r.body).not.toContain(seeded.slug);
@@ -99,7 +103,7 @@ test("an instance administrator connects a provider in the console, tests it, sa
   await expect(page.getByText(/^Saved\. The API and workers/)).toBeVisible();
   // The key is stored, never shown again.
   await expect(text.getByText("Stored")).toBeVisible();
-  await expect(text.getByLabel("API key")).toHaveValue("");
+  await expect(text.getByLabel("API key", { exact: true })).toHaveValue("");
   await expect(page.getByText("e2e-console-key")).toHaveCount(0);
 
   // The organization turns it on and sees where content goes.

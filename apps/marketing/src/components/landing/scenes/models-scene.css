@@ -1,0 +1,327 @@
+/* Your models: the admin console's AI providers form, with the organization
+   settings beside it as a satellite once the provider is saved. Compact
+   shows the form alone. */
+
+.md .ss-stage {
+  overflow: hidden;
+}
+
+.md-win {
+  position: absolute;
+}
+
+/* The console runs off the bottom edge; the organization's view straddles
+   its right edge, the payoff where the eye ends. */
+.md-win--console {
+  top: 28px;
+  left: 28px;
+  width: 820px;
+  height: 520px;
+}
+
+.md-win--org {
+  top: 196px;
+  left: 772px;
+  z-index: 2;
+  width: 372px;
+  box-shadow: var(--ss-shadow-satellite);
+}
+
+.md .ss-stage[data-layout="compact"] .md-win--console {
+  top: 16px;
+  left: 16px;
+  width: 358px;
+  height: 620px;
+}
+
+.md .ss-stage[data-layout="compact"] .md-console {
+  gap: 12px;
+  padding: 14px;
+}
+
+.md .ss-stage[data-layout="compact"] .md-card {
+  gap: 8px;
+  padding: 12px;
+}
+
+.md .ss-stage[data-layout="compact"] .md-card-head {
+  display: none;
+}
+
+.md .ss-stage[data-layout="compact"] .md-checks {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.md-console {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  height: 100%;
+  padding: 18px 20px;
+  background: var(--ss-surface);
+}
+
+.md-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--ss-radius-lg);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+}
+
+.md-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ss-text-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.md-mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--lx-litto);
+}
+
+.md-mark svg {
+  width: 18px;
+  height: 18px;
+}
+
+.md-field {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.md .ss-stage[data-layout="compact"] .md-field {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.md-label {
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.md-input,
+.md-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-radius: var(--ss-radius-md);
+  background: var(--ss-raised);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.md-select {
+  justify-content: space-between;
+  transition: box-shadow 0.15s ease;
+}
+
+.md-select[data-hover],
+.md-input[data-hover] {
+  box-shadow: inset 0 0 0 1px var(--ss-text-faint);
+}
+
+.md-chevron {
+  width: 15px;
+  height: 15px;
+  color: var(--ss-icon);
+}
+
+.md-placeholder {
+  color: var(--ss-text-faint);
+}
+
+.md-chosen {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.md-mono {
+  font-family: var(--ss-mono);
+  font-size: 12px;
+}
+
+.md-strong {
+  color: var(--ss-text-strong);
+}
+
+.md-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ss-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.md-caret {
+  width: 1.5px;
+  height: 15px;
+  margin-left: 1px;
+  background: var(--ss-text-strong);
+  opacity: 0;
+}
+
+.md-caret[data-on] {
+  opacity: 1;
+}
+
+/* The provider list: cloud and self-hosted in one menu, under the select. */
+.md-menu {
+  position: absolute;
+  top: 88px;
+  left: 124px;
+  z-index: 3;
+  display: grid;
+  width: 300px;
+  padding: 6px;
+  border-radius: var(--ss-radius-lg);
+  background: var(--ss-raised);
+  box-shadow:
+    var(--ss-shadow-satellite),
+    inset 0 0 0 1px var(--ss-line);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  transition:
+    opacity 0.16s ease,
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.md-menu[data-open] {
+  opacity: 1;
+  transform: none;
+}
+
+.md-group {
+  padding: 6px 10px 4px;
+  color: var(--ss-text-faint);
+  font-family: var(--ss-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.md-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--ss-radius-sm);
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+  transition: background-color 0.12s ease;
+}
+
+.md-option[data-hover] {
+  background: var(--ss-accent-soft);
+}
+
+.md-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.md-button {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    background-color 0.2s ease,
+    transform 0.12s ease;
+}
+
+.md-button--primary {
+  background: var(--ss-accent);
+  box-shadow: none;
+  color: var(--lx-on-accent);
+}
+
+.md-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+.md-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border-radius: var(--ss-radius-lg);
+  background: var(--ss-chrome);
+}
+
+.md-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ss-text-strong);
+  font-size: 12.5px;
+}
+
+.md-check .ss-check[data-on] {
+  color: var(--ss-success);
+}
+
+/* The organization's view: where its content goes. */
+.md-org {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--ss-surface);
+  font-size: 12.5px;
+}
+
+.md-sent {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ss-text-strong);
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.md-sent svg {
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  color: var(--ss-success);
+}
+
+.md-rest {
+  position: absolute;
+  right: 120px;
+  bottom: 60px;
+  width: 1px;
+  height: 1px;
+}

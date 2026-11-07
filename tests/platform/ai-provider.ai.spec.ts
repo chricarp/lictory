@@ -68,7 +68,7 @@ test("members see where content goes and an instance administrator checks the pr
   await expect(
     provider.getByText(/Set in the server's environment/),
   ).toBeVisible();
-  await expect(provider.getByText("OpenAI", { exact: true })).toBeVisible();
+  await expect(provider.getByText(/^OpenAI\s*Cloud$/)).toBeVisible();
   await expect(
     provider.getByText(
       /http:\/\/127\.0\.0\.1:\d+\/v1 · key from OPENAI_API_KEY/,

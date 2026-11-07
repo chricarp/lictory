@@ -311,7 +311,7 @@ void test("dictation reuses the key of a text provider of the same vendor, never
   assert.equal(other.state, "invalid");
   assert.match(
     (other as { problems: string[] }).problems.join(),
-    /Dictation api key is required for Deepgram/,
+    /Dictation API key is required for Deepgram/,
   );
   // Azure dictation shares the resource endpoint too.
   const azure: AiSettings = {

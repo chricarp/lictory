@@ -106,7 +106,9 @@ function named(
   const variable = envNames[part][field];
   if (source === "environment" && variable) return variable;
   const label = field === "provider" ? "Provider" : aiFieldLabels[field];
-  return part === "text" ? label : `Dictation ${label.toLowerCase()}`;
+  // "Dictation model", "Dictation base URL", "Dictation API key".
+  const lower = label.replace(/^[A-Z][a-z]/, (c) => c.toLowerCase());
+  return part === "text" ? label : `Dictation ${lower}`;
 }
 
 /** Every variable this module reads, to tell whether the environment manages AI. */

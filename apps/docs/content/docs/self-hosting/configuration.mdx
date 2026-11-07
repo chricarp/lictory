@@ -184,23 +184,20 @@ an existing account is linked automatically only when the provider asserts
 
 ## Lictory Intelligence
 
-| Setting               | Meaning                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| `LICTORY_AI_PROVIDER` | `openai`, `anthropic`, `azure` or `openai-compatible` (self-hosted models) |
-| `LICTORY_AI_MODEL`    | Model id, or the Azure deployment name                                     |
-| `LICTORY_AI_BASE_URL` | The provider's URL (required for Azure and self-hosted models)             |
-| `LICTORY_AI_API_KEY`  | The provider's key                                                         |
-| `OPENAI_API_KEY`      | Alone, enables Lictory Intelligence with OpenAI (existing installations)   |
+Set AI providers up in the admin console (**Admin console → AI providers**)
+or in the terminal:
 
 ```sh
-sudo lictory config set LICTORY_AI_PROVIDER=anthropic \
-  LICTORY_AI_API_KEY=<anthropic-key> LICTORY_AI_MODEL=<model id>
-sudo lictory admin ai-check
+sudo lictory ai setup     # choose providers, models and keys; test; save
+sudo lictory ai check     # check what is saved
 ```
 
-[AI providers](/self-hosting/ai-providers) covers every provider, self-hosted
-models on the same machine or a private server, dictation and what each
-feature needs from the model.
+Cloud providers (OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI,
+Amazon Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter) and open-weight models
+on your own hardware (Ollama, vLLM, LM Studio, llama.cpp, Whisper servers for
+dictation) are supported. [AI providers](/self-hosting/ai-providers) covers each
+one, self-hosted models on the same machine or a private server, dictation and
+the environment variables (`LICTORY_AI_*`), which take precedence when set.
 
 With a provider configured, an organization administrator still decides
 whether Lictory Intelligence may run for their organization (**Organization

@@ -120,13 +120,19 @@ const message = (e: unknown) =>
 
 export function AiSettings() {
   const { data, error, reload } = useAdminResource<AiSettingsView>("/ai");
+  // Outlives the form, which starts over from each saved version.
+  const [saved, setSaved] = useState("");
   if (error && !data) return <InlineError>{error}</InlineError>;
   if (!data) return <SettingsSectionSkeleton />;
   return data.editable ? (
     <AiSettingsForm
       key={data.stored?.version ?? 0}
       view={data}
-      reload={reload}
+      saved={saved}
+      onSaved={(message) => {
+        setSaved(message);
+        reload();
+      }}
     />
   ) : (
     <AiSettingsReadOnly view={data} />
@@ -359,10 +365,12 @@ function Report({ report }: { report: AiCheckReport }) {
 
 function AiSettingsForm({
   view,
-  reload,
+  saved,
+  onSaved,
 }: {
   view: AiSettingsView;
-  reload: () => void;
+  saved: string;
+  onSaved: (message: string) => void;
 }) {
   const initial = useMemo<Form>(
     () => ({
@@ -381,7 +389,7 @@ function AiSettingsForm({
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<"test" | "save" | null>(null);
   const [error, setError] = useState("");
-  const [done, setDone] = useState("");
+  const [done, setDone] = useState(saved);
   const [report, setReport] = useState<AiCheckReport>();
 
   const storedSet = (part: Part, field: AiField) => {
@@ -418,11 +426,9 @@ function AiSettingsForm({
         );
       else {
         await adminRequest("/ai", { method: "PUT", body });
-        setRemoved(new Set());
-        setDone(
+        onSaved(
           "Saved. The API and workers use these settings within seconds; organizations see the new provider in their settings.",
         );
-        reload();
       }
     } catch (e) {
       setError(message(e));
@@ -753,19 +759,17 @@ function Fields({
             const stored = secret && storedSet(f);
             const wide = f === "apiKey" || f === "baseUrl";
             return (
-              <label key={f} className={wide ? "block sm:col-span-2" : "block"}>
+              <div key={f} className={wide ? "sm:col-span-2" : undefined}>
                 <span className="flex items-center gap-2 font-medium">
-                  {label}
+                  <label htmlFor={`${id}-${f}`}>{label}</label>
                   {stored && (
                     <>
                       <Badge tone="neutral">Stored</Badge>
                       <button
                         type="button"
+                        aria-label={`Remove the stored ${aiFieldLabels[f].replace(/^[A-Z][a-z]/, (c) => c.toLowerCase())}`}
                         className="text-xs font-normal text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          onRemove(f);
-                        }}
+                        onClick={() => onRemove(f)}
                       >
                         Remove
                       </button>
@@ -773,6 +777,7 @@ function Fields({
                   )}
                 </span>
                 <Input
+                  id={`${id}-${f}`}
                   className="mt-1.5 h-9 rounded-lg font-mono text-sm"
                   type={secret ? "password" : "text"}
                   autoComplete="off"
@@ -818,7 +823,7 @@ function Fields({
                     server on the same machine use host.docker.internal.
                   </span>
                 )}
-              </label>
+              </div>
             );
           })}
       </div>
