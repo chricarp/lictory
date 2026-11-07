@@ -105,6 +105,40 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // Which work items readable pages mention or are attached to, for the
+  // "N pages" signal of item lists and previews: small rows (ids, blocks),
+  // never page content, and only of spaces I read.
+  itemPageLinks: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("type", "IN", ["pageReference", "pageAttachment"])
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Inbox To do: page pull request metadata of the spaces I read (never page
+  // content), from which my page reviews and my mergeable proposals derive.
+  myPagePullRequests: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.spaceEntity
+      .where("organizationId", args.organizationId)
+      .where("type", "pagePullRequest")
+      .whereExists("readers", (r) => r.where("userId", ctx.userID))
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Review decisions on the named pages (those with an open pull request
+  // that asks for my review), so a review I gave clears it from To do.
+  pagePullRequestReviews: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      pageIds: z.array(z.string().min(1)).max(200),
+    }),
+    ({ args, ctx }) =>
+      zql.spaceEntity
+        .where("organizationId", args.organizationId)
+        .where("pageId", "IN", args.pageIds)
+        .where("type", "pagePullRequestReview")
+        .whereExists("readers", (r) => r.where("userId", ctx.userID))
+        .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
   // My effective access level in each space I can read.
   mySpaceAccess: defineQuery(organizationArgs, ({ args, ctx }) =>
     zql.spaceReader

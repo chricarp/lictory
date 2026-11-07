@@ -245,6 +245,34 @@ void test("knowledge rows reach a work item, page or project only through their 
   ]);
   for (const id of [openPage.pageId!, secretPage.pageId!])
     assert.ok(!itemQuery.includes(id), id);
+  // Work surfaces: "N pages" counts, and page pull requests for the Inbox,
+  // reach only readers of the page too.
+  const orgArgs = { organizationId };
+  assert.deepEqual(byPage(await subscribe("itemPageLinks", reader!, orgArgs)), [
+    openPage.pageId!,
+  ]);
+  assert.deepEqual(
+    (await subscribe("itemPageLinks", owner!, orgArgs))
+      .map((r) => r.type)
+      .sort(),
+    ["pageAttachment", "pageAttachment", "pageReference", "pageReference"],
+  );
+  assert.deepEqual(
+    byPage(await subscribe("myPagePullRequests", reader!, orgArgs)),
+    [openPage.pageId!],
+  );
+  assert.deepEqual(
+    await subscribe("myPagePullRequests", outsider!, orgArgs),
+    [],
+  );
+  const reviewArgs = {
+    organizationId,
+    pageIds: [openPage.pageId!, secretPage.pageId!],
+  } as unknown as Record<string, string>;
+  assert.deepEqual(
+    await subscribe("pagePullRequestReviews", reader!, reviewArgs),
+    [],
+  );
   // A grant brings the restricted page's rows in.
   await run(owner!, {
     type: "setSpaceGrant",

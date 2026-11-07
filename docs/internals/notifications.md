@@ -12,6 +12,16 @@ The Inbox has two views of what is addressed to a person:
   items blocked or with changes requested, my items ready). An entry leaves when
   the state resolves; nothing needs marking as read.
 
+To do covers pages as well as work items, marked "Page": page pull requests
+that ask for my review and that I have not decided on (again after my
+decision went stale), changes requested on my page pull requests, and mine
+that are approved with nothing blocking the merge. It derives them from page
+pull request metadata of the spaces I read (`myPagePullRequests`, never page
+content) and, for pull requests asking for my review, my decisions on those
+pages (`pagePullRequestReviews`). Draft and merged pull requests ask nothing;
+nor does a review I cannot give because my commits are in the result. Losing
+read access to a space removes its entries.
+
 They answer different questions ("what happened?" and "what is waiting on me?")
 and are kept as separate views, but in one place.
 

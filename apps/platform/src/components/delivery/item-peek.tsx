@@ -1,3 +1,5 @@
+import { PageCount } from "@lictory/platform/components/knowledge/page-count";
+import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { Link } from "@lictory/platform/lib/navigation";
 import { usePathname, useSearchParams } from "@lictory/platform/lib/navigation";
 import {
@@ -234,6 +236,7 @@ function PeekContent({
   } = useWorkspace();
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
+  const pages = useItemPageCounts().get(item.id);
   const canChange = capabilitiesIn(project.id).changeProperties;
   const native = project.deliveryMode === "native";
   const href = paths.item(organization.slug, project.key, id);
@@ -391,6 +394,13 @@ function PeekContent({
               </Row>
             )}
           </dl>
+
+          <PageCount
+            count={pages}
+            itemHref={href}
+            long
+            className="-ml-1.5 h-6 text-xs"
+          />
 
           {type.hasSpecification && item.refinementState && (
             <section

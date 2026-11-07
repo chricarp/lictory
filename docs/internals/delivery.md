@@ -158,6 +158,26 @@ Planning requires project administration or the `changeProperties`
 capability of a discipline in the project. Moving cards requires
 `changeProperties`.
 
+## Context pages
+
+A project, each of its teams and each of its iterations can keep a short,
+ordered list of pages at hand (goals, designs, runbooks, retrospectives):
+`page_context_link`, managed by project administrators and by people whose
+discipline has `changeProperties`, the same people who plan. Boards, backlogs,
+team backlogs and iteration rows show a slim "Context" control with the lists
+in view (the project's, the filtered team's, the selected iteration's); the
+iteration report lists its iteration's pages. Only pages the viewer can read
+are listed or counted. A link is context, not delivery state: it never moves
+work, and unlinking keeps its history in the page's activity.
+
+"Create iteration notes" makes an ordinary page in a space the person edits
+(a project space first) from a short template: the goal, the iteration's
+items as live references (each shows the item's current status wherever the
+page is read), risks and a retrospective. Work never publishes a page: the
+notes open as a branch with a pull request, which the space's own rules
+publish. The page is linked to the iteration. External projects have no
+native iterations, so no iteration lists.
+
 ## Estimates and reports
 
 Estimates are integers on items (T-shirt sizes map to points); parents show the

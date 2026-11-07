@@ -5,6 +5,7 @@ import { Button } from "@lictory/ui/button";
 import {
   CircleAlert,
   CircleCheckBig,
+  FileText,
   MessageSquareWarning,
   Settings2,
   ShieldAlert,
@@ -12,7 +13,7 @@ import {
 import { useUnreadNotifications } from "@lictory/platform/components/notifications/client";
 import { NotificationFeed } from "@lictory/platform/components/notifications/notifications";
 import { cn } from "@lictory/core/lib/utils";
-import { EmptyState } from "@lictory/ui/primitives";
+import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
@@ -33,6 +34,10 @@ import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  usePageAttention,
+  type PageAttentionEntry,
+} from "@lictory/platform/components/knowledge/page-attention";
 
 type Entry = {
   item: WorkItem;
@@ -167,7 +172,44 @@ export function useAttention() {
   ]);
 }
 
-export function AttentionList({ entries }: { entries: Entry[] }) {
+const pageReasons: Record<
+  PageAttentionEntry["reason"],
+  { reason: string; detail: string; icon: React.ReactNode; weight: number }
+> = {
+  review_requested: {
+    reason: "Review requested",
+    detail: "A page change awaits your review",
+    icon: <ShieldAlert className="size-4 text-primary" />,
+    weight: 0,
+  },
+  review_again: {
+    reason: "Review again",
+    detail: "The page change was updated after your review",
+    icon: <ShieldAlert className="size-4 text-primary" />,
+    weight: 0,
+  },
+  changes_requested: {
+    reason: "Changes requested",
+    detail: "A reviewer asked for changes to your page change",
+    icon: <MessageSquareWarning className="size-4 text-warning" />,
+    weight: 1,
+  },
+  ready_to_merge: {
+    reason: "Ready to merge",
+    detail: "Your page change is approved and nothing blocks it",
+    icon: <CircleCheckBig className="size-4 text-success" />,
+    weight: 3,
+  },
+};
+
+export function AttentionList({
+  entries,
+  pages = [],
+}: {
+  entries: Entry[];
+  // Page pull requests waiting on me (Lictory Spaces).
+  pages?: PageAttentionEntry[];
+}) {
   const { projects, organization, delivery, directory, view } = useWorkspace();
   const links = useMemo(
     () =>
@@ -181,17 +223,45 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
+  // Work items and page pull requests in one queue: by urgency, then by
+  // what changed last.
+  const rows = useMemo(
+    () =>
+      [
+        ...entries.map((entry) => ({
+          kind: "item" as const,
+          entry,
+          weight: entry.weight,
+          at: entry.item.updatedAt,
+        })),
+        ...pages.map((entry) => ({
+          kind: "page" as const,
+          entry,
+          weight: pageReasons[entry.reason].weight,
+          at: entry.pullRequest.updatedAt,
+        })),
+      ].sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at)),
+    [entries, pages],
+  );
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {entries.length === 0 ? (
+        {rows.length === 0 ? (
           <EmptyState illustration="inbox" title="Nothing needs your attention">
-            Review requests, blocking discussions on your items and requested
-            changes appear here.
+            Review requests on items and pages, blocking discussions on your
+            items and requested changes appear here.
           </EmptyState>
         ) : (
           <ul className="divide-y">
-            {entries.slice(0, shown).map(({ item, reason, detail, icon }) => {
+            {rows.slice(0, shown).map((row) => {
+              if (row.kind === "page")
+                return (
+                  <PageAttentionRow
+                    key={row.entry.pullRequest.id}
+                    entry={row.entry}
+                  />
+                );
+              const { item, reason, detail, icon } = row.entry;
               const project = projects.find((p) => p.id === item.projectId);
               return (
                 <li key={`${item.id}-${reason}`}>
@@ -247,20 +317,57 @@ export function AttentionList({ entries }: { entries: Entry[] }) {
             })}
           </ul>
         )}
-        {entries.length > shown && (
+        {rows.length > shown && (
           <div className="flex items-center justify-center gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
-            Showing {shown} of {entries.length}
+            Showing {shown} of {rows.length}
             <Button
               size="sm"
               variant="secondary"
               onClick={() => setShown((n) => n + PAGE)}
             >
-              Show {Math.min(PAGE, entries.length - shown)} more
+              Show {Math.min(PAGE, rows.length - shown)} more
             </Button>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function PageAttentionRow({ entry }: { entry: PageAttentionEntry }) {
+  const { organization } = useWorkspace();
+  const { reason, detail, icon } = pageReasons[entry.reason];
+  const pr = entry.pullRequest;
+  return (
+    <li>
+      <Link
+        href={`${paths.spacePage(organization.slug, entry.space.slug, entry.page.id)}/history?view=pulls&pr=${pr.id}`}
+        className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
+      >
+        <span className="mt-0.5">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="font-medium">{reason}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="truncate text-muted-foreground">{detail}</span>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[13px]">
+            <Badge>Page</Badge>
+            <FileText
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <span className="truncate">{entry.page.title}</span>
+            <span className="hidden min-w-0 truncate text-muted-foreground sm:inline">
+              {pr.title} · {entry.space.name}
+            </span>
+          </div>
+        </div>
+        <time className="shrink-0 text-xs text-muted-foreground">
+          {relativeTime(pr.updatedAt)}
+        </time>
+      </Link>
+    </li>
   );
 }
 
@@ -277,10 +384,11 @@ export function Inbox() {
   const view: InboxView =
     searchParams.get("view") === "todo" ? "todo" : "updates";
   const entries = useAttention();
+  const pages = usePageAttention();
   const unread = useUnreadNotifications(organization.id)[organization.id] ?? 0;
   const tabs: { id: InboxView; label: string; count: number }[] = [
     { id: "updates", label: "Updates", count: unread },
-    { id: "todo", label: "To do", count: entries.length },
+    { id: "todo", label: "To do", count: entries.length + pages.length },
   ];
   return (
     <div className="flex h-full flex-col">
@@ -329,7 +437,7 @@ export function Inbox() {
       </header>
       <div className="min-h-0 flex-1">
         {view === "todo" ? (
-          <AttentionList entries={entries} />
+          <AttentionList entries={entries} pages={pages} />
         ) : (
           <NotificationFeed />
         )}

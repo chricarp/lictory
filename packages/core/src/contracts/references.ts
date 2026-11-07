@@ -83,13 +83,13 @@ export function referencesInMarkdown(markdown: string): Reference[] {
     const target = parseReferenceTarget(match[2]);
     if (target)
       found.push({
-        at: match.index!,
+        at: match.index,
         reference: { ...target, label: match[1]! },
       });
   }
   for (const match of text.matchAll(legacyPagePattern))
     found.push({
-      at: match.index!,
+      at: match.index,
       reference: { kind: "page", id: match[1]!, label: match[1]! },
     });
   return found.sort((a, b) => a.at - b.at).map((f) => f.reference);
