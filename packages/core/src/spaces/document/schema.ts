@@ -22,6 +22,7 @@ const blockTypes = [
   "tableCell",
   "tableHeader",
   "image",
+  "workList",
 ];
 function reference(name: string, attributes: string[]) {
   return Node.create({
@@ -38,6 +39,34 @@ function reference(name: string, attributes: string[]) {
     ],
   });
 }
+// A read-only, live list of work items (docs/internals/spaces.md): the page
+// stores only the query (a project and one narrow filter), never item state.
+export const workListFilters = [
+  "epic-children",
+  "iteration",
+  "label",
+  "referenced",
+] as const;
+export type WorkListFilter = (typeof workListFilters)[number];
+const workList = Node.create({
+  name: "workList",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addAttributes: () => ({
+    projectId: { default: null },
+    filter: { default: "referenced" },
+    // The epic, iteration or label the filter names (none for "referenced").
+    filterId: { default: null },
+    title: { default: null },
+  }),
+  parseHTML: () => [{ tag: 'div[data-type="workList"]' }],
+  renderHTML: ({ HTMLAttributes }) => [
+    "div",
+    mergeAttributes(HTMLAttributes, { "data-type": "workList" }),
+  ],
+});
 /** Link addresses a page keeps: web and mail addresses, Lictory paths and anchors. */
 export function isSafePageLink(href: string): boolean {
   return /^(https?:\/\/|mailto:|\/[^/]|#)/i.test(href);
@@ -72,6 +101,7 @@ export function pageExtensions() {
     reference("pageRef", ["pageId", "commitId"]),
     // A recorded Work decision; `label` is what readers without access see.
     reference("decisionRef", ["decisionId", "label"]),
+    workList,
     UniqueID.configure({ types: blockTypes, attributeName: "id" }),
   ];
 }

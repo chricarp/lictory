@@ -9,6 +9,7 @@ import {
   type Seeded,
 } from "../helpers/seed";
 import { clientAddress } from "../helpers/client-address";
+import { openDiscussions } from "../helpers/discussions";
 
 // Automated WCAG 2.2 AA checks (axe-core) on the main flows: account pages,
 // specification review, native delivery and settings. A new serious or critical
@@ -103,11 +104,10 @@ test("specification review meets WCAG 2.2 AA automated checks", async ({
   await expect(
     page.getByRole("heading", { name: "Partial refunds", level: 1 }),
   ).toBeVisible();
+  // The discussions beside the specification, its passage marked.
+  await openDiscussions(page);
   await expect(
     page.getByText("What happens when two partial refunds race?"),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("textbox", { name: "Start a discussion" }),
   ).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "specification under review");

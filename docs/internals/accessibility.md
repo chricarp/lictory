@@ -84,7 +84,14 @@ field, Enter or Arrow Down moves into the content.
   part of the text: moving the selection onto it shows its card.
 - **Comments.** The comments panel is a labelled region beside the page, or
   a modal sheet on narrow frames (Escape closes it and focus returns to what
-  opened it). Composers post with Mod+Enter.
+  opened it). Composers post with Mod+Enter. A specification's discussions
+  work the same way: the header toggle states the open and blocking counts
+  and whether the panel is expanded, Alt+Arrow Up/Down (Home and End with
+  Alt) move between threads and select the one reached, so its passage is
+  marked, and a thread's quote is a button that brings its passage into
+  view. Mod+Alt+M comments on the text selected in the specification, or
+  opens the panel at the composer when nothing is selected. Threads whose
+  text changed say so in words, not only by colour.
 - **Carets.** Other people's carets and their name labels are decorative
   (`aria-hidden`); who is editing is stated next to the save state.
 
@@ -102,10 +109,15 @@ Not covered automatically, and worth checking by hand when these areas change:
 - **Comments on published page text.** The page reader is read-only, so
   selecting its text needs a pointer (or the browser's caret browsing);
   keyboard users comment on the whole page there, or on text in the live
-  editor, where the selection is keyboard-driven (Mod+Alt+M).
+  editor, where the selection is keyboard-driven (Mod+Alt+M). The same
+  holds for "Create work item" on selected text; an open task's "Create
+  work item" button is reachable with Tab (it appears on focus).
 - **Text selection comments.** Selecting specification text with a mouse
-  offers a selection toolbar (comment, ask); keyboard users start a
-  discussion from the composer instead, without the quoted anchor.
+  offers a selection toolbar (comment, ask). The reader is read-only, so a
+  keyboard selection needs the browser's caret browsing; Mod+Alt+M then
+  comments on it, and without a selection it opens the composer for a
+  discussion without a quoted anchor. Marked passages open their thread
+  with a pointer; from the keyboard, threads are reached in the panel.
 - **Drag and drop.** Board cards, backlog ranking and story order are dragged
   with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
   and a card's status and iteration can be changed from the item's properties;

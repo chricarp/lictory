@@ -10,6 +10,7 @@ import {
   type Seeded,
 } from "../helpers/seed";
 import { clientAddress } from "../helpers/client-address";
+import { openDiscussions } from "../helpers/discussions";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import { fillMarkdown, richEditor } from "../helpers/editor";
 import { waitUntilSaved } from "../helpers/sync-helpers";
@@ -196,6 +197,7 @@ test("discussions and new items write in the same editor", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Late callbacks" }),
   ).toBeVisible();
+  await openDiscussions(page);
   const composer = await richEditor(page, "Start a discussion");
   await composer.click();
   await page.keyboard.type("Does this depend on #QL-1");

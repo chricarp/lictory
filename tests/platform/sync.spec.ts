@@ -17,6 +17,7 @@ import {
   waitUntilStoredLocally,
 } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
+import { openDiscussions } from "../helpers/discussions";
 
 // Collaboration through Zero against the real stack: what one person does
 // reaches the others without reloading, the server stays authoritative, and
@@ -26,14 +27,13 @@ const properties = (page: Page) =>
   page.getByRole("heading", { name: "Properties", exact: true }).locator("..");
 
 // The item's own rows (revisions, discussions, capabilities) arrive after its
-// title: the page is usable once the discussion composer is offered.
+// title: the page is usable once the discussion composer is offered (in the
+// discussions beside the specification).
 async function opened(page: Page, title: string) {
   await expect(
     page.getByRole("heading", { name: title, level: 1 }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("textbox", { name: "Start a discussion" }),
-  ).toBeVisible();
+  await openDiscussions(page);
   await expect(
     properties(page).getByRole("button", { name: /^Priority:/ }),
   ).toBeVisible();
@@ -135,6 +135,8 @@ test("two people see each other's work live; concurrent specification edits neve
         exact: true,
       }),
     ).toBeVisible();
+    await openDiscussions(ada.page);
+    await openDiscussions(ben.page);
     await fillMarkdown(
       ada.page,
       "Start a discussion",
@@ -397,6 +399,8 @@ test("changes made offline survive a reload, apply once back online and reach ot
     ).toBeVisible();
 
     // The composer's editor loaded while online (pointing at it loads it).
+    await openDiscussions(ada.page);
+    await openDiscussions(ben.page);
     await richEditor(ben.page, "Start a discussion");
     await ben.context.setOffline(true);
     await zero.interrupt();

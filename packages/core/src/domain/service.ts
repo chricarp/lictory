@@ -4049,6 +4049,7 @@ export async function applyMutation(
             kind: "document",
             section: c.section,
             ...(c.quote ? { quote: c.quote } : {}),
+            ...(c.quote && c.occurrence ? { occurrence: c.occurrence } : {}),
           },
         });
         await tx.insert(s.threadMessage).values({

@@ -71,6 +71,7 @@ import {
 } from "@lictory/platform/components/editor/commands";
 import { Toolbar } from "@lictory/platform/components/editor/toolbar";
 import { DecisionPicker } from "@lictory/platform/components/editor/decision-picker";
+import { workBlockSlashItems } from "@lictory/platform/components/spaces/blocks/insert-store";
 import {
   PublishButton,
   type PublishOutcome,
@@ -427,11 +428,13 @@ function DraftEditor({
           title: "Insert",
           empty: "No matching blocks",
           store: menus.slash,
-          items: (query) =>
-            slashItems(query, {
+          items: (query) => [
+            ...slashItems(query, {
               image: data.get().attachments ? pickImage : undefined,
               decision: () => setDecisionOpen(true),
             }),
+            ...workBlockSlashItems(query),
+          ],
         }),
         suggestionExtension("workItemMenu", {
           char: "#",
