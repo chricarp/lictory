@@ -102,10 +102,13 @@ export type PageLinkDetails = {
   publishedVersion: number;
   versions: Record<string, number>;
   blocks: { blockId: string; heading: string | null; excerpt: string }[];
+  // The same blocks as the pinned commit has them (when asked).
+  pinnedBlocks: { blockId: string; heading: string | null; excerpt: string }[];
 };
 type Request = {
   pageId: string;
   blocks?: { commitId: string; blockIds: string[] };
+  pinned?: { commitId: string };
   versions?: string[];
 };
 

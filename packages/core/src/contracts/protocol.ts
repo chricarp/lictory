@@ -1429,6 +1429,9 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     branchId: id,
     workItemId: id,
     revisionId: id,
+    // The number of the revision it was proposed from (absent in rows
+    // projected before it was added; a projection rebuild fills it).
+    revisionNumber: z.number().int().nullable().optional(),
     name: z.string(),
     authorId: id,
     createdAt: z.string(),
@@ -1436,6 +1439,8 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     pullRequests: z.array(
       z.object({
         id,
+        // The change's title (absent in rows projected before it was added).
+        title: z.string().optional(),
         status: z.enum(["draft", "open", "merged", "closed"]),
         targetBranchId: id,
         mergeCommitId: id.nullable(),

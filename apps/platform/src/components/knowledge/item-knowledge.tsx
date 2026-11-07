@@ -153,6 +153,7 @@ export function ItemKnowledge({
           ...(p.citation?.earlier?.commitIds ?? []),
         ];
         if (!p.mention && !versions.length) return [];
+        const pinned = pinnedVersion(p);
         return [
           {
             pageId: p.page.id,
@@ -162,6 +163,10 @@ export function ItemKnowledge({
                     commitId: p.mention.commitId,
                     blockIds: p.mention.blockIds.slice(0, 3),
                   },
+                  // What the pinned version said in the same place.
+                  ...(pinned && pinned !== p.mention.commitId
+                    ? { pinned: { commitId: pinned } }
+                    : {}),
                 }
               : {}),
             ...(versions.length ? { versions: [...new Set(versions)] } : {}),
@@ -329,31 +334,44 @@ export function ItemKnowledge({
                 : origin.deletedAt
                   ? base
                   : `${base}?branch=${origin.branchId}`;
+              const pageTitle = origin.page.title || "Untitled";
+              // Named by the change being reviewed (its pull request), with
+              // the page as context; the branch is machinery, on hover.
+              const change = origin.pullRequests.at(-1)?.title;
               return (
                 <li
                   key={origin.id}
-                  className="relative flex min-h-11 items-center gap-x-2.5 px-3 py-2 text-[13px] hover:bg-muted/50"
+                  title={`Branch ${origin.name}`}
+                  className="relative flex min-h-11 items-start gap-x-2.5 px-3 py-2 text-[13px] hover:bg-muted/50"
                 >
                   <GitBranch
-                    className="size-3.5 shrink-0 text-muted-foreground"
+                    className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
                   <span className="min-w-0 flex-1">
                     <Link
                       href={href}
-                      className="block truncate font-medium after:absolute after:inset-0 focus-visible:underline"
+                      className="line-clamp-2 font-medium break-words after:absolute after:inset-0 focus-visible:underline"
                     >
-                      {origin.page.title || "Untitled"}
+                      {change ?? pageTitle}
                     </Link>
-                    <span className="block truncate text-xs text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
+                      {change && (
+                        <>
+                          <span className="text-foreground/80">
+                            {pageTitle}
+                          </span>
+                          {" · "}
+                        </>
+                      )}
+                      {typeof origin.revisionNumber === "number" && (
+                        <>From revision {origin.revisionNumber} · </>
+                      )}
                       {memberName(origin.authorId)} ·{" "}
                       <time dateTime={origin.createdAt}>
                         {relativeTime(origin.createdAt)}
-                      </time>{" "}
-                      · branch{" "}
-                      <span className="font-mono text-[11px]">
-                        {origin.name}
-                      </span>
+                      </time>
+                      <span className="sr-only"> · branch {origin.name}</span>
                     </span>
                   </span>
                   <ProposalBadge state={state} />
@@ -422,6 +440,20 @@ function SourceQuote({
     </figure>
   );
 }
+
+// The versions an item relies on (its attachment's pin and the pins its
+// current revision cites), and the one the row's title opens when there is
+// exactly one.
+const pinsOf = ({ attachment, citation }: ItemKnowledgePage) => [
+  ...new Set([
+    ...(attachment?.commitId ? [attachment.commitId] : []),
+    ...(citation?.current?.commitIds ?? []),
+  ]),
+];
+const pinnedVersion = (entry: ItemKnowledgePage) => {
+  const pins = pinsOf(entry);
+  return pins.length === 1 ? pins[0] : undefined;
+};
 
 function KnowledgeRow({
   entry,
@@ -502,13 +534,8 @@ function KnowledgeRow({
     );
   // The title opens the version the item relies on: its one pin, the
   // latest otherwise (at the mention, when there is one).
-  const pins = [
-    ...new Set([
-      ...(attachment?.commitId ? [attachment.commitId] : []),
-      ...(citation?.current?.commitIds ?? []),
-    ]),
-  ];
-  const pinned = pins.length === 1 ? pins[0] : undefined;
+  const pins = pinsOf(entry);
+  const pinned = pinnedVersion(entry);
   const target = pinned
     ? `${href}?commit=${pinned}`
     : mention
@@ -518,6 +545,19 @@ function KnowledgeRow({
   const newerPin = entry.newer
     ? pins.find((id) => id !== page.publishedCommitId)
     : undefined;
+  // An excerpt says which version it quotes when the row also speaks of an
+  // older pinned one: the mention is the latest version's text, and the
+  // pinned version's own words in that place follow when they differ.
+  const olderPin = pins.some((id) => id !== mention?.commitId);
+  const pinnedBlock =
+    pinned && pinned !== mention?.commitId
+      ? (details?.pinnedBlocks?.find((b) => b.blockId === block?.blockId) ??
+        details?.pinnedBlocks?.[0])
+      : undefined;
+  const pinnedExcerpt =
+    pinnedBlock?.excerpt && pinnedBlock.excerpt !== block?.excerpt
+      ? pinnedBlock.excerpt
+      : undefined;
   return (
     <li className="group relative flex items-start gap-2.5 border-b px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-muted/50">
       {attachment ? (
@@ -561,7 +601,21 @@ function KnowledgeRow({
         )}
         {block?.excerpt && (
           <p className="mt-1 line-clamp-2 text-xs text-foreground/75">
+            {olderPin && (
+              <span className="font-medium text-muted-foreground">
+                Latest mention:{" "}
+              </span>
+            )}
             “{block.excerpt}”
+          </p>
+        )}
+        {pinnedExcerpt && (
+          <p className="mt-1 line-clamp-2 text-xs text-foreground/75">
+            <span className="font-medium text-muted-foreground">
+              {targetVersion ? `v${targetVersion}` : "Pinned version"}{" "}
+              (pinned):{" "}
+            </span>
+            “{pinnedExcerpt}”
           </p>
         )}
         {newerPin && (

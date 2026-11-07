@@ -124,8 +124,9 @@ the organization.
 Projections (`space_entity`, with `work_item_id` or `project_id` naming what
 the row concerns): `pageReference` (`{pageId}:{workItemId}`, item targets
 only), `specificationCitation` (`{workItemId}:{pageId}`, page targets),
-`pageAttachment`, `workItemSource`, `pageBranchOrigin` and
-`pageContextLink`. Page and decision backlinks, and item references in
+`pageAttachment`, `workItemSource`, `pageBranchOrigin` (with the number of
+the revision it was proposed from and its pull requests' titles and
+status) and `pageContextLink`. Page and decision backlinks, and item references in
 specifications, are read through capabilities.
 
 ## Surfaces in Spaces
@@ -145,8 +146,9 @@ indexed, and show items only to people who can see them.
 - Capabilities (every surface): `getWorkItemKnowledge`, `listPageWork`,
   `listContextPages` and `listReferencesTo`.
 - `describePageLinks` (capability): for pages the reader can read, the
-  section heading and a short excerpt of the blocks that mention an item and
-  the version numbers of pinned commits. Other pages get no entry.
+  section heading and a short excerpt of the blocks that mention an item
+  (and, with `pinned`, of the same blocks in a pinned commit) and the
+  version numbers of pinned commits. Other pages get no entry.
 - Zero `itemPageLinks({ organizationId })`: mentions, attachments,
   specification citations and sources of readable pages, for the "N pages"
   count of item lists and previews.
@@ -168,10 +170,19 @@ visibility rule.
   published version at the block, each distinct pin (the attachment's, each
   version the current revision cites) is a `vN` link to that commit, and the
   title opens the item's one pinned version (the latest, at the mention,
-  when there is no pin or several). When the page has published since a
-  pin, a quiet "Newer version" offers a comparison in the page history. Above: the page the item was created from, as a quote with "Open
-  source" at the exact commit and block. Below: page updates proposed from
-  the item, with their pull request status. People with `changeProperties`
+  when there is no pin or several). An excerpt names the version it quotes
+  whenever the row also speaks of an older pin: "Latest mention" for the
+  published version's text, and, for a single pin, that version's own words
+  in the same block ("v2 (pinned)") when they differ, so a current quote is
+  never read as the pinned evidence. When the page has published since a
+  pin, a quiet "Newer version" offers a comparison in the page history.
+  Above: the page the item was created from, as a quote with "Open source"
+  at the exact commit and block. Below: page updates proposed from the
+  item, each named by its change (the pull request's title, the page title
+  before there is one), then the page, the revision it was proposed from,
+  author and time, and its pull request status; the branch is named only
+  on hover and to screen readers, so two updates of the same page read as
+  two changes. People with `changeProperties`
   attach pages (find the page in a popover, then choose purpose and
   optional pin in the section, above the list) and detach them, with undo.
 - **Propose page update**: pick a page in a space I edit (attached and
@@ -186,7 +197,9 @@ visibility rule.
   section into view under the specification, and on screens that replace
   the specification (branches, pull requests, history) it opens the
   section, read-only, in a popover, so a reviewer finds the background
-  without leaving the review.
+  without leaving the review. On phones the header keeps the way back, the
+  item's key, Knowledge, Discussions and Review & details; the parent,
+  Compare revisions, Watch and export move into its More menu.
 - **Delivery surfaces**: context pages (see
   [the delivery model](delivery.md#context-pages)); the project's
   Refinement home shows its spaces and teams' spaces and recently published

@@ -314,6 +314,44 @@ test("proposing a page update opens a branch in the editor and the item follows 
     .getByRole("listitem")
     .filter({ hasText: "refund-limits-wording" });
   await expect(reviewed).toContainText("In review");
+  // A second open update of the same page reads as a different change:
+  // each row leads with its pull request's title, then the page and the
+  // revision it came from; the branch is only named on hover.
+  await capability(page, "proposePageChange", {
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId: crypto.randomUUID(),
+    branchName: "refund-approval-threshold",
+    title: "Refund policy",
+    content: {
+      type: "doc",
+      content: [
+        block(
+          "paragraph",
+          "p-approval",
+          text("Refunds over 80% of the amount need approval."),
+        ),
+      ],
+    },
+    message: "Raise the approval threshold",
+    origin: { workItemId: itemId, revisionId: revision.id },
+  });
+  const updates = page.getByRole("list").filter({
+    has: page.getByRole("link", { name: "Raise the approval threshold" }),
+  });
+  for (const [change, branch] of [
+    ["Document partial refunds", "refund-limits-wording"],
+    ["Raise the approval threshold", "refund-approval-threshold"],
+  ]) {
+    const row = updates.getByRole("listitem").filter({
+      has: page.getByRole("link", { name: change, exact: true }),
+    });
+    await expect(row).toContainText(
+      `Refund policy · From revision ${revision.number}`,
+    );
+    await expect(row).toContainText("In review");
+    await expect(row).toHaveAttribute("title", `Branch ${branch}`);
+  }
 });
 
 test("a knowledge row opens each version the item relies on, never the latest in a pin's place", async ({
@@ -426,6 +464,75 @@ test("a knowledge row opens each version the item relies on, never the latest in
     .click();
   await expect(page).toHaveURL(new RegExp(`\\?commit=${v2}`));
   await expect(page.getByText("18:00").first()).toBeVisible();
+});
+
+test("a pinned row says which version each excerpt quotes", async ({
+  page,
+}) => {
+  await signIn(page, seeded.owner.email);
+  const itemId = await seedItem(seeded, { title: "Close card batches" });
+  const { number } = await withDb(async (db) => {
+    const [row] = await db
+      .select({ number: s.workItem.number })
+      .from(s.workItem)
+      .where(eq(s.workItem.id, itemId));
+    return row!;
+  });
+  const key = `KW-${number}`;
+  const guides = await space(page, "Card guides");
+  const pageId = await publishedPage(page, guides.spaceId, "Card batches", [
+    block(
+      "paragraph",
+      "p-cutoff",
+      text("Card batches close at 18:00 for "),
+      itemRef(itemId, key),
+    ),
+  ]);
+  const pinned = (await capability(page, "getPage", { pageId })).commitId!;
+  await capability(page, "attachPage", {
+    workItemId: itemId,
+    attachmentId: crypto.randomUUID(),
+    pageId,
+    purpose: "runbook",
+    commitId: pinned,
+  });
+  // The next version changes what the mention says.
+  const pullRequestId = crypto.randomUUID();
+  const proposed = await capability(page, "proposePageChange", {
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId,
+    title: "Card batches",
+    content: {
+      type: "doc",
+      content: [
+        block(
+          "paragraph",
+          "p-cutoff",
+          text("Card batches stay open until 23:00 for "),
+          itemRef(itemId, key),
+        ),
+      ],
+    },
+    message: "Later cut-off",
+  });
+  await capability(page, "mergePagePullRequest", {
+    pullRequestId,
+    inspectedSourceHead: proposed.commitId,
+    inspectedTargetHead: pinned,
+  });
+
+  await page.goto(seeded.itemPath(number));
+  const row = knowledge(page)
+    .getByRole("listitem")
+    .filter({ hasText: "Card batches" });
+  await expect(row).toContainText("Attached at v2");
+  await expect(row.getByText(/^Latest mention:/).locator("..")).toHaveText(
+    `Latest mention: “Card batches stay open until 23:00 for ${key}”`,
+  );
+  await expect(row.getByText(/^v2 \(pinned\):/).locator("..")).toHaveText(
+    `v2 (pinned): “Card batches close at 18:00 for ${key}”`,
+  );
 });
 
 test("delivery surfaces keep context pages and an iteration gets notes", async ({

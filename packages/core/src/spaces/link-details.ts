@@ -91,6 +91,10 @@ export type PageLinkRequest = {
   pageId: string;
   // A commit of the page and top-level blocks of it to describe.
   blocks?: { commitId: string; blockIds: string[] };
+  // Another commit of the page (a pinned version) where the same blocks
+  // are described too, so a reader can tell what that version said from
+  // what the latest one says.
+  pinned?: { commitId: string };
   // Commits of the page whose version number is wanted.
   versions?: string[];
 };
@@ -115,6 +119,7 @@ export async function describePageLinks(
           readable.get(r.pageId)!.publishedCommitId,
           ...(r.versions ?? []),
           ...(r.blocks ? [r.blocks.commitId] : []),
+          ...(r.blocks && r.pinned ? [r.pinned.commitId] : []),
         ]),
       ),
     ];
@@ -141,11 +146,14 @@ export async function describePageLinks(
           commits.map((c) => c.id),
         )
       : new Map<string, number>();
-    const contentIds = allowed.flatMap((r) =>
-      r.blocks && ofPage(r.pageId, r.blocks.commitId)
+    const contentIds = allowed.flatMap((r) => [
+      ...(r.blocks && ofPage(r.pageId, r.blocks.commitId)
         ? [r.blocks.commitId]
-        : [],
-    );
+        : []),
+      ...(r.blocks && r.pinned && ofPage(r.pageId, r.pinned.commitId)
+        ? [r.pinned.commitId]
+        : []),
+    ]);
     const contents = new Map(
       (contentIds.length
         ? await tx
@@ -177,6 +185,14 @@ export async function describePageLinks(
             r.blocks && contents.has(r.blocks.commitId)
               ? blockContexts(
                   contents.get(r.blocks.commitId),
+                  r.blocks.blockIds,
+                )
+              : [],
+          // The same blocks in the pinned commit (those it has).
+          pinnedBlocks:
+            r.blocks && r.pinned && contents.has(r.pinned.commitId)
+              ? blockContexts(
+                  contents.get(r.pinned.commitId),
                   r.blocks.blockIds,
                 )
               : [],

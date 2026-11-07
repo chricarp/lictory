@@ -737,13 +737,27 @@ export async function knowledgeRows(
           ),
         ),
       db
-        .select({ origin: s.pageBranchOrigin, branch: s.pageBranch })
+        .select({
+          origin: s.pageBranchOrigin,
+          branch: s.pageBranch,
+          revisionNumber: s.specificationRevision.number,
+        })
         .from(s.pageBranchOrigin)
         .innerJoin(
           s.pageBranch,
           and(
             eq(s.pageBranch.organizationId, s.pageBranchOrigin.organizationId),
             eq(s.pageBranch.id, s.pageBranchOrigin.branchId),
+          ),
+        )
+        .leftJoin(
+          s.specificationRevision,
+          and(
+            eq(
+              s.specificationRevision.organizationId,
+              s.pageBranchOrigin.organizationId,
+            ),
+            eq(s.specificationRevision.id, s.pageBranchOrigin.revisionId),
           ),
         )
         .where(
@@ -768,6 +782,7 @@ export async function knowledgeRows(
     ? await db
         .select({
           id: s.pagePullRequest.id,
+          title: s.pagePullRequest.title,
           sourceBranchId: s.pagePullRequest.sourceBranchId,
           targetBranchId: s.pagePullRequest.targetBranchId,
           status: s.pagePullRequest.status,
@@ -882,7 +897,7 @@ export async function knowledgeRows(
       ),
     );
   }
-  for (const { origin, branch } of origins) {
+  for (const { origin, branch, revisionNumber } of origins) {
     const spaceId = spaceOf.get(origin.pageId);
     if (!spaceId) continue;
     rows.push(
@@ -896,6 +911,7 @@ export async function knowledgeRows(
           branchId: origin.branchId,
           workItemId: origin.workItemId,
           revisionId: origin.revisionId,
+          revisionNumber,
           name: branch.name,
           authorId: branch.authorId,
           createdAt: iso(origin.createdAt),
@@ -904,6 +920,7 @@ export async function knowledgeRows(
             .filter((p) => p.sourceBranchId === origin.branchId)
             .map((p) => ({
               id: p.id,
+              title: p.title,
               status: p.deletedAt ? ("closed" as const) : p.status,
               targetBranchId: p.targetBranchId,
               mergeCommitId: p.mergeCommitId,
