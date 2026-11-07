@@ -10,6 +10,8 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
+  BadgeCheck,
+  BookOpen,
   BookOpenCheck,
   FileText,
   Inbox,
@@ -41,6 +43,11 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
+import {
+  Highlighted,
+  useContentSearch,
+} from "@lictory/platform/components/workspace/content-search";
+import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowledge";
 
 type Item = {
   id: string;
@@ -49,11 +56,36 @@ type Item = {
   icon?: ReactNode;
   group: string;
   keywords?: string;
+  // Content results: the title with its matches marked and an excerpt
+  // around the match, on a second line.
+  title?: ReactNode;
+  excerpt?: ReactNode;
   run: () => void;
 };
 
+const contentGroups = {
+  page: "In pages",
+  item: "In specifications",
+  approved: "In specifications",
+  delivered: "In specifications",
+  decision: "Decisions",
+} as const;
+
+const versionLabel = (r: KnowledgeResult) =>
+  r.kind === "page"
+    ? `v${r.version}`
+    : r.kind === "approved"
+      ? `approved r${r.revisionNumber}`
+      : r.kind === "delivered"
+        ? `delivered r${r.revisionNumber}`
+        : r.kind === "item" && r.revisionNumber
+          ? `r${r.revisionNumber}`
+          : null;
+
 // Search and commands in one place. Items are matched by identifier and title
 // from the local store; commands depend on where the user currently is.
+// What pages, specifications and decisions say comes from the server
+// (searchKnowledge) a moment later, below the instant title matches.
 export function CommandPalette({
   initialQuery,
   onClose,
@@ -370,6 +402,7 @@ export function CommandPalette({
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
+  const content = useContentSearch(organization.id, query, !parsed);
   const results = useMemo<Item[]>(() => {
     const matchedItems = items
       .filter((i) => !i.archivedAt)
@@ -415,6 +448,54 @@ export function CommandPalette({
           run: () => go(paths.spacePage(org, space.slug, page.id)),
         });
       }
+    // What the content says, from the server. Titles already listed above
+    // are not repeated.
+    const shown = new Set([
+      ...matchedItems.map((i) => i.id),
+      ...matchedPages.map((p) => p.id),
+    ]);
+    const local = new Map(items.map((i) => [i.id, i]));
+    const fromContent: Item[] = [];
+    for (const group of new Set(Object.values(contentGroups)))
+      for (const r of content.results) {
+        if (contentGroups[r.kind] !== group) continue;
+        const localId = r.kind === "page" ? `page-${r.id}` : r.id;
+        if (r.kind === "item" && r.matched === "title" && shown.has(localId))
+          continue;
+        if (r.kind === "page" && r.matched === "title" && shown.has(localId))
+          continue;
+        const version = versionLabel(r);
+        const known = "workItemId" in r ? local.get(r.workItemId) : undefined;
+        fromContent.push({
+          id: `content-${r.kind}-${r.id}`,
+          label: r.title,
+          title: <Highlighted text={r.title} highlights={r.titleHighlights} />,
+          hint:
+            r.kind === "page"
+              ? [r.space.name, version].filter(Boolean).join(" · ")
+              : [r.key, version].filter(Boolean).join(" · "),
+          excerpt: r.snippet.text ? (
+            <Highlighted
+              text={r.snippet.text}
+              highlights={r.snippet.highlights}
+            />
+          ) : undefined,
+          group,
+          icon:
+            r.kind === "page" ? (
+              <FileText className="size-4" />
+            ) : r.kind === "decision" ? (
+              <BookOpen className="size-4" />
+            ) : r.kind === "approved" || r.kind === "delivered" ? (
+              <BadgeCheck className="size-4" />
+            ) : known ? (
+              <TypeIcon type={typeOf(delivery, known)} />
+            ) : (
+              <TypeIcon type={storyGlyph} />
+            ),
+          run: () => go(r.href),
+        });
+      }
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
@@ -437,6 +518,7 @@ export function CommandPalette({
     return [
       ...matchedItems,
       ...matchedPages,
+      ...fromContent,
       ...(q ? matchedCommands : commands.slice(0, 8)),
       ...ask,
     ];
@@ -445,6 +527,7 @@ export function CommandPalette({
     q,
     query,
     parsed,
+    content.results,
     commands,
     projectOf,
     go,
@@ -523,7 +606,7 @@ export function CommandPalette({
           role="listbox"
           className="min-h-0 overflow-y-auto p-1.5"
         >
-          {results.length === 0 && (
+          {results.length === 0 && content.status !== "loading" && (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
               No results.
             </p>
@@ -547,27 +630,81 @@ export function CommandPalette({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => run(r)}
                       className={cn(
-                        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px]",
+                        "flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px]",
+                        r.excerpt ? "items-start" : "items-center",
                         i === active && "bg-muted",
                       )}
                     >
-                      <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center text-muted-foreground",
+                          r.excerpt && "mt-0.5",
+                        )}
+                      >
                         {r.icon}
                       </span>
-                      <span className="min-w-0 flex-1 truncate">{r.label}</span>
-                      {r.hint && (
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {r.hint}
+                      {r.excerpt ? (
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="min-w-0 flex-1 truncate">
+                              {r.title ?? r.label}
+                            </span>
+                            {r.hint && (
+                              <span className="max-w-[45%] shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                                {r.hint}
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 line-clamp-2 text-[12px] leading-[1.45] text-muted-foreground">
+                            {r.excerpt}
+                          </span>
                         </span>
+                      ) : (
+                        <>
+                          <span className="min-w-0 flex-1 truncate">
+                            {r.title ?? r.label}
+                          </span>
+                          {r.hint && (
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                              {r.hint}
+                            </span>
+                          )}
+                        </>
                       )}
                       {i === active && (
-                        <ArrowRight className="size-3.5 text-muted-foreground" />
+                        <ArrowRight
+                          className={cn(
+                            "size-3.5 shrink-0 text-muted-foreground",
+                            r.excerpt && "mt-0.5",
+                          )}
+                        />
                       )}
                     </button>
                   );
                 })}
             </div>
           ))}
+        </div>
+        {/* Content results arrive after the instant title matches. */}
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "shrink-0 border-t px-3 py-1.5 text-[11.5px] text-muted-foreground",
+            content.status !== "loading" &&
+              content.status !== "error" &&
+              "sr-only",
+          )}
+        >
+          {content.status === "loading"
+            ? "Searching pages, specifications and decisions…"
+            : content.status === "error"
+              ? `Could not search content: ${content.error}`
+              : content.status === "done"
+                ? content.results.length
+                  ? `${content.results.length} content ${content.results.length === 1 ? "match" : "matches"}`
+                  : "No matches in pages, specifications or decisions"
+                : ""}
         </div>
       </div>
     </div>,
