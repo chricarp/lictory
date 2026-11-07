@@ -16,7 +16,7 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { keepTabInside } from "@lictory/platform/components/spaces/dialog";
+import { DiscussionSheet } from "@lictory/platform/components/discussions/presentation";
 import type { FileContext } from "@lictory/platform/components/items/file-upload";
 import {
   blockIndex,
@@ -453,65 +453,10 @@ export function PageComments({
         )}
       {wide && slot && open && createPortal(panel, slot)}
       {!wide && open && (
-        <CommentsSheet onClose={() => onOpenChange(false)}>
+        <DiscussionSheet label="Comments" onClose={() => onOpenChange(false)}>
           {panel}
-        </CommentsSheet>
+        </DiscussionSheet>
       )}
     </>
-  );
-}
-
-function CommentsSheet({
-  onClose,
-  children,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  // The caller passes a new function each render; the sheet must not move
-  // focus on re-renders (a remote reply would pull focus out of a composer).
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    ref.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onCloseRef.current();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, []);
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-      />
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Tab bubbles from the sheet's controls; keeping it inside is the modal dialog pattern. */}
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Comments"
-        tabIndex={-1}
-        onKeyDown={(event) => {
-          if (ref.current) keepTabInside(event, ref.current);
-        }}
-        className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl bg-background px-4 pb-4 shadow-(--shadow-panel) outline-none"
-      >
-        {children}
-      </div>
-    </div>,
-    document.body,
   );
 }
