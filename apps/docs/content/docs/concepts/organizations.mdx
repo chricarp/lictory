@@ -6,14 +6,14 @@ description: The three scopes of Lictory, and the difference between roles (what
 ```text
 Organization   a company, or a very large department of one
 └─ Project     a product area: identifiers, workflow, delivery and its people
-   └─ Team     a vertical inside the product: a group of people and a label
+   └─ Team     a group working on one part of the project
 ```
 
-| Scope        | Owns                                                                                                                                                                        |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organization | Name and branding, members and invitations, application roles, work item types, Jira connections, whether Lictory Intelligence may run, projects                            |
-| Project      | Key and numbering, members and project roles, disciplines, teams, workflow, enabled types, labels and milestones, iterations, estimates, delivery mode, Definition of Ready |
-| Team         | Name, description, members                                                                                                                                                  |
+| Scope        | Owns                                                                                                                                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organization | Name, handle and branding, members and invitations, application roles, two-factor requirement, work item types, Jira connections, whether Lictory Intelligence may run, projects |
+| Project      | Key and numbering, members and project roles, disciplines, teams, workflow, enabled types, labels and milestones, iterations, estimates, delivery mode, Definition of Ready      |
+| Team         | Name, description, members                                                                                                                                                       |
 
 A work item belongs to exactly one project (its identity, `PAY-142`) and
 optionally one of the project's teams. Moving it between teams never changes
@@ -39,38 +39,53 @@ Roles grant no work item capabilities. Those come from disciplines, and a
 person's capabilities in a project are the union of the disciplines they
 hold there:
 
-| Capability             | Allows                                                                    |
-| ---------------------- | ------------------------------------------------------------------------- |
-| Edit specifications    | Create spec-backed items, revise main, restore revisions, merge into main |
-| Change properties      | Status, priority, owner, parent, labels, iterations, ordering, archiving  |
-| Request reviews        | Request and cancel reviews                                                |
-| Can be asked to review | Be a review responsibility and decide reviews assigned to the discipline  |
-| Hand off               | Export ready work to the project's Jira project and link existing issues  |
+| Capability                 | Allows                                                                    |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Edit specifications        | Create spec-backed items, revise main, restore revisions, merge into main |
+| Change properties          | Status, priority, owner, parent, labels, iterations, ordering, archiving  |
+| Request reviews            | Request and cancel reviews                                                |
+| Can be asked to review     | Be a review responsibility and decide reviews assigned to the discipline  |
+| Hand off to delivery tools | Export ready work to the project's Jira project and link existing issues  |
 
 New projects start with Product (every capability), Engineering (request
 reviews, be asked to review, change properties) and QA (request reviews, be
 asked to review, change properties: QA files bugs and moves verified work
-along the board). Taking part in discussions only needs organization
-membership. Every check runs on the server; the interface only hides
-controls you cannot use.
+along the board). Taking part in discussions, and proposing changes on a
+branch, only needs organization membership. Every check runs on the server;
+the interface only hides controls you cannot use.
 
 Every organization member can read every project. There are no private
 projects; knowledge that must stay private goes in a
 [Restricted space](/spaces/access).
 
+## Installation and organization
+
+Above the organizations sits the installation. **Instance administrators**
+manage its accounts and organizations under the access policy your operator
+sets; that grants them no access to any organization's work. See
+[instance administration](/organization/instance).
+
 ## Deleting an organization
 
-An owner deletes an organization from **Organization settings → Delete
-organization**. Export its data first: the page shows the latest export and
-links to **Data export**. Type the organization's handle to confirm.
+An owner schedules the deletion from **Organization settings → Delete
+organization**, after an export. The organization is locked at once and
+deleted after a grace period (30 days unless your installation sets
+another), during which an owner can **Cancel deletion**. People's accounts
+are not affected. See [export and delete](/organization/data).
 
-Deletion is not immediate. Scheduling it locks the organization at once:
-nobody can open its projects or change anything in it, and every member is
-told by email. Owners can still download exports and **Cancel deletion**.
-After the grace period (30 days unless your installation sets another) its
-projects, work items, specifications with every revision, reviews,
-approvals, discussions, decisions, spaces and pages with their history,
-attachments, Jira connections with their
-credentials, and its audit log are permanently deleted. People's accounts and
-their other organizations are not affected. The installation's history keeps
-a record that the organization existed and was deleted.
+## Read more
+
+<Cards>
+  <Card title="Organization and access" href="/organization">
+    Roles, project roles and disciplines, and where each setting lives.
+  </Card>
+  <Card title="Members and invitations" href="/organization/members">
+    Invite people straight into a project and its disciplines.
+  </Card>
+  <Card title="Disciplines" href="/organization/disciplines">
+    Capabilities, defaults and review routing.
+  </Card>
+  <Card title="Security and sign-in" href="/organization/security">
+    Two-factor requirement, resets and single sign-on.
+  </Card>
+</Cards>

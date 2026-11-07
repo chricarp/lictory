@@ -1,27 +1,97 @@
 ---
-title: Jira
-description: Refine and approve in Lictory, deliver in Jira Cloud. Hand-off is explicit, gated by readiness, idempotent, and reads Jira's status back without overwriting it.
+title: Deliver in Jira
+description: Refine and approve in Lictory, then hand ready work off to Jira Cloud. Hand-off is explicit, gated by readiness and safe to retry, and Jira's status reads back without being overwritten.
 ---
 
-In a project whose delivery happens **in Jira**, Lictory owns refinement
-(specifications, reviews, approvals, readiness) and Jira owns delivery
-(status, assignee, sprints, comments). Nothing is tracked twice.
+In a project that delivers **in Jira**, Lictory owns refinement:
+specifications, discussions, reviews, approvals and readiness. Jira owns
+delivery: status, assignee, sprints, estimates and comments. Ready work
+moves from one to the other when someone hands it off, and nothing is
+tracked twice.
 
-## Connect
+## When to use it
 
-1. An organization administrator connects a Jira Cloud site in
-   **Organization settings → Integrations** with the site URL, the email of
-   the Jira account to act as, and an
-   [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens)
-   for it. The token is encrypted at rest and never reaches browsers.
-2. A project administrator chooses the delivery mode _In Jira_, the Jira
-   project, and how each work item type maps to a Jira issue type
-   (**Project settings → Delivery**).
-3. People who hand off work need a discipline with the **Hand off**
-   capability in the project.
+- Your engineering teams already run sprints in Jira and won't move.
+- You want the refinement workflow (reviewed specifications, approvals that
+  belong to revisions, readiness checks) in front of an existing Jira
+  process.
 
-Stored tokens are encrypted with the server's `DELIVERY_CREDENTIALS_KEY`, which
-the installer generates. An installation created before it existed has none:
+If your team can deliver in Lictory, the board, backlog and iterations sit
+next to the specifications instead. See [deliver the work](/delivery). Each
+project chooses its own mode.
+
+## Set up
+
+<Steps>
+<Step>
+
+### Connect a Jira site (organization administrators)
+
+![Organization settings, Integrations: the Northwind Jira site connected as its bot account, used by Payments, with Replace token and Disconnect](/screenshots/org-integrations-jira.webp)
+
+In **Organization settings → Integrations**, under **Jira**, choose **Connect
+Jira** and enter:
+
+- **Jira site**: your Jira Cloud address, such as
+  `https://your-company.atlassian.net`;
+- **Name (optional)**: defaults to the site's host name;
+- **Account email**: the Atlassian account Lictory acts as;
+- **API token**: an
+  [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+  of that account.
+
+**Verify and connect** checks the credentials before saving. Issues are
+created as this account. The token is encrypted at rest and never reaches
+browsers.
+
+</Step>
+<Step>
+
+### Switch the project to Jira (project administrators)
+
+In **Project settings → Delivery**, under **Where work is delivered**, choose
+**Hand off to Jira**. Complete any active sprint or cycle first. Iterations
+and estimates are turned off for the project, and the board and backlog are
+replaced by the **Hand-off** view. Items, specifications and history are
+kept, and you can switch back later.
+
+</Step>
+<Step>
+
+### Choose the Jira project and map types
+
+Under **Jira hand-off**, choose **Choose Jira project**, pick the **Jira
+site**, **Load Jira projects** and select one. Then map each work item type
+to a Jira issue type, or leave it **Not exported**, and **Save hand-off
+target**.
+
+If Jira requires a field on an issue type that Lictory cannot fill, the
+mapping says so: give the field a default in Jira or pick another type.
+
+</Step>
+<Step>
+
+### Let people hand off
+
+People who hand off work need a discipline with **Hand off to delivery
+tools** in the project. See [disciplines](/organization/disciplines).
+
+</Step>
+</Steps>
+
+![A project’s Delivery settings: Hand off to Jira selected under Where work is delivered, and the Jira hand-off section with the Jira project on Northwind Jira and each work item type Mapped](/screenshots/project-delivery-jira.webp)
+
+### Supported sites
+
+Only Jira Cloud sites are accepted: `<site>.atlassian.net`, or a legacy
+`<site>.jira.com`, over HTTPS. Lictory never follows redirects from Jira.
+Self-managed Jira Data Center is not supported yet.
+
+### Credentials key (operators)
+
+Stored tokens are encrypted with the server's `DELIVERY_CREDENTIALS_KEY`,
+which the installer generates. An installation created before it existed
+has none:
 
 - **Jira was never connected:** connecting is refused until the key is set.
   Set a new one once; never change it afterwards.
@@ -36,50 +106,197 @@ the installer generates. An installation created before it existed has none:
   key ([configuration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/configuration.md#delivery-credentials-key)).
   A random key would make the stored tokens unreadable.
 
-Only Jira Cloud sites are accepted (`<site>.atlassian.net`, or a legacy
-`<site>.jira.com`, over HTTPS). Lictory never follows redirects from Jira.
-Self-managed Jira Data Center is not supported yet.
+## The Hand-off view
 
-## Hand off
+**Hand-off**, in the project's sidebar, replaces the board. It groups the
+project's specifications by what they need:
 
-The project's **Hand-off** view lists what is ready to hand off, what changed
-since it was handed off, what Jira reports back and what needs attention.
+- **Needs attention**: hand-offs that failed, or issues changed in Jira that
+  need your confirmation, each with the reason and **Retry**.
+- **Ready to hand off**: ready specifications never handed off (**Not handed
+  off**) and handed-off ones with a newer ready revision (**Changed since
+  hand-off**).
+- **In Jira**: everything handed off, with Jira's status, assignee and the
+  revision that was handed off.
+- **Still in refinement**: specifications not ready yet.
 
-- Only **ready** specifications are handed off. Handing off an item with its
-  children skips children that are not ready (and everything under them).
-  Plain items such as Tasks go along under a handed-off parent.
-- Parents are created first; a failed parent skips its subtree.
-- Each hand-off records a result per item. When some items fail, the others
-  stay handed off and the failed ones can be retried by themselves.
-- A later revision is not substituted automatically: hand it off as an update
-  (**Hand off changes**).
+![The Hand-off view of a Jira project: Ready to hand off with a Hand off button per row, In Jira with PAY-2, its Jira status In Review and issue key, and Refresh from Jira in the header](/screenshots/delivery-handoff-after.webp)
+
+## Hand off work
+
+<Steps>
+<Step>
+
+### Choose what to hand off
+
+Use **Hand off** on a row to hand off that specification with its
+children. From an item page, **Export to Jira** does the same. To hand off
+several specifications at once, select their rows and choose **Hand off N
+items**: this hands off the selected items only, without their children.
+
+</Step>
+<Step>
+
+### Read the preview
+
+![The Export to Jira dialog over the Hand-off view: the item to export with Create, what Lictory writes to Jira and what Jira keeps, and Export 1 item](/screenshots/delivery-handoff-preview.webp)
+
+Lictory checks Jira first and lists each item with what would happen:
+**Create**, **Update** with the issue key, **Up to date**, **Not ready** or
+**Skipped**, with the reason. Children appear under their parent. Nothing is
+written yet.
+
+</Step>
+<Step>
+
+### Export
+
+Choose **Export N items**. Parents are created first, then their children.
+You can close the dialog and leave the page; the export carries on in the
+background and the results appear when you come back.
+
+</Step>
+<Step>
+
+### Read the results
+
+Each item shows its own outcome: **Created**, **Updated**, **Up to date**,
+**Needs confirmation**, **Failed** or **Skipped**, with Jira's reason when it
+refused.
+
+</Step>
+</Steps>
+
+What is handed off:
+
+- Only **ready** specifications. Handing off an item with its children
+  skips children that are not ready, and everything under them. Handing off
+  an item that is itself not ready is refused. Canceled children are left
+  out.
+- Plain items such as Tasks and Subtasks go along under a handed-off parent.
+  On their own they cannot be handed off: they have no specification to
+  approve.
+- Types left **Not exported** in the mapping are skipped.
+
+### When some items fail
+
+![Export results with one failure: PAY-2 Refund reason codes was not exported because Jira returned an error (502), with Done and Retry 1 item](/screenshots/detail-handoff-partial.webp)
+
+![The same export after Retry 1 item: PAY-2 Refund reason codes, Created NWPAY-1, with no second issue in Jira](/screenshots/detail-handoff-retried.webp)
+
+A hand-off is recorded per item. When some items fail, the others stay
+handed off, and **Retry N items** hands off only the failed ones. A failed
+parent skips its children: once the parent is in Jira, hand it off again
+with **Hand off** on its row to bring the children along. Items already in
+Jira are left as they are.
+
+Retrying never creates a second issue. Lictory records every create before
+it makes it and marks each issue it creates, so a create whose answer was
+lost (a timeout, Jira briefly unavailable) is found and adopted on retry
+instead of repeated.
+
+## What Jira reports back
+
+![The card of a handed-off item’s chip in a page: Status In Review in Jira, Refinement Ready, 4 of 4 checks, and Owner Jo Jira as reported by Jira](/screenshots/detail-chip-card-jira.webp)
+
+Status, its category and the assignee are read back from Jira:
+
+- after each hand-off;
+- every ten minutes, by the background worker;
+- on demand, with **Refresh from Jira** on the Hand-off view.
+
+Reading back never writes to Jira and never changes Lictory's fields.
+
+Jira's status and assignee then appear wherever the item does: its item
+page (the **Jira** section with the issue key, status, **Assignee in Jira**
+and the handed-off revision), lists, children, and the item's chips and work
+lists in pages. They are read-only in Lictory.
+
+![The Jira section of a handed-off item: the issue key NWPAY-1 with Jira’s status In Review and Up to date, Assignee in Jira: Jo Jira, and the handed-off and current revisions](/screenshots/detail-jira-status.webp)
 
 ## Who owns which field
 
-| Field                                                                 | Owner   | Synchronization                                  |
-| --------------------------------------------------------------------- | ------- | ------------------------------------------------ |
-| Summary, description (latest revision, including acceptance criteria) | Lictory | Pushed to Jira on each hand-off                  |
-| Labels                                                                | Lictory | Pushed; labels added in Jira are kept            |
-| Status, status category, assignee                                     | Jira    | Read back on each hand-off and every ten minutes |
-| Sprint, comments                                                      | Jira    | Not synchronized                                 |
+| Field                                                                 | Owner   | Synchronization                                |
+| --------------------------------------------------------------------- | ------- | ---------------------------------------------- |
+| Summary, description (latest revision, including acceptance criteria) | Lictory | Written to Jira on each hand-off               |
+| Labels                                                                | Lictory | Written; labels added in Jira are kept         |
+| Status, status category, assignee                                     | Jira    | Read back after hand-off and every ten minutes |
+| Sprint, estimates, comments                                           | Jira    | Not synchronized                               |
 
-Reading back never writes Jira and never changes Lictory's fields. A refresh
-can also be started on demand.
+### Edits made in Jira
 
-## Safety
+Lictory does not silently overwrite Jira. If someone edited the summary,
+description or labels in Jira since the last hand-off, the preview says what
+changed and holds that item until you tick **Overwrite those changes**. The
+other items go ahead. Unchanged items are not written again.
 
-- **No duplicates.** Links are reserved before the first call, every create
-  attempt is recorded before it is made, and a hidden issue property
-  (`lictory.item`) lets an interrupted create be found and adopted instead
-  of repeated.
-- **No silent overwrites.** An item whose Lictory-owned fields were edited in
-  Jira since the last hand-off, or one linked to an existing issue that was
-  never handed off, is held as a conflict until the person handing off
-  confirms overwriting that item.
-- **Nothing unnecessary.** Unchanged items are not written again.
-- **Actionable errors.** Jira's rejections are reported per item, for
+## Link an existing Jira issue
+
+When the work already has a Jira issue, link it instead of creating a new
+one. In the item's **Jira** section, choose **Link existing**, enter the issue
+key (for example `PAY-12`) and **Link**. Lictory reads the issue's status and
+assignee right away.
+
+The first hand-off of a linked item asks you to confirm overwriting the
+issue's summary and description with the specification. **Unlink** removes
+the link; the issue in Jira is not changed.
+
+An issue can be linked to only one item, and an issue created from another
+Lictory item cannot be linked to this one.
+
+## When the specification changes after hand-off
+
+The handed-off revision is the scope boundary. A later revision is never
+sent to Jira on its own:
+
+- The item says its revision changes the handed-off scope, and that
+  delivery continues with the handed-off revision until the change is handed
+  off.
+- Once the new revision is ready, it appears in **Ready to hand off** as
+  **Changed since hand-off**. **Hand off changes** updates the Jira issue.
+- On the item page the link shows **Out of date** until then.
+
+## What is refused in Lictory
+
+Exactly one system owns delivery. In a Jira project, Lictory refuses:
+
+- changing an item's status or assignee (_status and assignee are managed in
+  the delivery tool_);
+- planning iterations, and turning on sprints, cycles or estimates;
+- **Accept for delivery**: handing off is the acceptance.
+
+Refinement is unchanged: you still write, discuss, review, approve and
+amend specifications. The readiness policy does not apply; only ready work
+is handed off.
+
+## Context pages in Jira projects
+
+Jira projects keep [context pages](/knowledge/context-pages) for the
+project and each team. They are shown on [team backlogs](/delivery/teams),
+under **Context**. Jira projects have no iterations in Lictory, so there are
+no iteration context pages or iteration notes.
+
+## What to watch for
+
+- **The connection can break.** When Jira rejects Lictory's credentials,
+  the Hand-off view says so. An organization administrator uses **Replace
+  token** in **Organization settings → Integrations**.
+- **Disconnecting stops hand-off.** **Disconnect…** stops every project
+  using that site from handing off until it chooses another Jira project.
+  Existing links keep their history; reconnecting the same site restores
+  them.
+- **Done in Jira is Jira's fact.** A Done status in Jira does not record a
+  delivered revision in Lictory, and does not count as delivered behavior in
+  product knowledge.
+- **Errors name the item.** Jira's rejections are reported per item, for
   example an API token that is no longer valid or an account without
-  permission for the action.
+  permission.
 
-Hand-off runs in the background worker: you can leave the page and follow
-its progress later.
+## Tips
+
+- Map only the types Jira needs. Leaving a type **Not exported** keeps
+  Lictory-only work out of Jira.
+- Hand off a Story with its Tasks in one go, so Jira gets the hierarchy as
+  the team agreed it.
+- Before handing off an amendment, compare it with the handed-off revision
+  in the item's version history.

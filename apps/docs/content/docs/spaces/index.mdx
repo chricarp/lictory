@@ -1,6 +1,6 @@
 ---
 title: Lictory Spaces
-description: Spaces hold the pages a team writes together. Several people edit a page at the same time, and every published version stays in the page's history with who changed what and who approved it.
+description: Spaces hold the pages a team writes together. Several people edit a page at the same time, every published version stays in its history, and pages and work items link to each other.
 ---
 
 **Lictory Spaces** is where a team keeps what it knows that is not a work
@@ -9,7 +9,7 @@ guides. Pages are written together in real time and changed through the same
 reviewed history as specifications, so you can always see what a page said,
 what changed, who changed it and who approved it.
 
-![The published version 2 of the Payments service page in the Engineering Handbook space, with the space's page tree on the left, a highlighted passage under discussion and two work item mentions](/screenshots/spaces-page-reader.webp)
+![A published page in a space: the page tree on the left, an item chip and a decision card in the text, a live work list, and the version line under the title](/screenshots/spaces-page-reader.webp)
 
 ## Spaces and pages
 
@@ -25,7 +25,8 @@ Organization
   one team. That **location** decides where the space is listed and who can
   edit it by default. See [create and manage spaces](/spaces/create).
 - A **page** belongs to one space and can sit under another page of the same
-  space. See [pages and the page tree](/spaces/pages).
+  space. It can start from a [template](/spaces/templates). See
+  [pages and the page tree](/spaces/pages).
 - Every page has a **published version**, the one readers see, and a
   **history** of every earlier version. See
   [versions and history](/spaces/history).
@@ -37,20 +38,35 @@ Organization
 ## Pages and work items
 
 Pages are not work items. They have no key, status, estimate, iteration or
-readiness, and a page never becomes delivery work. Specifications stay on
-their work items, where they are refined, reviewed and checked for readiness
-([specifications](/concepts/specifications)). The two link to each other
-instead: type `#` in a page to mention a work item such as `PAY-142`, and
-readers see its current status, refinement state and readiness.
+readiness, and a page never becomes delivery work by itself. Specifications
+stay on their work items, where they are refined, reviewed and checked for
+readiness ([specifications](/concepts/specifications)). The two are
+connected by [knowledge links](/knowledge) instead:
 
-|                   | Specification                            | Page                                               |
-| ----------------- | ---------------------------------------- | -------------------------------------------------- |
-| Lives on          | A work item of a project                 | A space                                            |
-| Written by        | One author at a time, in Markdown        | Several editors at the same time, in a rich editor |
-| Becomes a version | Every material change creates a revision | Publishing or committing the live draft            |
-| Reviewed by       | The project's disciplines (Product, QA…) | Anyone who can comment on the space                |
-| Feeds             | Readiness checks and delivery            | Nothing: pages are knowledge, not work             |
-| Who can see it    | Every organization member                | Decided per space: Inherited or Restricted         |
+- **In a page**, type `#` to mention a work item: readers see a chip with its
+  key, title and status, and a card with its refinement state, readiness,
+  owner and iteration. Decision cards and live work lists show what Work
+  holds now ([blocks](/spaces/blocks)). Select text, or use an open task, to
+  **Create work item** from it ([work in your pages](/knowledge/in-pages)).
+- **On a work item**, the **Knowledge** section lists the pages that mention
+  it, are attached to it or that its specification cites, and **Propose page
+  update** opens a branch of a page from the item
+  ([pages in your work](/knowledge/in-work)).
+- **On the board, backlog and iterations**, planners keep
+  [context pages](/knowledge/context-pages) one click away.
+
+Every link is visible only to people who can read its page, and a link never
+grants access to anything. Both are written in the same editor, and both
+have a live draft that several people edit at once.
+
+|                   | Specification                                     | Page                                               |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------- |
+| Lives on          | A work item of a project                          | A space                                            |
+| Edited by         | People whose discipline edits specifications      | People with edit access to the space               |
+| Becomes a version | **Save revision** (main) or **Commit** (a branch) | **Publish** (main of a Direct space) or **Commit** |
+| Reviewed by       | The project's disciplines (Product, QA…)          | Anyone who can comment on the space                |
+| Feeds             | Readiness checks and delivery                     | Nothing: pages are knowledge, not work             |
+| Who can see it    | Every organization member                         | Decided per space: Inherited or Restricted         |
 
 ## How a page changes
 
@@ -68,6 +84,16 @@ fact, approvals belong to the exact result a reviewer inspected, and nothing
 is merged or published that nobody saw. See [publishing](/spaces/publishing)
 and [branches and pull requests](/spaces/branches).
 
+## Tips
+
+- Put knowledge that outlives one piece of work on a page (how a service
+  works, a runbook, a decision record) and the behavior you are about to
+  build in a specification. Link them both ways.
+- Choose the location by who maintains the knowledge: a team's runbooks
+  belong to the team, a product area's designs to its project.
+- Use a Reviewed space where others rely on what a page says, and a Direct
+  space for notes a team keeps current day to day.
+
 ## Learn Spaces
 
 <Cards>
@@ -78,9 +104,17 @@ and [branches and pull requests](/spaces/branches).
   <Card title="Pages and the page tree" href="/spaces/pages">
     Create, nest, move, archive and find pages, with the mouse or the keyboard.
   </Card>
+  <Card title="Page templates" href="/spaces/templates">
+    Start a page as product requirements, a design doc, a runbook, a decision
+    record, a retrospective or iteration notes.
+  </Card>
   <Card title="Writing together" href="/spaces/editing">
     The live editor, its toolbar, mentions and links, other editors' cursors and
     what "Saved" means.
+  </Card>
+  <Card title="Blocks and chips" href="/spaces/blocks">
+    Item and page chips, decision cards and live work lists, and what each
+    reader sees.
   </Card>
   <Card title="Publishing" href="/spaces/publishing">
     Direct and Reviewed spaces, Publish, and what readers see.
@@ -96,6 +130,9 @@ and [branches and pull requests](/spaces/branches).
   </Card>
   <Card title="Access" href="/spaces/access">
     Inherited and Restricted spaces, view, comment and edit, and administrators.
+  </Card>
+  <Card title="Knowledge links" href="/knowledge">
+    How pages and work items refer to each other, and who sees each link.
   </Card>
   <Card title="Agents and MCP" href="/spaces/agents">
     What an agent can read and propose, and what stays with people.

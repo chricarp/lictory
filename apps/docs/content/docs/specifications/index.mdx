@@ -1,0 +1,164 @@
+---
+title: From proposal to ready
+description: How a spec-backed work item moves from a rough proposal through refinement and review to ready, and where each part of that work happens in Lictory.
+---
+
+Refinement is how a team turns "Product wants to build this" into
+"Engineering can safely commit to building this". In Lictory it happens on
+one **work item**: the same `PAY-2` starts as a rough proposal, collects
+revisions, discussions and reviews, becomes ready, and is then delivered in
+Lictory or handed off to a delivery tool.
+
+<Lifecycle />
+
+The path is not a straight line. A specification can go back from review to
+refinement, a ready one can stop being ready when its text changes, and
+delivered work can be amended by a later revision. Lictory keeps every step
+in the item's history instead of hiding the way back.
+
+## Which work items have a specification
+
+Every work item has a **type**. A type either carries a **specification**
+or it is plain work:
+
+| Default type | Carries a specification | What that means                                         |
+| ------------ | ----------------------- | ------------------------------------------------------- |
+| Epic, Story  | Yes                     | Refined, reviewed, approved and checked for readiness   |
+| Task, Bug    | No                      | A description edited directly, then planned and tracked |
+| Subtask      | No                      | Plain work under another item                           |
+
+Organization administrators can add and change types; each project enables
+the ones it uses. In the create dialog, the type picker marks types with a
+specification as **Specification**.
+
+Only spec-backed items go through refinement. A Task still has a history of
+its description, but no reviews, approvals or readiness checks of its own,
+and comments on it are a conversation under the description.
+
+## The stages
+
+A spec-backed item shows where it stands in the card under its title. The
+card names the stage in one sentence, shows the evidence behind it, and says
+what happens **Next**:
+
+| Stage      | The card says                                             | What moves it on                                                              |
+| ---------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Proposal   | **Shape the proposal**                                    | **Start refinement** when the idea is worth exploring with the team           |
+| Refinement | **Agree on what to build**                                | Requesting a review moves the item to _In review_                             |
+| Review     | **Review the current specification**                      | Reviewers approve the current revision; blocking discussions are resolved     |
+| Ready      | **Ready for delivery**                                    | Every [readiness check](/review/readiness) passes, so Lictory sets it for you |
+| Delivery   | **Accepted for delivery**, **In progress**, **Delivered** | Accepting the revision (in Lictory) or handing it off (to Jira)               |
+
+![PAY-2 "Retry failed card captures" in review: revision 2 of the specification with its review rail, required Engineering and QA reviews and readiness checks beside the text](/screenshots/specification-review.webp)
+
+Under the sentence, the **Spec** row shows the refinement state, the current
+revision, how many readiness checks pass (for example _3/5 checks_) and any
+blocking discussions. Once a revision is accepted for delivery, a
+**Delivery** row adds the workflow status and the accepted and delivered
+revisions.
+
+## Refinement state and delivery status
+
+Two separate facts describe a spec-backed item, and Lictory never merges
+them into one field:
+
+- **Refinement state** says how far the specification has got: **Draft**,
+  **In refinement**, **In review** or **Ready**.
+- **Delivery status** says how far the work has got: the project's workflow
+  status (Backlog, Todo, In Progress, Done…) in a native project, or the
+  delivery tool's status in an external one.
+
+A specification can be **Ready** while its work has not started, and an
+item can be **In Progress** while a later revision of its specification is
+back **In review**. Both are visible on the item, side by side.
+
+**Ready** is evidence, not a choice. Nobody sets it: it is set when every
+readiness check passes for the current revision, and removed (back to **In
+review**) when one stops passing. People with the _change properties_
+capability can move an item between **Draft**, **In refinement** and **In
+review** in the **Refinement** property, but not to or from **Ready** while
+the checks say otherwise.
+
+## Main and protected main
+
+A specification's agreed text lives on **main**. While the specification is
+taking shape, people whose discipline may _edit specifications_ change main
+directly: they open the editor, write together and save revisions. See
+[live drafts](/specifications/live-drafts).
+
+The first time the item becomes **Ready**, main is **protected**, and it
+stays protected even if the item later leaves Ready. From then on nobody
+edits main directly: changes are made on a **branch** and merged through a
+reviewed **pull request**, which can also propose the item's breakdown into
+child work. See [branches and pull requests](/specifications/branches).
+
+<Callout title="Propose a change from the text">
+  Select a passage of a specification and choose **Suggest a change**: Lictory
+  starts a branch and opens it at that passage. It works whether or not main is
+  protected, so it is also the quickest way to propose a change to a ready
+  specification.
+</Callout>
+
+## The project's views
+
+The project sidebar groups refinement under **Prepare**:
+
+- **Proposals** holds spec-backed items in **Draft** that have not started
+  refinement: ideas captured but not yet worth the team's time. **New
+  proposal** creates one.
+- **Refinement** holds specifications being clarified, reviewed or ready, and
+  not yet in delivery. Its tabs split them: **All in refinement**, **In
+  progress**, **In review** and **Ready for delivery**. An item already in
+  delivery comes back here only when its specification changes (an
+  _amendment_); delivery carries on with the accepted revision meanwhile.
+  Above the list, the project's knowledge strip shows its spaces and
+  recently published pages.
+- **Reviews** opens **Needs my review**: reviews asked of you or your
+  disciplines on the current revision, and suggestions waiting for your
+  approval. Each row says which review is asked, on which revision, and how
+  many blocking discussions are open.
+
+**All items**, under **Browse**, is the catalog of every item of every type
+and stage, including done, canceled and (when you ask) archived work. See
+[organizing work](/delivery/organize).
+
+![The Refinement view of the Payments project: the All in refinement, In progress, In review and Ready for delivery tabs with their counts, the Payments knowledge strip, and each item with its next step](/screenshots/work-refinement.webp)
+
+Refinement is the project's home page when the project has spec-backed
+types. An item opened from one of these views keeps it highlighted in the
+sidebar and names it first in the breadcrumb, so one click returns to the
+same list.
+
+**Ready for delivery** means the checks pass. It is not a commitment: the
+team still decides when to build it, by accepting the revision in a native
+project or handing it off in an external one. See
+[delivery](/delivery) and [Jira](/integrations/jira).
+
+## Where to go next
+
+<Cards>
+  <Card title="Write a proposal" href="/specifications/proposals">
+    Create an item, start rough, and add what reviewers will look for.
+  </Card>
+  <Card title="The editor" href="/specifications/editor">
+    Formatting, references to work items, pages and decisions.
+  </Card>
+  <Card title="Edit together" href="/specifications/live-drafts">
+    Co-edit a live draft and save it as a revision.
+  </Card>
+  <Card title="Versions and changes" href="/specifications/history">
+    Compare revisions word by word and restore an earlier one.
+  </Card>
+  <Card title="Discussions" href="/specifications/discussions">
+    Comment on the exact text, mark blocking concerns, resolve them.
+  </Card>
+  <Card title="Branches and pull requests" href="/specifications/branches">
+    Change a protected specification and its breakdown through review.
+  </Card>
+  <Card title="Decisions" href="/specifications/decisions">
+    Record the conclusions a team reaches so they are found later.
+  </Card>
+  <Card title="Reviews and approvals" href="/review/requests">
+    Ask disciplines to review, approve or request changes.
+  </Card>
+</Cards>

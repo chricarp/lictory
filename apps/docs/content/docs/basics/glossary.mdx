@@ -1,0 +1,207 @@
+---
+title: Lictory terms
+description: What the words Lictory uses mean, with a link to the guide for each.
+---
+
+Lictory uses a small set of words, and uses them the same way everywhere:
+in the app, in these guides and in what agents read. Older guides may say
+_product_ where Lictory now says **project**.
+
+## Refining work
+
+### Proposal
+
+The first, rough expression of a change someone wants: a problem, the
+intent, notes, links. A proposal is expected to be incomplete; refinement
+makes it useful. See [proposals](/specifications/proposals).
+
+### Specification
+
+The structured description of the behavior being agreed on. It is the
+primary thing people review, and it belongs to a work item of a type that
+has one (Epic or Story by default). See [specifications](/specifications).
+
+### Revision
+
+A saved version of a specification. Revisions never change once saved:
+they are the history, what diffs compare and what approvals refer to. See
+[history](/specifications/history).
+
+### Live draft
+
+The shared working copy of a specification or a page that several people
+edit at the same time. A draft is never history: saving it makes a revision
+(or a commit on a branch, or a published page version). See
+[live drafts](/specifications/live-drafts) and [editing pages](/spaces/editing).
+
+### Branch and pull request
+
+A branch is a separate line of work on a specification or a page; a pull
+request asks for it to be reviewed and merged into the main text. Once a
+specification is ready, its main text changes only this way. See
+[branches](/specifications/branches) and [page branches](/spaces/branches).
+
+### Thread (discussion)
+
+A conversation attached to exact context: a passage of text, a section, a
+revision or a pull request. A thread is open or resolved, and blocking or
+not. Resolving keeps its history. See [discussions](/specifications/discussions).
+
+### Suggestion
+
+A proposed text change that can be accepted or rejected, not a comment.
+Accepting one creates a new revision. New changes are proposed on branches;
+suggestions remain for existing records. See [suggestions](/specifications/suggestions).
+
+### Decision
+
+A durable record of a conclusion reached in refinement ("Retries reuse
+the original idempotency key"), often promoted from a discussion. See
+[decisions](/specifications/decisions).
+
+## Reviewing
+
+### Review
+
+A request for a discipline (or a person in it) to evaluate a revision. A
+review can be required or optional. See [review requests](/review/requests).
+
+### Approval
+
+A reviewer's decision that a specific revision meets their
+responsibility. An approval belongs to the revision it was given for: when
+the text changes materially, it becomes outdated and the review is asked for
+again. See [approvals](/review/approvals).
+
+### Check (readiness check)
+
+An evaluation of whether the work is ready: the specification is written,
+no blocking thread is open, required reviews approved the current revision,
+and whatever else the project's Definition of Ready asks. The item is
+**ready** when every check passes; readiness is evidence, not a label. See
+[readiness](/review/readiness).
+
+## Delivering
+
+### Work item
+
+A unit of work in a project, with a key such as `PAY-142` that never
+changes. Its **work item type** (Epic, Story, Task, Bug, Subtask by
+default, defined for the whole organization) says whether it carries a
+specification. See [find your way around](/basics/navigation#a-work-item-page).
+
+### Delivery item
+
+A unit of implementation work, an ordinary work item. An approved
+specification is broken down into child items that record the revision they
+came from. See [breakdown](/delivery/breakdown).
+
+### Workflow status
+
+Where a work item stands in delivery (Backlog, Todo, In Progress, Done…).
+Each project defines its statuses, each in a fixed category: backlog,
+unstarted, started, done, canceled. Delivery status is separate from the
+refinement state (draft, refinement, in review, ready). See
+[the board](/delivery/board).
+
+### Iteration
+
+A time-box of planned work: a **sprint** (started and completed by hand)
+or a **cycle** (scheduled automatically). A project has at most one active
+iteration. See [iterations](/delivery/iterations).
+
+### Relation
+
+A directed link between work items: blocks, relates to, duplicates. See
+[relations](/delivery/relations).
+
+### Publish and hand off
+
+In a project delivered in Jira, ready work is handed off (published) to
+Jira, which then owns its delivery status. Publishing is not approval:
+approval comes first. Publishing a page in Spaces is a different act: it
+makes a version the page's published version. See [Jira](/integrations/jira)
+and [publishing pages](/spaces/publishing).
+
+## Knowledge
+
+### Space
+
+A home for knowledge: nested pages people write together. A space
+belongs to the organization, a project or a team, whose members can edit
+it, or is restricted to named people. See [Spaces](/spaces) and
+[access](/spaces/access).
+
+### Page
+
+A document in a space, with its own history of versions. Pages are not
+work items: they have no status and no readiness. See [pages](/spaces/pages).
+
+### Knowledge
+
+The links between pages and work: pages that mention an item, pages a
+specification cites (optionally pinned to a version), pages attached to an
+item, and pages kept as context of a project, team or iteration. See
+[knowledge](/knowledge).
+
+## People and access
+
+### Organization
+
+A company, or a large department of one, using Lictory: its people,
+projects, spaces and settings. See [organization and access](/organization).
+
+### Project
+
+A product area inside an organization. It owns its work items and their
+keys, its members and disciplines, workflow, iterations, delivery mode and
+readiness policy. See [projects](/organization/projects).
+
+### Team
+
+A group of people working on one part of a project. A team owns no
+configuration; boards and backlogs can be narrowed to it. See
+[teams](/delivery/teams).
+
+### User
+
+A person with an account on your Lictory installation. See
+[your account](/basics/account).
+
+### Application role
+
+What a person may administer in an organization: owners and admins manage
+the organization and every project; members work in it. Within a project,
+the **project role** (admin or member) decides who configures it. Roles
+grant no work item capabilities. See [roles](/organization#three-separate-questions).
+
+### Discipline
+
+A kind of work a person does in one project, such as Product, Engineering
+or QA. Reviews are requested from disciplines, and disciplines decide what
+their members may do with work items. See [disciplines](/organization/disciplines).
+
+### Instance administrator
+
+A person who manages the installation itself: its accounts, its instance
+administrators and its organizations. It grants no access to any
+organization's work. See [instance administration](/organization/instance).
+
+## Assistance
+
+### Lictory Intelligence
+
+Lictory's optional AI: reviews that point out gaps and contradictions,
+proposed fixes, and Litto. Its findings and changes are proposals; people
+decide. Everything works without it. See [Lictory Intelligence](/ai).
+
+### Litto
+
+Lictory's assistant, which answers questions about your work and pages
+with citations and proposes changes you confirm. See [Litto](/ai/litto).
+
+### Agent
+
+A tool outside Lictory, such as a coding agent in your terminal, that
+works through MCP with a personal access token, as the person who created
+it. See [AI agents and MCP](/integrations/agents).

@@ -1,0 +1,182 @@
+---
+title: The editor
+description: Write specifications, descriptions, discussions and decisions with one editor, and refer to work items, pages and decisions so links stay correct.
+---
+
+Lictory has one editor for everything people write. In Work it edits
+specifications and their branches, the description of a new work item,
+discussions and replies, and decisions; in Spaces it edits pages and page
+comments. The toolbar, the `/`, `#` and `[[` menus, the reference chips and
+the keyboard shortcuts are the same everywhere, so what you learn on a page
+works in a specification.
+
+What differs is what is stored. Pages store a document; everything in Work
+stores **Markdown**, because specifications are diffed, checked for
+readiness sections and exported to delivery tools as text.
+
+## Markdown stays Markdown
+
+You write with formatting; Lictory stores Markdown and changes only what you
+edited:
+
+- **Text you did not touch keeps its exact characters.** Opening a
+  specification and saving it without edits changes nothing, so no revision
+  is created. An edit rewrites only the paragraphs, lists or tables it
+  touched, which keeps the difference between revisions as small as the
+  edit.
+- **Nothing is dropped.** Markdown the editor cannot show as formatting (raw
+  HTML, footnotes, reference-style links) is kept as written. It appears as a
+  block marked _Markdown kept as written. Edit it as Markdown to change it._
+- **Edit as Markdown** in the toolbar switches to the Markdown text itself,
+  and **Edit formatted text** switches back. In a shared specification draft,
+  your Markdown edits merge into what others typed meanwhile; see
+  [live drafts](/specifications/live-drafts#edit-as-markdown).
+- **Pasted text is read as Markdown**, so a specification pasted from
+  another tool keeps its headings, lists and links.
+
+## Write
+
+Type directly, use Markdown shortcuts (`#` and a space for a heading, `-`
+for a list, `[ ]` for a task, `>` for a quote, three backticks for code), or
+type `/` for any block.
+
+![The block menu opened with /: Text, Heading 1 to 3, Bulleted list, Numbered list, Task list, Quote and Code block, each with its Markdown shortcut, and more below](/screenshots/detail-editor-slash-menu.webp)
+
+| Control                                  | What it does                                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Undo, Redo                               | Undo or redo your own changes                                                                            |
+| **Text**                                 | The current block's style: Text, Heading 1-3, Bulleted list, Numbered list, Task list, Quote, Code block |
+| Bold, Italic, Strikethrough, Inline code | Inline marks                                                                                             |
+| **Link**                                 | Add a link to the selection, or edit the link under the cursor                                           |
+| **Insert**                               | Table, Divider, File or image, Work item, Link to a page, Decision                                       |
+| **Table**                                | Inside a table: add or delete rows and columns                                                           |
+| **Edit as Markdown**                     | Edit the Markdown text directly                                                                          |
+
+The toolbar is one stop in the Tab order: Arrow Left and Right, Home and End
+move between its controls. On a phone it is one scrolling row. Keyboard
+shortcuts are listed in [writing together](/spaces/editing#keyboard-shortcuts);
+in a specification, `⌘ Enter` or `Ctrl Enter` also saves the revision and
+Escape closes the editor.
+
+Paste or drop an image to place it in the text, or choose **Insert → File or
+image** for any file. Files you add to a specification are also listed in
+the item's **Attachments**. See
+[files and screenshots](/specifications/proposals#files-and-screenshots).
+
+In discussions and replies, `@` mentions a person and notifies them.
+Specification text has no mentions: ask for a review or start a discussion
+instead.
+
+## Work items, pages and decisions
+
+A **reference** points at something in Lictory by its identity, not its
+name. Renaming or moving the target never breaks it, and every reader sees
+the target as it is now, as far as they may see it.
+
+### Refer to a work item
+
+Type `#` (or **Insert → Work item**) and type a key or words of a title.
+The menu lists items you can see; Enter or Tab inserts the one selected.
+
+![The # menu after typing #retry: Work items with PAY-2 Retry failed card captures and PAY-8 Add retry metrics to the payments dashboard](/screenshots/detail-editor-item-picker.webp)
+
+### Link to a page
+
+Type `[[` (or **Insert → Link to a page**) and type words of a page title.
+The menu lists pages of every space you can read, with their space and path.
+
+- Enter or Tab links to the page. The link always opens the latest
+  published version.
+- **Pin this version** (or Shift+Enter) cites the version published now. A
+  pinned link keeps opening that version, and shows when a newer one has
+  been published.
+
+![The [[ menu after typing [[refund: Pages with Missing refund runbook in the Payments space, and Pin on the selected page](/screenshots/detail-editor-page-picker.webp)
+
+Pin a page when the specification relies on what it says, for example the
+current retry policy: reviewers then approve against exactly that text. A
+later change to the page does not change your specification or its
+approvals. Adopting the newer version is an ordinary edit of the
+specification, reviewed like any other. See
+[knowledge links](/knowledge).
+
+### Refer to a decision
+
+Type `/` and choose **Decision**, or **Insert → Decision**. **Find a
+decision…** lists the decisions of the open item first, under **This item**,
+then searches the decisions you can read across the organization. See
+[decisions](/specifications/decisions).
+
+### Chips and their cards
+
+References appear as chips. Point at one, or focus it with the keyboard, to
+see a card:
+
+| Chip      | Shows                                                             | Its card adds                                                                                                                                                      |
+| --------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Work item | Status icon, key and current title                                | Type, status, refinement state, readiness checks passed and what is still missing, owner, iteration, **Open** _key_                                                |
+| Page      | The space's icon and the page's current title; **v**N when pinned | Space and path, last publication, the cited version and, when newer, _Version N is published._ with **Compare in history**; **Open this version** or **Open page** |
+| Decision  | Its title                                                         | The work item and revision it was recorded on                                                                                                                      |
+
+![The card of the PAY-2 chip: Story, Retry failed card captures, In Progress, In review, 2 of 4 checks with what is still missing (a blocking discussion, and Engineering and QA reviews of revision 2), owner Dev Patel, Sprint 1 and Open PAY-2](/screenshots/detail-item-chip-card.webp)
+
+For a project that delivers in Jira, the item's status is Jira's, for
+example _In Progress in Jira_ or _Not handed off to Jira_.
+
+## What other people see
+
+A reference is written with a label: the key, page title or decision title
+at the moment you inserted it. That label is all someone sees who cannot
+read the target:
+
+- a work item or page they cannot see shows only its label, as plain text
+  with no card (a page link without a label reads _Unavailable page_);
+- nothing about the target (current title, status, version) is revealed
+  beyond the label you wrote.
+
+The label itself is part of the text, so everyone who can read the
+specification sees it. Write labels you are comfortable showing to all of
+them.
+
+References grant no access in either direction. Exports to a delivery tool
+write each reference's label as plain text.
+
+## Reference syntax for agents
+
+In the stored Markdown, a reference is an ordinary link with a typed
+target. Agents connected through MCP, and anything else that writes
+Markdown, use the same form:
+
+| Reference              | Markdown                                        |
+| ---------------------- | ----------------------------------------------- |
+| A work item            | `[PAY-2](item:WORK_ITEM_ID)`                    |
+| A page, latest version | `[Payments service](page:PAGE_ID)`              |
+| A page at one version  | `[Payments service](page:PAGE_ID@COMMIT_ID)`    |
+| A recorded decision    | `[Retries reuse the key](decision:DECISION_ID)` |
+
+The label inside the brackets is what readers without access see. The
+older page form `[[page:PAGE_ID]]` is still read. References inside code
+spans and code blocks are ignored, so examples stay examples. See
+[agents](/integrations/agents).
+
+## What to watch for
+
+- **Formatting is not stored as-is.** A block you edit is written back in
+  one consistent Markdown form (for example `-` for bullets). Blocks you did
+  not edit keep theirs.
+- **Labels are written once.** A reference's label is not updated when the
+  target is renamed; readers who can see the target see its current title
+  anyway. Readers without access see the old label.
+- **The editor loads on demand.** Until it loads, or if it cannot, a plain
+  Markdown field stands in and keeps what you type.
+
+## Tips
+
+- **Pin the pages a specification depends on.** A pinned citation records
+  exactly which version the team agreed against, and its chip tells you when
+  that page has moved on.
+- **Refer instead of copying.** Link a recorded decision or a related item
+  instead of restating it: the reference stays current and its card shows
+  its state.
+- **Use headings for structure.** Readiness checks and discussions both
+  find text by its heading, so clear headings make both more precise.

@@ -1,0 +1,230 @@
+---
+title: AI reviews
+description: Ask Lictory Intelligence to assess a specification, read its findings and evidence, turn fixes into corrective pull requests, and review every commit of a pull request.
+---
+
+Lictory Intelligence reviews specifications the way a refinement session
+would. It looks for missing information, ambiguity, contradictions and
+untestable behavior. A review is a **check**, like CI on code. It never
+approves, and people decide what to do with each finding.
+
+There are two kinds:
+
+- an **assessment** of a work item, its parent items and its child items,
+  started by a person;
+- the **Lictory Intelligence review** of a pull request, a Lictory Action
+  that can run on every commit.
+
+Both need Lictory Intelligence to be on for the organization
+([turn it on](/ai#turn-it-on-for-your-organization)).
+
+## When to use it
+
+- Before you request reviews, to catch the gaps reviewers would raise.
+- When a specification grew through many edits and nobody has read it whole
+  again.
+- On every pull request of a project that wants consistent first-pass
+  feedback before people review.
+- As a [readiness check](#as-a-readiness-check), beside the approvals your
+  project requires.
+
+## Assess a work item
+
+<Steps>
+<Step>
+
+### Start the assessment
+
+Open the work item and open Litto (**Ask Litto** or `Ctrl J` / `⌘ J`). Under
+**Assess PAY-2**, choose **Assess**. You need a discipline in the project
+that can request reviews or edit specifications.
+
+The item header shows **Assessing…** while it runs, then the number of
+concerns, such as **2 AI concerns**.
+
+</Step>
+<Step>
+
+### Read the summary
+
+The Litto panel shows the main concerns, the revision that was read and
+whether it is still current. Choose **Open findings** for the full review,
+**Talk it through** to discuss it with Litto, or **Assess again**.
+
+</Step>
+<Step>
+
+### Go through the findings
+
+The review opens in the item. It is marked **Proposal · people decide** and
+says what it read:
+
+- **Read revision N** and **Current** (or **Outdated**);
+- how many items it read;
+- an **AI text assessment** score out of 100. It describes how complete and
+  unambiguous the text reads to the model. It is not a readiness verdict.
+
+Filter by **Validations**, **Suggestions** or **Questions**. Each finding
+has a severity (**Blocker**, **Major**, **Minor**, **Note**) and can show:
+
+- **Question**: what someone has to answer;
+- **Proposed**: the recommended change;
+- **Evidence**: the quoted text from the item it rests on;
+- **Based on**: the [context entries](/ai/context) it relied on;
+- **Proposed change under “section”**: the exact edit, as a diff.
+
+**What works** lists what the specification already does well.
+
+</Step>
+<Step>
+
+### Act on what matters
+
+- **Ask the team** turns a finding's question into a non-blocking discussion
+  on the item, quoting its evidence.
+- Select the findings with a proposed change and choose **Open corrective
+  pull request** ([below](#fix-with-a-corrective-pull-request)).
+- Ignore the rest. A finding changes nothing until someone acts on it.
+
+</Step>
+</Steps>
+
+### Fix with a corrective pull request
+
+Lictory Intelligence turns the changes you selected into pull requests,
+one per affected item:
+
+1. Tick the findings to include. Only findings with a proposed change can be
+   selected.
+2. Choose **Open corrective pull request** (or **pull requests** when the
+   findings cover several items).
+3. Each item shows **pull request opened**, or why it was not. A pull request
+   that was opened is not opened again for the same review.
+
+The pull request applies exactly the selected changes, without asking the
+model again. Lictory Intelligence is its author, and you are invited to its
+branch as a collaborator. It is reviewed and merged like any other
+[pull request](/specifications/branches); reviewers decide what merges.
+Follow it from **Corrective pull request** beside the item in the review.
+
+### When the specification changes
+
+A new revision of any item the assessment read makes it **Outdated**: its
+findings may no longer apply, and corrective pull requests are disabled.
+Choose **Run a new review** to assess the current revision. Earlier reviews
+stay readable under **Earlier reviews**.
+
+## Review pull requests automatically
+
+The **Lictory Intelligence review** reads a pull request's change against the
+specification it changes and reports gaps, contradictions and ambiguity. It
+never changes the branch on its own.
+
+Each project chooses its policy in **Project settings → Delivery → Lictory
+Intelligence on pull requests**:
+
+| Policy       | What happens                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| **Off**      | Runs only when someone starts it.                                                          |
+| **Advisory** | Reviews every new commit. Findings inform; merge is not blocked.                           |
+| **Required** | Merge waits for a review of the latest commit. Blocker findings open blocking discussions. |
+
+With **Advisory** or **Required**, it runs when the pull request is ready for
+review and again on each new commit. Draft pull requests wait. A new commit
+cancels a run that has not finished.
+
+### Read the results
+
+Open the pull request's **Actions** tab. Under **Lictory Actions**, the
+**Lictory Intelligence review** shows its state for the latest commit
+(queued, reviewing, failed, or **Out of date: reviewed an earlier commit**)
+and its runs. Each run shows the commit, who triggered it, when it started
+and how long it took. It also shows a **Summary**, **What the change gets
+right** and its findings as **Annotations**.
+
+The results also appear as discussions on the pull request: one summary
+discussion, and one per finding, anchored to the text it is about.
+
+- When a later run still sees an issue, it replies **Still present at
+  commit …** in the same discussion.
+- When an issue is gone, it says so and leaves resolving it to you.
+- Blocking discussions it opens under **Required** are like any other: you
+  can resolve them or mark them non-blocking.
+
+### Commit a suggestion
+
+A finding on the latest commit that proposes a change offers **Commit
+suggestion**. It adds a commit to the pull request's branch as you, and
+reviewers need to approve again. Suggestions from an earlier commit cannot be
+committed; re-run the review on the latest commit to get applicable ones.
+
+### Run it again
+
+Choose **Run Lictory Intelligence review** (or **Re-run**) on the
+**Actions** tab, for example after a failure or when the policy is **Off**.
+A run that is already in progress must finish first.
+
+## As a readiness check
+
+A project can require a clean review before an item is **Ready**. In
+**Project settings → Readiness**, add **Require a Lictory Intelligence
+review** to a type and choose what fails it: **Lictory Intelligence found no
+blocker in the current revision**, or **no blocker or major finding**.
+
+- Only an assessment of the **current revision** counts. A new revision
+  needs a new assessment, like an approval.
+- The check appears among the item's readiness checks as **Automated check ·
+  Lictory Intelligence review**, with its score, model and time. It never
+  counts as a discipline's approval.
+- A type that requires it must also require a person's decision, so Lictory
+  Intelligence alone never makes an item Ready.
+- Anyone with a discipline in the project can choose **Override for this
+  revision** when the check is wrong, and **Withdraw override** later. Both
+  are recorded.
+
+See [readiness](/review/readiness) for the other checks.
+
+## What a review reads
+
+An automatic review reads only what is in Lictory for the work it reviews,
+and the [context entries](/ai/context) that apply to it:
+
+- the specifications of the reviewed items, their parents and children
+  (long ones are truncated);
+- the first messages of their open discussions, their statuses, estimates and
+  relations;
+- for a pull request, the changed lines;
+- the organization, project and team context entries, within a size budget.
+
+It does not browse pages in Lictory Spaces or search the web. To give
+reviews knowledge they should always apply, add it as a context entry.
+Findings name the entries they relied on, and the run records the exact
+versions it received.
+
+The model's output is checked before you see it. Findings about items it was
+not given are dropped. A proposed edit is kept only if it applies to the
+exact text that was reviewed. The score is computed by Lictory from the
+findings (100 minus a fixed weight per finding), never chosen by the model.
+
+## What to watch for
+
+- **A clean review is not an approval.** Required reviews and approvals
+  still decide.
+- **Outdated reviews mislead.** Check **Current** before you act on a
+  finding.
+- **A suggestion commit restarts approval.** Committing a suggestion is a new
+  commit; reviewers must approve again.
+- **Failures say why.** A failed run names the cause (credentials, model,
+  rate limit, timeout). Fix it or wait, then run it again.
+
+## Tips
+
+- Assess before you request reviews: reviewers then spend their time on
+  decisions, not on gaps the review would have found.
+- Use **Ask the team** for questions only a person can answer, instead of
+  asking Litto to guess.
+- Start projects on **Advisory**. Switch to **Required** when the team
+  trusts the findings.
+- When the same finding keeps coming back, record the answer as a
+  [decision](/specifications/decisions) or add it to
+  [context](/ai/context).

@@ -1,0 +1,230 @@
+---
+title: Pages in your work
+description: Find the pages about a work item, attach background, designs and runbooks, cite exact page versions in specifications, and propose page updates from the item.
+---
+
+Every work item has a **Knowledge** section: the pages that mention it, the
+pages attached to it, the pages its specification cites, the page it was
+created from and the page updates proposed from it. It is the reading
+context for the specification, so the next reviewer finds the background
+without asking where it is.
+
+![The Knowledge section of PAY-2: the attached design page Capture retry design, mentioned in its latest version and cited by revision 2; Missing refund runbook, cited at v1, with Newer version v2 published and Compare; Payments service, mentioned under Retry policy; and the page update Explain automatic capture retries to support, In review](/screenshots/knowledge-item.webp)
+
+## When to use it
+
+- **Before you review or refine** an item, read what its Knowledge section
+  lists: designs, runbooks and decisions the team already wrote down.
+- **While you write a specification**, cite the page version you relied on.
+- **When delivered work changes how something behaves**, propose the page
+  update from the item, so the page and the item stay in step.
+
+## The Knowledge section
+
+The section sits under the specification, after the breakdown and before
+**Relations**. Each page you can read appears once, with its title, its
+space and, for an attachment, its purpose (**Background**, **Design** or
+**Runbook**). Under the title it says how the page is linked:
+
+| What it says                                         | What it means                                                                                                     |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Mentioned in latest** under _"heading"_            | The page's published version mentions the item, in that section (or _in N places_)                                |
+| _Attached at_ **v2**                                 | Someone attached the page pinned to version 2                                                                     |
+| _Revision 3 cites_ **v1**                            | The current revision of the specification cites version 1 (_and the latest_ when it also cites the page unpinned) |
+| _Cited by revision 3_                                | The current revision cites the page without a pinned version                                                      |
+| _Cited by revision 2, not by the current revision 3_ | Only an earlier revision cited it                                                                                 |
+
+Below that, an excerpt quotes the published text that mentions the item.
+When the row also speaks of an older pinned version, the excerpt says which
+version it quotes: _Latest mention:_ for the published text, and _v2
+(pinned):_ for the pinned version's own words in the same place when they
+differ. You never read today's wording as the evidence an approval relied
+on.
+
+Every version is its own link. **Mentioned in latest** opens the published
+version at the mention; each **vN** opens that exact version; the title
+opens the one version the item relies on (its pin), or the latest at the
+mention when there is no single pin. When the page has published since a
+pin, _Newer version v3 published ·_ **Compare** opens the two versions side
+by side in the page's history.
+
+Two more parts appear when they apply:
+
+- **Created from** _page · space_, above the list: the item was created from
+  text on that page. It shows the quote, and **Open source** opens the exact
+  version at the block it came from.
+- **Page updates proposed from PAY-2**, below the list: each branch opened
+  with **Propose page update**, named by its change, with the page, _From
+  revision N_, who opened it and when, and its state: **Not proposed yet**,
+  **Draft**, **In review**, **Merged**, **Closed** or **Branch deleted**.
+
+With nothing linked yet, the section explains which pages will appear there.
+
+### Counts in the header and in lists
+
+The item's header shows **Knowledge 3** beside **Discussions** and
+**Changes** when pages are linked: the number of pages you can read in the
+section. It brings the section into view. On screens that replace the
+specification (a branch, a pull request, the version history) it opens the
+section, read-only, in a popover, so you have the background during a
+review.
+
+![The item header: Knowledge 3, 3 discussions with a red marker for a blocking one, and Changes](/screenshots/detail-item-header.webp)
+
+Item lists and the item preview show the same count as **3 pages** (_3
+pages about this item_ in the preview); it links to the section. Pages you
+cannot read are never counted.
+
+## Attach a page
+
+Attach a page that belongs with the item but does not mention it: the design
+it follows, the runbook for operating it, background worth reading first.
+
+<Steps>
+<Step>
+
+**Choose the page.** In the **Knowledge** section, choose **Attach page**
+and search by title or space (_Attach a page to PAY-2_). Pages that already
+mention the item or are cited by it are offered first.
+
+</Step>
+<Step>
+
+**Say why.** Under **Purpose**, choose **Background** (_Context worth
+reading first_), **Design** (_How it is meant to look or work_) or **Runbook**
+(_How to operate or support it_).
+
+</Step>
+<Step>
+
+**Pin a version, if it matters.** Tick **Pin the version published now** to
+attach exactly today's version. Otherwise the item follows the page as it
+is published.
+
+</Step>
+<Step>
+
+**Attach page.** The page joins the list with its purpose.
+
+</Step>
+</Steps>
+
+![The attach step in the Knowledge section: Attach “Capture retry design” to PAY-3, Purpose with Background, Design (selected) and Runbook, Pin the version published now, Cancel and Attach page](/screenshots/detail-attach-page.webp)
+
+To detach a page, point at its row and choose the **×** (**Detach**). The
+confirmation offers **Undo**. Detaching keeps the history: the page's
+activity records who attached and detached it.
+
+Attaching and detaching need a discipline that can change the item's
+properties in its project, and read access to the page. Everyone who can
+read the page sees the attachment.
+
+## Propose a page update
+
+When the work changes something a page describes, propose the change from
+the item. Lictory opens a branch of the page linked to the item's current
+revision; the page's own rules decide when it is published.
+
+<Steps>
+<Step>
+
+**Choose the page.** In the **Knowledge** section, choose **Propose page
+update** and pick a page (_Propose an update to_). Only pages in spaces you
+can edit are offered, the ones attached to or mentioning the item first.
+
+</Step>
+<Step>
+
+**Say what changes.** Under **What changes**, describe the change in a few
+words, for example _Document the finance approval time_. The dialog says
+that a branch opens in the editor, linked to _PAY-2 revision 4_, and either
+_Its changes are published after review._ (a Reviewed space) or _Nothing is
+published until you merge it._ (a Direct space).
+
+</Step>
+<Step>
+
+**Check the branch name** (optional). **Advanced** shows the suggested
+**Branch name**, made from the item key and the change
+(`pay-2-document-the-finance-approval-time`). Change it if you like.
+
+</Step>
+<Step>
+
+**Create branch and edit.** The page opens in the branch's live draft.
+Write the change, **Commit** it, and open a pull request: its title starts as
+the change you described. Reviewers then approve and someone merges it, as
+for any [branch](/spaces/branches).
+
+</Step>
+</Steps>
+
+![The Propose page update popover: Propose an update to “Missing refund runbook”, the note that the branch is linked to PAY-3 revision 2 and nothing is published until it is merged, What changes, Advanced with the branch name, Back and Create branch and edit](/screenshots/detail-propose-update.webp)
+
+The item lists the update under **Page updates proposed from PAY-2** and
+follows it to **Merged**. The page lists it under **Page updates proposed
+from work**, and the branch keeps its link to the item and revision even
+after it is merged or deleted.
+
+Proposing needs edit access to the page's space. Work never publishes a page
+directly: in a Reviewed space the update is published only after an
+approved pull request merges, in a Direct space only when someone merges it.
+
+## Pinned citations in specifications
+
+A specification can link to a page like any text: type `[[` in the
+specification editor and pick the page. To cite the exact version you read,
+press `Shift Enter` in the picker, or choose **Pin this version**. The
+citation then shows `vN`, opens that version, and marks when a newer version
+is published; its card says _Version N is published._ with **Compare in
+history**.
+
+![A pinned page citation in a specification: the Missing refund runbook chip with v1 and a marker, and its card saying it cites version 1, version 2 is published, with Compare in history and Open this version](/screenshots/detail-pinned-citation.webp)
+
+The citation belongs to the revision you save. The item's Knowledge section
+then says _Revision 4 cites_ **v1**, and an approval of that revision is an
+approval of the specification as it read with that page version.
+
+When the page publishes a new version, nothing changes on the item by
+itself: the citation stays at v1, and the Knowledge row offers **Compare**.
+To adopt the newer version, edit the citation and save: that is an ordinary
+revision, so reviewers who approved the earlier one are asked to look again.
+
+## On the Refinement view
+
+The project's **Refinement** view shows a **Knowledge** line under its
+stage tabs (**All in refinement**, **In progress**…): up to four of the project's spaces (its own first, then its teams'),
+**+N more** when there are others, and the three pages published there most
+recently. When the project has no space yet, project administrators see
+**Create a space for …'s pages** instead.
+
+![The Knowledge line on the Refinement view: the Payments space, then the recently published pages Missing refund runbook, Decision records and Capture retry design](/screenshots/knowledge-refinement-strip.webp)
+
+## What to watch for
+
+- **Only pages you can read.** Two people can see different Knowledge
+  sections on the same item. Nothing hints at pages you cannot read.
+- **Only published text.** A page appears here when its published version
+  mentions the item. A mention in a draft or on a branch counts once it is
+  published or merged
+  ([references follow published versions](/knowledge#references-follow-published-versions)).
+- **A page update is a proposal.** **Propose page update** never changes the
+  published page. If the space is Reviewed, someone other than you must
+  approve the pull request.
+- **Citations are item content.** The words you write for a `[[` citation
+  are part of the specification, which everyone in the organization reads,
+  even when the page is restricted.
+- **On a phone**, the header keeps **Knowledge** beside the way back, the
+  item's key and **Discussions**; the section itself is under the
+  specification.
+
+## Tips
+
+- Cite pinned page versions in specifications, so the approval says exactly
+  what was agreed against.
+- Propose page updates from delivered work, before you close the item. The
+  page's history then shows which item and revision changed it.
+- Attach the runbook to the items it supports, with the purpose **Runbook**,
+  so whoever operates the change finds it from the item.
+
+![The Knowledge section on a phone, below the specification](/screenshots/phone-knowledge.webp)

@@ -1,0 +1,280 @@
+---
+title: Branches and pull requests
+description: Propose a change to a specification on a branch, ask the right disciplines to review the exact result, resolve conflicts and merge it into a new revision.
+---
+
+A **branch** is a separate line of work on one specification: you and the
+collaborators you invite edit it while main stays unchanged. A **pull
+request** proposes merging a branch into main (or into another branch) and is
+where the change is reviewed. Merging into main creates the specification's
+next revision.
+
+![A pull request on PAY-7, “Add chargeback as a reason code”: Merging is blocked until the QA and Engineering approvals arrive, no blocking discussions and no conflicts, the required reviewers Pending, and Merge pull request disabled](/screenshots/work-pull-request.webp)
+
+## When to use it
+
+- **The specification is ready.** Its main is then protected, and every
+  change goes through a pull request.
+- **You want a change looked at before it lands**, even while main is still
+  open for direct editing.
+- **You want to propose a breakdown** into child items: it is reviewed with
+  the specification. See [break down a
+  specification](/delivery/breakdown).
+
+### Protected main
+
+While a specification takes shape, people whose discipline can edit
+specifications change main directly in its [live
+draft](/specifications/live-drafts). The first time the specification becomes
+[ready](/review/readiness), main is **protected** and stays protected: the
+item shows **Protected** next to main (_This specification is ready. Changes
+go through a reviewed pull request._), and direct edits are refused. This
+holds even if the specification later stops being ready.
+
+## Start a branch
+
+Below the specification, the main box shows the current revision and
+**Branches & pull requests**, with the number of open pull requests. It also
+lists your open pull requests and your branches (_Your branch · continue
+editing_).
+
+<Steps>
+<Step>
+
+### Open Branches & pull requests
+
+![Branches & pull requests of PAY-7: Start a change with a branch name and Branch from main, the pull requests list, and the branches main (Protected) and chargeback-reason](/screenshots/work-branches.webp)
+
+The screen lists the open and merged pull requests and every branch, with its
+author, how many commits it is ahead of main and its collaborators.
+
+</Step>
+<Step>
+
+### Start a change
+
+Under **Start a change**, enter a **New branch name** (for example
+`clarify-timeout`) and choose **Branch from**: main, or another branch.
+Names use letters, numbers, `-`, `_`, `.` and `/`, up to 80 characters.
+
+</Step>
+<Step>
+
+### Create branch
+
+**Create branch** opens the branch's editor.
+
+</Step>
+</Steps>
+
+Two shortcuts start a branch for you:
+
+- **Suggest a change** on selected text of the specification starts a branch
+  named `suggestion` and opens its editor with that text selected.
+- **Propose breakdown** opens your `breakdown` branch, or starts one, at the
+  breakdown editor.
+
+Anyone who can open the item can create a branch and read every branch.
+Nobody is asked to review anything until you open a pull request.
+
+## Edit and commit
+
+![The chargeback-reason branch of the protected PAY-7 specification: the steps Edit, Commit, Open pull request and Review & merge, the shared editor, the commit box, collaborators and the open pull request](/screenshots/work-branch.webp)
+
+The branch screen shows where the branch is: **Edit**, **Commit**, **Open
+pull request**, **Review & merge**. Its tabs are **Document** (the editor),
+**Uncommitted** (your changes since the last commit) and **Commits**.
+
+The branch has its own live draft: edits are saved as you type and shared
+with its collaborators, who can edit at the same time
+([live drafts](/specifications/live-drafts)). Main is not affected.
+
+When the change is ready to be looked at, commit it:
+
+1. In the commit box (**Commit to** _branch_), write a **Commit message**
+   that says what changed and why. It is required.
+2. Choose **Commit changes**. The commit is an immutable snapshot with your
+   name and message.
+
+**Discard changes** throws away the uncommitted edits and starts the draft
+again from the last commit.
+
+### Collaborators
+
+A branch belongs to its author. The author invites people with **Invite
+collaborator…** and removes them with **Remove**; the author cannot be
+removed. Collaborators edit, commit, update the branch and open pull requests
+from it. Anyone else who opens the branch reads it (_You're viewing someone
+else's branch._) and can ask the author for an invitation.
+
+## Open a pull request
+
+**Open pull request** proposes what the branch has committed. While you have
+uncommitted edits it is unavailable: commit or discard them first.
+
+1. Choose what to **Merge into**: main by default, or another branch. The
+   form says whether it _Can be merged cleanly_ or _Has conflicts — you can
+   resolve them after opening_.
+2. Enter a **Title** and a **Description** (required): why the change is
+   needed and what reviewers should focus on. **Preview the change** shows the
+   diff.
+3. Choose **Create pull request**, or **Create draft PR** to share it before
+   anyone can approve it. A draft becomes reviewable with **Ready for
+   review**; **Convert to draft** takes it back.
+
+When the pull request targets main, the required reviews of the current
+revision are copied onto it, so the same disciplines are asked again. Add
+more with **Add a reviewing discipline…** and **Request** (they are always
+required). The pull request's author and the source branch's collaborators
+manage it: they mark it as a draft or ready, resolve its conflicts and, when
+their discipline can request reviews, add reviewers.
+
+New commits on the branch are added to its open pull request automatically
+and ask reviewers to approve again.
+
+## Review a pull request
+
+The pull request has four tabs:
+
+- **Conversation**: the description, the proposed breakdown and its
+  discussions.
+- **Commits**: what it brings in.
+- **Actions**: the [Lictory Actions](/ai/reviews) that ran on it.
+- **Changes**: the resulting title and the changes, word by word, against the
+  target (the same view as [comparing
+  revisions](/specifications/history)), with the breakdown below.
+
+Under **Reviewers**, each requested discipline shows **Required**, who may
+decide (_Any Engineering member_ or one person) and its state: **Pending**,
+**Approved**, **Changes requested** or **Review required again**. A member of
+the discipline decides with **Approve** or **Request changes**, and can
+**Revoke** that decision.
+
+### Approvals bind to the merge result
+
+An approval records the exact result of the merge the reviewer inspected:
+the merged title, content and breakdown. _Approvals apply to the exact merge
+result. Any new commit on either branch asks reviewers again._ A change that
+leaves the result identical keeps the approval.
+
+People who authored commits in the pull request cannot approve it
+(_Contributors cannot approve their own changes._), unless they are the
+organization's only member. Another member of the discipline approves
+instead.
+
+### Discuss a change
+
+Discussions on a pull request belong to it, not to the specification's
+panel. Start one in **Conversation**, or with **Discuss this change** in
+**Changes**. Tick **Blocks merging** for something that must be settled before
+the merge. These discussions are attached to the branch's latest commit.
+
+## Merge
+
+The merge box lists every requirement still in the way, and says **Merging is
+blocked** or **Ready to merge**:
+
+| Requirement                                    | What to do                                                      |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| _This pull request is a draft._                | Choose **Ready for review**                                     |
+| _Request at least one required review._        | Request a reviewing discipline                                  |
+| _Engineering approval is pending_ (or _stale_) | The discipline approves this exact result                       |
+| _A reviewer requested changes._                | Commit a fix; the reviewer approves or revokes their decision   |
+| _Blocking discussions remain open._            | Resolve the pull request's blocking discussions                 |
+| _The branches have merge conflicts._           | **Resolve conflicts** (see below)                               |
+| _This branch has no changes to merge._         | The target already contains everything; delete the pull request |
+
+A project may also require a passing Lictory Actions check.
+
+**Merge pull request** is available, once nothing is in the way, to people
+whose discipline can edit specifications (into main) or to the target
+branch's collaborators (into another branch). Merging into main:
+
+- creates the next revision of the specification (_Merging publishes this
+  result as revision 5 of the specification._);
+- records every valid pull request approval as an approval of that revision,
+  so nobody approves the same text twice
+  ([approvals](/review/approvals#carried-approvals));
+- creates or changes the child items of a reviewed breakdown;
+- deletes the source branch, unless another open pull request still uses it.
+
+Merging into another branch adds a merge commit to that branch only.
+
+## Conflicts
+
+When the branch and its target both changed since they split, Lictory
+combines changes that do not overlap. Overlapping changes become conflicts,
+which are never merged silently. The pull request cannot be reviewed or
+merged until they are resolved.
+
+1. In the merge box, choose **Resolve conflicts** (the author and the source
+   branch's collaborators).
+2. Each conflict shows three columns: **Base** (where both started), your
+   branch and the target. Choose **Keep mine**, **Keep theirs**, **Keep
+   both**, or **Merge manually** to edit the text. A title conflict offers
+   **Use my title** and **Use their title**; a breakdown changed on both
+   sides asks you to keep one complete breakdown.
+3. Choose **Commit resolution to** _branch_. **Keep all my changes** and
+   **Discard my changes** settle every conflict at once.
+
+The resolution is a new commit on the branch, so reviewers approve the new
+result. If either branch moved while you were resolving, Lictory refuses
+rather than guess (_A branch changed. Inspect the updated merge result before
+continuing._).
+
+### Update a branch from main
+
+A long-lived branch can take in what changed on main meanwhile: under
+**Update from another branch**, choose the branch and **Compare & update
+branch**. Without conflicts it adds a merge commit; with conflicts you resolve
+them in the same way, then **Commit branch update**.
+
+## Delete
+
+- **Delete branch** (its author, or anyone whose discipline can edit
+  specifications) removes it from the workspace. Its commits and activity stay
+  in history. A branch with an open pull request cannot be deleted: delete or
+  merge the pull request first.
+- **Delete pull request** (its author, or a specification editor) removes an
+  open pull request; its open discussions are resolved so none is left
+  hanging. After a merge the merged content stays in the specification.
+
+A deleted branch is not restored: start a new branch instead.
+
+## Agents and Lictory Intelligence
+
+Litto, Lictory Intelligence and agents connected through
+[MCP](/integrations/agents) use the same branches and pull requests:
+
+- Lictory Intelligence opens **corrective pull requests** from the findings
+  you select in an [item review](/ai/reviews), one per item, and invites you
+  as a collaborator. It never approves or merges.
+- An MCP agent acts with its person's permissions: it creates branches,
+  commits and opens pull requests, and approves or merges only when that
+  person explicitly asks it to. The approval is the person's.
+
+## What to watch for
+
+- **Specification and page pull requests differ.** A specification's reviewers
+  are disciplines and its contributors may approve when they are the only
+  member; pages ask named people and have no such exception. See [page
+  branches](/spaces/branches).
+- **Only commits are reviewed.** Uncommitted edits on a branch are never part
+  of a pull request.
+- **One pull request per pair of branches.** Opening a second one between the
+  same branches is refused.
+- **There is no close or reopen.** Convert a pull request to a draft to take
+  it out of review, or delete it.
+- When a branch and its target have no single common version, Lictory cannot
+  merge them. Start a new branch from main and apply the change there.
+
+## Tips
+
+- Keep one concern per branch. A small pull request is reviewed quickly, and
+  its approval is less likely to go stale.
+- Write the description for the reviewer who was not in the conversation:
+  what changes, why, and what to look at first.
+- Update a long-lived branch from main before asking for review, so reviewers
+  approve the result that will actually merge.
+- When a review finds a gap in a page your specification cites, propose the
+  page update too ([knowledge in work](/knowledge/in-work)).

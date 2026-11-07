@@ -229,3 +229,15 @@ body {
 html:not(.dark) .shiki code span[style*="--shiki-light:#E36209"] {
   color: #b35900;
 }
+
+/* Product screenshots: framed like the application's cards. Phone captures
+   keep a phone's width instead of filling the reading column. */
+.docs-body img[src^="/screenshots/"] {
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.docs-body img[src^="/screenshots/phone-"],
+.docs-body img[src="/screenshots/spaces-phone.webp"] {
+  max-width: min(100%, 18rem);
+  margin-inline: auto;
+}

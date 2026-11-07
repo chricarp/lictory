@@ -1,0 +1,185 @@
+---
+title: Notifications
+description: What Lictory notifies you about and why, how to watch an item, and how to choose what reaches your Inbox and your email.
+---
+
+Notifications exist to unblock work. Lictory tells you when something is
+asked of you, or when something changed in work you are part of. It does not
+tell you about every edit. Notifications appear under **Updates** in the
+[Inbox](/inbox), and the important ones are also emailed.
+
+## What notifies you by default
+
+The defaults follow one rule:
+
+- **Asks something of you**: in the Inbox **and by email**. A review is
+  requested, you are mentioned, a blocking discussion is opened, your
+  approval went stale, you are assigned, an export failed.
+- **Informs you**: in the Inbox only. A status changed, someone replied, a
+  discussion was resolved, an iteration started.
+- **Noisy**: off until you turn it on. Every new revision of a specification.
+
+| Type                           | Notification                                                                                                        | Default         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Reviews and approvals**      | **Review requested**                                                                                                | Inbox and email |
+|                                | **Review decision** (approved, changes requested, revoked)                                                          | Inbox and email |
+|                                | **Your approval went stale**                                                                                        | Inbox and email |
+|                                | **Ready for delivery**                                                                                              | Inbox and email |
+|                                | **Review cancelled**, **No longer ready**                                                                           | Inbox           |
+|                                | **Specification revised**                                                                                           | Off             |
+| **Discussions and mentions**   | **Mentioned**, **Blocking discussion**                                                                              | Inbox and email |
+|                                | **New discussion**, **Reply**, **Discussion resolved or reopened**                                                  | Inbox           |
+| **Branches and pull requests** | **Pull request review requested**, **Pull request decision**, **Pull request ready to merge**                       | Inbox and email |
+|                                | **Pull request merged**                                                                                             | Inbox           |
+|                                | **Suggestion review requested**, **Suggestion decision**                                                            | Inbox and email |
+|                                | **Suggestion updated**, **Suggestion merged or closed**                                                             | Inbox           |
+| **Work items**                 | **Assigned to you**                                                                                                 | Inbox and email |
+|                                | **Status changed**, **Archived or restored**, **Blocked by another item**                                           | Inbox           |
+| **Iterations**                 | **Iteration started**, **Iteration completed**                                                                      | Inbox           |
+| **Exports**                    | **Export failed**                                                                                                   | Inbox and email |
+|                                | **Export completed**                                                                                                | Inbox           |
+| **Pages**                      | **Page review requested**, **Your page approval went stale**, **Mentioned on a page**, **Blocking page discussion** | Inbox and email |
+|                                | **Page discussion reply**                                                                                           | Inbox           |
+
+Notices about your organization being scheduled for deletion, or that
+deletion being cancelled, always reach every member in the Inbox and by
+email. They cannot be turned off.
+
+### A few that matter most
+
+- **Your approval went stale.** The specification changed after you
+  approved it, so your approval no longer covers the current revision. Review
+  it again ([approvals](/review/approvals)).
+- **Export failed.** An export to Jira or another delivery tool finished with
+  failures or conflicts. The export shows which items were not published and
+  why; fix the cause and retry them ([Jira](/integrations/jira)).
+- **Pull request ready to merge.** Every merge requirement is met. The author
+  and the branch's collaborators are told once each time it becomes ready. A
+  project can turn this off with **Ready to merge notice** in **Project
+  settings → Delivery**.
+
+## Who is notified
+
+You receive updates about a work item when you are **involved** in it:
+
+- you created it or are its assignee;
+- you requested its review or were named as a reviewer;
+- you started or replied to one of its discussions;
+- you authored or reviewed one of its suggestions;
+- you watch it.
+
+A review requested from a discipline reaches every member of that
+discipline. Iteration updates reach the project's members.
+
+Some things are always true:
+
+- You are never notified of your own action.
+- One change sends you at most one notification per item: the most specific
+  one. A mention beats "new discussion"; a stale approval beats "revised".
+- Only current members of the organization are notified.
+
+### Pages
+
+Page notifications reach only people who can read the space, checked when
+they are sent and again when you read or are emailed them:
+
+- **Mentioned on a page**: you are mentioned in a page discussion;
+- **Page discussion reply**: someone replied in a page discussion you took
+  part in;
+- **Blocking page discussion**: a blocking discussion was opened on a page
+  you wrote or contributed to;
+- **Page review requested** and **Your page approval went stale**: you are
+  asked to review a page change, or one you approved changed.
+
+Opening or resolving a non-blocking discussion on a page notifies nobody
+([comments](/spaces/comments)).
+
+## Mention someone
+
+Type `@` in a discussion and choose a person. They are notified with a link
+to the discussion. Mentioning someone who is not a member, or who cannot read
+the page's space, notifies nobody.
+
+## Watch an item
+
+Choose **Watch** in a work item's header (under **More actions** on a
+phone) to get its updates without being involved. The button then shows
+**Watching**; choose it again to stop.
+
+Items you are involved in show **Watching** already. Choosing it stops their
+ambient updates (status changes, replies, new discussions). Requests
+addressed to you still reach you: review requests, mentions, assignment and
+stale approvals follow your notification settings only.
+
+Pages cannot be watched; their notifications follow involvement only.
+
+## Choose what notifies you
+
+Open **Notification settings** from the Inbox
+(`/your-org/inbox/settings`).
+
+![Notification settings for the Northwind organization, grouped by type, each notification with an on/off switch and "Also send an email"](/screenshots/inbox-settings.webp)
+
+<Steps>
+<Step>
+
+### Choose where the settings apply
+
+Under **Settings for**, choose the organization (**Everywhere**), a project
+or a team. A team's settings win for its items, then the project's, then the
+organization's, then the defaults. Items without a team use the project's
+settings; pages use the settings of the space's team or project.
+
+</Step>
+<Step>
+
+### Turn notifications on or off
+
+Each notification has a switch for the Inbox. When it is on, tick **Also
+send an email** to get it by email too. Email is always a copy of an Inbox
+notification, never sent on its own.
+
+Each row says where its value comes from: **Default** or **From organization
+settings**. A value you set has **Reset**.
+
+</Step>
+<Step>
+
+### Change many at once
+
+**No email** turns email off for every notification in this scope. **Turn
+all off** turns everything off. **Reset to defaults** (organization) or
+**Use organization settings** (project or team) removes your choices for
+this scope.
+
+</Step>
+</Steps>
+
+Settings are personal: they change only what you receive.
+
+## Email
+
+Email goes out within moments of the notification, and is retried if the
+mail service fails. It is not sent when:
+
+- your installation has no email configured
+  ([email settings](/self-hosting/configuration#email));
+- you archived the notification first, or left the organization;
+- you can no longer read the space a page notification is about.
+
+## What to watch for
+
+- **No digest.** Lictory sends each email on its own rather than a daily
+  summary. Keep email for what asks something of you.
+- **Muting is per item.** Unwatching one item does not change your settings
+  for its project.
+- **Turning off review requests hides real work.** The **To do** view still
+  shows them, but you will not be told.
+
+## Tips
+
+- Keep the email defaults: they cover only what blocks someone.
+- Turn on **Specification revised** for a project only while you are its
+  main reviewer, then turn it off again.
+- Watch the few items you depend on but do not work on, instead of turning
+  on notifications for the whole project.

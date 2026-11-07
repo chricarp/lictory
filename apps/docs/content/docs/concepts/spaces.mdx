@@ -1,6 +1,6 @@
 ---
 title: Spaces and pages
-description: The concepts behind Lictory Spaces - spaces, pages, live drafts, versions, publishing policies and approvals - in one page. The Spaces guide covers each in depth.
+description: The concepts behind Lictory Spaces - spaces, pages, live drafts, versions, publishing policies, approvals and knowledge links - in one page. The Spaces guide covers each in depth.
 ---
 
 **Lictory Spaces** keeps the pages a team writes together: handbooks,
@@ -25,16 +25,16 @@ optionally, to one project or one team: its **location**, which decides
 where it is listed and who can edit it by default. A space owns no delivery
 configuration. See [create and manage spaces](/spaces/create).
 
-**Page.** A document in a space, nested under other pages as deep as needed.
-Pages are not work items: no key, status, estimate, iteration or readiness.
-Pages and work items link to each other instead (`#PAY-142` in a page shows
-the item's live status). See [pages and the page tree](/spaces/pages).
+**Page.** A document in a space, nested under other pages as deep as needed,
+starting blank or from a [template](/spaces/templates). Pages are not work
+items: no key, status, estimate, iteration or readiness. See
+[pages and the page tree](/spaces/pages).
 
 **Live draft.** The shared working copy of a page (of its main line in a
-Direct space, or of a branch) that several people edit at the same time. A
-live draft is never history: nobody reviews or approves it, and search and
-agents never read it as the page's content. See
-[writing together](/spaces/editing).
+Direct space, or of a branch) that several people edit at the same time, in
+the same editor as specifications. A live draft is never history: nobody
+reviews or approves it, and search, Litto and agents never read it as the
+page's content. See [writing together](/spaces/editing).
 
 **Version.** An immutable snapshot of a page's title and content, with a
 message, its author and everyone who contributed to it. Publishing or
@@ -50,8 +50,8 @@ protected and changes arrive only through approved pull requests. See
 **Branch and pull request.** A branch is a proposed change with its own live
 draft, edited by its author and the collaborators they invite. A pull
 request proposes merging it into the published page or another branch;
-merging into the published page publishes a new version. See
-[branches and pull requests](/spaces/branches).
+merging into the published page publishes a new version. A branch's
+discussions end with it. See [branches and pull requests](/spaces/branches).
 
 **Approval.** A reviewer's decision about the exact result a merge would
 produce. Any change to that result makes it stale, and people who contributed
@@ -67,11 +67,25 @@ location's members, or **Restricted** to named people, at three levels (view,
 comment, edit). Project and team membership grant access to spaces only,
 never work item capabilities. See [access](/spaces/access).
 
-## Spaces and specifications
+## Spaces and work
 
 Spaces does not replace specifications. Behavior a team is about to build is
 refined in a work item's [specification](/concepts/specifications), reviewed
 by the project's disciplines and checked for [readiness](/concepts/readiness).
-Knowledge that outlives one piece of work belongs on a page. Publishing a page
-only makes a version the published one inside Lictory; it is unrelated to
-handing work items off to Jira.
+Knowledge that outlives one piece of work belongs on a page.
+
+The two link to each other through [knowledge links](/knowledge): a page
+mentions items, decisions and other pages, which readers see live
+([blocks and chips](/spaces/blocks)); a specification cites page versions;
+items have pages attached and can be created from page text; a page update
+can be proposed from an item; projects, teams and iterations keep context
+pages. Two rules hold for every link:
+
+- **A link is visible only to readers of its page**, and grants nothing in
+  either direction.
+- **Links follow published versions.** What a live draft or a branch says
+  links to nothing until it is published.
+
+Publishing a page only makes a version the published one inside Lictory; it
+is unrelated to handing work items off to Jira, and a page never holds
+delivery state.

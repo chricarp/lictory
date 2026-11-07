@@ -1,0 +1,124 @@
+---
+title: Approve or request changes
+description: Decide a review for your discipline, understand why approvals belong to one revision, and see when an approval has gone stale.
+---
+
+An **approval** says: _I accepted this exact revision for my discipline._ It
+is never a permanent flag on the item. When the text changes, the approval
+still describes the revision that was reviewed, and Lictory asks again for the
+new one.
+
+## Decide a review
+
+When a review is asked of you or your discipline, its row in the item's
+**Review** rail offers:
+
+- **Approve revision N**: the current revision satisfies your discipline's
+  concerns.
+- **Request changes**: it does not yet. Say why in a
+  [discussion](/specifications/discussions) on the passage, and mark it
+  blocking if it must be settled first.
+- **Revoke my approval**: withdraw an approval you gave. The review returns to
+  _Requested_.
+
+A new decision replaces your previous one on that review. Only the person
+named on the review, or a current member of the assigned discipline, can
+decide it; holding the discipline in another project does not count.
+
+<Callout title="Approve the text, not the intent">
+  Approve when the revision says what will be built, including acceptance
+  criteria and failure behavior, not when you agree with the idea. Anything you
+  would have to ask about later is a discussion to start now.
+</Callout>
+
+When you decide, the item's owners and whoever requested the review are
+notified. While changes are requested, the item also appears in its owners'
+[Inbox → To do](/inbox).
+
+## Approvals belong to revisions
+
+Every change to a specification's title or text creates a new
+[revision](/specifications/history). When it does:
+
+1. Every approval of the previous revision becomes **stale**, recording who
+   caused it, when and why (_Specification revised (revision 14)_).
+2. Every active review is requested again on the new revision, with the same
+   discipline and reviewer.
+3. The reviewers whose approval went stale are notified (_Your approval went
+   stale_, in the app and by email).
+
+So the item never claims more than was reviewed. In words, the situation
+reads:
+
+```text
+Engineering approved revision 12.
+Current revision: 14.
+Engineering approval requires review.
+```
+
+In the rail, the Engineering review of revision 14 shows _Requested_, and
+**N earlier approvals** lists _Engineering · Dev Patel approved revision 12 ·
+outdated (Specification revised (revision 13))_. The footer always names the
+revision the current approvals apply to.
+
+![The review rail of PAY-2 after revision 2: Engineering and QA requested again, and under 1 earlier approval, Dev Patel’s approval of revision 1 marked outdated because the specification was revised](/screenshots/detail-stale-approval.webp)
+
+Changes to properties (status, assignee, priority, iteration, estimate,
+labels and so on) are not revisions and never affect approvals.
+
+### See approvals in history
+
+**Versions** lists the approvals given on each revision and whether each is
+still _valid_, _outdated_, _revoked_ or carried to a later revision. Compare
+the approved revision with the current one to see exactly what a reviewer
+has not seen yet. See [history](/specifications/history).
+
+## Carried approvals
+
+Two cases carry an approval to a new revision instead of asking again,
+because the reviewers already approved that exact result:
+
+- **A merged pull request.** Each valid approval of the pull request becomes
+  an approval of the revision the merge creates. The pull request's reviewers
+  approved the complete merged result, so they do not approve the same text
+  twice. Reviews the pull request did not include are asked again as usual.
+- **A merge that changes only the breakdown.** When the specification's
+  text is unchanged, its approvals are carried to the new revision (_carried
+  to revision 5: specification text unchanged_). Where the pull request has
+  its own approval for the same discipline, that one replaces the carried
+  one.
+
+See [branches and pull requests](/specifications/branches#approvals-bind-to-the-merge-result)
+for how pull request approvals go stale when the merge result changes.
+
+## Approvals by agents and Lictory Intelligence
+
+- **Lictory Intelligence never approves.** A project can require a clean
+  Lictory Intelligence review as a [readiness
+  check](/review/readiness#lictory-intelligence-check), always beside a
+  person's decision.
+- **Litto or an MCP agent** records an approval only on your explicit
+  instruction. The approval is yours and belongs to the revision; the activity
+  records that it was made through the agent.
+
+## What to watch for
+
+- **Only the current revision can be decided.** If the specification changed
+  while you were reading, review the new revision; the decision form always
+  names it.
+- **On main, nothing stops the author of a revision from approving it.** Pull
+  requests exclude their contributors. When an independent review matters,
+  change the specification through a pull request.
+- **Page approvals work differently.** Pages in Lictory Spaces ask named
+  people, exclude everyone who typed in the change and have no discipline
+  responsibilities. See [page branches and pull
+  requests](/spaces/branches#approvals-belong-to-the-exact-result).
+
+## Tips
+
+- Before approving a revised specification, compare it with the revision you
+  approved last; only the difference needs your attention.
+- Request changes with a concrete reason in a discussion. A bare
+  "changes requested" sends the author looking for what you meant.
+- Revoke rather than wait when you realize you approved too early: the
+  approval stops counting at once and the history shows why.

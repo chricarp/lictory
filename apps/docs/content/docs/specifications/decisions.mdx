@@ -1,0 +1,132 @@
+---
+title: Record decisions
+description: Keep the conclusions a team reaches during refinement as durable records, with their author, revision and source discussion, and cite them in specifications and pages.
+---
+
+Discussions are transient; conclusions should not be. A **decision** is a
+durable record of something the team agreed (_Retries reuse the original
+idempotency key_), with who recorded it, the revision it was recorded on and,
+when it came from one, the discussion that led to it. Months later anyone can
+find it, read why, and see which text it was agreed against.
+
+![A decision on PAY-2: “Retries reuse the original idempotency key”, its conclusion, Maria Chen and revision 1, with buttons to add it to a page and to archive it](/screenshots/detail-decisions.webp)
+
+## When to use it
+
+- A discussion ends in an agreement that later readers will need.
+- A question was settled in a meeting or elsewhere, and the specification
+  should keep the answer.
+- An approach was deliberately ruled out (_Cancellation after settlement is
+  unsupported_).
+
+Recording a decision **neither approves the specification nor resolves a
+discussion by itself**. It records a conclusion; reviews and readiness stay
+separate.
+
+## Record a decision from a discussion
+
+<Steps>
+<Step>
+
+### Resolve it as a decision
+
+On an open discussion, choose **Resolve as decision**. On one that is already
+resolved, choose **Record decision**. The Decisions section opens a form
+filled with the discussion's last message.
+
+</Step>
+<Step>
+
+### Write the conclusion
+
+Enter the **Conclusion** as one sentence a newcomer understands, and the
+details: what was agreed, why, and any limits. **Source discussion** names
+the discussion it came from.
+
+</Step>
+<Step>
+
+### Save it
+
+Choose **Resolve and save decision** (or **Save decision**). The discussion is
+resolved only when the decision is saved; **Cancel** leaves it open. The
+discussion then shows **Decision recorded**.
+
+</Step>
+</Steps>
+
+A decision recorded from a discussion keeps the revision that discussion was
+written on, so its context is preserved even after the text has changed.
+
+## Record a decision directly
+
+In the item's **Decisions** section, choose **Record decision**, write the
+conclusion and details, and leave **Source discussion** on **Current
+revision**. The decision belongs to the current revision. Only resolved
+discussions of the specification can be chosen as a source; pull request
+discussions cannot.
+
+## Who can record decisions
+
+People whose discipline in the project can edit specifications or review can
+record decisions. Specification editors can archive and restore any decision
+of the project; the author of a decision can archive or restore their own
+while they can still record decisions there.
+
+## Archive and restore
+
+A decision that no longer holds is archived, not deleted: choose **Archive**
+on it. It keeps its text and activity, and leaves active product knowledge.
+**Show archived decisions** lists archived ones, and **Restore** brings one
+back. Archiving an item withdraws its decisions too, and restoring the item
+brings them back.
+
+## Decisions in product knowledge
+
+Decisions, the approved ready revision of each specification and its
+delivered revision together form the organization's **product knowledge**: a
+search people, Litto and MCP agents use, where every result names what kind of
+evidence it is and its exact revision.
+
+In an item's Decisions section, **Find related agreements** searches it for
+the project: results read **Recorded conclusion**, **Approved intent** or
+**Recorded delivered scope**. A recorded conclusion is what a team agreed,
+not proof that it was built. See [product
+knowledge](/search/product-knowledge).
+
+## Cite a decision
+
+- **In a specification or a page**, type `/` and choose **Decision** to
+  search for a recorded decision and insert it. Inside a sentence it reads as
+  a chip; alone in its paragraph it becomes a decision card.
+- **Add to a page** on a decision proposes a change to a page you can edit
+  that appends the decision as a card. It opens a page branch and pull
+  request; the published page changes only when the space's reviewers (or its
+  editors, in a Direct space) merge it.
+
+![A decision card in a page: the decision’s title and conclusion, the item PAY-2 and the revision it was recorded on](/screenshots/detail-decision-card.webp)
+
+A decision card shows the decision as it is now: its text, its item and
+_Recorded on revision N_. The text stays in Lictory Work; the page never
+copies it. When the decision is archived, the card says _Archived: withdrawn
+from active product knowledge, kept for history_. People who cannot read the
+decision see only the title it was inserted with. See [blocks](/spaces/blocks).
+
+## What to watch for
+
+- **A decision is not a requirement.** If the decision changes what must be
+  built, change the specification too, so reviewers approve the new text.
+- **Decisions are never edited.** When a conclusion changes, archive the old
+  decision and record a new one; both stay in the history.
+- **A decision on an earlier revision stays on it.** Later revisions do not
+  move it.
+
+## Tips
+
+- Write the conclusion as a statement of fact, not a question or a summary
+  of the discussion.
+- Record ruled-out options as decisions too. They stop the same discussion
+  from starting again.
+- Keep a **Decision records** page in the project's space and add decisions
+  to it with **Add to a page**, so they are found next to the team's other
+  knowledge.

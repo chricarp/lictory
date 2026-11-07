@@ -1,0 +1,124 @@
+---
+title: Your account
+description: Change your profile, handle, email, appearance and sign-in methods, manage sessions and agent tokens, or delete your account.
+---
+
+Your account is yours, not an organization's: the same name, handle, sign-in
+methods and appearance apply in every organization you belong to. Open it from
+your name at the bottom of the sidebar → **Account settings**. **Back**
+returns you to where you were.
+
+![Account settings: Profile, Handle, Email, Appearance, Password, Two-factor, Passkeys, Connected accounts, Sessions, AI agents and Delete account in the list on the left, and the profile, handle and email on the right](/screenshots/account-settings.webp)
+
+The page has five groups: **Identity** (profile, handle, email),
+**Preferences** (appearance), **Sign-in & security** (password, two-factor,
+passkeys, connected accounts, sessions), **Integrations** (AI agents) and
+**Danger zone** (delete account).
+
+## Identity
+
+- **Profile**: your name and photo, as collaborators see them on
+  discussions and reviews. **Upload photo** takes a JPEG, PNG or WebP
+  smaller than 4 MB; remove it to show your initials.
+- **Handle**: unique across the installation. People type `@handle` to
+  mention you and find you. You can change it with **Save handle**;
+  existing mentions keep pointing to you.
+- **Email**: where you sign in and where notifications go. A new address
+  takes effect once you confirm it from the email Lictory sends there
+  ("Check the new address to confirm this change"). The section shows
+  whether your address is **Verified**.
+
+## Appearance
+
+Choose a **Mode** (**System**, **Light** or **Dark**) and a **Theme**
+(Lictory, Graphite, GitHub, Catppuccin, Rosé Pine or Nord). Every theme has
+a light and a dark variant; **System** follows your device and switches when
+it does. The choice is saved to your account, so it follows you to every
+device you sign in on.
+
+![The PAY-2 specification in the dark variant of the Lictory theme, with the Discussions panel and the review rail beside the text](/screenshots/work-discussions-panel-dark.webp)
+
+## Sign-in and security
+
+- **Password**: **Update password** with your current one. Changing it
+  signs out every other session. If you signed up through Google,
+  Microsoft or your company's sign-in, the section says **Not set** and
+  **Email me a link** adds a password.
+- **Two-factor**: **Set up authenticator app** shows a QR code to scan
+  with 1Password, Google Authenticator, Microsoft Authenticator or any other
+  authenticator app. Enter the current code and **Turn on**. Save the backup
+  codes it shows: each works once, and they are shown only once (**Create
+  new backup codes** replaces them). Sign-in then asks for a code after your
+  password. Google, Microsoft and company sign-ins rely on the provider's
+  own checks instead.
+- **Passkeys**: **Add passkey** lets you sign in with your device's
+  fingerprint, face or screen lock, or a security key. Removing one here
+  does not remove it from your device or password manager; delete it there
+  too. Installations that allow only company sign-in have no passkeys.
+- **Connected accounts**: **Connect** an identity provider your
+  installation offers (Google, Microsoft, your company's single sign-on) to
+  sign in with it as well. Only an account with the same email address can
+  be connected. You cannot **Disconnect** your only way to sign in; set a
+  password first.
+- **Sessions**: how many browsers and devices are signed in.
+  **Sign out other sessions** signs out everywhere except here.
+
+<Callout title="Lost your authenticator and your backup codes?">
+  An administrator of an organization you belong to can reset your two-factor
+  authentication
+  ([security](/organization/security#reset-a-members-two-factor)). Your password
+  and passkeys stay; you set up two-factor again afterwards.
+</Callout>
+
+Some actions ask you to sign out and in again first ("For your security,
+sign out and sign in again…"): turning two-factor off, adding a passkey,
+disconnecting an account and deleting your account need a recent sign-in.
+
+## AI agents
+
+**AI agents (MCP)** creates personal access tokens for agents that work in
+Lictory as you: a coding agent in your terminal or editor. Each token is a
+named agent, with **Read & write** or **Read only** access and an expiry.
+Its actions are recorded under the token's name. See
+[AI agents and MCP](/integrations/agents).
+
+Agents never see your password, and cannot create tokens, connect
+integrations or change your account. **Revoke** disconnects an agent at
+once.
+
+## Delete your account
+
+**Delete account…** removes your account for good. Confirm with your
+password (if you have one) and **Delete permanently**.
+
+What happens:
+
+- Every way to act as you ends: sessions, password, connected accounts,
+  passkeys, two-factor, and every agent token.
+- Your email address, handle and photo are removed, and your memberships of
+  every organization, project, discipline, team and restricted space end.
+  Your private Litto conversations, your Inbox, notification preferences and
+  watched items are deleted.
+- What you contributed stays as it is: revisions, comments, reviews,
+  approvals and decisions keep your name, shown as a former member. What you
+  wrote is not changed; an organization that must remove personal data from
+  content edits it like any other content.
+- The email address becomes free, so you can sign up again with it later as
+  a new person.
+
+Lictory refuses the deletion, and changes nothing, when you are the only
+owner of an organization (make another member an owner, or
+[delete the organization](/organization/data#delete-an-organization) first)
+or the installation's only instance administrator. An organization already
+scheduled for deletion does not stop you; it is still deleted on its date,
+and if you were its only owner nobody can cancel that any more.
+
+## Tips
+
+- Choose a short, recognizable handle: people type it in discussions to ask
+  you something, and a mention is what puts a question in your Inbox.
+- Turn on two-factor before your organization requires it; an
+  organization that requires it holds you out until you do.
+- Create one agent token per agent and tool, named for what it does
+  ("Claude spec reviewer"). The audit log and history then say which agent
+  did what, and revoking one leaves the others working.

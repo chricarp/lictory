@@ -1,0 +1,105 @@
+---
+title: Organization and access
+description: How organizations, projects and teams fit together, and who may do what through application roles, project roles and disciplines.
+---
+
+Lictory has three nested scopes. Each setting has exactly one home, so you
+always know where to change it.
+
+```text
+Organization   a company, or a very large department of one
+└─ Project     a product area: identifiers, workflow, delivery and its people
+   └─ Team     a group working on one part of the project
+```
+
+| Scope        | Owns                                                                                                                                                                                                        | Managed by                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Organization | Name, handle and logos, members and invitations, application roles, two-factor requirement, work item types, Jira connections, whether Lictory Intelligence may run, organization context, the project list | Organization administrators                            |
+| Project      | Key, members and project roles, disciplines, teams, workflow, enabled types, labels and milestones, iterations, estimates, delivery mode, Definition of Ready, project context                              | Project administrators and organization administrators |
+| Team         | Name, description, members                                                                                                                                                                                  | Project administrators                                 |
+
+A work item belongs to exactly one project, which gives it its key
+(`PAY-142`), and optionally to one of the project's teams. Moving it between
+teams never changes its key, status or iteration; items do not move between
+projects. A team owns no configuration: every item follows its project's
+workflow, readiness policy and planning, and boards and backlogs can be
+narrowed to a team.
+
+[Spaces](/spaces) of knowledge pages belong to the organization, or to one
+project or team.
+
+## Three separate questions
+
+Lictory never mixes these into one setting:
+
+| Concept              | Answers                                                                               | Values                                                |
+| -------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Application role** | Can this person administer the organization?                                          | Owner, admin (organization administrators), or member |
+| **Project role**     | Can this person configure this project?                                               | Admin or member of the project                        |
+| **Discipline**       | What kind of work does this person do here, and what may they do with its work items? | Product, Engineering, QA, and any the project adds    |
+
+### What each one grants
+
+- **Organization administrators** (owners and admins) manage
+  **Organization settings** and the settings of every project, whether or
+  not they are listed as project members. Owners alone can delete the
+  organization, and only an owner can reset another owner's two-factor.
+- **Project administrators** manage their project's settings: members,
+  disciplines, teams, workflow, readiness, planning and delivery.
+- **Disciplines** carry the work item capabilities: edit specifications,
+  change properties, request reviews, be asked to review, and hand off to
+  the delivery tool. A person's capabilities in a project are the combined
+  capabilities of the disciplines they hold there. See
+  [disciplines](/organization/disciplines).
+
+Roles grant **no** work item capabilities. An organization owner with no
+discipline in a project cannot edit its specifications or approve its
+reviews until they add themselves to a discipline, which everyone can then
+see in the project's settings.
+
+Some things need only organization membership: reading every project,
+taking part in discussions, proposing a change to a specification on a
+branch, and working in the organization's spaces. Every organization member can read
+every project; there are no private projects. Knowledge that must stay
+private belongs in a [restricted space](/spaces/access).
+
+Every check happens on the server. The app only hides controls you cannot
+use, and says why when you try ("Your disciplines in this project cannot
+…").
+
+### Project and team membership in Spaces
+
+Spaces are the one place where project and team membership give access:
+members of a project or team can edit the spaces that belong to it, unless a
+space is restricted to named people. This covers pages only; it never
+grants work item capabilities.
+
+## Where to change things
+
+| To                                                    | Go to                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| Invite people, make someone an administrator          | **Organization settings → Members** ([members](/organization/members))    |
+| Create or archive a project                           | **Organization settings → Projects** ([projects](/organization/projects)) |
+| Add people to a project and its disciplines           | **Project settings → Members**, **Disciplines**                           |
+| Require two-factor authentication                     | **Organization settings → Security** ([security](/organization/security)) |
+| See who changed what                                  | **Organization settings → Audit log** ([audit](/organization/audit))      |
+| Take a copy of everything, or delete the organization | **Data export**, **Delete organization** ([data](/organization/data))     |
+| Shared work item types                                | **Organization settings → Work item types**                               |
+| Connect Jira                                          | **Organization settings → Integrations** ([Jira](/integrations/jira))     |
+| Allow Lictory Intelligence                            | **Organization settings → Lictory Intelligence** ([AI](/ai))              |
+| Manage the installation's accounts                    | **Admin console** ([instance administration](/organization/instance))     |
+
+People who are not administrators can open **Organization settings** and
+project settings to read them; the header says "only administrators can
+change these settings".
+
+## Tips
+
+- Keep administrators few and disciplines accurate. Administration is about
+  configuration; the review workflow runs on disciplines.
+- Give every person the disciplines they actually work in, in each project.
+  An engineer in Engineering is asked to review what Engineering owns; a
+  person in no discipline can still discuss, but is never asked.
+- Prefer teams for "who works on what" and disciplines for "who reviews
+  what". A team changes what boards show; a discipline changes what people
+  may do.

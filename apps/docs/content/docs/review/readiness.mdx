@@ -1,0 +1,189 @@
+---
+title: Readiness checks
+description: See the evidence that makes a specification ready, define what your project requires for each type, and decide how strictly delivery waits for it.
+---
+
+A specification is not ready because someone chose _Ready_ from a menu.
+Lictory checks facts, like CI for requirements: is the specification written,
+is any blocking discussion open, did the required reviews approve this
+revision. When every check passes, the item becomes **ready** by itself; when
+one stops passing, it is no longer ready.
+
+![Readiness of PAY-2: 2 of 4 checks; the specification is not empty and a required review is requested pass, “No blocking discussion is open” fails with 1 blocking discussion open, and the approvals wait on Engineering and QA for revision 2](/screenshots/detail-readiness-checks.webp)
+
+## Read an item's readiness
+
+The **Readiness** section of the review rail shows _N / M checks_, one bar
+segment per check, and every check with what it verified. A failing check
+says what would make it pass:
+
+- _The description is empty._
+- _1 blocking discussion open._ (in red: it stops readiness, it is not merely
+  waiting)
+- _Request at least one required review._
+- _Waiting on QA for revision 2._
+- _Add a “Failure behavior” section._ or _The “Failure behavior” section is
+  empty._
+- _1 of 2 child specifications is not ready._
+
+When all pass, the section says the specification is ready for delivery and
+that readiness does not accept, schedule or start the work. Ready is
+eligibility; [accepting it for delivery](/delivery) is a separate decision.
+
+### Refinement state
+
+Spec-backed items have a refinement state next to their delivery status:
+_draft_, _refinement_, _in review_ and _ready_. The two are never one field.
+Requesting the first review moves a draft to _in review_; Lictory sets _ready_
+when the checks pass. The first time a specification becomes ready, its main
+is protected and later changes go through
+[pull requests](/specifications/branches).
+
+## The default checks
+
+A project that never edits its Definition of Ready, and any type it adds
+later, uses Lictory's defaults:
+
+| Check                                                 | Passes when                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| _The specification is not empty_                      | The current revision has text                               |
+| _No blocking discussion is open_                      | Every blocking discussion is resolved                       |
+| _At least one required review is requested_           | A required review exists on the current revision            |
+| _Every required review approved the current revision_ | Each required review has a valid approval of this revision  |
+| _Every child specification is ready_                  | Every spec-backed child is ready (skipped without children) |
+
+## Define what ready means
+
+Project administrators edit the Definition of Ready in **Project settings →
+Readiness**, per work item type: _A Story is ready when…_ The checks are
+grouped by what they look at.
+
+![The Readiness settings: the Definition of Ready per type (Epic and Story) with its built-in checks switched on, options to require a section, a discipline’s approval, a Lictory Intelligence review or a sign-off, and When work starts before it’s ready set to Warn](/screenshots/project-readiness.webp)
+
+| Group                               | Checks you can add                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| **Written**                         | **Require a section**: a heading whose section is not empty                    |
+| **Reviewed**                        | **Require a discipline’s approval**: chosen disciplines approved this revision |
+| **Checked by Lictory Intelligence** | **Require a Lictory Intelligence review**                                      |
+| **Confirmed by people**             | **Add a sign-off**: a named confirmation by a person                           |
+| **Decomposed**                      | The built-in children check                                                    |
+
+Switch the built-in checks on and off in the same list. **Start from…**
+copies another type's rules, or goes back to **Lictory’s defaults**.
+
+Labels are derived from what a check verifies, so a check never claims more
+than it does: a required section reads _It has a non-empty “Acceptance
+criteria” section_, which proves the section exists and has content, not that
+it is correct. Only sign-offs are named by people.
+
+### Sign-offs
+
+A sign-off is a confirmation that a check cannot compute, such as _Designs
+attached_. Give it a **Sign-off name**, optional guidance shown on the item,
+and who may confirm it: chosen disciplines, or **Anyone with a discipline**.
+
+On the item, an eligible person chooses **Sign off**; the check then says
+_Signed off by_ who and when. A sign-off belongs to the revision it was given
+on: a new revision needs a new one. **Withdraw sign-off** withdraws it and
+keeps the record.
+
+### Lictory Intelligence check
+
+**Require a Lictory Intelligence review** passes when the latest Lictory
+Intelligence review of the item analysed the current revision and found no
+blocker (or, if you choose, no blocker or major finding). The check names the
+run it relies on (_Automated check · Lictory Intelligence review scored 85_),
+never a discipline's approval.
+
+- It can only be required **beside a person's decision**: the type must also
+  require approved reviews, a discipline's approval or a sign-off.
+- Anyone holding a discipline in the project can choose **Override for this
+  revision** when the check is wrong, and **Withdraw override** later. The
+  override is recorded like a sign-off.
+- With Lictory Intelligence off or unavailable the check does not pass by
+  itself; override it, or remove it from the Definition of Ready.
+
+See [Lictory Intelligence reviews](/ai/reviews).
+
+### Publish a new version
+
+The Definition of Ready is versioned. Your edits stay a draft, marked
+**New**, **Changed** or **Removed**, until you publish them:
+
+1. Choose **Review changes…**. Lictory evaluates the draft against the
+   project's items: how many keep their version, which _become Ready when you
+   publish_, which _will need more work_ and why, and how many are
+   unaffected.
+2. Add a change summary (_Why is this changing?_) and choose **Publish version
+   N**.
+
+Items that are ready, done or canceled keep the version they were evaluated
+under, so finished work never loses readiness because the rules changed. Such
+an item says so (_Kept on Definition of Ready version 2 because it was ready
+or done when the rules changed._) and moves to the latest version if it stops
+being ready. Every other item follows the new version at once.
+
+**History** lists every version, who published it and what it changed;
+**Restore** loads an earlier one into the editor to publish it again. If
+someone else publishes while you edit, Lictory asks you to start again from
+their version rather than overwrite it.
+
+## Readiness and delivery
+
+### In a native project
+
+The **readiness policy** (_When work starts before it’s ready_, in the same
+settings) decides what happens when a spec-backed item that is not ready is
+accepted for delivery or first moves into a _started_ status:
+
+| Policy             | Effect                                                         |
+| ------------------ | -------------------------------------------------------------- |
+| **Allow**          | Readiness is informative only                                  |
+| **Warn** (default) | The move succeeds, and the activity records the failing checks |
+| **Block**          | The move is refused, naming the failing checks                 |
+
+Plain work under a specification (Tasks, Subtasks) follows its nearest
+specification's readiness, so splitting unsettled behavior into tasks does not
+bypass the policy. Once a revision has been accepted for delivery, work on it
+can continue while a later change to the specification is refined; a new
+blocking problem on the accepted revision itself still applies the policy.
+See [delivery](/delivery).
+
+### In an external project
+
+Only ready specifications can be handed off to Jira, whatever the policy; the
+policy setting is unavailable there (_only ready work is handed off to Jira_).
+Handing off an item with its children skips children that are not ready. See
+[Jira](/integrations/jira).
+
+## Find ready work
+
+- **Refinement → Ready for delivery** lists specifications whose checks pass
+  and that are not yet accepted for delivery.
+- **Inbox → To do** shows _Ready for delivery_ for items you created or are
+  assigned.
+- People involved in an item are notified when it becomes ready (_Ready for
+  delivery_, in the app and by email) and when it stops being ready (_No
+  longer ready_, in the app).
+
+## What to watch for
+
+- **A check proves only what its label says.** A non-empty section is not a
+  reviewed one; approvals are what say the behavior is right.
+- **A type needs at least one check**, and at most 30. Each built-in check
+  and the Lictory Intelligence check can be required once per type.
+- **A type with no check that applies** to an item (for example only the
+  children check, and no children) can never become ready; the item says so.
+- **Publishing rules sends no notifications.** Items that change state
+  because of a new version record it in their activity.
+
+## Tips
+
+- Add required sections for what your reviewers always ask about, such as
+  _Acceptance criteria_ and _Failure behavior_. Authors then see the gap
+  before anyone has to ask.
+- Require a discipline's approval for the types where that discipline must
+  always agree (QA on Stories, say), instead of relying on people to request
+  it.
+- Start with the defaults. Add a check when the same problem reaches delivery
+  twice, not before.

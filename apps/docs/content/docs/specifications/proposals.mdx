@@ -1,0 +1,183 @@
+---
+title: Write a proposal
+description: Create a work item, capture a rough idea with its files and links, and shape it into something the team can refine.
+---
+
+A **proposal** is the first expression of a change someone wants: the
+problem, who has it, what should happen instead, and whatever notes,
+screenshots and links you already have. It is expected to be incomplete.
+Creating one commits nobody to building it; refinement decides that.
+
+## When to use it
+
+Write a proposal whenever an idea needs the team's agreement before anyone
+builds it: a new behavior, a change to an existing one, a customer request
+that needs shaping. Work that only needs doing (a chore, a known bug fix)
+can be plain work instead, a Task or a Bug without a specification.
+
+## Create a work item
+
+<Steps>
+<Step>
+
+### Open the create dialog
+
+- In **Proposals** or **Refinement**, choose **New proposal**.
+- Anywhere in a project, press `c` (when you are not typing in a field).
+- Or use the create button in the sidebar.
+
+![The New proposal dialog: the Story type, No team, a title, an optional parent and a Markdown description, with Create another and Create & open](/screenshots/work-new-item.webp)
+
+</Step>
+<Step>
+
+### Choose the type, project and team
+
+The dialog starts with a sensible type for where you opened it:
+
+- from **Proposals** or **Refinement**, only types with a specification are
+  offered (Story by default);
+- from the **Board**, **Backlog** or **Hand-off**, plain work comes first,
+  so the item appears where you created it;
+- elsewhere, the dialog starts with Story and offers every type you may
+  create.
+
+Change the type, the project (when you are in several) and the team (when
+the project has teams) with the buttons at the top.
+
+</Step>
+<Step>
+
+### Give it a title, and optionally a parent and a description
+
+Only the title is required. **Parent** links the item to the larger piece
+of work it contributes to, such as a Story under an Epic; it is offered when
+the project has a type one level above. The **Description** is the first
+revision of the specification, written in the [editor](/specifications/editor).
+
+</Step>
+<Step>
+
+### Create it
+
+- **Create & open** (`Enter`) creates the item and opens it, so you see the
+  next step.
+- **Create another** creates it and keeps the dialog open for the next one.
+  The dialog counts what you created, and a notice with **Open** lets you
+  jump to each.
+
+</Step>
+</Steps>
+
+A spec-backed item starts in **Draft** and appears in **Proposals**. When it
+is worth the team's time, open it and choose **Start refinement**: it moves
+to **In refinement** and into the Refinement view. Requesting a review moves
+it to **In review** even if nobody started refinement explicitly. See
+[from proposal to ready](/specifications).
+
+<Callout title="Who can create work items">
+  Creating a spec-backed item needs a discipline that _edits specifications_ in
+  the project; plain work also accepts a discipline that _changes properties_.
+  Without either, Lictory says so and names who can help: a project
+  administrator. See [disciplines](/organization/disciplines).
+</Callout>
+
+## What to put in a proposal
+
+Start with what you know and say what you don't:
+
+- **The problem**: who has it and what happens today.
+- **The intended outcome**: what should be true afterwards, from the
+  customer's side.
+- **Expected behavior**, as far as you know it.
+- **Open questions** you already see.
+- **What is out of scope**, when it is likely to come up.
+
+Reviewers from Engineering, QA and other disciplines add what they know:
+feasibility, failure behavior, test scenarios. The proposal does not need to
+answer everything before refinement starts.
+
+### Files and screenshots
+
+Every work item has **Attachments** under its text. Choose **Add files**, or
+drop files onto the section. In the editor, paste or drop an image to place
+it in the text, or choose **Insert → File or image**: images appear inline,
+other files as a link, and both are kept with the item's attachments.
+
+- Files can be up to 25 MB: images, PDF, text and Markdown, CSV, Word,
+  Excel, PowerPoint, ZIP, MP4, MOV and MP3.
+- Files are private to your organization. Only the person who uploaded a
+  file can remove it.
+- Attachments need file storage on your installation. Without it, the
+  section says _Attachments are unavailable_ and your administrator can
+  [configure storage](/self-hosting/configuration#file-storage).
+- The create dialog has no file upload: add files once the item exists.
+
+### Links and references
+
+Paste ordinary links to anything outside Lictory. To refer to something in
+Lictory, use a reference instead: type `#` for a work item, `[[` for a page
+in Spaces, or **/ → Decision** for a recorded decision. References stay
+correct when the target is renamed and show its current state. See
+[references](/specifications/editor#work-items-pages-and-decisions).
+
+For background that should travel with the item without being part of its
+text, attach a page to the item instead; see
+[knowledge on a work item](/knowledge/in-work).
+
+## Draft proposals with Litto
+
+When you have rough material (meeting notes, a customer request, a support
+ticket), Litto can turn it into draft proposals for you to choose from:
+
+- In a [Litto chat](/ai/litto), paste the material, say which project it is
+  for and ask for proposals.
+- On a page in Spaces, select the passage, choose **Create work item**, then
+  **Draft with Litto** and **Draft proposals**. See
+  [work in pages](/knowledge/in-pages).
+
+Each draft has a title, the problem, the expected outcome, open questions,
+the disciplines that should review it and related decisions or approved
+specifications. It quotes the exact excerpts of your material it relies on
+and lists what it inferred rather than read. Citations Lictory could not
+verify are removed.
+
+Nothing is created until you choose. You pick the drafts you want, adjust
+them, and only those become proposals, with you as their author.
+
+<Callout title="What Litto needs">
+  Drafting needs [Lictory Intelligence](/ai) enabled for your organization and a
+  discipline that edits specifications. It reads up to 10 pieces of material and
+  60,000 characters in total. The material is sent to the configured AI provider
+  and is not stored by Lictory.
+</Callout>
+
+**Without Lictory Intelligence**, you write proposals yourself; nothing else
+changes. If Litto cannot draft right now, the page says _Litto could not
+draft proposals right now. You can write the work item yourself instead._
+
+## What to watch for
+
+- **Creating is not committing.** A proposal is a captured idea. Delivery
+  starts only when someone accepts a ready revision or hands it off.
+- **Plain work skips refinement.** A Task or Bug goes straight to delivery.
+  If it sits under a spec-backed parent, that parent's readiness still
+  applies.
+- **The title is part of the specification.** Renaming a spec-backed item
+  saves a new revision, just like changing its text.
+
+## Tips
+
+- **Start rough, early.** A title and three sentences are enough to let
+  Engineering and QA see it coming. Polishing alone delays the questions that
+  matter.
+- **Write the headings readiness looks for.** If your project requires
+  sections such as _Acceptance criteria_ or _Failure behavior_, add them as
+  headings from the start, even if they are empty. Readiness checks find a
+  section by its heading name, at any level, so the proposal shows what is
+  still missing. See [readiness](/review/readiness).
+- **Cite what you rely on.** When a proposal depends on how something works
+  today, link the page that describes it and pin the version you read
+  (`[[`, then **Pin this version**). Reviewers then see exactly what you saw.
+- **Capture in batches.** After a planning session, use **Create another**
+  to record every idea in one go, then refine them one at a time.

@@ -1,0 +1,153 @@
+---
+title: Request reviews
+description: Ask the disciplines that must agree to review a specification, choose whether each review is required, and find the reviews waiting for you.
+---
+
+A **review** asks a discipline of the project (Product, Engineering, QA,
+Security…) to evaluate the specification, optionally naming one person in it.
+The discipline's name is the review responsibility: _Engineering_ reviews
+feasibility and failure behavior, _QA_ testability and edge cases, and so on.
+Each discipline decides only for itself, and holding a discipline never
+approves anything by itself.
+
+![The review rail of PAY-7: 2 of 2 approved, QA by Sam Rivera and Engineering by Dev Patel, both on revision 1, with Request](/screenshots/detail-review-rail.webp)
+
+## When to request a review
+
+Request reviews once the intent is clear enough for others to react to: the
+problem, the expected behavior and the cases you already know about. A rough
+specification is fine; reviewers' discussions are how it gets better. You
+do not need to wait until it is finished, and you should not wait for a
+meeting.
+
+Requesting the first review moves a draft or refining specification to _in
+review_.
+
+## Request a review
+
+<Steps>
+<Step>
+
+### Open the review rail
+
+On the item, the **Review** section of the rail lists the reviews of the
+current revision (_1 / 2 approved_). On a narrow screen, open it with
+**Review & details**.
+
+</Step>
+<Step>
+
+### Choose Request
+
+**Request** opens _Request review of revision N_. When several reviewing
+disciplines have not been asked yet, a shortcut requests them all at once
+(for example **Request Engineering and QA reviews**): required, from anyone in
+each discipline.
+
+</Step>
+<Step>
+
+### Choose the discipline and reviewer
+
+![Request review of revision 2: Request Engineering and QA reviews in one step, or choose a Discipline and a Reviewer, Required for readiness, and Request review](/screenshots/detail-request-review.webp)
+
+Pick the **Discipline**, then the **Reviewer**: _Anyone in Engineering_ (every
+member can decide) or one member by name. Keep **Required for readiness**
+ticked unless the review is only for information.
+
+</Step>
+<Step>
+
+### Request review
+
+Choose **Request review**. The people asked are notified.
+
+</Step>
+</Steps>
+
+Requesting the same discipline again on the same revision adds another
+reviewer to it (_A QA review already exists on this revision; another
+reviewer will be added._).
+
+### Required and optional reviews
+
+- A **required** review counts for readiness: by default a specification is
+  ready only when at least one required review was requested and every
+  required review approved the current revision.
+- An **optional** review (shown as **Optional**) is informative. Its decision
+  is recorded but does not hold back readiness.
+
+The project's [Definition of Ready](/review/readiness) can also require
+specific disciplines to approve, whether or not anyone requested them.
+
+## Who can be asked, and who can ask
+
+- Only disciplines with **Can be asked to review** can be requested. A named
+  reviewer must be a member of that discipline. A project administrator sets
+  both in **Project settings → Disciplines** ([disciplines](/organization/disciplines)).
+- People whose discipline has **Request reviews** can request and cancel
+  reviews. In a new project, Product, Engineering and QA all can.
+- Only an assigned person, or a current member of the assigned discipline,
+  can decide the review. See [approve or request changes](/review/approvals).
+
+## Reviews follow the specification
+
+A review belongs to a revision, but the responsibility persists. When the
+specification is revised, every active review is requested again on the new
+revision with the same discipline and reviewer, and the old decisions stay in
+history. Nobody has to request Engineering again after each edit.
+
+When someone opens a [pull request](/specifications/branches) to main, the
+required reviews of the current revision are copied onto it.
+
+## Cancel a review
+
+When a review is no longer needed, choose the **×** on its row (_Cancel this
+review request_). Its reviewers are told in the app. An approved review has
+no **×**: it stays as the record of that decision.
+
+## Find the reviews waiting for you
+
+- **Reviews** in the project's sidebar lists the items whose current revision
+  asks for your review, or your disciplines' (_Engineering review requested
+  on revision 2 · 1 blocking discussion_), and items with a pull request
+  waiting for your approval.
+- **Inbox → To do** lists every review asked of you across projects, page
+  reviews included, and leaves the list when you decide. See
+  [the inbox](/inbox).
+- On an item, the rail says _A pull request waits for your review_ when one of
+  its pull requests needs your decision.
+
+![Sam Rivera’s Reviews view: Needs my review, with the QA review of PAY-2 requested on revision 2](/screenshots/work-reviews-view.webp)
+
+## Notifications
+
+| Notification                  | Who receives it                                       | Default        |
+| ----------------------------- | ----------------------------------------------------- | -------------- |
+| Review requested              | The named reviewer, or every member of the discipline | In app + email |
+| Review cancelled              | The reviewers who were asked                          | In app         |
+| Review decision               | The item's owners and whoever requested the review    | In app + email |
+| Pull request review requested | The named reviewer, or every member of the discipline | In app + email |
+
+A review requested from a whole discipline reaches every member, but only
+people asked by name count as involved in the item afterwards. See
+[notifications](/inbox/notifications).
+
+## What to watch for
+
+- **No reviewing discipline?** The request form says so: a project
+  administrator must enable **Can be asked to review** on a discipline first.
+- **Decisions apply to the current revision only.** A review left from an
+  earlier revision cannot be decided; the new revision has its own.
+- **Lictory Intelligence is not a reviewer.** It can be required as a
+  [readiness check](/review/readiness#lictory-intelligence-check), never as a
+  discipline's review.
+
+## Tips
+
+- Ask whole disciplines by default and name a person only when one specific
+  expert must decide. Anyone in the discipline can then pick it up.
+- Request reviews early and let reviewers comment on the exact text. Each
+  revision keeps the same reviewers, so early requests cost nothing later.
+- Use optional reviews for people who should know about a change but do not
+  own a concern in it.

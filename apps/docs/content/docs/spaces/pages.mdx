@@ -16,14 +16,19 @@ People who can edit the space create pages:
 - **New subpage**, in a page's actions (the **⋯** button in the page header
   or next to the page in the tree), adds one under it.
 
-Give it a title and it opens, ready to write. In a
-[Reviewed space](/spaces/publishing#reviewed-spaces) the new page is
-published with its title and no content; its first content arrives through a
-pull request like every other change.
+The **New page** dialog asks for a **Title** and where to **Start from**:
+**Blank** or one of the [templates](/spaces/templates). Choose **Create
+page** and the page opens, ready to write.
+
+The page is published at once as its first version: with its title only,
+or with the template's structure. In a
+[Reviewed space](/spaces/publishing#reviewed-spaces) that first version needs
+no review, because nobody has written content yet; everything after it
+arrives through a pull request like every other change.
 
 ## Read a page
 
-![The Payments service page in its Engineering Handbook tree: breadcrumbs Spaces › Engineering Handbook › Architecture, "Published version 2 by Maria Chen just now", a 1 discussion button, the More actions button and Edit](/screenshots/spaces-page-reader.webp)
+![A published page: breadcrumbs, “Published version 1 · by Maria Chen” under the title, the discussions button, More page actions and Edit, and item chips in the text](/screenshots/spaces-page-reader.webp)
 
 A page opens on its **published version**. The line under the title says
 which one and who published it, for example _Published version 2 · by Maria
@@ -41,10 +46,17 @@ header holds:
   changes are waiting, or **Start a branch** in a Reviewed space (see
   [publishing](/spaces/publishing)).
 
-Work item mentions show the item's current status, refinement state and
-readiness as _you_ can see it now; an item you cannot see shows only its key.
-Links to other pages show the linked page's current title, or _Unavailable
-page_ when you cannot open it.
+In the text, work item mentions are chips with the item's key, current title
+and status; point at one or focus it for a card with its refinement state,
+readiness, owner and iteration. Links to other pages show the page's current
+title (and the cited version when the link is pinned), or _Unavailable page_
+when you cannot open it. Decision cards and work lists show what Work holds
+now. See [blocks and chips](/spaces/blocks).
+
+Under the page, **Work linked to this page** lists the work items the page
+is connected to, and select text to **Comment** on it, **Create work item**
+from it or, when Lictory Intelligence is on, **Ask Litto** about it. See
+[work in your pages](/knowledge/in-pages).
 
 Beside a page, **Hide pages** (the panel button before the breadcrumbs) puts
 the tree away for more room, and **Show pages** brings it back; this browser
@@ -87,7 +99,9 @@ them, and **Restore** brings a page back where it was. Restoring a
 page also restores the subpages that were archived together with it;
 subpages archived earlier, on their own, stay archived.
 
-An archived page keeps its history and discussions, read-only.
+An archived page keeps its history and discussions, read-only. It leaves
+search, and its links to work items stop showing on those items until it is
+restored.
 
 ## Find a page
 
@@ -95,7 +109,12 @@ An archived page keeps its history and discussions, read-only.
   match, wherever they sit, and shows each match with its path (_Payments
   service · in Architecture_).
 - The **command palette** finds spaces and page titles across every space
-  you can read.
+  you can read, and what published pages say, under **In pages**: a result
+  opens the page at the matching block. **See all results for …** lists
+  every match. See [search](/search).
+
+Search reads only published versions of pages you can read: live drafts,
+branches and pull requests are never searched.
 
 ## On a phone
 
@@ -103,4 +122,4 @@ On a narrow screen the tree becomes the space's home, with every page's
 actions behind its **⋯** button, and a page puts its primary action and its
 discussions on one row under the title.
 
-![Two phone screens: the Engineering Handbook home with Find a page and the nested page tree, and the Payments service page with "Published v2", 1 discussion and Edit unpublished draft](/screenshots/spaces-phone.webp)
+![The Payments service page on a phone: the space’s top bar, Published v1, 1 discussion, Edit, and item chips wrapping in the text](/screenshots/spaces-phone.webp)

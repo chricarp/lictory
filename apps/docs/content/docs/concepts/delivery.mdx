@@ -1,62 +1,64 @@
 ---
 title: Delivery
-description: Delivery items, native delivery with types, workflows, boards and iterations, and external delivery in Jira. One system owns delivery for each project.
+description: How agreed specifications become delivered work, natively in Lictory or in Jira, with exactly one system owning delivery for each project.
 ---
 
-Delivery mode is a per-project setting (**Project settings → Delivery**). The
-refinement workflow is identical in both modes; for the same piece of work,
+Delivery mode is a per-project setting (**Project settings → Delivery**).
+Refinement works the same in both modes. For the same piece of work,
 exactly one system owns delivery state.
+
+| Native (Deliver in Lictory)                         | External (Hand off to Jira)                 |
+| --------------------------------------------------- | ------------------------------------------- |
+| Board, backlog, sprints or cycles, estimates        | Jira plans, estimates and tracks the work   |
+| Status and assignee are set in Lictory              | Status and assignee are read back from Jira |
+| **Accept for delivery** records the agreed revision | Handing off records the agreed revision     |
+| The readiness policy gates starting work            | Only ready specifications are handed off    |
+
+## Eligibility and commitment
+
+**Ready for delivery** means the readiness checks pass for the current
+revision: the work can be selected. It is not a commitment. **Accept for
+delivery** is the accountable decision that the team will build a revision,
+and records it. Starting work records it automatically when nobody accepted
+yet. Moving to done records the accepted revision as **Delivered**.
+
+A later revision never replaces the agreement silently. The item shows the
+difference until someone accepts the new revision (native) or hands it off
+(Jira). See [deliver the work](/delivery).
 
 ## Delivery items
 
 An approved specification is decomposed into child work items (Stories,
-Tasks, Subtasks), proposed as a [breakdown](/concepts/specifications#main-branches-and-pull-requests)
-and reviewed with the specification. Each child records the revision it was
-derived from. Plain implementation items under a specification inherit its
-readiness, so splitting unsettled behavior into Tasks cannot bypass the gate.
+Tasks, Subtasks). Children can be added directly or proposed as a reviewed
+breakdown on a branch, approved with the specification and created at
+merge. Each child records the revision of the parent it was derived from.
+Plain items under a specification follow its readiness, so splitting
+unsettled behavior into Tasks does not bypass the gate. See
+[break down a specification](/delivery/breakdown).
 
 ## Native delivery
 
 - **Types** are an organization-wide registry that projects opt into. A type
   has a hierarchy level (Epic above Story, Task and Bug, above Subtask) and
-  says whether it carries a specification.
+  says whether it carries a specification. Epics are delivered through their
+  children.
 - **Workflows** are per project: statuses you name, each in a fixed category
   (`backlog`, `unstarted`, `started`, `done`, `canceled`). Any transition is
-  allowed; there are no transition rules to configure.
-- **Board and backlog** show the project's work in rank order, and can be
-  narrowed to a team. Each team also has a backlog of its unplanned work.
-- **Iterations** are sprints (created, started and completed by hand) or
-  cycles (scheduled automatically from a length and start weekday). One
-  iteration per project is active at a time. A cycle moves its unfinished
-  work to the next cycle; completing a sprint asks where unfinished work goes:
-  another planned iteration or the backlog.
-- **Estimates and reports**: integer estimates (T-shirt sizes map to points),
-  burndown, scope change and velocity from recorded events. A completed
-  iteration's report is frozen.
-- **Relations**: _blocks_, _relates to_ and _duplicates_, across projects and
-  teams of the organization.
+  allowed. See [the board](/delivery/board).
+- **Iterations** are sprints (by hand) or cycles (automatic). One is active
+  per project at a time. See [sprints and cycles](/delivery/iterations).
+- **Estimates and reports**: integer estimates, burndown, scope change and
+  velocity from recorded events, frozen at completion. See
+  [reports](/delivery/reports).
+- **Relations**: _blocks_, _relates to_ and _duplicates_, across projects
+  and teams. See [relations](/delivery/relations).
+- **Teams** narrow boards and backlogs to one group without changing an
+  item's identifier, status or iteration. See [teams](/delivery/teams).
 
-### Accepting scope
+## External delivery
 
-Ready means a specification can be selected, not that the team committed to
-it. Accepting a revision for delivery (**Accept revision N for delivery**)
-records the team's agreement; starting work records it automatically when
-none exists. When the specification changes later, the accepted revision
-stays the agreement and the item shows the difference until someone accepts
-the new one. Moving to Done records the accepted revision as delivered.
-
-## External delivery (Jira)
-
-Lictory refines, reviews and approves; Jira delivers. Iterations and
-estimates are Jira's, so they are turned off in Lictory. The project's
-**Hand-off** view replaces the board: what is ready to hand off, what changed
-since it was handed off, what Jira reports back and what needs attention.
-The published revision is the scope boundary; a later revision is handed off
-explicitly as an update. See [Jira](/integrations/jira).
-
-## The accepted agreement
-
-![A specification accepted for delivery with its accepted revision recorded](/screenshots/accepted-scope.webp)
-
-The lifecycle panel records the accepted revision. Reviews still refer to the
-specification revision; delivery status remains a separate property.
+Lictory refines, reviews and approves; Jira delivers. The **Hand-off** view
+replaces the board. Lictory writes the summary, description and labels;
+Jira's status and assignee are read back and shown read-only. Hand-off is
+explicit, recorded per item and safe to retry. See
+[Deliver in Jira](/integrations/jira).
