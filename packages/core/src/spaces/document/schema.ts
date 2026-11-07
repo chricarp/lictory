@@ -66,7 +66,12 @@ export function pageExtensions() {
       },
     }),
     reference("workItemRef", ["workItemId", "key"]),
-    reference("pageRef", ["pageId"]),
+    // `commitId` pins one version of the page; absent follows the published
+    // page (and is left out of the canonical JSON, so documents written
+    // before it existed keep their form and hash).
+    reference("pageRef", ["pageId", "commitId"]),
+    // A recorded Work decision; `label` is what readers without access see.
+    reference("decisionRef", ["decisionId", "label"]),
     UniqueID.configure({ types: blockTypes, attributeName: "id" }),
   ];
 }
