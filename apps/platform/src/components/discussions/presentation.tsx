@@ -98,8 +98,11 @@ export function DiscussionSheet({
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
+    // Escape that a control inside the sheet already handled (a picker
+    // closing, a composer cancelling) is not also a request to close the
+    // sheet, which would discard what the person typed.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented) {
         event.stopPropagation();
         onCloseRef.current();
       }

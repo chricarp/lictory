@@ -489,7 +489,11 @@ const RichMarkdownEditor = forwardRef<
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {
               e.preventDefault();
               onSubmit();
-            } else if (e.key === "Escape" && onEscape) onEscape();
+            } else if (e.key === "Escape" && onEscape) {
+              // Handled: an enclosing dialog must not also close.
+              e.preventDefault();
+              onEscape();
+            }
           }}
           aria-label={`${aria["aria-label"] ?? "Text"} (Markdown)`}
           spellCheck

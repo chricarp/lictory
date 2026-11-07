@@ -373,6 +373,12 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
+  // Escape in a composer cancels the reply only; the sheet stays open.
+  await sheet.getByRole("button", { name: "Reply", exact: true }).click();
+  const reply = await fillMarkdown(sheet, "Reply", "Partial captures too");
+  await reply.press("Escape");
+  await expect(sheet.getByRole("textbox", { name: "Reply" })).toHaveCount(0);
+  await expect(sheet).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(toggle).toBeFocused();
