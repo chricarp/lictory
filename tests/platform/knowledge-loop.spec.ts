@@ -1,15 +1,21 @@
 import { test, expect, type Page } from "@playwright/test";
-import { and, eq } from "drizzle-orm";
-import * as s from "@lictory/core/db/schema";
 import { clientAddress } from "../helpers/client-address";
+import {
+  createPage,
+  createSpace,
+  itemByTitle,
+  itemRef,
+  knowledgeSection as knowledge,
+  paragraph,
+  selectPageText,
+  text,
+} from "../helpers/knowledge";
 import {
   currentRevision,
   newPerson,
   seedItem,
   seedWorkspace,
   signIn,
-  withDb,
-  type Seeded,
 } from "../helpers/seed";
 
 // The whole loop between pages and work (docs/internals/knowledge-links.md):
@@ -25,102 +31,8 @@ test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
 
-type Node = Record<string, unknown>;
-const paragraph = (id: string, ...content: Node[]): Node => ({
-  type: "paragraph",
-  attrs: { id },
-  content,
-});
-const text = (value: string): Node => ({ type: "text", text: value });
-const doc = (...content: Node[]) =>
-  ({ type: "doc", content }) as unknown as Record<string, never>;
-
-const knowledge = (page: Page) =>
-  page.getByRole("region", { name: "Knowledge", exact: true });
 const liveEditor = (page: Page) =>
   page.locator('.page-document[contenteditable="true"]');
-
-async function createSpace(
-  seeded: Seeded,
-  name: string,
-  extra: Record<string, unknown> = {},
-) {
-  const spaceId = crypto.randomUUID();
-  const slug = `${name.toLowerCase().replaceAll(/[^a-z]+/g, "-")}-${spaceId.slice(0, 6)}`;
-  await seeded.command({
-    type: "createSpace",
-    spaceId,
-    name,
-    slug,
-    home: { projectId: seeded.projectId },
-    ...extra,
-  });
-  return { spaceId, slug };
-}
-
-async function createPage(
-  seeded: Seeded,
-  space: { spaceId: string; slug: string },
-  title: string,
-  ...content: Node[]
-) {
-  const pageId = crypto.randomUUID();
-  await seeded.command({
-    type: "createPage",
-    spaceId: space.spaceId,
-    pageId,
-    title,
-    content: doc(...content),
-  });
-  const commitId = await withDb(async (db) => {
-    const [row] = await db
-      .select({ head: s.pageBranch.headCommitId })
-      .from(s.pageBranch)
-      .where(
-        and(eq(s.pageBranch.pageId, pageId), eq(s.pageBranch.isMain, true)),
-      );
-    return row!.head;
-  });
-  return {
-    pageId,
-    commitId,
-    url: `/${seeded.slug}/spaces/${space.slug}/pages/${pageId}`,
-  };
-}
-
-const itemByTitle = (seeded: Seeded, title: string) =>
-  withDb(async (db) => {
-    const [row] = await db
-      .select({ id: s.workItem.id, number: s.workItem.number })
-      .from(s.workItem)
-      .where(
-        and(
-          eq(s.workItem.organizationId, seeded.organizationId),
-          eq(s.workItem.title, title),
-        ),
-      );
-    return row!;
-  });
-
-async function selectText(page: Page, wanted: string) {
-  await page.evaluate((value) => {
-    const root = document.querySelector(".page-document");
-    if (!root) throw new Error("No page content");
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const at = node.textContent?.indexOf(value) ?? -1;
-      if (at < 0) continue;
-      const range = document.createRange();
-      range.setStart(node, at);
-      range.setEnd(node, at + value.length);
-      const selection = window.getSelection()!;
-      selection.removeAllRanges();
-      selection.addRange(range);
-      return;
-    }
-    throw new Error(`"${value}" is not in the page`);
-  }, wanted);
-}
 
 test("a page becomes reviewed, delivered work that proposes the page update back, and both sides show it", async ({
   browser,
@@ -135,15 +47,12 @@ test("a page becomes reviewed, delivered work that proposes the page update back
   const ops = await createSpace(seeded, "Operations", {
     publishing: "reviewed",
   });
-  const runbook = await createPage(
-    seeded,
-    ops,
-    "Missing refund runbook",
+  const runbook = await createPage(seeded, ops, "Missing refund runbook", [
     paragraph(
       "rule",
       text("Refunds above 500 EUR need a second approver from finance."),
     ),
-  );
+  ]);
   const ada = await newPerson(browser);
   const ben = await newPerson(browser);
   try {
@@ -155,7 +64,7 @@ test("a page becomes reviewed, delivered work that proposes the page update back
     await expect(
       ada.page.getByRole("document", { name: /content/ }),
     ).toContainText("second approver");
-    await selectText(ada.page, "need a second approver from finance");
+    await selectPageText(ada.page, "need a second approver from finance");
     await ada.page
       .getByRole("group", { name: "Selected text" })
       .getByRole("button", { name: "Create work item" })
@@ -361,15 +270,13 @@ test("in a project delivered externally, links show the delivery tool's status a
   });
   const workItemId = await seedItem(seeded, { title: "Invoice exports" });
   const space = await createSpace(seeded, "Finance handbook");
-  const handbook = await createPage(
-    seeded,
-    space,
-    "Invoice handbook",
-    paragraph("p-exports", text("Exports follow "), {
-      type: "workItemRef",
-      attrs: { workItemId, key: "JLOOP-1" },
-    }),
-  );
+  const handbook = await createPage(seeded, space, "Invoice handbook", [
+    paragraph(
+      "p-exports",
+      text("Exports follow "),
+      itemRef(workItemId, "JLOOP-1"),
+    ),
+  ]);
   await signIn(page, seeded.owner.email);
 
   // The page: the chip and its card, and "Work on this page", say where
@@ -415,15 +322,9 @@ test("losing access to a restricted page removes it from an open item's knowledg
   const secret = await createSpace(seeded, "Security", {
     accessMode: "restricted",
   });
-  const incident = await createPage(
-    seeded,
-    secret,
-    "Key compromise playbook",
-    paragraph("p-keys", text("Rotate after "), {
-      type: "workItemRef",
-      attrs: { workItemId, key: "PLOOP-1" },
-    }),
-  );
+  const incident = await createPage(seeded, secret, "Key compromise playbook", [
+    paragraph("p-keys", text("Rotate after "), itemRef(workItemId, "PLOOP-1")),
+  ]);
   await seeded.command({
     type: "setSpaceGrant",
     spaceId: secret.spaceId,
