@@ -208,7 +208,16 @@ test("a description saved against an outdated revision is refused by the server 
     const zero = await controlZeroConnection(ben.context);
     await signIn(ben.page, seeded.users[1]!.email);
     await ben.page.goto(seeded.itemPath(1));
-    await opened(ben.page, "Payout schedule");
+    // A plain item: its description and properties, no review panel.
+    await expect(
+      ben.page.getByRole("heading", { name: "Payout schedule", level: 1 }),
+    ).toBeVisible();
+    await expect(
+      properties(ben.page).getByRole("button", { name: /^Priority:/ }),
+    ).toBeVisible();
+    await expect(
+      ben.page.getByRole("button", { name: "Edit", exact: true }),
+    ).toBeVisible();
     await waitUntilSaved(ben.page);
     // Ben loses the connection; meanwhile Ada saves revision 2.
     await zero.interrupt();
