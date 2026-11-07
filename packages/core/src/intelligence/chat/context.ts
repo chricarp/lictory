@@ -88,6 +88,6 @@ async function verify(
     version: version ?? 1,
     published: commit.id === main.headCommitId,
     branchName: branch.isMain ? null : branch.name,
-    archived: Boolean(found.page.archivedAt || found.space.archivedAt),
+    archived: (found.page.archivedAt ?? found.space.archivedAt) !== null,
   };
 }
