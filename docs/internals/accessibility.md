@@ -91,7 +91,9 @@ Not covered automatically, and worth checking by hand when these areas change:
 - **Comments on published page text.** The page reader is read-only, so
   selecting its text needs a pointer (or the browser's caret browsing);
   keyboard users comment on the whole page there, or on text in the live
-  editor, where the selection is keyboard-driven (Mod+Alt+M).
+  editor, where the selection is keyboard-driven (Mod+Alt+M). The same
+  holds for "Create work item" on selected text; an open task's "Create
+  work item" button is reachable with Tab (it appears on focus).
 - **Text selection comments.** Selecting specification text with a mouse
   offers a selection toolbar (comment, ask); keyboard users start a
   discussion from the composer instead, without the quoted anchor.

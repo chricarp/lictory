@@ -120,6 +120,14 @@ only), `specificationCitation` (`{workItemId}:{pageId}`, page targets),
 `pageContextLink`. Page and decision backlinks, and item references in
 specifications, are read through capabilities.
 
+## Surfaces in Spaces
+
+Pages use the links in [Work in pages](spaces.md#work-in-pages): the "Work
+on this page" list reads `pageWork`; "Create work item" on selected text or a
+task writes a source; a decision's "Add to a page" opens a branch with an
+origin. Work lists in pages are not links: they store a query, are not
+indexed, and show items only to people who can see them.
+
 ## Reading
 
 - Zero: `workItemKnowledge({ organizationId, workItemId })`,

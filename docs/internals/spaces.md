@@ -636,6 +636,72 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 - Access changes are recorded in the [audit log](audit.md); organization data
   export, organization deletion and account anonymization cover Spaces.
 
+### Work in pages
+
+Pages show work and start work; they never hold delivery state. Work stays
+owned by its delivery owner (Lictory or the delivery tool), and everything a
+page shows of it is read live with the reader's own access.
+
+- **Work lists** (`workList` block: a project and one narrow filter, `epic-children`,
+  `iteration` or `label` with `filterId`, or `referenced` for the items the
+  page mentions, optionally limited to a project; an optional `title`). The
+  commit stores only that query. Readers see the matching items they can
+  see now (key, title, status, refinement, estimate; in external-delivery
+  projects the status read back from the delivery tool) with "N of M done",
+  counting only those items (canceled ones count toward neither). Nothing in
+  a list changes an item. A list is not a snapshot: an old version shows
+  today's items. The commit's derived Markdown states the list's label and
+  "(live list in Lictory)"; exports that run with a reader's access (`getPage`,
+  for agents and Litto) resolve it at that moment into static `[KEY](item:ID)`
+  references, which import back as plain references, never as a live list.
+- **Decisions** (`decisionRef`, inline): a chip inside a sentence, a card
+  when it stands alone in its paragraph (title, the conclusion, the item key,
+  the revision it was recorded on, and "Archived" when it or its item was
+  withdrawn). The decision's text stays canonical in Work (`getDecisions`
+  reads it); the node keeps a `label` for readers it cannot be resolved for.
+  Work's Decisions section offers "Add to a page", which proposes a page
+  change (`proposePageChange` with the item revision as `origin`) appending
+  the card; main is never edited directly.
+- **Work from page text.** Selecting text of a commit in the reader offers
+  "Create work item" beside "Comment", and every open task item without a
+  work item mention offers it too, to people who can create work in some
+  project. The dialog prefills the title (the selection, or the nearest
+  heading for long selections; the task's text) and a description quoting
+  the text with a pinned link to the page version, lets the person choose
+  project and type, and says before anything is created that the quote is
+  copied into the item, whose readers may differ from the page's (warning
+  when the space is restricted). With Lictory Intelligence available, "Draft
+  with Litto" sends the text to `draftProposals` and creates only the drafts
+  the person ticks. Every item created records `source` (page, commit,
+  top-level block, quote); each item has a stable mutation id, so a retry
+  after a lost answer cannot create a second one, and a partial failure keeps
+  what was created and retries only the rest. Live drafts are never a source.
+  Afterwards, when the person can edit main, "Add to the page" opens the
+  live draft and mentions the new items right after their text (found by
+  block id and the words before the selection's end; at the end of the page
+  when the block is gone): an ordinary, visible draft edit, published only
+  when they publish.
+- **Work on this page.** Under the published page, a compact list of the
+  work the page knows about (`pageWork`): items created from it, items it
+  mentions, items it is attached to and items whose specification cites it,
+  each once with how it is linked, with a "N of M done" rollup; page changes
+  proposed from work items; and the projects, teams and iterations that
+  keep it as context. Items the reader cannot see are left out without a
+  trace.
+- **Linked work.** The home of a project or team space lists the work items
+  its published pages mention (`spaceWork`, page references of that space
+  only), open work first, with how much is done and which pages mention
+  each.
+- **Templates.** "New page" offers Blank, Product requirements, Design doc,
+  Runbook, Decision record, Retrospective and Iteration notes:
+  `templateDocument(kind, context)` in `packages/core/src/spaces/templates.ts`
+  (`templatePageContent` for `createPage`'s `content`; names in
+  `template-catalog.ts`). `context` (`projectId`, `iterationId`, `epicId`)
+  points the template's live work list at an iteration or epic; without it
+  the list is left out. The template is the page's first version, like the
+  empty document it replaces (also in Reviewed spaces: the page's creator
+  wrote no content).
+
 ### Search and product knowledge
 
 `searchKnowledge` finds a phrase in what the person can read: published
@@ -1062,6 +1128,13 @@ attributed to the anonymized account, like specification threads.
   effective level and its source (named access, or membership of the
   location, computed for display from the directory with the server's
   rule) and what removing the named access leaves.
+- **Work blocks.** "/" offers Decision (a search over recorded decisions:
+  a card on an empty line, a chip inside a sentence) and Work list (a small
+  dialog: what to list, project, epic, iteration or label, optional title;
+  the list's settings button reopens it in the editor). The task item action
+  shows on hover or keyboard focus (always on touch screens) and only where
+  the page offers work actions. The selection's actions sit above it
+  ("Comment", "Create work item"); "Ask Litto" sits below.
 - **Loading.** The space home and tree load none of this: the page surface
   (Tiptap, the reader, comments) is its own chunk, and the live editor (Yjs,
   y-tiptap, the Hocuspocus provider) another one that only editors load.
