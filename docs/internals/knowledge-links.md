@@ -172,7 +172,8 @@ visibility rule.
   pin, a quiet "Newer version" offers a comparison in the page history. Above: the page the item was created from, as a quote with "Open
   source" at the exact commit and block. Below: page updates proposed from
   the item, with their pull request status. People with `changeProperties`
-  attach pages (purpose, optional pin) and detach them, with undo.
+  attach pages (find the page in a popover, then choose purpose and
+  optional pin in the section, above the list) and detach them, with undo.
 - **Propose page update**: pick a page in a space I edit (attached and
   mentioning pages first), name the branch; `createPageBranch` with `origin`
   opens it in the page editor. Work never publishes a page directly; the
@@ -180,7 +181,12 @@ visibility rule.
 - **Counts**: item lists and the item preview show "N pages", linking to the
   Knowledge section: the readable pages that section lists (mentioning,
   attached, cited by any revision, or the page the item was created from),
-  each page once. Unreadable pages never count.
+  each page once. Unreadable pages never count. The item's header shows the
+  same count as "Knowledge N" beside Discussions and Changes: it brings the
+  section into view under the specification, and on screens that replace
+  the specification (branches, pull requests, history) it opens the
+  section, read-only, in a popover, so a reviewer finds the background
+  without leaving the review.
 - **Delivery surfaces**: context pages (see
   [the delivery model](delivery.md#context-pages)); the project's
   Refinement home shows its spaces and teams' spaces and recently published

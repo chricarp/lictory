@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  BookOpen,
   FilePen,
   FileText,
   GitBranch,
@@ -50,6 +51,72 @@ import {
 } from "@lictory/platform/components/knowledge/page-picker";
 import { knowledgeAnchor } from "@lictory/platform/components/knowledge/anchor";
 
+// "Knowledge 3" beside the item's other header toggles (Discussions,
+// Changes): the readable pages about the item, counted as lists count them.
+// Where the specification is shown it brings the section into view; screens
+// that replace it (branches, pull requests, history) show the section in a
+// popover, so the next reviewer has the background at hand everywhere.
+export function KnowledgeJump({
+  item,
+  project,
+  inline,
+}: {
+  item: WorkItem;
+  project: Project;
+  inline: boolean;
+}) {
+  const { count } = useItemKnowledge(item);
+  if (!count) return null;
+  const label = `Knowledge: ${count} ${count === 1 ? "page" : "pages"} about this item`;
+  const content = (
+    <>
+      <BookOpen className="size-3.5" aria-hidden />
+      <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
+        Knowledge
+      </span>
+      <span className="text-muted-foreground tabular-nums">{count}</span>
+    </>
+  );
+  if (inline)
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={label}
+        title="Pages about this item"
+        onClick={() => {
+          const section = document.getElementById(knowledgeAnchor);
+          section?.scrollIntoView({ block: "start" });
+          section?.focus({ preventScroll: true });
+        }}
+      >
+        {content}
+      </Button>
+    );
+  return (
+    <Popover
+      width={440}
+      align="end"
+      trigger={(props) => (
+        <Button {...props} variant="ghost" size="sm" aria-label={label}>
+          {content}
+        </Button>
+      )}
+    >
+      {() => (
+        <div className="max-h-[70vh] overflow-y-auto p-3">
+          <ItemKnowledge
+            item={item}
+            project={project}
+            canChange={false}
+            compact
+          />
+        </div>
+      )}
+    </Popover>
+  );
+}
+
 // The work item's Knowledge section (docs/internals/knowledge-links.md, Work
 // surfaces): the pages that mention the item, are attached to it or that
 // its specification cites, the page it was created from and the page
@@ -63,10 +130,14 @@ export function ItemKnowledge({
   item,
   project,
   canChange,
+  compact = false,
 }: {
   item: WorkItem;
   project: Project;
   canChange: boolean;
+  // Read-only, in the Knowledge popover of screens that replace the
+  // specification (branches, pull requests, history).
+  compact?: boolean;
 }) {
   const { organization, mutateConfirmed, memberName } = useWorkspace();
   const { knowledge, loaded } = useItemKnowledge(item);
@@ -98,6 +169,7 @@ export function ItemKnowledge({
     [knowledge.pages],
   );
   const details = usePageLinkDetails(requests);
+  const [attaching, setAttaching] = useState<PageChoice>();
   const sectionRef = useRef<HTMLElement>(null);
   // Arriving from "N pages" in a list or preview.
   useEffect(() => {
@@ -177,26 +249,37 @@ export function ItemKnowledge({
   return (
     <section
       ref={sectionRef}
-      id={knowledgeAnchor}
+      id={compact ? undefined : knowledgeAnchor}
+      tabIndex={-1}
       aria-labelledby={`${knowledgeAnchor}-label`}
-      className="scroll-mt-4"
+      className="scroll-mt-4 outline-none"
     >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <SectionLabel>
           <span id={`${knowledgeAnchor}-label`}>Knowledge</span>
         </SectionLabel>
-        <div className="ml-auto flex items-center gap-1">
+        <div hidden={compact} className="ml-auto flex items-center gap-1">
           <ProposePageUpdate item={item} itemKey={key} first={related} />
           {canChange && (
             <AttachPage
-              item={item}
               itemKey={key}
               exclude={attached}
               first={related}
+              onChoose={setAttaching}
             />
           )}
         </div>
       </div>
+      {attaching && canChange && (
+        <AttachForm
+          key={attaching.page.id}
+          item={item}
+          itemKey={key}
+          choice={attaching}
+          onBack={() => setAttaching(undefined)}
+          onDone={() => setAttaching(undefined)}
+        />
+      )}
       {knowledge.source && (
         <SourceQuote source={knowledge.source} href={pageHref} />
       )}
@@ -247,30 +330,31 @@ export function ItemKnowledge({
               return (
                 <li
                   key={origin.id}
-                  className="relative flex min-h-11 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2 text-[13px] hover:bg-muted/50"
+                  className="relative flex min-h-11 items-center gap-x-2.5 px-3 py-2 text-[13px] hover:bg-muted/50"
                 >
                   <GitBranch
                     className="size-3.5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
-                  <Link
-                    href={href}
-                    className="min-w-0 truncate font-medium after:absolute after:inset-0 focus-visible:underline"
-                  >
-                    {origin.page.title}
-                  </Link>
-                  <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                    {origin.name}
-                  </span>
-                  <span className="ml-auto flex items-center gap-2">
-                    <span className="hidden text-xs text-muted-foreground sm:inline">
+                  <span className="min-w-0 flex-1">
+                    <Link
+                      href={href}
+                      className="block truncate font-medium after:absolute after:inset-0 focus-visible:underline"
+                    >
+                      {origin.page.title || "Untitled"}
+                    </Link>
+                    <span className="block truncate text-xs text-muted-foreground">
                       {memberName(origin.authorId)} ·{" "}
                       <time dateTime={origin.createdAt}>
                         {relativeTime(origin.createdAt)}
-                      </time>
+                      </time>{" "}
+                      · branch{" "}
+                      <span className="font-mono text-[11px]">
+                        {origin.name}
+                      </span>
                     </span>
-                    <ProposalBadge state={state} />
                   </span>
+                  <ProposalBadge state={state} />
                 </li>
               );
             })}
@@ -508,48 +592,37 @@ function KnowledgeRow({
   );
 }
 
+// Finding the page is a popover; choosing its purpose and pin happens in
+// the section, above the list, so no row it may be about is hidden.
 function AttachPage({
-  item,
   itemKey,
   exclude,
   first,
+  onChoose,
 }: {
-  item: WorkItem;
   itemKey: string;
   exclude: ReadonlySet<string>;
   first: ReadonlyMap<string, string>;
+  onChoose: (choice: PageChoice) => void;
 }) {
-  const [choice, setChoice] = useState<PageChoice>();
   return (
     <Popover
       width={340}
       align="end"
-      onOpenChange={(open) => !open && setChoice(undefined)}
       trigger={(props) => (
         <Button {...props} variant="ghost" size="sm">
           <Plus className="size-3.5" aria-hidden /> Attach page
         </Button>
       )}
     >
-      {(close) =>
-        choice ? (
-          <AttachForm
-            item={item}
-            itemKey={itemKey}
-            choice={choice}
-            onBack={() => setChoice(undefined)}
-            onDone={close}
-          />
-        ) : (
-          <PagePicker
-            title={`Attach a page to ${itemKey}`}
-            keepOpen
-            exclude={exclude}
-            first={first}
-            onSelect={setChoice}
-          />
-        )
-      }
+      {() => (
+        <PagePicker
+          title={`Attach a page to ${itemKey}`}
+          exclude={exclude}
+          first={first}
+          onSelect={onChoose}
+        />
+      )}
     </Popover>
   );
 }
@@ -573,7 +646,7 @@ function AttachForm({
   onBack: () => void;
   onDone: () => void;
 }) {
-  const labelId = usePopover()?.labelId;
+  const labelId = useId();
   const { mutateConfirmed } = useWorkspace();
   const [purpose, setPurpose] = useState<PageAttachmentPurpose>("background");
   const [pin, setPin] = useState(false);
@@ -582,7 +655,8 @@ function AttachForm({
   const name = useId();
   return (
     <form
-      className="flex flex-col gap-3 p-3 text-[13px]"
+      aria-labelledby={labelId}
+      className="mb-3 flex flex-col gap-3 rounded-lg border bg-card p-3 text-[13px]"
       onSubmit={(e) => {
         e.preventDefault();
         if (busy) return;
@@ -656,7 +730,7 @@ function AttachForm({
       )}
       <div className="flex items-center justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-          Back
+          Cancel
         </Button>
         <Button type="submit" size="sm" disabled={busy}>
           {busy ? "Attaching…" : "Attach page"}

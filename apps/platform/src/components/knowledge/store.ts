@@ -60,7 +60,12 @@ export function useItemKnowledge(item: { id: string; revisionId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the item's identity is its id and revision
     [rows, lookup, item.id, item.revisionId],
   );
-  return { knowledge, loaded };
+  // The same count lists and previews show ("N pages").
+  const count = useMemo(
+    () => pageCountsByItem(rows, lookup).get(item.id) ?? 0,
+    [rows, lookup, item.id],
+  );
+  return { knowledge, loaded, count };
 }
 
 // Readable pages per work item (mentions and attachments), for lists.

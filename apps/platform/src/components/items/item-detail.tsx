@@ -72,7 +72,10 @@ import {
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
 import { Attachments } from "@lictory/platform/components/items/attachments";
-import { ItemKnowledge } from "@lictory/platform/components/knowledge/item-knowledge";
+import {
+  ItemKnowledge,
+  KnowledgeJump,
+} from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
 import {
@@ -662,6 +665,13 @@ export function ItemDetail({
             {item.archivedAt && <Badge tone="warning">Archived</Badge>}
             {!pendingCreate && <Presence itemId={item.id} />}
             <div className="ml-auto flex items-center gap-1">
+              {!pendingCreate && (
+                <KnowledgeJump
+                  item={item}
+                  project={project}
+                  inline={!focusScreen}
+                />
+              )}
               {discussionsShown && (
                 <DiscussionsToggle controls="item-discussions" />
               )}

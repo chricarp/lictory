@@ -159,10 +159,16 @@ test("an item lists the pages about it, attaches one with undo and hides restric
     .getByPlaceholder("Search pages by title or space")
     .fill("Refund");
   await attach.getByRole("option", { name: /Refund runbook/ }).click();
-  await attach.getByRole("radio", { name: /Runbook/ }).check();
-  await attach
+  // The purpose step opens in the section, above the list it adds to.
+  const purpose = section.getByRole("form", {
+    name: "Attach “Refund runbook” to KW-1",
+  });
+  await expect(section.getByRole("listitem").first()).toBeVisible();
+  await purpose.getByRole("radio", { name: /Runbook/ }).check();
+  await purpose
     .getByRole("button", { name: "Attach page", exact: true })
     .click();
+  await expect(purpose).toHaveCount(0);
   const runbookRow = section.getByRole("listitem").filter({
     hasText: "Refund runbook",
   });
@@ -389,6 +395,20 @@ test("a knowledge row opens each version the item relies on, never the latest in
   await expect(
     row.getByRole("link", { name: "Open version 3 of “Batch settlement”" }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v3}$`));
+  // The header says how many pages are about the item and brings them into
+  // view; screens that replace the specification show them in place.
+  const jump = page.getByRole("button", {
+    name: "Knowledge: 1 page about this item",
+  });
+  await jump.click();
+  await expect(knowledge(page)).toBeFocused();
+  await page.getByRole("button", { name: "Changes", exact: true }).click();
+  await expect(knowledge(page)).toHaveCount(0);
+  await jump.click();
+  await expect(page.getByRole("dialog")).toContainText("Batch settlement");
+  await expect(page.getByRole("dialog")).toContainText("Attached at v2");
+  await page.keyboard.press("Escape");
+  await page.goto(seeded.itemPath(number));
   await row
     .getByRole("link", { name: "Open version 2 of “Batch settlement”" })
     .click();
