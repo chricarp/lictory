@@ -5,11 +5,13 @@ import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import { cn } from "@lictory/core/lib/utils";
 
-// Inline pickers typed into the document: "/" for blocks and actions, "#"
-// for a work item, "[[" for another page. One small store per editor feeds
-// a React listbox; the editor keeps focus and owns the keys while it is
-// open (arrows choose, Enter inserts, Escape closes), and points
-// `aria-activedescendant` at the chosen option.
+// Inline pickers typed into a document: "/" for blocks and actions, "#"
+// for a work item, "[[" for a page, "@" for a person. One small store per
+// picker feeds a React listbox; the editor keeps focus and owns the keys
+// while it is open (arrows choose, Enter or Tab inserts, Shift+Enter the
+// option's alternative such as pinning a page version, Escape closes), and
+// points `aria-activedescendant` at the chosen option. Shared by page
+// drafts and Markdown editors.
 
 export type MenuItem = {
   id: string;
@@ -17,6 +19,11 @@ export type MenuItem = {
   hint?: string;
   icon?: ReactNode;
   run: (editor: Editor, range: Range) => void;
+  // A second way to insert this option (Shift+Enter, or its button).
+  alternate?: {
+    label: string;
+    run: (editor: Editor, range: Range) => void;
+  };
 };
 
 type MenuState = {
@@ -31,7 +38,7 @@ type MenuState = {
 export class MenuStore {
   private state: MenuState = null;
   private listeners = new Set<() => void>();
-  readonly id = `page-menu-${Math.random().toString(36).slice(2)}`;
+  readonly id = `editor-menu-${Math.random().toString(36).slice(2)}`;
   editor: Editor | null = null;
   attach(editor: Editor | null) {
     this.editor = editor;
@@ -63,12 +70,25 @@ export class MenuStore {
     }
     for (const listener of this.listeners) listener();
   }
-  choose(index: number) {
+  choose(index: number, alternate = false) {
     const state = this.state;
     const item = state?.items[index];
     if (!state || !item || !this.editor) return;
     this.set(null);
-    item.run(this.editor, state.range);
+    (alternate && item.alternate ? item.alternate.run : item.run)(
+      this.editor,
+      state.range,
+    );
+  }
+  // Items computed after the menu opened (a search answering).
+  refresh(items: MenuItem[]) {
+    const state = this.state;
+    if (state)
+      this.set({
+        ...state,
+        items,
+        index: Math.min(state.index, Math.max(0, items.length - 1)),
+      });
   }
 }
 
@@ -121,6 +141,8 @@ export function suggestionExtension(
               const state = store.getSnapshot();
               if (!state) return false;
               if (event.key === "Escape") {
+                // Closing the picker is all Escape does (not a dialog).
+                event.stopPropagation();
                 store.set(null);
                 return true;
               }
@@ -135,7 +157,15 @@ export function suggestionExtension(
                 });
                 return true;
               }
-              if (event.key === "Enter" || event.key === "Tab") {
+              if (event.key === "Enter" && event.shiftKey) {
+                store.choose(state.index, true);
+                return true;
+              }
+              if (
+                (event.key === "Enter" || event.key === "Tab") &&
+                !event.metaKey &&
+                !event.ctrlKey
+              ) {
                 store.choose(state.index);
                 return true;
               }
@@ -197,9 +227,25 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
               )}
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
               {item.hint && (
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
                   {item.hint}
                 </span>
+              )}
+              {item.alternate && (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  // Pointer path to the alternative; keyboard: Shift+Enter.
+                  aria-hidden
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    store.choose(index, true);
+                  }}
+                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
+                >
+                  {item.alternate.label}
+                </button>
               )}
             </li>
           ))}
@@ -207,6 +253,14 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
       ) : (
         <p className="px-3 pb-2.5 text-[13px] text-muted-foreground">
           {state.empty}
+        </p>
+      )}
+      {state.items[state.index]?.alternate && (
+        <p
+          id={`${store.id}-hint`}
+          className="border-t px-3 py-1.5 text-[11px] text-muted-foreground"
+        >
+          ⇧↵ {state.items[state.index]!.alternate!.label}
         </p>
       )}
     </div>,

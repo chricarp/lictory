@@ -136,8 +136,40 @@ indexed, and show items only to people who can see them.
   readers.
 - Capabilities (every surface): `getWorkItemKnowledge`, `listPageWork`,
   `listContextPages` and `listReferencesTo`.
+- `describePageLinks` (capability): for pages the reader can read, the
+  section heading and a short excerpt of the blocks that mention an item and
+  the version numbers of pinned commits. Other pages get no entry.
+- Zero `itemPageLinks({ organizationId })`: mentions and attachments of
+  readable pages, for the "N pages" count of item lists and previews.
 
 Content search over published pages and specifications uses trigram
 indexes on `page_commit` title and Markdown and on `specification_revision`
 title and content; it must join main heads for pages and apply the same
 visibility rule.
+
+## Work surfaces
+
+- **Knowledge on a work item**, after the breakdown and beside Relations
+  (it is reading context for the specification, and the item's other kind of
+  link). One row per readable page: where its published version mentions the
+  item (section heading and excerpt; opening it lands on the block),
+  attachments with their purpose, and citations by the current revision (or
+  only earlier ones). A pin shows its version (`v3`) and, when the page has
+  published since, a quiet "Newer version" with a comparison in the page
+  history. Above: the page the item was created from, as a quote with "Open
+  source" at the exact commit and block. Below: page updates proposed from
+  the item, with their pull request status. People with `changeProperties`
+  attach pages (purpose, optional pin) and detach them, with undo.
+- **Propose page update**: pick a page in a space I edit (attached and
+  mentioning pages first), name the branch; `createPageBranch` with `origin`
+  opens it in the page editor. Work never publishes a page directly; the
+  space's rules (reviewed or direct) publish the branch.
+- **Counts**: item lists and the item preview show "N pages" (readable pages
+  that mention or are attached to the item), linking to the Knowledge
+  section. Unreadable pages never count.
+- **Delivery surfaces**: context pages (see
+  [the delivery model](delivery.md#context-pages)); the project's
+  Refinement home shows its spaces and teams' spaces and recently published
+  pages in one line.
+- **Inbox To do** includes page pull requests waiting on me (see
+  [notifications](notifications.md#inbox)).

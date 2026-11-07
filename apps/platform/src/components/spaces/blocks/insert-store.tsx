@@ -1,22 +1,20 @@
 import type { Editor } from "@tiptap/core";
-import { BookOpen, ListTodo } from "lucide-react";
+import { ListTodo } from "lucide-react";
 import type { WorkListAttrs } from "@lictory/core/spaces/document/blocks";
-import type { MenuItem } from "@lictory/platform/components/spaces/editor/suggestions";
+import type { MenuItem } from "@lictory/platform/components/editor/suggestions";
 
-// What "/" → Decision or Work list asks for: a small dialog (rendered by
-// `BlockInsertHost`) that picks a decision or configures a work list, then
-// inserts it into the editor that asked, as an ordinary edit. Editing a
-// work list's configuration goes through the same dialog.
+// What "/" → Work list asks for: a small dialog (rendered by
+// `BlockInsertHost`) that configures a work list, then inserts it into the
+// editor that asked, as an ordinary edit. Editing a list's configuration
+// goes through the same dialog. ("/" → Decision is the shared editor's.)
 
-export type BlockRequest =
-  | { kind: "decision"; editor: Editor; at: number }
-  | {
-      kind: "workList";
-      editor: Editor;
-      at: number;
-      // Editing an existing list (its position and attributes).
-      existing?: { pos: number; attrs: WorkListAttrs };
-    };
+export type BlockRequest = {
+  kind: "workList";
+  editor: Editor;
+  at: number;
+  // Editing an existing list (its position and attributes).
+  existing?: { pos: number; attrs: WorkListAttrs };
+};
 
 let current: BlockRequest | null = null;
 const listeners = new Set<() => void>();
@@ -44,19 +42,9 @@ const matches = (query: string, ...values: string[]) => {
   return !q || values.some((v) => v.toLowerCase().includes(q));
 };
 
-// The "/" menu entries for blocks that show Work in a page.
+// The "/" menu entry for work lists (page drafts only).
 export function workBlockSlashItems(query: string): MenuItem[] {
   const items: MenuItem[] = [];
-  if (matches(query, "decision recorded conclusion adr"))
-    items.push({
-      id: "decision",
-      label: "Decision",
-      icon: <BookOpen className="size-4" />,
-      run: (editor, range) => {
-        editor.chain().focus().deleteRange(range).run();
-        blockRequests.open({ kind: "decision", editor, at: range.from });
-      },
-    });
   if (matches(query, "work list items epic iteration sprint cycle label"))
     items.push({
       id: "workList",

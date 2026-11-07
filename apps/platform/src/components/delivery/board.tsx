@@ -1,3 +1,4 @@
+import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   usePathname,
@@ -399,6 +400,29 @@ function ProjectBoard({ project }: { project: Project }) {
             />
           </Popover>
         )}
+        <ContextControl
+          project={project}
+          lists={[
+            { label: project.name },
+            ...(createTeamId
+              ? [
+                  {
+                    label: delivery.teams.get(createTeamId)?.name ?? "Team",
+                    teamId: createTeamId,
+                  },
+                ]
+              : []),
+            ...(iteration
+              ? [
+                  {
+                    label: iterationLabel(iteration, project.iterationMode),
+                    iterationId: iteration.id,
+                    iteration,
+                  },
+                ]
+              : []),
+          ]}
+        />
         <span className="text-xs text-muted-foreground tabular-nums">
           {scoped.length} items
           {project.estimateScale !== "none" && points > 0 && ` · ${points} pts`}

@@ -12,6 +12,7 @@ import {
   listPageWork,
   listReferencesTo,
 } from "@lictory/core/spaces/knowledge-reads";
+import { describePageLinks } from "@lictory/core/spaces/link-details";
 
 // Reads of knowledge links between pages and work
 // (docs/internals/knowledge-links.md) for the browser, MCP and Litto. Every
@@ -92,9 +93,35 @@ const listReferencesToCapability = defineCapability({
     }),
 });
 
+const describePageLinksCapability = defineCapability({
+  name: "describePageLinks",
+  title: "Describe page links",
+  description:
+    "Details of pages you can read that refer to work, for showing a link in context: for each page its published title, `publishedCommitId` and `publishedVersion` (version numbers count main's history, as the page history does), the version number of each commit of the page in `versions`, and for `blocks` (a commit of the page and top-level block ids, as in getWorkItemKnowledge's `referencedIn`) each block's section `heading` and a short `excerpt`. Pages you cannot read are left out.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    pages: z
+      .array(
+        z.object({
+          pageId: id,
+          blocks: z
+            .object({ commitId: id, blockIds: z.array(z.string()).max(20) })
+            .optional(),
+          versions: z.array(id).max(20).optional(),
+        }),
+      )
+      .max(50),
+  }),
+  run: (ctx, q) =>
+    describePageLinks(ctx.db, ctx.principal.userId, q.organizationId, q.pages),
+});
+
 export const knowledgeCapabilities = [
   getWorkItemKnowledgeCapability,
   listPageWorkCapability,
   listContextPagesCapability,
   listReferencesToCapability,
+  describePageLinksCapability,
 ] as AnyCapability[];

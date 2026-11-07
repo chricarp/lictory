@@ -71,6 +71,7 @@ import {
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
 import { Attachments } from "@lictory/platform/components/items/attachments";
+import { ItemKnowledge } from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
 import { WorkItemListToggle } from "@lictory/platform/components/items/split-view";
@@ -894,6 +895,17 @@ export function ItemDetail({
                   >
                     <Breakdown onNavigate={setMode} />
                   </section>
+                  {/* Reading context for the specification, beside the
+                      item's other links (Relations). */}
+                  {!pendingCreate && (
+                    <div className="mt-10">
+                      <ItemKnowledge
+                        item={item}
+                        project={project}
+                        canChange={canChange}
+                      />
+                    </div>
+                  )}
                   <section className="mt-10">
                     <Relations item={item} canChange={canChange} />
                   </section>

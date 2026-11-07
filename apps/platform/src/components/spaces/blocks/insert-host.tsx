@@ -1,10 +1,6 @@
-import { useEffect, useId, useState, useSyncExternalStore } from "react";
-import type { Editor } from "@tiptap/core";
-import { BookOpen } from "lucide-react";
-import { callCapability } from "@lictory/core/capabilities/client";
+import { useId, useState, useSyncExternalStore } from "react";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
 import { identifier, isTopLevel, typeOf } from "@lictory/core/lib/work-items";
-import { cn } from "@lictory/core/lib/utils";
 import type { WorkListFilter } from "@lictory/core/spaces/document/schema";
 import type { WorkListAttrs } from "@lictory/core/spaces/document/blocks";
 import { Button } from "@lictory/ui/button";
@@ -27,9 +23,8 @@ import {
   insertBlockAt,
   type BlockRequest,
 } from "@lictory/platform/components/spaces/blocks/insert-store";
-import { rememberDecision } from "@lictory/platform/components/spaces/blocks/decisions";
 
-// The dialogs behind "/" → Decision and "/" → Work list. Mounted once beside
+// The dialog behind "/" → Work list. Mounted once beside
 // the page; they insert into the editor that asked, as an ordinary edit of
 // its draft (undo removes it).
 
@@ -48,189 +43,12 @@ export function BlockInsertHost({
     blockRequests.close();
     if (!request.editor.isDestroyed) request.editor.commands.focus();
   };
-  return request.kind === "decision" ? (
-    <DecisionPicker request={request} onClose={close} />
-  ) : (
+  return (
     <WorkListDialog
       request={request}
       defaultProjectId={defaultProjectId}
       onClose={close}
     />
-  );
-}
-
-type DecisionResult = {
-  kind: string;
-  id: string;
-  title: string;
-  excerpt: string;
-  key: string;
-  revisionNumber: number | null;
-  href: string;
-};
-
-function insertDecision(editor: Editor, at: number, d: DecisionResult) {
-  const node = {
-    type: "decisionRef",
-    attrs: { decisionId: d.id, label: d.title },
-  };
-  const $at = editor.state.doc.resolve(
-    Math.min(at, editor.state.doc.content.size),
-  );
-  // Alone on its line: a card. Inside a sentence: a chip.
-  if ($at.parent.isTextblock && $at.parent.content.size === 0)
-    insertBlockAt(editor, at, { type: "paragraph", content: [node] });
-  else
-    editor
-      .chain()
-      .focus()
-      .insertContentAt(at, [node, { type: "text", text: " " }])
-      .run();
-}
-
-function DecisionPicker({
-  request,
-  onClose,
-}: {
-  request: Extract<BlockRequest, { kind: "decision" }>;
-  onClose: () => void;
-}) {
-  const { organization } = useWorkspace();
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<DecisionResult[] | null>(null);
-  const [error, setError] = useState<string>();
-  const [active, setActive] = useState(0);
-  const listId = useId();
-  useEffect(() => {
-    let current = true;
-    const timer = setTimeout(() => {
-      callCapability<{ results: DecisionResult[] }>("searchProductKnowledge", {
-        organizationId: organization.id,
-        query,
-        kinds: ["decision"],
-        limit: 20,
-      })
-        .then((r) => {
-          if (!current) return;
-          setResults(r.results.filter((x) => x.kind === "decision"));
-          setActive(0);
-          setError(undefined);
-        })
-        .catch((e: unknown) => {
-          if (current)
-            setError(
-              e instanceof Error ? e.message : "Decisions could not be found.",
-            );
-        });
-    }, 150);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [organization.id, query]);
-  const choose = (d: DecisionResult) => {
-    rememberDecision(organization.id, {
-      id: d.id,
-      title: d.title,
-      excerpt: d.excerpt,
-      archivedAt: null,
-      key: d.key,
-      itemTitle: null,
-      workItemId: null,
-      revisionNumber: d.revisionNumber,
-      href: d.href,
-    });
-    blockRequests.close();
-    insertDecision(request.editor, request.at, d);
-  };
-  const list = results ?? [];
-  return (
-    <Dialog
-      title="Insert a decision"
-      description="Show a decision recorded on a work item. Its text stays with the work item; the page shows it as it is now."
-      onClose={onClose}
-      width="max-w-md"
-    >
-      <div className="space-y-2">
-        <Input
-          data-autofocus
-          role="combobox"
-          aria-label="Find a decision"
-          aria-expanded={list.length > 0}
-          aria-controls={listId}
-          aria-activedescendant={
-            list[active] ? `${listId}-${active}` : undefined
-          }
-          value={query}
-          placeholder="Search recorded decisions"
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              if (!list.length) return;
-              const step = e.key === "ArrowDown" ? 1 : -1;
-              setActive((i) => (i + step + list.length) % list.length);
-            } else if (e.key === "Enter") {
-              e.preventDefault();
-              if (list[active]) choose(list[active]);
-            }
-          }}
-        />
-        {error ? (
-          <p role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        ) : results === null ? (
-          <p className="px-1 py-3 text-[13px] text-muted-foreground">
-            Searching…
-          </p>
-        ) : list.length ? (
-          <ul
-            id={listId}
-            role="listbox"
-            aria-label="Decisions"
-            className="max-h-72 space-y-0.5 overflow-y-auto"
-          >
-            {list.map((d, index) => (
-              // Keys are handled by the search field (aria-activedescendant).
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-              <li
-                key={d.id}
-                id={`${listId}-${index}`}
-                role="option"
-                aria-selected={index === active}
-                onMouseEnter={() => setActive(index)}
-                onClick={() => choose(d)}
-                className={cn(
-                  "flex cursor-pointer gap-2.5 rounded-lg px-2 py-2 text-[13px]",
-                  index === active && "bg-muted",
-                )}
-              >
-                <BookOpen
-                  className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{d.title}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    <span className="font-mono">{d.key}</span>
-                    {d.revisionNumber !== null &&
-                      ` · revision ${d.revisionNumber}`}
-                    {d.excerpt && ` · ${d.excerpt}`}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="px-1 py-3 text-[13px] text-muted-foreground">
-            {query.trim()
-              ? "No recorded decisions match."
-              : "No decisions have been recorded yet. Record them in a work item’s Decisions section."}
-          </p>
-        )}
-      </div>
-    </Dialog>
   );
 }
 
@@ -266,7 +84,7 @@ function WorkListDialog({
   defaultProjectId,
   onClose,
 }: {
-  request: Extract<BlockRequest, { kind: "workList" }>;
+  request: BlockRequest;
   defaultProjectId: string | null;
   onClose: () => void;
 }) {

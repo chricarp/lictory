@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectMarkdown, fillMarkdown, richEditor } from "../helpers/editor";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { appHome, platformOrigin } from "../helpers/app-urls";
@@ -134,18 +135,22 @@ test("two people see each other's work live; concurrent specification edits neve
         exact: true,
       }),
     ).toBeVisible();
-    await ada.page
-      .getByRole("textbox", { name: "Start a discussion" })
-      .fill("Which retries reuse the original ID?");
+    await fillMarkdown(
+      ada.page,
+      "Start a discussion",
+      "Which retries reuse the original ID?",
+    );
     await ada.page.getByRole("button", { name: "Post", exact: true }).click();
     const benThread = ben.page
       .getByRole("article", { name: "discussion" })
       .filter({ hasText: "Which retries reuse the original ID?" });
     await expect(benThread).toBeVisible();
     await benThread.getByRole("button", { name: "Reply", exact: true }).click();
-    await ben.page
-      .getByRole("textbox", { name: "Reply" })
-      .fill("All of them, including late callbacks.");
+    await fillMarkdown(
+      benThread,
+      "Reply",
+      "All of them, including late callbacks.",
+    );
     await benThread.getByRole("button", { name: "Reply", exact: true }).click();
     await expect(
       ada.page.getByText("All of them, including late callbacks."),
@@ -156,12 +161,12 @@ test("two people see each other's work live; concurrent specification edits neve
     await ben.page.getByRole("button", { name: "Edit", exact: true }).click();
     const benDraft =
       "# Behavior\n\nRetries reuse the transaction ID for 24 hours.";
-    await ben.page
-      .getByRole("textbox", { name: "Specification" })
-      .fill(benDraft);
-    await ada.page
-      .getByRole("textbox", { name: "Specification" })
-      .fill("# Behavior\n\nRetries reuse the original transaction ID.");
+    await fillMarkdown(ben.page, "Specification", benDraft);
+    await fillMarkdown(
+      ada.page,
+      "Specification",
+      "# Behavior\n\nRetries reuse the original transaction ID.",
+    );
     await ada.page.getByRole("button", { name: /Save revision 2/ }).click();
     await expect(ada.page.getByText("Revision 2 ·").first()).toBeVisible();
     await expect(
@@ -173,9 +178,7 @@ test("two people see each other's work live; concurrent specification edits neve
     await expect(
       ben.page.getByRole("button", { name: /Save revision/ }),
     ).toBeDisabled();
-    await expect(
-      ben.page.getByRole("textbox", { name: "Specification" }),
-    ).toHaveValue(benDraft);
+    await expectMarkdown(ben.page, "Specification", benDraft);
     expect((await currentRevision(workItemId)).content).toContain(
       "original transaction ID",
     );
@@ -214,7 +217,7 @@ test("a specification saved against an outdated revision is refused by the serve
     // Ben's view still shows revision 1, so his edit is based on it.
     await ben.page.getByRole("button", { name: "Edit", exact: true }).click();
     const draft = "# Behavior\n\nPayouts run weekly on Fridays.";
-    await ben.page.getByRole("textbox", { name: "Specification" }).fill(draft);
+    await fillMarkdown(ben.page, "Specification", draft);
     await ben.page.getByRole("button", { name: /Save revision 2/ }).click();
     zero.restore();
     const toast = ben.page.locator('[data-slot="toast"]', {
@@ -261,9 +264,7 @@ test("a comment on an item archived meanwhile is rolled back, explained and reco
       archived: true,
     });
     const text = "Exports older than a year move to cold storage.";
-    await ben.page
-      .getByRole("textbox", { name: "Start a discussion" })
-      .fill(text);
+    await fillMarkdown(ben.page, "Start a discussion", text);
     await ben.page.getByRole("button", { name: "Post", exact: true }).click();
     const comment = ben.page
       .getByRole("article", { name: "discussion" })
@@ -391,13 +392,13 @@ test("changes made offline survive a reload, apply once back online and reach ot
       }),
     ).toBeVisible();
 
+    // The composer's editor loaded while online (pointing at it loads it).
+    await richEditor(ben.page, "Start a discussion");
     await ben.context.setOffline(true);
     await zero.interrupt();
     await setPriority(ben.page, "Low");
     const text = "Exports include reversed entries.";
-    await ben.page
-      .getByRole("textbox", { name: "Start a discussion" })
-      .fill(text);
+    await fillMarkdown(ben.page, "Start a discussion", text);
     await ben.page.getByRole("button", { name: "Post", exact: true }).click();
     await expect(
       ben.page.getByRole("article", { name: "discussion" }).getByText(text),

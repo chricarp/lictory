@@ -98,15 +98,3 @@ export function useDecision(
     () => LOADING,
   );
 }
-
-// A decision just recorded or picked: known without asking again.
-export function rememberDecision(
-  organizationId: string,
-  decision: PageDecision,
-) {
-  entries.set(keyOf(organizationId, decision.id), {
-    state: "ready",
-    decision,
-  });
-  emit();
-}

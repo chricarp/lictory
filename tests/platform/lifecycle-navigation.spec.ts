@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillMarkdown } from "../helpers/editor";
 import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { paths } from "@lictory/core/lib/paths";
@@ -96,11 +97,11 @@ test("custom types move from proposal through refinement to native delivery, wit
   await create
     .getByRole("textbox", { name: "Title", exact: true })
     .fill(proposalTitle);
-  await create
-    .getByRole("textbox", { name: "Description", exact: true })
-    .fill(
-      "# Expected behavior\n\nRemember the selected method for this browser.\n\n## Acceptance criteria\n\nA removed method is never restored.",
-    );
+  await fillMarkdown(
+    create,
+    "Description",
+    "# Expected behavior\n\nRemember the selected method for this browser.\n\n## Acceptance criteria\n\nA removed method is never restored.",
+  );
   await create
     .getByRole("button", { name: "Create & open", exact: true })
     .click();

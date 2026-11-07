@@ -502,6 +502,12 @@ export function useWorkspace() {
   return value;
 }
 
+// The workspace when one is open (surfaces shared with other pages, such as
+// rendered Markdown, read it only when it exists).
+export function useOptionalWorkspace() {
+  return useContext(WorkspaceContext);
+}
+
 // Whether writes can reach the server right now.
 export function useCanWrite() {
   return canWrite(useWorkspace().connection);

@@ -28,7 +28,7 @@ import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
 import { StateIllustration } from "@lictory/ui/state-illustration";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -459,7 +459,9 @@ function ContextForm({
             containerClassName="mt-1"
             value={content}
             onValueChange={setContent}
-            rows={10}
+            references={false}
+            minHeight="14rem"
+            maxHeight="32rem"
             placeholder="State facts, rules and conventions plainly, e.g. “Every payment API is idempotent on the client's request ID.”"
           />
           <span

@@ -2,34 +2,24 @@ import type { AnyExtension, Editor, Node } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { ReactNodeViewRenderer } from "@tiptap/react";
-import {
-  DecisionReference,
-  decisionCardPlugin,
-} from "@lictory/platform/components/spaces/blocks/decision-view";
-import { WorkListView } from "@lictory/platform/components/spaces/blocks/work-list-view";
+import { decisionCardPlugin } from "@lictory/platform/components/spaces/blocks/decision-view";
 import "@lictory/platform/components/spaces/blocks/blocks.css";
 
-// How the page schema's Work blocks render in the browser: decision
-// references (chips, or cards alone in a paragraph), work lists, and on the
-// read-only reader a "Create work item" action on open task items. The
-// shared document extensions pass every extension through here.
-export function withWorkBlockView(extension: AnyExtension): AnyExtension {
+// The page-only behaviour of Work blocks, added to the shared document
+// extensions (their views are in components/editor/node-views.tsx): a
+// decision alone in its paragraph is drawn as a card, and on the read-only
+// reader open task items offer "Create work item".
+export function withWorkBlockPlugins(extension: AnyExtension): AnyExtension {
   if (extension.name === "decisionRef")
     return (extension as Node).extend({
-      addNodeView: () =>
-        ReactNodeViewRenderer(DecisionReference, { as: "span" }),
-      addProseMirrorPlugins: () => [decisionCardPlugin()],
-    });
-  if (extension.name === "workList")
-    return (extension as Node).extend({
-      addNodeView: () => ReactNodeViewRenderer(WorkListView),
+      addProseMirrorPlugins() {
+        return [...(this.parent?.() ?? []), decisionCardPlugin()];
+      },
     });
   if (extension.name === "taskItem")
     return (extension as Node).extend({
       addProseMirrorPlugins() {
-        const inherited = this.parent?.() ?? [];
-        return [...inherited, taskToWorkPlugin(this.editor)];
+        return [...(this.parent?.() ?? []), taskToWorkPlugin(this.editor)];
       },
     });
   return extension;

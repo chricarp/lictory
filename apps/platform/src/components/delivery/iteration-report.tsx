@@ -1,3 +1,4 @@
+import { IterationContext } from "@lictory/platform/components/knowledge/context";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useParams } from "@lictory/platform/lib/navigation";
@@ -75,6 +76,9 @@ export function IterationReportPage() {
             </p>
           )}
         </header>
+        {iteration && project.deliveryMode === "native" && (
+          <IterationContext project={project} iteration={iteration} />
+        )}
         {!report ? (
           <LoadingState label="Loading report" />
         ) : (

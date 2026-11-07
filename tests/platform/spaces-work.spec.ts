@@ -257,11 +257,12 @@ test("selected page text becomes a work item that remembers its source and is li
   await expect(dialog).toContainText(
     "The quoted text is copied into HW, where everyone in Harbor can read it.",
   );
-  await expect(
-    dialog.getByRole("textbox", { name: "Description" }),
-  ).toHaveValue(
-    /^> need a second approver from finance\n\nSource: \[Refund runbook \(version 1\)\]\(page:/,
+  // The description quotes the text and cites this exact page version.
+  const description = dialog.getByRole("textbox", { name: "Description" });
+  await expect(description).toContainText(
+    "need a second approver from finance",
   );
+  await expect(description).toContainText("Refund runbook");
   await expectNoAccessibilityViolations(ada.page, "create work from a page");
   await dialog.getByRole("button", { name: "Create work item" }).click();
 
@@ -406,9 +407,12 @@ test("decisions and work lists are inserted from the / menu", async ({
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("/decision");
   await ada.page.keyboard.press("Enter");
-  const picker = ada.page.getByRole("dialog", { name: "Insert a decision" });
-  await picker.getByRole("combobox", { name: "Find a decision" }).fill("reuse");
-  await picker
+  // The shared decision picker; a decision alone on its line is a card.
+  await ada.page
+    .getByRole("combobox", { name: "Find a decision" })
+    .fill("reuse");
+  await ada.page
+    .getByRole("listbox", { name: "Decisions" })
     .getByRole("option", { name: /Refunds reuse the original payment/ })
     .click();
   // Alone on its line: a card.

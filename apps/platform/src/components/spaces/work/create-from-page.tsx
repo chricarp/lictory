@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@lictory/ui/select";
 import { Link } from "@lictory/platform/lib/navigation";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import type { Space, SpacePage } from "@lictory/platform/data/spaces";
@@ -626,10 +626,9 @@ export function CreateFromPageDialog({
                 value={description}
                 onValueChange={setDescription}
                 aria-label="Description"
-                rows={4}
-                autoResize
-                maxAutoHeight={240}
-                containerClassName="bg-muted/30"
+                compact
+                minHeight="5rem"
+                maxHeight="15rem"
               />
             </div>
             {type && (

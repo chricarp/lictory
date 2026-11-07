@@ -52,25 +52,36 @@ minor findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
 
-## The page editor's keyboard model
+## The editor's keyboard model
 
-The live page editor (Lictory Spaces) is a rich text field
-(`role="textbox"`, multi-line, named by the page title and described by its
-save state). From the title field, Enter or Arrow Down moves into the
-content.
+Every rich text field (the live page editor and Work's Markdown fields:
+specifications, branch drafts, descriptions, discussions, decisions) is a
+multi-line `role="textbox"` named by its label (the page title in the live
+editor, which is also described by its save state). From a page's title
+field, Enter or Arrow Down moves into the content.
 
 - **Toolbar.** One tab stop (WAI-ARIA toolbar pattern): Arrow Left/Right,
   Home and End move between controls; every control is labelled and toggles
   report `aria-pressed`. Controls that do not apply right now stay focusable
   with `aria-disabled`, so the toolbar keeps its place in the tab order.
   Clicking a control keeps the editor's selection.
-- **Inline pickers.** "/" (blocks), "#" (work items) and "[[" (pages) open a
-  listbox while focus stays in the editor, which points
-  `aria-activedescendant` at the chosen option: Arrow Up/Down choose, Enter
-  or Tab inserts, Escape closes.
+- **Inline pickers.** "/" (blocks), "#" (work items), "[[" (pages) and "@"
+  (people, in fields that mention) open a listbox while focus stays in the
+  editor, which points `aria-activedescendant` at the chosen option: Arrow
+  Up/Down choose, Enter or Tab inserts, Shift+Enter inserts the option's
+  alternative (a page pinned to its published version), Escape closes the
+  picker only. "/" → Decision opens a search field (a combobox) at the caret;
+  Escape returns to the text.
 - **Shortcuts.** Mod+B, Mod+I, Mod+Shift+S, Mod+E for marks, Markdown input
   rules for blocks, Mod+Z / Mod+Shift+Z undo and redo one's own changes,
-  Mod+Alt+M comments on the selection.
+  Mod+Alt+M comments on the selection. In Markdown fields Mod+Enter submits
+  (saves the revision, posts the comment) and Escape cancels where the field
+  has a cancel; "Edit as Markdown" in the toolbar switches to the Markdown
+  text, which is also how text kept as written is changed.
+- **References.** Chips in readers are links (a decision recorded elsewhere,
+  a button); focusing one, or pointing at it, shows its card, which describes
+  the chip (`aria-describedby`) and closes with Escape. In an editor a chip is
+  part of the text: moving the selection onto it shows its card.
 - **Comments.** The comments panel is a labelled region beside the page, or
   a modal sheet on narrow frames (Escape closes it and focus returns to what
   opened it). Composers post with Mod+Enter.

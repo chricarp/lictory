@@ -23,6 +23,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useLifecycleQueues } from "@lictory/platform/components/items/queues";
 import { IssueList } from "@lictory/platform/components/items/issue-list";
+import { ProjectKnowledge } from "@lictory/platform/components/knowledge/project-knowledge";
 
 const viewIllustrations: Record<ViewId, IllustrationKind> = {
   all: "proposal",
@@ -296,6 +297,7 @@ export function ViewPage({
                 </Link>
               ))}
             </nav>
+            <ProjectKnowledge project={project} />
             {stage === "ready" && (
               <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/15 px-5 py-3 text-xs">
                 <span>

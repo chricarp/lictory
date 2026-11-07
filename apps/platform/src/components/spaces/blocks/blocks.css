@@ -1,12 +1,6 @@
 /* Work in pages: decision references and cards, work lists, and the task
    item action. Same tokens and grammar as the page's other references. */
 
-.page-document .decision-ref .decision-ref-archived {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--muted-foreground);
-}
-
 /* A decision alone in its paragraph: a quiet card in the text's measure. */
 .page-document .decision-card {
   display: flex;

@@ -34,6 +34,7 @@ import {
   MilestoneBadge,
 } from "@lictory/platform/components/items/labels";
 import type { Label, Milestone } from "@lictory/core/lib/work-items";
+import { PageCount } from "@lictory/platform/components/knowledge/page-count";
 import type { ItemPreviewTarget } from "@lictory/platform/components/items/item-preview";
 
 export const IssueRow = memo(function IssueRow({
@@ -54,6 +55,7 @@ export const IssueRow = memo(function IssueRow({
   deliveryTool = "your delivery tool",
   hint,
   preview,
+  pages,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -80,6 +82,8 @@ export const IssueRow = memo(function IssueRow({
   hint?: string;
   // Compact rows preview the item on hover and keyboard focus.
   preview?: ItemPreviewTarget;
+  // Readable pages about the item (knowledge links).
+  pages?: number;
 }) {
   const delivery = useDelivery();
   const type = typeOf(delivery, item);
@@ -254,6 +258,11 @@ export const IssueRow = memo(function IssueRow({
           {item.childDoneCount}/{item.childCount} done
         </span>
       )}
+      <PageCount
+        count={pages}
+        itemHref={href}
+        className="hidden sm:inline-flex"
+      />
       {project?.deliveryMode !== "external" && (
         <span className="inline-flex shrink-0 justify-center md:w-7">
           {item.estimate !== null && (

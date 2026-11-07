@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectMarkdown, fillMarkdown, richEditor } from "../helpers/editor";
 import { consentStatePath } from "../consent-setup";
 import { reloadWhenSaved, waitUntilSaved } from "../helpers/sync-helpers";
 import {
@@ -156,9 +157,7 @@ async function lastProcessedMutation(clientID: string) {
   }
 }
 async function commit(page: Page, content: string, message: string) {
-  await page
-    .getByRole("textbox", { name: "Branch specification" })
-    .fill(content);
+  await fillMarkdown(page, "Branch specification", content);
   await page.getByRole("textbox", { name: "Commit message" }).fill(message);
   await page
     .getByRole("button", { name: "Commit changes", exact: true })
@@ -206,9 +205,7 @@ async function createBranch(page: Page, name: string, from?: string) {
     .getByRole("button", { name: "Create branch", exact: true })
     .click();
   await expect(page).toHaveURL(/\?branch=/);
-  await expect(
-    page.getByRole("textbox", { name: "Branch specification" }),
-  ).toBeVisible();
+  await richEditor(page, "Branch specification");
   return page.url();
 }
 async function openPR(
@@ -511,9 +508,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
   const parent = await createBranch(page, "integration/retries");
   await commit(page, integration, "Define stable retry IDs");
   const child = await createBranch(page, "qa/criterion", "integration/retries");
-  await expect(
-    page.getByRole("textbox", { name: "Branch specification" }),
-  ).toHaveValue(integration);
+  await expectMarkdown(page, "Branch specification", integration);
   await commit(
     page,
     integration.replace("60 seconds", "30 seconds"),
@@ -590,9 +585,11 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       }),
     ).toBeVisible();
     await page.goto(parent);
-    await expect(
-      page.getByRole("textbox", { name: "Branch specification" }),
-    ).toHaveValue(integration.replace("60 seconds", "30 seconds"));
+    await expectMarkdown(
+      page,
+      "Branch specification",
+      integration.replace("60 seconds", "30 seconds"),
+    );
     await expect(
       page.getByRole("button", { name: "Main · revision 1", exact: true }),
     ).toBeVisible();
@@ -630,9 +627,11 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       page.getByRole("button", { name: "Merge pull request", exact: true }),
     ).toBeDisabled();
     await page.goto(discarded);
-    await expect(
-      page.getByRole("textbox", { name: "Branch specification" }),
-    ).toHaveValue(integration.replace("60 seconds", "20 seconds"));
+    await expectMarkdown(
+      page,
+      "Branch specification",
+      integration.replace("60 seconds", "20 seconds"),
+    );
     await page.goto(discardPR);
     await page
       .getByRole("button", { name: "Delete pull request", exact: true })
@@ -647,9 +646,11 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await expect(page).toHaveURL(/\?branches=1$/);
     // A second branch remains useful after its sibling was deleted.
     await page.goto(child);
-    await expect(
-      page.getByRole("textbox", { name: "Branch specification" }),
-    ).toHaveValue(integration.replace("60 seconds", "30 seconds"));
+    await expectMarkdown(
+      page,
+      "Branch specification",
+      integration.replace("60 seconds", "30 seconds"),
+    );
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     try {
       const db = drizzle(client);
@@ -727,9 +728,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       fullPage: true,
     });
     await page.goto(child);
-    await expect(
-      page.getByRole("textbox", { name: "Branch specification" }),
-    ).toBeVisible();
+    await richEditor(page, "Branch specification");
   } finally {
     await reviewerContext.close();
   }

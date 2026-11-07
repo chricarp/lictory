@@ -44,7 +44,7 @@ import {
 } from "@lictory/core/contracts/merge";
 import { Button } from "@lictory/ui/button";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
@@ -1152,8 +1152,7 @@ function BranchEditorBody({
                       fileContext={{ organizationId, workItemId: itemId }}
                       value={draft.content}
                       onValueChange={(content) => edit({ content })}
-                      className="min-h-100 px-4 pt-4 font-mono"
-                      previewClassName="min-h-[400px] px-4 pt-4"
+                      minHeight="25rem"
                     />
                   </div>
                   <div ref={breakdownRef} className="scroll-mt-24">

@@ -7,8 +7,8 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useDecision } from "@lictory/platform/components/spaces/blocks/decisions";
 
-// A recorded Work decision in a page (`decisionRef`): an inline chip in a
-// sentence, a card when it stands alone in its paragraph. The decision's
+// A recorded Work decision in a page (`decisionRef`) standing alone in its
+// paragraph is a card (inside a sentence it is the shared decision chip). The decision's
 // text stays canonical in Work (its immutable record); the page shows it as
 // it is now, with the item and revision it was recorded on, and says when
 // it was archived. What I cannot find shows only the label stored in the
@@ -57,45 +57,20 @@ export function decisionCardPlugin() {
   });
 }
 
-export function DecisionReference({ node, decorations }: ReactNodeViewProps) {
+export function isDecisionCard({ decorations }: ReactNodeViewProps) {
+  return decorations.some(
+    (d) => (d.spec as { card?: boolean } | undefined)?.card,
+  );
+}
+
+export function DecisionCardView({ node }: ReactNodeViewProps) {
   const { organization } = useWorkspace();
   const decisionId = node.attrs.decisionId as string | null;
   const label = (node.attrs.label as string | null) ?? "Decision";
   const entry = useDecision(organization.id, decisionId);
-  const card = decorations.some(
-    (d) => (d.spec as { card?: boolean } | undefined)?.card,
-  );
   const decision = entry.state === "ready" ? entry.decision : null;
   const title = decision?.title ?? label;
   const archived = Boolean(decision?.archivedAt);
-  if (!card)
-    return (
-      <NodeViewWrapper
-        as="span"
-        className="page-ref decision-ref"
-        data-type="decisionRef"
-      >
-        {decision?.href ? (
-          <Link
-            href={decision.href}
-            title={`Decision${decision.key ? ` on ${decision.key}` : ""}: ${title}${archived ? " (archived)" : ""}`}
-          >
-            <BookOpen className="size-3.5 shrink-0" aria-hidden />
-            <span className="sr-only">Decision: </span>
-            <span className="page-ref-title">{title}</span>
-            {archived && (
-              <span className="decision-ref-archived">Archived</span>
-            )}
-          </Link>
-        ) : (
-          <span title={label}>
-            <BookOpen className="size-3.5 shrink-0" aria-hidden />
-            <span className="sr-only">Decision: </span>
-            <span className="page-ref-title">{label}</span>
-          </span>
-        )}
-      </NodeViewWrapper>
-    );
   return (
     <NodeViewWrapper
       as="span"
