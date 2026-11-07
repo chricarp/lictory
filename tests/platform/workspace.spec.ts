@@ -598,8 +598,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
   );
   await page.getByRole("button", { name: /Save revision 2/ }).click();
+  await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
   await expect(
-    page.getByText("Duplicate callbacks do not create duplicate cancellations"),
+    page.getByText(
+      "Duplicate callbacks do not create duplicate cancellations",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
 
   // Invite the engineer straight into the project's Engineering discipline,
@@ -784,7 +790,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .click();
   await reviewerInbox.close();
 
-  // Collaborators resolve overlapping commits against the exact new head.
+  // Collaborators edit the branch's one live draft and commit what both
+  // see.
   await page.getByRole("button", { name: /Branches & pull requests/ }).click();
   await page
     .getByRole("textbox", { name: "New branch name" })
@@ -800,18 +807,15 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Remove Riley Chen", exact: true }),
   ).toBeVisible();
   await reviewer.goto(conflictBranchUrl);
-  await richEditor(reviewer, "Branch specification");
+  const reviewerEditor = await richEditor(reviewer, "Branch specification");
   const sourceText = await markdownOf(page, "Branch specification");
   await fillMarkdown(
     page,
     "Branch specification",
     sourceText.replace("partial amount", "bounded amount"),
   );
-  await fillMarkdown(
-    reviewer,
-    "Branch specification",
-    sourceText.replace("partial amount", "specified amount"),
-  );
+  await expect(reviewerEditor).toContainText("bounded amount");
+  await expect(page.getByText("Riley Chen is editing")).toBeVisible();
   await page
     .getByRole("textbox", { name: "Commit message" })
     .fill("Bound the amount");
@@ -821,27 +825,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByRole("textbox", { name: "Commit message" }),
   ).toHaveValue("");
-  await reviewer
-    .getByRole("textbox", { name: "Commit message" })
-    .fill("Resolve amount wording");
-  await expect(
-    reviewer.getByText("Another commit overlaps your edits", { exact: false }),
-  ).toBeVisible();
-  await reviewer
-    .getByRole("button", { name: "Resolve & commit", exact: true })
-    .click();
-  await reviewer
-    .getByRole("button", { name: "Keep theirs", exact: true })
-    .click();
-  await reviewer
-    .getByRole("button", { name: "Commit resolution", exact: true })
-    .click();
-  await expect(
-    await richEditor(reviewer, "Branch specification"),
-  ).toContainText("bounded amount");
-  await expect(
-    reviewer.getByRole("textbox", { name: "Commit message" }),
-  ).toHaveValue("");
+  await expect(reviewer.getByText("All changes committed")).toBeVisible();
+  await expect(reviewerEditor).toContainText("bounded amount");
   await page
     .getByRole("button", { name: "Delete branch", exact: true })
     .click();

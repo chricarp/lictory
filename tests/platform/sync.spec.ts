@@ -156,31 +156,32 @@ test("two people see each other's work live; concurrent specification edits neve
       ada.page.getByText("All of them, including late callbacks."),
     ).toBeVisible();
 
-    // Both edit revision 1. Ada saves first; Ben is told and keeps his text.
+    // Both edit revision 1 in main's one live draft: each sees the other's
+    // text, and Ada's save is one revision with both edits; Ben keeps
+    // editing on top of it.
     await ada.page.getByRole("button", { name: "Edit", exact: true }).click();
     await ben.page.getByRole("button", { name: "Edit", exact: true }).click();
     const benDraft =
       "# Behavior\n\nRetries reuse the transaction ID for 24 hours.";
     await fillMarkdown(ben.page, "Specification", benDraft);
-    await fillMarkdown(
-      ada.page,
-      "Specification",
-      "# Behavior\n\nRetries reuse the original transaction ID.",
+    const adaEditor = await richEditor(ada.page, "Specification");
+    await expect(adaEditor).toContainText("for 24 hours");
+    await adaEditor.click();
+    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.type(" Late callbacks are ignored.");
+    await expect(await richEditor(ben.page, "Specification")).toContainText(
+      "Late callbacks are ignored.",
     );
     await ada.page.getByRole("button", { name: /Save revision 2/ }).click();
     await expect(ada.page.getByText("Revision 2 ·").first()).toBeVisible();
-    await expect(
-      ben.page.getByText(
-        "Revision 2 was saved while you were editing revision 1",
-        { exact: false },
-      ),
-    ).toBeVisible();
-    await expect(
-      ben.page.getByRole("button", { name: /Save revision/ }),
-    ).toBeDisabled();
-    await expectMarkdown(ben.page, "Specification", benDraft);
-    expect((await currentRevision(workItemId)).content).toContain(
-      "original transaction ID",
+    await expect(ben.page.getByText("based on revision 2")).toBeVisible();
+    await expectMarkdown(
+      ben.page,
+      "Specification",
+      `${benDraft} Late callbacks are ignored.`,
+    );
+    expect((await currentRevision(workItemId)).content).toBe(
+      `${benDraft} Late callbacks are ignored.`,
     );
   } finally {
     await ada.context.close();
@@ -188,12 +189,15 @@ test("two people see each other's work live; concurrent specification edits neve
   }
 });
 
-test("a specification saved against an outdated revision is refused by the server and its text stays recoverable", async ({
+// Descriptions of plain work (no specification) are edited directly, saved
+// against the revision they started from.
+test("a description saved against an outdated revision is refused by the server and its text stays recoverable", async ({
   browser,
 }) => {
   test.setTimeout(120_000);
   const seeded = await seed("STALE");
   const workItemId = await seedItem(seeded, {
+    type: "Task",
     title: "Payout schedule",
     description: "# Behavior\n\nPayouts run daily.",
   });

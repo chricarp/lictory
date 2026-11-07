@@ -198,7 +198,7 @@ class Latest<T> {
   }
 }
 
-function caretElement(user: Record<string, unknown>) {
+export function caretElement(user: Record<string, unknown>) {
   const caret = document.createElement("span");
   caret.className = "collaboration-carets__caret";
   caret.setAttribute("aria-hidden", "true");
@@ -891,7 +891,7 @@ function useShownSaveState(snapshot: SessionSnapshot) {
   return shown;
 }
 
-function SaveIndicator({
+export function SaveIndicator({
   id,
   snapshot,
   uploading,
@@ -945,7 +945,7 @@ function SaveIndicator({
 
 // Who else has this draft open (one avatar per person, whatever the
 // number of tabs).
-function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
+export function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
   const { userId } = useWorkspace();
   const people = [
     ...new Map(
@@ -987,7 +987,7 @@ function Editors({ peers }: { peers: SessionSnapshot["peers"] }) {
 // request, from what is stored, offering the unsaved text back (copy,
 // insert, discard). Nothing is resent on its own. The save state's status
 // region announces it.
-function SaveFailedNotice({
+export function SaveFailedNotice({
   reason,
   onReopen,
 }: {
