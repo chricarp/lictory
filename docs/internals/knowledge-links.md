@@ -78,8 +78,16 @@ transaction:
   and read access to the page. A pin must be a commit of that page.
 - Source: read access to the page's space; the commit must belong to the
   page, the block (when given) must be one of that commit's top-level blocks,
-  the quote at most 2000 characters. The item's own creation rules apply
-  unchanged.
+  the quote at most 2000 characters and **the text of that commit**: an
+  invented or paraphrased quote is refused, because Work shows it as what the
+  page said. The comparison ignores whitespace (block boundaries, line
+  breaks) and reads inline references as a selection copies them (a work
+  item as its key, a decision as its label, or either as nothing). With a
+  block, the quote must begin in it and may continue across the blocks after
+  it, so a selection over several blocks names the block of its first
+  character; without one, it may begin anywhere in the commit. A long
+  selection is cut to the limit, never given an ellipsis the page does not
+  contain. The item's own creation rules apply unchanged.
 - Branch origin: the page branch rules (edit access to the space); the
   revision must belong to the named item.
 - Context links: project administrators (`canManageProject`) and project

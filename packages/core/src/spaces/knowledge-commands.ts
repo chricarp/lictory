@@ -12,6 +12,8 @@ import { DomainError } from "@lictory/core/domain/errors";
 import type { Tx } from "@lictory/core/domain/service";
 import { pageAccess, type SpaceActor } from "@lictory/core/spaces/access";
 import { writeSpaceProjections } from "@lictory/core/spaces/projections";
+import type { PageNode } from "@lictory/core/spaces/document/canonical";
+import { quoteOccursIn } from "@lictory/core/spaces/source-quote";
 
 // Knowledge link commands (docs/internals/knowledge-links.md), applied by
 // `applyMutation` inside its transaction after the organization lock, the
@@ -491,8 +493,9 @@ export async function applyKnowledgeCommand(
 /**
  * Records where a new work item came from (`createWorkItem` with `source`),
  * in its creation transaction: the actor must read the page's space, the
- * commit must belong to the page and the block, when named, must be one of
- * the commit's top-level blocks. Written once; never changed.
+ * commit must belong to the page, the block, when named, must be one of
+ * the commit's top-level blocks and the quote, when given, must be that
+ * commit's text. Written once; never changed.
  */
 export async function recordWorkItemSource(
   tx: Tx,
@@ -509,16 +512,21 @@ export async function recordWorkItemSource(
     source.commitId,
   );
   const blockId = source.blockId ?? null;
-  if (blockId) {
-    const blocks =
-      (commit.content as { content?: { attrs?: { id?: unknown } }[] })
-        .content ?? [];
-    if (!blocks.some((b) => b.attrs?.id === blockId))
-      throw new DomainError(
-        "validation",
-        "The quoted block is not part of that version of the page.",
-      );
-  }
+  const content = commit.content as PageNode;
+  if (blockId && !(content.content ?? []).some((b) => b.attrs?.id === blockId))
+    throw new DomainError(
+      "validation",
+      "The quoted block is not part of that version of the page.",
+    );
+  // The quote is evidence of what the page said: it must be that version's
+  // text, starting in the named block (source-quote.ts).
+  if (source.quote && !quoteOccursIn(content, source.quote, blockId))
+    throw new DomainError(
+      "validation",
+      blockId
+        ? "The quote is not the text of that block in that version of the page. Quote the page's words exactly, starting in that block, or leave the quote out."
+        : "The quote is not text of that version of the page. Quote the page's words exactly, or leave the quote out.",
+    );
   await tx.insert(s.workItemPageSource).values({
     organizationId: actor.organizationId,
     workItemId,

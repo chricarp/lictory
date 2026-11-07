@@ -167,7 +167,9 @@ export function CreateFromPageDialog({
       pageId: page.id,
       commitId: commit.id,
       ...(request.topBlockId ? { blockId: request.topBlockId } : {}),
-      quote: clip(request.quote.trim(), PAGE_SOURCE_QUOTE_MAX),
+      // Exactly the page's text (the server verifies it): a long quote is
+      // cut, never given an ellipsis that is not in the page.
+      quote: request.quote.trim().slice(0, PAGE_SOURCE_QUOTE_MAX).trimEnd(),
     }),
     [page.id, commit.id, request.topBlockId, request.quote],
   );

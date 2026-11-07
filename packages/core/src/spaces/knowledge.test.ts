@@ -806,7 +806,18 @@ void test("work created from a page records validated, immutable provenance", as
   const open = await f.page(f.openSpace, "Missing refund runbook");
   const published = await f.publish(
     open.pageId,
-    doc(paragraph("blk", text("Refunds after settlement are undefined."))),
+    doc(
+      paragraph("blk", text("Refunds after settlement are undefined.")),
+      paragraph(
+        "blk2",
+        text("Chargebacks follow "),
+        {
+          type: "workItemRef",
+          attrs: { workItemId: crypto.randomUUID(), key: "HW-9" },
+        },
+        text(" and the card network."),
+      ),
+    ),
   );
   const typeId = async (name: string) =>
     (
@@ -856,6 +867,37 @@ void test("work created from a page records validated, immutable provenance", as
     }),
     "validation",
     /block/,
+  );
+  // The quote must be that version's text: an invented quote, or one from
+  // another block, is refused (and nothing is created).
+  const invented = crypto.randomUUID();
+  await rejects(
+    create(
+      f.owner,
+      {
+        pageId: open.pageId,
+        commitId: published,
+        quote: "Refunds after settlement are free.",
+      },
+      invented,
+    ),
+    "validation",
+    /not text of that version/,
+  );
+  await rejects(
+    create(f.owner, {
+      pageId: open.pageId,
+      commitId: published,
+      blockId: "blk",
+      quote: "Chargebacks follow",
+    }),
+    "validation",
+    /starting in that block/,
+  );
+  assert.equal(
+    (await db.select().from(s.workItem).where(eq(s.workItem.id, invented)))
+      .length,
+    0,
   );
   // Reading the space is required: dave could create the item but cannot
   // read the page, and nothing is created.
@@ -938,6 +980,18 @@ void test("work created from a page records validated, immutable provenance", as
     work.createdItems.map((c) => [c.workItemId, c.blockId]),
     [[workItemId, "blk"]],
   );
+  // Whitespace and block boundaries are not words: a selection across two
+  // blocks quotes from its first, with references as readers copy them.
+  for (const [blockId, quote] of [
+    ["blk", "after settlement are   undefined.\n\nChargebacks follow HW-9 and"],
+    ["blk2", "Chargebacks follow  and the card network."],
+  ])
+    await create(f.owner, {
+      pageId: open.pageId,
+      commitId: published,
+      blockId,
+      quote,
+    });
   await invariant(f);
 });
 

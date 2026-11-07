@@ -27,7 +27,19 @@ export function selectionRequest(
 ): Omit<CreateFromPageRequest, "mode"> | null {
   const quote = state.doc.textBetween(from, to, "\n").trim();
   if (!quote) return null;
-  const $from = state.doc.resolve(from);
+  // The server checks the quote against the commit, starting in the named
+  // block: the block of its first character, not of a selection that began
+  // after the end of the block before it.
+  const first = { pos: from, found: false };
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (first.found) return false;
+    if (!node.isText) return true;
+    const offset = node.text!.slice(Math.max(0, from - pos)).search(/\S/);
+    if (offset >= 0)
+      Object.assign(first, { pos: Math.max(from, pos) + offset, found: true });
+    return false;
+  });
+  const $from = state.doc.resolve(first.pos);
   const $to = state.doc.resolve(to);
   const top = $from.depth >= 1 ? $from.node(1) : null;
   const block = $to.parent;

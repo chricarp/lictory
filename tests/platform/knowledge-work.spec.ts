@@ -221,7 +221,13 @@ test("proposing a page update opens a branch in the editor and the item follows 
   const handbook = await space(page, "Refunds handbook", {
     publishing: "reviewed",
   });
-  const pageId = await publishedPage(page, handbook.spaceId, "Refund policy");
+  const pageId = await publishedPage(page, handbook.spaceId, "Refund policy", [
+    block(
+      "paragraph",
+      "p-approval",
+      text("Refunds over half the amount need approval."),
+    ),
+  ]);
 
   // Work created from the page shows where it came from.
   const { commitId } = await capability(page, "getPage", { pageId });
