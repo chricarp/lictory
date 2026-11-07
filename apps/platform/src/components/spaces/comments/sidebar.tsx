@@ -16,7 +16,7 @@ import { Button } from "@lictory/ui/button";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Markdown } from "@lictory/platform/components/items/markdown";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import type { FileContext } from "@lictory/platform/components/items/file-upload";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type {
@@ -392,6 +392,7 @@ function ThreadCard({
   const [expanded, setExpanded] = useState(isOpen);
   const [replying, setReplying] = useState(false);
   const [reply, setReply] = useState("");
+  const replyForm = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const ref = useRef<HTMLElement>(null);
@@ -522,6 +523,7 @@ function ThreadCard({
         <footer className="flex flex-wrap items-center gap-0.5 border-t px-1.5 py-1.5">
           {replying ? (
             <form
+              ref={replyForm}
               className="flex w-full flex-col gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -540,12 +542,11 @@ function ThreadCard({
                 mentions={mentionable}
                 value={reply}
                 onValueChange={setReply}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-                    e.currentTarget.form?.requestSubmit();
-                  if (e.key === "Escape") setReplying(false);
-                }}
-                rows={2}
+                onSubmit={() => replyForm.current?.requestSubmit()}
+                onEscape={() => setReplying(false)}
+                compact
+                minHeight="4rem"
+                maxHeight="16rem"
                 aria-label={`Reply to ${author}`}
                 placeholder="Reply… (⌘↵ to send)"
               />
@@ -651,8 +652,10 @@ function Composer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const blockingId = useId();
+  const form = useRef<HTMLFormElement>(null);
   return (
     <form
+      ref={form}
       className="rounded-xl bg-card ring-1 ring-foreground/8"
       onSubmit={(e) => {
         e.preventDefault();
@@ -676,15 +679,14 @@ function Composer({
         mentions={mentionable}
         value={body}
         onValueChange={setBody}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-            e.currentTarget.form?.requestSubmit();
-          if (e.key === "Escape" && onCancel) onCancel();
-        }}
-        rows={2}
+        onSubmit={() => form.current?.requestSubmit()}
+        onEscape={onCancel}
+        compact
+        minHeight="4rem"
+        maxHeight="16rem"
         aria-label={label}
         placeholder={placeholder}
-        containerClassName="border-0"
+        containerClassName="border-0 focus-within:ring-0"
       />
       {error && (
         <p role="alert" className="px-3 pb-1 text-xs text-destructive">

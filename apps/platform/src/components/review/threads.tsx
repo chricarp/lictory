@@ -12,7 +12,10 @@ import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import {
+  MarkdownEditor,
+  type MarkdownEditorHandle,
+} from "@lictory/platform/components/editor/markdown-editor";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
@@ -100,6 +103,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
   const own = messages.filter((m) => m.threadId === thread.id);
   const [reply, setReply] = useState("");
   const [replying, setReplying] = useState(false);
+  const replyForm = useRef<HTMLFormElement>(null);
   const isOpen = thread.status === "open";
   const revision = revisionNumber(thread.revisionId);
   const discussedCommit = entities.find(
@@ -217,6 +221,7 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
         <footer className="flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
           {replying ? (
             <form
+              ref={replyForm}
               className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-start"
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -242,16 +247,14 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                 mentions={mentionable}
                 value={reply}
                 onValueChange={setReply}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-                    e.currentTarget.form?.requestSubmit();
-                  if (e.key === "Escape") setReplying(false);
-                }}
-                rows={2}
+                onSubmit={() => replyForm.current?.requestSubmit()}
+                onEscape={() => setReplying(false)}
+                compact
                 aria-label="Reply"
                 placeholder="Reply… (⌘↵ to send)"
                 containerClassName="min-w-0 flex-1"
-                className="min-h-28"
+                minHeight="4.5rem"
+                maxHeight="20rem"
               />
               <Button
                 type="submit"
@@ -349,9 +352,9 @@ export function ThreadComposer({
   const [body, setBody] = useState("");
   const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<string>();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
   useEffect(() => {
-    if (draft) textareaRef.current?.focus();
+    if (draft) editorRef.current?.focus();
   }, [draft]);
   const submit = async () => {
     if (!body.trim() || !current) return;
@@ -405,14 +408,14 @@ export function ThreadComposer({
           organizationId: item.organizationId,
           workItemId: item.id,
         }}
-        ref={textareaRef}
+        ref={editorRef}
         mentions={mentionable}
         value={body}
         onValueChange={setBody}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
-        }}
-        rows={2}
+        onSubmit={() => void submit()}
+        compact
+        minHeight="4.5rem"
+        maxHeight="20rem"
         aria-label={
           draft?.quote ? "Comment on selection" : "Start a discussion"
         }

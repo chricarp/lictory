@@ -50,6 +50,7 @@ import {
 } from "@lictory/platform/components/workspace/connection-notice";
 import { RecoveryWatcher } from "@lictory/platform/components/workspace/recovery";
 import { SpacesProvider } from "@lictory/platform/components/spaces/store";
+import { ReferencesProvider } from "@lictory/platform/components/references/data";
 import {
   SyncIssue,
   isSyncBlocked,
@@ -235,9 +236,11 @@ function OrganizationWorkspace({
       queryError={error}
     >
       <SpacesProvider>
-        {content}
-        {ready && <ConnectionNotice />}
-        <RecoveryWatcher />
+        <ReferencesProvider>
+          {content}
+          {ready && <ConnectionNotice />}
+          <RecoveryWatcher />
+        </ReferencesProvider>
       </SpacesProvider>
     </WorkspaceProvider>
   );

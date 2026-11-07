@@ -11,7 +11,6 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { PageReader } from "@lictory/platform/components/spaces/editor/document";
-import { ReferencesProvider } from "@lictory/platform/components/spaces/editor/references";
 import {
   versionOf,
   type PageHistory,
@@ -77,15 +76,7 @@ function commitAnchoring(
   };
 }
 
-export default function PageSurface(props: PageSurfaceProps) {
-  return (
-    <ReferencesProvider>
-      <Surface {...props} />
-    </ReferencesProvider>
-  );
-}
-
-function Surface({
+export default function PageSurface({
   space,
   page,
   history,

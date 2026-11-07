@@ -3,7 +3,14 @@ import { canonicalizeDocument, type PageNode } from "./canonical";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
 }
-/** Deterministic GFM projection, never the source of truth. */
+/**
+ * Deterministic GFM projection, never the source of truth. References keep
+ * their identity as typed links (`[PAY-2](item:ID)`, `[[page:ID]]`, a pinned
+ * `[page](page:ID@COMMIT)`, `[label](decision:ID)`; see
+ * contracts/references.ts). A linked page's title is never written: whoever
+ * reads this page may not read that one. `markdownToDocument` reads them all
+ * back.
+ */
 export function documentToMarkdown(json: unknown): string {
   return render(canonicalizeDocument(json));
 }
@@ -96,7 +103,10 @@ function render(n: PageNode): string {
     case "image":
       return `![${escape(typeof a.alt === "string" ? a.alt : "")}](<${String(a.src).replace(/>/g, "%3E")}>)`;
     case "workItemRef":
-      return String(a.key);
+      return formatReference(
+        { kind: "item", id: String(a.workItemId) },
+        String(a.key),
+      );
     case "pageRef":
       return typeof a.commitId === "string"
         ? formatReference(

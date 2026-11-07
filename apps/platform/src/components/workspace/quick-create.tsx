@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { EpicPicker } from "@lictory/platform/components/items/epic-picker";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Button } from "@lictory/ui/button";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Kbd } from "@lictory/ui/primitives";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { cn } from "@lictory/core/lib/utils";
@@ -355,10 +355,9 @@ export function QuickCreate({
                   : "What needs to be done… (Markdown)"
               }
               aria-label="Description"
-              rows={5}
-              autoResize
-              maxAutoHeight={320}
-              containerClassName="bg-muted/30"
+              compact
+              minHeight="6rem"
+              maxHeight="20rem"
             />
           </div>
           <p className="text-xs text-muted-foreground">

@@ -39,7 +39,6 @@ import {
   usePathname,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
-import { useSpaces } from "@lictory/platform/components/spaces/store";
 import type { SpacePage } from "@lictory/platform/data/spaces";
 import { documentExtensions } from "@lictory/platform/components/spaces/editor/document";
 import { personColor } from "@lictory/platform/components/spaces/editor/colors";
@@ -63,14 +62,15 @@ import {
   MenuStore,
   SuggestionMenu,
   suggestionExtension,
-} from "@lictory/platform/components/spaces/editor/suggestions";
+} from "@lictory/platform/components/editor/suggestions";
 import {
   insertImages,
   pageItems,
   slashItems,
   workItemItems,
-} from "@lictory/platform/components/spaces/editor/commands";
-import { Toolbar } from "@lictory/platform/components/spaces/editor/toolbar";
+} from "@lictory/platform/components/editor/commands";
+import { Toolbar } from "@lictory/platform/components/editor/toolbar";
+import { DecisionPicker } from "@lictory/platform/components/editor/decision-picker";
 import {
   PublishButton,
   type PublishOutcome,
@@ -81,7 +81,7 @@ import {
   type PageHistory,
   type PageLine,
 } from "@lictory/platform/components/spaces/editor/line";
-import { identifier } from "@lictory/core/lib/work-items";
+import { useReferences } from "@lictory/platform/components/references/data";
 import {
   COMMENT_SELECTION_EVENT,
   type Anchoring,
@@ -328,8 +328,7 @@ function DraftEditor({
   reopened: boolean;
   onReopen: () => void;
 }) {
-  const { userId, memberName, organization, items, projects } = useWorkspace();
-  const { index } = useSpaces();
+  const { userId, memberName, organization } = useWorkspace();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const attachments = useAttachmentsAvailable();
   const pathname = usePathname();
@@ -341,6 +340,7 @@ function DraftEditor({
   );
   const titleId = useId();
   const [uploading, setUploading] = useState(0);
+  const [decisionOpen, setDecisionOpen] = useState(false);
   // The last publish result, with the stored sequence it was about: "No
   // changes to publish" disappears once there are new edits.
   const [outcome, setOutcome] = useState<
@@ -349,12 +349,11 @@ function DraftEditor({
 
   // Menus and uploads read the latest workspace data from a holder updated
   // after each render, so the editor is created once per session.
-  const [data] = useState(
-    () => new Latest({ items, projects, index, attachments }),
-  );
+  const references = useReferences();
+  const [data] = useState(() => new Latest({ references, attachments }));
   useEffect(() => {
-    data.set({ items, projects, index, attachments });
-  }, [data, items, projects, index, attachments]);
+    data.set({ references, attachments });
+  }, [data, references, attachments]);
   const [menus] = useState(() => ({
     slash: new MenuStore(),
     items: new MenuStore(),
@@ -431,6 +430,7 @@ function DraftEditor({
           items: (query) =>
             slashItems(query, {
               image: data.get().attachments ? pickImage : undefined,
+              decision: () => setDecisionOpen(true),
             }),
         }),
         suggestionExtension("workItemMenu", {
@@ -438,13 +438,7 @@ function DraftEditor({
           title: "Work items",
           empty: "No matching work items you can see",
           store: menus.items,
-          items: (query) => {
-            const { items: all, projects: list } = data.get();
-            const byId = new Map(list.map((p) => [p.id, p]));
-            return workItemItems(query, all, (item) =>
-              identifier(byId.get(item.projectId), item.number),
-            );
-          },
+          items: (query) => workItemItems(query, data.get().references.items()),
         }),
         suggestionExtension("pageMenu", {
           char: "[[",
@@ -452,20 +446,8 @@ function DraftEditor({
           title: "Pages",
           empty: "No matching pages",
           store: menus.pages,
-          items: (query) => {
-            const { index: spaces } = data.get();
-            return pageItems(
-              query,
-              [...spaces.pageById.values()]
-                .filter((p) => !p.archivedAt)
-                .map((p) => ({
-                  id: p.id,
-                  title: p.title,
-                  space: spaces.spaceById.get(p.spaceId)?.name ?? "",
-                })),
-              page.id,
-            );
-          },
+          items: (query) =>
+            pageItems(query, data.get().references.pages(), page.id),
         }),
         PageEditing.configure({ upload }),
       ],
@@ -737,6 +719,7 @@ function DraftEditor({
             editor={editor}
             disabled={!editable}
             onImage={attachments ? pickImage : undefined}
+            onDecision={() => setDecisionOpen(true)}
             onComment={
               canComment
                 ? () =>
@@ -770,6 +753,12 @@ function DraftEditor({
       <SuggestionMenu store={menus.slash} />
       <SuggestionMenu store={menus.items} />
       <SuggestionMenu store={menus.pages} />
+      {decisionOpen && editor && (
+        <DecisionPicker
+          editor={editor}
+          onClose={() => setDecisionOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { ancestorsOf } from "@lictory/platform/data/spaces";
 import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
-import { ReferencesProvider } from "@lictory/platform/components/spaces/editor/references";
 import "./history.css";
 import { paths } from "@lictory/core/lib/paths";
 import {
@@ -40,64 +39,60 @@ export function PageHistoryWorkspace() {
   };
   if (!page) return <p className="p-6">This page was not found.</p>;
   return (
-    <ReferencesProvider>
-      <div className="spaces-history h-full overflow-y-auto overscroll-contain">
-        <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-8">
-          <header className="space-y-3">
-            <SpaceBreadcrumbs
-              space={space}
-              page={page}
-              ancestors={ancestorsOf(
-                new Map(pages.map((p) => [p.id, p])),
-                page.id,
-              )}
-            />
-            <div className="flex items-center justify-between gap-4">
-              <h1 className="text-lg font-semibold break-words">
-                {page.title}
-              </h1>
-              <Link
-                className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-                href={paths.spacePage(organization.slug, space.slug, page.id)}
-              >
-                Open published page
-              </Link>
-            </div>
-          </header>
-          <nav
-            aria-label="Page history views"
-            className="flex flex-wrap gap-5 border-b"
-          >
-            {[
-              ["versions", "Versions"],
-              ["branches", "Branches"],
-              ["pulls", "Pull requests"],
-            ].map(([key, title]) => (
-              <button
-                key={key}
-                type="button"
-                aria-current={view === key ? "page" : undefined}
-                className={`min-h-8 border-b-2 px-1 py-1.5 text-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
-                onClick={() => change({ view: key!, pr: null })}
-              >
-                {title}
-              </button>
-            ))}
-          </nav>
-          {view === "branches" ? (
-            <Branches pageId={page.id} />
-          ) : view === "pulls" ? (
-            <PullRequests
-              pageId={page.id}
-              selected={search.get("pr")}
-              onSelect={(id) => change({ pr: id })}
-            />
-          ) : (
-            <Versions pageId={page.id} branch={branch} />
-          )}
-        </div>
+    <div className="spaces-history h-full overflow-y-auto overscroll-contain">
+      <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-8">
+        <header className="space-y-3">
+          <SpaceBreadcrumbs
+            space={space}
+            page={page}
+            ancestors={ancestorsOf(
+              new Map(pages.map((p) => [p.id, p])),
+              page.id,
+            )}
+          />
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-lg font-semibold break-words">{page.title}</h1>
+            <Link
+              className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+              href={paths.spacePage(organization.slug, space.slug, page.id)}
+            >
+              Open published page
+            </Link>
+          </div>
+        </header>
+        <nav
+          aria-label="Page history views"
+          className="flex flex-wrap gap-5 border-b"
+        >
+          {[
+            ["versions", "Versions"],
+            ["branches", "Branches"],
+            ["pulls", "Pull requests"],
+          ].map(([key, title]) => (
+            <button
+              key={key}
+              type="button"
+              aria-current={view === key ? "page" : undefined}
+              className={`min-h-8 border-b-2 px-1 py-1.5 text-sm transition-colors duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${view === key ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground"}`}
+              onClick={() => change({ view: key!, pr: null })}
+            >
+              {title}
+            </button>
+          ))}
+        </nav>
+        {view === "branches" ? (
+          <Branches pageId={page.id} />
+        ) : view === "pulls" ? (
+          <PullRequests
+            pageId={page.id}
+            selected={search.get("pr")}
+            onSelect={(id) => change({ pr: id })}
+          />
+        ) : (
+          <Versions pageId={page.id} branch={branch} />
+        )}
       </div>
-    </ReferencesProvider>
+    </div>
   );
 }
 

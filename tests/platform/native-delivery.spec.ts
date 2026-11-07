@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillMarkdown } from "../helpers/editor";
 import { createWorkspace } from "../helpers/onboarding-helpers";
 import { reloadWhenSaved } from "../helpers/sync-helpers";
 import { clientAddress } from "../helpers/client-address";
@@ -278,11 +279,11 @@ test("native delivery preserves accepted scope through an amendment, completion 
   });
   await expect(workflow).toContainText("Accepted revision 1");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Specification", exact: true })
-    .fill(
-      "An amended payment behavior that is not part of the accepted scope yet.",
-    );
+  await fillMarkdown(
+    page,
+    "Specification",
+    "An amended payment behavior that is not part of the accepted scope yet.",
+  );
   await page.getByRole("button", { name: /^Save revision 2/ }).click();
   await expect(scope).toContainText(
     "Revision 2 changes the accepted specification",

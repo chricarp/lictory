@@ -13,14 +13,17 @@ import {
   Bold,
   ChevronDown,
   Code,
+  FileCode2,
   FileText,
   Hash,
   ImagePlus,
   Italic,
   Link2,
   MessageSquarePlus,
+  Paperclip,
   Plus,
   Redo2,
+  Scale,
   Strikethrough,
   Table,
   Trash2,
@@ -30,20 +33,25 @@ import { cn } from "@lictory/core/lib/utils";
 import { isSafePageLink } from "@lictory/core/spaces/document/schema";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
-import { blocks } from "@lictory/platform/components/spaces/editor/commands";
+import {
+  blocks,
+  smallHeadings,
+} from "@lictory/platform/components/editor/commands";
 import {
   Menu,
   MenuItem,
   MenuSeparator,
 } from "@lictory/platform/components/spaces/menu";
 
-// The formatting toolbar: one tab stop (WAI-ARIA toolbar pattern, roving
-// tabindex), arrow keys, Home and End move between controls, every
-// control is labelled and toggles say whether they are on. What people
-// reach for while writing stays visible (undo, the inline marks, a link,
-// a comment); block styles sit in one "Text" menu and everything that
-// inserts something in "Insert". Inside a table a "Table" menu appears.
-// On narrow screens it is one scrollable row.
+// The formatting toolbar of every editor (page drafts and Markdown
+// documents): one tab stop (WAI-ARIA toolbar pattern, roving tabindex),
+// arrow keys, Home and End move between controls, every control is
+// labelled and toggles say whether they are on. What people reach for while
+// writing stays visible (undo, the inline marks, a link, a comment); block
+// styles sit in one "Text" menu and everything that inserts something in
+// "Insert". Inside a table a "Table" menu appears. On narrow screens it is
+// one scrollable row. `compact` (comment composers) keeps the marks, the
+// link, "Insert" and attaching files.
 
 const icon = "size-4";
 const mod =
@@ -86,13 +94,29 @@ const inserts = blocks.filter(
 export function Toolbar({
   editor,
   onImage,
+  onFile,
   onComment,
+  onDecision,
+  mentions = false,
+  source,
+  compact = false,
   disabled,
+  label = "Formatting",
+  className,
 }: {
   editor: Editor;
+  // Page drafts insert images; Markdown documents attach any file.
   onImage?: () => void;
+  onFile?: () => void;
   onComment?: () => void;
+  onDecision?: () => void;
+  mentions?: boolean;
+  // Markdown documents can be edited as Markdown text.
+  source?: { active: boolean; toggle: () => void };
+  compact?: boolean;
   disabled: boolean;
+  label?: string;
+  className?: string;
 }) {
   const state = useEditorState({
     editor,
@@ -103,7 +127,7 @@ export function Toolbar({
       code: e.isActive("code"),
       link: e.isActive("link"),
       href: (e.getAttributes("link").href as string | undefined) ?? "",
-      block: blocks.find((b) =>
+      block: [...blocks, ...smallHeadings].find((b) =>
         b.id.startsWith("heading")
           ? e.isActive("heading", { level: Number(b.id.slice(7)) })
           : e.isActive(b.id),
@@ -114,9 +138,11 @@ export function Toolbar({
       selection: !e.state.selection.empty,
     }),
   });
-  const current = blockStyles.find((b) => b.id === state.block);
-  const controls: Control[] = [
-    {
+  const current = [...blockStyles, ...smallHeadings].find(
+    (b) => b.id === state.block,
+  );
+  const all: (Control | false | undefined)[] = [
+    !compact && {
       kind: "button",
       id: "undo",
       label: "Undo",
@@ -125,7 +151,7 @@ export function Toolbar({
       disabled: !state.canUndo,
       run: () => editor.chain().focus().undo().run(),
     },
-    {
+    !compact && {
       kind: "button",
       id: "redo",
       label: "Redo",
@@ -180,7 +206,7 @@ export function Toolbar({
       pressed: state.italic,
       run: () => editor.chain().focus().toggleItalic().run(),
     },
-    {
+    !compact && {
       kind: "button",
       id: "strike",
       label: "Strikethrough",
@@ -249,6 +275,17 @@ export function Toolbar({
               Image
             </MenuItem>
           )}
+          {onFile && (
+            <MenuItem
+              icon={<Paperclip />}
+              onSelect={() => {
+                close();
+                onFile();
+              }}
+            >
+              File or image
+            </MenuItem>
+          )}
           <MenuSeparator />
           <MenuItem
             icon={<Hash />}
@@ -270,6 +307,29 @@ export function Toolbar({
           >
             Link to a page
           </MenuItem>
+          {onDecision && (
+            <MenuItem
+              icon={<Scale />}
+              onSelect={() => {
+                close();
+                onDecision();
+              }}
+            >
+              Decision
+            </MenuItem>
+          )}
+          {mentions && (
+            <MenuItem
+              icon={<span className="font-mono">@</span>}
+              hint="@"
+              onSelect={() => {
+                close();
+                editor.chain().focus().insertContent(" @").run();
+              }}
+            >
+              Mention someone
+            </MenuItem>
+          )}
         </Menu>
       ),
     },
@@ -350,7 +410,29 @@ export function Toolbar({
           },
         ]
       : []),
+    compact &&
+      onFile && {
+        kind: "button",
+        id: "attach",
+        label: "Attach a file or image",
+        icon: <Paperclip className={icon} />,
+        run: onFile,
+      },
+    source && {
+      kind: "button",
+      id: "source",
+      label: source.active ? "Edit formatted text" : "Edit as Markdown",
+      icon: <FileCode2 className={icon} />,
+      pressed: source.active,
+      run: source.toggle,
+      separatorBefore: true,
+    },
   ];
+  // While Markdown text is edited only the way back applies.
+  const controls = all.filter(
+    (c): c is Control =>
+      Boolean(c) && (!source?.active || (c as Control).id === "source"),
+  );
   const [focused, setFocused] = useState(0);
   const focusIndex = Math.min(focused, controls.length - 1);
   const buttons = useRef<(HTMLElement | null)[]>([]);
@@ -375,10 +457,13 @@ export function Toolbar({
   return (
     <div
       role="toolbar"
-      aria-label="Formatting"
+      aria-label={label}
       aria-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
-      className="flex [scrollbar-width:none] items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1 shadow-(--shadow-border)"
+      className={cn(
+        "flex [scrollbar-width:none] items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1 shadow-(--shadow-border)",
+        className,
+      )}
     >
       {controls.map((control, index) => {
         const common = {
