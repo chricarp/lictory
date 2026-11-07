@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowledge";
 import type { Highlight } from "@lictory/core/knowledge/snippet";
+import { relativeTime } from "@lictory/core/lib/work-items";
 import {
   useSearchFreshness,
   useVisibleRefresh,
@@ -12,12 +13,18 @@ import {
 // palette matches locally. Debounced; answers to an earlier query never
 // replace a later one. While the palette is open its answer follows
 // synchronized access, publication and item state, and is read again at a
-// bounded interval (search-freshness.ts).
+// bounded interval (search-freshness.ts). When reading it again fails, the
+// answer stays on screen marked as not checked since it was last read.
 
 export type ContentSearch =
   | { status: "idle"; results: [] }
   | { status: "loading"; results: KnowledgeResult[] }
-  | { status: "done"; results: KnowledgeResult[] }
+  | {
+      status: "done";
+      results: KnowledgeResult[];
+      // The last read again failed: when it was last read, and a retry.
+      stale?: { checkedAt: number; retry: () => void };
+    }
   | { status: "error"; results: []; error: string };
 
 const DEBOUNCE_MS = 250;
@@ -46,6 +53,9 @@ export function useContentSearch(
     search: ContentSearch;
     // What the synchronized rows said about the results when they were read.
     facts: string;
+    // When they were read, and whether reading them again failed since.
+    checkedAt?: number;
+    stale?: true;
   }>({ key: "", search: { status: "idle", results: [] }, facts: "" });
   // Bumped to read the same query again.
   const [reread, setReread] = useState(0);
@@ -64,14 +74,16 @@ export function useContentSearch(
               key,
               search: { status: "done", results },
               facts: factsOf.current(results),
+              checkedAt: Date.now(),
             });
         },
         (error: unknown) => {
           if (!current) return;
-          // A failed re-read keeps the answer on screen; the next one retries.
+          // A failed re-read keeps the answer on screen, marked as not
+          // checked; the next one (or Retry) reads again.
           setState((prev) =>
             prev.key === key && prev.search.status === "done"
-              ? prev
+              ? { ...prev, stale: true }
               : {
                   key,
                   facts: "",
@@ -120,8 +132,47 @@ export function useContentSearch(
           : [],
     };
   return state.search.status === "done"
-    ? { status: "done", results: shown }
+    ? {
+        status: "done",
+        results: shown,
+        ...(state.stale && state.checkedAt
+          ? {
+              stale: {
+                checkedAt: state.checkedAt,
+                retry: () => setReread((n) => n + 1),
+              },
+            }
+          : {}),
+      }
     : state.search;
+}
+
+// Search results on screen that could not be checked again: they may no
+// longer be true (a decision withdrawn, a page published again). Said in
+// text, with when they were last read and a way to read them again.
+export function StaleNotice({
+  checkedAt,
+  onRetry,
+}: {
+  checkedAt: number;
+  onRetry: () => void;
+}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 text-muted-foreground">
+      <span>
+        Couldn’t refresh · last checked{" "}
+        {relativeTime(new Date(checkedAt).toISOString())}
+      </span>
+      <span aria-hidden>·</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-sm text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        Retry
+      </button>
+    </span>
+  );
 }
 
 // Text with the matched ranges marked.

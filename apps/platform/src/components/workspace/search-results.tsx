@@ -6,7 +6,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { BadgeCheck, BookOpen, FileText, Loader, Search } from "lucide-react";
+import {
+  BadgeCheck,
+  BookOpen,
+  FileText,
+  Loader,
+  ScrollText,
+  Search,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
   KnowledgeKind,
@@ -25,11 +32,18 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   Highlighted,
   MIN_CONTENT_QUERY,
+  StaleNotice,
 } from "@lictory/platform/components/workspace/content-search";
 import {
   useSearchFreshness,
   useVisibleRefresh,
 } from "@lictory/platform/components/workspace/search-freshness";
+import {
+  nextRequest as after,
+  refreshBatches,
+  type SearchAnswer as Answer,
+  type SearchRequest as Request,
+} from "@lictory/platform/components/workspace/search-batches";
 
 // "See all results" (docs/internals/spaces.md#search-and-product-knowledge):
 // everything searchKnowledge finds for a query, beyond the palette's first
@@ -38,9 +52,11 @@ import {
 // never repeat). The query and filters live in the address
 // (`/{org}/search?q=&kind=&project=`), so a result list can be shared and
 // reopened; what was loaded belongs to one person, organization and query
-// and is dropped when any of them changes. Every loaded batch is read again
-// when synchronized access, publication or item state changes and at a
-// bounded interval while visible (search-freshness.ts).
+// and is dropped when any of them changes. Every loaded batch is read again,
+// from the beginning (search-batches.ts), when synchronized access,
+// publication or item state changes and at a bounded interval while visible
+// (search-freshness.ts); when that fails the results stay, marked as not
+// checked since they were last read, with Retry.
 
 const filters = [
   { id: "all", label: "All", kinds: undefined },
@@ -67,14 +83,6 @@ const ALL_KINDS: KnowledgeKind[] = [
 // Per kind and batch (the capability's bound).
 const BATCH = 20;
 
-// One batch: where it starts (null: the beginning) and which kinds it reads.
-type Request = { cursor: string | null; kinds: readonly KnowledgeKind[] };
-type Answer = {
-  results: KnowledgeResult[];
-  // Kinds with more results after this batch, and where they continue.
-  more: KnowledgeKind[];
-  cursor: string | null;
-};
 type Loaded = {
   key: string;
   // The batches asked for, in order, and the answers that arrived (as many
@@ -84,6 +92,10 @@ type Loaded = {
   error?: string;
   // What the synchronized rows said about the results when they were read.
   facts: string;
+  // When the answers were last read, and whether reading them again failed
+  // since: they stay on screen, said to be unchecked, until a read succeeds.
+  checkedAt?: number;
+  stale?: true;
 };
 
 const fetchBatch = (
@@ -180,6 +192,8 @@ function useSearchResults(
             answers,
             error: undefined,
             facts: factsOf.current(merge(answers)),
+            checkedAt: Date.now(),
+            stale: undefined,
           };
         });
       },
@@ -203,25 +217,44 @@ function useSearchResults(
     };
   }, [active, key, nextRequest, organizationId, query, projectId]);
 
-  // Every loaded batch again, from the same positions. What it no longer
-  // finds leaves; a failure keeps what is shown (the next refresh retries).
+  // Every loaded batch again, in order from the beginning, each continuing
+  // after the newly read one (search-batches.ts). What it no longer finds
+  // leaves; a failure keeps what is shown, marked as not checked (the next
+  // refresh, or Retry, reads again).
   const refreshing = useRef<Request[] | null>(null);
   const refresh = useCallback(() => {
     if (!active || waiting || mine.error) return;
     const requests = mine.requests;
     if (refreshing.current === requests) return;
     refreshing.current = requests;
-    void Promise.all(
-      requests.map((r) => fetchBatch(organizationId, query, projectId, r)),
+    void refreshBatches(requests[0]!, requests.length, (r) =>
+      fetchBatch(organizationId, query, projectId, r),
     )
       .then(
-        (answers) =>
+        (read) =>
           setLoaded((prev) =>
             prev.key !== key || prev.requests !== requests
               ? prev
-              : { ...prev, answers, facts: factsOf.current(merge(answers)) },
+              : {
+                  ...prev,
+                  ...read,
+                  facts: factsOf.current(merge(read.answers)),
+                  checkedAt: Date.now(),
+                  stale: undefined,
+                },
           ),
-        () => undefined,
+        () =>
+          setLoaded((prev) =>
+            prev.key !== key || prev.requests !== requests
+              ? prev
+              : {
+                  ...prev,
+                  stale: true,
+                  // Not again at once for the same change: the interval,
+                  // focus or Retry reads again.
+                  facts: factsOf.current(merge(prev.answers)),
+                },
+          ),
       )
       .finally(() => {
         if (refreshing.current === requests) refreshing.current = null;
@@ -256,13 +289,16 @@ function useSearchResults(
     results: visibleResults,
     status,
     error: mine.error,
-    more: status === "done" && Boolean(last?.cursor && last.more.length),
+    more: status === "done" && Boolean(last && after(last)),
+    // Shown results that could not be checked again, and since when.
+    stale:
+      status === "done" && mine.stale && mine.checkedAt
+        ? { checkedAt: mine.checkedAt, retry: refresh }
+        : null,
     loadMore: () => {
-      if (!last?.cursor || !last.more.length) return;
-      setLoaded({
-        ...mine,
-        requests: [...mine.requests, { cursor: last.cursor, kinds: last.more }],
-      });
+      const next = last && after(last);
+      if (!next) return;
+      setLoaded({ ...mine, requests: [...mine.requests, next] });
     },
     retry: () => setLoaded({ ...mine, error: undefined }),
   } as const;
@@ -448,6 +484,12 @@ export function SearchResults() {
                 {search.more ? " so far" : ""}
               </span>
             ) : null}
+            {search.stale && (
+              <StaleNotice
+                checkedAt={search.stale.checkedAt}
+                onRetry={search.stale.retry}
+              />
+            )}
             {search.more && (
               <Button size="sm" variant="secondary" onClick={search.loadMore}>
                 Show more results
@@ -471,11 +513,15 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
           ? `revision ${r.revisionNumber}`
           : null
         : `revision ${r.revisionNumber}`;
+  // The seal is for agreements only (approved or delivered revisions); a
+  // specification as it is now carries no approval.
   const icon =
     r.kind === "page" ? (
       <FileText className="size-4" aria-hidden />
     ) : r.kind === "decision" ? (
       <BookOpen className="size-4" aria-hidden />
+    ) : r.kind === "item" ? (
+      <ScrollText className="size-4" aria-hidden />
     ) : (
       <BadgeCheck className="size-4" aria-hidden />
     );
@@ -485,10 +531,13 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
         {icon}
       </span>
       <div className="min-w-0 flex-1">
+        {/* A long title wraps (two lines at most, so names that differ only
+            at the end stay apart on phones) and the kind and version move
+            to their own line when they no longer fit beside it. */}
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <Link
             href={r.href}
-            className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0 focus-visible:underline"
+            className="line-clamp-2 min-w-0 font-medium break-words outline-none after:absolute after:inset-0 focus-visible:underline"
           >
             <Highlighted text={r.title} highlights={r.titleHighlights} />
           </Link>

@@ -47,6 +47,7 @@ import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import {
   Highlighted,
   MIN_CONTENT_QUERY,
+  StaleNotice,
   useContentSearch,
 } from "@lictory/platform/components/workspace/content-search";
 import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowledge";
@@ -706,21 +707,38 @@ export function CommandPalette({
           role="status"
           aria-live="polite"
           className={cn(
-            "shrink-0 border-t px-3 py-1.5 text-[11.5px] text-muted-foreground",
+            "flex shrink-0 flex-wrap items-center gap-x-1.5 border-t px-3 py-1.5 text-[11.5px] text-muted-foreground",
             content.status !== "loading" &&
               content.status !== "error" &&
+              !(content.status === "done" && content.stale) &&
               "sr-only",
           )}
         >
-          {content.status === "loading"
-            ? "Searching pages, specifications and decisions…"
-            : content.status === "error"
-              ? `Could not search content: ${content.error}`
-              : content.status === "done"
-                ? content.results.length
-                  ? `${content.results.length} content ${content.results.length === 1 ? "match" : "matches"}`
-                  : "No matches in pages, specifications or decisions"
-                : ""}
+          <span
+            className={cn(
+              content.status === "done" && content.stale && "sr-only",
+            )}
+          >
+            {content.status === "loading"
+              ? "Searching pages, specifications and decisions…"
+              : content.status === "error"
+                ? `Could not search content: ${content.error}`
+                : content.status === "done"
+                  ? content.results.length
+                    ? `${content.results.length} content ${content.results.length === 1 ? "match" : "matches"}`
+                    : "No matches in pages, specifications or decisions"
+                  : ""}
+          </span>
+          {content.status === "done" && content.stale && (
+            <StaleNotice
+              checkedAt={content.stale.checkedAt}
+              onRetry={() => {
+                content.stale?.retry();
+                // Typing and the arrow keys keep working.
+                inputRef.current?.focus();
+              }}
+            />
+          )}
         </div>
       </div>
     </div>,

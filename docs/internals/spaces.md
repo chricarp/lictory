@@ -677,8 +677,9 @@ page shows of it is read live with the reader's own access.
   visible, and the cache belongs to one person and organization. A failed
   first read offers Retry; a failed refresh keeps the decision it read
   (being offline is no reason to hide it) but marks it stale with when it
-  was last checked, and the card says "Couldn't refresh · Retry" instead of
-  presenting it as current. Every later refresh retries it.
+  was last checked, and the card says "Couldn't refresh · last checked 3m
+  ago · Retry" in text (not only on hover) instead of presenting it as
+  current. Every later refresh retries it.
   Work's Decisions section offers "Add to a page", which proposes a page
   change (`proposePageChange` with the item revision as `origin`) appending
   the card; main is never edited directly.
@@ -749,12 +750,18 @@ space, each page's published version and archiving, and each item's
 archiving, revision, refinement and delivered revision. A result those rows
 say I can no longer read (its space, page, item or project gone or
 archived) leaves at once; when they change anything about the loaded
-results, every loaded batch (and the palette's answer) is read again from
-its same position, and the server decides what remains, such as a
-superseded publication or approval. What no synchronized row reports (a
-decision archived on an item I have not opened) is caught by the same
-re-read at a bounded interval (60 seconds) while the window is visible and
-on return to it. A failed re-read keeps what is shown and is retried.
+results, every loaded batch (and the palette's answer) is read again and
+the server decides what remains, such as a superseded publication or
+approval. The batches are read again in order from the beginning, as many
+as were loaded, each continuing after the newly read one: re-reading each
+from its old position would lose a result pushed across a boundary by one
+added before it (or show one twice after a removal). What no synchronized
+row reports (a decision archived on an item I have not opened) is caught by
+the same re-read at a bounded interval (60 seconds) while the window is
+visible and on return to it. A failed re-read keeps what is shown, since
+being offline is no reason to hide it, but says so in text: "Couldn't
+refresh · last checked 2m ago · Retry", beside the results and in the
+palette's footer, until a re-read succeeds.
 
 - **Published only.** A page is searched as the head commit of its main line.
   Live drafts, branches and pull requests are never searched, so text nobody
