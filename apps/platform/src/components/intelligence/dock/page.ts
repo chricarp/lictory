@@ -73,6 +73,16 @@ function spacesPageOf(
   return { kind: "space", space };
 }
 
+// A malformed escape in the address (typed or pasted by hand) must not
+// throw while rendering; the raw segment then names the space.
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function pageOf(pathname: string): {
   kind: PageKind;
   label: string;
@@ -86,7 +96,7 @@ export function pageOf(pathname: string): {
     .filter(Boolean);
   if (first === "spaces") {
     const found = spacesPageOf(
-      second && decodeURIComponent(second),
+      second && decodeSegment(second),
       third,
       fourth,
       fifth,

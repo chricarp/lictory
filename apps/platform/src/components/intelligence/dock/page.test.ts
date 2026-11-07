@@ -35,6 +35,13 @@ void test("the dock recognizes where the person is from the route", () => {
     space: "handbook",
     pageId: "p1",
   });
+  assert.equal(pageOf("/acme/spaces/caf%C3%A9").space, "café");
+  assert.deepEqual(pageOf("/acme/spaces/100%25off%/pages/p1"), {
+    kind: "space-page",
+    label: "Page",
+    space: "100%25off%",
+    pageId: "p1",
+  });
 });
 
 void test("pages of Lictory Spaces get page suggestions, comparing with the work they mention", () => {
