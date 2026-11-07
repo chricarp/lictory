@@ -149,10 +149,13 @@ function useSearchResults(
     facts: "",
   }));
   // A new person, organization, query or filter starts again from nothing.
-  const mine: Loaded =
-    loaded.key === key
-      ? loaded
-      : { key, requests: [{ cursor: null, kinds }], answers: [], facts: "" };
+  const mine = useMemo<Loaded>(
+    () =>
+      loaded.key === key
+        ? loaded
+        : { key, requests: [{ cursor: null, kinds }], answers: [], facts: "" },
+    [loaded, key, kinds],
+  );
   if (mine !== loaded) setLoaded(mine);
   const waiting = mine.answers.length < mine.requests.length;
   const nextRequest =

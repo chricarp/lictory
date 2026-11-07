@@ -97,7 +97,10 @@ export function useContentSearch(
   const facts = answered ? fresh.facts(state.search.results) : "";
   const changed = answered && facts !== state.facts;
   useEffect(() => {
-    if (changed) setReread((n) => n + 1);
+    if (!changed) return;
+    // Shortly, so a burst of changes is one read.
+    const timer = setTimeout(() => setReread((n) => n + 1), 300);
+    return () => clearTimeout(timer);
   }, [changed, facts]);
   useVisibleRefresh(() => setReread((n) => n + 1), active && answered);
   const shown = useMemo(
