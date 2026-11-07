@@ -15,6 +15,7 @@ export type Overview = {
   };
   signIn: { password: boolean; sso: string | null };
   email: boolean;
+  ai: AiProviderOverview;
   counts: {
     users: number;
     deactivated: number;
@@ -22,6 +23,35 @@ export type Overview = {
     organizations: number;
     pendingInvitations: number;
   };
+};
+
+// Where Lictory Intelligence sends content (ai/provider-settings.ts
+// describeAiProvider); never a key.
+export type AiProviderOverview = { dictation: boolean } & (
+  | { state: "disabled" | "invalid"; problems: string[] }
+  | {
+      state: "configured";
+      provider: string;
+      label: string;
+      protocol: string;
+      model: string;
+      endpoint: string;
+      authenticated: boolean;
+      keySetting: string | null;
+      structuredOutput: "json-schema" | "json-object";
+      timeoutSeconds: number;
+    }
+);
+
+export type AiCheckReport = {
+  ok: boolean;
+  checks: {
+    id: string;
+    needs: string;
+    ok: boolean;
+    ms: number;
+    detail: string;
+  }[];
 };
 
 export type AdminUser = {

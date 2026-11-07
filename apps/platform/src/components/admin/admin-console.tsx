@@ -4,9 +4,11 @@ import {
   ArrowLeft,
   Building2,
   CircleAlert,
+  CircleCheck,
   KeyRound,
   Mail,
   ShieldUser,
+  Sparkles,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -42,6 +44,7 @@ import {
   signUpModeWords,
   useAdminResource,
   type ActivityPage,
+  type AiCheckReport,
   type AdminOrganization,
   type AdminUser,
   type Overview,
@@ -316,7 +319,147 @@ function AdminOverview() {
           />
         </div>
       </SettingsSection>
+      <AiProviderSection ai={data.ai} />
     </>
+  );
+}
+
+const checkNames: Record<string, string> = {
+  "structured-output": "Structured output",
+  "streamed-tool-call": "Streamed tool call",
+  "tool-result": "Answer after a tool result",
+};
+
+// The AI provider is server configuration, like the access policy: shown
+// here, changed on the server. The check sends synthetic content only.
+function AiProviderSection({ ai }: { ai: Overview["ai"] }) {
+  const [report, setReport] = useState<AiCheckReport>();
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState("");
+  const check = async () => {
+    setChecking(true);
+    setError("");
+    try {
+      setReport(
+        await adminRequest<AiCheckReport>("/ai/check", {
+          method: "POST",
+          body: {},
+        }),
+      );
+    } catch (e) {
+      setReport(undefined);
+      setError(e instanceof Error ? e.message : "The check did not run.");
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <SettingsSection
+      id="ai-provider"
+      icon={<Sparkles />}
+      title="AI provider"
+      description="Where Lictory Intelligence sends content when an organization turns it on. Each organization decides whether to use it."
+      action={
+        ai.state === "configured" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void check()}
+            disabled={checking}
+          >
+            {checking ? "Checking…" : "Check connection"}
+          </Button>
+        ) : undefined
+      }
+      footer={
+        <>
+          Set by the server operator (LICTORY_AI_PROVIDER, LICTORY_AI_MODEL,
+          LICTORY_AI_BASE_URL, LICTORY_AI_API_KEY). Check it from the server
+          with <code className="font-mono">sudo lictory admin ai-check</code>.
+        </>
+      }
+    >
+      <div className="divide-y divide-border">
+        {ai.state === "configured" ? (
+          <>
+            <PolicyRow label="Provider" value={ai.label} detail={ai.protocol} />
+            <PolicyRow
+              label="Endpoint"
+              value={<span className="font-mono text-xs">{ai.endpoint}</span>}
+              detail={
+                ai.authenticated
+                  ? `Key from ${ai.keySetting}.`
+                  : "No key is sent."
+              }
+            />
+            <PolicyRow
+              label="Model"
+              value={<span className="font-mono text-xs">{ai.model}</span>}
+              detail={
+                ai.provider === "openai-compatible"
+                  ? `Structured output: ${ai.structuredOutput}. Calls time out after ${ai.timeoutSeconds} s.`
+                  : `Calls time out after ${ai.timeoutSeconds} s.`
+              }
+            />
+          </>
+        ) : (
+          <PolicyRow
+            label="Provider"
+            value={ai.state === "invalid" ? "Misconfigured" : "None connected"}
+            detail={
+              ai.state === "invalid"
+                ? ai.problems.join(" ")
+                : "Lictory Intelligence is unavailable. Everything else works without it."
+            }
+          />
+        )}
+        <PolicyRow
+          label="Voice input"
+          value={ai.dictation ? "OpenAI Realtime" : "Off"}
+          detail={
+            ai.dictation
+              ? "Audio goes from the browser straight to OpenAI."
+              : undefined
+          }
+        />
+        {(report !== undefined || error !== "") && (
+          <div className="space-y-2 px-5 py-3 text-[13px]" role="status">
+            <InlineError>{error}</InlineError>
+            {report?.checks.map((c) => (
+              <p key={c.id} className="flex gap-2">
+                {c.ok ? (
+                  <CircleCheck
+                    aria-label="Passed"
+                    className="mt-0.5 size-4 shrink-0 text-success"
+                  />
+                ) : (
+                  <CircleAlert
+                    aria-label="Failed"
+                    className="mt-0.5 size-4 shrink-0 text-amber-600"
+                  />
+                )}
+                <span>
+                  <span className="font-medium">
+                    {checkNames[c.id] ?? c.id}
+                  </span>{" "}
+                  <span className="text-muted-foreground">
+                    ({(c.ms / 1000).toFixed(1)} s, for {c.needs})
+                  </span>
+                  : {c.detail}
+                </span>
+              </p>
+            ))}
+            {report && (
+              <p className="text-muted-foreground">
+                {report.ok
+                  ? "This provider and model work with Lictory Intelligence. The check uses synthetic content; it does not measure review quality."
+                  : "Some Lictory Intelligence features will fail with this provider and model."}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </SettingsSection>
   );
 }
 

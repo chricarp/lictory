@@ -469,6 +469,8 @@ Usage: lictory admin <command> [options]
                            (prompt, or LICTORY_USER_PASSWORD)
   deactivate <email>       Block sign-in and end every session (reversible)
   reactivate <email>       Allow a deactivated account to sign in again
+  ai-check [--json]        Check the configured AI provider and model from
+                           the api service (synthetic prompts only)
 
 Instance administrators manage accounts and organizations in the admin
 console at <your address>/admin. These commands work from the server even
@@ -2406,6 +2408,35 @@ cmd_admin() {
         check_ok "$(user_label) is no longer an instance administrator."
       fi
       ;;
+    ai-check)
+      parse "" "json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "admin ai-check takes no arguments."
+      select_environment
+      admin_ready
+      local ai_status=0
+      admin_call ai-check </dev/null || ai_status=$?
+      if [ "$(opt json)" = true ]; then
+        printf '%s\n' "$admin_out"
+        return "$ai_status"
+      fi
+      case "$(admin_value '.provider.state')" in
+        configured)
+          say "$(admin_value '.provider.label') at $(admin_value '.provider.endpoint'), model $(admin_value '.provider.model')"
+          admin_value '.checks[] | "\(if .ok then "ok" else "FAIL" end)\t\(.id): \(.detail)"' |
+            while IFS=$'\t' read -r mark line; do
+              if [ "$mark" = ok ]; then check_ok "$line"; else check_warn "$line"; fi
+            done
+          ;;
+        invalid) die "The AI provider settings are invalid: $(admin_value '.provider.problems | join(" ")')" ;;
+        disabled)
+          say "No AI provider is configured, so Lictory Intelligence is off. Connect one with: sudo lictory config set LICTORY_AI_PROVIDER=<provider> ..."
+          return 0
+          ;;
+        *) die "$(admin_message)" ;;
+      esac
+      [ "$ai_status" -eq 0 ] || die "Some Lictory Intelligence features will fail with this provider and model. See docs.lictory.com/self-hosting/ai-providers." 1
+      check_ok "Lictory Intelligence can use this provider (compatibility with synthetic content, not review quality)."
+      ;;
     deactivate | reactivate)
       parse "" "" "$@"
       email=$(need_email "$sub")
@@ -2564,7 +2595,7 @@ _lictory() {
     install) COMPREPLY=(\$(compgen -W "$install_flags" -- "\$cur")) ;;
     admin)
       if [ "\$COMP_CWORD" -eq 2 ]; then
-        COMPREPLY=(\$(compgen -W "setup status list grant revoke create-user set-password deactivate reactivate help" -- "\$cur"))
+        COMPREPLY=(\$(compgen -W "setup status list grant revoke create-user set-password deactivate reactivate ai-check help" -- "\$cur"))
       else
         COMPREPLY=(\$(compgen -W "--env --yes --help --json --name --admin --organization --role --organization-handle --admin-name --admin-email" -- "\$cur"))
       fi ;;

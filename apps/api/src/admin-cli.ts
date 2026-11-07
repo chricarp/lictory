@@ -14,11 +14,14 @@
 //         [--organization <handle> [--role member|admin|owner]] [--password-stdin]
 //   set-password <email> --password-stdin   also signs them out everywhere
 //   deactivate <email> | reactivate <email>
+//   ai-check                                 live check of the AI provider
+//                                            (synthetic prompts; exit 1 on failure)
 //
 // Passwords are read from the first line of stdin, never from arguments.
 // With --json exactly one JSON object goes to stdout. Exit codes: 0 done,
 // 1 refused or failed, 3 already set up, 64 usage.
 import { eq } from "drizzle-orm";
+import { checkAiProvider } from "@lictory/core/ai/check";
 import { closeDatabase, db } from "@lictory/core/db";
 import * as s from "@lictory/core/db/schema";
 import {
@@ -125,7 +128,7 @@ async function organizationByHandle(handle: string) {
 
 const ROLES = new Set(["owner", "admin", "member"]);
 
-type Result = { json: Record<string, unknown>; text: string };
+type Result = { json: Record<string, unknown>; text: string; code?: number };
 
 async function run(command: string, parsed: Parsed): Promise<Result> {
   switch (command) {
@@ -249,6 +252,36 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
           : `${user.email} can sign in again.`,
       };
     }
+    case "ai-check": {
+      if (parsed.positional.length)
+        throw new Usage("ai-check takes no arguments.");
+      const report = await checkAiProvider();
+      const { provider } = report;
+      const lines =
+        provider.state === "configured"
+          ? [
+              `Provider: ${provider.label} (${provider.protocol})`,
+              `Endpoint: ${provider.endpoint}${provider.authenticated ? ` (key from ${provider.keySetting})` : " (no key)"}`,
+              `Model: ${provider.model}`,
+              ...report.checks.map(
+                (c) =>
+                  `${c.ok ? "ok  " : "FAIL"} ${c.id} (${(c.ms / 1000).toFixed(1)} s, ${c.needs}): ${c.detail}`,
+              ),
+              report.ok
+                ? "Lictory Intelligence can use this provider. This checks compatibility with synthetic content, not the quality of real reviews."
+                : "Some features will fail with this provider and model. See docs/operations/ai-providers.md.",
+            ]
+          : provider.state === "invalid"
+            ? ["The AI provider settings are invalid:", ...provider.problems]
+            : [
+                "No AI provider is configured (LICTORY_AI_PROVIDER, or OPENAI_API_KEY). Lictory Intelligence is off on this server.",
+              ];
+      return {
+        json: report as unknown as Record<string, unknown>,
+        text: lines.join("\n"),
+        code: report.ok ? 0 : 1,
+      };
+    }
     default:
       throw new Usage(`Unknown command ${command || "(none)"}.`);
   }
@@ -265,6 +298,7 @@ async function main() {
     process.stdout.write(
       json ? `${JSON.stringify(result.json)}\n` : `${result.text}\n`,
     );
+    code = result.code ?? 0;
   } catch (error) {
     const known =
       error instanceof InstanceAdminError

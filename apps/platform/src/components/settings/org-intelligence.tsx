@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { IntelligenceMark, useAfterglow } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
+import type { AiProviderKind } from "@lictory/core/contracts/ai-provider";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
@@ -8,6 +9,18 @@ import {
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
 import { IntelligenceContextSection } from "@lictory/platform/components/intelligence/context-settings";
+
+// Where content goes, in the organization's terms. The endpoint itself is
+// not shown to members; for an OpenAI-compatible endpoint only the operator
+// knows where it runs (it may be on premises or a hosted service).
+const destinations: Record<AiProviderKind, string> = {
+  openai: "OpenAI, which is asked not to store requests.",
+  anthropic: "Anthropic.",
+  azure:
+    "Azure OpenAI in the Azure resource this installation's operator configured, which is asked not to store requests.",
+  "openai-compatible":
+    "A model endpoint chosen by this installation's operator (OpenAI-compatible). Ask them where it runs.",
+};
 
 export function OrganizationIntelligence() {
   return (
@@ -22,7 +35,8 @@ export function OrganizationIntelligence() {
 // opts in. Turning it off stops queued runs before anything is sent.
 function AiPolicySection() {
   const { isAdmin, directory, mutate } = useWorkspace();
-  const { enabled, available } = directory.ai;
+  const { enabled, available, provider, model, dictation } = directory.ai;
+  const destination = provider ? destinations[provider] : null;
   const [error, setError] = useState("");
   const woke = useAfterglow(!enabled);
   return (
@@ -65,8 +79,8 @@ function AiPolicySection() {
       }
       footer={
         available
-          ? "Content is sent to OpenAI without being retained for training. Each project chooses how the review action treats its pull requests."
-          : "This server has no AI provider connected. Set OPENAI_API_KEY to make Lictory Intelligence available."
+          ? "This installation's operator chooses the AI provider and model on the server. Each project chooses how the review action treats its pull requests."
+          : "This server has no AI provider connected. Its operator can connect OpenAI, Anthropic, Azure OpenAI or a self-hosted model (LICTORY_AI_PROVIDER)."
       }
     >
       <SettingsBody className="space-y-3 text-[13px]">
@@ -103,6 +117,30 @@ function AiPolicySection() {
             Reviewed items (specifications, open discussions, pull request
             changes) and the context that applies to them.
           </dd>
+          {destination && (
+            <>
+              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+                Sent to
+              </dt>
+              <dd>
+                {destination}
+                {model && (
+                  <>
+                    {" "}
+                    Model <span className="font-mono text-xs">{model}</span>.
+                  </>
+                )}
+              </dd>
+              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+                Voice input
+              </dt>
+              <dd>
+                {dictation
+                  ? "Audio goes from the browser straight to OpenAI and is not stored by Lictory."
+                  : "Not offered on this server."}
+              </dd>
+            </>
+          )}
           <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
             Who can change this
           </dt>

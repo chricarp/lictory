@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { db } from "@lictory/core/db";
+import { checkAiProvider } from "@lictory/core/ai/check";
 import {
   addOrganizationMember,
   createAccount,
@@ -89,8 +90,38 @@ function admin(
   };
 }
 
+// One live AI check at a time per API process, and not more than one every
+// ten seconds: each check costs the operator three model calls. It accepts no
+// input, so it only ever reaches the configured provider.
+let aiCheck: { running: boolean; at: number } = { running: false, at: 0 };
+async function runAiCheck() {
+  if (aiCheck.running)
+    throw new InstanceAdminError(
+      "busy",
+      "A check of the AI provider is already running. Wait for its result.",
+      409,
+    );
+  if (Date.now() - aiCheck.at < 10_000)
+    throw new InstanceAdminError(
+      "busy",
+      "The AI provider was just checked. Try again in a few seconds.",
+      409,
+    );
+  aiCheck = { running: true, at: Date.now() };
+  try {
+    return await checkAiProvider();
+  } finally {
+    aiCheck = { running: false, at: Date.now() };
+  }
+}
+
 export function adminRoutes() {
   const app = new Hono();
+
+  app.post(
+    "/api/admin/ai/check",
+    admin(() => runAiCheck()),
+  );
 
   app.get(
     "/api/admin/overview",

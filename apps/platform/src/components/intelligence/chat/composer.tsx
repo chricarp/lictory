@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { cn } from "@lictory/core/lib/utils";
+import { useOptionalWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Kbd } from "@lictory/ui/primitives";
 import {
   applyEdit,
@@ -122,7 +123,10 @@ export const Composer = forwardRef<
     dictationSupported,
     () => false,
   );
-  const canDictate = !!organizationId && supported;
+  // The server offers dictation only when its operator configured it (audio
+  // goes straight to OpenAI's Realtime API, a separate destination).
+  const configured = useOptionalWorkspace()?.directory.ai.dictation ?? false;
+  const canDictate = !!organizationId && supported && configured;
   const dictating = voice.state !== "idle";
   const shortcut = useSyncExternalStore(
     noSubscribe,
