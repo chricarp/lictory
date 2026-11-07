@@ -7,6 +7,7 @@ import type {
 } from "@lictory/core/contracts/decomposition";
 import type { Tx } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
+import { indexSpecificationRevisions } from "@lictory/core/spaces/knowledge";
 
 // Proposed changes to existing children of a reviewed breakdown.
 //
@@ -178,15 +179,23 @@ export async function applyChildChange(
     const title = change.title ?? child.title;
     const content = change.description ?? latest?.content ?? "";
     if (title !== child.title || content !== (latest?.content ?? "")) {
-      await tx.insert(s.specificationRevision).values({
-        organizationId,
-        workItemId: child.id,
-        number: (latest?.number ?? 0) + 1,
-        title,
-        content,
-        changeSummary: "Accepted delivery breakdown change",
-        authorId: userId,
-      });
+      const inserted = await tx
+        .insert(s.specificationRevision)
+        .values({
+          organizationId,
+          workItemId: child.id,
+          number: (latest?.number ?? 0) + 1,
+          title,
+          content,
+          changeSummary: "Accepted delivery breakdown change",
+          authorId: userId,
+        })
+        .returning({
+          id: s.specificationRevision.id,
+          workItemId: s.specificationRevision.workItemId,
+          content: s.specificationRevision.content,
+        });
+      await indexSpecificationRevisions(tx, organizationId, inserted);
       patch.title = title;
       if (change.title !== undefined) changed.push("title");
       if (change.description !== undefined) changed.push("description");

@@ -171,7 +171,7 @@ void test("deterministic GFM includes tables, tasks, references and escaped text
   );
   const markdown = documentToMarkdown(d);
   assert.match(markdown, /## Title/);
-  assert.match(markdown, /\[PAY-142\]\(item:wi\)\[Linked page\]\(page:pg\)/);
+  assert.match(markdown, /\[PAY-142\]\(item:wi\)\[\[page:pg\]\]/);
   assert.match(markdown, /- \[x\] done/);
   assert.match(markdown, /\| --- \|/);
   assert.equal(markdown, documentToMarkdown(d));
@@ -200,7 +200,7 @@ void test("page Markdown keeps reference identity through export and import", ()
   const markdown = documentToMarkdown(d);
   assert.equal(
     markdown,
-    "See [PAY-2](item:item-1), [Linked page](page:page-1) and [Linked page](page:page-2@commit-9) under [Retries reuse the ID](decision:dec-1)",
+    "See [PAY-2](item:item-1), [[page:page-1]] and [page](page:page-2@commit-9) under [Retries reuse the ID](decision:dec-1)",
   );
   const back = markdownToDocument(markdown);
   const inline = back.content![0]!.content!.filter((n) => n.type !== "text");

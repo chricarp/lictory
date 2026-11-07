@@ -1085,6 +1085,34 @@ export const pageDraftSummarySchema = z.object({
 export type PageDraftSummary = z.infer<typeof pageDraftSummarySchema>;
 // Why an open page pull request cannot merge yet, computed from the page's
 // history, drafts, threads and reviews (access is checked when merging).
+// Why a page is attached to a work item.
+export const pageAttachmentPurposes = [
+  "background",
+  "design",
+  "runbook",
+] as const;
+export type PageAttachmentPurpose = (typeof pageAttachmentPurposes)[number];
+// Committed page content a work item is created from: the page, the exact
+// commit, optionally the top-level block and the selected text.
+export const PAGE_SOURCE_QUOTE_MAX = 2000;
+export const workItemPageSourceSchema = z.strictObject({
+  pageId: id,
+  commitId: id,
+  blockId: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/, "Use the block's id.")
+    .nullable()
+    .optional(),
+  quote: z.string().trim().min(1).max(PAGE_SOURCE_QUOTE_MAX).optional(),
+});
+export type WorkItemPageSource = z.infer<typeof workItemPageSourceSchema>;
+// The work item revision a page branch is opened from.
+export const pageBranchOriginSchema = z.strictObject({
+  workItemId: id,
+  revisionId: id,
+});
 export const pageMergeBlockers = [
   "draft",
   "no_merge_base",
@@ -1305,7 +1333,116 @@ export const spaceEntitySchema = z.discriminatedUnion("type", [
     detail: z.record(z.string(), z.unknown()),
     createdAt: z.string(),
   }),
+  // Knowledge links (docs/internals/knowledge-links.md). Each row carries
+  // the page it concerns and its space, so only readers of that space ever
+  // receive it, and also names the work item (`work_item_id` column) or the
+  // project (`project_id` column) it concerns. Rows of archived pages and
+  // spaces are not projected. Titles are never part of them: readers
+  // resolve the page from the `page` summaries they can read, the item from
+  // the organization's work items.
+  //
+  // A work item referenced in the page's published version (main's head
+  // `commitId`), with the top-level blocks that mention it in document
+  // order. `id` is `${pageId}:${workItemId}`.
+  z.object({
+    ...inSpace,
+    type: z.literal("pageReference"),
+    pageId: id,
+    workItemId: id,
+    commitId: id,
+    blockIds: z.array(z.string()),
+  }),
+  // The main specification revisions of a work item that cite the page,
+  // oldest first: `commitIds` are the pinned versions they cite (in order of
+  // appearance), `latest` whether they also cite it unpinned. Whether the
+  // item's current revision cites the page is `revisionId` of the work item
+  // among them. `id` is `${workItemId}:${pageId}`.
+  z.object({
+    ...inSpace,
+    type: z.literal("specificationCitation"),
+    pageId: id,
+    workItemId: id,
+    revisions: z.array(
+      z.object({
+        revisionId: id,
+        number: z.number().int().positive(),
+        commitIds: z.array(id),
+        latest: z.boolean(),
+      }),
+    ),
+  }),
+  // A page deliberately attached to a work item (active attachments only).
+  z.object({
+    ...inSpace,
+    type: z.literal("pageAttachment"),
+    pageId: id,
+    workItemId: id,
+    purpose: z.enum(pageAttachmentPurposes),
+    // The pinned version; null follows the published page.
+    commitId: id.nullable(),
+    createdById: id,
+    createdAt: z.string(),
+  }),
+  // Where a work item came from: committed page content. `id` is the work
+  // item's id.
+  z.object({
+    ...inSpace,
+    type: z.literal("workItemSource"),
+    pageId: id,
+    workItemId: id,
+    commitId: id,
+    blockId: z.string().nullable(),
+    quote: z.string().nullable(),
+    createdById: id,
+    createdAt: z.string(),
+  }),
+  // A page branch opened from a work item revision ("Propose page
+  // update"), kept after the branch is merged or deleted. `id` is the
+  // branch id; `pullRequests` are the branch's pull requests (`closed`:
+  // deleted without merging).
+  z.object({
+    ...inSpace,
+    type: z.literal("pageBranchOrigin"),
+    pageId: id,
+    branchId: id,
+    workItemId: id,
+    revisionId: id,
+    name: z.string(),
+    authorId: id,
+    createdAt: z.string(),
+    deletedAt: z.string().nullable(),
+    pullRequests: z.array(
+      z.object({
+        id,
+        status: z.enum(["draft", "open", "merged", "closed"]),
+        targetBranchId: id,
+        mergeCommitId: id.nullable(),
+      }),
+    ),
+  }),
+  // A page a project, one of its teams or one of its iterations keeps as
+  // context, ordered by `rank` within that scope (active links only).
+  z.object({
+    ...inSpace,
+    type: z.literal("pageContextLink"),
+    pageId: id,
+    projectId: id,
+    teamId: id.nullable(),
+    iterationId: id.nullable(),
+    rank: z.string(),
+    createdById: id,
+    createdAt: z.string(),
+  }),
 ]);
+// Knowledge link rows of `space_entity` (see above).
+export const knowledgeEntityTypes = [
+  "pageReference",
+  "specificationCitation",
+  "pageAttachment",
+  "workItemSource",
+  "pageBranchOrigin",
+  "pageContextLink",
+] as const;
 export type SpaceEntity = z.infer<typeof spaceEntitySchema>;
 export type SpaceEntityType = SpaceEntity["type"];
 export type SpaceEntityOf<T extends SpaceEntityType> = Extract<
@@ -1532,12 +1669,15 @@ export const commandSchema = z.discriminatedUnion("type", [
     discardDraftChanges: z.boolean().optional(),
     message: pageCommitMessage.optional(),
   }),
+  // `origin`: the work item revision the branch proposes to document
+  // ("Propose page update"), kept with the branch.
   z.object({
     type: z.literal("createPageBranch"),
     pageId: id,
     branchId: z.uuid(),
     name: z.string().trim().min(1).max(80),
     fromCommitId: id.optional(),
+    origin: pageBranchOriginSchema.optional(),
   }),
   z.object({
     type: z.literal("setPageBranchCollaborator"),
@@ -1631,6 +1771,7 @@ export const commandSchema = z.discriminatedUnion("type", [
       message: z.string().trim().min(1).max(2000),
       description: z.string().trim().max(20_000).optional(),
       branchName: z.string().trim().min(1).max(80).optional(),
+      origin: pageBranchOriginSchema.optional(),
     })
     .refine((c) => (c.markdown === undefined) !== (c.content === undefined), {
       message: "Provide the new page as either markdown or content.",
@@ -1714,6 +1855,53 @@ export const commandSchema = z.discriminatedUnion("type", [
     statusId: id.optional(),
     iterationId: id.nullable().optional(),
     assigneeId: id.nullable().optional(),
+    // Committed page content the item is created from (provenance, kept
+    // immutably with the item).
+    source: workItemPageSourceSchema.optional(),
+  }),
+  // Knowledge links (docs/internals/knowledge-links.md). Attaching needs
+  // change-properties in the item's project and read access to the page;
+  // `commitId` pins one version of the page (null: the published page).
+  // Attaching a page that is already attached with another purpose or pin
+  // replaces that attachment.
+  z.object({
+    type: z.literal("attachPage"),
+    ...itemCommand,
+    attachmentId: z.uuid(),
+    pageId: id,
+    purpose: z.enum(pageAttachmentPurposes),
+    commitId: id.nullable().optional(),
+  }),
+  z.object({
+    type: z.literal("detachPage"),
+    ...itemCommand,
+    attachmentId: id,
+  }),
+  // Context pages of a project, a team (`teamId`) or an iteration
+  // (`iterationId`), placed between `afterId` and `beforeId` among the links
+  // of that scope (both omitted: last). Project administrators and members
+  // whose discipline changes item properties manage them.
+  z.object({
+    type: z.literal("linkContextPage"),
+    projectId: id,
+    linkId: z.uuid(),
+    pageId: id,
+    teamId: id.nullable().optional(),
+    iterationId: id.nullable().optional(),
+    afterId: id.nullable().optional(),
+    beforeId: id.nullable().optional(),
+  }),
+  z.object({
+    type: z.literal("unlinkContextPage"),
+    projectId: id,
+    linkId: id,
+  }),
+  z.object({
+    type: z.literal("moveContextPage"),
+    projectId: id,
+    linkId: id,
+    afterId: id.nullable(),
+    beforeId: id.nullable(),
   }),
   // Non-material properties: they never create a revision or stale approvals.
   // `refinementState` accepts manual moves before ready; `ready` itself is
@@ -2321,6 +2509,29 @@ const spaceCommandTypes = new Set<string>([
 ]);
 export function isSpaceCommand(c: Command): c is SpaceCommand {
   return spaceCommandTypes.has(c.type);
+}
+// Knowledge link commands: they write knowledge rows and Spaces
+// projections only (docs/internals/knowledge-links.md).
+export type KnowledgeCommand = Extract<
+  Command,
+  {
+    type:
+      | "attachPage"
+      | "detachPage"
+      | "linkContextPage"
+      | "unlinkContextPage"
+      | "moveContextPage";
+  }
+>;
+const knowledgeCommandTypes = new Set<string>([
+  "attachPage",
+  "detachPage",
+  "linkContextPage",
+  "unlinkContextPage",
+  "moveContextPage",
+]);
+export function isKnowledgeCommand(c: Command): c is KnowledgeCommand {
+  return knowledgeCommandTypes.has(c.type);
 }
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({

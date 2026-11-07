@@ -26,6 +26,7 @@ import { intelligenceCapabilities } from "@lictory/core/capabilities/intelligenc
 import { notificationCapabilities } from "@lictory/core/capabilities/notifications";
 import { securityCapabilities } from "@lictory/core/capabilities/security";
 import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
+import { knowledgeCapabilities } from "@lictory/core/capabilities/knowledge";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
@@ -33,6 +34,7 @@ import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
 export const capabilities: readonly AnyCapability[] = [
   ...workspaceCapabilities,
   ...spaceCapabilities,
+  ...knowledgeCapabilities,
   ...notificationCapabilities,
   ...deliveryCapabilities,
   ...intelligenceCapabilities,

@@ -72,10 +72,13 @@ every query:
   decisions, page threads, messages and activity, and live drafts (as working
   trees: their Yjs state, epoch seeds and update log, with binary columns as
   base64 strings);
+- [knowledge links](./knowledge-links.md) people made: pages attached to
+  work items, the page content work items were created from, page branch
+  origins and context pages;
 - the audit log: audit events, configuration changes and agent calls.
 
-Not included: synchronization projections, effective Spaces access and
-receipts (derived from the above), personal notifications, watch and notification preferences, Litto
+Not included: synchronization projections, effective Spaces access, the
+reference indexes and receipts (derived from the above), personal notifications, watch and notification preferences, Litto
 conversations (personal), and credentials of any kind (sessions, accounts,
 access tokens, encrypted delivery credentials).
 

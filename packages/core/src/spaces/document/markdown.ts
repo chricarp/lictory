@@ -3,15 +3,13 @@ import { canonicalizeDocument, type PageNode } from "./canonical";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
 }
-// A linked page is written without its title: the projection is read by
-// everyone who reads this page, who may not be allowed to read the other one.
-export const LINKED_PAGE_LABEL = "Linked page";
-
 /**
  * Deterministic GFM projection, never the source of truth. References keep
- * their identity as typed links (`[PAY-2](item:ID)`, `[Linked page](page:ID)`,
- * `[label](decision:ID)`, see contracts/references.ts), so Markdown read back
- * with `markdownToDocument` restores them.
+ * their identity as typed links (`[PAY-2](item:ID)`, `[[page:ID]]`, a pinned
+ * `[page](page:ID@COMMIT)`, `[label](decision:ID)`; see
+ * contracts/references.ts). A linked page's title is never written: whoever
+ * reads this page may not read that one. `markdownToDocument` reads them all
+ * back.
  */
 export function documentToMarkdown(json: unknown): string {
   return render(canonicalizeDocument(json));
@@ -110,20 +108,16 @@ function render(n: PageNode): string {
         String(a.key),
       );
     case "pageRef":
-      return formatReference(
-        {
-          kind: "page",
-          id: String(a.pageId),
-          ...(typeof a.commitId === "string" && a.commitId
-            ? { commitId: a.commitId }
-            : {}),
-        },
-        LINKED_PAGE_LABEL,
-      );
+      return typeof a.commitId === "string"
+        ? formatReference(
+            { kind: "page", id: String(a.pageId), commitId: a.commitId },
+            "page",
+          )
+        : `[[page:${String(a.pageId)}]]`;
     case "decisionRef":
       return formatReference(
         { kind: "decision", id: String(a.decisionId) },
-        String(a.label),
+        typeof a.label === "string" ? a.label : "decision",
       );
     default:
       return blocks();

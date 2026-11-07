@@ -52,9 +52,9 @@ function checkAttrs(attrs: unknown, allowed: Record<string, unknown>) {
       "colwidth",
       "pageId",
       "commitId",
+      "workItemId",
       "decisionId",
       "label",
-      "workItemId",
       "key",
       "src",
       "href",
@@ -128,10 +128,17 @@ function inspect(value: unknown, depth = 0): PageNode {
     : n.type === "pageRef"
       ? ["pageId"]
       : n.type === "decisionRef"
-        ? ["decisionId", "label"]
+        ? ["decisionId"]
         : [])
     if (typeof a[key] !== "string" || !a[key].trim())
       throw new PageDocumentError("Page references require an identifier.");
+  if (
+    n.type === "pageRef" &&
+    a.commitId != null &&
+    (typeof a.commitId !== "string" ||
+      !/^[A-Za-z0-9_-]{1,160}$/.test(a.commitId))
+  )
+    throw new PageDocumentError("A pinned page reference needs a commit id.");
   if (
     n.type === "image" &&
     (typeof a.src !== "string" ||
@@ -171,10 +178,6 @@ export function canonicalizeDocument(json: unknown): PageNode {
     const output = node.toJSON() as PageNode;
     const seen = new Set<string>();
     function visit(n: PageNode) {
-      // An unpinned page reference stores no commit, so documents written
-      // before pins existed keep their exact canonical form and hash.
-      if (n.type === "pageRef" && n.attrs && n.attrs.commitId == null)
-        delete n.attrs.commitId;
       if (pageSchema.nodes[n.type]!.isBlock && n.type !== "doc") {
         const id = n.attrs?.id;
         const next =
@@ -184,6 +187,9 @@ export function canonicalizeDocument(json: unknown): PageNode {
         n.attrs = { ...n.attrs, id: next };
         seen.add(next);
       }
+      // An unpinned page reference has no `commitId` in canonical JSON.
+      if (n.type === "pageRef" && n.attrs && n.attrs.commitId == null)
+        delete n.attrs.commitId;
       n.content?.forEach(visit);
     }
     visit(output);

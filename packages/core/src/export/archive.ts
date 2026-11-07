@@ -38,7 +38,7 @@ type Row = Record<string, unknown>;
 
 // Every organization-owned table that is part of the organization's record,
 // with the columns that never leave the server. Not exported: projections,
-// effective Spaces access and receipts (derived), personal notifications and
+// effective Spaces access, reference indexes and receipts (derived), personal notifications and
 // Litto conversations, and credentials (sessions, accounts, access tokens).
 const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.project },
@@ -92,6 +92,12 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.pageThread },
   { table: s.pageThreadMessage },
   { table: s.pageActivity },
+  // Knowledge links people made. The reference indexes (page_reference,
+  // specification_reference) are derived from commits and revisions.
+  { table: s.workItemPageAttachment },
+  { table: s.workItemPageSource },
+  { table: s.pageBranchOrigin },
+  { table: s.pageContextLink },
   { table: s.fileObject },
   { table: s.deliveryConnection, omit: ["encryptedCredential"] },
   { table: s.deliveryTarget },

@@ -35,6 +35,9 @@ adding domain writes or synchronized entities.
 - [Lictory Spaces](./internals/spaces.md): spaces and pages, live drafts,
   commits and reviewed publishing, access inherited from projects and teams,
   the collaboration service (in development)
+- [Knowledge links](./internals/knowledge-links.md): references, citations,
+  attachments, provenance, branch origins and context links between pages
+  and work, who owns each and who may see them
 - [Audit log](./internals/audit.md): what is recorded, immutability,
   retention and how features record new events
 - [Organization data export](./internals/data-export.md): the export job,
