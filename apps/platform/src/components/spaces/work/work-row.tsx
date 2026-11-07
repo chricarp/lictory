@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import {
@@ -19,7 +19,10 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { Avatar } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
-import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  useDelivery,
+  useWorkspace,
+} from "@lictory/platform/components/workspace/provider";
 import {
   RefinementIcon,
   StatusIcon,
@@ -59,10 +62,45 @@ export function useWorkFacts() {
       ),
     [view.entities, directory.delivery.targets],
   );
+  // Facts keep their identity while their item (and, in external projects,
+  // its delivery link) is unchanged, so a live change to one item
+  // re-renders only its rows, not every row of every list on the page.
+  const [cache] = useState(
+    () =>
+      new Map<
+        string,
+        { item: WorkItem; link: string; context: unknown[]; fact: WorkFact }
+      >(),
+  );
   return useMemo(() => {
     const itemById = new Map(items.map((i) => [i.id, i]));
     const projectById = new Map(projects.map((p) => [p.id, p]));
+    // Everything a fact derives from besides its item, its project (an
+    // entity that keeps its identity while unchanged) and its link. The
+    // project list itself is rebuilt on every synchronized change.
+    const context = [delivery, organization.slug, directory];
+    const sameContext = (c: unknown[], project: Project | undefined) =>
+      c[0] === project && c.slice(1).every((x, i) => x === context[i]);
     const fact = (item: WorkItem): WorkFact => {
+      const link = JSON.stringify(links.get(item.id) ?? null);
+      const project = projectById.get(item.projectId);
+      const hit = cache.get(item.id);
+      if (
+        hit?.item === item &&
+        hit.link === link &&
+        sameContext(hit.context, project)
+      )
+        return hit.fact;
+      const made = makeFact(item);
+      cache.set(item.id, {
+        item,
+        link,
+        context: [project, ...context],
+        fact: made,
+      });
+      return made;
+    };
+    const makeFact = (item: WorkItem): WorkFact => {
       const project = projectById.get(item.projectId);
       const key = identifier(project, item.number);
       let status: WorkFact["status"];
@@ -108,7 +146,7 @@ export function useWorkFacts() {
       fact,
       projectById,
     };
-  }, [items, projects, delivery, organization.slug, links, directory]);
+  }, [items, projects, delivery, organization.slug, links, directory, cache]);
 }
 
 // "3 of 5 done": canceled work counts toward neither number.
@@ -120,19 +158,33 @@ export function rollup(facts: readonly WorkFact[]) {
   };
 }
 
-export function WorkRow({
-  fact,
-  detail,
-  showOwner = false,
-  compact = false,
-}: {
+type WorkRowProps = {
   fact: WorkFact;
   // What links the item to the page ("Mentioned", "Created here"…).
   detail?: string;
   showOwner?: boolean;
   compact?: boolean;
-}) {
-  const { memberName, delivery } = useWorkspace();
+};
+
+// The assignee's name, the only part of a row read from the workspace
+// (which changes with every synchronized change).
+function OwnerName({ id }: { id: string }) {
+  return <>{useWorkspace().memberName(id)}</>;
+}
+function OwnerAvatar({ id }: { id: string }) {
+  const { memberName } = useWorkspace();
+  return <Avatar name={memberName(id)} userId={id} size="xs" />;
+}
+
+// Memoized, with stable facts and no workspace context of its own: a live
+// change re-renders only the rows of the items it changed.
+export const WorkRow = memo(function WorkRow({
+  fact,
+  detail,
+  showOwner = false,
+  compact = false,
+}: WorkRowProps) {
+  const delivery = useDelivery();
   const { item, project, key, href, status } = fact;
   const type = typeOf(delivery, item);
   const estimate =
@@ -143,7 +195,7 @@ export function WorkRow({
     type.hasSpecification && item.refinementState ? item.refinementState : null;
   const owner =
     showOwner && project?.deliveryMode !== "external" && item.assigneeId
-      ? memberName(item.assigneeId)
+      ? item.assigneeId
       : null;
   const native = project?.deliveryMode !== "external";
   return (
@@ -205,7 +257,11 @@ export function WorkRow({
           , {native ? `status ${status.label}` : status.description}
           {refinement && `, ${refinementMeta[refinement].label}`}
           {estimate && `, estimate ${estimate}`}
-          {owner && `, assigned to ${owner}`}
+          {owner && (
+            <>
+              , assigned to <OwnerName id={owner} />
+            </>
+          )}
           {detail && `, ${detail}`}
         </span>
       </span>
@@ -239,12 +295,12 @@ export function WorkRow({
       )}
       {owner && (
         <span aria-hidden className="shrink-0">
-          <Avatar name={owner} userId={item.assigneeId} size="xs" />
+          <OwnerAvatar id={owner} />
         </span>
       )}
     </li>
   );
-}
+});
 
 // Long lists grow by a page at a time instead of all at once, so a page
 // with several large lists stays light.
