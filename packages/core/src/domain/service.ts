@@ -3915,11 +3915,15 @@ export async function applyMutation(
               "This specification is ready. Use a branch and pull request to change main.",
             );
         }
-        await openSpecificationDraft(tx, {
-          organizationId,
-          workItemId: workItemId!,
-          branchId: c.branchId ?? null,
-        });
+        await openSpecificationDraft(
+          tx,
+          {
+            organizationId,
+            workItemId: workItemId!,
+            branchId: c.branchId ?? null,
+          },
+          { discardChanges: c.discardChanges },
+        );
         break;
       }
       // "Save revision": seals main's draft at the stored cut into the next

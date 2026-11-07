@@ -556,7 +556,7 @@ export async function applyBranchCommand(
         : await insertCommit(
             b,
             snapshot,
-            c.message?.trim() || `Edit ${b.name}`,
+            c.message?.trim() ? c.message.trim() : `Edit ${b.name}`,
             [b.headId],
             // Who wrote the sealed edits, beside who committed them.
             { liveDraft: true, contributorIds: cut.authorIds },

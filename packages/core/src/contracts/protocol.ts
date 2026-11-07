@@ -2106,6 +2106,8 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("openSpecificationDraft"),
     ...itemCommand,
     branchId: id.optional(),
+    // Start again from the line's head, for everyone editing the draft.
+    discardChanges: z.boolean().optional(),
   }),
   // Seals the draft at exactly `expectedSequence` (the stored sequence the
   // editor last saw): on main a new revision ("Save revision"; `message` is

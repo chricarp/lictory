@@ -430,7 +430,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   openSpecificationDraft: {
     title: "Open specification draft",
     description:
-      "Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. Agents cannot type into live drafts; they change specifications with updateSpecification or a branch commit.",
+      "Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. `discardChanges: true` starts the draft again from the line's latest Markdown for everyone editing it (the discarded edits stay recoverable on the server). Agents cannot type into live drafts; they change specifications with updateSpecification or a branch commit.",
   },
   commitSpecificationDraft: {
     title: "Save specification draft",

@@ -743,3 +743,42 @@ void test("the first stored edit beyond the saved cut is projected as unsaved dr
   assert.equal((await f.drafts())[0]?.uncommittedChanges, false);
   assert.equal((await f.revisions()).at(-1)?.content, "One. Two.\n");
 });
+
+void test("discarding a draft's changes starts a new epoch at the head, for everyone, and keeps the old edits reconstructable", async () => {
+  const f = await fixture("Keep this.\n");
+  const ref = await open(f);
+  await edit(f, ref, f.owner, appendTo(0, " Not this."));
+  assert.equal((await f.drafts())[0]?.uncommittedChanges, true);
+  await f.command({
+    type: "openSpecificationDraft",
+    workItemId: f.workItemId,
+    discardChanges: true,
+  });
+  const [draft] = await f.drafts();
+  assert.equal(draft?.epoch, 2);
+  assert.equal(draft?.uncommittedChanges, false);
+  const { state } = await loadDraft(db, { ...ref, epoch: 2 });
+  assert.equal(draftStateToMarkdown(state, "Keep this.\n"), "Keep this.\n");
+  // The discarded edit is still stored with its epoch.
+  const updates = await db
+    .select()
+    .from(s.specificationDraftUpdate)
+    .where(eq(s.specificationDraftUpdate.draftId, ref.draftId));
+  assert.deepEqual(
+    updates.map((u) => u.epoch),
+    [1],
+  );
+  // People who may not edit the line cannot discard it either.
+  await assert.rejects(
+    f.command(
+      {
+        type: "openSpecificationDraft",
+        workItemId: f.workItemId,
+        discardChanges: true,
+      },
+      f.reviewer,
+    ),
+    /edit specifications|Edit specifications|capabilit/i,
+  );
+  assert.equal((await f.revisions()).length, 1);
+});

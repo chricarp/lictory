@@ -191,17 +191,21 @@ async function startEpoch(tx: Tx, draft: SpecificationDraftRow, head: Head) {
 }
 
 // The open draft of a line: created from the head, a closed one reopened as
-// a new epoch, an open one returned as it is. The caller authorizes.
+// a new epoch, an open one returned as it is. `discardChanges` starts a new
+// epoch at the head even for an open draft (the unsaved changes stay
+// reconstructable from the old epoch's seed and updates). The caller
+// authorizes.
 export async function openSpecificationDraft(
   tx: Tx,
   line: { organizationId: string; workItemId: string; branchId: string | null },
+  options: { discardChanges?: boolean } = {},
 ) {
   const { organizationId, workItemId, branchId } = line;
   const [existing] = await tx
     .select()
     .from(s.specificationDraft)
     .where(draftWhere(organizationId, workItemId, branchId));
-  if (existing && !existing.fencedAt)
+  if (existing && !existing.fencedAt && !options.discardChanges)
     return { id: existing.id, epoch: existing.epoch };
   const head = await headOf(tx, organizationId, workItemId, branchId);
   if (!head)
@@ -306,9 +310,8 @@ export async function followSpecificationDrafts(
   let changed = false;
   for (const draft of drafts) {
     const closed =
-      !item ||
-      item.archivedAt ||
-      !item.hasSpecification ||
+      !item?.hasSpecification ||
+      item.archivedAt !== null ||
       (!draft.branchId && item.mainProtected);
     const head = closed
       ? undefined
