@@ -78,13 +78,7 @@ function Anchor({
   const { ref, onClick, ...handlers } = anchor;
   if (mode === "link" && href)
     return (
-      <Link
-        ref={ref}
-        href={href}
-        className={chip}
-        {...handlers}
-        {...data}
-      >
+      <Link ref={ref} href={href} className={chip} {...handlers} {...data}>
         {children}
         {spoken && <span className="sr-only">{spoken}</span>}
       </Link>

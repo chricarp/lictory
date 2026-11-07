@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -34,9 +33,25 @@ function closed() {
   warmth.closedAt = Date.now();
 }
 
-// One pending open or close per card.
+// One pending open or close per card, and whether a pointer is pressing
+// the anchor (a click focuses it too, and navigates: no card for that).
 class Delay {
   private id: number | undefined;
+  private pressing = false;
+  // Pressed until the pointer is released anywhere.
+  press() {
+    this.pressing = true;
+    window.addEventListener(
+      "pointerup",
+      () => {
+        this.pressing = false;
+      },
+      { once: true },
+    );
+  }
+  get pressed() {
+    return this.pressing;
+  }
   run(action: () => void, ms: number) {
     this.cancel();
     this.id = window.setTimeout(action, ms);
@@ -50,8 +65,9 @@ export type HoverCardAnchor = {
   ref: (node: HTMLElement | null) => void;
   onPointerEnter: () => void;
   onPointerLeave: () => void;
-  onFocus: (event: FocusEvent) => void;
+  onFocus: () => void;
   onBlur: () => void;
+  onPointerDown: () => void;
   onKeyDown: (event: KeyboardEvent) => void;
   // For anchors that are not links: a click opens the card.
   onClick: () => void;
@@ -155,10 +171,10 @@ export function HoverCard({
     ref: setAnchorElement,
     onPointerEnter: () => show(OPEN_DELAY),
     onPointerLeave: () => hide(),
-    onFocus: (event) => {
-      // Keyboard focus only: a click focuses too, and navigates.
-      if ((event.target as HTMLElement).matches(":focus-visible")) show(0);
+    onFocus: () => {
+      if (!delay.pressed) show(0);
     },
+    onPointerDown: () => delay.press(),
     onBlur: () => hide(0),
     onKeyDown: (event) => {
       if (event.key === "Escape" && open) {
