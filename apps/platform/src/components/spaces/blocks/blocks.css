@@ -69,6 +69,18 @@
   font-size: 12px;
   color: var(--muted-foreground);
 }
+.page-document .decision-card-retry {
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-weight: 500;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  outline: none;
+}
+.page-document .decision-card-retry:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
 /* A card fills its paragraph: its renderer is a block, and the editor's
    separators and trailing break around the atom (inline by ProseMirror's
    own !important rule) take no height. */

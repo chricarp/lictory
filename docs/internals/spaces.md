@@ -668,7 +668,12 @@ page shows of it is read live with the reader's own access.
   when it stands alone in its paragraph (title, the conclusion, the item key,
   the revision it was recorded on, and "Archived" when it or its item was
   withdrawn). The decision's text stays canonical in Work (`getDecisions`
-  reads it); the node keeps a `label` for readers it cannot be resolved for.
+  reads it, once for every reference on screen); the node keeps a `label`
+  for readers it cannot be resolved for. Archiving or restoring elsewhere
+  reaches an open page without a reload: what is on screen is read again
+  when the window regains focus or becomes visible and every minute while
+  visible, the cache belongs to one person and organization, and a failed
+  read offers Retry.
   Work's Decisions section offers "Add to a page", which proposes a page
   change (`proposePageChange` with the item revision as `origin`) appending
   the card; main is never edited directly.

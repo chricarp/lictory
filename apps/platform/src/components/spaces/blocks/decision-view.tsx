@@ -12,7 +12,8 @@ import { useDecision } from "@lictory/platform/components/spaces/blocks/decision
 // text stays canonical in Work (its immutable record); the page shows it as
 // it is now, with the item and revision it was recorded on, and says when
 // it was archived. What I cannot find shows only the label stored in the
-// content.
+// content. The card follows archiving and restoring done elsewhere
+// (decisions.ts reads it again on focus and while visible).
 
 const cardKey = new PluginKey("decisionCards");
 
@@ -64,10 +65,10 @@ export function isDecisionCard({ decorations }: ReactNodeViewProps) {
 }
 
 export function DecisionCardView({ node }: ReactNodeViewProps) {
-  const { organization } = useWorkspace();
+  const { organization, userId } = useWorkspace();
   const decisionId = node.attrs.decisionId as string | null;
   const label = (node.attrs.label as string | null) ?? "Decision";
-  const entry = useDecision(organization.id, decisionId);
+  const entry = useDecision(userId, organization.id, decisionId);
   const decision = entry.state === "ready" ? entry.decision : null;
   const title = decision?.title ?? label;
   const archived = Boolean(decision?.archivedAt);
@@ -110,11 +111,22 @@ export function DecisionCardView({ node }: ReactNodeViewProps) {
         </>
       ) : (
         <span className="decision-card-meta">
-          {entry.state === "loading"
-            ? "Loading the decision…"
-            : entry.state === "failed"
-              ? "The decision could not be loaded right now."
-              : "This decision is unavailable."}
+          {entry.state === "loading" ? (
+            "Loading the decision…"
+          ) : entry.state === "failed" ? (
+            <>
+              The decision could not be loaded right now.
+              <button
+                type="button"
+                className="decision-card-retry"
+                onClick={entry.retry}
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            "This decision is unavailable."
+          )}
         </span>
       )}
     </NodeViewWrapper>

@@ -33,6 +33,7 @@ let pageId: string;
 let secretUrl: string;
 let epicId: string;
 let childIds: string[];
+let decisionId: string;
 const [owner, , outsider] = [0, 1, 2] as const;
 const user = (index: number) => seeded.users[index]!;
 const wide = { width: 1440, height: 1000 };
@@ -126,7 +127,7 @@ test.beforeAll(async () => {
     workItemId: withdrawn,
     archived: true,
   });
-  const decisionId = crypto.randomUUID();
+  decisionId = crypto.randomUUID();
   await seeded.command({
     type: "recordDecision",
     workItemId: epicId,
@@ -355,6 +356,39 @@ test("decision cards and live work lists render what Work holds now", async ({
   await expect(card).toContainText("A refund never creates a new charge.");
   await expect(card).toContainText("HW-1");
   await expect(card).toContainText("Recorded on revision 1");
+  await expect(card).not.toContainText("Archived");
+  // Withdrawn elsewhere (another tab, another person): the open page shows
+  // it as soon as the window is focused again, without a reload, and
+  // follows the restore too.
+  const archive = (archived: boolean) =>
+    seeded.command({
+      type: "setDecisionArchived",
+      workItemId: epicId,
+      decisionId,
+      archived,
+    });
+  // Focus is read again once what is shown is a few seconds old.
+  const refocus = async (event: "focus" | "visibilitychange") =>
+    ada.page.evaluate((name) => {
+      const target = name === "focus" ? window : document;
+      target.dispatchEvent(new Event(name));
+    }, event);
+  await archive(true);
+  await expect(async () => {
+    await refocus("focus");
+    await expect(card.locator(".decision-card-archived")).toHaveText(
+      "Archived",
+      { timeout: 1000 },
+    );
+  }).toPass({ timeout: 20_000 });
+  await expect(card).toContainText("withdrawn from active product knowledge");
+  await archive(false);
+  await expect(async () => {
+    await refocus("visibilitychange");
+    await expect(card.locator(".decision-card-archived")).toHaveCount(0, {
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 20_000 });
 
   const children = reader(ada.page)
     .getByTestId("work-list")
