@@ -1163,6 +1163,49 @@ void test("context pages: who may link them, order, unlink and relink", async ()
     .from(s.spaceEntity)
     .where(eq(s.spaceEntity.key, `pageContextLink:${first}`));
   assert.equal(row!.projectId, f.projectId);
+
+  // Iteration notes: a new page linked in the same command, both or
+  // neither. Bob edits the space but does not manage context pages, so
+  // nothing of his attempt exists.
+  const notes = (actor: string, pageId: string) =>
+    ({
+      type: "createPage",
+      spaceId: f.openSpace,
+      pageId,
+      title: "Sprint 1 notes",
+      contextLink: {
+        projectId: f.projectId,
+        linkId: crypto.randomUUID(),
+        iterationId,
+      },
+    }) as Command;
+  const refusedPage = crypto.randomUUID();
+  await rejects(
+    f.run(f.bob, notes(f.bob, refusedPage)),
+    "forbidden",
+    /context pages/,
+  );
+  assert.equal(
+    (await db.select().from(s.page).where(eq(s.page.id, refusedPage))).length,
+    0,
+  );
+  // A retry of the same mutation (its answer was lost) creates one page
+  // and one link.
+  const notesPage = crypto.randomUUID();
+  const command = notes(f.alice, notesPage);
+  const mutationId = crypto.randomUUID();
+  await f.run(f.alice, command, mutationId);
+  await f.run(f.alice, command, mutationId);
+  const linked = await db
+    .select()
+    .from(s.pageContextLink)
+    .where(eq(s.pageContextLink.pageId, notesPage));
+  assert.equal(linked.length, 1);
+  assert.equal(linked[0]!.iterationId, iterationId);
+  assert.equal(
+    (await db.select().from(s.page).where(eq(s.page.id, notesPage))).length,
+    1,
+  );
   await invariant(f);
 });
 

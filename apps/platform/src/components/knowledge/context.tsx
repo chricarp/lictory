@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -12,6 +12,8 @@ import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import {
   iterationLabel,
+  PROTOCOL,
+  type Command,
   type Iteration,
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
@@ -19,6 +21,7 @@ import { Popover, usePopover } from "@lictory/ui/popover";
 import { toast } from "@lictory/ui/toast";
 import { Link, useRouter } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { MutationRejected } from "@lictory/platform/data/mutations";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import {
   contextStep,
@@ -380,6 +383,9 @@ function useNotesSpaces(project: Project) {
 // (its goal and a live list of the iteration's work), links it to the
 // iteration and opens it. Creating a page publishes its first version, as
 // "New page" does in the space; Work never changes existing pages itself.
+// Creating and linking are one command (`createPage` with `contextLink`):
+// both happen or neither does. A retry of the same form sends the same
+// mutation, so an answer lost on the way creates one page, never two.
 export function IterationNotesForm({
   project,
   iteration,
@@ -393,7 +399,7 @@ export function IterationNotesForm({
 }) {
   const labelId = usePopover()?.labelId;
   const router = useRouter();
-  const { organization, mutateConfirmed } = useWorkspace();
+  const { organization, applyConfirmed } = useWorkspace();
   const spaces = useNotesSpaces(project);
   const label = iterationLabel(iteration, project.iterationMode);
   const [spaceId, setSpaceId] = useState(spaces[0]?.id ?? "");
@@ -403,37 +409,67 @@ export function IterationNotesForm({
   const spaceField = useId();
   const titleField = useId();
   const space = spaces.find((s) => s.id === spaceId);
+  // The attempt for what the form says now: kept while space and title stay
+  // the same, so "Create and open" after a failure retries it.
+  const attempt = useRef<{
+    id: string;
+    pageId: string;
+    spaceId: string;
+    title: string;
+    command: Command;
+  } | null>(null);
   const create = async () => {
     if (!space || !title.trim()) return;
     setBusy(true);
     setError(undefined);
-    const pageId = crypto.randomUUID();
-    try {
-      await mutateConfirmed({
-        type: "createPage",
+    let current = attempt.current;
+    if (current?.spaceId !== space.id || current.title !== title.trim()) {
+      const pageId = crypto.randomUUID();
+      current = {
+        id: crypto.randomUUID(),
+        pageId,
         spaceId: space.id,
-        pageId,
         title: title.trim(),
-        content: templatePageContent("iteration-notes", {
-          projectId: project.id,
-          iterationId: iteration.id,
-          goal: iteration.goal,
-        }),
-      });
-      await mutateConfirmed({
-        type: "linkContextPage",
-        projectId: project.id,
-        linkId: crypto.randomUUID(),
-        pageId,
-        iterationId: iteration.id,
+        command: {
+          type: "createPage",
+          spaceId: space.id,
+          pageId,
+          title: title.trim(),
+          content: templatePageContent("iteration-notes", {
+            projectId: project.id,
+            iterationId: iteration.id,
+            goal: iteration.goal,
+          }),
+          contextLink: {
+            projectId: project.id,
+            linkId: crypto.randomUUID(),
+            iterationId: iteration.id,
+          },
+        },
+      };
+      attempt.current = current;
+    }
+    try {
+      await applyConfirmed({
+        protocol: PROTOCOL,
+        id: current.id,
+        organizationId: organization.id,
+        command: current.command,
       });
     } catch (e) {
-      setError(errorText(e));
+      // A refusal rolled everything back; a lost answer may have created
+      // the page, which the same mutation then returns.
+      setError(
+        e instanceof MutationRejected && e.details.category !== "unavailable"
+          ? `${errorText(e)} No page was created.`
+          : `${errorText(e)} Trying again creates the page once.`,
+      );
       setBusy(false);
       return;
     }
+    attempt.current = null;
     onDone();
-    router.push(paths.spacePage(organization.slug, space.slug, pageId));
+    router.push(paths.spacePage(organization.slug, space.slug, current.pageId));
   };
   return (
     <form

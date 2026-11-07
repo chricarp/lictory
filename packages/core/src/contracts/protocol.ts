@@ -1623,6 +1623,17 @@ export const commandSchema = z.discriminatedUnion("type", [
     // Starting content (canonical page JSON, e.g. a template); absent: an
     // empty page. It becomes the page's first version.
     content: pageNodeInput.optional(),
+    // Also links the new page as a context page of the project, one of its
+    // teams or iterations, in the same transaction (both or neither), with
+    // the rules of `linkContextPage`: iteration notes are created this way.
+    contextLink: z
+      .strictObject({
+        projectId: id,
+        linkId: z.uuid(),
+        teamId: id.nullable().optional(),
+        iterationId: id.nullable().optional(),
+      })
+      .optional(),
     ...pagePosition,
   }),
   z.object({

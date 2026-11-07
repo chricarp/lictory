@@ -2023,6 +2023,20 @@ export async function applyMutation(
         { organizationId, userId, roster, delegation: delegation(actor) },
         c,
       );
+      // A new page that is also a context page (iteration notes): linked in
+      // the same transaction, so a refused link creates no page.
+      if (c.type === "createPage" && c.contextLink)
+        await applyKnowledgeCommand(
+          tx,
+          {
+            organizationId,
+            userId,
+            admin: isAdmin(membership),
+            roster,
+            delegation: delegation(actor),
+          },
+          { type: "linkContextPage", ...c.contextLink, pageId: c.pageId },
+        );
       return receipt(
         tx,
         organizationId,

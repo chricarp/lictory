@@ -14,7 +14,7 @@ from a page never lets the page's readers change the item.
 | Attachment             | `attachPage` / `detachPage` on an item                                                                   | The work item (change-properties) | Explicit; detaching keeps history          |
 | Source (provenance)    | `createWorkItem` with `source`                                                                           | The work item, written once       | Immutable                                  |
 | Branch origin          | `createPageBranch` / `proposePageChange` with `origin`                                                   | The page branch, written once     | Immutable; kept after merge or deletion    |
-| Context link           | `linkContextPage` / `unlinkContextPage` / `moveContextPage`                                              | The project (its planners)        | Explicit, ordered; unlinking keeps history |
+| Context link           | `linkContextPage` / `unlinkContextPage` / `moveContextPage`, `createPage` with `contextLink`             | The project (its planners)        | Explicit, ordered; unlinking keeps history |
 
 The Markdown and document reference syntax is defined once in
 `packages/core/src/contracts/references.ts`.

@@ -176,7 +176,10 @@ the goal, a live, read-only list of the iteration's work (each item shows its
 current status wherever the page is read), risks and a retrospective.
 Creating a page publishes its first version exactly as "New page" does in the
 space; Work never changes an existing page by itself. The page is linked to
-the iteration. External projects have no
+the iteration in the same command (`createPage` with `contextLink`): a
+refused link creates no page, and a retry of the same attempt (its answer
+lost) creates one page with one link, never a second page. External
+projects have no
 native iterations, so no iteration lists.
 
 ## Estimates and reports
