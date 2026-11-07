@@ -259,11 +259,15 @@ void test("every template is a small canonical document; work lists follow their
     )[0]?.filter,
     "epic-children",
   );
-  assert.ok(
-    templateDocument("retrospective").content!.some(
-      (n) => n.type === "taskList",
-    ),
-  );
+  // No template starts with an empty bullet, step or task: it would read
+  // as a lone marker in the published page.
+  const emptyItems = (n: PageNode): number =>
+    (["listItem", "taskItem"].includes(n.type) &&
+    !n.content?.some((c) => c.content?.length)
+      ? 1
+      : 0) + (n.content ?? []).reduce((sum, c) => sum + emptyItems(c), 0);
+  for (const kind of pageTemplateKinds)
+    assert.equal(emptyItems(templateDocument(kind)), 0, kind);
   // Block ids are fresh for every new page.
   const [a, b] = [
     templateDocument("design-doc"),

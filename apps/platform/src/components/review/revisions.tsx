@@ -329,12 +329,16 @@ export function SpecVersions({
       <section aria-label="Selected revision" className="min-w-0 space-y-4">
         <div className="space-y-3 border-b pb-4">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight break-words">
-              Revision {shown.number}
+            {/* One line: a long summary is cut here and read in full in
+                the list of versions (and on pointing at it). */}
+            <h2 className="flex min-w-0 items-baseline text-lg font-semibold tracking-tight">
+              <span className="shrink-0">Revision {shown.number}</span>
               {shown.changeSummary && (
-                <span className="font-normal text-muted-foreground">
-                  {" "}
-                  · {shown.changeSummary}
+                <span
+                  title={shown.changeSummary}
+                  className="min-w-0 truncate font-normal text-muted-foreground"
+                >
+                  &nbsp;· {shown.changeSummary}
                 </span>
               )}
             </h2>

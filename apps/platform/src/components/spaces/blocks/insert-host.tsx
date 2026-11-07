@@ -74,7 +74,7 @@ const filterOptions: {
   },
   {
     value: "referenced",
-    label: "Work on this page",
+    label: "Work this page mentions",
     description: "The items this page mentions.",
   },
 ];

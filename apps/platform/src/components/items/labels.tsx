@@ -114,14 +114,24 @@ export function LabelPicker({
         trigger={(props) => (
           <button
             {...props}
-            aria-label="Labels"
+            // The name contains what the button shows (WCAG 2.5.3).
+            aria-label={
+              compact
+                ? `Labels${selected.length ? `, ${selected.length}` : ""}`
+                : undefined
+            }
             className={cn(
               "inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
               compact && "h-7 w-7 justify-center px-0",
             )}
           >
-            <Tag className="size-3.5" />
-            {!compact && (selected.length ? "Edit" : "Add label")}
+            <Tag className="size-3.5" aria-hidden />
+            {!compact && (
+              <>
+                <span className="sr-only">Labels: </span>
+                {selected.length ? "Edit" : "Add label"}
+              </>
+            )}
             {compact && selected.length > 0 && (
               <span className="text-[10px]">{selected.length}</span>
             )}
@@ -246,17 +256,19 @@ export function MilestonePicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Milestone: ${current?.name ?? "None"}`}
           className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           <Flag
+            aria-hidden
             className={cn(
               "size-3.5 shrink-0",
               current ? "text-foreground" : "text-muted-foreground",
             )}
           />
+          {/* The name is what the button shows (WCAG 2.5.3). */}
           {current ? (
             <span className="truncate">
+              <span className="sr-only">Milestone: </span>
               {current.name}
               {current.targetDate && (
                 <span className="text-muted-foreground">

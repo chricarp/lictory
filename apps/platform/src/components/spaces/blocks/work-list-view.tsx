@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import type { Editor } from "@tiptap/core";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { ListTodo, Settings2 } from "lucide-react";
+import { ListTodo, RefreshCw, Settings2 } from "lucide-react";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
 import {
   workListAttrs,
@@ -11,6 +11,7 @@ import {
 } from "@lictory/core/spaces/document/blocks";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  MoreRows,
   rollup,
   useWorkFacts,
   WorkRow,
@@ -25,7 +26,8 @@ import { blockRequests } from "@lictory/platform/components/spaces/blocks/insert
 // delivery owner (Lictory or the delivery tool) keeps its state. Counts
 // cover only the items shown.
 
-const VISIBLE = 10;
+// Shown at first, and added by each "Show more".
+const PAGE = 10;
 
 function referencedIds(doc: PMNode) {
   const ids: string[] = [];
@@ -104,7 +106,13 @@ export function useWorkList(attrs: WorkListAttrs, editor: Editor) {
         label = found ? `Label: ${found.name}` : workListLabels.label;
       }
     }
-    return { rows, label: attrs.title ?? label, project };
+    // `scope` says what the list holds when a title of its own does not.
+    return {
+      rows,
+      label: attrs.title ?? label,
+      scope: attrs.title ? label : null,
+      project,
+    };
   }, [attrs, referenced, facts, projects, labels, delivery]);
 }
 
@@ -113,10 +121,10 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
     () => workListAttrs({ type: "workList", attrs: node.attrs }),
     [node.attrs],
   );
-  const { rows, label } = useWorkList(attrs, editor);
-  const [expanded, setExpanded] = useState(false);
+  const { rows, label, scope } = useWorkList(attrs, editor);
+  const [visible, setVisible] = useState(PAGE);
   const { done, total } = rollup(rows);
-  const shown = expanded ? rows : rows.slice(0, VISIBLE);
+  const shown = rows.slice(0, visible);
   const editable = editor.isEditable;
   const headingId = `work-list-${(node.attrs.id as string | null) ?? "new"}`;
   return (
@@ -131,8 +139,11 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
           <h4 id={headingId} className="work-list-title">
             {label}
           </h4>
-          <span className="work-list-count" data-testid="work-list-count">
-            {total === 0 ? "No items" : `${done} of ${total} done`}
+          <span className="work-list-meta">
+            {scope && <span className="work-list-scope">{scope} · </span>}
+            <span data-testid="work-list-count">
+              {total === 0 ? "No items" : `${done} of ${total} done`}
+            </span>
           </span>
           {editable && (
             <button
@@ -168,18 +179,16 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
               : "No work items you can see match this list."}
           </p>
         )}
-        {rows.length > VISIBLE && (
-          <button
-            type="button"
-            className="work-list-more"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {expanded ? "Show fewer" : `Show all ${rows.length}`}
-          </button>
-        )}
+        <MoreRows
+          total={rows.length}
+          visible={visible}
+          page={PAGE}
+          onChange={setVisible}
+          className="work-list-more"
+        />
         <p className="work-list-note">
-          Live from Lictory Work · change items there
+          <RefreshCw className="size-3 shrink-0" aria-hidden />
+          Live from Lictory Work. Open an item to change it.
         </p>
       </section>
     </NodeViewWrapper>

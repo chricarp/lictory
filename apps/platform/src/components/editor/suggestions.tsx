@@ -1,4 +1,12 @@
-import { useId, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import { Pin } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
@@ -16,7 +24,10 @@ import { cn } from "@lictory/core/lib/utils";
 export type MenuItem = {
   id: string;
   label: string;
+  // Short, beside the label (a work item's key, a handle).
   hint?: string;
+  // Longer, on a second line (a page's space and parent pages).
+  detail?: string;
   icon?: ReactNode;
   run: (editor: Editor, range: Range) => void;
   // A second way to insert this option (Shift+Enter, or its button).
@@ -79,6 +90,12 @@ export class MenuStore {
       this.editor,
       state.range,
     );
+  }
+  // The pointer moved onto an option.
+  point(index: number) {
+    const state = this.state;
+    if (state && state.index !== index && state.items[index])
+      this.set({ ...state, index });
   }
   // Items computed after the menu opened (a search answering).
   refresh(items: MenuItem[]) {
@@ -179,16 +196,66 @@ export function suggestionExtension(
   });
 }
 
+const MENU_WIDTH = 320;
+const GAP = 6;
+
+// Below the caret, or above it when that fits better; within the editor's
+// width when the editor is wide enough, and always within the window.
+function placeMenu(
+  caret: DOMRect,
+  height: number,
+  bounds: DOMRect | null,
+): { top: number; left: number } {
+  const width = Math.min(MENU_WIDTH, window.innerWidth - 16);
+  const below = caret.bottom + GAP;
+  const above = caret.top - GAP - height;
+  const top =
+    below + height <= window.innerHeight - 8 || above < 8
+      ? Math.min(below, Math.max(8, window.innerHeight - 8 - height))
+      : above;
+  const [min, max] =
+    bounds && bounds.width >= width
+      ? [
+          Math.max(8, bounds.left),
+          Math.min(window.innerWidth - 8, bounds.right),
+        ]
+      : [8, window.innerWidth - 8];
+  const left = Math.max(min, Math.min(caret.left, max - width));
+  return { top, left };
+}
+
 export function SuggestionMenu({ store }: { store: MenuStore }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number }>();
+  const rect = state?.rect ?? null;
+  const count = state?.items.length ?? 0;
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!rect || !panel) return;
+    let bounds: DOMRect | null = null;
+    try {
+      bounds = store.editor?.isDestroyed
+        ? null
+        : (store.editor?.view.dom.getBoundingClientRect() ?? null);
+    } catch {
+      bounds = null;
+    }
+    setPosition(placeMenu(rect, panel.offsetHeight, bounds));
+  }, [rect, count, store]);
   if (!state?.rect) return null;
-  const top = Math.min(state.rect.bottom + 6, window.innerHeight - 280);
-  const left = Math.min(state.rect.left, window.innerWidth - 300);
+  const active = state.items[state.index];
+  const alternateId = `${store.id}-alternate`;
   return createPortal(
     <div
-      style={{ top, left: Math.max(8, left) }}
-      className="fixed z-50 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+      ref={panelRef}
+      style={{
+        top: position?.top ?? -9999,
+        left: position?.left ?? -9999,
+        width: MENU_WIDTH,
+      }}
+      className="fixed z-50 max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10"
     >
       <p
         id={titleId}
@@ -201,67 +268,96 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
           id={store.id}
           role="listbox"
           aria-labelledby={titleId}
-          className="max-h-64 overflow-y-auto p-1"
+          className="max-h-72 overflow-y-auto p-1"
         >
-          {state.items.map((item, index) => (
-            // Keys are handled by the editor, which keeps focus and points
-            // aria-activedescendant at the chosen option.
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-            <li
-              key={item.id}
-              id={`${store.id}-${index}`}
-              role="option"
-              aria-selected={index === state.index}
-              // The editor keeps focus; pointer users pick without blurring it.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => store.choose(index)}
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[13px]",
-                index === state.index && "bg-muted",
-              )}
-            >
-              {item.icon && (
-                <span className="text-muted-foreground" aria-hidden>
-                  {item.icon}
+          {state.items.map((item, index) => {
+            const current = index === state.index;
+            return (
+              // Keys are handled by the editor, which keeps focus and points
+              // aria-activedescendant at the chosen option.
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+              <li
+                key={item.id}
+                id={`${store.id}-${index}`}
+                role="option"
+                aria-selected={current}
+                // The active option says how to take its alternative.
+                aria-describedby={
+                  current && item.alternate ? alternateId : undefined
+                }
+                title={
+                  item.detail ? `${item.label}\n${item.detail}` : undefined
+                }
+                // The editor keeps focus; pointer users pick without blurring it.
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseMove={() => store.point(index)}
+                onClick={() => store.choose(index)}
+                className={cn(
+                  "flex cursor-pointer gap-2 rounded-lg px-2 py-1.5 text-[13px]",
+                  item.detail ? "items-start" : "items-center",
+                  current && "bg-muted",
+                )}
+              >
+                {item.icon && (
+                  <span
+                    className={cn(
+                      "text-muted-foreground",
+                      item.detail && "mt-0.5",
+                    )}
+                    aria-hidden
+                  >
+                    {item.icon}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="line-clamp-2 min-w-0 flex-1 break-words">
+                      {item.label}
+                    </span>
+                    {item.hint && (
+                      <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                        {item.hint}
+                      </span>
+                    )}
+                  </span>
+                  {item.detail && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.detail}
+                    </span>
+                  )}
                 </span>
-              )}
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.hint && (
-                <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                  {item.hint}
-                </span>
-              )}
-              {item.alternate && (
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  // Pointer path to the alternative; keyboard: Shift+Enter.
-                  aria-hidden
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    store.choose(index, true);
-                  }}
-                  className="shrink-0 rounded-full px-1.5 py-0.5 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
-                >
-                  {item.alternate.label}
-                </button>
-              )}
-            </li>
-          ))}
+                {current && item.alternate && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    // Pointer path to the alternative; keyboard: Shift+Enter
+                    // (the option's description).
+                    aria-hidden
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      store.choose(index, true);
+                    }}
+                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
+                  >
+                    <Pin className="size-3" aria-hidden />
+                    Pin
+                    <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="px-3 pb-2.5 text-[13px] text-muted-foreground">
           {state.empty}
         </p>
       )}
-      {state.items[state.index]?.alternate && (
-        <p
-          id={`${store.id}-hint`}
-          className="border-t px-3 py-1.5 text-[11px] text-muted-foreground"
-        >
-          ⇧↵ {state.items[state.index]!.alternate!.label}
-        </p>
+      {active?.alternate && (
+        <span id={alternateId} className="sr-only">
+          Shift+Enter: {active.alternate.label}
+        </span>
       )}
     </div>,
     document.body,

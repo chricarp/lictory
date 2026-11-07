@@ -130,8 +130,13 @@
   font-weight: 600;
   letter-spacing: 0;
 }
-.page-document .work-list-count {
-  flex-shrink: 0;
+.page-document .work-list-meta {
+  flex: 0 1 auto;
+  max-width: 60%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
@@ -190,10 +195,16 @@
 .page-document .work-list-more:focus-visible {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 60%, transparent);
 }
+/* Readable at a glance (12px, muted foreground: 4.5:1 or more on the
+   tray in both themes). */
 .page-document .work-list-note {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   margin: 0;
-  padding: 0.375rem 0.5rem 0;
-  font-size: 11px;
+  padding: 0.375rem 0.5rem 0.125rem;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--muted-foreground);
 }
 

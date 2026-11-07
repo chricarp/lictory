@@ -345,6 +345,7 @@ export function pageItems(
     id: string;
     title: string;
     space: string;
+    path?: readonly string[];
     publishedCommitId: string;
     archived: boolean;
   }[],
@@ -358,7 +359,8 @@ export function pageItems(
     .map((p) => ({
       id: p.id,
       label: p.title,
-      hint: p.space,
+      // Where it is, on a line of its own so the title keeps its width.
+      detail: [p.space, ...(p.path ?? [])].filter(Boolean).join(" / "),
       icon: <FileText className={icon} />,
       run: (editor, range) => insertPageLink(editor, range, p),
       // Cite the version published now; the chip then says when a newer

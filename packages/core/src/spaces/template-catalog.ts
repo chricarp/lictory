@@ -40,7 +40,8 @@ export const pageTemplates: Record<
   },
   "iteration-notes": {
     name: "Iteration notes",
-    description: "Goal, the iteration's live work list, notes and demo.",
+    description:
+      "Goal, the iteration's live work list, risks, notes and a short retrospective.",
   },
 };
 

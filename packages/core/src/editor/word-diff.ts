@@ -62,5 +62,27 @@ export function changedWords(
     });
     return result;
   };
-  return { before: ranges(a, endA, sameA), after: ranges(b, endB, sameB) };
+  return {
+    before: tidy(before, ranges(a, endA, sameA)),
+    after: tidy(after, ranges(b, endB, sameB)),
+  };
+}
+
+// Marks read as words: changes separated only by spaces become one mark
+// ("up" and "to four" read "up to four"), and no mark starts or ends with
+// whitespace.
+function tidy(text: string, list: TextRange[]): TextRange[] {
+  const merged: TextRange[] = [];
+  for (const range of list) {
+    const last = merged.at(-1);
+    if (last && /^[ \t]*$/.test(text.slice(last.to, range.from)))
+      last.to = range.to;
+    else merged.push({ ...range });
+  }
+  return merged.flatMap((range) => {
+    let { from, to } = range;
+    while (from < to && /\s/.test(text[from]!)) from++;
+    while (to > from && /\s/.test(text[to - 1]!)) to--;
+    return from < to ? [{ from, to }] : [];
+  });
 }

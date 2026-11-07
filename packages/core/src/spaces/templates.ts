@@ -35,15 +35,6 @@ const hint = (value: string): Node => ({
   type: "paragraph",
   content: [{ type: "text", text: value, marks: [{ type: "italic" }] }],
 });
-const bullets = (...values: string[]): Node => ({
-  type: "bulletList",
-  content: values.map((v) => ({ type: "listItem", content: [p(v)] })),
-});
-const steps = (...values: string[]): Node => ({
-  type: "orderedList",
-  attrs: { start: 1 },
-  content: values.map((v) => ({ type: "listItem", content: [p(v)] })),
-});
 const tasks = (...values: string[]): Node => ({
   type: "taskList",
   content: values.map((v) => ({
@@ -77,6 +68,8 @@ const workList = (
   ];
 };
 
+// Sections start with a prompt, never an empty list: an empty bullet or
+// task reads as a lone marker in the published page.
 function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
   switch (kind) {
     case "blank":
@@ -86,16 +79,15 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
         h(2, "Problem"),
         hint("Who has the problem, when, and what it costs them today."),
         h(2, "Goals"),
-        bullets(""),
+        hint("The outcomes that tell us this worked, as a list."),
         h(2, "Non-goals"),
-        bullets(""),
+        hint("What this deliberately does not cover."),
         h(2, "Requirements"),
         hint(
           "Describe the expected behavior, including failure cases. Select a requirement to create a work item from it.",
         ),
-        bullets(""),
         h(2, "Open questions"),
-        tasks(""),
+        hint("Questions to settle before building, as tasks to tick off."),
         ...(context.epicId
           ? [h(2, "Delivery"), ...workList("epic-children", context)]
           : [h(2, "Related work"), ...workList("referenced", context)]),
@@ -105,13 +97,13 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
         h(2, "Context"),
         hint("What exists today and why it has to change."),
         h(2, "Proposal"),
-        p(),
+        hint("How it will work: components, data and the main flows."),
         h(2, "Alternatives considered"),
-        bullets(""),
+        hint("Other approaches and why they were not chosen."),
         h(2, "Risks and failure behavior"),
-        bullets(""),
+        hint("What can go wrong, how it is detected and what happens then."),
         h(2, "Rollout"),
-        p(),
+        hint("How it ships safely, and how it is turned off."),
         h(2, "Decisions"),
         hint("Type / and choose Decision to show a recorded decision here."),
         ...workList("referenced", context, "Related work"),
@@ -123,13 +115,13 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
         h(2, "Before you start"),
         tasks("Access you need", "Who to tell"),
         h(2, "Steps"),
-        steps(""),
+        hint("Numbered steps, one action each, with the command to run."),
         h(2, "Verify"),
-        bullets(""),
+        hint("How to tell that it worked."),
         h(2, "Roll back"),
-        steps(""),
+        hint("How to undo the steps if something goes wrong."),
         h(2, "Escalation"),
-        p(),
+        hint("Who to contact when this runbook does not resolve it."),
       ];
     case "decision-record":
       return [
@@ -142,21 +134,22 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
           "What we decided. Type / and choose Decision to cite a decision recorded on a work item.",
         ),
         h(2, "Options considered"),
-        bullets(""),
+        hint("Each option with its main trade-off."),
         h(2, "Consequences"),
-        bullets(""),
+        hint("What becomes easier or harder because of this decision."),
       ];
     case "retrospective":
       return [
         h(2, "What went well"),
-        bullets(""),
+        hint("What to keep doing."),
         h(2, "What did not go well"),
-        bullets(""),
+        hint("What slowed the team down or surprised it."),
         h(2, "What we learned"),
-        bullets(""),
+        hint("Lessons worth remembering next time."),
         h(2, "Actions"),
-        hint("Turn an action into a work item once this page is published."),
-        tasks(""),
+        hint(
+          "Actions as tasks, each with an owner. Turn one into a work item once this page is published.",
+        ),
         ...workList("iteration", context, "Work in the iteration"),
       ];
     case "iteration-notes":
@@ -171,16 +164,18 @@ function content(kind: PageTemplateKind, context: PageTemplateContext): Node[] {
           ? [h(2, "Work"), ...workList("iteration", context)]
           : []),
         h(2, "Risks"),
-        bullets(""),
+        hint(
+          "What could keep the goal from being met, and what we do about it.",
+        ),
         h(2, "Notes"),
-        bullets(""),
+        hint("Decisions, changes of scope and anything worth remembering."),
         h(2, "Retrospective"),
         h(3, "What went well"),
-        bullets(""),
+        hint("What to keep doing."),
         h(3, "What to change"),
-        bullets(""),
+        hint("What to try differently next iteration."),
         h(2, "Follow-ups"),
-        tasks(""),
+        hint("Follow-ups as tasks, each with an owner."),
       ];
   }
 }

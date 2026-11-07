@@ -27,7 +27,7 @@ import {
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 
-// Work items as pages show them (the "Work on this page" panel and work list
+// Work items as pages show them (the "Work linked to this page" panel and work list
 // blocks): read-only rows with the facts their delivery owner keeps. Only
 // items synchronized to this person appear; everything else is left out,
 // without a placeholder or a count.
@@ -149,36 +149,51 @@ export function WorkRow({
   return (
     <li
       className={cn(
-        "group/row flex min-w-0 items-center gap-2.5 rounded-lg px-2 text-[13px] hover:bg-muted/60 has-focus-visible:bg-muted/60",
+        "group/row flex min-w-0 items-start gap-2.5 rounded-lg px-2 text-[13px] hover:bg-muted/60 has-focus-visible:bg-muted/60 md:items-center",
         compact ? "py-1" : "py-1.5",
       )}
       data-work-row={key}
     >
-      <span title={status.description} className="inline-flex">
+      <span title={status.description} className="inline-flex pt-0.5 md:pt-0">
         <StatusIcon
           category={status.category}
           color={native ? statusOf(delivery, item)?.color : undefined}
         />
       </span>
-      <span className="w-14 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+      <span className="w-14 shrink-0 pt-px font-mono text-xs text-muted-foreground tabular-nums md:pt-0">
         {key}
       </span>
-      <span className="min-w-0 flex-1 truncate">
-        {href ? (
-          <Link
-            href={href}
-            className="font-medium outline-none hover:underline focus-visible:underline"
-          >
-            {item.title}
-          </Link>
-        ) : (
-          <span className="font-medium">{item.title}</span>
-        )}
-        {detail && (
-          <span aria-hidden className="ml-2 text-xs text-muted-foreground">
-            {detail}
-          </span>
-        )}
+      <span className="min-w-0 flex-1">
+        {/* The title first; how the item is linked wraps below it rather
+            than being cut off. */}
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          {href ? (
+            <Link
+              href={href}
+              className="max-w-full min-w-0 truncate font-medium outline-none hover:underline focus-visible:underline"
+            >
+              {item.title}
+            </Link>
+          ) : (
+            <span className="max-w-full min-w-0 truncate font-medium">
+              {item.title}
+            </span>
+          )}
+          {detail && (
+            <span aria-hidden className="text-xs text-muted-foreground">
+              {detail}
+            </span>
+          )}
+        </span>
+        {/* Narrow screens: the delivery and refinement state on a second
+            line instead of columns. */}
+        <span
+          aria-hidden
+          className="block truncate text-xs text-muted-foreground md:hidden"
+        >
+          {status.label}
+          {refinement && ` · ${refinementMeta[refinement].label}`}
+        </span>
         <span className="sr-only">
           , {native ? `status ${status.label}` : status.description}
           {refinement && `, ${refinementMeta[refinement].label}`}
@@ -198,7 +213,7 @@ export function WorkRow({
         <span
           aria-hidden
           title={`Refinement: ${refinementMeta[refinement].label}`}
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+          className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
         >
           <RefinementIcon state={refinement} />
           <span className="hidden lg:inline">
@@ -221,5 +236,47 @@ export function WorkRow({
         </span>
       )}
     </li>
+  );
+}
+
+// Long lists grow by a page at a time instead of all at once, so a page
+// with several large lists stays light.
+export function MoreRows({
+  total,
+  visible,
+  page,
+  onChange,
+  className = "mt-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+}: {
+  total: number;
+  visible: number;
+  page: number;
+  onChange: (visible: number) => void;
+  className?: string;
+}) {
+  if (total <= page) return null;
+  const more = Math.min(page, total - visible);
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {more > 0 && (
+        <button
+          type="button"
+          onClick={() => onChange(visible + page)}
+          className={className}
+        >
+          Show {more} more
+          <span className="sr-only"> of {total - visible} not shown</span>
+        </button>
+      )}
+      {visible > page && (
+        <button
+          type="button"
+          onClick={() => onChange(page)}
+          className={className}
+        >
+          Show fewer
+        </button>
+      )}
+    </div>
   );
 }

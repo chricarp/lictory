@@ -67,9 +67,11 @@ export function selectionRequest(
 export function SelectionWorkAction({
   editor,
   range,
+  className,
 }: {
   editor: Editor;
   range: { from: number; to: number };
+  className: string;
 }) {
   const actions = usePageWorkActions();
   if (!actions || editor.isEditable) return null;
@@ -82,7 +84,7 @@ export function SelectionWorkAction({
         const request = selectionRequest(editor.state, range.from, range.to);
         if (request) actions.start({ ...request, mode: "write" });
       }}
-      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-popover px-3 text-xs font-medium text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+      className={className}
     >
       <ListPlus className="size-3.5" aria-hidden /> Create work item
     </button>

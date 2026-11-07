@@ -245,19 +245,65 @@ void describe("item knowledge", () => {
   });
 });
 
-void test("page counts count each readable page once per item", () => {
-  const known = lookup([page("a", "s1"), page("b", "s1")], [space("s1")]);
-  const counts = pageCountsByItem(
-    [
-      reference("a", "x"),
-      attachment("a", "x"),
-      reference("b", "x"),
-      reference("hidden", "x"),
-      reference("hidden", "y"),
-    ],
-    known,
+void test("page counts count each readable page once per item, as Knowledge lists them", () => {
+  const known = lookup(
+    [page("a", "s1"), page("b", "s1"), page("c", "s1"), page("d", "s1")],
+    [space("s1")],
   );
-  assert.equal(counts.get("x"), 2);
+  const citation = (pageId: string, workItemId: string, revisions = 1) =>
+    ({
+      ...inSpace("s1"),
+      id: `${workItemId}:${pageId}`,
+      type: "specificationCitation",
+      pageId,
+      workItemId,
+      revisions: Array.from({ length: revisions }, (_, i) => ({
+        revisionId: `rev-${i + 1}`,
+        number: i + 1,
+        commitIds: [],
+        latest: true,
+      })),
+    }) as SpaceEntityOf<"specificationCitation">;
+  const source = (pageId: string, workItemId: string) =>
+    ({
+      ...inSpace("s1"),
+      id: workItemId,
+      type: "workItemSource",
+      pageId,
+      workItemId,
+      commitId: `${pageId}-c2`,
+      blockId: null,
+      quote: null,
+      createdById: "u1",
+      createdAt: "2026-01-01T00:00:00Z",
+    }) as SpaceEntityOf<"workItemSource">;
+  const rows: SpaceEntity[] = [
+    reference("a", "x"),
+    attachment("a", "x"),
+    reference("b", "x"),
+    // Cited by the specification counts too.
+    citation("c", "x"),
+    // The page it came from counts once, also when it mentions it.
+    source("a", "x"),
+    source("d", "w"),
+    // A citation row without revisions is not listed, so not counted.
+    citation("d", "z", 0),
+    reference("hidden", "x"),
+    reference("hidden", "y"),
+  ];
+  const counts = pageCountsByItem(rows, known);
+  assert.equal(counts.get("x"), 3);
+  assert.equal(counts.get("w"), 1);
+  // The count is what the item's Knowledge section shows.
+  const shown = itemKnowledge(rows, known, { id: "x", revisionId: "rev-1" });
+  assert.equal(
+    new Set([
+      ...shown.pages.map((p) => p.page.id),
+      ...(shown.source ? [shown.source.page.id] : []),
+    ]).size,
+    3,
+  );
+  assert.equal(counts.has("z"), false);
   // Nothing at all for an item only an unreadable page mentions.
   assert.equal(counts.has("y"), false);
 });
