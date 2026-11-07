@@ -820,10 +820,16 @@ export function renderBlock(
   const a = node.attrs ?? {};
   switch (node.type) {
     case "paragraph":
-      return renderInline(node.content, { table: false });
+      // Spaces and line breaks at the end of a paragraph mean nothing in
+      // Markdown (a chip inserted last leaves a space).
+      return renderInline(node.content, { table: false }).replace(
+        /(?:[ \t]|\\\n)+$/,
+        "",
+      );
     case "heading": {
       const text = renderInline(node.content, { table: false })
         .replace(/\\\n|\n/g, " ")
+        .trimEnd()
         .replace(/#+$/, (m) => `\\${m}`);
       const level = Math.min(6, Math.max(1, Number(a.level) || 1));
       return text ? `${"#".repeat(level)} ${text}` : "#".repeat(level);

@@ -348,16 +348,19 @@ const RichMarkdownEditor = forwardRef<
               }),
             ]
           : []),
-        suggestionExtension("mentionMenu", {
-          char: "@",
-          title: "People",
-          empty: "No matching people",
-          store: menus.people,
-          items: (query) =>
-            latest.current.mentions?.length
-              ? mentionItems(query, latest.current.mentions)
-              : [],
-        }),
+        // Only fields that mention offer "@"; elsewhere it is just text.
+        ...(hasMentions
+          ? [
+              suggestionExtension("mentionMenu", {
+                char: "@",
+                title: "People",
+                empty: "No matching people",
+                store: menus.people,
+                items: (query) =>
+                  mentionItems(query, latest.current.mentions ?? []),
+              }),
+            ]
+          : []),
         MarkdownEditing.configure({
           submit: () => {
             if (!latest.current.onSubmit || menuOpen()) return false;

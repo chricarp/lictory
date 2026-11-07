@@ -93,16 +93,20 @@
 }
 /* Checkboxes drawn in the product's grammar: a quiet rounded square, a
    check when done. Done items stay readable: muted, not struck through. */
+/* A 24px target (WCAG 2.5.8) drawn as a 16px box: the transparent border
+   is the extra target, the inset ring the visible edge. */
 .page-document ul[data-type="taskList"] input[type="checkbox"] {
   appearance: none;
   display: grid;
   place-items: center;
-  width: 1rem;
-  height: 1rem;
-  margin: 0;
-  border-radius: 0.3rem;
-  border: 1.5px solid color-mix(in srgb, var(--foreground) 35%, transparent);
-  background: var(--card);
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: -0.25rem;
+  border-radius: 0.55rem;
+  border: 0.25rem solid transparent;
+  background: var(--card) padding-box;
+  box-shadow: inset 0 0 0 1.5px
+    color-mix(in srgb, var(--foreground) 35%, transparent);
   cursor: pointer;
 }
 .page-document ul[data-type="taskList"] input[type="checkbox"]::after {
@@ -115,21 +119,22 @@
   opacity: 0;
 }
 .page-document ul[data-type="taskList"] input[type="checkbox"]:checked {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--foreground) 55%, transparent);
+  background: color-mix(in srgb, var(--foreground) 55%, transparent) padding-box;
+  box-shadow: none;
 }
 .page-document ul[data-type="taskList"] input[type="checkbox"]:checked::after {
   opacity: 1;
 }
 .page-document ul[data-type="taskList"] input[type="checkbox"]:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--ring) 60%, transparent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 @media (hover: hover) {
   .page-document[contenteditable="true"]
     ul[data-type="taskList"]
     input[type="checkbox"]:not(:checked):hover {
-    border-color: color-mix(in srgb, var(--foreground) 60%, transparent);
+    box-shadow: inset 0 0 0 1.5px
+      color-mix(in srgb, var(--foreground) 60%, transparent);
   }
 }
 /* Read only: the boxes say what is done but are not controls. */
@@ -142,7 +147,9 @@
 .page-document[contenteditable="false"]
   ul[data-type="taskList"]
   input[type="checkbox"]:not(:checked) {
-  border-style: dashed;
+  box-shadow: none;
+  outline: 1.5px dashed color-mix(in srgb, var(--foreground) 35%, transparent);
+  outline-offset: calc(-0.25rem - 1.5px);
 }
 .page-document ul[data-type="taskList"] li[data-checked="true"] > div {
   color: var(--muted-foreground);

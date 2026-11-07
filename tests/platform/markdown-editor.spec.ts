@@ -12,6 +12,7 @@ import {
 import { clientAddress } from "../helpers/client-address";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import { fillMarkdown, richEditor } from "../helpers/editor";
+import { waitUntilSaved } from "../helpers/sync-helpers";
 
 // Work's Markdown fields are the Spaces editor: formatting from the toolbar
 // and Markdown shortcuts, references picked with "#" and "[[", and Markdown
@@ -88,6 +89,8 @@ test("opening and saving a specification without edits creates no revision", asy
   await expect(
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toBeVisible();
+  // Whatever the save sent has reached the server.
+  await waitUntilSaved(page);
   const latest = await currentRevision(retryItem);
   expect(latest.number).toBe(1);
   expect(latest.content).toBe(specification);
@@ -99,7 +102,7 @@ test("toolbar and Markdown shortcuts write a revision that changes only the edit
   const editor = await openSpecification(page);
   await expectNoAccessibilityViolations(page, "specification editor");
   // A new section from the toolbar's text styles, a list from "- ".
-  await editor.getByText("One charge per request").click();
+  await editor.getByText("One charge per request", { exact: true }).click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
@@ -132,7 +135,9 @@ test("“#” and “[[” insert references that read as live chips", async ({
   page,
 }) => {
   const editor = await openSpecification(page);
-  await editor.getByText("Retries reuse the original transaction ID.").click();
+  await editor
+    .getByText("Retries reuse the original transaction ID.", { exact: true })
+    .click();
   await page.keyboard.press("End");
   await page.keyboard.type(" See #QL-2");
   const items = page.getByRole("listbox", { name: "Work items" });
@@ -153,13 +158,11 @@ test("“#” and “[[” insert references that read as live chips", async ({
   await expect(editor.locator('[data-type="pageRef"]')).toContainText(
     "Retry runbook",
   );
-  await page.getByRole("button", { name: /Save revision/ }).click();
-  await expect(
-    page.getByRole("button", { name: "Edit", exact: true }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: /Save revision 3/ }).click();
+  await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
   const latest = await currentRevision(retryItem);
   expect(latest.content).toContain(
-    `See [QL-2](item:${callbackItem}) and [Retry runbook](page:${pageId}@${pageCommit})`,
+    `See [QL-2](item:${callbackItem}) and [Retry runbook](page:${pageId}@${pageCommit})\n`,
   );
 
   // The reader shows chips that lead to their targets.
