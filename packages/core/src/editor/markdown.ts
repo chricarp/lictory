@@ -625,6 +625,11 @@ function title(value: unknown) {
 }
 
 function codeSpan(text: string, inTable: boolean) {
+  if (inTable) return tableCodeSpan(text);
+  return fencedCode(text);
+}
+
+function fencedCode(text: string) {
   const longest = Math.max(
     0,
     ...(text.match(/`+/g) ?? []).map((s) => s.length),
@@ -635,8 +640,33 @@ function codeSpan(text: string, inTable: boolean) {
     (text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text))
       ? " "
       : "";
-  const body = inTable ? text.replace(/\|/g, "\\|") : text;
-  return `${fence}${pad}${body}${pad}${fence}`;
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
+// Inline code in a GFM table cell. The table is split before inline
+// parsing: a "|" ends the cell unless an odd number of backslashes precedes
+// it, and inside code only "\|" turns back into "|" (other backslashes stay
+// literal). So a pipe after an even run of backslashes (usually none) is
+// written "\|" inside the code; after an odd run no spelling inside the
+// code survives, and the pipe is written as an escaped text pipe between two
+// code spans. Every character is kept; only such a pipe loses its code mark.
+function tableCodeSpan(text: string) {
+  const out: string[] = [];
+  let chunk = "";
+  let backslashes = 0;
+  const flush = () => {
+    if (chunk) out.push(fencedCode(chunk));
+    chunk = "";
+  };
+  for (const char of text) {
+    if (char === "|" && backslashes % 2 === 1) {
+      flush();
+      out.push("\\|");
+    } else chunk += char === "|" ? "\\|" : char;
+    backslashes = char === "\\" ? backslashes + 1 : 0;
+  }
+  flush();
+  return out.join("");
 }
 
 const markOrder = ["link", "bold", "italic", "strike"];

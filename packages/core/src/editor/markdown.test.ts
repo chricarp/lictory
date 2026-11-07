@@ -376,3 +376,83 @@ void test("text that looks like Markdown stays text", () => {
   assert.match(written, /\*\*bold\*\* then plain/);
   assert.match(written, /snake_case/);
 });
+
+void test("inline code with pipes and backslashes survives a table cell", () => {
+  // GFM splits the row before parsing inline code: a pipe ends the cell
+  // unless an odd number of backslashes precedes it. A pipe right after an
+  // odd run of backslashes in the code cannot be spelled inside the code
+  // span, so it is written as an escaped text pipe; no character is lost.
+  const textOf = (node: MarkdownJSON): string =>
+    node.type === "text"
+      ? (node.text ?? "")
+      : (node.content ?? []).map(textOf).join("");
+  for (const code of [
+    "a|b",
+    "a\\|b",
+    "\\|",
+    "a\\\\|b",
+    "\\\\\\|x",
+    "a|b\\",
+    "`|`",
+  ]) {
+    const doc: MarkdownJSON = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableHeader",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "h" }],
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [
+                        { type: "text", text: code, marks: [{ type: "code" }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const markdown = serializeMarkdown(doc);
+    const back = parseMarkdown(markdown).doc;
+    const rows = back.content![0]!.content!;
+    assert.equal(rows.length, 2, `${JSON.stringify(code)} keeps one row`);
+    assert.equal(
+      rows[1]!.content!.length,
+      1,
+      `${JSON.stringify(code)} keeps one cell`,
+    );
+    assert.equal(
+      textOf(rows[1]!),
+      code,
+      `${JSON.stringify(code)} keeps every character`,
+    );
+    assert.equal(
+      serializeMarkdown(back),
+      markdown,
+      `${JSON.stringify(code)} is stable`,
+    );
+  }
+});
