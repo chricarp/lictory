@@ -408,7 +408,9 @@ export function IterationNotesForm({
   const [error, setError] = useState<string>();
   const spaceField = useId();
   const titleField = useId();
-  const space = spaces.find((s) => s.id === spaceId);
+  // Spaces arrive after the first render (and can change); until the person
+  // picks one the form uses the first editable space, as the select shows.
+  const space = spaces.find((s) => s.id === spaceId) ?? spaces[0];
   // The attempt for what the form says now: kept while space and title stay
   // the same, so "Create and open" after a failure retries it.
   const attempt = useRef<{
@@ -498,7 +500,7 @@ export function IterationNotesForm({
           </label>
           <select
             id={spaceField}
-            value={spaceId}
+            value={space?.id ?? ""}
             onChange={(e) => setSpaceId(e.target.value)}
             className="h-8 rounded-md border bg-background px-2 text-[13px] touch:text-base"
           >
