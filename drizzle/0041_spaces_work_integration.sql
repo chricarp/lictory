@@ -118,9 +118,9 @@ CREATE UNIQUE INDEX "work_item_page_attachment_active_unique" ON "work_item_page
 CREATE INDEX "work_item_page_attachment_item_idx" ON "work_item_page_attachment" USING btree ("organization_id","work_item_id");--> statement-breakpoint
 CREATE INDEX "work_item_page_attachment_page_idx" ON "work_item_page_attachment" USING btree ("organization_id","page_id");--> statement-breakpoint
 CREATE INDEX "work_item_page_source_page_idx" ON "work_item_page_source" USING btree ("organization_id","page_id");--> statement-breakpoint
-CREATE INDEX "revision_title_trgm_idx" ON "specification_revision" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
-CREATE INDEX "revision_content_trgm_idx" ON "specification_revision" USING gin ("content" gin_trgm_ops);--> statement-breakpoint
-CREATE INDEX "page_commit_title_trgm_idx" ON "page_commit" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
-CREATE INDEX "page_commit_markdown_trgm_idx" ON "page_commit" USING gin ("markdown" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "revision_title_trgm_idx" ON "specification_revision" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "revision_content_trgm_idx" ON "specification_revision" USING gin ("content" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "page_commit_title_trgm_idx" ON "page_commit" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "page_commit_markdown_trgm_idx" ON "page_commit" USING gin ("markdown" gin_trgm_ops);--> statement-breakpoint
 CREATE INDEX "space_entity_work_item_idx" ON "space_entity" USING btree ("organization_id","work_item_id");--> statement-breakpoint
 CREATE INDEX "space_entity_project_idx" ON "space_entity" USING btree ("organization_id","project_id");

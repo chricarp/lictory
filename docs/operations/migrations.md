@@ -163,3 +163,39 @@ are never part of the deployment path.
 `CREATE INDEX CONCURRENTLY` cannot run inside the migration transaction. Create
 large indexes on hot tables operationally, then commit a migration using
 `CREATE INDEX IF NOT EXISTS` so history stays consistent.
+
+### Prebuilding indexes before an upgrade
+
+A plain `CREATE INDEX` blocks writes to its table until the index is built.
+The migration that links work and pages (`0041_spaces_work_integration`)
+adds trigram indexes for knowledge search on every specification revision
+and page commit. On a small installation that takes seconds; on one with a
+long history it pauses saving specifications and committing pages for the
+build, and a build longer than `MIGRATION_STATEMENT_TIMEOUT` fails the
+upgrade (nothing is applied, the previous release keeps serving).
+
+Those indexes are created with `IF NOT EXISTS`, so a large installation can
+build them beforehand without blocking writes, while the previous release
+serves. Connect as the role that owns the tables (`lictory_owner`, or `SET
+ROLE lictory_owner`) and run each statement on its own (not in a
+transaction):
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "revision_title_trgm_idx" ON "specification_revision" USING gin ("title" gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "revision_content_trgm_idx" ON "specification_revision" USING gin ("content" gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "page_commit_title_trgm_idx" ON "page_commit" USING gin ("title" gin_trgm_ops);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "page_commit_markdown_trgm_idx" ON "page_commit" USING gin ("markdown" gin_trgm_ops);
+```
+
+A concurrent build that fails or is cancelled leaves an invalid index, which
+`IF NOT EXISTS` would then accept. Before upgrading, check that this returns
+no rows, and drop (`DROP INDEX CONCURRENTLY "<name>"`) and rebuild any it
+lists:
+
+```sql
+SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname LIKE '%\_trgm\_idx' AND NOT i.indisvalid;
+```
+
+The migration then finds the indexes and skips building them.

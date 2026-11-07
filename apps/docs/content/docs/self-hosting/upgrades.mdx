@@ -42,6 +42,13 @@ that runs it is unaffected.
    serving (each one is written to work with it), API restarts drop no
    requests, and the proxy restarts for about two seconds (below).
 
+On an installation with a long history of specifications and pages, the
+release that links work and pages builds search indexes that pause saving
+specifications and committing pages while they build. To avoid the pause,
+build them beforehand without blocking anyone, as the
+[migration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/migrations.md#prebuilding-indexes-before-an-upgrade)
+describes; the upgrade then skips them.
+
 ## Upgrade
 
 <Cli command="upgrade" />
