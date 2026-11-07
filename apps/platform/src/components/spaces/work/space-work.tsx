@@ -28,13 +28,32 @@ type Link = SpaceEntityOf<
   | "pageAttachment"
   | "specificationCitation"
 >;
-// How an item is linked, naming the page (or how many pages).
-const relations = [
-  ["workItemSource", "Created from"],
-  ["pageReference", "Mentioned in"],
-  ["pageAttachment", "Attached:"],
-  ["specificationCitation", "Its spec cites"],
+// How an item is linked, in a few words, then where: "Mentioned, attached
+// · Capture retry design", "Created from Refund runbook · cited in its
+// spec", "Mentioned, cited in its spec · 2 pages".
+const relationWords = [
+  ["pageReference", "mentioned"],
+  ["pageAttachment", "attached"],
+  ["specificationCitation", "cited in its spec"],
 ] as const;
+
+function linkDetail(on: ReadonlyMap<Link["type"], ReadonlySet<string>>) {
+  const words = relationWords.flatMap(([type, word]) =>
+    on.has(type) ? [word] : [],
+  );
+  const source = on.get("workItemSource");
+  const pages = new Set([...on.values()].flatMap((set) => [...set]));
+  const where = pages.size === 1 ? [...pages][0]! : `${pages.size} pages`;
+  const parts = source
+    ? [
+        `Created from ${[...source][0]}`,
+        words.join(", "),
+        pages.size > 1 ? where : "",
+      ]
+    : [words.join(", "), where];
+  const text = parts.filter(Boolean).join(" · ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export function SpaceLinkedWork({ spaceId }: { spaceId: string }) {
   const { organization } = useWorkspace();
@@ -79,16 +98,7 @@ export function SpaceLinkedWork({ spaceId }: { spaceId: string }) {
     return [...byItem.values()]
       .map(({ fact, on }) => ({
         fact,
-        // "Created from Refund runbook · Mentioned in 2 pages"
-        detail: relations
-          .flatMap(([type, label]) => {
-            const set = on.get(type);
-            if (!set) return [];
-            return [
-              `${label} ${set.size === 1 ? [...set][0] : `${set.size} pages`}`,
-            ];
-          })
-          .join(" · "),
+        detail: linkDetail(on),
       }))
       .sort(
         (a, b) =>
