@@ -33,6 +33,10 @@ import {
   type ItemReviewOutput,
 } from "@lictory/core/ai/analyzer";
 import {
+  aiProvider,
+  DEFAULT_AI_TIMEOUT_SECONDS,
+} from "@lictory/core/ai/provider-settings";
+import {
   itemReviewContext,
   pullRequestContext,
 } from "@lictory/core/ai/context";
@@ -47,8 +51,13 @@ const MAX_ATTEMPTS = 3;
 const LEASE_MS = 10 * 60_000;
 // The model call is cut off well before the lease expires, so a live worker
 // never has its run claimed by another one; the claim and the context reads
-// around it are short database work.
-export const RUN_TIMEOUT_MS = 5 * 60_000;
+// around it are short database work. The provider call itself gives up after
+// LICTORY_AI_TIMEOUT_SECONDS (at most eight minutes), retries included.
+function runTimeoutMs() {
+  return (
+    (aiProvider()?.timeoutMs ?? DEFAULT_AI_TIMEOUT_SECONDS * 1000) + 60_000
+  );
+}
 const MAX_FINDINGS = 25;
 
 // Raised when the caller's signal (worker shutdown) stops a run.
@@ -76,7 +85,7 @@ export async function processAiRuns(
     const run = await claim(db, now());
     if (!run) break;
     const bound = <T>(call: (abortSignal: AbortSignal) => Promise<T>) =>
-      bounded(call, options.signal, options.timeoutMs ?? RUN_TIMEOUT_MS);
+      bounded(call, options.signal, options.timeoutMs ?? runTimeoutMs());
     try {
       analyzer ??= createAnalyzer();
       const result = await execute(db, run, analyzer, bound);

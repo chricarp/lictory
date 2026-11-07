@@ -675,20 +675,84 @@ export const declarations: readonly Declaration[] = [
 
   // ---------------------------------------------------------------------- AI
   {
-    name: "OPENAI_API_KEY",
+    name: "LICTORY_AI_PROVIDER",
     group: "AI",
     services: server,
-    secret: "issued",
+    default: "`openai` when `OPENAI_API_KEY` is set, otherwise none",
+    value: {
+      type: "choice",
+      values: ["openai", "anthropic", "azure", "openai-compatible"],
+    },
     description:
-      "Enables Lictory Intelligence. Organizations must still opt in. See docs/internals/ai.md.",
+      "Where Lictory Intelligence sends content: `openai`, `anthropic`, `azure` (Azure OpenAI Responses) or `openai-compatible` (a self-hosted or private Chat Completions endpoint such as Ollama or vLLM). There is no fallback to another provider. Organizations must still opt in. See docs/operations/ai-providers.md.",
   },
   {
     name: "LICTORY_AI_MODEL",
     group: "AI",
     services: server,
-    default: "`gpt-6-luna`",
+    default: "`gpt-6-luna` with OpenAI; required for other providers",
     description:
-      "Model for review analysis, proposal intake and the assistant.",
+      "Model for review analysis, proposal intake and the assistant: a model id, or the deployment name with `azure`.",
+  },
+  {
+    name: "LICTORY_AI_BASE_URL",
+    group: "AI",
+    services: server,
+    default:
+      "the provider's public API (`openai`, `anthropic`); required for `azure` and `openai-compatible`",
+    description:
+      "The provider's API base URL, set by the operator only. In a container, `localhost` is the container itself: use `host.docker.internal` (same machine) or a private address. No credentials in the URL.",
+  },
+  {
+    name: "LICTORY_AI_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "Key of `LICTORY_AI_PROVIDER`. Required except for `openai-compatible` endpoints without authentication; with `openai`, `OPENAI_API_KEY` is used when it is unset.",
+  },
+  {
+    name: "LICTORY_AI_STRUCTURED_OUTPUT",
+    group: "AI",
+    services: server,
+    default: "`json-schema`",
+    value: { type: "choice", values: ["json-schema", "json-object"] },
+    description:
+      "`openai-compatible` only: `json-schema` sends `response_format` with the schema; `json-object` for servers that only support JSON mode (the schema goes into the instructions, the answer is still validated).",
+  },
+  {
+    name: "LICTORY_AI_TIMEOUT_SECONDS",
+    group: "AI",
+    services: server,
+    default: "`240`",
+    value: { type: "integer", minimum: 30 },
+    description:
+      "How long one structured model call may take, retries included (30 to 480). Raise it for slow self-hosted models; review runs end a minute after it.",
+  },
+  {
+    name: "OPENAI_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "OpenAI key. Without `LICTORY_AI_PROVIDER` it selects OpenAI (existing installations). Dictation uses it with `LICTORY_TRANSCRIPTION_PROVIDER=openai`.",
+  },
+  {
+    name: "OPENAI_BASE_URL",
+    group: "AI",
+    services: server,
+    default: "`https://api.openai.com/v1`",
+    description:
+      "Kept for existing installations: the OpenAI base URL when `LICTORY_AI_BASE_URL` is unset and the provider is OpenAI. Prefer `LICTORY_AI_BASE_URL`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_PROVIDER",
+    group: "AI",
+    services: server,
+    default: "`openai` when text goes to OpenAI's own API, otherwise `none`",
+    value: { type: "choice", values: ["openai", "none"] },
+    description:
+      "Live dictation in the Litto composer. Audio goes from the browser straight to OpenAI's Realtime API, a separate destination from the text provider: set `openai` explicitly (with `OPENAI_API_KEY`) to offer it with another provider or a gateway.",
   },
   {
     name: "LICTORY_TRANSCRIPTION_MODEL",

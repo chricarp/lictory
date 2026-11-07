@@ -44,7 +44,13 @@ const item: WorkItem = {
   childEstimate: 0,
 };
 const directory: Directory = {
-  ai: { enabled: false, available: false },
+  ai: {
+    enabled: false,
+    available: false,
+    provider: null,
+    model: null,
+    dictation: false,
+  },
   organizations: [],
   members: [],
   formerMembers: [],

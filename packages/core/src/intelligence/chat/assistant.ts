@@ -1,8 +1,10 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output, tool, type ToolSet } from "ai";
 import { z } from "zod";
-import { aiModelId } from "@lictory/core/ai/analyzer";
-import { env } from "@lictory/core/lib/env";
+import {
+  configuredModel,
+  providerOptions,
+  structuredSystem,
+} from "@lictory/core/ai/provider";
 import { agentTools } from "@lictory/core/capabilities/agent";
 import type { CapabilityContext } from "@lictory/core/capabilities/core";
 import {
@@ -21,8 +23,9 @@ import {
 // signed-in person through the capability layer (the same operations as the
 // browser and MCP), plus a clarification tool answered in the chat UI.
 
+// The configured provider's model and configuration; never another provider.
 export function chatModel() {
-  return createOpenAI({ apiKey: env("OPENAI_API_KEY") })(aiModelId());
+  return configuredModel();
 }
 
 export function assistantTools(
@@ -128,18 +131,20 @@ How to work:
 // fatal: the chat keeps a preview of the first message instead.
 export async function generateTitle(prompt: string) {
   try {
+    const { model, config } = chatModel();
+    const schema = z.object({ title: z.string() });
     const { output } = await generateText({
-      model: chatModel(),
-      system:
+      model,
+      system: structuredSystem(
+        config,
         "Name this conversation with Litto, the assistant inside Lictory. Return a title of 2-6 words in the language of the request, sentence case, no quotes or trailing punctuation.",
+        schema,
+      ),
       prompt: prompt.slice(0, 4000),
-      output: Output.object({
-        schema: z.object({ title: z.string() }),
-        name: "title",
-      }),
+      output: Output.object({ schema, name: "title" }),
       maxRetries: 1,
       timeout: { totalMs: 20_000 },
-      providerOptions: { openai: { store: false } },
+      providerOptions,
     });
     const title = output.title.replace(/^["']|["'.]$/g, "").trim();
     return title ? title.slice(0, 80) : null;

@@ -1,4 +1,3 @@
-import { createOpenAI } from "@ai-sdk/openai";
 import {
   APICallError,
   RetryError,
@@ -14,6 +13,16 @@ import {
 } from "@lictory/core/contracts/ai";
 import { itemReviewSystem, pullRequestSystem } from "@lictory/core/ai/prompts";
 import { env, type Environment } from "@lictory/core/lib/env";
+import {
+  aiProvider,
+  configuredModel,
+  DEFAULT_AI_MODEL,
+  DEFAULT_AI_TIMEOUT_SECONDS,
+  isLoopbackUrl,
+  providerOptions,
+  structuredSystem,
+  type AiProviderConfig,
+} from "@lictory/core/ai/provider";
 import type {
   ItemReviewContext,
   PullRequestContext,
@@ -64,7 +73,7 @@ const finding = z.object({
       "Refs (for example C2) of the Lictory Intelligence Context entries this finding relies on. Empty if none.",
     ),
 });
-const itemReviewOutput = z.object({
+export const itemReviewOutput = z.object({
   summary: z.string().describe("Two to four sentences for the team."),
   strengths: z.array(z.string()).describe("Up to three things done well."),
   findings: z.array(finding),
@@ -104,32 +113,57 @@ export type Analyzer = {
   ): Promise<PullRequestOutput>;
 };
 
-export const DEFAULT_AI_MODEL = "gpt-6-luna";
 // LICTORY_AI_MODEL, or the default when it is unset or blank.
 export function aiModelId(source: Environment = process.env) {
   return env("LICTORY_AI_MODEL", source) ?? DEFAULT_AI_MODEL;
 }
-export function aiConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
-}
 
+export { DEFAULT_AI_MODEL };
 export class AnalyzerError extends Error {}
+
+// How structured calls are made. A substituted model (tests, drills) behaves
+// like a provider with native JSON schema support.
+type Target = {
+  model: LanguageModel;
+  config: Pick<
+    AiProviderConfig,
+    "provider" | "structuredOutput" | "timeoutMs" | "baseURL" | "keySetting"
+  >;
+};
+const substituted: Target["config"] = {
+  provider: "openai",
+  structuredOutput: "json-schema",
+  timeoutMs: DEFAULT_AI_TIMEOUT_SECONDS * 1000,
+  baseURL: "https://api.openai.com/v1",
+};
+
+/** The configured provider's model, or the substitute a caller passes. */
+export function analyzerTarget(
+  options: { model?: LanguageModel; modelId?: string } = {},
+): Target & { modelId: string } {
+  if (options.model)
+    return {
+      model: options.model,
+      config: substituted,
+      modelId: options.modelId ?? aiModelId(),
+    };
+  const { model, config } = configuredModel();
+  return { model, config, modelId: config.model };
+}
 
 export function createAnalyzer(
   options: { model?: LanguageModel; modelId?: string } = {},
 ): Analyzer {
-  const modelId = options.modelId ?? aiModelId();
-  const model =
-    options.model ?? createOpenAI({ apiKey: env("OPENAI_API_KEY") })(modelId);
+  const target = analyzerTarget(options);
   const run = <T>(
     schema: z.ZodType<T>,
     name: string,
     system: string,
     prompt: string,
     call: AnalyzerCall = {},
-  ) => generateStructured(model, { schema, name, system, prompt }, call);
+  ) => generateStructured(target, { schema, name, system, prompt }, call);
   return {
-    model: modelId,
+    model: target.modelId,
     reviewItem: (context, call) =>
       run(
         itemReviewOutput,
@@ -154,7 +188,7 @@ export function createAnalyzer(
 // and retention behaviour. `again` completes failure messages ("Run the
 // review again").
 export async function generateStructured<T>(
-  model: LanguageModel,
+  target: Target,
   request: {
     schema: z.ZodType<T>;
     name: string;
@@ -166,20 +200,20 @@ export async function generateStructured<T>(
 ): Promise<T> {
   try {
     const { output } = await generateText({
-      model,
-      system: request.system,
+      model: target.model,
+      system: structuredSystem(target.config, request.system, request.schema),
       prompt: request.prompt,
       output: Output.object({ schema: request.schema, name: request.name }),
       maxRetries: 2,
-      // Covers every retry; well below the run lease in the runner.
-      timeout: { totalMs: 240_000 },
+      // Covers every retry; below the run deadline in the runner.
+      timeout: { totalMs: target.config.timeoutMs },
       abortSignal: call.abortSignal,
       // Customer content is not retained by the provider for later use.
-      providerOptions: { openai: { store: false } },
+      providerOptions,
     });
     return output;
   } catch (error) {
-    throw new AnalyzerError(describeProviderError(error, again));
+    throw new AnalyzerError(describeProviderError(error, again, target.config));
   }
 }
 
@@ -189,28 +223,74 @@ export function isProviderError(error: unknown) {
   return APICallError.isInstance(error) || RetryError.isInstance(error);
 }
 
-// Actionable, secret-free messages; raw provider bodies never reach users.
-// `again` names the person's next step ("Retry", "Run the review again").
-export function describeProviderError(error: unknown, again: string) {
+const mentions = (text: string, ...patterns: RegExp[]) =>
+  patterns.every((p) => p.test(text));
+
+// Actionable, secret-free messages; raw provider bodies never reach users
+// (they are only matched against known failure shapes). `again` names the
+// person's next step ("Retry", "Run the review again").
+export function describeProviderError(
+  error: unknown,
+  again: string,
+  config: Pick<
+    AiProviderConfig,
+    "provider" | "baseURL" | "keySetting"
+  > = aiProvider() ?? substituted,
+) {
   // After its retries, the SDK reports the last attempt's failure.
   const last = RetryError.isInstance(error) ? error.lastError : error;
   const e = last as {
     name?: string;
     statusCode?: number;
     message?: string;
+    responseBody?: string;
   };
+  const explicit = config.keySetting !== "OPENAI_API_KEY";
+  const keySetting = config.keySetting ?? "LICTORY_AI_API_KEY";
+  const body = `${e?.message ?? ""} ${e?.responseBody ?? ""}`;
   if (e?.statusCode === 401 || e?.statusCode === 403)
-    return "The AI provider rejected the configured credentials. Ask an administrator to check OPENAI_API_KEY.";
+    return `The AI provider rejected the configured credentials. Ask an administrator to check ${keySetting}.`;
   if (e?.statusCode === 404)
-    return "The configured AI model is unavailable. Ask an administrator to check LICTORY_AI_MODEL.";
+    return config.provider === "azure"
+      ? "The configured Azure deployment is unavailable. Ask an administrator to check LICTORY_AI_MODEL (the deployment name) and LICTORY_AI_BASE_URL."
+      : `The configured AI model is unavailable. Ask an administrator to check LICTORY_AI_MODEL${explicit && config.provider !== "openai" ? " and LICTORY_AI_BASE_URL" : ""}.`;
   if (e?.statusCode === 429)
     return `The AI provider is rate limiting requests. ${again} in a few minutes.`;
+  if (e?.statusCode === 400 || e?.statusCode === 422) {
+    if (
+      mentions(
+        body,
+        /\btools?\b|function.?call/i,
+        /not support|unsupported|not allowed/i,
+      )
+    )
+      return "The configured AI model does not support tool calls, which Litto needs. Ask an administrator to choose a model with tool support (lictory admin ai-check tests it).";
+    if (
+      mentions(
+        body,
+        /response_format|json_schema|structured output|output_format|output_config/i,
+        /support|unknown|unrecognized|not allowed|invalid/i,
+      )
+    )
+      return config.provider === "openai-compatible"
+        ? "The AI endpoint does not accept JSON schema output. Ask an administrator to set LICTORY_AI_STRUCTURED_OUTPUT=json-object or choose a model that supports it."
+        : "The configured AI model does not support structured output. Ask an administrator to choose a model that does.";
+    if (
+      mentions(
+        body,
+        /context|too long|too many tokens|maximum.*(?:length|tokens)|num_ctx/i,
+      )
+    )
+      return `The request is longer than the AI model accepts. ${again} with less content, or ask an administrator to raise the model's context length.`;
+  }
   if (e?.name?.includes("NoObjectGenerated") || e?.name?.includes("NoOutput"))
     return `The model did not return a valid result. ${again}.`;
   if (e?.name?.includes("Timeout") || e?.name === "AbortError")
     return `The AI provider did not answer in time. ${again}.`;
   // No response at all: the server could not connect to the provider.
   if (APICallError.isInstance(last) && last.statusCode === undefined)
-    return `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider.`;
+    return isLoopbackUrl(config.baseURL)
+      ? `This server could not reach the AI endpoint. ${again} later, or ask an administrator to check LICTORY_AI_BASE_URL: it points at localhost, which inside a container is the container itself, not the server.`
+      : `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider${explicit ? " (LICTORY_AI_BASE_URL)" : ""}.`;
   return `The AI provider could not complete the request. ${again} shortly.`;
 }

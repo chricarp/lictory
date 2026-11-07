@@ -21,6 +21,12 @@ import {
   type ChatMessage,
 } from "@lictory/core/intelligence/chat/shared";
 import type { ChatOwner } from "@lictory/core/intelligence/chat/runs";
+import { replayableMessages } from "@lictory/core/intelligence/chat/replay";
+import {
+  providerFingerprint,
+  providerOptions,
+  type AiProviderConfig,
+} from "@lictory/core/ai/provider";
 import {
   verifyPageContexts,
   withholdUnreadablePages,
@@ -36,10 +42,24 @@ export type ChatGenerator = (input: {
 
 // One model step only. Tool requests become durable before the worker runs
 // them; the model SDK never executes mutations inside a streaming callback.
+// A substituted model (tests) answers like OpenAI at its default endpoint.
+const substituted = {
+  provider: "openai",
+  baseURL: "https://api.openai.com/v1",
+} as const;
+
 export function chatGenerator(
-  model: () => LanguageModel = chatModel,
+  source: () =>
+    | LanguageModel
+    | { model: LanguageModel; config: AiProviderConfig } = chatModel,
 ): ChatGenerator {
   return async function* ({ messages, roster, owner, ctx, signal }) {
+    const resolved = source();
+    const { model, config } =
+      typeof resolved === "object" && "config" in resolved
+        ? resolved
+        : { model: resolved, config: substituted };
+    const fingerprint = providerFingerprint(config);
     const tools = assistantTools(ctx, owner.organizationId);
     for (const tool of Object.values(tools)) {
       delete tool.execute;
@@ -54,12 +74,15 @@ export function chatGenerator(
     };
     const pages = await verifyPageContexts(ctx.db, actor, messages);
     // Nor do earlier tool results and answers about a page they lost.
-    const sent = await withholdUnreadablePages(ctx.db, actor, messages, pages);
+    const sent = replayableMessages(
+      await withholdUnreadablePages(ctx.db, actor, messages, pages),
+      fingerprint,
+    );
     // The UI message stream reports a failed model call only as text; keep
     // the provider's own error so the run can say what went wrong.
     let failure: unknown;
     const result = streamText({
-      model: model(),
+      model,
       tools,
       stopWhen: isStepCount(1),
       maxRetries: 1,
@@ -78,7 +101,7 @@ export function chatGenerator(
             : undefined,
       }),
       abortSignal: signal,
-      providerOptions: { openai: { store: false } },
+      providerOptions,
       onError: ({ error }) => {
         failure = error;
       },
@@ -91,7 +114,11 @@ export function chatGenerator(
     });
     try {
       for await (const updated of readUIMessageStream<ChatMessage>({
-        message: structuredClone(message),
+        // The steps generated now come from this provider.
+        message: {
+          ...structuredClone(message),
+          metadata: { ...message.metadata, generatedBy: fingerprint },
+        },
         stream,
         terminateOnError: true,
       }))

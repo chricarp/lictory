@@ -271,6 +271,10 @@ export type ChatMetadata = {
   // request that continued it (answers and approvals), excluding the time
   // spent waiting for the person.
   workedMs?: number;
+  // Which provider configuration generated this message's latest steps
+  // (ai/provider.ts `providerFingerprint`; names no host or key). Missing on
+  // messages written before it was recorded, which came from OpenAI.
+  generatedBy?: string;
 };
 
 export type ChatMessage = UIMessage<ChatMetadata, ChatDataParts>;

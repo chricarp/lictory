@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { CapabilityError } from "@lictory/core/capabilities/core";
 import { env } from "@lictory/core/lib/env";
+import {
+  OPENAI_REALTIME_URL,
+  resolveTranscription,
+} from "@lictory/core/ai/provider-settings";
 
 // Live dictation for the Intelligence composer.
 //
@@ -15,7 +19,6 @@ import { env } from "@lictory/core/lib/env";
 // OpenAI Realtime API directly. Swap it for an SDK call once that is possible.
 
 export const DEFAULT_TRANSCRIPTION_MODEL = "gpt-live-transcribe";
-
 // Only long enough to open the WebRTC connection; the session lives on after.
 const CREDENTIAL_TTL_SECONDS = 60;
 
@@ -54,13 +57,18 @@ export async function createDictationSession(
     fetch?: typeof fetch;
   } = {},
 ): Promise<DictationSession> {
-  const apiKey = options.apiKey ?? env("OPENAI_API_KEY");
+  const resolved = resolveTranscription();
+  const apiKey =
+    options.apiKey ??
+    (resolved.state === "configured" ? resolved.apiKey : undefined);
   if (!apiKey)
     throw new CapabilityError(
       "unavailable",
-      "Voice input is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
+      "Voice input is not configured on this server. An administrator can enable it with LICTORY_TRANSCRIPTION_PROVIDER=openai.",
     );
-  const baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
+  const baseUrl =
+    options.baseUrl ??
+    (resolved.state === "configured" ? resolved.baseUrl : OPENAI_REALTIME_URL);
   const response = await (options.fetch ?? fetch)(
     `${baseUrl}/realtime/client_secrets`,
     {
