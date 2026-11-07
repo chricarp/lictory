@@ -184,20 +184,29 @@ an existing account is linked automatically only when the provider asserts
 
 ## Lictory Intelligence
 
-| Setting                       | Meaning                                  |
-| ----------------------------- | ---------------------------------------- |
-| `OPENAI_API_KEY`              | Enables Lictory Intelligence with OpenAI |
-| `LICTORY_AI_MODEL`            | Model for reviews and chat (optional)    |
-| `LICTORY_TRANSCRIPTION_MODEL` | Model for dictation (optional)           |
+| Setting               | Meaning                                                                    |
+| --------------------- | -------------------------------------------------------------------------- |
+| `LICTORY_AI_PROVIDER` | `openai`, `anthropic`, `azure` or `openai-compatible` (self-hosted models) |
+| `LICTORY_AI_MODEL`    | Model id, or the Azure deployment name                                     |
+| `LICTORY_AI_BASE_URL` | The provider's URL (required for Azure and self-hosted models)             |
+| `LICTORY_AI_API_KEY`  | The provider's key                                                         |
+| `OPENAI_API_KEY`      | Alone, enables Lictory Intelligence with OpenAI (existing installations)   |
 
 ```sh
-sudo lictory config set OPENAI_API_KEY=sk-…
+sudo lictory config set LICTORY_AI_PROVIDER=anthropic \
+  LICTORY_AI_API_KEY=<anthropic-key> LICTORY_AI_MODEL=<model id>
+sudo lictory admin ai-check
 ```
 
-With a key configured, an organization administrator still decides whether
-Lictory Intelligence may run for their organization (**Organization settings
-→ Lictory Intelligence**). Content people ask it to analyze is sent to
-OpenAI; uploaded documents are converted to text on your server first.
+[AI providers](/self-hosting/ai-providers) covers every provider, self-hosted
+models on the same machine or a private server, dictation and what each
+feature needs from the model.
+
+With a provider configured, an organization administrator still decides
+whether Lictory Intelligence may run for their organization (**Organization
+settings → Lictory Intelligence**). Content people ask it to analyze is sent
+to the configured provider; uploaded documents are converted to text on your
+server first.
 
 ## Live editing
 

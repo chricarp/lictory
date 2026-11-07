@@ -26,8 +26,8 @@ assistant name does not change stored identifiers, routes or authorization.
   discussions it creates. Every run records who requested it.
 - An organization administrator must enable Lictory Intelligence
   (`setAiPolicy`). It is off by default and unavailable when the server has no
-  `OPENAI_API_KEY`. Turning it off fails queued runs before any content is
-  sent.
+  AI provider (see [providers](#providers)). Turning it off fails queued runs
+  before any content is sent.
 
 ## What an AI approval means
 
@@ -374,11 +374,84 @@ messages (with any text they selected; a page of Lictory Spaces only while
 they can still read it), and the tool results the assistant reads with their
 permissions, such as published pages it opens with `getPage`.
 
-Requests use `store: false`.
+Requests to OpenAI and Azure OpenAI use `store: false`. Other providers have
+no such request parameter; their retention is the operator's agreement with
+that provider (or their own policy, for a self-hosted endpoint).
 
-`LICTORY_AI_MODEL` selects the model; the default is `gpt-6-luna`. The provider
-is an adapter (`src/ai/analyzer.ts`). The domain depends on the `Analyzer`
-interface only.
+## Providers
+
+The operator chooses one provider for the whole installation in the server's
+environment (`LICTORY_AI_PROVIDER`, `LICTORY_AI_MODEL`, `LICTORY_AI_BASE_URL`,
+`LICTORY_AI_API_KEY`); setup is in
+[AI providers](../operations/ai-providers.md). Organizations only decide
+whether their content may be sent there.
+
+| Provider            | Protocol                    | Structured output (reviews, intake, titles)                     | Litto's tool calls          |
+| ------------------- | --------------------------- | --------------------------------------------------------------- | --------------------------- |
+| `openai`            | OpenAI Responses            | Native JSON schema                                              | Supported                   |
+| `anthropic`         | Anthropic Messages          | Native output format, a forced JSON tool on older models        | Supported                   |
+| `azure`             | Azure OpenAI Responses (v1) | Native JSON schema                                              | Supported                   |
+| `openai-compatible` | OpenAI Chat Completions     | `json_schema`, or JSON mode with the schema in the instructions | Depends on server and model |
+
+Invariants:
+
+- **Operator-only endpoints.** Endpoints and keys come from the environment,
+  never from the browser, an organization setting or a request. Nobody can
+  point the server at an address by using the product, so an internal
+  inference endpoint is reachable only because the operator configured it.
+  The admin console and `lictory admin ai-check` accept no endpoint either.
+- **One destination, no fallback.** `ai/provider-settings.ts` resolves the
+  environment to _disabled_ (nothing selected), _configured_ or _invalid_ (an
+  explicit selection missing a key, model or URL), and the API and worker
+  refuse to start when it is invalid. The SDK adapter is built only for the
+  selected provider, with every setting passed explicitly, so an SDK's own
+  environment defaults (`ANTHROPIC_*`, `AZURE_*`) never apply. A failed call
+  fails with a message naming the setting to check; it is never retried on
+  another provider. The OpenAI key is read only for `openai` (and for
+  dictation when chosen).
+- **Existing installations unchanged.** Without `LICTORY_AI_PROVIDER`, an
+  `OPENAI_API_KEY` (with the SDK's `OPENAI_BASE_URL`) selects OpenAI's
+  Responses API as before. Setting a new variable without a provider is an
+  error rather than a guess.
+- **Credentials stay on the server.** Keys are never written to the
+  directory, logs, run records or responses. Browsers see the provider kind
+  and model (`directory.ai`), never the endpoint; instance administrators also
+  see the endpoint and which variable holds the key. Dictation is the one
+  deliberate exception: the browser receives a 60-second,
+  transcription-only OpenAI token, never the key.
+- **The model is untrusted, whatever it is.** Output is validated against the
+  schema and filtered against the analysed context for every provider. In
+  JSON mode the schema is written into the instructions and the answer is
+  still validated; a non-conforming answer fails the run.
+- **Capabilities are tested, not assumed.** Whether a model behind an
+  OpenAI-compatible endpoint calls tools or follows a JSON schema cannot be
+  read from the protocol. `lictory admin ai-check` and the console's check
+  send synthetic content (never organization data) through the real code
+  paths (the review schema, a streamed tool call, an answer after a tool
+  result) and report each. Passing proves compatibility, not quality. Known
+  failures (a model without tool support, an endpoint without JSON schema
+  support, a context window exceeded, an unreachable `localhost`) become
+  messages that name the setting to change; raw provider bodies never reach
+  people.
+- **Changing provider.** The directory records the provider and model, and
+  every replica refreshes it at startup, so members see the new destination.
+  Queued runs and later turns of existing conversations go to the new
+  provider. Each assistant message records which provider configuration
+  generated it (`metadata.generatedBy`, a hash naming no host or key); when
+  earlier turns are sent to a different one, their reasoning and provider
+  metadata (encrypted reasoning, thinking signatures, response item ids) are
+  left out of the copy sent, while text, tool calls and tool results stay.
+  The stored transcript is unchanged.
+- **Deadlines.** A structured call gives up after
+  `LICTORY_AI_TIMEOUT_SECONDS` (240 by default, at most 480), retries
+  included; a review run ends a minute later, inside its ten-minute lease. A
+  Litto attempt runs at least five minutes, or that timeout plus a minute.
+
+Adding a provider means a kind in `contracts/ai-provider.ts`, its settings
+and capabilities in `ai/provider-settings.ts`, its SDK adapter in
+`ai/provider.ts` and a contract test against a fake of its protocol
+(`ai/provider.test.ts`). The domain depends on the `Analyzer` and drafter
+interfaces and on `generateStructured`, never on a provider.
 
 ## Voice dictation
 
@@ -387,9 +460,16 @@ caret where dictation started, and the person can keep editing while they
 talk. Dictation only fills the draft: nothing is sent until the person sends
 it.
 
-- **Same gate as the chat.** The server issues a dictation session only to a
-  member of the organization, and only while Lictory Intelligence is configured and
-  enabled for that organization.
+- **Same gate as the chat, plus its own.** The server issues a dictation
+  session only to a member of the organization, only while Lictory
+  Intelligence is configured and enabled for that organization, and only
+  when dictation is configured (`LICTORY_TRANSCRIPTION_PROVIDER`).
+- **A separate destination.** Audio always goes to OpenAI's Realtime API,
+  whichever provider handles text. It is on by default only when text goes to
+  OpenAI itself (no gateway, no other provider); otherwise the operator must
+  choose it explicitly. The composer shows the microphone only when the
+  directory says dictation is configured, and the server refuses a session
+  otherwise.
 - **Audio never reaches Lictory.** The server mints a short-lived (60 s),
   transcription-only credential from the provider. The browser streams the
   microphone straight to the provider over WebRTC. The key is never sent to

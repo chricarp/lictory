@@ -70,8 +70,19 @@ x-server-environment: &server-environment
   R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
   R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
   R2_S3_ENDPOINT: ${R2_S3_ENDPOINT:-}
-  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  # Lictory Intelligence (docs/operations/ai-providers.md). Unset: OpenAI when
+  # OPENAI_API_KEY is set, otherwise off. A self-hosted endpoint on this
+  # server is http://host.docker.internal:<port>/... (localhost is the
+  # container itself).
+  LICTORY_AI_PROVIDER: ${LICTORY_AI_PROVIDER:-}
   LICTORY_AI_MODEL: ${LICTORY_AI_MODEL:-}
+  LICTORY_AI_BASE_URL: ${LICTORY_AI_BASE_URL:-}
+  LICTORY_AI_API_KEY: ${LICTORY_AI_API_KEY:-}
+  LICTORY_AI_STRUCTURED_OUTPUT: ${LICTORY_AI_STRUCTURED_OUTPUT:-}
+  LICTORY_AI_TIMEOUT_SECONDS: ${LICTORY_AI_TIMEOUT_SECONDS:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  LICTORY_TRANSCRIPTION_PROVIDER: ${LICTORY_TRANSCRIPTION_PROVIDER:-}
   LICTORY_TRANSCRIPTION_MODEL: ${LICTORY_TRANSCRIPTION_MODEL:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -297,6 +308,9 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
+    # A model server on this machine (Ollama, vLLM…) is reached as
+    # host.docker.internal; Docker Desktop defines it, Linux needs this line.
+    extra_hosts: ["host.docker.internal:host-gateway"]
     mem_limit: ${API_MEM_LIMIT:-768m}
     stop_grace_period: 30s
     environment:
@@ -316,6 +330,9 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
+    # A model server on this machine (Ollama, vLLM…) is reached as
+    # host.docker.internal; Docker Desktop defines it, Linux needs this line.
+    extra_hosts: ["host.docker.internal:host-gateway"]
     mem_limit: ${WORKER_MEM_LIMIT:-512m}
     # Lets an in-flight job finish; leases make interrupted work resumable.
     stop_grace_period: 60s

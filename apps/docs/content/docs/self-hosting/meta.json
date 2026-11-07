@@ -5,6 +5,7 @@
     "install",
     "configuration",
     "database",
+    "ai-providers",
     "terminal",
     "commands",
     "reverse-proxy",

@@ -92,6 +92,9 @@ adding domain writes or synchronized entities.
   database, Zero replica and worker recovery
 - [Local and preview OAuth](./operations/oauth-proxy.md): fixed callbacks and
   separate production/development clients
+- [AI providers](./operations/ai-providers.md): OpenAI, Anthropic, Azure
+  OpenAI and self-hosted models for Lictory Intelligence, reaching an
+  endpoint from containers, the connection check
 - [Single sign-on](./operations/sso.md): a company OpenID Connect identity
   provider (Okta, Entra ID, Keycloak, Dex…) and SSO-only installations
 - [Versions, release preparation and hotfixes](./operations/releases.md)
