@@ -49,6 +49,8 @@ export function wordMarks(
       data: {
         hName: kind === "added" ? "ins" : "del",
         hProperties: {
+          // A reference chip inside the change is marked with it.
+          dataDiff: kind,
           className: (kind === "added"
             ? "diff-word rounded-[3px] bg-success/18 text-inherit underline decoration-success underline-offset-3"
             : "diff-word rounded-[3px] bg-destructive/14 text-inherit line-through decoration-destructive"
