@@ -161,7 +161,8 @@ export function PageActionsProvider({
           onCreate={async (title, template, context) => {
             const pageId = crypto.randomUUID();
             // A template is the page's first version; blank stays empty.
-            // The document engine loads only when a template is chosen.
+            // The document engine loads only when a template is chosen (a
+            // failed load throws: the dialog stays open to try again).
             const content =
               template === "blank"
                 ? undefined
@@ -232,13 +233,28 @@ function NewPageDialog({
   );
   const listsIteration =
     template === "iteration-notes" || template === "retrospective";
-  const submit = () => {
+  // Creating waits for the template to load: one page per submit, and a
+  // failure stays in the dialog with what to do next.
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async () => {
     const trimmed = title.trim();
-    if (!trimmed) return;
-    void onCreate(trimmed, template, {
-      projectId,
-      iterationId: listsIteration ? iterationId || null : null,
-    });
+    if (!trimmed || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await onCreate(trimmed, template, {
+        projectId,
+        iterationId: listsIteration ? iterationId || null : null,
+      });
+    } catch {
+      setError(
+        template === "blank"
+          ? "The page was not created. Check your connection and try again."
+          : `The ${pageTemplates[template].name} template could not be loaded, so no page was created. Check your connection and try again, or start from a blank page.`,
+      );
+      setPending(false);
+    }
   };
   return (
     <Dialog
@@ -249,15 +265,15 @@ function NewPageDialog({
           : "Adds a page at the end of this space."
       }
       onClose={onClose}
-      onSubmit={submit}
+      onSubmit={() => void submit()}
       width="max-w-xl"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!title.trim()}>
-            Create page
+          <Button type="submit" disabled={!title.trim() || pending}>
+            {pending ? "Creating…" : "Create page"}
           </Button>
         </>
       }
@@ -312,6 +328,11 @@ function NewPageDialog({
           <p className="text-xs text-muted-foreground">
             The template becomes the page’s first version. Edit it like any
             other page.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
           </p>
         )}
       </div>
