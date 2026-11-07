@@ -169,25 +169,37 @@ export function HoverCard({
         .filter(
           (r) => r.width > 0 && r.bottom > 0 && r.top < window.innerHeight,
         );
-      const covers = (c: { top: number; left: number }) =>
-        others.some(
+      const covered = (c: { top: number; left: number }) =>
+        others.filter(
           (r) =>
             r.left < c.left + panelWidth &&
             r.right > c.left &&
             r.top < c.top + height &&
             r.bottom > c.top,
-        );
+        ).length;
+      // When every place covers some, the one covering fewest (the first
+      // of equals).
+      let best = candidates[0];
+      let fewest = best ? covered(best) : 0;
+      for (const c of candidates.slice(1)) {
+        if (!fewest) break;
+        const n = covered(c);
+        if (n < fewest) [best, fewest] = [c, n];
+      }
       setPosition(
-        candidates.find((c) => !covers(c)) ??
-          candidates[0] ?? {
-            top: anchor.bottom + gap,
-            left: clampLeft(anchor.left),
-          },
+        best ?? { top: anchor.bottom + gap, left: clampLeft(anchor.left) },
       );
     };
     place();
     window.addEventListener("scroll", place, true);
-    return () => window.removeEventListener("scroll", place, true);
+    // Content that arrives later (a card's readiness checks) changes the
+    // height: place it again.
+    const resized = new ResizeObserver(place);
+    if (panelRef.current) resized.observe(panelRef.current);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      resized.disconnect();
+    };
   }, [open, anchorElement]);
 
   const anchor: HoverCardAnchor = {

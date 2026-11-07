@@ -55,7 +55,7 @@
 }
 /* Links read as links; references are chips that look the same in every
    reader and editor (components/references/chips.tsx). */
-.page-document a:not([data-reference]) {
+.page-document a:where(:not([data-reference])) {
   color: var(--ring);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--ring) 45%, transparent);
