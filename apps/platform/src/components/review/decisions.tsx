@@ -10,7 +10,7 @@ import {
 import { Archive, ArchiveRestore, BookOpen, Plus, Search } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { callCapability } from "@lictory/core/capabilities/client";
@@ -317,7 +317,9 @@ export function Decisions() {
             value={body}
             onValueChange={setBody}
             placeholder="What was agreed, why, and any limits…"
-            rows={3}
+            compact
+            minHeight="5rem"
+            maxHeight="20rem"
           />
           {sources.length > 0 && (
             <label className="block space-y-1 text-xs font-medium">

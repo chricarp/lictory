@@ -4,7 +4,10 @@ import ReactMarkdown, {
   type Components,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Link, Root, Text } from "mdast";
+import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { cn } from "@lictory/core/lib/utils";
+import { ReferenceChip } from "@lictory/platform/components/references/chips";
 
 function textContent(value: ReactNode): string {
   return Children.toArray(value)
@@ -68,8 +71,12 @@ const components: Components = {
     </h6>
   ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
-  a: ({ children, href }) =>
-    href?.startsWith("mention:") ? (
+  a: ({ children, href }) => {
+    // Work items, pages and decisions as live chips (contracts/references).
+    const target = parseReferenceTarget(href);
+    if (target)
+      return <ReferenceChip target={target} label={textContent(children)} />;
+    return href?.startsWith("mention:") ? (
       <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
         {children}
       </span>
@@ -81,7 +88,8 @@ const components: Components = {
       >
         {children}
       </a>
-    ),
+    );
+  },
   ul: ({ children, className }) => (
     <ul
       className={cn(
@@ -151,12 +159,49 @@ const components: Components = {
   ),
 };
 
-// Mentions (`@[Name](mention:ID)`) survive URL sanitising and render as chips;
-// every other URL goes through react-markdown's safe default.
+// Mentions (`@[Name](mention:ID)`) and references (`item:`, `page:`,
+// `decision:`) survive URL sanitising and render as chips; every other URL
+// goes through react-markdown's safe default.
 const urlTransform = (url: string) =>
-  /^mention:[A-Za-z0-9_-]+$/.test(url) ? url : defaultUrlTransform(url);
+  /^mention:[A-Za-z0-9_-]+$/.test(url) || parseReferenceTarget(url)
+    ? url
+    : defaultUrlTransform(url);
 
-const remarkPlugins = [remarkGfm];
+// The older page form `[[page:ID]]` in text reads as a page reference.
+function remarkLegacyPageLinks() {
+  const pattern = /\[\[page:([A-Za-z0-9_-]{1,160})\]\]/g;
+  const visit = (node: { children?: unknown[] }) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child) => {
+      const c = child as Text | { type: string; children?: unknown[] };
+      if (c.type === "code" || c.type === "inlineCode") return [child];
+      if (c.type !== "text") {
+        visit(c as { children?: unknown[] });
+        return [child];
+      }
+      const value = (c as Text).value;
+      if (!value.includes("[[page:")) return [child];
+      const out: (Text | Link)[] = [];
+      let last = 0;
+      for (const match of value.matchAll(pattern)) {
+        if (match.index > last)
+          out.push({ type: "text", value: value.slice(last, match.index) });
+        out.push({
+          type: "link",
+          url: `page:${match[1]}`,
+          children: [{ type: "text", value: "Linked page" }],
+        });
+        last = match.index + match[0].length;
+      }
+      if (last < value.length)
+        out.push({ type: "text", value: value.slice(last) });
+      return out;
+    });
+  };
+  return (tree: Root) => visit(tree);
+}
+
+const remarkPlugins = [remarkGfm, remarkLegacyPageLinks];
 
 // CommonMark plus GitHub-flavored tables, task lists, strikethrough and
 // autolinks. react-markdown emits React nodes and does not execute raw HTML.

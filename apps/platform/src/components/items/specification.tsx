@@ -19,7 +19,7 @@ import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Button } from "@lictory/ui/button";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
+import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
@@ -435,20 +435,11 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
         autoFocus
         value={content}
         onValueChange={setContent}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-            e.preventDefault();
-            void submit();
-          } else if (e.key === "Escape") onDone();
-        }}
-        spellCheck
+        onSubmit={() => void submit()}
+        onEscape={onDone}
         aria-label="Specification"
-        placeholder={
-          "# Intent\n\nWhy this matters and for whom.\n\n## Behavior\n\n…\n\n## Acceptance criteria\n\n- [ ] …"
-        }
-        className="min-h-[320px] px-4 pt-4 font-mono"
-        previewClassName="min-h-[320px] px-4 pt-4"
-        style={{ fieldSizing: "content" }}
+        placeholder="Why this matters and for whom, the expected behavior, failure behavior and acceptance criteria. Type / for headings, lists and references."
+        minHeight="20rem"
       />
       {mode === "edit" && (
         <input
