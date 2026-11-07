@@ -393,3 +393,12 @@
 .markdown-document-compact > * + * {
   margin-top: 0.5em;
 }
+/* Touch screens zoom into text under 16px while it is edited. */
+@media (any-pointer: coarse) {
+  .markdown-document.ProseMirror[contenteditable="true"] {
+    font-size: 16px;
+  }
+}
+.markdown-document p.is-editor-empty:first-child::before {
+  white-space: pre-wrap;
+}

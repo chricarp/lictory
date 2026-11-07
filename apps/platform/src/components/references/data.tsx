@@ -164,7 +164,9 @@ function useResolverValue(): Resolver {
               }
             : null,
         owner: external
-          ? link?.externalAssignee?.trim() || null
+          ? link?.externalAssignee?.trim()
+            ? link.externalAssignee.trim()
+            : null
           : found.assigneeId
             ? memberName(found.assigneeId)
             : null,
@@ -191,7 +193,7 @@ function useResolverValue(): Resolver {
         publishedBy: found.publishedById
           ? memberName(found.publishedById)
           : null,
-        archived: Boolean(found.archivedAt || space.archivedAt),
+        archived: Boolean(found.archivedAt ?? space.archivedAt),
       };
     };
     let itemList: ReturnType<Resolver["items"]> | undefined;
@@ -215,7 +217,7 @@ function useResolverValue(): Resolver {
                 title: p.title,
                 space: space?.name ?? "",
                 publishedCommitId: p.publishedCommitId,
-                archived: Boolean(p.archivedAt || space?.archivedAt),
+                archived: Boolean(p.archivedAt ?? space?.archivedAt),
               };
             })
           : []),
@@ -272,7 +274,7 @@ export function useLocalDecision(id: string): DecisionReference | undefined {
     const decision = item?.entities.find(
       (e) => e.type === "decision" && e.id === id,
     );
-    if (!decision || decision.type !== "decision") return undefined;
+    if (decision?.type !== "decision") return undefined;
     const revision = item?.entities.find(
       (e) => e.type === "revision" && e.id === decision.revisionId,
     );
@@ -282,8 +284,7 @@ export function useLocalDecision(id: string): DecisionReference | undefined {
       title: decision.title,
       itemKey: owner?.key ?? null,
       itemHref: owner?.href ?? null,
-      revisionNumber:
-        revision && revision.type === "revision" ? revision.number : null,
+      revisionNumber: revision?.type === "revision" ? revision.number : null,
     };
   }, [item?.entities, id, resolver]);
 }

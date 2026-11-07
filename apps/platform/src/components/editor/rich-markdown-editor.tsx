@@ -167,10 +167,7 @@ const MarkdownEditing = Extension.create<{
             // Plain text is read as Markdown, so pasted specifications keep
             // their headings, lists and references.
             const { doc } = parseMarkdown(text, view.state.schema);
-            const fragment = Fragment.fromJSON(
-              view.state.schema,
-              doc.content as never,
-            );
+            const fragment = Fragment.fromJSON(view.state.schema, doc.content);
             view.dispatch(
               view.state.tr
                 .replaceSelection(Slice.maxOpen(fragment))

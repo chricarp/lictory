@@ -24,8 +24,27 @@ const OPEN_DELAY = 400;
 const CLOSE_DELAY = 120;
 // Moving from one reference to the next swaps the card at once.
 const WARM_FOR = 400;
-let closedAt = 0;
-let openCount = 0;
+const warmth = { open: 0, closedAt: 0 };
+const isWarm = () => warmth.open > 0 || Date.now() - warmth.closedAt < WARM_FOR;
+function opened() {
+  warmth.open += 1;
+}
+function closed() {
+  warmth.open -= 1;
+  warmth.closedAt = Date.now();
+}
+
+// One pending open or close per card.
+class Delay {
+  private id: number | undefined;
+  run(action: () => void, ms: number) {
+    this.cancel();
+    this.id = window.setTimeout(action, ms);
+  }
+  cancel() {
+    window.clearTimeout(this.id);
+  }
+}
 
 export type HoverCardAnchor = {
   ref: (node: HTMLElement | null) => void;
@@ -53,37 +72,44 @@ export function HoverCard({
   width?: number;
 }) {
   const id = useId();
-  const anchorRef = useRef<HTMLElement | null>(null);
+  const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const timer = useRef<number>(undefined);
+  const [delay] = useState(() => new Delay());
   const [hovered, setHovered] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const open = (hovered || forceOpen) && !dismissed;
   const [position, setPosition] = useState<{ top: number; left: number }>();
 
-  const clear = () => window.clearTimeout(timer.current);
-  const show = useCallback((delay: number) => {
-    window.clearTimeout(timer.current);
-    const warm = openCount > 0 || Date.now() - closedAt < WARM_FOR;
-    const run = () => {
-      setDismissed(false);
-      setHovered(true);
-    };
-    if (warm || delay === 0) run();
-    else timer.current = window.setTimeout(run, delay);
-  }, []);
-  const hide = useCallback((delay = CLOSE_DELAY) => {
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setHovered(false), delay);
-  }, []);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  useEffect(() => {
+  const clear = () => delay.cancel();
+  const show = useCallback(
+    (ms: number) => {
+      const run = () => {
+        setDismissed(false);
+        setHovered(true);
+      };
+      if (isWarm() || ms === 0) {
+        delay.cancel();
+        run();
+      } else delay.run(run, ms);
+    },
+    [delay],
+  );
+  const hide = useCallback(
+    (ms = CLOSE_DELAY) => delay.run(() => setHovered(false), ms),
+    [delay],
+  );
+  useEffect(() => () => delay.cancel(), [delay]);
+  // Escape dismisses a card the editor's selection holds open until the
+  // selection moves off the reference.
+  const [heldOpen, setHeldOpen] = useState(forceOpen);
+  if (heldOpen !== forceOpen) {
+    setHeldOpen(forceOpen);
     if (!forceOpen) setDismissed(false);
-  }, [forceOpen]);
+  }
 
   useEffect(() => {
     if (!open) return;
-    openCount += 1;
+    opened();
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setDismissed(true);
@@ -93,20 +119,16 @@ export function HoverCard({
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", end);
     return () => {
-      openCount -= 1;
-      closedAt = Date.now();
+      closed();
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", end);
     };
   }, [open]);
 
   useLayoutEffect(() => {
-    if (!open) {
-      setPosition(undefined);
-      return;
-    }
+    if (!open) return;
     const place = () => {
-      const anchor = anchorRef.current?.getBoundingClientRect();
+      const anchor = anchorElement?.getBoundingClientRect();
       const panel = panelRef.current;
       if (!anchor || !panel) return;
       const gap = 6;
@@ -127,12 +149,10 @@ export function HoverCard({
     place();
     window.addEventListener("scroll", place, true);
     return () => window.removeEventListener("scroll", place, true);
-  }, [open]);
+  }, [open, anchorElement]);
 
   const anchor: HoverCardAnchor = {
-    ref: (node) => {
-      anchorRef.current = node;
-    },
+    ref: setAnchorElement,
     onPointerEnter: () => show(OPEN_DELAY),
     onPointerLeave: () => hide(),
     onFocus: (event) => {

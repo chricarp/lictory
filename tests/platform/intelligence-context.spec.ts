@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillMarkdown } from "../helpers/editor";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -69,9 +70,11 @@ test("an administrator curates versioned Lictory Intelligence Context per scope"
   // A written note.
   await section.getByRole("button", { name: "Write note" }).click();
   await section.getByLabel("Title").fill("Payments glossary");
-  await section
-    .getByLabel("Context content")
-    .fill("A **charge** moves money from a customer to the merchant.");
+  await fillMarkdown(
+    section,
+    "Context content",
+    "A **charge** moves money from a customer to the merchant.",
+  );
   await section.getByRole("button", { name: "Add note" }).click();
   const note = section.getByRole("button", { name: /^Payments glossary/ });
   await expect(note).toContainText("v1");
@@ -79,9 +82,11 @@ test("an administrator curates versioned Lictory Intelligence Context per scope"
   // Editing adds a version; the earlier one stays readable.
   await note.click();
   await section.getByRole("button", { name: "Edit", exact: true }).click();
-  await section
-    .getByLabel("Context content")
-    .fill("A **charge** moves money from a customer. Refunds reverse it.");
+  await fillMarkdown(
+    section,
+    "Context content",
+    "A **charge** moves money from a customer. Refunds reverse it.",
+  );
   await section.getByRole("button", { name: "Save new version" }).click();
   await expect(note).toContainText("v2");
   await expect(section).toContainText("Refunds reverse it.");

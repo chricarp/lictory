@@ -61,6 +61,8 @@ export type MarkdownSource = {
 
 class Unrepresentable extends Error {}
 
+const str = (value: unknown) => (typeof value === "string" ? value : "");
+
 const parse = (markdown: string) =>
   fromMarkdown(markdown, {
     extensions: [gfm()],
@@ -270,19 +272,18 @@ function siblingHint(
 // block: unclosed fences and some raw HTML run to the end of the document.
 // Only fences and HTML can; the answer is kept on the block.
 function terminated(block: SourceBlock) {
-  if (block.terminated === undefined)
-    block.terminated =
-      !/^\s*(`{3,}|~{3,}|<)/.test(block.source) ||
-      parse(`${block.source}\n\nx`).children.length >= 2;
+  block.terminated ??=
+    !/^\s*(`{3,}|~{3,}|<)/.test(block.source) ||
+    parse(`${block.source}\n\nx`).children.length >= 2;
   return block.terminated;
 }
 
 // Closes raw HTML that would otherwise run to the end of the document.
 function closeRawBlock(source: string) {
   const start = source.trimStart();
-  if (/^<!--/.test(start)) return `${source}\n-->`;
-  if (/^<\?/.test(start)) return `${source}\n?>`;
-  if (/^<!\[CDATA\[/.test(start)) return `${source}\n]]>`;
+  if (start.startsWith("<!--")) return `${source}\n-->`;
+  if (start.startsWith("<?")) return `${source}\n?>`;
+  if (start.startsWith("<![CDATA[")) return `${source}\n]]>`;
   if (/^<![A-Za-z]/.test(start)) return `${source}\n>`;
   const tag = /^<(script|pre|style|textarea)/i.exec(start)?.[1];
   if (tag) return `${source}\n</${tag}>`;
@@ -599,10 +600,13 @@ function escapeText(text: string, inTable: boolean) {
 // Escapes what would start a block at the beginning of a line.
 function escapeLineStart(line: string) {
   if (/^#{1,6}(\s|$)/.test(line)) return `\\${line}`;
-  if (/^>/.test(line)) return `\\${line}`;
+  if (line.startsWith(">")) return `\\${line}`;
   if (/^[-+](\s|$)/.test(line)) return `\\${line}`;
   if (/^(=+|-+)\s*$/.test(line)) return `\\${line}`;
-  if (/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line) && /\|/.test(line))
+  if (
+    /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line) &&
+    line.includes("|")
+  )
     return `\\${line}`;
   const ordered = /^(\d{1,9})([.)])(\s|$)/.exec(line);
   if (ordered) return `${ordered[1]}\\${line.slice(ordered[1]!.length)}`;
@@ -628,7 +632,7 @@ function codeSpan(text: string, inTable: boolean) {
   const fence = "`".repeat(longest + 1);
   const pad =
     /^`|`$/.test(text) ||
-    (/^ /.test(text) && / $/.test(text) && /[^ ]/.test(text))
+    (text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text))
       ? " "
       : "";
   const body = inTable ? text.replace(/\|/g, "\\|") : text;
@@ -683,7 +687,7 @@ function renderInline(nodes: MarkdownJSON[] = [], options: Inline): string {
   const stack: Mark[] = [];
   const close = (mark: Mark) => {
     if (mark.type === "link")
-      out += `](${destination(String(mark.attrs?.href ?? ""))}${title(mark.attrs?.title)})`;
+      out += `](${destination(str(mark.attrs?.href))}${title(mark.attrs?.title)})`;
     else out += emphasis[mark.type] ?? "";
   };
   const open = (mark: Mark) => {
@@ -748,10 +752,10 @@ function renderLeaf(
     case "hardBreak":
       return options.table ? " " : "\\\n";
     case "image":
-      return `![${escapeText(String(a.alt ?? ""), options.table)}](${destination(String(a.src ?? ""))}${title(a.title)})`;
+      return `![${escapeText(str(a.alt), options.table)}](${destination(str(a.src))}${title(a.title)})`;
     case "mention": {
       const label =
-        String(a.label ?? "")
+        str(a.label)
           .replace(/[[\]\n]/g, "")
           .trim() || "member";
       return `@[${label}](mention:${String(a.id)})`;
@@ -759,7 +763,7 @@ function renderLeaf(
     case "workItemRef":
       return formatReference(
         { kind: "item", id: String(a.workItemId) },
-        String(a.key ?? ""),
+        str(a.key),
       );
     case "pageRef":
       return formatReference(
@@ -775,10 +779,10 @@ function renderLeaf(
     case "decisionRef":
       return formatReference(
         { kind: "decision", id: String(a.decisionId) },
-        String(a.label ?? ""),
+        str(a.label),
       );
     case "rawInline":
-      return String(a.source ?? "");
+      return str(a.source);
     default:
       return renderInline(node.content, options);
   }
@@ -901,13 +905,8 @@ export function renderBlock(
       );
     }
     case "rawBlock":
-      return String(a.source ?? "");
+      return str(a.source);
     default:
       return renderInline(node.content, { table: false });
   }
-}
-
-/** Plain Markdown → Markdown through the editor's model, without reuse. */
-export function normalizeMarkdown(markdown: string): string {
-  return serializeMarkdown(parseMarkdown(markdown).doc);
 }

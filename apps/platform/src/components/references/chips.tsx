@@ -1,9 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowUpRight, FileText, Scale } from "lucide-react";
-import {
-  parseReferenceTarget,
-  type ReferenceTarget,
-} from "@lictory/core/contracts/references";
+import type { ReferenceTarget } from "@lictory/core/contracts/references";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   absoluteTime,
@@ -43,6 +40,10 @@ import {
 
 export type ChipMode = "link" | "static";
 
+// The label stored in the content, or what stands in for an empty one.
+const stored = (label: string | null, fallback: string) =>
+  label?.trim() ? label.trim() : fallback;
+
 type ChipProps = {
   label: string | null;
   mode?: ChipMode;
@@ -62,14 +63,15 @@ function Anchor({
   mode,
   href,
   anchor,
-  label,
+  spoken,
   children,
   data,
 }: {
   mode: ChipMode;
   href: string | undefined;
   anchor: HoverCardAnchor;
-  label: string;
+  // Read after the visible text (status, version), never instead of it.
+  spoken: string;
   children: ReactNode;
   data: Record<string, string>;
 }) {
@@ -79,12 +81,12 @@ function Anchor({
       <Link
         ref={ref}
         href={href}
-        aria-label={label}
         className={chip}
         {...handlers}
         {...data}
       >
         {children}
+        {spoken && <span className="sr-only">{spoken}</span>}
       </Link>
     );
   if (mode === "link")
@@ -94,13 +96,13 @@ function Anchor({
       <button
         ref={ref}
         type="button"
-        aria-label={label}
         className={cn(chip, "cursor-default")}
         onClick={onClick}
         {...handlers}
         {...data}
       >
         {children}
+        {spoken && <span className="sr-only">{spoken}</span>}
       </button>
     );
   return (
@@ -108,7 +110,6 @@ function Anchor({
       ref={ref}
       // Inside an editor the reference is part of the text: the card is
       // reached by pointing at it or moving the selection onto it.
-      aria-label={label}
       className={chip}
       onPointerEnter={handlers.onPointerEnter}
       onPointerLeave={handlers.onPointerLeave}
@@ -116,6 +117,7 @@ function Anchor({
       {...data}
     >
       {children}
+      {spoken && <span className="sr-only">{spoken}</span>}
     </span>
   );
 }
@@ -170,10 +172,10 @@ export function ItemChip({
   selected,
 }: ChipProps & { id: string }) {
   const item = useReferences().item(id);
-  if (!item) return <Plain kind="item">{label?.trim() || "Work item"}</Plain>;
+  if (!item) return <Plain kind="item">{stored(label, "Work item")}</Plain>;
   // The name starts with what is shown (WCAG 2.5.3) and ends with the
   // status the icon draws.
-  const name = `${item.key} ${item.title}, ${item.status.label}`;
+  const spoken = `, ${item.status.label}`;
   return (
     <HoverCard
       forceOpen={selected}
@@ -184,7 +186,7 @@ export function ItemChip({
           mode={mode}
           href={item.href}
           anchor={anchor}
-          label={name}
+          spoken={spoken}
           data={{ "data-reference": "item", "data-key": item.key }}
         >
           <StatusIcon
@@ -280,7 +282,7 @@ export function PageChip({
 }: ChipProps & { id: string; commitId?: string | null }) {
   const page = useReferences().page(id);
   if (!page)
-    return <Plain kind="page">{label?.trim() || "Unavailable page"}</Plain>;
+    return <Plain kind="page">{stored(label, "Unavailable page")}</Plain>;
   return commitId ? (
     <PinnedPageChip
       page={page}
@@ -345,8 +347,7 @@ function PageChipView({
   const href = version
     ? `${page.href}?commit=${encodeURIComponent(version.commitId)}`
     : page.href;
-  const name = [
-    page.title,
+  const spoken = [
     version
       ? version.pinned
         ? `version ${version.pinned}`
@@ -355,7 +356,8 @@ function PageChipView({
     version?.newer ? "a newer version is published" : null,
   ]
     .filter(Boolean)
-    .join(", ");
+    .map((part) => `, ${part}`)
+    .join("");
   return (
     <HoverCard
       forceOpen={selected}
@@ -368,7 +370,7 @@ function PageChipView({
           mode={mode}
           href={href}
           anchor={anchor}
-          label={name}
+          spoken={spoken}
           data={{
             "data-reference": "page",
             ...(version ? { "data-pinned": "true" } : {}),
@@ -527,16 +529,16 @@ export function DecisionChip({
 }: ChipProps & { id: string }) {
   const local = useLocalDecision(id);
   const { organizationId } = useReferences();
-  const stored = label?.trim() || "Decision";
-  if (!organizationId) return <Plain kind="decision">{stored}</Plain>;
-  const title = local?.title ?? stored;
+  const fallback = stored(label, "Decision");
+  if (!organizationId) return <Plain kind="decision">{fallback}</Plain>;
+  const title = local?.title ?? fallback;
   return (
     <HoverCard
       forceOpen={selected}
       content={() => (
         <DecisionCard
           id={id}
-          label={stored}
+          label={fallback}
           local={local}
           organizationId={organizationId}
           mode={mode}
@@ -548,13 +550,14 @@ export function DecisionChip({
           mode={mode}
           href={local?.itemHref ?? undefined}
           anchor={anchor}
-          label={`Decision: ${title}`}
+          spoken=""
           data={{ "data-reference": "decision" }}
         >
           <Scale
             className="size-3.5 shrink-0 text-muted-foreground"
             aria-hidden
           />
+          <span className="sr-only">Decision: </span>
           <span className={titleClass}>{title}</span>
         </Anchor>
       )}
@@ -651,16 +654,4 @@ export function ReferenceChip({
       selected={selected}
     />
   );
-}
-
-/** The chip for a Markdown link target such as `item:ID`, or null. */
-export function referenceChipFor(
-  href: string | undefined,
-  label: string,
-  mode: ChipMode = "link",
-) {
-  const target = parseReferenceTarget(href);
-  return target ? (
-    <ReferenceChip target={target} label={label} mode={mode} />
-  ) : null;
 }

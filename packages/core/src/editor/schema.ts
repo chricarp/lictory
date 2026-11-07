@@ -2,7 +2,7 @@ import {
   Extension,
   getExtensionField,
   getSchema,
-  Mark,
+  type Mark,
   mergeAttributes,
   Node,
   type AnyExtension,
