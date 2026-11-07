@@ -26,8 +26,9 @@ function textOf(node: PageNode, leaves: Leaves): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "hardBreak") return leaves === "labels" ? "\n" : "";
   if (leaves === "labels") {
-    if (node.type === "workItemRef") return String(node.attrs?.key ?? "");
-    if (node.type === "decisionRef") return String(node.attrs?.label ?? "");
+    const attr = node.attrs?.[node.type === "workItemRef" ? "key" : "label"];
+    if (node.type === "workItemRef" || node.type === "decisionRef")
+      return typeof attr === "string" ? attr : "";
   }
   const children = node.content ?? [];
   // Inline content joins as it is; blocks are separated like lines.

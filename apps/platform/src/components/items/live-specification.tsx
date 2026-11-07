@@ -31,8 +31,15 @@ import { markdownExtensions } from "@lictory/core/editor/schema";
 import {
   blockKey,
   parseMarkdown,
+  serializeMarkdown,
   type MarkdownJSON,
 } from "@lictory/core/editor/markdown";
+import {
+  hasConflicts,
+  mergeBlocks,
+  resolveMerge,
+  type MergeChunk,
+} from "@lictory/core/editor/block-merge";
 import { draftStateToMarkdown } from "@lictory/core/editor/draft-state";
 import {
   DRAFT_UPDATE_BYTES,
@@ -84,7 +91,10 @@ import {
   specDraftRecoveryKey,
   specDraftRecoveryStore,
 } from "@lictory/platform/components/items/spec-draft-recovery";
-import type { DraftRecoveryStore } from "@lictory/platform/components/spaces/editor/recovery";
+import type {
+  DraftRecoveryStore,
+  RecoveredDraft,
+} from "@lictory/platform/components/spaces/editor/recovery";
 import "@lictory/platform/components/editor/document.css";
 
 // The live draft of a specification line
@@ -109,13 +119,19 @@ export type LiveSpecificationLine = {
 
 export type LiveControls = {
   editable: boolean;
-  // Stored or local edits beyond the last saved cut.
+  // Stored or local edits beyond the last saved cut, or Markdown edited as
+  // text and not applied yet.
   uncommitted: boolean;
-  // Waits for "Saved", names the stored cut and sends the command it
-  // builds. "nothing" when the edits cancelled out.
+  // Applies Markdown edited as text, waits for "Draft saved", names the
+  // stored cut and sends the command it builds. "nothing" when the edits
+  // cancelled out. Refused while the Markdown overlaps someone's changes
+  // (the editor asks which to keep).
   seal: (
     build: (expectedSequence: number) => Command,
   ) => Promise<"saved" | "nothing">;
+  // Leaves the editor, applying Markdown edited as text first (or asking,
+  // when it overlaps someone's changes).
+  close: () => void;
   // Starts the draft again from the line's head, for everyone.
   discard: () => Promise<void>;
 };
@@ -261,6 +277,115 @@ export default function LiveSpecificationDraft(props: LiveSpecificationProps) {
 
 // Kept text that came from a browser draft of the line, not a session.
 const LEGACY_DOCUMENT = "browser-draft";
+// Kept Markdown edited as text and never applied.
+const SOURCE_ENTRY = "source:";
+
+type SourceEdit = {
+  // The draft's top-level blocks when "Edit as Markdown" opened.
+  base: MarkdownJSON[];
+  // The Markdown it showed then, and what it says now.
+  initial: string;
+  text: string;
+};
+
+const markdownOfBlocks = (blocks: MarkdownJSON[]) =>
+  serializeMarkdown({ type: "doc", content: blocks });
+
+// The blocks the Markdown changed or added, to keep on this device.
+function keptSourceText(
+  edit: SourceEdit,
+  id: string,
+  documentName: string,
+): RecoveredDraft | null {
+  const base = new Set(edit.base.map(blockKey));
+  let blocks: MarkdownJSON[];
+  try {
+    blocks = (parseMarkdown(edit.text).doc.content ?? []).filter(
+      (block) => !base.has(blockKey(block)),
+    );
+  } catch {
+    blocks = [
+      { type: "paragraph", content: [{ type: "text", text: edit.text }] },
+    ];
+  }
+  blocks = blocks.filter((block) => markdownOfBlocks([block]).trim());
+  if (!blocks.length) return null;
+  return {
+    id,
+    documentName,
+    keptAt: Date.now(),
+    title: null,
+    blocks,
+    markdown: markdownOfBlocks(blocks),
+  };
+}
+
+// Markdown edited as text overlaps changes someone made to the same blocks
+// meanwhile: nothing is applied until the person chooses.
+function SourceConflict({
+  chunks,
+  onChoose,
+  onKeepEditing,
+  onDiscard,
+}: {
+  chunks: MergeChunk<MarkdownJSON>[];
+  onChoose: (choice: "mine" | "theirs") => void;
+  onKeepEditing: () => void;
+  onDiscard: () => void;
+}) {
+  const conflicts = chunks.filter((c) => c.kind === "conflict");
+  return (
+    <div
+      role="alert"
+      className="m-3 space-y-3 rounded-lg border border-warning/40 bg-warning/5 p-3 text-[13px]"
+    >
+      <p>
+        <span className="font-medium">
+          Someone changed the same part of the specification while you edited
+          the Markdown.
+        </span>{" "}
+        <span className="text-muted-foreground">
+          Your other edits apply as they are. For{" "}
+          {conflicts.length === 1
+            ? "this part"
+            : `these ${conflicts.length} parts`}
+          , choose which version to keep: their current text (left) or your
+          Markdown (right).
+        </span>
+      </p>
+      {conflicts.map((c, i) => (
+        <RevisionDiff
+          key={i}
+          before={markdownOfBlocks(c.theirs)}
+          after={markdownOfBlocks(c.mine)}
+        />
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => onChoose("mine")}>
+          Keep my version
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => onChoose("theirs")}
+        >
+          Keep their version
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onKeepEditing}>
+          Keep editing Markdown
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto"
+          onClick={onDiscard}
+        >
+          Discard my Markdown edits
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 class Latest<T> {
   constructor(private value: T) {}
@@ -338,11 +463,10 @@ const SpecificationEditing = Extension.create<{
 });
 
 // Replaces only the top-level blocks that differ between the document and
-// the Markdown written in "Edit as Markdown", so the rest of the shared
-// draft (and other people's carets in it) is untouched.
-function applyMarkdown(editor: Editor, markdown: string) {
+// `next`, so the rest of the shared draft (and other people's carets in it)
+// is untouched.
+function replaceBlocks(editor: Editor, next: MarkdownJSON[]) {
   const { schema, doc } = editor.state;
-  const next = parseMarkdown(markdown, schema).doc.content ?? [];
   const current: PMNode[] = [];
   doc.forEach((node) => current.push(node));
   const keys = current.map((node) => blockKey(node.toJSON() as MarkdownJSON));
@@ -469,7 +593,12 @@ function DraftEditor({
   const id = useId();
   const stateId = `${id}-state`;
   const [title, setTitle] = useDraftTitle(session.doc, line.headTitle);
-  const [source, setSource] = useState<string | null>(null);
+  // "Edit as Markdown": the text, and the draft's blocks when it was
+  // opened, so applying changes only what the text changed.
+  const [source, setSource] = useState<SourceEdit | null>(null);
+  const [conflict, setConflict] = useState<MergeChunk<MarkdownJSON>[] | null>(
+    null,
+  );
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [uploading, setUploading] = useState(0);
   const fileInputId = `${id}-files`;
@@ -637,13 +766,16 @@ function DraftEditor({
     };
   }, [editor, editable, reopened, titleLabel]);
 
-  // Leaving with edits the service has not stored would lose them.
+  const sourceDirty = source !== null && source.text !== source.initial;
+  // Leaving with edits the service has not stored, or Markdown not applied
+  // yet, would lose them.
+  const unsafeToLeave = snapshot.unsynced || sourceDirty;
   useEffect(() => {
-    if (!snapshot.unsynced) return;
+    if (!unsafeToLeave) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
-  }, [snapshot.unsynced]);
+  }, [unsafeToLeave]);
 
   const markdownViews = view === "changes" || source !== null;
   useDocumentVersion(session.doc, markdownViews);
@@ -655,14 +787,87 @@ function DraftEditor({
     }
   };
   const draft = line.draft;
-  const uncommitted =
+  // Edits in the shared draft that no revision or commit has yet; and with
+  // Markdown not applied yet.
+  const draftUncommitted =
     draft.uncommittedChanges ||
     snapshot.unsynced ||
     (snapshot.storedSequence ?? 0) > draft.committedSequence;
+  const uncommitted = draftUncommitted || sourceDirty;
   const state = saveStateOf(snapshot);
+
+  // Markdown edited as text is kept on this device until it is applied or
+  // discarded, so closing the tab, going offline or a replaced draft never
+  // loses it (offered back like other unsaved text).
+  const sourceEntryId = `source:${draft.documentName}`;
+  const [sourceBox] = useState(() => new Latest<SourceEdit | null>(null));
+  useLayoutEffect(() => {
+    sourceBox.set(source);
+  }, [source, sourceBox]);
+  const keepSource = useCallback(
+    (edit: SourceEdit | null) => {
+      if (!edit || edit.text === edit.initial) {
+        recovery.remove(sourceEntryId);
+        return;
+      }
+      const kept = keptSourceText(edit, sourceEntryId, draft.documentName);
+      if (kept) recovery.put(kept);
+      else recovery.remove(sourceEntryId);
+    },
+    [recovery, sourceEntryId, draft.documentName],
+  );
+  useEffect(() => {
+    const timer = setTimeout(() => keepSource(source), 400);
+    return () => clearTimeout(timer);
+  }, [source, keepSource]);
+  useEffect(
+    () => () => {
+      // Leaving the editor (or a new epoch) with Markdown not applied.
+      keepSource(sourceBox.get());
+    },
+    [keepSource, sourceBox],
+  );
+
+  // Applies the Markdown to the current draft: only the blocks it changed
+  // since it was opened, keeping what others changed meanwhile. Overlapping
+  // changes are not chosen silently: without a `choice` the editor asks.
+  const applySource = useCallback(
+    (choice?: "mine" | "theirs"): "applied" | "conflict" => {
+      const edit = sourceBox.get();
+      if (!edit || !editor) return "applied";
+      if (edit.text !== edit.initial) {
+        const { schema, doc } = editor.state;
+        const mine = parseMarkdown(edit.text, schema).doc.content ?? [];
+        const theirs: MarkdownJSON[] = [];
+        doc.forEach((node) => theirs.push(node.toJSON() as MarkdownJSON));
+        const chunks = mergeBlocks(edit.base, mine, theirs, blockKey);
+        if (hasConflicts(chunks) && !choice) {
+          setConflict(chunks);
+          return "conflict";
+        }
+        replaceBlocks(editor, resolveMerge(chunks, choice ?? "mine"));
+      }
+      sourceBox.set(null);
+      setSource(null);
+      setConflict(null);
+      recovery.remove(sourceEntryId);
+      return "applied";
+    },
+    [editor, recovery, sourceEntryId, sourceBox],
+  );
+  const discardSource = useCallback(() => {
+    sourceBox.set(null);
+    setSource(null);
+    setConflict(null);
+    recovery.remove(sourceEntryId);
+  }, [recovery, sourceEntryId, sourceBox]);
 
   const seal = useCallback<LiveControls["seal"]>(
     async (build) => {
+      if (applySource() === "conflict")
+        throw new Error(
+          "Your Markdown edits overlap changes someone made meanwhile. Choose which to keep, then save again.",
+        );
       await session.saved();
       const expectedSequence = await session.latestSequence();
       try {
@@ -677,9 +882,14 @@ function DraftEditor({
         throw e;
       }
     },
-    [session, mutateConfirmed],
+    [session, mutateConfirmed, applySource],
   );
+  const close = useCallback(() => {
+    if (applySource() === "conflict") return;
+    data.get().onClose();
+  }, [applySource, data]);
   const discard = useCallback(async () => {
+    discardSource();
     onDiscarding(true);
     try {
       await mutateConfirmed({
@@ -692,16 +902,21 @@ function DraftEditor({
       onDiscarding(false);
       throw error;
     }
-  }, [mutateConfirmed, item.id, draft.branchId, onDiscarding]);
+  }, [mutateConfirmed, item.id, draft.branchId, onDiscarding, discardSource]);
 
   const toggleSource = () => {
-    if (source !== null && editor) {
-      applyMarkdown(editor, source);
-      setSource(null);
-      requestAnimationFrame(() => editor.commands.focus());
+    if (source !== null) {
+      if (applySource() === "applied")
+        requestAnimationFrame(() => editor?.commands.focus());
       return;
     }
-    setSource(markdown());
+    if (!editor) return;
+    const base: MarkdownJSON[] = [];
+    editor.state.doc.forEach((node) =>
+      base.push(node.toJSON() as MarkdownJSON),
+    );
+    const text = markdown();
+    setSource({ base, initial: text, text });
   };
 
   if (snapshot.closed && snapshot.closed !== "replaced")
@@ -733,16 +948,24 @@ function DraftEditor({
         <span aria-hidden>·</span>
         <span>based on {line.basedOn}</span>
         <span aria-hidden>·</span>
-        <SaveIndicator id={stateId} snapshot={snapshot} uploading={uploading} />
+        <SaveIndicator
+          id={stateId}
+          snapshot={snapshot}
+          uploading={uploading}
+          savedLabel="Draft saved"
+          savedTitle="Every edit is stored in the shared draft. It becomes part of the specification's history only when someone saves a revision."
+        />
         <span aria-hidden>·</span>
         <span className={cn(uncommitted && "text-warning")}>
-          {uncommitted
-            ? line.isMain
-              ? "Unsaved changes"
-              : "Uncommitted changes"
-            : line.isMain
-              ? "No unsaved changes"
-              : "All changes committed"}
+          {sourceDirty
+            ? "Markdown not applied yet"
+            : uncommitted
+              ? line.isMain
+                ? "Not saved as a revision yet"
+                : "Uncommitted changes"
+              : line.isMain
+                ? `Same as ${line.basedOn}`
+                : "All changes committed"}
         </span>
         <Editors peers={snapshot.peers} />
       </div>
@@ -751,6 +974,7 @@ function DraftEditor({
         editor={editor}
         editable={editable}
         documentName={draft.documentName}
+        hidden={source !== null ? sourceEntryId : undefined}
       />
       {snapshot.closed === "replaced" && (
         <p
@@ -786,8 +1010,14 @@ function DraftEditor({
           </Button>
         </div>
       )}
+      {view === "changes" && sourceDirty && (
+        <p className="text-[13px] text-muted-foreground">
+          Markdown you edited as text is not shown until it is applied (switch
+          back to formatted text in the document).
+        </p>
+      )}
       {view === "changes" ? (
-        uncommitted ? (
+        draftUncommitted ? (
           <RevisionDiff before={line.headMarkdown} after={markdown()} />
         ) : (
           <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
@@ -818,10 +1048,24 @@ function DraftEditor({
               />
             )}
           </div>
+          {conflict && (
+            <SourceConflict
+              chunks={conflict}
+              onChoose={(choice) => {
+                if (applySource(choice) === "applied")
+                  requestAnimationFrame(() => editor?.commands.focus());
+              }}
+              onKeepEditing={() => setConflict(null)}
+              onDiscard={discardSource}
+            />
+          )}
           {source !== null ? (
             <textarea
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
+              value={source.text}
+              onChange={(e) => {
+                const text = e.target.value;
+                setSource((edit) => (edit ? { ...edit, text } : edit));
+              }}
               aria-label={`${label} (Markdown)`}
               spellCheck
               disabled={!editable}
@@ -866,7 +1110,7 @@ function DraftEditor({
           }}
         />
       )}
-      {footer({ editable, uncommitted, seal, discard })}
+      {footer({ editable, uncommitted, seal, close, discard })}
       <SuggestionMenu store={menus.slash} />
       <SuggestionMenu store={menus.items} />
       <SuggestionMenu store={menus.pages} />
@@ -888,17 +1132,21 @@ function RecoveredText({
   editor,
   editable,
   documentName,
+  hidden,
 }: {
   store: DraftRecoveryStore;
   editor: Editor | null;
   editable: boolean;
   documentName: string;
+  // The entry of Markdown being edited right now in this editor.
+  hidden?: string;
 }) {
-  const entries = useSyncExternalStore(
+  const all = useSyncExternalStore(
     store.subscribe,
     store.snapshot,
     store.snapshot,
   );
+  const entries = all.filter((entry) => entry.id !== hidden);
   if (!entries.length) return null;
   return (
     <div className="space-y-2">
@@ -924,11 +1172,13 @@ function RecoveredText({
             />
             <div className="min-w-0 flex-1 basis-60">
               <p className="font-medium">
-                {entry.documentName === LEGACY_DOCUMENT
-                  ? "Edits you kept in this browser before live editing are kept on this device."
-                  : entry.documentName !== documentName
-                    ? "This draft was replaced while you had unsaved changes. Your text is kept on this device."
-                    : "The editor closed before some of your changes were saved. Your text is kept on this device."}
+                {entry.id.startsWith(SOURCE_ENTRY)
+                  ? "Markdown you edited as text was not applied to the draft. Your text is kept on this device."
+                  : entry.documentName === LEGACY_DOCUMENT
+                    ? "Edits you kept in this browser before live editing are kept on this device."
+                    : entry.documentName !== documentName
+                      ? "This draft was replaced while you had changes it did not keep. Your text is kept on this device."
+                      : "The editor closed before some of your changes reached the shared draft. Your text is kept on this device."}
               </p>
               <p className="mt-1 line-clamp-3 break-words whitespace-pre-wrap text-muted-foreground">
                 {text}

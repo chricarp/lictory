@@ -59,14 +59,14 @@ export function Specification({
               <button
                 type="button"
                 onClick={() => setMode("edit")}
-                title="Edits in the live draft are saved but not yet a revision. Open the editor to review and save them."
+                title="Edits in the shared draft are saved but not saved as a revision yet. Open the editor to review and save them."
                 className="inline-flex h-6 items-center gap-1.5 rounded-full bg-warning/10 px-2.5 text-xs font-medium text-warning outline-none hover:bg-warning/15 focus-visible:ring-2 focus-visible:ring-ring/60"
               >
                 <span
                   aria-hidden
                   className="size-1.5 rounded-full bg-warning"
                 />
-                Unsaved draft changes
+                Draft not saved as a revision
               </button>
             )}
             {canEdit && (
@@ -508,8 +508,8 @@ function SaveRevision({
         <Button
           variant="ghost"
           size="md"
-          title="Back to the specification. The draft stays saved."
-          onClick={onDone}
+          title="Back to the specification. The shared draft stays saved; it is not a revision until someone saves one."
+          onClick={controls.close}
         >
           Close editor
         </Button>
@@ -530,9 +530,11 @@ function SaveRevision({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Saving creates an immutable revision. Existing approvals are marked
-        outdated and reviews are re-requested. Until then your edits are shared
-        with everyone editing, never a revision.
+        Edits are saved to the shared draft as you type (“Draft saved”) and
+        everyone editing sees them, but they are not part of the specification’s
+        history until someone saves a revision. Saving revision {next} makes it
+        immutable: existing approvals are marked outdated and reviews are
+        re-requested.
       </p>
     </div>
   );

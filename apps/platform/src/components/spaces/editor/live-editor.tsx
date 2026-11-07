@@ -898,10 +898,16 @@ export function SaveIndicator({
   id,
   snapshot,
   uploading,
+  savedLabel,
+  savedTitle = "Every edit is stored by the server.",
 }: {
   id: string;
   snapshot: SessionSnapshot;
   uploading: number;
+  // What "Saved" means where the draft is not the published or committed
+  // text ("Draft saved" in a specification).
+  savedLabel?: string;
+  savedTitle?: string;
 }) {
   const { state, slow, announcement } = useShownSaveState(snapshot);
   const icon =
@@ -927,7 +933,7 @@ export function SaveIndicator({
           state.kind === "offline"
             ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
             : state.kind === "saved"
-              ? "Every edit is stored by the server."
+              ? savedTitle
               : state.kind === "failed"
                 ? "The server refused your latest edits. They are kept in this tab; reopen the editor to keep working."
                 : undefined
@@ -935,7 +941,7 @@ export function SaveIndicator({
         className="inline-flex items-center gap-1"
       >
         {icon}
-        {state.label}
+        {state.kind === "saved" && savedLabel ? savedLabel : state.label}
         {uploading > 0 &&
           ` · Uploading ${uploading === 1 ? "image" : `${uploading} images`}…`}
       </span>
