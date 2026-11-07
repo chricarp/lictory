@@ -10,6 +10,7 @@ import {
   searchSpecifications,
   searchWorkItems,
   type PublishedPageRow,
+  type SearchCursor,
 } from "@lictory/core/knowledge/search";
 import {
   highlightsIn,
@@ -64,6 +65,30 @@ async function requireProject(
 function pageLinks(slug: string, page: PublishedPageRow) {
   const base = paths.spacePage(slug, page.spaceSlug, page.pageId);
   return { href: base, versionHref: `${base}?commit=${page.commitId}` };
+}
+
+// An agreement or a decision is evidence about one revision: its link opens
+// that revision in the item's history (read alone, not compared), and
+// `currentHref` opens the item as it is now.
+function revisionLinks(
+  slug: string,
+  projectKey: string,
+  number: number,
+  revisionId: string | null,
+) {
+  const key = `${projectKey}-${number}`;
+  const currentHref = paths.item(slug, projectKey, key);
+  return {
+    href: revisionId
+      ? paths.item(
+          slug,
+          projectKey,
+          key,
+          new URLSearchParams({ history: revisionId, compare: "none" }),
+        )
+      : currentHref,
+    currentHref,
+  };
 }
 
 const productKnowledgeKinds = [
@@ -134,20 +159,20 @@ export const searchProductKnowledge = defineCapability({
           : [],
       ]);
       const results = [
-        ...decisions.map(({ window: _, titleMatch, ...d }) => ({
+        ...decisions.map(({ window: _, cursor: _c, titleMatch, ...d }) => ({
           ...d,
           kind: "decision" as const,
           key: `${d.projectKey}-${d.number}`,
-          href: `/${slug}/items/${d.projectKey}-${d.number}`,
+          ...revisionLinks(slug, d.projectKey, d.number, d.revisionId),
           titleMatch,
         })),
         ...specifications
-          .map(({ window: _, titleMatch, ...r }) => ({
+          .map(({ window: _, cursor: _c, titleMatch, ...r }) => ({
             ...r,
             revisionId: r.id,
             kind: r.delivered ? ("delivered" as const) : ("approved" as const),
             key: `${r.projectKey}-${r.number}`,
-            href: `/${slug}/items/${r.projectKey}-${r.number}`,
+            ...revisionLinks(slug, r.projectKey, r.number, r.id),
             titleMatch,
           }))
           .filter((r) => wanted.has(r.kind)),
@@ -200,6 +225,9 @@ export type KnowledgeKind = (typeof knowledgeKinds)[number];
 type ResultBase = {
   id: string;
   title: string;
+  // Where the result was found: a page's block in its published version, an
+  // item, or (for decisions and agreements) the exact revision in the item's
+  // history.
   href: string;
   updatedAt: string;
   // Why it was found: the title, or only the content.
@@ -235,8 +263,11 @@ export type KnowledgeResult =
       kind: "decision";
       workItemId: string;
       key: string;
+      // The revision it was recorded on (`href` opens it).
       revisionId: string;
       revisionNumber: number;
+      // The item as it is now.
+      currentHref: string;
     })
   | (ResultBase & {
       kind: "approved" | "delivered";
@@ -244,15 +275,55 @@ export type KnowledgeResult =
       key: string;
       revisionId: string;
       revisionNumber: number;
+      currentHref: string;
     });
 
 const iso = (d: Date) => d.toISOString();
+
+// Which search a kind's next batch continues (approved and delivered
+// revisions are one search).
+type Positions = Partial<
+  Record<"page" | "item" | "decision" | "agreement", SearchCursor>
+>;
+const cursorSchema = z.object({
+  title: z.boolean(),
+  at: z.string().regex(/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(\.\d{1,6})?$/),
+  id: z.string().min(1).max(200),
+});
+const positionsSchema = z
+  .object({
+    page: cursorSchema,
+    item: cursorSchema,
+    decision: cursorSchema,
+    agreement: cursorSchema,
+  })
+  .partial();
+
+// The continuation token is opaque to callers: the positions after which
+// each kind's next batch starts.
+function encodeCursor(positions: Positions) {
+  return Buffer.from(JSON.stringify(positions)).toString("base64url");
+}
+function decodeCursor(cursor: string): Positions {
+  try {
+    const parsed = positionsSchema.safeParse(
+      JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")),
+    );
+    if (parsed.success) return parsed.data;
+  } catch {
+    // Not a token this capability issued.
+  }
+  throw new CapabilityError(
+    "validation",
+    "This continuation is not valid. Search again from the start.",
+  );
+}
 
 export const searchKnowledge = defineCapability({
   name: "searchKnowledge",
   title: "Search pages and work",
   description:
-    "Full-text search across what you can read: published pages of Lictory Spaces (the published version on main, never live drafts or branches), work items (title and current specification), recorded decisions and approved or delivered specification revisions. Each result names its kind (page, item, decision, approved, delivered), the exact version (page commitId and version number, or revision number), a link, an excerpt around the match with highlight offsets and whether the title or only the content matched. Results are for finding things: a textual match is not evidence of authority (use searchProductKnowledge for agreements). Case-insensitive phrase match; title matches first, then most recent; at most `limit` results of each kind. `more` lists the kinds with results after this batch: ask again with `offset` increased by `limit` and those kinds for the next one.",
+    "Full-text search across what you can read: published pages of Lictory Spaces (the published version on main, never live drafts or branches), work items (title and current specification), recorded decisions and approved or delivered specification revisions. Each result names its kind (page, item, decision, approved, delivered), the exact version (page commitId and version number, or revision number), a link, an excerpt around the match with highlight offsets and whether the title or only the content matched. Results are for finding things: a textual match is not evidence of authority (use searchProductKnowledge for agreements). Case-insensitive phrase match; title matches first, then most recent; at most `limit` results of each kind. Decisions and approved or delivered revisions link to that exact revision (`href`) and to the item as it is now (`currentHref`). `more` lists the kinds with results after this batch: ask again with the returned `cursor` and those kinds for the next one (results added meanwhile are not repeated).",
   kind: "query",
   surfaces: everywhere,
   input: z.object({
@@ -265,13 +336,13 @@ export const searchKnowledge = defineCapability({
       ),
     kinds: z.array(z.enum(knowledgeKinds)).min(1).optional(),
     limit: z.number().int().min(1).max(20).default(8),
-    offset: z
-      .number()
-      .int()
-      .min(0)
-      .max(500)
-      .default(0)
-      .describe("Results of each kind to skip (a following batch)."),
+    cursor: z
+      .string()
+      .max(2000)
+      .optional()
+      .describe(
+        "The `cursor` of the previous batch, to continue after it (with the kinds in its `more`).",
+      ),
   }),
   async run(
     ctx,
@@ -280,7 +351,10 @@ export const searchKnowledge = defineCapability({
     query: string;
     results: KnowledgeResult[];
     more: KnowledgeKind[];
+    // Continues after this batch; null when nothing follows.
+    cursor: string | null;
   }> {
+    const positions = q.cursor ? decodeCursor(q.cursor) : {};
     return ctx.db.transaction(async (tx) => {
       await authorize(tx, ctx.principal.userId, q.organizationId);
       await requireProject(tx, q.organizationId, q.projectId);
@@ -292,33 +366,53 @@ export const searchKnowledge = defineCapability({
         query: q.query,
         // One more than asked tells whether another batch exists.
         limit: q.limit + 1,
-        offset: q.offset,
       };
       const [allPages, allItems, allDecisions, allSpecifications] =
         await Promise.all([
           wanted.has("page")
             ? searchPublishedPages(tx, {
                 ...scope,
+                after: positions.page,
                 userId: ctx.principal.userId,
                 withDocument: true,
               })
             : [],
-          wanted.has("item") ? searchWorkItems(tx, scope) : [],
-          wanted.has("decision") ? searchDecisions(tx, scope) : [],
+          wanted.has("item")
+            ? searchWorkItems(tx, { ...scope, after: positions.item })
+            : [],
+          wanted.has("decision")
+            ? searchDecisions(tx, { ...scope, after: positions.decision })
+            : [],
           wanted.has("approved") || wanted.has("delivered")
-            ? searchSpecifications(tx, scope)
+            ? searchSpecifications(tx, {
+                ...scope,
+                after: positions.agreement,
+              })
             : [],
         ]);
       const more = new Set<KnowledgeKind>();
-      const batch = <T>(rows: T[], ...kinds: KnowledgeKind[]) => {
-        if (rows.length > q.limit)
+      const next: Positions = {};
+      const batch = <T extends { cursor: SearchCursor }>(
+        rows: T[],
+        position: keyof Positions,
+        ...kinds: KnowledgeKind[]
+      ) => {
+        const shown = rows.slice(0, q.limit);
+        if (rows.length > q.limit && kinds.some((kind) => wanted.has(kind))) {
           for (const kind of kinds) if (wanted.has(kind)) more.add(kind);
-        return rows.slice(0, q.limit);
+          next[position] = shown.at(-1)!.cursor;
+        }
+        return shown;
       };
-      const pages = batch(allPages, "page");
-      const items = batch(allItems, "item");
-      const decisions = batch(allDecisions, "decision");
-      const specifications = batch(allSpecifications, "approved", "delivered");
+      const pages = batch(allPages, "page", "page");
+      const items = batch(allItems, "item", "item");
+      const decisions = batch(allDecisions, "decision", "decision");
+      const specifications = batch(
+        allSpecifications,
+        "agreement",
+        "approved",
+        "delivered",
+      );
       const text = (title: string, titleMatch: boolean) => ({
         matched: titleMatch ? ("title" as const) : ("content" as const),
         titleHighlights: highlightsIn(title, q.query),
@@ -335,7 +429,7 @@ export const searchKnowledge = defineCapability({
             revisionId: r.id,
             revisionNumber: r.revisionNumber,
             title: r.title,
-            href: paths.item(slug, r.projectKey, key),
+            ...revisionLinks(slug, r.projectKey, r.number, r.id),
             updatedAt: iso(r.createdAt),
             ...text(r.title, r.titleMatch),
             snippet: snippetOf(markdownText(r.window), q.query),
@@ -396,7 +490,7 @@ export const searchKnowledge = defineCapability({
             revisionId: d.revisionId!,
             revisionNumber: d.revisionNumber,
             title: d.title,
-            href: paths.item(slug, d.projectKey, key),
+            ...revisionLinks(slug, d.projectKey, d.number, d.revisionId),
             updatedAt: iso(d.createdAt),
             ...text(d.title, d.titleMatch),
             snippet: snippetOf(markdownText(d.window), q.query),
@@ -409,7 +503,12 @@ export const searchKnowledge = defineCapability({
           Number(b.matched === "title") - Number(a.matched === "title") ||
           b.updatedAt.localeCompare(a.updatedAt),
       );
-      return { query: q.query, results, more: [...more] };
+      return {
+        query: q.query,
+        results,
+        more: [...more],
+        cursor: more.size ? encodeCursor(next) : null,
+      };
     }, readOnly);
   },
 });

@@ -404,7 +404,7 @@ export function CommandPalette({
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
-  const content = useContentSearch(organization.id, query, !parsed);
+  const content = useContentSearch(userId, organization.id, query, !parsed);
   const results = useMemo<Item[]>(() => {
     const matchedItems = items
       .filter((i) => !i.archivedAt)

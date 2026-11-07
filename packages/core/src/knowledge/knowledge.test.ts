@@ -441,23 +441,56 @@ void test("content search continues past its first batch, in order, without repe
   const twin = await f.page(other, "Kumquat runbook 0");
   await f.publish(twin, "Kumquat runbook 0", "Kumquat steps elsewhere.");
   ids.push(twin);
-  const batch = async (offset: number, kinds?: string[]) =>
+  type Batch = {
+    results: KnowledgeResult[];
+    more: string[];
+    cursor: string | null;
+  };
+  const batch = async (
+    cursor: string | null,
+    kinds?: string[],
+    limit = 5,
+  ): Promise<Batch> =>
     (await invoke(web(f.owner), "searchKnowledge", {
       organizationId: f.organizationId,
       query: "kumquat",
-      limit: 5,
-      offset,
+      limit,
+      ...(cursor ? { cursor } : {}),
       ...(kinds ? { kinds } : {}),
-    })) as { results: KnowledgeResult[]; more: string[] };
-  const first = await batch(0, ["page"]);
+    })) as Batch;
+  const first = await batch(null, ["page"]);
   assert.equal(first.results.length, 5);
   assert.deepEqual(first.more, ["page"]);
-  const second = await batch(5, ["page"]);
+  assert.ok(first.cursor);
+  // Pages published between two batches belong before the position already
+  // read: the next batch neither repeats nor skips what was there.
+  const late = await f.page(handbook, "Kumquat late");
+  await f.publish(late, "Kumquat late", "Kumquat steps, later.");
+  const second = await batch(first.cursor, ["page"]);
   assert.equal(second.results.length, 2);
   assert.deepEqual(second.more, []);
+  assert.equal(second.cursor, null);
   const seen = [...first.results, ...second.results].map((r) => r.id);
   assert.equal(new Set(seen).size, 7);
   assert.deepEqual([...seen].sort(), [...ids].sort());
+  // Starting again finds the new page first.
+  assert.equal((await batch(null, ["page"])).results[0]!.id, late);
+  // There is no depth limit: one page at a time walks the whole list, in
+  // the same order as one large batch.
+  const walked: string[] = [];
+  let cursor: string | null = null;
+  let batches = 0;
+  do {
+    const next: Batch = await batch(cursor, ["page"], 1);
+    walked.push(...next.results.map((r) => r.id));
+    cursor = next.cursor;
+    batches++;
+  } while (cursor);
+  assert.equal(batches, 8);
+  assert.deepEqual(
+    walked,
+    (await batch(null, ["page"], 20)).results.map((r) => r.id),
+  );
   // Same titles stay apart by their space.
   const twins = [...first.results, ...second.results].filter(
     (r) => r.title === "Kumquat runbook 0",
@@ -466,14 +499,12 @@ void test("content search continues past its first batch, in order, without repe
     twins.map((r) => (r.kind === "page" ? r.space.name : "")).sort(),
     ["Handbook", "Operations"],
   );
-  // Past the end: nothing, and nothing more.
-  assert.deepEqual(await batch(10, ["page"]), {
-    query: "kumquat",
-    results: [],
-    more: [],
-  });
-  // Offsets are bounded.
-  await rejects(batch(501), "validation");
+  // A continuation this search did not issue is refused, not guessed at.
+  await rejects(batch("not-a-cursor"), "validation");
+  await rejects(
+    batch(Buffer.from('{"page":{"title":true}}').toString("base64url")),
+    "validation",
+  );
 });
 
 void test("content search finds work items, decisions and agreements with their revisions", async () => {
@@ -527,6 +558,14 @@ void test("content search finds work items, decisions and agreements with their 
   const body = results.find((r) => r.id === inBody.workItemId)!;
   assert.deepEqual(highlighted(body), ["idempotency marker"]);
   assert.match(body.snippet.text, /48 hours/);
+  // A decision opens the revision it was recorded on.
+  const recorded = results.find((r) => r.id === decision.decisionId)!;
+  assert.ok(
+    recorded.href.endsWith(`?history=${inTitle.revisionId}&compare=none`),
+  );
+  assert.ok(
+    recorded.kind === "decision" && !recorded.currentHref.includes("?"),
+  );
   assert.deepEqual(
     (
       await f.search(f.carol, "idempotency marker", { kinds: ["decision"] })
