@@ -11,13 +11,14 @@ import { SectionLabel } from "@lictory/ui/primitives";
 import { Link, usePathname } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  MoreRows,
   rollup,
   useWorkFacts,
   WorkRow,
   type WorkFact,
 } from "@lictory/platform/components/spaces/work/work-row";
 
-// "Work on this page": below the published page, the work it knows about
+// "Work linked to this page": below the published page, the work it knows about
 // (docs/internals/knowledge-links.md), read from the `pageWork` query: items
 // its published version mentions, items created from it, items it is
 // attached to, specifications that cite it, page changes proposed from work
@@ -48,22 +49,25 @@ export function usePageWork(pageId: string) {
   }, [rows]);
 }
 
+// How each item is linked, in a few words: the row wraps them under the
+// title rather than cutting them off.
 const purposeLabel = {
-  background: "Background",
-  design: "Design",
-  runbook: "Runbook",
+  background: "background",
+  design: "design",
+  runbook: "runbook",
 } as const;
 
 type Linked = { fact: WorkFact; details: string[]; order: number };
 
-const VISIBLE = 6;
+// Shown at first, and added by each "Show more".
+const PAGE = 6;
 
 export function PageWorkPanel({ pageId }: { pageId: string }) {
   const work = usePageWork(pageId);
   const facts = useWorkFacts();
   const { projects, delivery } = useWorkspace();
   const pathname = usePathname();
-  const [expanded, setExpanded] = useState(false);
+  const [visible, setVisible] = useState(PAGE);
 
   const linked = useMemo(() => {
     const byItem = new Map<string, Linked>();
@@ -79,7 +83,7 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
       add(s.workItemId, "Created from this page", 0);
     for (const r of work.references) add(r.workItemId, "Mentioned", 1);
     for (const a of work.attachments)
-      add(a.workItemId, `Attached · ${purposeLabel[a.purpose]}`, 2);
+      add(a.workItemId, `Attached as ${purposeLabel[a.purpose]}`, 2);
     for (const c of work.citations) {
       const fact = facts.get(c.workItemId);
       if (!fact) continue;
@@ -90,7 +94,7 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
       add(
         c.workItemId,
         current
-          ? "Cited in its specification"
+          ? "Cited in its spec"
           : `Cited in revision ${latest?.number ?? ""}`.trim(),
         3,
       );
@@ -129,7 +133,7 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
 
   if (!linked.length && !origins.length && !contexts.length) return null;
   const { done, total } = rollup(linked.map((l) => l.fact));
-  const shown = expanded ? linked : linked.slice(0, VISIBLE);
+  const shown = linked.slice(0, visible);
   return (
     <section
       aria-labelledby={`page-work-${pageId}`}
@@ -138,7 +142,9 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <SectionLabel>
-          <span id={`page-work-${pageId}`}>Work on this page</span>
+          {/* Every item this page is linked to, however it is linked: not
+              the same set as a work list in the page. */}
+          <span id={`page-work-${pageId}`}>Work linked to this page</span>
         </SectionLabel>
         {total > 0 && (
           <span
@@ -171,24 +177,21 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
               fact={l.fact}
               detail={l.details.join(" · ")}
               showOwner
+              compact
             />
           ))}
         </ul>
       )}
-      {linked.length > VISIBLE && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="mt-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          {expanded ? "Show fewer" : `Show all ${linked.length}`}
-        </button>
-      )}
+      <MoreRows
+        total={linked.length}
+        visible={visible}
+        page={PAGE}
+        onChange={setVisible}
+      />
       {origins.length > 0 && (
         <div className="mt-4">
           <h3 className="text-xs font-medium text-muted-foreground">
-            Changes proposed from work
+            Page updates proposed from work
           </h3>
           <ul className="-mx-2 mt-1">
             {origins.map(({ origin, fact }) => {
@@ -220,18 +223,30 @@ export function PageWorkPanel({ pageId }: { pageId: string }) {
                     className="size-3.5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
-                  <Link
-                    href={href}
-                    className="min-w-0 flex-1 truncate font-medium outline-none hover:underline focus-visible:underline"
-                  >
-                    {origin.name}
-                  </Link>
-                  {fact && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      from{" "}
-                      <span className="font-mono tabular-nums">{fact.key}</span>
-                    </span>
-                  )}
+                  {/* Named by the work it came from; the branch name is
+                      only a detail. */}
+                  <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                    <Link
+                      href={href}
+                      className="max-w-full min-w-0 truncate font-medium outline-none hover:underline focus-visible:underline"
+                    >
+                      {fact ? (
+                        <>
+                          <span className="font-mono text-xs font-normal text-muted-foreground tabular-nums">
+                            {fact.key}
+                          </span>{" "}
+                          {fact.item.title}
+                        </>
+                      ) : (
+                        origin.name
+                      )}
+                    </Link>
+                    {fact && (
+                      <span className="hidden min-w-0 truncate font-mono text-[11px] text-muted-foreground sm:inline">
+                        {origin.name}
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {state}
                   </span>

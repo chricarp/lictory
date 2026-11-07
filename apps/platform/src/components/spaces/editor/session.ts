@@ -9,6 +9,7 @@ import {
   DRAFT_SEQUENCE_REQUEST,
   SPECIFICATION_CLOSE_REASONS,
   draftProviderOptions,
+  isSpecificationDraftName,
   saveRefusalOf,
   stopSendingDraft,
   storedSequenceOf,
@@ -42,6 +43,9 @@ export type SessionSnapshot = {
   // The service could not be reached before the first sync.
   unavailable: boolean;
   closed: ClosedKind | null;
+  // A specification draft (its close reasons speak of the editor, not a
+  // page). Absent: a page draft.
+  specification?: boolean;
   // Why the service refused to store this tab's edits (see
   // `SAVE_REFUSALS`). Final for this session: nothing more is saved.
   refused: string | null;
@@ -129,6 +133,7 @@ export class DraftSession {
       online: typeof navigator === "undefined" ? true : navigator.onLine,
       unavailable: false,
       closed: null,
+      specification: isSpecificationDraftName(documentName),
       refused: null,
       peers: [],
     });
@@ -365,7 +370,13 @@ export type SaveState =
 // draft is not offered again by reconnecting, so it stays failed, online or
 // not, until the editor reopens it.
 export function saveStateOf(s: Omit<SessionSnapshot, "save">): SaveState {
-  if (s.closed) return { kind: "closed", label: CLOSE_REASONS[s.closed] };
+  if (s.closed)
+    return {
+      kind: "closed",
+      label: (s.specification ? SPECIFICATION_CLOSE_REASONS : CLOSE_REASONS)[
+        s.closed
+      ],
+    };
   if (s.refused) return { kind: "failed", label: "Save failed" };
   if (!s.everSynced)
     return s.unavailable

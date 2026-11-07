@@ -560,10 +560,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByText("payments", { exact: true }).first(),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: /^Milestone:/ })
-    .first()
-    .click();
+  // Named by what it shows ("No milestone" until one is set).
+  await page.getByRole("button", { name: "No milestone" }).first().click();
   await page.getByRole("button", { name: "New milestone" }).click();
   await page
     .getByRole("textbox", { name: "Milestone name" })

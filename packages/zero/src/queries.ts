@@ -42,6 +42,15 @@ export const queries = defineQueries({
       .where("workItemId", args.workItemId)
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // One work item's readiness checks alone, for a reference card naming
+  // what is missing without loading the item's history.
+  workItemReadiness: defineQuery(workItemArgs, ({ args, ctx }) =>
+    zql.syncEntity
+      .where("organizationId", args.organizationId)
+      .where("workItemId", args.workItemId)
+      .where("type", "readiness")
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
   // Lictory Spaces: every space I can read, with its grants and page tree
   // (space-level rows). Authorized by my effective access and my
   // organization membership; never part of the queries above.
@@ -95,15 +104,22 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
-  // Work items the published pages of one space mention (a space home's
-  // "Linked work"), through the space's readers.
+  // Work items linked to the pages of one space (a space home's "Linked
+  // work"): mentioned by their published versions, created from them,
+  // attached to items or cited by specifications. Through the space's
+  // readers.
   spaceWork: defineQuery(
     z.object({ organizationId: z.string().min(1), spaceId: z.string().min(1) }),
     ({ args, ctx }) =>
       zql.spaceEntity
         .where("organizationId", args.organizationId)
         .where("spaceId", args.spaceId)
-        .where("type", "pageReference")
+        .where("type", "IN", [
+          "pageReference",
+          "workItemSource",
+          "pageAttachment",
+          "specificationCitation",
+        ])
         .whereExists("readers", (r) => r.where("userId", ctx.userID))
         .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
@@ -117,13 +133,19 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
-  // Which work items readable pages mention or are attached to, for the
-  // "N pages" signal of item lists and previews: small rows (ids, blocks),
-  // never page content, and only of spaces I read.
+  // Which work items readable pages mention, are attached to, are cited by
+  // or were created from, for the "N pages" signal of item lists and
+  // previews (the pages the item's Knowledge section shows): small rows,
+  // and only of spaces I read.
   itemPageLinks: defineQuery(organizationArgs, ({ args, ctx }) =>
     zql.spaceEntity
       .where("organizationId", args.organizationId)
-      .where("type", "IN", ["pageReference", "pageAttachment"])
+      .where("type", "IN", [
+        "pageReference",
+        "pageAttachment",
+        "specificationCitation",
+        "workItemSource",
+      ])
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),

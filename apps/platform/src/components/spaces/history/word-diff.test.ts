@@ -29,6 +29,14 @@ void describe("review word comparison", () => {
       after: [],
     });
   });
+  void test("marks whole phrases, never their surrounding spaces", () => {
+    const a = "Retry a failed capture three times with backoff.",
+      b = "Retry a failed capture up to four times with backoff and jitter.";
+    const result = changedWords(a, b);
+    assert.deepEqual(marked(a, result.before), ["three"]);
+    assert.deepEqual(marked(b, result.after), ["up to four", "and jitter"]);
+    for (const span of marked(b, result.after)) assert.equal(span, span.trim());
+  });
   void test("bounds comparisons for large replacements", () => {
     const a = "old ".repeat(1000),
       b = "new ".repeat(1000);

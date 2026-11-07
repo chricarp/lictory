@@ -691,7 +691,7 @@ page shows of it is read live with the reader's own access.
   block id and the words before the selection's end; at the end of the page
   when the block is gone): an ordinary, visible draft edit, published only
   when they publish.
-- **Work on this page.** Under the published page, a compact list of the
+- **Work linked to this page.** Under the published page, a compact list of the
   work the page knows about (`pageWork`): items created from it, items it
   mentions, items it is attached to and items whose specification cites it,
   each once with how it is linked, with a "N of M done" rollup; page changes
@@ -699,9 +699,10 @@ page shows of it is read live with the reader's own access.
   keep it as context. Items the reader cannot see are left out without a
   trace.
 - **Linked work.** The home of a project or team space lists the work items
-  its published pages mention (`spaceWork`, page references of that space
-  only), open work first, with how much is done and which pages mention
-  each.
+  linked to its pages (`spaceWork`: mentioned by a published version,
+  created from a page, attached, or cited by a specification; links of that
+  space only), each once with how it is linked, open work first, with how
+  much is done.
 - **Templates.** "New page" offers Blank, Product requirements, Design doc,
   Runbook, Decision record, Retrospective and Iteration notes:
   `templateDocument(kind, context)` in `packages/core/src/spaces/templates.ts`

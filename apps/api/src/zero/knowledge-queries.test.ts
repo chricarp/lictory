@@ -245,6 +245,18 @@ void test("knowledge rows reach a work item, page or project only through their 
   ]);
   for (const id of [openPage.pageId!, secretPage.pageId!])
     assert.ok(!itemQuery.includes(id), id);
+  // A reference card reads one item's readiness row alone, for members
+  // only.
+  assert.deepEqual(
+    (await subscribe("workItemReadiness", reader!, itemArgs)).map(
+      (r) => r.type,
+    ),
+    ["readiness"],
+  );
+  assert.deepEqual(
+    await subscribe("workItemReadiness", outsider!, itemArgs),
+    [],
+  );
   // Work surfaces: "N pages" counts, and page pull requests for the Inbox,
   // reach only readers of the page too.
   const orgArgs = { organizationId };

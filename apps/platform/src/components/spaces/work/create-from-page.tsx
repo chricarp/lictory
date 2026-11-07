@@ -504,9 +504,13 @@ export function CreateFromPageDialog({
             }}
           />
         )}
-        <blockquote className="max-h-32 overflow-y-auto rounded-lg border-l-2 border-foreground/15 bg-muted/50 px-3 py-2 text-[13px] leading-5 whitespace-pre-line text-muted-foreground">
-          {clip(request.quote, 1200)}
-        </blockquote>
+        {/* Written by hand, the quote is in the description below (what
+            is saved); Litto reads it as shown here. */}
+        {(drafting || !projectsHere.length) && (
+          <blockquote className="max-h-32 overflow-y-auto rounded-lg border-l-2 border-foreground/15 bg-muted/50 px-3 py-2 text-[13px] leading-5 whitespace-pre-line text-muted-foreground">
+            {clip(request.quote, 1200)}
+          </blockquote>
+        )}
         {!projectsHere.length ? (
           <p className="text-[13px] text-muted-foreground">
             {drafting

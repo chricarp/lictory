@@ -1,5 +1,14 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ArrowUpRight, FileText, Scale } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@rocicorp/zero/react";
+import {
+  ArrowUpRight,
+  CircleAlert,
+  CircleDashed,
+  FileText,
+  Scale,
+} from "lucide-react";
+import { queries } from "@lictory/zero/queries";
+import type { ReadinessCheck } from "@lictory/core/contracts/protocol";
 import type { ReferenceTarget } from "@lictory/core/contracts/references";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
@@ -51,8 +60,10 @@ type ChipProps = {
   selected?: boolean;
 };
 
+// The chip keeps its inline height; a transparent edge makes the pointer
+// target 24px tall (WCAG 2.5.8).
 const chip =
-  "relative -top-px -my-0.5 inline-flex h-[1.375rem] max-w-full items-center gap-1.5 rounded-md bg-muted/80 pr-1.5 pl-[0.3125rem] align-middle text-[0.875em] leading-none font-medium text-foreground no-underline shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--foreground)_7%,transparent)] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 hover:bg-accent motion-safe:transition-[background-color] motion-safe:duration-150";
+  "after:absolute after:inset-x-0 after:-inset-y-px after:content-[''] relative -top-px -my-0.5 inline-flex h-[1.375rem] max-w-full items-center gap-1.5 rounded-md bg-muted/80 pr-1.5 pl-[0.3125rem] align-middle text-[0.875em] leading-none font-medium text-foreground no-underline shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--foreground)_7%,transparent)] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 hover:bg-accent motion-safe:transition-[background-color] motion-safe:duration-150";
 const plainChip =
   "font-mono text-[0.85em] text-muted-foreground [overflow-wrap:anywhere]";
 const titleClass = "min-w-0 max-w-[28ch] truncate";
@@ -226,20 +237,7 @@ function ItemCard({ item, mode }: { item: ItemReference; mode: ChipMode }) {
           </Field>
         )}
         {item.readiness && (
-          <Field label="Readiness">
-            <span
-              className={cn(
-                "tabular-nums",
-                item.readiness.passed === item.readiness.total
-                  ? "text-success"
-                  : item.readiness.blocked
-                    ? "text-destructive"
-                    : undefined,
-              )}
-            >
-              {item.readiness.passed}/{item.readiness.total} checks
-            </span>
-          </Field>
+          <ReadinessField id={item.id} readiness={item.readiness} />
         )}
         <Field label="Owner">
           <span
@@ -262,6 +260,95 @@ function ItemCard({ item, mode }: { item: ItemReference; mode: ChipMode }) {
         </div>
       )}
     </div>
+  );
+}
+
+// A failing check caused by an open blocker stops readiness (red); the
+// others are waiting for evidence (neutral), as in the item's rail.
+const blocks = (check: ReadinessCheck) =>
+  !check.passed && check.key.includes("blocking");
+const SHOWN_CHECKS = 2;
+
+// "2 of 4 checks" and what is still missing, named by the checks themselves
+// (read on demand: only this item's readiness row, never its history).
+function ReadinessField({
+  id,
+  readiness,
+}: {
+  id: string;
+  readiness: NonNullable<ItemReference["readiness"]>;
+}) {
+  const { organizationId } = useReferences();
+  const complete = readiness.passed === readiness.total;
+  const [rows] = useQuery(
+    queries.workItemReadiness({
+      organizationId: organizationId ?? "",
+      workItemId: id,
+    }),
+    { enabled: !complete && !!organizationId, ttl: "1m" },
+  );
+  const failing = useMemo(() => {
+    const data = (rows as readonly { data: unknown }[])[0]?.data as
+      { checks?: ReadinessCheck[] } | undefined;
+    return (data?.checks ?? [])
+      .filter((c) => !c.passed)
+      .sort((a, b) => Number(blocks(b)) - Number(blocks(a)));
+  }, [rows]);
+  const shown = failing.slice(0, SHOWN_CHECKS);
+  return (
+    <>
+      <dt className="text-xs text-muted-foreground">Readiness</dt>
+      <dd className="min-w-0 space-y-1">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="flex w-12 shrink-0 gap-0.5">
+            {Array.from({ length: readiness.total }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1 flex-1 rounded-full",
+                  i < readiness.passed ? "bg-success" : "bg-foreground/12",
+                )}
+              />
+            ))}
+          </span>
+          <span className={cn("tabular-nums", complete && "text-success")}>
+            {readiness.passed} of {readiness.total} checks
+          </span>
+        </span>
+        {shown.length > 0 && (
+          <ul
+            aria-label="Still missing"
+            className="space-y-0.5 text-xs leading-4 text-muted-foreground"
+          >
+            {shown.map((c) => (
+              <li key={c.key} className="flex items-start gap-1.5">
+                {blocks(c) ? (
+                  <CircleAlert
+                    className="mt-px size-3 shrink-0 text-destructive"
+                    aria-hidden
+                  />
+                ) : (
+                  <CircleDashed className="mt-px size-3 shrink-0" aria-hidden />
+                )}
+                <span
+                  className={cn("line-clamp-2", blocks(c) && "text-foreground")}
+                >
+                  {(c.detail?.trim() ? c.detail.trim() : c.label).replace(
+                    /\.$/,
+                    "",
+                  )}
+                </span>
+              </li>
+            ))}
+            {failing.length > shown.length && (
+              <li className="pl-[1.125rem]">
+                {failing.length - shown.length} more
+              </li>
+            )}
+          </ul>
+        )}
+      </dd>
+    </>
   );
 }
 

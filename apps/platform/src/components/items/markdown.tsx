@@ -22,6 +22,28 @@ function textContent(value: ReactNode): string {
     .join("");
 }
 
+// Whether a word diff marked (part of) a reference's text as added or
+// removed (review/markdown-marks.ts).
+function diffOf(value: ReactNode): "added" | "removed" | null {
+  for (const child of Children.toArray(value)) {
+    if (!isValidElement<{ children?: ReactNode; "data-diff"?: string }>(child))
+      continue;
+    const kind = child.props["data-diff"];
+    if (kind === "added" || kind === "removed") return kind;
+    const inner = diffOf(child.props.children);
+    if (inner) return inner;
+  }
+  return null;
+}
+
+// A changed reference keeps its chip, tinted like the words around it.
+const diffChip = {
+  added:
+    "rounded-md no-underline [&>[data-reference]]:!bg-success/18 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--success)_45%,transparent)]",
+  removed:
+    "rounded-md [&>[data-reference]]:!bg-destructive/14 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--destructive)_40%,transparent)] [&_span]:line-through [&_span]:decoration-destructive",
+};
+
 const components: Components = {
   h1: ({ children }) => (
     <h2
@@ -75,8 +97,25 @@ const components: Components = {
   a: ({ children, href }) => {
     // Work items, pages and decisions as live chips (contracts/references).
     const target = parseReferenceTarget(href);
-    if (target)
-      return <ReferenceChip target={target} label={textContent(children)} />;
+    if (target) {
+      const chip = (
+        <ReferenceChip target={target} label={textContent(children)} />
+      );
+      const diff = diffOf(children);
+      if (diff === "added")
+        return (
+          <ins className={diffChip.added} data-diff="added">
+            {chip}
+          </ins>
+        );
+      if (diff === "removed")
+        return (
+          <del className={diffChip.removed} data-diff="removed">
+            {chip}
+          </del>
+        );
+      return chip;
+    }
     return href?.startsWith("mention:") ? (
       <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
         {children}

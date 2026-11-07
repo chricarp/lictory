@@ -150,21 +150,56 @@ export function HoverCard({
       const gap = 6;
       const height = panel.offsetHeight;
       const panelWidth = panel.offsetWidth;
-      let top = anchor.bottom + gap;
-      if (
-        top + height > window.innerHeight - 8 &&
-        anchor.top - gap - height > 8
-      )
-        top = anchor.top - gap - height;
-      const left = Math.min(
-        Math.max(8, anchor.left),
-        window.innerWidth - panelWidth - 8,
+      const clampLeft = (left: number) =>
+        Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
+      // Below, then above; aligned to the reference's start, then its end.
+      // The first place that fits the window and covers no other reference
+      // wins, so the next reference in the text stays reachable.
+      const candidates = [anchor.bottom + gap, anchor.top - gap - height]
+        .filter((top) => top >= 8 && top + height <= window.innerHeight - 8)
+        .flatMap((top) => [
+          { top, left: clampLeft(anchor.left) },
+          { top, left: clampLeft(anchor.right - panelWidth) },
+        ]);
+      const others = [
+        ...document.querySelectorAll<HTMLElement>("[data-reference]"),
+      ]
+        .filter((el) => el !== anchorElement && !panel.contains(el))
+        .map((el) => el.getBoundingClientRect())
+        .filter(
+          (r) => r.width > 0 && r.bottom > 0 && r.top < window.innerHeight,
+        );
+      const covered = (c: { top: number; left: number }) =>
+        others.filter(
+          (r) =>
+            r.left < c.left + panelWidth &&
+            r.right > c.left &&
+            r.top < c.top + height &&
+            r.bottom > c.top,
+        ).length;
+      // When every place covers some, the one covering fewest (the first
+      // of equals).
+      let best = candidates[0];
+      let fewest = best ? covered(best) : 0;
+      for (const c of candidates.slice(1)) {
+        if (!fewest) break;
+        const n = covered(c);
+        if (n < fewest) [best, fewest] = [c, n];
+      }
+      setPosition(
+        best ?? { top: anchor.bottom + gap, left: clampLeft(anchor.left) },
       );
-      setPosition({ top, left: Math.max(8, left) });
     };
     place();
     window.addEventListener("scroll", place, true);
-    return () => window.removeEventListener("scroll", place, true);
+    // Content that arrives later (a card's readiness checks) changes the
+    // height: place it again.
+    const resized = new ResizeObserver(place);
+    if (panelRef.current) resized.observe(panelRef.current);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      resized.disconnect();
+    };
   }, [open, anchorElement]);
 
   const anchor: HoverCardAnchor = {
