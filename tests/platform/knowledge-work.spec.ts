@@ -227,13 +227,23 @@ test("proposing a page update opens a branch in the editor and the item follows 
   const handbook = await space(page, "Refunds handbook", {
     publishing: "reviewed",
   });
-  const pageId = await publishedPage(page, handbook.spaceId, "Refund policy", [
-    block(
-      "paragraph",
-      "p-approval",
-      text("Refunds over half the amount need approval."),
-    ),
-  ]);
+  // The first version of a reviewed space's page needs no review.
+  const pageId = crypto.randomUUID();
+  await capability(page, "createPage", {
+    spaceId: handbook.spaceId,
+    pageId,
+    title: "Refund policy",
+    content: {
+      type: "doc",
+      content: [
+        block(
+          "paragraph",
+          "p-approval",
+          text("Refunds over half the amount need approval."),
+        ),
+      ],
+    },
+  });
 
   // Work created from the page shows where it came from.
   const { commitId } = await capability(page, "getPage", { pageId });
@@ -385,20 +395,18 @@ test("a knowledge row opens each version the item relies on, never the latest in
   // Each target is explicit: the mention opens the latest at its block,
   // each pin its own version.
   await expect(
-    row.getByRole("link", {
-      name: /where it mentions .* in its latest version/,
-    }),
+    row.getByRole("link", { name: /^Mentioned in latest/ }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}#block-p-batch$`));
   await expect(
-    row.getByRole("link", { name: "Open version 2 of “Batch settlement”" }),
+    row.getByRole("link", { name: "v2: open version 2 of “Batch settlement”" }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v2}$`));
   await expect(
-    row.getByRole("link", { name: "Open version 3 of “Batch settlement”" }),
+    row.getByRole("link", { name: "v3: open version 3 of “Batch settlement”" }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v3}$`));
   // The header says how many pages are about the item and brings them into
   // view; screens that replace the specification show them in place.
   const jump = page.getByRole("button", {
-    name: "Knowledge: 1 page about this item",
+    name: "Knowledge 1 page about this item",
   });
   await jump.click();
   await expect(knowledge(page)).toBeFocused();
@@ -410,7 +418,7 @@ test("a knowledge row opens each version the item relies on, never the latest in
   await page.keyboard.press("Escape");
   await page.goto(seeded.itemPath(number));
   await row
-    .getByRole("link", { name: "Open version 2 of “Batch settlement”" })
+    .getByRole("link", { name: "v2: open version 2 of “Batch settlement”" })
     .click();
   await expect(page).toHaveURL(new RegExp(`\\?commit=${v2}`));
   await expect(page.getByText("18:00").first()).toBeVisible();

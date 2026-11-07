@@ -255,6 +255,15 @@ const inboxRoute = createRoute({
   ),
   pendingComponent: ListSkeleton,
 });
+const searchRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/search",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/workspace/search-results"),
+    "SearchResults",
+  ),
+  pendingComponent: ListSkeleton,
+});
 const inboxSettingsRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/inbox/settings",
@@ -572,6 +581,7 @@ const routeTree = rootRoute.addChildren([
       orgAccountRoute,
       notificationsRoute,
       inboxRoute,
+      searchRoute,
       inboxSettingsRoute,
       intelligenceRoute.addChildren([
         intelligenceIndexRoute,

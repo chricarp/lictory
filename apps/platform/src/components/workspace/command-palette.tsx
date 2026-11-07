@@ -18,6 +18,7 @@ import {
   KanbanSquare,
   Library,
   ListOrdered,
+  Search,
   Send,
   Settings,
   Settings2,
@@ -45,6 +46,7 @@ import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import {
   Highlighted,
+  MIN_CONTENT_QUERY,
   useContentSearch,
 } from "@lictory/platform/components/workspace/content-search";
 import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowledge";
@@ -499,6 +501,19 @@ export function CommandPalette({
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
+    // Everything the content says, beyond the first few, with filters.
+    const seeAll: Item[] =
+      !parsed && query.trim().length >= MIN_CONTENT_QUERY
+        ? [
+            {
+              id: "see-all-results",
+              label: `See all results for “${query.trim()}”`,
+              group: "Search",
+              icon: <Search className="size-4" />,
+              run: () => go(paths.search(org, { q: query.trim() })),
+            },
+          ]
+        : [];
     // Anything typed can also be a question for Litto.
     const ask: Item[] =
       q && !parsed && aiOn && dock
@@ -519,6 +534,7 @@ export function CommandPalette({
       ...matchedItems,
       ...matchedPages,
       ...fromContent,
+      ...seeAll,
       ...(q ? matchedCommands : commands.slice(0, 8)),
       ...ask,
     ];

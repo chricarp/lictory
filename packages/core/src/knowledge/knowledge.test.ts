@@ -426,6 +426,56 @@ void test("content search shows only pages the person can read now", async () =>
   await rejects(f.search(f.owner, "t"), "validation");
 });
 
+void test("content search continues past its first batch, in order, without repeats", async () => {
+  const f = await fixture();
+  const handbook = await f.space({ name: "Handbook" });
+  const other = await f.space({ name: "Operations" });
+  // Seven matching pages, two of them with the same title in different
+  // spaces.
+  const ids: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const pageId = await f.page(handbook, `Kumquat runbook ${i}`);
+    await f.publish(pageId, `Kumquat runbook ${i}`, "Kumquat steps.");
+    ids.push(pageId);
+  }
+  const twin = await f.page(other, "Kumquat runbook 0");
+  await f.publish(twin, "Kumquat runbook 0", "Kumquat steps elsewhere.");
+  ids.push(twin);
+  const batch = async (offset: number, kinds?: string[]) =>
+    (await invoke(web(f.owner), "searchKnowledge", {
+      organizationId: f.organizationId,
+      query: "kumquat",
+      limit: 5,
+      offset,
+      ...(kinds ? { kinds } : {}),
+    })) as { results: KnowledgeResult[]; more: string[] };
+  const first = await batch(0, ["page"]);
+  assert.equal(first.results.length, 5);
+  assert.deepEqual(first.more, ["page"]);
+  const second = await batch(5, ["page"]);
+  assert.equal(second.results.length, 2);
+  assert.deepEqual(second.more, []);
+  const seen = [...first.results, ...second.results].map((r) => r.id);
+  assert.equal(new Set(seen).size, 7);
+  assert.deepEqual([...seen].sort(), [...ids].sort());
+  // Same titles stay apart by their space.
+  const twins = [...first.results, ...second.results].filter(
+    (r) => r.title === "Kumquat runbook 0",
+  );
+  assert.deepEqual(
+    twins.map((r) => (r.kind === "page" ? r.space.name : "")).sort(),
+    ["Handbook", "Operations"],
+  );
+  // Past the end: nothing, and nothing more.
+  assert.deepEqual(await batch(10, ["page"]), {
+    query: "kumquat",
+    results: [],
+    more: [],
+  });
+  // Offsets are bounded.
+  await rejects(batch(501), "validation");
+});
+
 void test("content search finds work items, decisions and agreements with their revisions", async () => {
   const f = await fixture();
   const roster = await directory(db, f.owner, f.organizationId);

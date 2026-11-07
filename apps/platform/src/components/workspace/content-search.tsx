@@ -24,8 +24,11 @@ export function useContentSearch(
 ): ContentSearch {
   const q = query.trim();
   const active = enabled && q.length >= MIN_CONTENT_QUERY;
-  const [state, setState] = useState<{ q: string; search: ContentSearch }>({
-    q: "",
+  // Answers belong to one organization and query: another organization
+  // with the same words never sees them, not even while its own loads.
+  const key = `${organizationId}\n${q}`;
+  const [state, setState] = useState<{ key: string; search: ContentSearch }>({
+    key: "",
     search: { status: "idle", results: [] },
   });
   useEffect(() => {
@@ -38,12 +41,12 @@ export function useContentSearch(
         limit: 5,
       }).then(
         ({ results }) => {
-          if (current) setState({ q, search: { status: "done", results } });
+          if (current) setState({ key, search: { status: "done", results } });
         },
         (error: unknown) => {
           if (current)
             setState({
-              q,
+              key,
               search: {
                 status: "error",
                 results: [],
@@ -60,13 +63,18 @@ export function useContentSearch(
       current = false;
       clearTimeout(timer);
     };
-  }, [active, organizationId, q]);
+  }, [active, organizationId, q, key]);
   if (!active) return { status: "idle", results: [] };
-  // Until this query's answer arrives, the previous results stay on screen.
-  if (state.q !== q)
+  // Until this query's answer arrives, the previous query's results (in the
+  // same organization) stay on screen.
+  if (state.key !== key)
     return {
       status: "loading",
-      results: state.search.status === "done" ? state.search.results : [],
+      results:
+        state.search.status === "done" &&
+        state.key.startsWith(`${organizationId}\n`)
+          ? state.search.results
+          : [],
     };
   return state.search;
 }

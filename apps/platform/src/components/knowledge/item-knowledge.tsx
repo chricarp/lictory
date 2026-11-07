@@ -67,7 +67,7 @@ export function KnowledgeJump({
 }) {
   const { count } = useItemKnowledge(item);
   if (!count) return null;
-  const label = `Knowledge: ${count} ${count === 1 ? "page" : "pages"} about this item`;
+  // Named by what it shows: "Knowledge 3 pages about this item".
   const content = (
     <>
       <BookOpen className="size-3.5" aria-hidden />
@@ -75,6 +75,9 @@ export function KnowledgeJump({
         Knowledge
       </span>
       <span className="text-muted-foreground tabular-nums">{count}</span>
+      <span className="sr-only">
+        {count === 1 ? " page" : " pages"} about this item
+      </span>
     </>
   );
   if (inline)
@@ -82,7 +85,6 @@ export function KnowledgeJump({
       <Button
         variant="ghost"
         size="sm"
-        aria-label={label}
         title="Pages about this item"
         onClick={() => {
           const section = document.getElementById(knowledgeAnchor);
@@ -98,7 +100,7 @@ export function KnowledgeJump({
       width={440}
       align="end"
       trigger={(props) => (
-        <Button {...props} variant="ghost" size="sm" aria-label={label}>
+        <Button {...props} variant="ghost" size="sm">
           {content}
         </Button>
       )}
@@ -446,14 +448,12 @@ function KnowledgeRow({
       <Link
         key={commitId}
         href={`${href}?commit=${commitId}`}
-        aria-label={
-          n
-            ? `Open version ${n} of “${title}”`
-            : `Open the pinned version of “${title}”`
-        }
         className="relative z-10 rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         {n ? `v${n}` : "pinned version"}
+        <span className="sr-only">
+          : open {n ? `version ${n}` : "that version"} of “{title}”
+        </span>
       </Link>
     );
   };
@@ -470,7 +470,7 @@ function KnowledgeRow({
       <>
         <Link
           href={`${href}#block-${mention.blockIds[0]}`}
-          aria-label={`Open “${title}” where it mentions ${itemKey}, in its latest version`}
+          title={`Opens the latest version of “${title}” where it mentions ${itemKey}`}
           className="relative z-10 rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           Mentioned in latest

@@ -17,6 +17,8 @@ export type SearchScope = {
   // Trimmed; empty matches everything (most recent first).
   query: string;
   limit: number;
+  // Rows to skip, for a following batch (same order).
+  offset?: number;
 };
 
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -178,7 +180,8 @@ export async function searchPublishedPages(
       desc(s.pageCommit.createdAt),
       desc(s.page.id),
     )
-    .limit(scope.limit);
+    .limit(scope.limit)
+    .offset(scope.offset ?? 0);
   if (!found.length) return [];
   const commitIds = found.map((f) => f.commitId);
   const pageIds = found.map((f) => f.pageId);
@@ -345,7 +348,7 @@ export async function searchWorkItems(tx: Tx, scope: SearchScope) {
       ${scope.projectId ? sql`and w.project_id = ${scope.projectId}` : sql``}
     group by w.id, w.updated_at
     order by title_match desc, w.updated_at desc, w.id desc
-    limit ${scope.limit}
+    limit ${scope.limit} offset ${scope.offset ?? 0}
   `);
   if (!found.length) return [];
   const revisionIds = found.flatMap((f) =>
@@ -476,7 +479,8 @@ export function searchDecisions(tx: Tx, q: SearchScope) {
       desc(s.decision.createdAt),
       desc(s.decision.id),
     )
-    .limit(q.limit);
+    .limit(q.limit)
+    .offset(q.offset ?? 0);
 }
 
 // Each unarchived work item contributes at most two candidate revisions: its
@@ -539,7 +543,7 @@ export async function searchSpecifications(tx: Tx, q: SearchScope) {
     select id, delivered, title_match from candidate
     where matches
     order by title_match desc, created_at desc, id desc
-    limit ${q.limit}
+    limit ${q.limit} offset ${q.offset ?? 0}
   `);
   if (!found.length) return [];
   const rows = await tx

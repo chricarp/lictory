@@ -134,3 +134,101 @@ test("a phrase only in a page body is found from the palette and opens the page 
     ),
   ).toBe(true);
 });
+
+test("See all results lists every match a batch at a time, by kind, and forgets them with access", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const seeded = await seedWorkspace({
+    name: "Kumquats",
+    key: "KUM",
+    users: ["Rita Owner", "Sam Member"],
+  });
+  const space = async (name: string, accessMode?: "restricted") => {
+    const spaceId = crypto.randomUUID();
+    await seeded.command({
+      type: "createSpace",
+      spaceId,
+      name,
+      slug: `${name.toLowerCase()}-${spaceId.slice(0, 6)}`,
+      ...(accessMode ? { accessMode } : {}),
+    });
+    return spaceId;
+  };
+  const handbook = await space("Handbook");
+  const operations = await space("Operations");
+  const secret = await space("Secrets", "restricted");
+  const pageWith = (spaceId: string, title: string, words: string) =>
+    seeded.command({
+      type: "createPage",
+      spaceId,
+      pageId: crypto.randomUUID(),
+      title,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            attrs: { id: crypto.randomUUID() },
+            content: [{ type: "text", text: words }],
+          },
+        ],
+      } as unknown as Record<string, never>,
+    });
+  // More pages than one batch, two with the same title.
+  for (let i = 0; i < 22; i++)
+    await pageWith(handbook, `Runbook ${i}`, `Kumquat handling step ${i}.`);
+  await pageWith(operations, "Runbook 0", "Kumquat handling elsewhere.");
+  await pageWith(secret, "Secret kumquat", "Kumquat incident.");
+  await seeded.command({
+    type: "setSpaceGrant",
+    spaceId: secret,
+    userId: seeded.users[1]!.id,
+    level: "view",
+  });
+
+  await signIn(page, seeded.users[1]!.email);
+  await page.goto(`/${seeded.slug}/inbox`);
+  const palette = await openPalette(page);
+  await palette.getByRole("textbox", { name: "Search" }).fill("kumquat");
+  await palette
+    .getByRole("option", { name: /See all results for “kumquat”/ })
+    .click();
+  await expect(page).toHaveURL(
+    new RegExp(`/${seeded.slug}/search\\?q=kumquat`),
+  );
+  const results = page.getByRole("list", { name: "Results for “kumquat”" });
+  await expect(results.getByRole("listitem")).toHaveCount(20);
+  await page.getByRole("button", { name: "Show more results" }).click();
+  await expect(results.getByRole("listitem")).toHaveCount(24);
+  await expect(
+    page.getByRole("button", { name: "Show more results" }),
+  ).toHaveCount(0);
+  // The same title twice, told apart by its space.
+  const twins = results.getByRole("listitem").filter({
+    has: page.getByRole("link", { name: "Runbook 0", exact: true }),
+  });
+  await expect(twins).toHaveCount(2);
+  await expect(twins.filter({ hasText: "Operations" })).toHaveCount(1);
+  // A kind filter narrows to decisions (none here), and back.
+  await page.getByRole("radio", { name: "Decisions" }).click();
+  await expect(page).toHaveURL(/kind=decisions/);
+  await expect(page.getByText("No matches for “kumquat”")).toBeVisible();
+  await page.getByRole("radio", { name: "Pages" }).click();
+  await expect(results.getByRole("listitem")).toHaveCount(20);
+  await expect(results).toContainText("Secret kumquat");
+
+  // Losing access to the restricted space: the next search no longer
+  // lists its page.
+  await seeded.command({
+    type: "setSpaceGrant",
+    spaceId: secret,
+    userId: seeded.users[1]!.id,
+    level: null,
+  });
+  await page.reload();
+  await expect(results.getByRole("listitem")).toHaveCount(20);
+  await page.getByRole("button", { name: "Show more results" }).click();
+  await expect(results.getByRole("listitem")).toHaveCount(23);
+  await expect(results).not.toContainText("Secret kumquat");
+});

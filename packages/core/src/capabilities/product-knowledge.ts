@@ -252,7 +252,7 @@ export const searchKnowledge = defineCapability({
   name: "searchKnowledge",
   title: "Search pages and work",
   description:
-    "Full-text search across what you can read: published pages of Lictory Spaces (the published version on main, never live drafts or branches), work items (title and current specification), recorded decisions and approved or delivered specification revisions. Each result names its kind (page, item, decision, approved, delivered), the exact version (page commitId and version number, or revision number), a link, an excerpt around the match with highlight offsets and whether the title or only the content matched. Results are for finding things: a textual match is not evidence of authority (use searchProductKnowledge for agreements). Case-insensitive phrase match; title matches first, then most recent; at most `limit` results of each kind.",
+    "Full-text search across what you can read: published pages of Lictory Spaces (the published version on main, never live drafts or branches), work items (title and current specification), recorded decisions and approved or delivered specification revisions. Each result names its kind (page, item, decision, approved, delivered), the exact version (page commitId and version number, or revision number), a link, an excerpt around the match with highlight offsets and whether the title or only the content matched. Results are for finding things: a textual match is not evidence of authority (use searchProductKnowledge for agreements). Case-insensitive phrase match; title matches first, then most recent; at most `limit` results of each kind. `more` lists the kinds with results after this batch: ask again with `offset` increased by `limit` and those kinds for the next one.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({
@@ -265,8 +265,22 @@ export const searchKnowledge = defineCapability({
       ),
     kinds: z.array(z.enum(knowledgeKinds)).min(1).optional(),
     limit: z.number().int().min(1).max(20).default(8),
+    offset: z
+      .number()
+      .int()
+      .min(0)
+      .max(500)
+      .default(0)
+      .describe("Results of each kind to skip (a following batch)."),
   }),
-  async run(ctx, q): Promise<{ query: string; results: KnowledgeResult[] }> {
+  async run(
+    ctx,
+    q,
+  ): Promise<{
+    query: string;
+    results: KnowledgeResult[];
+    more: KnowledgeKind[];
+  }> {
     return ctx.db.transaction(async (tx) => {
       await authorize(tx, ctx.principal.userId, q.organizationId);
       await requireProject(tx, q.organizationId, q.projectId);
@@ -276,22 +290,35 @@ export const searchKnowledge = defineCapability({
         organizationId: q.organizationId,
         projectId: q.projectId,
         query: q.query,
-        limit: q.limit,
+        // One more than asked tells whether another batch exists.
+        limit: q.limit + 1,
+        offset: q.offset,
       };
-      const [pages, items, decisions, specifications] = await Promise.all([
-        wanted.has("page")
-          ? searchPublishedPages(tx, {
-              ...scope,
-              userId: ctx.principal.userId,
-              withDocument: true,
-            })
-          : [],
-        wanted.has("item") ? searchWorkItems(tx, scope) : [],
-        wanted.has("decision") ? searchDecisions(tx, scope) : [],
-        wanted.has("approved") || wanted.has("delivered")
-          ? searchSpecifications(tx, scope)
-          : [],
-      ]);
+      const [allPages, allItems, allDecisions, allSpecifications] =
+        await Promise.all([
+          wanted.has("page")
+            ? searchPublishedPages(tx, {
+                ...scope,
+                userId: ctx.principal.userId,
+                withDocument: true,
+              })
+            : [],
+          wanted.has("item") ? searchWorkItems(tx, scope) : [],
+          wanted.has("decision") ? searchDecisions(tx, scope) : [],
+          wanted.has("approved") || wanted.has("delivered")
+            ? searchSpecifications(tx, scope)
+            : [],
+        ]);
+      const more = new Set<KnowledgeKind>();
+      const batch = <T>(rows: T[], ...kinds: KnowledgeKind[]) => {
+        if (rows.length > q.limit)
+          for (const kind of kinds) if (wanted.has(kind)) more.add(kind);
+        return rows.slice(0, q.limit);
+      };
+      const pages = batch(allPages, "page");
+      const items = batch(allItems, "item");
+      const decisions = batch(allDecisions, "decision");
+      const specifications = batch(allSpecifications, "approved", "delivered");
       const text = (title: string, titleMatch: boolean) => ({
         matched: titleMatch ? ("title" as const) : ("content" as const),
         titleHighlights: highlightsIn(title, q.query),
@@ -382,7 +409,7 @@ export const searchKnowledge = defineCapability({
           Number(b.matched === "title") - Number(a.matched === "title") ||
           b.updatedAt.localeCompare(a.updatedAt),
       );
-      return { query: q.query, results };
+      return { query: q.query, results, more: [...more] };
     }, readOnly);
   },
 });

@@ -725,7 +725,15 @@ pages, work items (title and current specification), recorded decisions and
 approved or delivered specification revisions. The command palette shows its
 results under its instant title matches ("In pages", "In specifications",
 "Decisions"), and a page result opens at the block that matched
-(`#block-<id>`).
+(`#block-<id>`). "See all results" opens the search results view
+(`/{org}/search?q=`, with `kind` and `project` filters in the address):
+every match a batch of 20 per kind at a time ("Show more results" asks
+for the next batch of the kinds that have more, `offset` and `more` on the
+capability, offsets bounded at 500), each with its space path or key,
+version and excerpt. What it loaded belongs to one person, organization,
+query and filter, and the palette's answers to one organization and query;
+a change of any of them starts again, so nothing is shown from another
+scope or from access since lost.
 
 - **Published only.** A page is searched as the head commit of its main line.
   Live drafts, branches and pull requests are never searched, so text nobody
@@ -747,8 +755,8 @@ results under its instant title matches ("In pages", "In specifications",
   with the matched ranges and whether the title or only the content matched.
 - **Simple matching.** A case-insensitive phrase match (LIKE wildcards are
   literal; Markdown escapes such as `refund\_limit` do not hide a match),
-  title matches first, then the most recent, at most `limit` results of each
-  kind. Trigram indexes make it fast; there is no separate search index to
+  title matches first, then the most recent (ties by id, so batches are
+  stable), at most `limit` results of each kind. Trigram indexes make it fast; there is no separate search index to
   keep in sync, because results come from the same rows readers see.
 
 A search hit is not evidence of authority. `searchProductKnowledge`, which
