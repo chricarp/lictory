@@ -223,6 +223,32 @@ test("proposing a page update opens a branch in the editor and the item follows 
   });
   const pageId = await publishedPage(page, handbook.spaceId, "Refund policy");
 
+  // Work created from the page shows where it came from.
+  const { commitId } = await capability(page, "getPage", { pageId });
+  await capability(page, "createWorkItem", {
+    projectId: seeded.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: seeded.typeId("Story"),
+    parentId: null,
+    title: "Approval for large refunds",
+    description: "",
+    source: {
+      pageId,
+      commitId,
+      quote: "Refunds over half the amount need approval.",
+    },
+  });
+  await page.goto(seeded.itemPath(number + 1));
+  await expect(knowledge(page)).toContainText(
+    "Refunds over half the amount need approval.",
+  );
+  await expect(
+    knowledge(page).getByRole("link", { name: "Open source" }),
+  ).toHaveAttribute(
+    "href",
+    new RegExp(`/pages/${pageId}\\?commit=${commitId}`),
+  );
+
   await page.goto(seeded.itemPath(number));
   await expect(knowledge(page)).toContainText("appear in this list");
   await knowledge(page)
