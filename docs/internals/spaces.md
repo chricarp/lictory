@@ -657,8 +657,10 @@ page shows of it is read live with the reader's own access.
   commit stores only that query. Readers see the matching items they can
   see now (key, title, status, refinement, estimate; in external-delivery
   projects the status read back from the delivery tool) with "N of M done",
-  counting only those items (canceled ones count toward neither). Nothing in
-  a list changes an item. A list is not a snapshot: an old version shows
+  counting only those items (canceled ones count toward neither). A list
+  shows ten rows and grows ten at a time; on narrow screens titles take up
+  to two lines and the status moves under them. Nothing in a list changes
+  an item. A list is not a snapshot: an old version shows
   today's items. The commit's derived Markdown states the list's label and
   "(live list in Lictory)"; exports that run with a reader's access (`getPage`,
   for agents and Litto) resolve it at that moment into static `[KEY](item:ID)`
@@ -672,8 +674,11 @@ page shows of it is read live with the reader's own access.
   for readers it cannot be resolved for. Archiving or restoring elsewhere
   reaches an open page without a reload: what is on screen is read again
   when the window regains focus or becomes visible and every minute while
-  visible, the cache belongs to one person and organization, and a failed
-  read offers Retry.
+  visible, and the cache belongs to one person and organization. A failed
+  first read offers Retry; a failed refresh keeps the decision it read
+  (being offline is no reason to hide it) but marks it stale with when it
+  was last checked, and the card says "Couldn't refresh · Retry" instead of
+  presenting it as current. Every later refresh retries it.
   Work's Decisions section offers "Add to a page", which proposes a page
   change (`proposePageChange` with the item revision as `origin`) appending
   the card; main is never edited directly.

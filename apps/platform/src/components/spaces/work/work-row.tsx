@@ -160,22 +160,29 @@ export function WorkRow({
           color={native ? statusOf(delivery, item)?.color : undefined}
         />
       </span>
-      <span className="w-14 shrink-0 pt-px font-mono text-xs text-muted-foreground tabular-nums md:pt-0">
+      {/* Keys keep their column, and a longer key widens it rather than
+          being cut. */}
+      <span className="min-w-14 shrink-0 pt-px font-mono text-xs text-muted-foreground tabular-nums md:pt-0">
         {key}
       </span>
       <span className="min-w-0 flex-1">
         {/* The title first; how the item is linked wraps below it rather
-            than being cut off. */}
+            than being cut off. Narrow screens give the title two lines, so
+            similar long titles stay apart. */}
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           {href ? (
             <Link
               href={href}
-              className="max-w-full min-w-0 truncate font-medium outline-none hover:underline focus-visible:underline"
+              title={item.title}
+              className="max-w-full min-w-0 font-medium break-words outline-none hover:underline focus-visible:underline max-md:line-clamp-2 md:truncate"
             >
               {item.title}
             </Link>
           ) : (
-            <span className="max-w-full min-w-0 truncate font-medium">
+            <span
+              title={item.title}
+              className="max-w-full min-w-0 font-medium break-words max-md:line-clamp-2 md:truncate"
+            >
               {item.title}
             </span>
           )}
