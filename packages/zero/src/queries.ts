@@ -126,13 +126,19 @@ export const queries = defineQueries({
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
-  // Which work items readable pages mention or are attached to, for the
-  // "N pages" signal of item lists and previews: small rows (ids, blocks),
-  // never page content, and only of spaces I read.
+  // Which work items readable pages mention, are attached to, are cited by
+  // or were created from, for the "N pages" signal of item lists and
+  // previews (the pages the item's Knowledge section shows): small rows,
+  // and only of spaces I read.
   itemPageLinks: defineQuery(organizationArgs, ({ args, ctx }) =>
     zql.spaceEntity
       .where("organizationId", args.organizationId)
-      .where("type", "IN", ["pageReference", "pageAttachment"])
+      .where("type", "IN", [
+        "pageReference",
+        "pageAttachment",
+        "specificationCitation",
+        "workItemSource",
+      ])
       .whereExists("readers", (r) => r.where("userId", ctx.userID))
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),

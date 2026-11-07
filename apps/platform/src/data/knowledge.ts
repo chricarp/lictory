@@ -177,9 +177,10 @@ export function proposalState(origin: SpaceEntityOf<"pageBranchOrigin">): {
 }
 
 /**
- * How many readable pages mention or are attached to each work item (a page
- * that does both counts once). Pages the reader cannot read, or that are
- * archived, never count.
+ * How many readable pages each work item's Knowledge section shows: pages
+ * that mention it, are attached to it, that its specification cites (any
+ * revision) or that it was created from, each page once. Pages the reader
+ * cannot read, or that are archived, never count.
  */
 export function pageCountsByItem(
   rows: Iterable<SpaceEntity>,
@@ -187,7 +188,13 @@ export function pageCountsByItem(
 ): Map<string, number> {
   const pagesOf = new Map<string, Set<string>>();
   for (const row of rows) {
-    if (row.type !== "pageReference" && row.type !== "pageAttachment") continue;
+    if (
+      row.type !== "pageReference" &&
+      row.type !== "pageAttachment" &&
+      row.type !== "workItemSource" &&
+      !(row.type === "specificationCitation" && row.revisions.length)
+    )
+      continue;
     if (!readablePage(lookup, row.pageId)) continue;
     const set = pagesOf.get(row.workItemId);
     if (set) set.add(row.pageId);

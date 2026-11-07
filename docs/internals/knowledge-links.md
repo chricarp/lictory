@@ -139,8 +139,9 @@ indexed, and show items only to people who can see them.
 - `describePageLinks` (capability): for pages the reader can read, the
   section heading and a short excerpt of the blocks that mention an item and
   the version numbers of pinned commits. Other pages get no entry.
-- Zero `itemPageLinks({ organizationId })`: mentions and attachments of
-  readable pages, for the "N pages" count of item lists and previews.
+- Zero `itemPageLinks({ organizationId })`: mentions, attachments,
+  specification citations and sources of readable pages, for the "N pages"
+  count of item lists and previews.
 
 Content search over published pages and specifications uses trigram
 indexes on `page_commit` title and Markdown and on `specification_revision`
@@ -164,9 +165,10 @@ visibility rule.
   mentioning pages first), name the branch; `createPageBranch` with `origin`
   opens it in the page editor. Work never publishes a page directly; the
   space's rules (reviewed or direct) publish the branch.
-- **Counts**: item lists and the item preview show "N pages" (readable pages
-  that mention or are attached to the item), linking to the Knowledge
-  section. Unreadable pages never count.
+- **Counts**: item lists and the item preview show "N pages", linking to the
+  Knowledge section: the readable pages that section lists (mentioning,
+  attached, cited by any revision, or the page the item was created from),
+  each page once. Unreadable pages never count.
 - **Delivery surfaces**: context pages (see
   [the delivery model](delivery.md#context-pages)); the project's
   Refinement home shows its spaces and teams' spaces and recently published

@@ -3,7 +3,7 @@ import { cn } from "@lictory/core/lib/utils";
 import { Link } from "@lictory/platform/lib/navigation";
 import { knowledgeAnchor } from "@lictory/platform/components/knowledge/anchor";
 
-// "2 pages": readable pages that mention an item or are attached to it,
+// "2 pages": the readable pages its Knowledge section lists (a 24px target),
 // linking to the item's Knowledge section. Absent at zero (and never
 // counting pages the reader cannot read).
 export function PageCount({
@@ -26,7 +26,7 @@ export function PageCount({
       title={`${label} about this item`}
       aria-label={long ? undefined : `${label} about this item`}
       className={cn(
-        "relative z-10 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] text-muted-foreground tabular-nums hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+        "relative z-10 inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-full px-1.5 text-[11px] text-muted-foreground tabular-nums hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >
