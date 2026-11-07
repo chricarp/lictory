@@ -1,0 +1,774 @@
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  FilePen,
+  FileText,
+  GitBranch,
+  Paperclip,
+  Plus,
+  Quote,
+  X,
+} from "lucide-react";
+import { paths } from "@lictory/core/lib/paths";
+import { cn } from "@lictory/core/lib/utils";
+import {
+  identifier,
+  relativeTime,
+  type Project,
+} from "@lictory/core/lib/work-items";
+import {
+  pageAttachmentPurposes,
+  type PageAttachmentPurpose,
+  type WorkItem,
+} from "@lictory/core/contracts/protocol";
+import {
+  branchNameProblem,
+  finalizeBranchName,
+  sanitizeBranchNameInput,
+} from "@lictory/core/lib/branch-name";
+import { Button } from "@lictory/ui/button";
+import { Popover, usePopover } from "@lictory/ui/popover";
+import { Badge, SectionLabel } from "@lictory/ui/primitives";
+import { toast } from "@lictory/ui/toast";
+import { Link, useRouter } from "@lictory/platform/lib/navigation";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useSpaces } from "@lictory/platform/components/spaces/store";
+import {
+  proposalState,
+  purposeLabels,
+  type ItemKnowledgePage,
+  type ProposalState,
+} from "@lictory/platform/data/knowledge";
+import type { Space, SpacePage } from "@lictory/platform/data/spaces";
+import {
+  useItemKnowledge,
+  usePageLinkDetails,
+  type PageLinkDetails,
+} from "@lictory/platform/components/knowledge/store";
+import {
+  PagePicker,
+  type PageChoice,
+} from "@lictory/platform/components/knowledge/page-picker";
+import { knowledgeAnchor } from "@lictory/platform/components/knowledge/anchor";
+
+// The work item's Knowledge section (docs/internals/knowledge-links.md, Work
+// surfaces): the pages that mention the item, are attached to it or that
+// its specification cites, the page it was created from and the page
+// updates proposed from it. Only pages I can read appear, and nothing
+// counts or hints at the others.
+
+const errorText = (e: unknown) =>
+  e instanceof Error && e.message ? e.message : "The change was not saved.";
+
+export function ItemKnowledge({
+  item,
+  project,
+  canChange,
+}: {
+  item: WorkItem;
+  project: Project;
+  canChange: boolean;
+}) {
+  const { organization, mutateConfirmed, memberName } = useWorkspace();
+  const { knowledge, loaded } = useItemKnowledge(item);
+  const key = identifier(project, item.number);
+  const requests = useMemo(
+    () =>
+      knowledge.pages.flatMap((p) => {
+        const versions = [
+          ...(p.attachment?.commitId ? [p.attachment.commitId] : []),
+          ...(p.citation?.current?.commitIds ?? []),
+          ...(p.citation?.earlier?.commitIds ?? []),
+        ];
+        if (!p.mention && !versions.length) return [];
+        return [
+          {
+            pageId: p.page.id,
+            ...(p.mention
+              ? {
+                  blocks: {
+                    commitId: p.mention.commitId,
+                    blockIds: p.mention.blockIds.slice(0, 3),
+                  },
+                }
+              : {}),
+            ...(versions.length ? { versions: [...new Set(versions)] } : {}),
+          },
+        ];
+      }),
+    [knowledge.pages],
+  );
+  const details = usePageLinkDetails(requests);
+  const sectionRef = useRef<HTMLElement>(null);
+  // Arriving from "N pages" in a list or preview.
+  useEffect(() => {
+    if (window.location.hash === `#${knowledgeAnchor}`)
+      sectionRef.current?.scrollIntoView({ block: "start" });
+  }, []);
+  const pageHref = (space: Space, page: SpacePage) =>
+    paths.spacePage(organization.slug, space.slug, page.id);
+  const attached = useMemo(
+    () =>
+      new Set(
+        knowledge.pages.filter((p) => p.attachment).map((p) => p.page.id),
+      ),
+    [knowledge.pages],
+  );
+  const related = useMemo(
+    () =>
+      new Map(
+        knowledge.pages.map((p) => [
+          p.page.id,
+          p.attachment
+            ? `Attached · ${purposeLabels[p.attachment.purpose]}`
+            : p.citation?.current
+              ? "Cited by the specification"
+              : p.mention
+                ? `Mentions ${key}`
+                : "Cited earlier",
+        ]),
+      ),
+    [knowledge.pages, key],
+  );
+  const detach = async (entry: ItemKnowledgePage) => {
+    const attachment = entry.attachment!;
+    try {
+      await mutateConfirmed({
+        type: "detachPage",
+        workItemId: item.id,
+        attachmentId: attachment.attachmentId,
+      });
+    } catch (e) {
+      toast.add({
+        title: "Page not detached",
+        type: "error",
+        description: errorText(e),
+        timeout: 8000,
+      });
+      return;
+    }
+    const id = toast.add({
+      title: `Detached “${entry.page.title}”`,
+      timeout: 8000,
+      actionProps: {
+        children: "Undo",
+        onClick: () => {
+          toast.close(id);
+          mutateConfirmed({
+            type: "attachPage",
+            workItemId: item.id,
+            attachmentId: crypto.randomUUID(),
+            pageId: entry.page.id,
+            purpose: attachment.purpose,
+            commitId: attachment.commitId,
+          }).catch((e: unknown) =>
+            toast.add({
+              title: "Page not attached again",
+              type: "error",
+              description: errorText(e),
+              timeout: 8000,
+            }),
+          );
+        },
+      },
+    });
+  };
+  const empty =
+    !knowledge.pages.length && !knowledge.source && !knowledge.proposals.length;
+  return (
+    <section
+      ref={sectionRef}
+      id={knowledgeAnchor}
+      aria-labelledby={`${knowledgeAnchor}-label`}
+      className="scroll-mt-4"
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <SectionLabel>
+          <span id={`${knowledgeAnchor}-label`}>Knowledge</span>
+        </SectionLabel>
+        <div className="ml-auto flex items-center gap-1">
+          <ProposePageUpdate item={item} itemKey={key} first={related} />
+          {canChange && (
+            <AttachPage
+              item={item}
+              itemKey={key}
+              exclude={attached}
+              first={related}
+            />
+          )}
+        </div>
+      </div>
+      {knowledge.source && (
+        <SourceQuote source={knowledge.source} href={pageHref} />
+      )}
+      {empty ? (
+        loaded && (
+          <p className="text-[13px] text-muted-foreground">
+            Pages that mention {key} with “#”, cite it in its specification or
+            are attached here (background, design, runbooks) appear in this
+            list.
+          </p>
+        )
+      ) : knowledge.pages.length > 0 ? (
+        <ul
+          aria-label={`Pages about ${key}`}
+          className="overflow-hidden rounded-lg border"
+        >
+          {knowledge.pages.map((entry) => (
+            <KnowledgeRow
+              key={entry.page.id}
+              entry={entry}
+              itemKey={key}
+              revisionNumber={item.revisionNumber}
+              details={details?.get(entry.page.id)}
+              href={pageHref(entry.space, entry.page)}
+              onDetach={
+                canChange && entry.attachment
+                  ? () => void detach(entry)
+                  : undefined
+              }
+            />
+          ))}
+        </ul>
+      ) : null}
+      {knowledge.proposals.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-1 text-xs text-muted-foreground">
+            Page updates proposed from {key}
+          </h4>
+          <ul className="overflow-hidden rounded-lg border">
+            {knowledge.proposals.map((origin) => {
+              const { state, pullRequestId } = proposalState(origin);
+              const base = pageHref(origin.space, origin.page);
+              const href = pullRequestId
+                ? `${base}/history?view=pulls&pr=${pullRequestId}`
+                : origin.deletedAt
+                  ? base
+                  : `${base}?branch=${origin.branchId}`;
+              return (
+                <li
+                  key={origin.id}
+                  className="relative flex min-h-11 flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-2 text-[13px] hover:bg-muted/50"
+                >
+                  <GitBranch
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <Link
+                    href={href}
+                    className="min-w-0 truncate font-medium after:absolute after:inset-0 focus-visible:underline"
+                  >
+                    {origin.page.title}
+                  </Link>
+                  <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+                    {origin.name}
+                  </span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <span className="hidden text-xs text-muted-foreground sm:inline">
+                      {memberName(origin.authorId)} ·{" "}
+                      <time dateTime={origin.createdAt}>
+                        {relativeTime(origin.createdAt)}
+                      </time>
+                    </span>
+                    <ProposalBadge state={state} />
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const proposalLabels: Record<
+  ProposalState,
+  { label: string; tone: "neutral" | "good" | "info" }
+> = {
+  no_pull_request: { label: "Not proposed yet", tone: "neutral" },
+  draft: { label: "Draft", tone: "neutral" },
+  open: { label: "In review", tone: "info" },
+  merged: { label: "Merged", tone: "good" },
+  closed: { label: "Closed", tone: "neutral" },
+  branch_deleted: { label: "Branch deleted", tone: "neutral" },
+};
+
+function ProposalBadge({ state }: { state: ProposalState }) {
+  const { label, tone } = proposalLabels[state];
+  return <Badge tone={tone}>{label}</Badge>;
+}
+
+function SourceQuote({
+  source,
+  href,
+}: {
+  source: NonNullable<
+    ReturnType<typeof useItemKnowledge>["knowledge"]["source"]
+  >;
+  href: (space: Space, page: SpacePage) => string;
+}) {
+  const at = `${href(source.space, source.page)}?commit=${source.commitId}${
+    source.blockId ? `#block-${source.blockId}` : ""
+  }`;
+  return (
+    <figure className="mb-3 rounded-lg bg-muted/50 px-3 py-2.5 text-[13px]">
+      <figcaption className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+        <Quote className="size-3.5" aria-hidden />
+        <span>
+          Created from{" "}
+          <span className="font-medium text-foreground">
+            {source.page.title}
+          </span>{" "}
+          · {source.space.name}
+        </span>
+        <Link
+          href={at}
+          className="ml-auto font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          Open source
+        </Link>
+      </figcaption>
+      {source.quote && (
+        <blockquote className="mt-2 line-clamp-4 border-l-2 border-foreground/15 pl-3 whitespace-pre-line text-foreground/85">
+          {source.quote}
+        </blockquote>
+      )}
+    </figure>
+  );
+}
+
+function KnowledgeRow({
+  entry,
+  itemKey,
+  revisionNumber,
+  details,
+  href,
+  onDetach,
+}: {
+  entry: ItemKnowledgePage;
+  itemKey: string;
+  revisionNumber: number;
+  details: PageLinkDetails | undefined;
+  href: string;
+  onDetach?: () => void;
+}) {
+  const { page, space, mention, attachment, citation } = entry;
+  const version = (commitId: string) => {
+    const n = details?.versions[commitId];
+    return n ? `v${n}` : "a pinned version";
+  };
+  const block = details?.blocks[0];
+  const facts: string[] = [];
+  if (mention)
+    facts.push(
+      block?.heading
+        ? `Mentions ${itemKey} under “${block.heading}”`
+        : mention.blockIds.length > 1
+          ? `Mentions ${itemKey} in ${mention.blockIds.length} places`
+          : `Mentions ${itemKey}`,
+    );
+  if (attachment?.commitId)
+    facts.push(`Attached at ${version(attachment.commitId)}`);
+  if (citation?.current) {
+    const pins = citation.current.commitIds.map(version);
+    facts.push(
+      pins.length
+        ? `Revision ${citation.current.number} cites ${pins.join(", ")}`
+        : `Cited by revision ${citation.current.number}`,
+    );
+  } else if (citation?.earlier)
+    facts.push(
+      `Cited by revision ${citation.earlier.number}, not by the current revision ${revisionNumber}`,
+    );
+  // Open where the item is mentioned; a pin opens its version.
+  const pin = attachment?.commitId ?? citation?.current?.commitIds[0];
+  const target = mention
+    ? `${href}#block-${mention.blockIds[0]}`
+    : pin
+      ? `${href}?commit=${pin}`
+      : href;
+  const newerPin = entry.newer
+    ? [attachment?.commitId, ...(citation?.current?.commitIds ?? [])].find(
+        (id) => id && id !== page.publishedCommitId,
+      )
+    : undefined;
+  return (
+    <li className="group relative flex items-start gap-2.5 border-b px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-muted/50">
+      {attachment ? (
+        <Paperclip
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      ) : (
+        <FileText
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <Link
+            href={target}
+            className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0 focus-visible:underline"
+          >
+            {page.title || "Untitled"}
+          </Link>
+          {attachment && <Badge>{purposeLabels[attachment.purpose]}</Badge>}
+          <span className="min-w-0 truncate text-xs text-muted-foreground">
+            {space.name}
+          </span>
+        </div>
+        {facts.length > 0 && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {facts.join(" · ")}
+          </p>
+        )}
+        {block?.excerpt && (
+          <p className="mt-1 line-clamp-2 text-xs text-foreground/75">
+            “{block.excerpt}”
+          </p>
+        )}
+        {newerPin && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Newer version
+            {details ? ` v${details.publishedVersion}` : ""} published ·{" "}
+            <Link
+              href={`${href}/history?view=versions&version=${page.publishedCommitId}&compare=${newerPin}`}
+              className="relative z-10 font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              Compare
+            </Link>
+          </p>
+        )}
+      </div>
+      {onDetach && (
+        <button
+          type="button"
+          aria-label={`Detach “${page.title}”`}
+          title="Detach"
+          className="relative z-10 grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 touch:opacity-100"
+          onClick={onDetach}
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+    </li>
+  );
+}
+
+function AttachPage({
+  item,
+  itemKey,
+  exclude,
+  first,
+}: {
+  item: WorkItem;
+  itemKey: string;
+  exclude: ReadonlySet<string>;
+  first: ReadonlyMap<string, string>;
+}) {
+  const [choice, setChoice] = useState<PageChoice>();
+  return (
+    <Popover
+      width={340}
+      align="end"
+      onOpenChange={(open) => !open && setChoice(undefined)}
+      trigger={(props) => (
+        <Button {...props} variant="ghost" size="sm">
+          <Plus className="size-3.5" aria-hidden /> Attach page
+        </Button>
+      )}
+    >
+      {(close) =>
+        choice ? (
+          <AttachForm
+            item={item}
+            itemKey={itemKey}
+            choice={choice}
+            onBack={() => setChoice(undefined)}
+            onDone={close}
+          />
+        ) : (
+          <PagePicker
+            title={`Attach a page to ${itemKey}`}
+            keepOpen
+            exclude={exclude}
+            first={first}
+            onSelect={setChoice}
+          />
+        )
+      }
+    </Popover>
+  );
+}
+
+const purposeHints: Record<PageAttachmentPurpose, string> = {
+  background: "Context worth reading first",
+  design: "How it is meant to look or work",
+  runbook: "How to operate or support it",
+};
+
+function AttachForm({
+  item,
+  itemKey,
+  choice,
+  onBack,
+  onDone,
+}: {
+  item: WorkItem;
+  itemKey: string;
+  choice: PageChoice;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const labelId = usePopover()?.labelId;
+  const { mutateConfirmed } = useWorkspace();
+  const [purpose, setPurpose] = useState<PageAttachmentPurpose>("background");
+  const [pin, setPin] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const name = useId();
+  return (
+    <form
+      className="flex flex-col gap-3 p-3 text-[13px]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (busy) return;
+        setBusy(true);
+        setError(undefined);
+        mutateConfirmed({
+          type: "attachPage",
+          workItemId: item.id,
+          attachmentId: crypto.randomUUID(),
+          pageId: choice.page.id,
+          purpose,
+          commitId: pin ? choice.page.publishedCommitId : null,
+        })
+          .then(onDone)
+          .catch((err: unknown) => {
+            setError(errorText(err));
+            setBusy(false);
+          });
+      }}
+    >
+      <h2 id={labelId} className="text-sm font-semibold">
+        Attach “{choice.page.title}” to {itemKey}
+      </h2>
+      <fieldset className="space-y-1">
+        <legend className="mb-1 text-xs text-muted-foreground">Purpose</legend>
+        {pageAttachmentPurposes.map((p) => (
+          <label
+            key={p}
+            className={cn(
+              "flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted",
+              purpose === p && "bg-muted",
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={p}
+              checked={purpose === p}
+              onChange={() => setPurpose(p)}
+              className="mt-0.5"
+              // Focus lands on the chosen purpose when the step opens.
+              autoFocus={purpose === p}
+            />
+            <span>
+              <span className="block font-medium">{purposeLabels[p]}</span>
+              <span className="block text-xs text-muted-foreground">
+                {purposeHints[p]}
+              </span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <label className="flex items-start gap-2 px-2 text-xs">
+        <input
+          type="checkbox"
+          checked={pin}
+          onChange={(e) => setPin(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          Pin the version published now
+          <span className="block text-muted-foreground">
+            Otherwise the item follows the page as it is published.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          Back
+        </Button>
+        <Button type="submit" size="sm" disabled={busy}>
+          {busy ? "Attaching…" : "Attach page"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ProposePageUpdate({
+  item,
+  itemKey,
+  first,
+}: {
+  item: WorkItem;
+  itemKey: string;
+  first: ReadonlyMap<string, string>;
+}) {
+  const { index, levelOf } = useSpaces();
+  const [choice, setChoice] = useState<PageChoice>();
+  // A branch needs edit access to the page's space.
+  const canEditSomewhere = index.spaces.some(
+    (s) => !s.archivedAt && levelOf(s.id) === "edit",
+  );
+  if (!canEditSomewhere) return null;
+  return (
+    <Popover
+      width={360}
+      align="end"
+      onOpenChange={(open) => !open && setChoice(undefined)}
+      trigger={(props) => (
+        <Button {...props} variant="ghost" size="sm">
+          <FilePen className="size-3.5" aria-hidden /> Propose page update
+        </Button>
+      )}
+    >
+      {(close) =>
+        choice ? (
+          <ProposeForm
+            item={item}
+            itemKey={itemKey}
+            choice={choice}
+            onBack={() => setChoice(undefined)}
+            onDone={close}
+          />
+        ) : (
+          <PagePicker
+            title="Propose an update to"
+            keepOpen
+            editable
+            first={first}
+            onSelect={setChoice}
+          />
+        )
+      }
+    </Popover>
+  );
+}
+
+// "pay-2-retry-failed-card-captures", short enough to read.
+export function suggestedBranchName(itemKey: string, title: string) {
+  const words = title
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const name = `${itemKey.toLowerCase()}-${words}`.slice(0, 48);
+  return finalizeBranchName(name);
+}
+
+function ProposeForm({
+  item,
+  itemKey,
+  choice,
+  onBack,
+  onDone,
+}: {
+  item: WorkItem;
+  itemKey: string;
+  choice: PageChoice;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const labelId = usePopover()?.labelId;
+  const router = useRouter();
+  const { organization, mutateConfirmed } = useWorkspace();
+  const inputId = useId();
+  const [name, setName] = useState(() =>
+    suggestedBranchName(itemKey, item.title),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const reviewed = choice.space.publishing === "reviewed";
+  return (
+    <form
+      className="flex flex-col gap-2.5 p-3 text-[13px]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (busy) return;
+        const final = finalizeBranchName(name);
+        const problem = branchNameProblem(final);
+        if (problem) return setError(problem);
+        setBusy(true);
+        setError(undefined);
+        const branchId = crypto.randomUUID();
+        mutateConfirmed({
+          type: "createPageBranch",
+          pageId: choice.page.id,
+          branchId,
+          name: final,
+          origin: { workItemId: item.id, revisionId: item.revisionId },
+        })
+          .then(() => {
+            onDone();
+            router.push(
+              `${paths.spacePage(organization.slug, choice.space.slug, choice.page.id)}?branch=${branchId}`,
+            );
+          })
+          .catch((err: unknown) => {
+            setError(errorText(err));
+            setBusy(false);
+          });
+      }}
+    >
+      <h2 id={labelId} className="text-sm font-semibold">
+        Propose an update to “{choice.page.title}”
+      </h2>
+      <p className="text-xs text-muted-foreground">
+        A branch of the page opens in the editor, linked to {itemKey} revision{" "}
+        {item.revisionNumber}.{" "}
+        {reviewed
+          ? "Its changes are published after review."
+          : "Nothing is published until you merge it."}
+      </p>
+      <label htmlFor={inputId} className="text-xs font-medium">
+        Branch name
+      </label>
+      <input
+        id={inputId}
+        autoFocus
+        value={name}
+        maxLength={80}
+        onChange={(e) => setName(sanitizeBranchNameInput(e.target.value))}
+        aria-describedby={error ? `${inputId}-error` : undefined}
+        className="h-8 w-full rounded-md border bg-background px-2 font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
+      />
+      {error && (
+        <p
+          id={`${inputId}-error`}
+          role="alert"
+          className="text-xs text-destructive"
+        >
+          {error}
+        </p>
+      )}
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          Back
+        </Button>
+        <Button type="submit" size="sm" disabled={busy}>
+          {busy ? "Opening…" : "Create branch and edit"}
+        </Button>
+      </div>
+    </form>
+  );
+}

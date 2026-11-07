@@ -36,7 +36,7 @@ export type ReadablePage = {
 };
 
 // The given pages the reader can read, active, with their published title.
-async function readablePages(
+export async function readablePages(
   tx: Database | Tx,
   reader: Reader,
   pageIds: string[],
