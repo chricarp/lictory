@@ -192,3 +192,72 @@ void test("bulk changes summarize by verb, most frequent first", () => {
     "3 updated · 1 created",
   );
 });
+
+void test("page evidence names the exact version and links to it", () => {
+  const withPages: Lookup = {
+    ...lookup,
+    pageHref: (id) =>
+      id === "page-1" ? "/acme/spaces/ops/pages/page-1" : undefined,
+  };
+  const read = describeStep(
+    "getPage",
+    { organizationId: "org", pageId: "page-1", commitId: "c3" },
+    {
+      ok: true,
+      result: {
+        page: { id: "page-1", spaceId: "s1", spaceName: "Operations" },
+        title: "Refund runbook",
+        commitId: "c3",
+        version: 3,
+        published: false,
+      },
+    },
+    undefined,
+    withPages,
+  );
+  assert.deepEqual(read.outcome.pages, [
+    {
+      pageId: "page-1",
+      title: "Refund runbook",
+      space: "Operations",
+      commitId: "c3",
+      version: 3,
+      published: false,
+      publishing: null,
+      href: "/acme/spaces/ops/pages/page-1?commit=c3",
+    },
+  ]);
+  const found = describeStep(
+    "searchProductKnowledge",
+    { organizationId: "org", query: "refund" },
+    {
+      ok: true,
+      result: {
+        results: [
+          { kind: "decision", id: "d1", key: "PAY-142", title: "Refunds" },
+          {
+            kind: "page",
+            id: "page-1",
+            title: "Refund runbook",
+            spaceName: "Operations",
+            publishing: "reviewed",
+            commitId: "c4",
+            version: 4,
+            href: "/acme/spaces/ops/pages/page-1?commit=c4",
+          },
+        ],
+      },
+    },
+    undefined,
+    withPages,
+  );
+  assert.equal(found.outcome.summary, "2 results");
+  assert.deepEqual(
+    found.outcome.items.map((i) => i.key),
+    ["PAY-142"],
+  );
+  assert.deepEqual(
+    found.outcome.pages?.map((p) => [p.version, p.publishing, p.href]),
+    [[4, "reviewed", "/acme/spaces/ops/pages/page-1?commit=c4"]],
+  );
+});

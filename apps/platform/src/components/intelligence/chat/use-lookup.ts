@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { paths } from "@lictory/core/lib/paths";
 import { identifier } from "@lictory/core/lib/work-items";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
@@ -21,6 +22,7 @@ export function useLookup(): Lookup {
     delivery,
     directory,
   } = useWorkspace();
+  const { index: spaces } = useSpaces();
   return useMemo(() => {
     const projectById = new Map(projects.map((p) => [p.id, p]));
     const byId = new Map(items.map((i) => [i.id, i]));
@@ -61,8 +63,16 @@ export function useLookup(): Lookup {
         };
       },
       name: (kind, id) => names[kind].get(id),
+      pageHref(pageId) {
+        const page = spaces.pageById.get(pageId);
+        const space = page && spaces.spaceById.get(page.spaceId);
+        return space
+          ? paths.spacePage(organization.slug, space.slug, pageId)
+          : undefined;
+      },
     };
   }, [
+    spaces,
     organization.slug,
     projects,
     items,

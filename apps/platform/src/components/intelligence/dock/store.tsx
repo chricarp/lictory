@@ -36,10 +36,24 @@ export type DockItem = {
   review: DockReview | null;
 };
 
-export type DockSelection = {
-  itemId: string;
-  quote: string;
-  section: string;
+// Text selected in an item's specification, or in a page of Lictory Spaces
+// (with the block holding its start).
+export type DockSelection = { quote: string; section: string } & (
+  | { itemId: string; pageId?: undefined; blockId?: undefined }
+  | { pageId: string; blockId: string | null; itemId?: undefined }
+);
+
+// The page of Lictory Spaces on screen: the exact version being read
+// (`commitId`; absent while editing a live draft, which is never history),
+// the line when it is not main, and the work items its content references
+// that the person can see.
+export type DockPage = {
+  spaceId: string;
+  pageId: string;
+  title: string;
+  branchId?: string;
+  commitId?: string;
+  items: { id: string; key: string }[];
 };
 
 // Something on the page asked the dock to open, optionally with a prompt to
@@ -57,6 +71,7 @@ export type DockRequest = {
 
 type DockState = {
   item: DockItem | null;
+  page: DockPage | null;
   selection: DockSelection | null;
   request: DockRequest | null;
   // Whether the side sheet is open. Launchers in the page chrome read it.
@@ -66,6 +81,7 @@ type DockState = {
 export class DockStore {
   private state: DockState = {
     item: null,
+    page: null,
     selection: null,
     request: null,
     expanded: false,
@@ -94,12 +110,25 @@ export class DockStore {
         this.state.selection?.itemId === id ? null : this.state.selection,
     });
   }
+  setPage(page: DockPage) {
+    this.set({ page });
+  }
+  clearPage(pageId: string) {
+    if (this.state.page?.pageId !== pageId) return;
+    this.set({
+      page: null,
+      selection:
+        this.state.selection?.pageId === pageId ? null : this.state.selection,
+    });
+  }
   setSelection(selection: DockSelection | null) {
     const current = this.state.selection;
     const same =
       current === selection ||
       (current?.quote === selection?.quote &&
-        current?.itemId === selection?.itemId);
+        current?.itemId === selection?.itemId &&
+        current?.pageId === selection?.pageId &&
+        current?.blockId === selection?.blockId);
     if (same) return;
     this.set({ selection });
   }
@@ -139,6 +168,7 @@ export function useDock() {
 
 const empty: DockState = {
   item: null,
+  page: null,
   selection: null,
   request: null,
   expanded: false,
@@ -164,5 +194,18 @@ export function usePublishDockItem(item: DockItem | null) {
   useEffect(() => {
     if (!store || !id) return;
     return () => store.clearItem(id);
+  }, [store, id]);
+}
+
+// Publishes the page of Lictory Spaces on screen while mounted.
+export function usePublishDockPage(page: DockPage | null) {
+  const store = useDock();
+  useEffect(() => {
+    if (store && page) store.setPage(page);
+  }, [store, page]);
+  const id = page?.pageId;
+  useEffect(() => {
+    if (!store || !id) return;
+    return () => store.clearPage(id);
   }, [store, id]);
 }
