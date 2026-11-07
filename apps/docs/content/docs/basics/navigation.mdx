@@ -1,0 +1,202 @@
+---
+title: Find your way around
+description: The sidebar, a project's views, the parts of a work item page, previews and split view, item addresses, and what the sync indicator tells you.
+---
+
+Lictory has one window for everything: the sidebar on the left, and the work
+in a frame beside it. This page names the parts so the rest of the guide can
+refer to them.
+
+## The sidebar
+
+From top to bottom:
+
+- **The organization switcher** shows your organization's name or logo.
+  Open it to switch to another organization you belong to, to reach
+  **Organization settings**, or, where your installation allows it, to
+  **Create organization**.
+- **Collapse app sidebar** (beside the switcher) folds the sidebar into a
+  narrow strip of icons. **Search** (`/`) opens the command palette.
+- **New item** (`C`) creates a work item in the project you are in.
+- **Inbox** collects the notifications and to-dos that need you. Its badge
+  counts unread notifications, or, when everything is read, your open
+  to-dos. See [Inbox](/inbox).
+- **Litto** opens the conversations with Lictory's assistant. See
+  [Litto](/ai/litto).
+- **Spaces** lists **All spaces** and the organization's spaces and those
+  of your projects and teams. The **+** beside the heading creates a space.
+  See [Spaces](/spaces).
+- **The project switcher** shows the current project; open it to choose
+  another. The gear beside it opens **Project settings**.
+- **The project's views** follow the work (below).
+- **Organization settings** sits at the bottom.
+- **Your account menu** (your name at the very bottom) has **Account
+  settings**, **Privacy preferences**, **Sign out** and the version of
+  Lictory you are using. Instance administrators also see **Admin console**.
+  The small indicator beside it is the [sync status](#sync-status-and-offline).
+
+### A project's views
+
+Inside a project the sidebar groups the views by what you do with the work:
+
+| Group        | Views                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Prepare**  | **Proposals**, **Refinement**, **Reviews**: the [refinement](/specifications) queues                                                |
+| **Delivery** | **Board** and **Backlog** (**Backlog & sprints** or **Backlog & cycles** when the project plans that way). See [Deliver](/delivery) |
+| **Browse**   | **All items**, every work item of the project with filters                                                                          |
+| **Teams**    | One entry per team, yours first: the [team's backlog](/delivery/teams)                                                              |
+| **Spaces**   | The project's own spaces                                                                                                            |
+| **Views**    | **Needs review**, **Blocked** and **Recently updated**. Fold the group away with its heading                                        |
+
+In a project that delivers in Jira, the Delivery group is called
+**Delivery · Jira** and holds **Hand-off** instead of the board and backlog
+([Jira](/integrations/jira)).
+
+## A work item page
+
+Every work item, whatever its type, opens on the same page.
+
+![PAY-2 Retry failed card captures: the header with Knowledge, Discussions and Changes, the specification in the middle, and the review rail with required reviews, readiness checks and properties on the right](/screenshots/specification-review.webp)
+
+### The header
+
+From left to right: the way back to the view you came from (**Refinement**,
+**Reviews**, **Proposals** or **All items**), the parent item, the item's
+type and key (select the key to copy it), and who else is looking at the
+item right now. On the right:
+
+- **Knowledge** with a count: the pages about this item. It brings the
+  item's [Knowledge section](/knowledge/in-work) into view, or, on screens
+  that replace the specification (history, branches, pull requests), opens
+  it in a popover.
+- **Discussions** with the number of open discussions (and how many block
+  readiness). It opens the [discussion panel](/specifications/discussions)
+  beside the text.
+- **Changes** compares revisions ([history](/specifications/history)).
+- **Export to Jira**, in projects that deliver in Jira, once the item is
+  ready.
+- **Watch** to follow the item ([notifications](/inbox/notifications)).
+- **More actions** (**⋯**): **Copy link**, export, and **Archive** or
+  **Restore**.
+- **Review & details** opens the review rail when the window is too narrow
+  to show it beside the text.
+- **Ask Litto** opens the assistant with this item as context, when
+  Lictory Intelligence is on.
+
+![The item header: Knowledge 3, 3 discussions with a red marker for a blocking one, and Changes](/screenshots/detail-item-header.webp)
+
+### The document
+
+Under the header, top to bottom:
+
+1. A note **Changed since you last looked** with **View changes**, when the
+   specification changed since your last visit.
+2. The title and the **workflow card**: one sentence saying where the item
+   stands, its evidence, and the next action (start refinement, request a
+   review, accept a revision for delivery).
+3. The **specification**, the primary surface ([specifications](/specifications)).
+   Items of a type without a specification have a description instead.
+4. Its **branches** and **Breakdown** into child items
+   ([branches](/specifications/branches), [breakdown](/delivery/breakdown)).
+5. **Knowledge** ([pages about this item](/knowledge/in-work)) and
+   **Relations** ([relations](/delivery/relations)).
+6. **Decisions**, **attachments** and the item's **activity**.
+
+### The review rail
+
+On wide screens a rail sits to the right of the document: **Review** (who is
+asked to review, their decisions, **Request review**), **Readiness** (the
+checks and their evidence), the item's **Properties** (status, refinement,
+type, team, sprint or cycle, estimate, priority, owner, parent, milestone,
+labels) and **Revision**. Drag its edge to make it wider or narrower. On
+narrower windows it folds into a drawer that **Review & details** opens. See
+[reviews](/review/requests) and [readiness](/review/readiness).
+
+## Previews and split view
+
+- **Preview.** On the board, the backlog and a team's backlog, selecting an
+  item opens a preview docked in the corner of the screen instead of leaving
+  the list, so you can read an item and move on to the next. **Open** goes to the full page;
+  `Esc` or a click elsewhere closes the preview. Clicking with `Ctrl` or `⌘`
+  (or the middle button) opens the full page in a new tab instead.
+- **Split view.** An item opened from **All items**, a refinement queue or a
+  saved view keeps that list beside it on wide screens. **Hide work item
+  list** (top left of the item) folds the list away; drag the divider to
+  resize it. The list also steps aside on its own when a specification's
+  discussions need the room.
+
+![The backlog with Sprint 1 and a preview of PAY-2 docked in the bottom-right corner](/screenshots/detail-item-peek.webp)
+
+## Item addresses
+
+Every item has one address, whatever its type:
+
+```text
+https://lictory.example.com/northwind/pay/items/PAY-142
+```
+
+- `/northwind/items/PAY-142` (without the project) finds the item in the
+  right project; use it when you only know the key.
+- `?from=refinement` (or `proposals`, `reviews`) remembers the queue the item
+  was opened from, so the sidebar, the way back and the list beside the item
+  stay there. Links you share work without it.
+- On the board and the backlog, `?item=PAY-142` is the open preview.
+- Filters, sorting and grouping of lists live in the address too, so a
+  shared link shows the same list.
+
+An item's key never changes, even when the item moves to another team. Keys
+stay valid when an item is archived, so links in specifications and pages
+keep working.
+
+## The command palette
+
+`Ctrl K` (`⌘ K` on a Mac) or `/` opens the command palette anywhere. Type to
+find work items (by title or key, such as `PAY-142`), pages, spaces,
+projects and their views, and commands: create an item or a space, go to the
+Inbox or Organization settings, ask Litto, and, while an item is open,
+**Assign PAY-142 to me** or **Set status: …**. See [search](/search).
+
+## Sync status and offline
+
+Lictory saves as you work; there is no save button for properties,
+comments or ordering. The indicator beside your name in the sidebar says
+where your changes are:
+
+| Indicator                        | Meaning                                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Everything is saved**          | Your workspace is up to date; changes are shared automatically                                             |
+| **Saving changes…**              | Changes are on their way to the server                                                                     |
+| **Reconnecting…**                | The connection dropped; changes you make now are sent when it is back                                      |
+| **You’re offline**               | No connection. Lictory reconnects by itself                                                                |
+| **Sync needs your help**         | Some changes were not applied. Their text is kept on this device: open the indicator to copy or discard it |
+| **Workspace access interrupted** | Your session expired or your access changed. **Sign in again** to keep saving                              |
+
+When your session expires, a notice asks you to **Sign in again**; you come
+back to the same page. If you lose access to an organization while it is
+open, Lictory returns you to your list of organizations.
+
+### What works offline
+
+While a tab stays open, what it has loaded stays readable without a
+connection, and short interruptions are bridged: changes are kept and sent,
+in order, when the connection is back (also after a reload).
+After about ten minutes without the server the workspace becomes read-only
+until it reconnects, so nothing you do is silently lost. Text you were
+writing (a comment, a title, a specification you were editing) is kept on
+this device until the server has it.
+
+Lictory cannot be opened from scratch without a connection, and attachments
+are not available offline. Live editing of a specification draft or a page
+shows **Offline — changes kept on this device** and sends your edits again
+when you reconnect.
+
+## Tips
+
+- Use the palette rather than the sidebar to jump between projects:
+  `Ctrl K`, type the project or the view, `Enter`.
+- Share item links without `?from=`: the address is the same for everyone,
+  and each reader keeps their own way back.
+- Keep **Recently updated** open in a second tab during a busy review
+  week; it shows what changed without notifications.
+- On a small laptop, fold the sidebar (**Collapse app sidebar**) before
+  folding the review rail: the rail holds the review state you need.

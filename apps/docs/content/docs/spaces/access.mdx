@@ -9,6 +9,8 @@ open the space.
 
 ## Inherited and Restricted
 
+![Space settings of Payments: name, address and description, the location and Direct or Reviewed publishing, and Access with Inherited or Restricted and named access](/screenshots/spaces-access.webp)
+
 | Access                  | Who can edit                                                                               | Who can read                  |
 | ----------------------- | ------------------------------------------------------------------------------------------ | ----------------------------- |
 | **Inherited** (default) | Members of the location (organization, project or team), and people named with edit access | Every organization member     |
@@ -87,6 +89,27 @@ policy and archiving is recorded in the organization's audit log.
 Pages cannot be restricted one by one. To keep part of a tree private, put
 it in its own Restricted space; it can have the same location as the open
 one, so it is listed right beside it.
+
+## Links to work grant nothing
+
+Pages and work items link to each other ([knowledge links](/knowledge)), and
+every link is visible only to people who can read its page:
+
+- A Restricted page attached to an item, cited by its specification or
+  mentioning it appears in the item's **Knowledge** section only for people
+  who can read that page. Everyone else sees no row, no title and no count.
+- Work items are read by every member of the organization. When you
+  **Create work item** from text on a Restricted page, the dialog warns that
+  the quoted text is copied into the item, where people who cannot read the
+  page will see it. Decide what to copy before you create it.
+- A mention of a work item on a page never lets the page's readers change
+  the item, and a decision card never lets them change the decision.
+
+When someone loses access to a space, its pages leave the **Knowledge**
+sections they have open at once, and a page chip in a specification shows
+only the words its author wrote, with no card. Those words are part of the
+specification, which every member reads: describe a Restricted page by
+something you are happy for everyone to see.
 
 ## Enforced on the server
 

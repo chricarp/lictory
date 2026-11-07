@@ -1,0 +1,150 @@
+---
+title: Product knowledge
+description: How Lictory finds what your team agreed, decided and documented, how it weighs each kind of evidence, and how people, Litto and agents use it.
+---
+
+Product knowledge is what your organization has settled about how the
+product behaves. Content search finds where words are written. Product
+knowledge finds what was **agreed**: recorded decisions, approved and
+delivered specification revisions, and published pages. It tells each kind
+apart.
+
+People use it to find earlier agreements while refining. Litto and agents
+connected through MCP use it before they describe how the product behaves.
+
+## What counts as product knowledge
+
+| Evidence               | Shown as                     | What it establishes                                                                                                                                           |
+| ---------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Approved revision**  | **Approved intent**          | The current revision of a specification that is **Ready** and has a granted approval: what the team agreed to build.                                          |
+| **Delivered revision** | **Recorded delivered scope** | The revision accepted for delivery when the item moved to a done status, in a project delivered in Lictory: what the team recorded as delivered.              |
+| **Recorded decision**  | **Recorded conclusion**      | A durable conclusion reached during refinement, with its author and the revision it was recorded on. See [decisions](/specifications/decisions).              |
+| **Published page**     | Page, with its version       | Documentation in Lictory Spaces, as its published version. A page from a space that publishes through review carries more weight than one published directly. |
+
+Each work item adds at most two revisions: its delivered revision and its
+current approved revision. Older revisions remain in the item's history.
+
+What is **not** product knowledge:
+
+- discussions, which are transient until someone records a decision from
+  them;
+- specifications that are not approved, and live drafts, branches and open
+  pull requests of pages and specifications;
+- a **Done** status in Jira or another delivery tool. It describes an issue,
+  not which revision was built, so it does not create delivered knowledge.
+
+## Authority: which evidence wins
+
+The kinds of evidence say different things. Litto weighs them in this order,
+strongest first:
+
+1. an approved or delivered specification revision;
+2. a recorded decision;
+3. a page published through review;
+4. a page published directly;
+5. a discussion.
+
+Some limits apply:
+
+- **Approval is intent, not delivery.** An approved revision says what was
+  agreed. Only a delivered revision says it was delivered.
+- **A decision is a conclusion.** It does not make a specification approved
+  or delivered.
+- **Documentation is not agreement.** When a page disagrees with an approved
+  specification, the specification states the intended behavior. Litto names
+  both and does not pick one silently.
+
+In search results, a title match ranks above a match in the text. Among
+results that match equally well, agreements and decisions come first, then
+pages published through review, then pages published directly.
+
+## Exact versions
+
+Every result names the version it is about:
+
+- an approved or delivered revision opens that revision in the item's
+  history, and a decision opens the revision it was recorded on, even after
+  the specification has changed. **Open current** opens the item as it is
+  now;
+- a page opens the exact version that matched (`?commit=` in the address),
+  not today's page.
+
+So an answer that cites "PAY-2 revision 2" or "Capture retry design, version
+3" can be checked against what was actually agreed or published then.
+
+## What is left out
+
+- **Archived** work. Archiving an item removes it, and the decisions
+  recorded on it, from product knowledge. Archived projects, pages and spaces
+  are left out too. Restoring brings them back; nothing is deleted.
+- **Pages you cannot read.** Pages come only from spaces you can read
+  ([space access](/spaces/access)).
+
+Done and canceled items are not archived, so finished work stays findable.
+
+## Find related agreements on an item
+
+While refining, check whether the team already settled a question:
+
+<Steps>
+<Step>
+
+Open the work item and go to its **Decisions** section.
+
+</Step>
+<Step>
+
+Choose **Find related agreements**.
+
+</Step>
+<Step>
+
+Type in **Search decisions and specifications…** and choose **Search**.
+
+</Step>
+</Steps>
+
+Each result shows its key, revision and kind (**Recorded conclusion**,
+**Approved intent** or **Recorded delivered scope**) with an excerpt. Results
+come from the item's project and do not include pages; use
+[search](/search) or ask Litto to include documentation.
+
+## Litto and agents
+
+[Litto](/ai/litto) searches product knowledge before it describes
+established behavior. Its answers cite the revision number of a
+specification or the version of a page, with links to that version. When it
+read pages, they are listed under the answer with their space and version.
+
+Agents connected through [MCP](/integrations/agents) use the same search
+(`searchProductKnowledge`) with your access. `searchKnowledge`, the content
+search, finds where something is written; its matches are for navigation,
+not evidence.
+
+When Litto drafts proposals from rough material, it grounds them in your
+project's recent decisions and approved or delivered revisions, not in pages
+([draft proposals](/ai/litto#draft-proposals)).
+
+## What to watch for
+
+- **Unapproved work is invisible here.** A specification under review is not
+  product knowledge until it is approved and **Ready**. Use
+  [search](/search) to find work in progress.
+- **External delivery does not record delivered scope.** In projects handed
+  off to Jira, only approved revisions and decisions appear.
+- **Matching is a phrase match.** Search for a short, distinctive phrase.
+
+## Tips
+
+- **Record decisions.** When a discussion settles something ("Retries reuse
+  the original idempotency key"), record it as a
+  [decision](/specifications/decisions). Otherwise it is lost when the
+  discussion is resolved.
+- **Publish important pages through review.** Pages in a space that publishes
+  through reviewed pull requests rank above directly published ones, and the
+  approvals show who agreed ([publishing](/spaces/publishing)).
+- **Cite pinned page versions in specifications.** An approved revision that
+  cites an exact page version keeps both pieces of evidence connected
+  ([knowledge](/knowledge)).
+- Ask Litto "What did we agree about refund limits?" before you write a new
+  proposal, and start from what it cites.

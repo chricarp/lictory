@@ -1,0 +1,131 @@
+---
+title: How Work and Spaces connect
+description: The six ways pages and work items link to each other, who creates each link, and who can see it.
+---
+
+Pages in [Lictory Spaces](/spaces) and work items in Lictory Work refer to
+each other. A runbook mentions the bug it prevents, a specification cites the
+design it follows, a sprint keeps its notes at hand. These **knowledge
+links** let you go from the work to what the team knows about it, and back,
+without copying either into the other.
+
+Each link has one owner and one way of being made. None of them moves work,
+changes a page or grants access.
+
+## The six links
+
+| Link                       | What it records                                                       | Made by                                                                                                                              |
+| -------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Page reference**         | A page's published version mentions an item, a page or a decision     | Whoever publishes the page: `#`, `[[` or **Decision** in its text ([blocks](/spaces/blocks))                                         |
+| **Specification citation** | A revision of an item's specification cites a page, often one version | Whoever saves the revision: `[[` in the specification ([citations](/knowledge/in-work#pinned-citations-in-specifications))           |
+| **Attachment**             | A page belongs with an item, as background, design or runbook         | People who can change the item's properties: **Attach page** ([attach](/knowledge/in-work#attach-a-page))                            |
+| **Source**                 | An item was created from text on a page, with the exact quote         | Whoever creates the item with **Create work item** on a page ([work from page text](/knowledge/in-pages#create-work-from-page-text)) |
+| **Branch origin**          | A page branch was opened from an item's revision                      | Whoever chooses **Propose page update** on the item ([propose](/knowledge/in-work#propose-a-page-update))                            |
+| **Context link**           | A project, team or iteration keeps a page at hand                     | The project's planners: **Add page** in **Context** ([context pages](/knowledge/context-pages))                                      |
+
+Page references and citations follow what was written: change the page or
+the specification and they change with it. The other four are made on
+purpose. Attachments and context links can be removed again, with their
+history kept on the page. Sources and branch origins are written once and
+never change, so an item always knows which page version it came from.
+
+## Where you see them
+
+- **On a work item**, the **Knowledge** section lists every page about it
+  that you can read, and the header counts them (**Knowledge 3**). Lists and
+  previews show the same count as **3 pages**. See
+  [pages in your work](/knowledge/in-work).
+- **Under a published page**, **Work linked to this page** lists the items
+  it mentions, was cited by, is attached to or was the source of, the page
+  updates proposed from work, and what keeps it as context. A project or
+  team space's home lists its **Linked work**. See
+  [work in your pages](/knowledge/in-pages).
+- **On the board, backlog, team backlogs and iterations**, the **Context**
+  control lists their context pages. See
+  [context pages](/knowledge/context-pages).
+- **On the Refinement view**, a **Knowledge** line shows the project's
+  spaces and what was published there recently.
+
+![The Knowledge section of PAY-2: the attached design page Capture retry design, mentioned in its latest version and cited by revision 2; Missing refund runbook, cited at v1, with Newer version v2 published and Compare; Payments service, mentioned under Retry policy; and the page update Explain automatic capture retries to support, In review](/screenshots/knowledge-item.webp)
+
+## A link is visible only to readers of its page
+
+Every link names a page, and you see a link only if you can read that page
+now. Work items are read by everyone in the organization, but pages follow
+their space's [access](/spaces/access). So:
+
+- an item's **Knowledge** section lists only the pages you can read. Pages
+  you cannot read leave no row, no title and no count;
+- an attachment, a citation or a context link never lets anyone read a page
+  they could not read before. Attaching a page from a Restricted space to an
+  item shows it only to the people already named in that space;
+- a mention of an item on a page never lets the page's readers change the
+  item;
+- archived pages, and pages of archived spaces, drop out of every list until
+  they are restored.
+
+Two things do travel with the item, because they are part of it: the words
+of its specification (a citation's text is written by the specification's
+author, and every member reads it) and anything copied into its title or
+description. When you create an item from page text, the dialog says that
+the quote is copied into the item, and warns when the page is in a
+Restricted space.
+
+## References follow published versions
+
+A page links to what its **published** version says. Live drafts, branches
+and pull requests are never indexed: a mention you type in a draft appears on
+the item when you publish, and one you write on a branch when the branch is
+merged into main. Restoring an older version changes the links with it.
+Earlier versions keep what they said in their own history.
+
+A specification links to what each **saved revision** says, and every
+revision keeps its own citations. An item therefore knows which page
+versions its current revision cites, and which only earlier revisions did.
+
+Pages and specifications never change each other's state:
+
+- Publishing a new version of a page never makes a specification's approval
+  outdated. A pinned citation keeps pointing at its version and shows that a
+  newer one exists.
+- Adopting a newer page version in a specification is an ordinary edit: it
+  creates a revision, and its approvals need another look like after any
+  material change ([approvals](/review/approvals)).
+
+## What to watch for
+
+- **Unpublished means unlinked.** If an item does not list your page, check
+  that the mention is in the published version, not only in your draft or
+  branch.
+- **Citation text is item content.** The words of a `[[` citation in a
+  specification are visible to everyone who reads the item, even when the
+  page itself is restricted. Choose a description you are happy for everyone
+  to see.
+- **Delivery mode does not matter.** Links work the same in projects that
+  deliver in Lictory and in projects that hand work off to Jira; only
+  iteration context needs native iterations
+  ([context pages in external projects](/knowledge/context-pages#in-external-projects)).
+- **No AI needed.** Every link is made by a person or derived from what
+  people published. With Lictory Intelligence off, everything here works.
+
+## Tips
+
+- Cite pinned page versions in specifications, so reviewers approve against
+  the exact text you read.
+- Propose page updates from delivered work: the page's history then says
+  which item and revision changed it.
+- Give each sprint a context page, and attach runbooks to the items they
+  support.
+
+<Cards>
+  <Card title="Pages in your work" href="/knowledge/in-work">
+    The Knowledge section of a work item, attaching pages and proposing page
+    updates.
+  </Card>
+  <Card title="Work in your pages" href="/knowledge/in-pages">
+    Item chips, work linked to a page, and creating work from page text.
+  </Card>
+  <Card title="Context pages" href="/knowledge/context-pages">
+    Pages for the board, backlog, teams and iterations, and iteration notes.
+  </Card>
+</Cards>

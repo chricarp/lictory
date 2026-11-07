@@ -1,0 +1,69 @@
+---
+title: Iteration reports
+description: Read an iteration's burndown, scope changes and velocity, and understand why a completed report never changes.
+---
+
+Every sprint and cycle has a **report**: what the team committed to, what
+it finished, what was added or removed along the way, and how the work
+burned down day by day.
+
+Open it from the backlog: **Report** on the active iteration, or a finished
+iteration under **Completed**. Completing a sprint also offers **View
+report**.
+
+![The Sprint 1 report: Committed at start, Completed, Added after start and Removed after start, the burndown chart with its dashed ideal line, and the sprint’s context page under Pages](/screenshots/delivery-iteration-report.webp)
+
+## What the report shows
+
+- **Totals**: **Committed at start**, **Completed**, **Added after start**,
+  **Removed after start** and, once the iteration is completed, **Carried
+  over**. Each shows points and item count.
+- **Burndown**: remaining points per day. The dashed line is the ideal pace
+  from the committed scope to the last day; the upper line shows the scope
+  as it changed. The chart appears once the iteration has started.
+- **Velocity**: committed and completed points of up to eight recent
+  completed iterations of the project.
+- **Pages**: the iteration's [context pages](/knowledge/context-pages), with
+  **Add page** and **Create iteration notes**.
+
+## How the numbers are made
+
+Reports are not computed from today's state of the items. Every change that
+matters to an iteration is recorded when it happens, in the same step as the
+change itself: an item added or removed, an estimate changed, an item
+completed or reopened. The burndown replays those records.
+
+When an iteration is completed, its totals are frozen. Editing an item
+afterwards, re-estimating it or moving it elsewhere does not rewrite a
+finished sprint's report.
+
+## Points or items
+
+Reports count points when the project uses estimates, and items when it
+doesn't (**No estimates** in **Project settings → Planning**). When a
+project uses estimates but nothing in the iteration is estimated yet, the
+burndown counts items and says so. Velocity needs estimates; without them
+it is not shown.
+
+Estimates in T-shirt sizes are stored as points (XS 1, S 2, M 3, L 5, XL 8),
+so they burn down and add up like any other points.
+
+## What to watch for
+
+- **Late estimates count as scope change.** Estimating an item after the
+  sprint started raises the scope line. Estimate before starting for a
+  clean burndown.
+- **Reopened work comes back.** Reopening a completed item in an active
+  iteration adds its points back to what remains.
+- **Velocity is the project's.** On a backlog narrowed to a team, sprints
+  don't compare their plan with it: it is not one team's capacity.
+- **Jira projects have no reports here.** Iterations are planned in Jira in
+  external mode.
+
+## Tips
+
+- Read **Added after start** at the retrospective: frequent additions
+  usually mean work started before it was ready.
+- Link the retrospective notes to the iteration so the report and its
+  conclusions stay together. See
+  [iteration notes](/delivery/iterations#iteration-notes).

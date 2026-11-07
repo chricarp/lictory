@@ -90,6 +90,13 @@ main** in the branch list) shows each conflict with **Base**, **Ours** and
 **Theirs** and lets you pick a side, keep both or edit by hand. See
 [conflicts](/spaces/branches#conflicts).
 
+### The discussions on a branch disappeared after a merge
+
+A branch's discussions end with the branch. Deleting a branch, or a merge
+that retires it, deletes its discussions with every reply; the confirmation
+said how many before you confirmed. Discussions on main and on other
+branches are kept. See [when a branch ends](/spaces/branches#when-a-branch-ends).
+
 ### Can I undo a publish or a merge?
 
 Versions are never deleted or rewritten. Restore the earlier version: that
@@ -125,8 +132,32 @@ The grant is recorded in the audit log. See
 Behavior the team is about to build belongs in the work item's
 specification: it is refined, reviewed by the project's disciplines, checked
 for readiness and delivered. Knowledge that outlives one piece of work (how a
-service works, a runbook, a decision record) belongs on a page. Mention the
-work item in the page with `#` to connect them.
+service works, a runbook, a decision record) belongs on a page. Connect them:
+mention the item in the page with `#`, cite the page in the specification
+with `[[`, or select text on the page and **Create work item**. See
+[knowledge links](/knowledge).
+
+### I mentioned an item on a page, but the item does not list the page
+
+An item lists what a page's **published** version says. A mention typed in
+a live draft or on a branch appears on the item once it is published or
+merged into main. The page must also be one you can read, and not archived.
+See [references follow published versions](/knowledge#references-follow-published-versions).
+
+### A decision card says "Couldn’t refresh"
+
+The page could not check the decision with the server again, for example
+while you were offline. The card keeps showing what it last read and when
+(_Couldn’t refresh · last checked 3m ago_); choose **Retry**, or wait: it
+tries again on its own. A card marked **Archived** shows a decision that was
+withdrawn on its work item and is kept for history.
+
+### Can a page change a work item?
+
+No. Chips, decision cards and work lists show what Work holds now, read with
+your own access, and nothing on a page changes an item's status, owner or
+specification. Open the item to change it. **Create work item** creates new
+work from page text; it never changes existing work.
 
 ### Where did my page go?
 

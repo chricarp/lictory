@@ -17,10 +17,18 @@ you cannot read does not exist for your agent either.
   (`listPageCommits`, `diffPageCommits`);
 - what merging a pull request would produce right now, with any conflicts
   (`previewPageMerge`);
-- a page's discussions (`listPageThreads`).
+- a page's discussions (`listPageThreads`);
+- the work a page knows about: items it mentions, items whose
+  specifications cite it or that it is attached to, items created from it,
+  and the projects, teams and iterations that keep it as context
+  (`listPageWork`, `listReferencesTo`);
+- published pages that match a phrase (`searchKnowledge`), and published
+  pages among the agreements and decisions that answer a question
+  (`searchProductKnowledge`), each with the exact version to cite.
 
 The complete list of capabilities is in
-[AI agents and MCP](/integrations/agents#spaces).
+[AI agents and MCP](/integrations/agents#spaces); the links between pages and
+work are in [find and cite knowledge](/integrations/agents#find-and-cite-knowledge).
 
 ## How an agent changes a page
 
@@ -31,10 +39,18 @@ a branch from the published version, commits the new content to it and opens
 a pull request into main. People then review it like any other pull request
 ([branches and pull requests](/spaces/branches)).
 
+When the change documents a work item, the agent passes the item's revision
+as the proposal's `origin`, like **Propose page update** on an item: the
+item then lists the proposal in its Knowledge section
+([knowledge in work items](/knowledge/in-work)).
+
 An agent can also start discussions on a page or a quoted passage and reply
 to them, organize spaces and pages as your access allows (create a space or
 a page, move or archive pages), and work with branches: start one, open a
-pull request, request a review or resolve conflicts on a branch.
+pull request, request a review or resolve conflicts on a branch. With your
+access it can attach a page to a work item, keep a page as context of a
+project, team or iteration, and create a work item from a passage of a
+published page.
 
 Ask, for example:
 
@@ -48,7 +64,7 @@ These are human decisions. Lictory's MCP tools tell an agent to perform
 them only when you explicitly ask it to, and Litto asks you to confirm
 first:
 
-- publishing a live draft;
+- publishing a live draft (agents never type into one);
 - approving or requesting changes on a pull request, and merging it;
 - resolving, reopening or marking a discussion blocking.
 

@@ -1,0 +1,100 @@
+---
+title: The Inbox
+description: See what is waiting on you across work items and pages, and keep up with the notifications that matter without an activity feed.
+---
+
+The **Inbox** is one place for everything addressed to you in an
+organization. It answers two questions in two views:
+
+- **To do**: what is waiting on you right now?
+- **Updates**: what happened that you should know about?
+
+Open it from **Inbox** in the sidebar. Its badge counts unread updates, or
+your to-dos when nothing is unread.
+
+![Dev Patel’s Inbox To do: two pull requests to review, a page change waiting for review marked Page, and a review requested on PAY-2 revision 2](/screenshots/inbox-todo.webp)
+
+## When to use it
+
+- At the start of the day, to see which reviews and blockers wait on you.
+- After time away, to catch up on what changed in work you are part of.
+- Instead of watching every specification: the Inbox brings you what needs
+  you.
+
+## To do
+
+**To do** is built from the current state of your work, not from events. An
+entry leaves as soon as its cause is gone: after you review, when a blocking
+discussion is resolved, when changes are made. Nothing needs marking as
+read.
+
+For work items:
+
+| Entry                              | When it appears                                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Review requested**               | A review of the item is requested from you or one of your disciplines and not completed. It names the review and the revision. |
+| **Pull request to review**         | A pull request on the item waits for your approval to be merged.                                                               |
+| **Changes requested**              | A reviewer requested changes on an item you created or are assigned to.                                                        |
+| **Blocked**                        | Your item has open blocking discussions.                                                                                       |
+| **Scope changed after commitment** | Your item's specification changed after a revision was accepted for delivery or published to the delivery tool.                |
+| **Requirements need attention**    | Delivery of your item is underway, but its readiness checks no longer all pass.                                                |
+| **Ready for delivery**             | Your item's readiness checks pass and it can be selected for delivery.                                                         |
+
+For pages of [Lictory Spaces](/spaces), marked **Page**:
+
+| Entry                 | When it appears                                                             |
+| --------------------- | --------------------------------------------------------------------------- |
+| **Review requested**  | A page change asks for your review and you have not decided on it.          |
+| **Review again**      | The page change was updated after your review, so your decision went stale. |
+| **Changes requested** | A reviewer asked for changes to your page change.                           |
+| **Ready to merge**    | Your page change is approved and nothing blocks it.                         |
+
+Entries are sorted by urgency (reviews first, ready work last), then by what
+changed most recently. Draft pull requests ask nothing of anyone, and a page
+change you contributed to does not ask for your review. Losing access to a
+space removes its entries.
+
+Each project also has a **Needs my review** view with the same review
+requests for that project ([review requests](/review/requests)).
+
+## Updates
+
+**Updates** lists your [notifications](/inbox/notifications), newest first.
+Unread ones are marked with a dot.
+
+- **Unread**, **All** and **Archived** switch what is shown.
+- Narrow the list by organization (this one or **All organizations**),
+  project (**Any project**), team (**Any team**) and type (**Any type**,
+  such as **Reviews and approvals** or **Pages**). When other organizations
+  have unread updates, the Inbox says so with a link to each.
+- Opening a notification takes you to what it is about and marks it read.
+
+New notifications arrive while the Inbox is open, without reloading.
+
+### Mark as read and archive
+
+- **Mark as read** or **Mark as unread** on a notification changes its read
+  state.
+- **Mark all read** marks every unread notification in this organization
+  read (in every organization, when **All organizations** is selected).
+- **Archive** removes a notification from **Unread** and **All**. Find it
+  under **Archived** and choose **Restore** to bring it back. Nothing is
+  deleted.
+
+## What to watch for
+
+- **To do follows your work, not your role.** Changes requested, blockers and
+  readiness appear on items you created or are assigned to. Watching an item
+  sends you its updates, not to-dos.
+- **Updates you cannot read disappear.** A page notification is shown only
+  while you can read its space; it returns if you regain access.
+- **There is no digest.** Lictory does not batch updates into a summary email;
+  it notifies sparingly instead. Choose what reaches you, and what is
+  emailed, in [notification settings](/inbox/notifications#choose-what-notifies-you).
+
+## Tips
+
+- Work **To do** from the top: reviews first unblock other people.
+- Archive updates once handled, so **All** stays a useful history.
+- Ask Litto "What is waiting on me?" from the Inbox for a summary with links
+  ([Litto](/ai/litto)).

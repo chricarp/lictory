@@ -1,0 +1,105 @@
+---
+title: Disciplines
+description: The kinds of work people do in a project, what each discipline lets its members do with work items, and how reviews are routed to them.
+---
+
+A discipline is a kind of work a person does in one project: Product,
+Engineering, QA, Security, UX. Disciplines do two jobs:
+
+- **They route reviews.** A review is requested from a discipline, and its
+  name becomes the review's responsibility ("Engineering approved
+  revision 4").
+- **They carry work item capabilities.** What a person may do with a
+  project's work items comes from the disciplines they hold in that project.
+
+A person can hold several disciplines in a project, and different ones in
+another project. Disciplines are not roles: being an administrator grants no
+work item capability ([three separate questions](/organization#three-separate-questions)).
+
+![Project settings, Disciplines: Product, Engineering and QA, each with its members and the work item capabilities it grants as checkboxes, and Add discipline](/screenshots/project-disciplines.webp)
+
+## Capabilities
+
+Each discipline turns on any of five capabilities. A person's capabilities
+in a project are the combination of their disciplines' capabilities there.
+
+| Capability                     | Lets members                                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Edit specifications**        | Create spec-backed items, revise the main specification, restore revisions, merge pull requests into main                                    |
+| **Change properties**          | Change status, priority, owner, parent, labels, milestones, iterations and ordering; archive items; create plain work such as bugs and tasks |
+| **Request reviews**            | Ask a discipline to review a revision, or cancel a request                                                                                   |
+| **Can be asked to review**     | Be asked for reviews; its members decide them                                                                                                |
+| **Hand off to delivery tools** | Export ready work to the project's delivery tool and link existing issues                                                                    |
+
+Every new project starts with:
+
+| Discipline      | Edit specifications | Change properties | Request reviews | Can be asked to review | Hand off |
+| --------------- | :-----------------: | :---------------: | :-------------: | :--------------------: | :------: |
+| **Product**     |         Yes         |        Yes        |       Yes       |          Yes           |   Yes    |
+| **Engineering** |                     |        Yes        |       Yes       |          Yes           |          |
+| **QA**          |                     |        Yes        |       Yes       |          Yes           |          |
+
+QA changes properties so testers can file bugs and move verified work along
+the board.
+
+### What needs no discipline
+
+Organization membership alone is enough to read every project, take part in
+discussions, start a branch of a specification and propose changes on it in
+a pull request, and suggest changes. Merging into the main specification
+needs **Edit specifications**.
+
+## Change disciplines
+
+In **Project settings → Disciplines** (project administrators):
+
+- **Add discipline** with a name (for example Security), an optional
+  description of what it looks after, and its capabilities.
+- Toggle a capability on or off for a discipline; the change applies at
+  once to everyone in it.
+- Rename a discipline or edit its description in place.
+- **Archive** a discipline you no longer use. Archived disciplines grant
+  nothing; **Restore** brings one back.
+
+Renaming or archiving a discipline never rewrites past reviews: they keep the
+name they were requested under.
+
+## Assign people
+
+In **Project settings → Members**, toggle the disciplines in each person's
+row. Adding someone to a discipline also makes them a project member. You can
+also place people in disciplines when you [invite them](/organization/members#invite-someone).
+
+## Review routing
+
+When you **Request review**, you choose from the project's disciplines that
+can be asked to review, as a required or optional review. The request goes
+to the discipline (any of its members can decide it) or to one person in it.
+See [review requests](/review/requests).
+
+- A readiness check can require a specific discipline's approval of the
+  current revision ([readiness](/review/readiness)).
+- An approval names the revision it was given for and becomes outdated when
+  the text changes materially ([approvals](/review/approvals)).
+- People without a discipline that can review are never asked, but can
+  still comment.
+
+## What to watch for
+
+- **Capabilities are per project.** A discipline in one project grants
+  nothing in another.
+- **Turning off a capability takes effect at once**, also for agents acting
+  for people in that discipline.
+- **Editing specifications is not needed to contribute text.** Engineering
+  and QA propose wording on a branch; someone with **Edit specifications**
+  merges it.
+
+## Tips
+
+- Add a discipline only when it reviews something the others do not:
+  Security for authentication and data exposure, UX for flows and copy.
+  Each extra discipline is another review to route.
+- Describe each discipline in one line ("Reviews feasibility, architecture
+  and failure behavior"). The description helps people pick reviewers.
+- Keep **Hand off** with the people who decide when work goes to Jira,
+  usually Product.

@@ -1,0 +1,109 @@
+---
+title: Suggest changes
+description: How to propose new wording for a specification today, what Lictory Intelligence proposes, and what happened to the older inline suggestions.
+---
+
+A comment says what is wrong; a proposed change says how to fix it. In
+Lictory every proposed change to a specification is reviewed the same way:
+on a branch, through a pull request, approved by the disciplines that own the
+concern. Nothing proposed becomes part of the specification until a person
+merges it.
+
+## Suggest a change to a passage
+
+<Steps>
+<Step>
+
+### Select the text
+
+In the specification's reading view, select the passage you want to change
+and choose **Suggest a change** in the toolbar that appears.
+
+</Step>
+<Step>
+
+### Rewrite it on the branch
+
+Lictory starts a branch named `suggestion` (`suggestion-2` and so on when the
+name is taken) from main and opens its editor with the passage selected.
+Rewrite it, then commit with a message that says why.
+
+</Step>
+<Step>
+
+### Open a pull request
+
+Choose **Open pull request**. The required reviews of the current revision
+are copied onto it, and reviewers approve the exact result.
+See [branches and pull requests](/specifications/branches).
+
+</Step>
+</Steps>
+
+This works whether or not main is protected, and whoever can open the item
+can do it: the branch is yours, and main stays unchanged until the pull
+request is approved and merged.
+
+<Callout title="Comment or change?">
+  If you are not sure what the text should say, start a
+  [discussion](/specifications/discussions) instead. Propose wording once the
+  question is settled, so reviewers approve an agreement rather than a guess.
+</Callout>
+
+## Changes proposed by Lictory Intelligence
+
+When [Lictory Intelligence](/ai) is on, it can propose fixes, but always as
+proposals:
+
+- **From an item review.** Select the findings you agree with and choose
+  **Open corrective pull request**. Lictory Intelligence applies exactly those
+  edits, without another model call, on its own branch, one pull request per
+  affected item, and invites you as a collaborator. Reviewers decide what
+  merges. See [Lictory Intelligence reviews](/ai/reviews).
+- **On a pull request.** A Lictory Intelligence review of a pull request can
+  annotate a finding with a suggested edit. A collaborator on the source
+  branch can choose **Commit suggestion** to commit it to the branch, where it
+  is reviewed with the rest of the change.
+
+Lictory Intelligence never writes main, approves, resolves discussions or
+merges.
+
+## Older inline suggestions
+
+Before branches and pull requests, Lictory proposed changes as **inline
+suggestions**: replacement text with a title and a rationale, reviewed by
+named people who could edit specifications, and merged as the next revision.
+Pull requests replaced them; Litto and Lictory Intelligence never create
+them.
+
+Suggestions recorded before the change are kept, with their reviewers and
+versioned decisions:
+
+- **In the browser**, they remain part of the item's history: the activity
+  says who opened, updated, approved and merged each one, and a merged
+  suggestion's revision is in [Versions](/specifications/history) like any
+  other. The browser no longer has a screen to open a suggestion itself.
+- **Through an MCP agent** with your permissions, you can still read an
+  item's suggestions (they come with the item) and act on an open one: its
+  assigned reviewer approves or requests changes, and merges an approved
+  suggestion into the next revision; its author or a specification editor
+  closes it. See [AI agents and MCP](/integrations/agents).
+
+If an old suggestion is still open and you want it, the simplest path is to
+copy its wording into a branch and open a pull request.
+
+## What to watch for
+
+- **There is no separate "accept" step.** A proposed change becomes part of
+  the specification only by a reviewed merge, which creates a new revision and
+  asks for approval of that exact text.
+- **A merge makes earlier approvals stale.** The pull request's own valid
+  approvals become approvals of the new revision; other required reviews are
+  asked again ([approvals](/review/approvals)).
+
+## Tips
+
+- Suggest the smallest change that settles the point. A focused branch is
+  reviewed faster and conflicts less with others.
+- Link the discussion that prompted the change in the pull request's
+  description, so reviewers see why.

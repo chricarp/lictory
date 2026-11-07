@@ -11,20 +11,20 @@ service that needs it ([privacy and telemetry](/self-hosting/privacy)).
 https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security headers)
                                  ├─ api            Hono API, sign-in, files, sync endpoints
                                  ├─ worker         AI runs, email, Jira exports, cycles
-                                 ├─ collaboration  live editing of pages in Spaces
+                                 ├─ collaboration  live editing of pages and specifications
                                  └─ zero-cache ──▶ postgres
 ```
 
-| Service         | Purpose                                                                                                                                       |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `proxy`         | The only public entry point: the app, the API, streaming and the sync and live editing sockets                                                |
-| `api`           | API, authentication, file access and the application's pages                                                                                  |
-| `worker`        | Background jobs: AI runs, notification email, Jira exports and status sync                                                                    |
-| `collaboration` | Live editing of [pages in Spaces](/spaces/editing) (`/collaboration`); exactly one per installation, it stores every edit in PostgreSQL       |
-| `zero-cache`    | Realtime sync engine with a replica that can always be rebuilt                                                                                |
-| `postgres`      | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead |
-| `migrate`       | One-shot: applies database migrations before a release is activated                                                                           |
-| `ops`           | One-shot: backups, restores and monitoring checks                                                                                             |
+| Service         | Purpose                                                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy`         | The only public entry point: the app, the API, streaming and the sync and live editing sockets                                                                                        |
+| `api`           | API, authentication, file access and the application's pages                                                                                                                          |
+| `worker`        | Background jobs: AI runs, notification email, Jira exports and status sync                                                                                                            |
+| `collaboration` | Live editing of [pages](/spaces/editing) and [specification drafts](/specifications/live-drafts) (`/collaboration`); exactly one per installation, it stores every edit in PostgreSQL |
+| `zero-cache`    | Realtime sync engine with a replica that can always be rebuilt                                                                                                                        |
+| `postgres`      | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead                                         |
+| `migrate`       | One-shot: applies database migrations before a release is activated                                                                                                                   |
+| `ops`           | One-shot: backups, restores and monitoring checks                                                                                                                                     |
 
 PostgreSQL, zero-cache and the collaboration service are on an internal
 network with no route to or from the internet; with an external database,

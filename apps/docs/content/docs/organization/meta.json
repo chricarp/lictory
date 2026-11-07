@@ -1,0 +1,13 @@
+{
+  "title": "Organization and access",
+  "pages": [
+    "index",
+    "members",
+    "projects",
+    "disciplines",
+    "security",
+    "audit",
+    "data",
+    "instance"
+  ]
+}

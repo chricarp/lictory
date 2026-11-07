@@ -1,0 +1,102 @@
+---
+title: Security and sign-in
+description: Require two-factor authentication, reset a member's second factor, how single sign-on works, and the organization's name, handle and logos.
+---
+
+Most sign-in settings belong to people and to the installation, not to an
+organization:
+
+| Setting                                      | Who sets it                 | Where                                                                                                  |
+| -------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Password, two-factor, passkeys, sessions     | Each person                 | [Account settings](/basics/account#sign-in-and-security)                                               |
+| Require two-factor for an organization       | Organization administrators | **Organization settings → Security** (below)                                                           |
+| Single sign-on, Google and Microsoft sign-in | The installation's operator | The server's configuration ([sign-in and SSO](/self-hosting/configuration#sign-in-and-single-sign-on)) |
+| Who may create an account or an organization | The installation's operator | The [access policy](/organization/instance#access-policy)                                              |
+
+![Organization settings, Security: Require two-factor authentication, still off, and each member with Two-factor off](/screenshots/org-security.webp)
+
+## Require two-factor authentication
+
+In **Organization settings → Security**, switch on **Require two-factor
+authentication**. Members without it are asked to turn it on before they
+can open the organization: they stay members and can sign in and set it up,
+but see none of the organization's work until they do. Setting it up lifts
+the hold at once.
+
+- You need two-factor on your own account first, so whoever turns the
+  requirement on can still get in.
+- The section lists every member and whether they have two-factor on, and
+  says how many cannot open the organization yet.
+- Turning the requirement off is always possible for an administrator who
+  is not held.
+- It applies to password sign-ins. Google, Microsoft and company single
+  sign-on rely on the provider's own checks; use your identity provider's
+  multi-factor policy for those.
+- A passkey does not count as two-factor authentication.
+
+The requirement is enforced on the server for everything: the app, agents
+connected through MCP and Litto. Email notifications are not affected.
+
+## Reset a member's two-factor
+
+When someone has lost both their authenticator and their backup codes, an
+administrator can remove their second factor: in the member list, choose
+**Reset two-factor**, then **Confirm reset**. Confirm the person's identity
+outside Lictory first, for example by a call.
+
+- Their password and passkeys stay. If the organization requires two-factor,
+  they set it up again before they can open it.
+- You need two-factor yourself, and cannot reset your own (use Account
+  settings). Only an owner can reset an owner.
+- Turning the requirement on or off and every reset are recorded in the
+  [audit log](/organization/audit).
+
+## Single sign-on
+
+An installation can let people sign in with your company's identity
+provider over OpenID Connect (Okta, Microsoft Entra ID, Keycloak,
+Authentik, Google Workspace and others). It is set up once for the whole
+installation by its operator; the sign-in page then shows **Continue with**
+followed by your provider's name. An installation can also turn password
+sign-in off so everyone signs in through the provider.
+
+Single sign-on decides who can sign in; it grants nothing inside Lictory.
+Organization membership still comes from invitations, and roles and
+disciplines from administrators. People connect the provider to an existing
+account from **Account settings → Connected accounts**.
+
+<Callout title="Not available">
+  Lictory has no per-organization single sign-on, no SAML, and no SCIM or group
+  synchronization. Groups in your identity provider do not create memberships or
+  disciplines.
+</Callout>
+
+## Sessions
+
+Each person sees how many devices are signed in and can **Sign out other
+sessions** from Account settings. Changing a password signs out every other
+session. An instance administrator who deactivates an account signs it out
+everywhere ([instance administration](/organization/instance#people)).
+
+## Name, handle and logos
+
+**Organization settings → General** holds what every member sees:
+
+- **Organization name**, shown in the sidebar and wherever the organization is named.
+- **Handle**, the organization's part of every address
+  (`lictory.example.com/northwind`). Changing it changes every link:
+  previously shared links stop working, so share the new ones.
+- **Logomark**, a square symbol (at least 64×64), shown when the sidebar is
+  collapsed and in the list of organizations; and **Full logo**, a wide logo
+  that includes the name (about 6:1) and replaces the name in the sidebar.
+  Logos are PNG, JPEG or WebP, at most 512 KB. Without one, the initial is
+  shown.
+
+## Tips
+
+- Require two-factor once your administrators have it, then watch the
+  member list: it shows exactly who is still held.
+- If your company uses single sign-on, ask your operator to configure it and
+  use the provider's multi-factor policy; that covers every sign-in, not
+  only passwords.
+- Change the organization handle rarely, and before you share many links.

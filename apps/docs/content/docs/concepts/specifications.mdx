@@ -1,91 +1,104 @@
 ---
 title: Specifications and revisions
-description: Proposals, specifications, immutable revisions, branches and pull requests, and the decisions a team records along the way.
+description: What a specification is, why its revisions are immutable, how protected main, branches and pull requests change it, and where decisions fit.
 ---
+
+A **specification** is the structured description of the behavior a team is
+agreeing on. In Lictory it is reviewed the way code is: it has revisions,
+diffs, discussions on exact passages, reviewers, approvals, checks and
+history. The review workflow is the product; the text is its primary
+surface.
+
+![PAY-2 "Retry failed card captures" in review: revision 2 of the specification, its discussions and the review rail with required reviews and readiness checks](/screenshots/specification-review.webp)
 
 ## Work items, proposals and specifications
 
-Every piece of work in Lictory is a **work item** with a project identifier
-such as `PAY-142`. Its **type** (Epic, Story, Task, Bug, Subtask by default)
-says what kind of work it is, and whether it carries a **specification**:
-only spec-backed types are refined, reviewed and checked for readiness. Plain
-work (a Task, say) has a revisioned description but no review workflow.
+Every piece of work is a **work item** with a project identifier such as
+`PAY-142`. Its **type** (Epic, Story, Task, Bug, Subtask by default) says
+what kind of work it is and whether it carries a specification. Only
+spec-backed types are refined, reviewed and checked for readiness; plain
+work has a description that is edited directly.
 
 A spec-backed item starts as a **proposal**: the problem, the intent, notes,
-rough stories, files and links. Proposals are expected to be incomplete;
-refinement makes them useful. As the team clarifies the behavior, the
-proposal becomes the **specification**, the Markdown document everybody
-reviews. Its acceptance criteria and failure behavior are part of the text.
+files and links, expected to be incomplete. As the team clarifies the
+behavior, the same item's text becomes the specification everybody reviews,
+including its acceptance criteria and failure behavior. Its **refinement
+state** (Draft, In refinement, In review, Ready) is separate from its
+delivery status; Lictory never merges the two.
 
-The project's **Proposals** view holds specifications that have not started
-refinement; **Refinement** holds those being clarified, reviewed or ready for
-delivery.
+Guides: [from proposal to ready](/specifications),
+[write a proposal](/specifications/proposals).
 
 ## Revisions
 
-Every material change to a specification's title or content creates an
-immutable **revision**. Revisions are never edited afterwards: they give the
-item its history, diffs between any two versions, the anchor for
+Every change to a specification's title or text, once saved, is an immutable
+**revision**. Revisions are never edited afterwards. They give the item its
+history, diffs between any two versions, the anchor for
 [approvals](/concepts/reviews#approvals-belong-to-revisions) and the source
-for restoring an earlier version. Restoring copies an old revision into a new
-one; history is kept.
+for restoring an earlier version, which copies it into a new revision.
 
-Property changes (status, owner, priority, iteration, estimate, labels and
-so on) are not material: they create no revision and never affect approvals.
+People write in a shared **live draft**, together and in real time. The
+draft is a working copy, never history: only **Save revision** makes it a
+revision. Every revision marks existing approvals outdated and re-requests
+the same reviews, so an approval always refers to the text that was
+reviewed. Property changes (status, owner, priority, iteration, estimate,
+labels) create no revision and never affect approvals.
+
+Guides: [the editor](/specifications/editor),
+[edit together](/specifications/live-drafts),
+[versions and changes](/specifications/history).
 
 ## Main, branches and pull requests
 
-The canonical specification lives on **main**. People with the _edit
-specifications_ capability edit main directly while the specification is
-taking shape. Once it first becomes [ready](/concepts/readiness), main is
-**protected**: from then on every change is proposed and reviewed.
-
-- A **branch** belongs to one specification. Anyone in the organization can
-  create one; its author and invited collaborators commit to it. A commit is
-  an immutable snapshot with an author and a message.
-- A **pull request** proposes merging a branch into main (or into another
-  branch). Reviewers see the diff, discuss it and approve or request changes.
-  Concurrent edits are combined automatically when they do not overlap;
-  overlapping edits are resolved explicitly, side by side.
-- **Merging** into main creates a new revision. The pull request's valid
-  approvals become reviews of exactly that revision, so the team does not
-  approve the same text twice.
-
-A branch can also propose a **breakdown**: new child items (Stories, Tasks)
-and changes to existing children. The breakdown is part of what reviewers
-approve, and the children are created only when the pull request merges, each
-recording the parent revision it came from.
+The agreed specification lives on **main**. While it is taking shape, people
+whose discipline may _edit specifications_ edit main directly. The first
+time it becomes [ready](/concepts/readiness), main is **protected**: from
+then on every change is proposed on a **branch** and merged through a
+reviewed **pull request**. A pull request can also propose the
+**breakdown** of the item into child work, which is reviewed with the text
+and created only when it merges. Merging creates a new revision of main.
 
 Lictory Intelligence and agents connected through MCP use the same branches
-and pull requests as people. Lictory Intelligence only proposes. An MCP agent
-acts with its person's permissions: it can edit an unprotected draft directly,
-and approves or merges only when that person explicitly asks it to.
+and pull requests as people. Lictory Intelligence only proposes; an agent
+acts with its person's permissions and approves or merges only when that
+person explicitly asks.
 
-<Callout title="Suggestions">
-  Earlier versions proposed changes as inline suggestions. Existing suggestions
-  remain readable and can still be accepted or rejected; new changes use
-  branches and pull requests.
-</Callout>
+Guides: [branches and pull requests](/specifications/branches),
+[breaking work down](/delivery/breakdown),
+[suggestions](/specifications/suggestions) (the earlier way to propose a
+change, still readable).
+
+## Discussions
+
+A **discussion** is attached to the exact passage it is about, on the
+revision it was written on. It can be marked **blocking**, which holds
+readiness until it is resolved. Resolving and reopening never delete a
+message. When the text changes, the discussion says so and links to the
+revision where its quote is marked.
+
+Guide: [discussions](/specifications/discussions).
 
 ## Decisions
 
 Discussions are transient; conclusions should not be. A **decision** is a
 durable record of an important conclusion (_"Retries reuse the original
-transaction ID"_), with its author and the revision it was recorded on. It can
-cite the discussion it came from, whose original context is preserved.
-Recording a decision neither approves the specification nor resolves the
-discussion. Decisions can be archived and restored.
+transaction ID"_), with its author and the revision it was recorded on. It
+can cite the discussion it came from. Recording a decision neither approves
+the specification nor resolves the discussion. Decisions can be archived
+and restored, and specifications and pages can refer to them.
 
 Decisions, approved ready specifications and delivered revisions together
 form the organization's **product knowledge**: a search that people, Litto
-and MCP agents use, where every result names its evidence and exact revision.
+and MCP agents use, where every result names its evidence and exact
+revision. See [product knowledge](/search/product-knowledge).
 
-## In the application
+Guide: [decisions](/specifications/decisions).
 
-![An approved specification showing revision 4, Engineering review and readiness evidence](/screenshots/specification-review.webp)
+## Delivery
 
-The text is the primary surface. Reviews and readiness checks remain visible
-beside it. In a native project, the revision to deliver is accepted
-explicitly, or automatically when work on the item starts or completes; the
-project's readiness policy decides whether that can happen before it is
-ready.
+Being ready means the checks pass; it does not commit anyone to building
+it. In a native project, the team accepts a revision for delivery and
+delivers it on the board; in an external one, a ready revision is handed
+off to the delivery tool. Either way, the revision the team agreed to stays
+recorded, and later revisions do not silently change it. See
+[delivery](/concepts/delivery).

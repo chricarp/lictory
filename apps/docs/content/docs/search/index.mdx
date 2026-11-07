@@ -1,0 +1,181 @@
+---
+title: Find anything
+description: Jump to items, pages and commands from the command palette, and search what published pages, specifications and decisions say.
+---
+
+Search finds things in two ways. The **command palette** opens items, pages
+and commands from anywhere. **Content search** finds a phrase inside
+published pages, specifications and decisions. Each result names the exact
+version that holds it. Both only show what you can read.
+
+![The command palette with the query “acquirer report”: an In pages result for Payments service with its space, version and an excerpt with the match marked, then See all results and Ask Litto](/screenshots/search-palette.webp)
+
+## When to use it
+
+- **Go somewhere fast.** Open `PAY-2`, the Payments board or the Engineering
+  Handbook space without the sidebar.
+- **Find where something is written.** Which page explains capture retries?
+  Which specification mentions `refund_limit`?
+- **Run a command.** Create an item, assign the open item to yourself, change
+  its status or open Litto.
+
+To find out what the team _agreed_ rather than where a phrase appears, use
+[product knowledge](/search/product-knowledge).
+
+## Open the command palette
+
+Press `Ctrl K` (`⌘ K` on a Mac) anywhere in the workspace, or `/` when you
+are not typing in a field. You can also use the search button in the
+sidebar, or in the top bar on a phone. Press `Ctrl K` again or `Esc`
+to close it.
+
+Type, move with the arrow keys and press `Enter` to open the highlighted
+result. Results arrive in groups:
+
+| Group                                                             | What it holds                                                                                                                                          |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Items**                                                         | Work items whose key or title matches, most recently updated first. Type a full key such as `PAY-2` to go straight to that item.                       |
+| **Pages**                                                         | Pages whose title matches, in spaces you can read.                                                                                                     |
+| **In pages**                                                      | Published pages whose text matches, with the space, the version (`v3`) and an excerpt.                                                                 |
+| **In specifications**                                             | Work items whose current specification matches, and approved or delivered revisions that match (`approved r2`, `delivered r4`).                        |
+| **Decisions**                                                     | Recorded decisions that match.                                                                                                                         |
+| **Search**                                                        | **See all results for “…”** opens the [results page](#the-results-page).                                                                               |
+| **Current item**, **Create**, **Navigate**, **Spaces**, **Views** | Commands for where you are: **Assign PAY-2 to me**, **Set status: …**, **Create Story**, **Go to Inbox**, **Payments · Board**, a space, a saved view. |
+| **Litto**                                                         | **Ask Litto: “…”** sends what you typed to [Litto](/ai/litto), when Lictory Intelligence is on.                                                        |
+
+Title matches appear as you type. What the content says comes from the
+server a moment later, once you have typed at least two characters; the
+footer says **Searching pages, specifications and decisions…** meanwhile.
+A title already listed under **Items** or **Pages** is not repeated below.
+
+<Callout title="Commands follow your permissions">
+  The palette only offers what you may do. **Assign to me** and **Set status**
+  appear on an item in a project delivered in Lictory, and only when your
+  disciplines let you change its properties. **Create** commands follow your
+  disciplines too.
+</Callout>
+
+## What content search covers
+
+Content search looks for the words exactly as you typed them, as one
+phrase, in any case:
+
+- **Published pages** of Lictory Spaces, as their current published version.
+  A page result opens the page at the block that matched.
+- **Work items**: their title and current specification.
+- **Approved and delivered revisions** of specifications. These open that
+  exact revision in the item's history, even after the specification moved
+  on.
+- **Recorded decisions**. These open the revision the decision was recorded
+  on.
+
+Titles that match come first, then the most recent.
+
+Live drafts, branches and open pull requests are never searched. Text
+nobody has published or committed cannot be found or quoted. To find a
+change still in progress, open the page's or item's branches.
+
+## The results page
+
+**See all results for “…”** opens **Search** with everything that matches.
+Its address (`/your-org/search?q=refund`) holds the query and filters, so you
+can bookmark a search or send it to a teammate. They see only what they can
+read.
+
+![The Search results page for “refund” with the All, Pages, Specifications and Decisions filters, and results that each show their kind and version, where they are, and an excerpt with the match marked](/screenshots/search-results.webp)
+
+<Steps>
+<Step>
+
+### Search
+
+Type in **Search pages, specifications and decisions** and press `Enter`.
+
+</Step>
+<Step>
+
+### Narrow it
+
+Choose **All**, **Pages**, **Specifications** or **Decisions**. With more
+than one project, choose one under **Project**; a project also covers the
+spaces that belong to it or its teams.
+
+</Step>
+<Step>
+
+### Read the result
+
+Each result shows:
+
+- its kind and version: **Page · v3**, **Specification · revision 5**,
+  **Approved · revision 2**, **Delivered · revision 4** or **Decision ·
+  revision 2**;
+- where it is: the space and the pages above it, or the item key;
+- an excerpt with the matched words marked.
+
+The title opens the version the result is about. On decisions and approved
+or delivered revisions, **Open current** opens the item as it is now.
+
+</Step>
+<Step>
+
+### Load more
+
+Results come 20 of each kind at a time. When more exist, the count says
+**so far** and **Show more results** loads the next batch. Something
+published or recorded while you page through is not repeated or skipped.
+
+</Step>
+</Steps>
+
+If nothing matches, try fewer words, or **All** and every project: the
+search matches the phrase as typed, not each word on its own.
+
+## What you never see
+
+Search only returns what you can read right now:
+
+- **Restricted spaces** appear only for the people named on them, whatever
+  their administrator role ([space access](/spaces/access)). Nothing about an
+  unreadable page reaches you: no title, excerpt, version or count.
+- **Archived** pages, the pages under them, archived spaces, archived items
+  and archived projects are left out. Restoring them brings them back.
+- **Unpublished text**: live drafts, branches and pull requests.
+
+## Results stay current while open
+
+The palette and the results page keep checking what they show:
+
+- If you lose access to a result's space, or its page, item or project is
+  archived, the result disappears at once.
+- When a shown result changes (a page is published again, an approval is
+  superseded), the results are read again and the server decides what
+  remains.
+- Changes your browser is not told about, such as a decision archived on an
+  item you have not opened, are caught by a check every minute while the
+  window is visible, and when you return to it.
+
+If that check fails, for example while you are offline, the results stay on
+screen and say so: **Couldn’t refresh · last checked 2m ago ·
+Retry**. Until a check succeeds they may be out of date. Choose **Retry** to
+check again.
+
+## What to watch for
+
+- **A match is not an agreement.** A page that mentions a behavior does not
+  mean the team agreed to it. Check the kind of result, or use
+  [product knowledge](/search/product-knowledge), before you rely on it.
+- **Phrases, not keywords.** `capture retry` does not find "retry the
+  capture". Search for the shortest distinctive phrase.
+- **Litto results need Lictory Intelligence.** Without it the palette has no
+  **Ask Litto** entry; **Litto setup** explains how to turn it on.
+
+## Tips
+
+- Press `/` and type a key such as `PAY-2` to open an item without touching
+  the mouse.
+- Share a results page link in a discussion when several pages and
+  specifications cover the same topic. Each reader sees only what they can
+  read.
+- When a page result looks out of date, compare it with the approved
+  revision, then [propose a page update](/knowledge/in-work) from the work.

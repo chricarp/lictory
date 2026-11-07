@@ -1,0 +1,251 @@
+---
+title: Litto
+description: Ask Litto about the page you are on, get answers that cite exact versions, draft proposals and prepare changes for review, with your permissions and your approval.
+---
+
+**Litto** is the assistant of [Lictory Intelligence](/ai). Ask it about the
+item, page or board in front of you. It can find what your team agreed,
+summarize discussions and draft proposals from notes. It can also prepare
+changes for people to review.
+
+Litto works as you, with exactly your permissions. It asks before anything
+that is a decision or hard to undo.
+
+![Litto answering “What do our pages say about the acquirer report?”: it quotes the sentence from version 1 of Payments service and lists the page it read under the answer](/screenshots/litto-chat.webp)
+
+## When to use it
+
+- **Catch up.** "Where does PAY-2 stand?", "Summarize the discussion",
+  "What needs my review?"
+- **Check an agreement.** "What did we decide about capture retries?" Litto
+  searches [product knowledge](/search/product-knowledge) and cites what it
+  found.
+- **Find gaps.** "What is missing here?" on a passage of a specification.
+- **Turn material into work.** Paste meeting notes or a customer request and
+  ask for proposals.
+- **Prepare a change.** "Propose acceptance criteria for PAY-3 as a pull
+  request." Litto opens it; reviewers decide.
+
+## Open Litto
+
+- **Beside any page**: choose **Ask Litto** at the end of the page header, or
+  press `Ctrl J` (`⌘ J` on a Mac). On wide screens Litto opens beside the
+  page, which narrows; on phones it opens as a sheet over the page. Press
+  `Esc` or **Close Litto (Esc)** to close it.
+- **On a text selection**: select text in a specification or a published page
+  and choose **Ask Litto** in the toolbar that appears.
+- **From the command palette**: type a question and choose **Ask Litto:
+  “…”**, which sends it right away ([search](/search)).
+- **On its own page**: choose **Litto** in the sidebar. Its page lists your
+  conversations. With Lictory Intelligence on, it is also your organization's
+  home page.
+
+Litto is only available when Lictory Intelligence is on for your
+organization ([turn it on](/ai#turn-it-on-for-your-organization)).
+
+## Ask about what you are looking at
+
+Each message you send from the side panel carries what you were looking at:
+the page, the project, the open work item, the text you selected and the
+review you were reading. The panel's header says so (**About PAY-2**,
+**About the selection**, **On Board**), and the context is shown above your
+message in the conversation.
+
+![Litto opened beside a published page with the selected passage attached to the message as context](/screenshots/litto-page-context.webp)
+
+- **A selection travels with your next message.** It appears above the
+  composer as **Sent with your next message**. Remove it with **Remove the
+  selection from the message**.
+- **Pages are asked about as the version on screen.** On a published page
+  that is its published version; on an earlier version or a branch, that
+  version. A live draft is never sent: it is not history yet.
+- **Suggestions follow the page.** On an item: **Where does this stand?**,
+  **Break it down**, **What is still unclear?**, **Draft acceptance
+  criteria**. On a page: **Summarize this page**, **Draft proposals from this
+  page**, **Which work items does this page mention?** and **Compare with
+  PAY-2** for an item the page cites. On a selection: **What does this
+  mean?**, **Does this match what was agreed?**, **Draft a proposal from
+  this**. The board, backlog, iterations, Spaces and the Inbox have their own.
+
+Context only names what you were looking at. Litto still reads it with your
+access, so context never shows Litto anything you cannot read.
+
+## Answers cite exact versions
+
+![Litto’s answer beside the page: “Version 1 of Payments service mentions PAY-1, PAY-2.”, the step it worked through, and Read this page naming the page and its version](/screenshots/litto-page-answer.webp)
+
+Litto answers from what it reads, not from memory:
+
+- It searches [product knowledge](/search/product-knowledge) before it
+  describes how the product behaves. It weighs approved and delivered
+  revisions above decisions, and decisions above pages. When a page
+  disagrees with an agreement, it names both.
+- It cites the revision number of a specification and the version of a page,
+  and links to that exact version.
+- Each step that searched or read pages lists them with their space and
+  version. An answer that rests on pages lists them under the answer in
+  **Pages used** (for example **Payments · version 3 · reviewed**). Each link
+  opens the version Litto read, not today's page.
+- It says when a point is its own inference rather than something recorded.
+
+## Access is checked on every message
+
+Litto checks your access again each time you send a message, for the page
+in the context and for everything earlier in the conversation:
+
+- If you lost access to a page since you asked about it, Litto is told the
+  page is unavailable and does not see its title or the text you quoted.
+- Earlier answers and steps that used that page are withheld from what is
+  sent to the AI provider, so they cannot leak into a new answer.
+- Your own copy of the conversation is unchanged; only what is sent to the
+  provider is filtered.
+
+Text from pages and tools reaches Litto marked as data written by people,
+never as instructions to follow.
+
+## What Litto can do for you
+
+Litto uses the same operations you can perform in the app, limited by your
+disciplines and access in each project. For example, it can:
+
+- read items, specifications, discussions, reviews, boards, iterations and
+  pages, and answer questions about how work is going;
+- create work items and propose changes to specifications through a
+  [branch and pull request](/specifications/branches), including a proposed
+  breakdown;
+- propose a page update for review ([page branches](/spaces/branches));
+- start discussions and request reviews;
+- record a [decision](/specifications/decisions), only when you ask for it.
+  It does not resolve the discussion the decision came from.
+
+### Approve its actions
+
+Some actions need your approval in the conversation before they run: those
+that record a human decision (approve, merge, resolve, publish to a delivery
+tool) and those that cannot easily be undone. Litto shows a card with the
+action, what it applies to and its details:
+
+> _This is a decision or cannot be undone easily. It runs as you, only if you
+> approve._
+
+Choose **Approve** to run it as you, or **Decline**. Litto does not approve,
+merge, resolve discussions or publish unless you asked it to, and even then
+it waits for you.
+
+### Questions and recommendations
+
+- When something is ambiguous, Litto asks instead of guessing, with choices
+  where it can. Answer and choose **Submit answers**, or dismiss the
+  questions and answer in the chat.
+- When it notices a change you did not ask for (split a story, add a missing
+  criterion), it shows a **Recommendation** with its evidence and waits.
+  Choose **Accept** or **Not now**.
+
+### What stays with you
+
+Some things are never done through Litto, by policy: credentials and access
+tokens, account security, organization membership and administrator roles.
+Litto tells you where to do them in the app.
+
+## Draft proposals
+
+Litto turns rough material (meeting notes, customer requests, support
+tickets, documents, a page) into **proposed** proposals. Nothing is created
+until you choose.
+
+<Steps>
+<Step>
+
+### Give it the material
+
+Paste or describe it in a conversation and ask for proposals. On a page,
+choose **Draft proposals from this page** in the side panel. Or select text
+on a published page and choose **Create work item**, then **Draft with
+Litto** and **Draft proposals**.
+
+</Step>
+<Step>
+
+### Read the drafts
+
+![Draft proposals with Litto: the selected text, the project, and two drafted proposals to choose from, each quoting its sentence, with Cancel, Draft again and Choose drafts to create](/screenshots/litto-draft-proposals.webp)
+
+Each draft has a title, the problem and expected outcome as the sources
+state them, open questions, suggested reviewer disciplines and related
+product knowledge. Every draft quotes the sources it rests on; a quote that
+does not appear word for word in the source is dropped, and so is a draft
+without one. What Litto inferred is listed separately from what it read.
+
+</Step>
+<Step>
+
+### Choose what to create
+
+Tick the drafts you want and create them (**Create 1 proposal**). They become
+ordinary proposals in refinement. A proposal drafted from a page remembers
+the page, the version and the passage it came from
+([work from pages](/knowledge/in-pages)).
+
+</Step>
+</Steps>
+
+Drafting needs permission to edit specifications in the project. It reads at
+most 60,000 characters across ten sources and says when it truncated them.
+Images are not supported yet. The material is sent to the AI provider for
+this one request and not stored; only the proposals you create are saved.
+
+## Manage conversations
+
+Conversations are private to you. The Litto page lists them under
+**Conversations**, grouped by **Pinned**, **Today**, **Yesterday**,
+**Previous 7 days**, **Previous 30 days** and **Older**.
+
+- **New chat** starts a conversation (`Ctrl Shift O`, `⌘ ⇧ O` on a Mac).
+- **Search conversations** filters the list.
+- The menu on a conversation offers **Rename**, **Pin** (or **Unpin**) and
+  **Delete**. Choose **Delete** twice to confirm; deleting stops any answer
+  still in progress.
+- Conversations started in the side panel stay out of the list until you
+  choose **Open in Litto**.
+
+Answers keep going when you close the panel or the browser: the server
+works on them, and the conversation shows where it stands (**Working**,
+**Waiting for your input**, **Completed**, **Stopped with an error**).
+**Stop generating** stops the answer; an action that already started may
+still finish. When an answer stopped with an error, **Retry** continues from
+the last completed step. Litto waits as long as needed for your answer to a
+question or approval.
+
+## Dictate
+
+Choose **Dictate** in the composer, or press `Ctrl Shift Space` (`⌘ ⇧ Space`
+on a Mac), and speak. Words appear where your cursor was, and you can keep
+editing while you talk. Nothing is sent until you send it. `Esc` cancels:
+dictated words you have not edited are removed.
+
+Your audio goes straight from your browser to the AI provider and is neither
+recorded nor stored by Lictory.
+
+## What to watch for
+
+- **Litto acts as you.** A pull request Litto opens is yours, and you cannot
+  approve a change you contributed to. Several agents using your identity do
+  not count as independent reviewers.
+- **Approve with care.** The approval card shows exactly what will run.
+  Decline anything you did not intend.
+- **Answers are proposals.** Check cited versions before you rely on an
+  answer, especially for behavior nobody recorded.
+- **Live drafts are invisible to Litto.** Commit or publish the text first, or
+  paste it into the conversation.
+
+## Tips
+
+- Select the exact passage before you ask "What is missing here?". Answers
+  about a selection are short and specific.
+- Ask "Does this match what was agreed?" on a page passage to compare it
+  with the approved specification it cites.
+- Pin the conversations you return to, such as a weekly "What needs me
+  first?" in the Inbox.
+- When Litto finds a gap, ask it to open a pull request with the fix rather
+  than editing the specification yourself. Reviewers see exactly what
+  changed.

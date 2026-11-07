@@ -22,6 +22,12 @@ Anyone who can edit the space can start a branch:
   name** and where to **Start from**: the **Current main version** or any
   earlier version, which is how you bring back an old version through a
   review.
+- From a work item, **Propose page update** in its **Knowledge** section
+  opens a branch of the page you choose, named after the change and linked
+  to the item's current revision ([propose a page
+  update](/knowledge/in-work#propose-a-page-update)). The pull request you
+  open from it takes the change as its default title, and the item follows
+  it until it merges.
 
 Once a page has more than one line, a **branch switcher** appears in the page
 header. It lists main (with _Published_, and whether its draft has
@@ -58,7 +64,7 @@ In **Version history → Pull requests**, **Create pull request** asks for:
 - a **Title** and a **Description**;
 - **Start as draft**, to share it before asking for reviews.
 
-![The pull request "Allow partial refunds" from partial-refunds into main: its description, the resulting changes (two added sections, Partial refunds and Timing), and the review summary with Dev Patel as a required reviewer, Pending, with Cancel request, Add reviewer, and the merge check "Requires approval from Dev Patel" above a disabled Merge pull request](/screenshots/spaces-pull-request.webp)
+![A page pull request: its title and description, the resulting changes with the added Automatic retries section, and the review summary with Dev Patel required and Pending, Add reviewer, and the merge check “Requires approval from Dev Patel” above a disabled Merge pull request…](/screenshots/spaces-pull-request.webp)
 
 A pull request shows:
 
@@ -120,11 +126,18 @@ approval never counts toward merging. Old decisions stay in the history.
 | _No changes remain to merge_                             | The target already contains everything; close the pull request                             |
 
 When every check passes the summary says _All merge checks pass_ and
-**Merge pull request** becomes available: to editors of the space for a
+**Merge pull request…** becomes available: to editors of the space for a
 merge into main, to the target branch's author and collaborators for a merge
 into a branch. In a Direct space no
 review is required, but a request for changes or a blocking discussion still
 stops the merge.
+
+**Merge pull request…** asks you to confirm first. The confirmation says
+whether the source branch is deleted after the merge (_Branch … will be
+deleted after the merge._ or _… stays available after the merge._) and how
+many discussions the merge deletes (see
+[when a branch ends](#when-a-branch-ends)). Choose **Confirm merge**, or
+**Merge and delete discussions** when it deletes some.
 
 Merging into **main** publishes the result as the page's next version,
 records the valid approvals on it (**Approved** in a Reviewed space,
@@ -174,7 +187,7 @@ and any unsaved text of theirs is kept for them
 
 ## Close, delete and undo
 
-Nothing in a page's history is ever rewritten:
+Nothing in a page's versions is ever rewritten:
 
 - **Revoke decision** withdraws an approval or a request for changes;
   **Cancel request** withdraws a review request.
@@ -183,5 +196,42 @@ Nothing in a page's history is ever rewritten:
   its open discussions are resolved, each recorded.
 - **Delete branch…** (by its author or an editor of the space) disconnects
   its editors and removes it from the page's branches; its commits stay in
-  the history. Close its open pull requests first. A deleted branch is not
-  restored: start a new branch from its last version instead.
+  the history, but its discussions are deleted
+  ([when a branch ends](#when-a-branch-ends)). Close its open pull requests
+  first. A deleted branch is not restored: start a new branch from its last
+  version instead.
+
+## When a branch ends
+
+A discussion belongs to the line it was written on. When a branch ends,
+because it is deleted or because a merge retires it, **its discussions are
+deleted with it**: open and resolved, blocking and non-blocking, with every
+reply. A discussion about a line that no longer exists cannot be acted on,
+and left behind it would block merges forever. Lictory deletes discussions
+in no other case.
+
+| What happens                           | Deleted                                                                                | Kept                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Delete branch…**                     | Every discussion on the branch and on pull requests from it                            | Discussions on main and on other branches                   |
+| A merge that deletes the source branch | The same, and the pull request's own discussions                                       | Discussions on the target and other branches                |
+| A merge that keeps the source branch   | Discussions on the source not tied to another pull request, and the pull request's own | The source's other pull requests' discussions, the target's |
+| **Close pull request…**                | Nothing: its open discussions are resolved, each recorded                              | Everything                                                  |
+
+You are told before anything is deleted: the delete and merge confirmations
+say how many discussions go, by state, and that this cannot be undone (_This
+permanently deletes … on this branch, with all their replies._). If the
+count changes while the confirmation is open, it says so; cancel and open it
+again. A merge never deletes an open blocking discussion: resolve it first,
+like any blocking discussion that holds a merge.
+
+To keep a conclusion, record it before the branch ends: resolve the
+discussion with a reply that states it, put it in the page itself, or record
+it as a [decision](/specifications/decisions) on the work item it is about.
+
+## Tips
+
+- When delivered work changes how something behaves, propose the page update
+  from the work item (**Propose page update**), so the page's history says
+  which item and revision the change came from.
+- Keep a branch to one change and its pull request small: reviewers approve
+  the exact result, and every new commit asks them to look again.

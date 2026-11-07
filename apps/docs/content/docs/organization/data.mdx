@@ -1,0 +1,154 @@
+---
+title: Export and delete an organization
+description: Take a complete copy of an organization's data, what the archive contains, and how scheduled deletion and its cancellation work.
+---
+
+Your organization's data is yours. Administrators can take a complete copy
+at any time, to keep a record, to leave the installation or to move to
+another one. Owners can delete the organization; deletion waits for a grace
+period during which it can be cancelled.
+
+## Export the data
+
+<Steps>
+<Step>
+
+### Start the export
+
+Go to **Organization settings → Data export** and choose **Export data**.
+Organization administrators only. One export runs at a time; while it is
+being prepared the button says **Export in progress**.
+
+</Step>
+<Step>
+
+### Wait, or leave
+
+The archive is prepared in the background, so you can leave the page. Large
+organizations take longer; nothing else slows down meanwhile.
+
+</Step>
+<Step>
+
+### Download it
+
+When it is ready, **Download** saves the archive. Archives can be downloaded
+for 7 days, then they expire; the list of exports stays as history.
+
+</Step>
+</Steps>
+
+![Organization settings, Data export: what an export contains, Export data, and No exports yet](/screenshots/org-export.webp)
+
+Starting and downloading exports are recorded in the
+[audit log](/organization/audit).
+
+### What the archive contains
+
+A complete copy of the organization as of one moment:
+
+- the organization, its logos, members with their application role, former
+  members by name, and invitations;
+- projects, project members, disciplines, teams, labels, milestones, work
+  item types, workflow statuses, iterations and their history, and every
+  version of each Definition of Ready;
+- work items, relations and links to Jira issues;
+- every specification revision, branch, commit and pull request; reviews and
+  approvals, each with the revision it applies to; readiness checks and
+  sign-offs; suggestions; discussions with every message; decisions;
+  activity;
+- spaces, pages with every version, branches, page pull requests and their
+  reviews, page discussions, and live drafts as they stand;
+- knowledge links: pages attached to work items, the page content items were
+  created from, page updates proposed from items, and context pages;
+- attachments (the files themselves when file storage is configured);
+- Jira connections (without credentials), Lictory Intelligence runs and
+  context;
+- the audit log.
+
+Not included: anyone's private Litto conversations, personal notifications
+and preferences, and credentials of any kind (passwords, sessions, tokens,
+Jira credentials).
+
+The archive is a `.tar.gz` of JSON Lines files (one per kind of record), a
+`work-items.csv` for spreadsheets, the attachment files, and a
+`manifest.json` that lists everything in it. Identifiers are kept exactly,
+so references between files (an approval to its revision, a reply to its
+discussion) resolve within the archive.
+
+<Callout title="Import is not available yet">
+  The format is designed so an archive can be imported later, but Lictory cannot
+  import one today.
+</Callout>
+
+## Delete an organization
+
+Only owners can delete an organization.
+
+<Steps>
+<Step>
+
+### Export first
+
+**Organization settings → Delete organization** shows the latest export, or
+says there is none, with a link to **Data export**. Take one if you might
+need anything later.
+
+</Step>
+<Step>
+
+### Confirm with the handle
+
+![Organization settings, Delete organization: what scheduling the deletion does, Export the data first, the field for the organization’s handle, and Schedule deletion](/screenshots/org-delete.webp)
+
+Type the organization's handle where the page asks for it and choose
+**Schedule deletion**.
+
+</Step>
+</Steps>
+
+Scheduling locks the organization at once: nobody can open its projects or
+change anything in it, and every member is told by email. Members still see
+it in their list of organizations, with the date it will be deleted.
+
+After the grace period (30 days, unless your installation sets another),
+its projects, work items, specifications and every revision, reviews,
+approvals, discussions, decisions, spaces and pages with their history,
+attachments, Jira connections with their credentials, and its audit log are
+permanently deleted.
+
+### During the grace period
+
+- **Owners** can still start and download data exports, and **Cancel
+  deletion**, which opens the organization again as it was.
+- **Administrators and members** see the locked page and can ask an owner
+  to cancel.
+- Work that was already queued (a Jira hand-off, an analysis) still
+  finishes; nothing new starts.
+- **Instance administrators** see that the deletion is scheduled, but
+  cannot cancel it or bring it forward.
+
+### What remains afterwards
+
+- People's accounts, with their other organizations, are not affected.
+- The installation's history keeps a record that the organization existed,
+  who scheduled its deletion and what was removed.
+- Lictory does not revoke the Jira token at Jira: the Jira administrator
+  revokes it there.
+
+## What to watch for
+
+- If you are the organization's **only owner** and delete your account after
+  scheduling the deletion, it still happens on its date, but nobody can
+  cancel it any more.
+- The export does not leave the server by itself: download it and store it
+  where your company keeps records.
+- Archives are kept in the database until they expire; a very large export
+  takes database space for those days.
+
+## Tips
+
+- Export before every big change (switching delivery to Jira, a large
+  reorganization), not only before deletion. It costs nothing to keep a copy.
+- Before deleting, tell members a few days ahead and give them the export
+  date, so nobody is surprised by the locked page.

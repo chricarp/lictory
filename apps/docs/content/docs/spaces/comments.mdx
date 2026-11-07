@@ -7,7 +7,7 @@ Comments in Spaces are discussions about something specific: a passage of
 the page, or the page as a whole. They stay attached to that text as the
 page changes, so nobody has to ask what a comment was about.
 
-![The Payments service page with the Comments panel open: 1 open, 1 blocking. A blocking comment by Maria Chen quotes "Failed captures are retried three times with exponential backoff", which is tinted in the page, and asks whether the third retry should page the on-call engineer, with Reply, Resolve and Mark non-blocking](/screenshots/spaces-comments.webp)
+![A page with the Comments panel open beside it: a discussion quotes “02:00 UTC”, which is tinted in the page, with Sam Rivera’s question and Reply, Resolve and Mark blocking](/screenshots/spaces-comments.webp)
 
 ## Start a discussion
 
@@ -16,9 +16,10 @@ page changes, so nobody has to ask what a comment was about.
 - **On the whole page.** Choose **Comment on the page** at the foot of the
   Comments panel.
 
-Write in the composer and post with **Mod+Enter**. Tick **Blocking** when the
-point must be settled before the page's changes can merge. Mention people
-with `@` to notify them.
+Write in the composer, the same editor as the rest of Lictory, and post
+with **Mod+Enter**. Tick **Blocking** when the point must be settled before
+the page's changes can merge. Mention people with `@` to notify them;
+`#` and `[[` mention work items and pages as in the page.
 
 On the published page, selecting text needs a pointer (or the browser's caret
 browsing): keyboard users comment on the whole page there, or on text in the
@@ -43,7 +44,9 @@ comments), as a sheet on narrow ones. Escape closes the sheet.
 
 A discussion belongs to the line it was written on: the published page and
 its live draft share theirs, each branch has its own, and a pull request's
-discussions stay on the pull request.
+discussions stay on the pull request. When a branch is deleted or a merge
+retires it, its discussions are deleted with it, after a confirmation that
+says how many ([when a branch ends](/spaces/branches#when-a-branch-ends)).
 
 ## Comments stay on their text
 
@@ -83,10 +86,10 @@ and contributors of its versions) are notified.
 | **Can comment** | Also start discussions, reply, resolve, reopen, mark blocking or non-blocking, attach files |
 | **Can edit**    | The same as comment                                                                         |
 
-Messages are never edited or deleted, and resolving keeps every message:
+Messages are never edited, and resolving keeps every message:
 the history shows who resolved or reopened a discussion and when it became
-blocking. Discussions on an archived page or in an archived space are
-read-only. People who cannot read a space cannot tell a discussion exists.
+blocking. Discussions are deleted only with the branch they belong to.
+Discussions on an archived page or in an archived space are read-only. People who cannot read a space cannot tell a discussion exists.
 
 ## Notifications
 

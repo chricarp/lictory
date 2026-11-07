@@ -1,0 +1,157 @@
+---
+title: Sprints and cycles
+description: Plan work into time-boxes, start and complete sprints by hand or let cycles run on a schedule, and keep each iteration's notes with it.
+---
+
+An **iteration** is a time-box of planned work. A native project plans in
+one of three ways:
+
+- **None**: a ranked backlog, without time-boxes.
+- **Sprints**: you create, start and complete each one by hand.
+- **Cycles**: Lictory schedules them from a length and a start day, starts
+  and completes them, and rolls unfinished work into the next one.
+
+One iteration per project is active at a time.
+
+## Set up planning
+
+Project administrators choose in **Project settings → Planning**:
+
+- **Iterations**: **None**, **Sprints** or **Cycles**;
+- **Length**: 1, 2, 3, 4, 6 or 8 weeks;
+- for cycles, **Starts on** (the weekday a cycle begins) and **Upcoming
+  cycles** (how many planned cycles to keep ahead of the active one);
+- **Estimates**: the [estimate scale](/delivery/backlog#estimates).
+
+## Run a sprint
+
+<Steps>
+<Step>
+
+### Create it
+
+On the backlog, choose **New sprint**. It starts the day the last open
+sprint ends (or today) and lasts the project's length. Sprints are numbered
+(**Sprint 1**, **Sprint 2**); **Edit** on the sprint gives it a name and a
+**Sprint goal**.
+
+</Step>
+<Step>
+
+### Plan it
+
+Drag work from the backlog into the sprint. The sprint shows its item count,
+points and the team's recent velocity, so you can see when the plan is
+larger than what the team usually finishes.
+
+</Step>
+<Step>
+
+### Start it
+
+Choose **Start**. Only one sprint can be active: complete the active one
+before starting another. The board now shows the active sprint by default.
+
+</Step>
+<Step>
+
+### Complete it
+
+Choose **Complete**. When work is unfinished, pick where it goes: the next
+planned sprint, or **Backlog**. Completed work stays in the sprint's report,
+which is frozen at that moment. **View report** opens it.
+
+</Step>
+</Steps>
+
+Starting and completing need project administration or a discipline that
+can **Change properties**.
+
+## Let cycles run
+
+With **Cycles**, you don't start or complete anything. Lictory keeps one
+cycle active and the chosen number of upcoming cycles planned. When a cycle
+ends, it is completed and its unfinished work moves into the next cycle.
+The schedule is checked every few minutes, so the switch to the next cycle
+can happen a few minutes after a cycle ends.
+
+You plan into cycles the same way: drag work from the backlog into an
+upcoming cycle.
+
+## Iteration notes
+
+Each iteration can keep its own [context pages](/knowledge/context-pages):
+the goal, the plan, the retrospective. The fastest start is a notes page
+made from a template.
+
+<Steps>
+<Step>
+
+### Open the iteration's context
+
+Use the **Context** button on the iteration's row in the backlog (it shows
+a count once pages are linked), the board's **Context** while viewing the
+sprint, or the **Pages** section of the iteration's report.
+
+</Step>
+<Step>
+
+### Create iteration notes
+
+![Notes for Sprint 1 opened from the sprint’s Context: a new page with the goal, a live list of the iteration’s work, risks, notes and a retrospective, the Space to create it in and its Title, with Back and Create and open](/screenshots/delivery-iteration-notes-dialog.webp)
+
+Choose **Create iteration notes**. Pick the **Space** (spaces you can edit,
+the project's own first) and a **Title** (`Sprint 1 notes` by default), then
+**Create and open**.
+
+</Step>
+<Step>
+
+### Fill it in
+
+The new page has a **Goal** (the sprint goal, when it has one), a live
+**Work** list of the iteration's items, **Risks**, **Notes**, a
+**Retrospective** and **Follow-ups**. Its first version is published, and the
+page is linked to the iteration.
+
+</Step>
+</Steps>
+
+![Sprint 1 notes in the Payments space: the Goal, the live Work list showing each item's current status, and the Risks section waiting to be filled](/screenshots/delivery-iteration-notes.webp)
+
+The work list stays live: every reader sees each item's current status,
+and only the items they are allowed to see. The page itself is an ordinary
+page of the space: edit it, comment on it and review changes to it as the
+space allows. See [pages](/spaces/pages).
+
+Completed iterations can still get notes, so the retrospective can come
+after the sprint closes. Use the **Pages** section of the completed
+iteration's report.
+
+## What to watch for
+
+- **Completed iterations are history.** They cannot be renamed, and work
+  cannot be planned into them. Their reports do not change afterwards.
+- **Planning is tentative.** Putting an item in a sprint does not accept it
+  for delivery. See [ready is not accepted](/delivery#ready-is-not-accepted).
+- **No space you can edit, no notes.** **Create iteration notes** needs edit
+  access to a space. Ask for it, or [create a space](/spaces/create) for the
+  project.
+- **Creating notes is safe to retry.** The page and its link are created
+  together or not at all. If the answer was lost, trying again creates the
+  page once.
+- **Jira projects have no iterations.** Sprints are planned in Jira. Switch
+  to Jira only after completing the active iteration.
+- **Templates in a space don't link.** A page created in a space with the
+  **Iteration notes** template shows the iteration's work but is not added
+  to its context pages. Add it from **Context → Add page**.
+
+## Tips
+
+- Give every sprint a notes page on the day it starts. The goal, risks and
+  retrospective then live next to the work and stay findable later.
+- Turn retrospective follow-ups into work items straight from the page:
+  select the text and create an item. See
+  [work in pages](/knowledge/in-pages).
+- Write a sprint goal. It shows on the backlog, the report and the notes
+  page.

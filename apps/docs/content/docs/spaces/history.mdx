@@ -21,7 +21,7 @@ The history has three views:
 
 **Open published page** goes back to the page.
 
-![The version history of the Capture resilience page: v3 "Increase capture retries from three to five", marked Published, selected and compared with v2. One block changed: the word "three" is struck out in the Before · v2 block and "five" is highlighted in the After · v3 block, with 4 and 5 unchanged blocks folded above and below](/screenshots/spaces-version-diff.webp)
+![The version history of Missing refund runbook: v2 “Add the duplicate charge steps” selected and compared with v1, 2 blocks changed, the unchanged blocks folded, and the added Duplicate charges section highlighted](/screenshots/spaces-version-diff.webp)
 
 ## The version list
 
@@ -56,9 +56,12 @@ older or newer.
 
 **Preview this version** shows the selected version as readers saw it,
 rendered exactly as when it was published, with its work item chips and
-page links resolved for you now. **View changes** returns to the comparison.
+page links resolved for you now. A work list in an old version shows today's
+items: it stores a query, not a snapshot
+([work lists](/spaces/blocks#live-work-lists)). **View changes** returns to the comparison.
 Each version also has its own address, so you can link someone to exactly
-what a page said at that point.
+what a page said at that point. A specification can cite that exact version
+([pinned citations](/knowledge/in-work#pinned-citations-in-specifications)).
 
 ## Restore a version
 
@@ -71,6 +74,10 @@ main_, or to the branch). The version you restored from and everything after
 it stay in the history, so a restore is itself easy to undo by restoring
 again. A version with the same title and content as the latest one cannot be
 restored: Lictory says _Nothing to restore_.
+
+A restore on main is published like any other version, so the page's
+[links to work](/knowledge) follow it: an item mention that the restored
+version does not contain stops showing on that item.
 
 Restoring also replaces the line's live draft with the restored content:
 

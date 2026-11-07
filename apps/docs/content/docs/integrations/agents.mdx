@@ -14,8 +14,10 @@ The `lictory` server administration command is a separate tool. Use the
 ## Connect your agent
 
 1. In Lictory, open **Account settings → AI agents (MCP)**.
-2. Choose **New token**, name the agent, select **Read only** or **Read & write**,
-   and choose an expiry. Create one token per agent so activity is attributable.
+2. Choose **New token**, give it an **Agent name**, select **Read & write** or
+   **Read only**, and choose when it **Expires** (7, 30 or 90 days, 1 year,
+   or no expiry). A token is a named agent: create one per agent so activity
+   is attributable.
 3. Copy the token immediately; it is shown only once.
 4. In your MCP client's remote-server settings, use your installation's endpoint
    and a bearer header:
@@ -99,6 +101,34 @@ For established behavior, ask it to search product knowledge and cite the exact
 revision. Draft discussion is evidence of an open question, not an approved
 product decision.
 
+## Find and cite knowledge
+
+Two searches serve different questions:
+
+| Capability               | Answers                                                                                                                                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `searchProductKnowledge` | _What did we agree?_ Recorded decisions, approved and delivered specification revisions and published pages, each with its exact version and kind of evidence. Agreements and decisions outrank published pages   |
+| `searchKnowledge`        | _Where is this written?_ Full-text search of published pages, work items, decisions and approved or delivered revisions you can read, with an excerpt and the exact version. A match is not evidence of authority |
+
+The links between work and pages are readable too, always limited to pages
+you can read:
+
+| Capability                                                | What it returns                                                                                                                                                                                    |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getWorkItemKnowledge`                                    | An item's [Knowledge](/knowledge/in-work): pages that mention it, pages its revisions cite (with pinned versions), attached pages, the page it was created from, and page updates proposed from it |
+| `listPageWork`                                            | The work a page knows about: items it mentions, items citing it or attached to it, items created from it, and the projects, teams and iterations that keep it as context                           |
+| `listReferencesTo`                                        | Where an item, a page or a decision is referenced, in pages and in specification revisions                                                                                                         |
+| `describePageLinks`                                       | The title, version and section of the passages that refer to work, to show a link in context                                                                                                       |
+| `listContextPages`                                        | A project's, team's or iteration's [context pages](/knowledge/context-pages)                                                                                                                       |
+| `attachPage`, `detachPage`                                | Attach a page to an item as background, design or runbook, optionally pinned to a version (needs **Change properties**)                                                                            |
+| `linkContextPage`, `unlinkContextPage`, `moveContextPage` | Keep a page as context of a project, team or iteration                                                                                                                                             |
+
+An agent can create a work item from a passage of a page (`createWorkItem`
+with a `source`) and propose a page update that documents an item's revision
+(`proposePageChange` with an `origin`), the same way people do in the app
+([knowledge](/knowledge)). Page text is data the agent reads, never
+instructions it follows.
+
 ## Propose a change for review
 
 With a read/write token, ask:
@@ -119,7 +149,9 @@ read current specification and heads
 
 Proposed child work becomes shared work only when the pull request merges.
 Protected specifications remain protected. A direct `updateSpecification`
-is for an explicitly requested edit to an unprotected draft.
+is for an explicitly requested edit to an unprotected draft. Agents cannot
+type into the [live draft](/specifications/live-drafts) people are editing
+together; what people are writing there stays theirs.
 
 Commands can carry a `mutationId`: reusing it for a retry prevents the same
 change from being applied twice. A stale `baseRevisionId` returns a conflict
@@ -165,21 +197,26 @@ them. Space access (view, comment or edit) determines what it can do in Spaces. 
 the token takes effect on subsequent requests.
 
 Approving reviews, merging, accepting delivery scope, resolving discussions,
-recording decisions and handing work to Jira record human decisions. The MCP
+recording decisions, signing off readiness checks, publishing the Definition
+of Ready and handing work to Jira record human decisions. In projects
+delivered in Lictory, an agent cannot start or complete a specification's
+work before someone has accepted a revision for delivery. The MCP
 tools instruct the agent to perform them only when you explicitly ask. A
 read/write token is **not** a technical confirmation gate for each decision:
 use read-only access when the agent should only inspect work. Several agents
 using one person's identity do not count as independent reviewers.
 
-Account security, organization membership, administrator roles, token creation
-and integration credentials stay with you in the browser. The agent can call
+Account security, organization membership, administrator roles, token
+creation, integration credentials, the audit log, data exports, organization
+deletion and Litto conversations stay with you in the browser. The agent can call
 `listHumanOnlyOperations` to explain where to complete an unavailable operation.
 
 ## Audit and disconnect
 
 Activity attributes changes to the person and named agent. Organization
-administrators can inspect agent calls and their outcomes in the audit log.
-Token settings show expiry and last use. Choose **Revoke** beside a token to
+administrators can inspect agent calls and their outcomes in the
+[audit log](/organization/audit) (**Agent calls**). Token settings show
+expiry and last use. Choose **Revoke** beside a token to
 disconnect its agent immediately; create a new token to reconnect.
 
 Connecting a model client gives that client access to the content it reads.

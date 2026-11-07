@@ -1,0 +1,191 @@
+---
+title: Edit a specification together
+description: Co-edit a specification's live draft with your team, see who is writing, and save the result as a revision only when it is ready.
+---
+
+Several people can edit the same specification at once. Each line of a
+specification (main, or one [branch](/specifications/branches)) has one
+shared **live draft**: everyone editing it sees the others' carets and names,
+and what they type is saved as they type.
+
+A live draft is a working copy, never history. Only **Save revision** (on
+main) or **Commit** (on a branch) turns it into an immutable revision or
+commit. Everything that matters for review happens from there: approvals
+belong to revisions, discussions are written on revisions, readiness reads
+the current revision. Nobody's keystroke is a revision, an approval or a
+commit.
+
+## When to use it
+
+- A product owner and an engineer working through the expected behavior
+  together, on a call or not.
+- QA adding failure cases while Product is still writing the outcome.
+- Anyone fixing a sentence while others are in the document.
+
+You do not need to coordinate who edits when: edits merge character by
+character, and nobody overwrites anyone else.
+
+## Edit main
+
+<Steps>
+<Step>
+
+### Open the editor
+
+On the specification, choose **Edit**. If the shared draft already holds
+edits nobody saved, the specification shows **Draft not saved as a
+revision** next to **Edit**; choosing it opens the editor with those edits.
+
+</Step>
+<Step>
+
+### Write
+
+The line above the text tells you where you are:
+
+- **Live draft · based on revision N**: the revision the draft started
+  from.
+- The **save state** of the draft (see [below](#draft-saved-is-not-a-revision)).
+- **Not saved as a revision yet** when the draft holds edits no revision
+  has, or **Same as revision N** when it does not.
+- Who else is editing, for example _Dev Patel is editing_. Their carets in
+  the text carry their names.
+
+![Maria Chen and Dev Patel editing the PAY-3 specification at the same time: Dev Patel’s named caret in the Behavior section, the status line “Live draft · based on revision 2 · Draft saved · Not saved as a revision yet” with Dev Patel is editing, and Close editor and Save revision 3](/screenshots/work-live-draft.webp)
+
+</Step>
+<Step>
+
+### Save a revision
+
+Under the editor, write **What changed?** (optional, but reviewers read it
+first) and choose **Save revision N** (`⌘ Enter` or `Ctrl Enter`).
+
+![The draft’s status line: “Live draft · based on revision 2 · Draft saved · Not saved as a revision yet”, and Dev Patel is editing](/screenshots/detail-draft-save-state.webp)
+
+![The editor’s footer: Close editor and Save revision 3 with its keyboard shortcut](/screenshots/detail-draft-footer.webp)
+
+Lictory waits until everything you typed is stored, then saves exactly that
+as the next revision. Saving marks existing approvals as outdated and asks
+the same reviewers again ([approvals](/review/approvals)). The activity
+records who saved the revision and who contributed to it.
+
+</Step>
+</Steps>
+
+**Close editor** (or Escape) returns to the specification. The draft stays
+saved and is there the next time anyone opens it; it does not become a
+revision until someone saves one.
+
+**Discard changes…** throws away the edits that no revision holds, for
+everyone editing the draft, after you confirm with **Discard changes**.
+Use it when the draft has gone in the wrong direction; **Keep them** cancels.
+
+## Who can edit
+
+- **Main**: people whose discipline in the project may _edit
+  specifications_, while main is not protected. Once the specification has
+  been ready, main is [protected](/specifications#main-and-protected-main)
+  and its draft closes: changes go through a branch.
+- **A branch**: its author and the collaborators they invited, while the
+  branch exists.
+
+Only these people open a live draft. Everyone else reads the latest
+revision (or the branch's latest commit), never someone's half-typed text.
+If you lose the right to edit while the editor is open, it closes with _You
+can no longer edit this specification draft._
+
+Plain work (a Task, a Bug) has no live draft: its description is edited by
+one person and saved directly.
+
+## "Draft saved" is not a revision
+
+The draft has its own save state, separate from revisions:
+
+| State                                     | What it means                                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Connecting…**                           | The editor is joining the draft.                                                                    |
+| **Saving…**                               | Your latest edits are on their way to the server.                                                   |
+| **Draft saved**                           | The server has stored every edit you made in the shared draft. Others see them.                     |
+| **Offline — changes kept on this device** | The connection dropped. Your edits stay in this tab and are sent when it returns.                   |
+| **Save failed**                           | The server refused your latest edits. They are kept in this tab; reopen the editor to keep working. |
+| **Live editing unavailable**              | The editing service cannot be reached. Reading, history, discussions and reviews keep working.      |
+
+**Draft saved** means nothing is lost. It does not mean reviewers see it,
+that readiness counts it or that it is in the history: that happens only when
+someone saves a revision.
+
+## What counts as a change
+
+A revision is created only when the specification's **title or text**
+changes. Saving a draft that equals the latest revision, or whose edits
+cancel out, creates no revision: the editor simply closes. If two people
+save the same draft at once, one revision is created, not two.
+
+Every revision is **material**: it marks existing approvals outdated and
+re-requests the same reviews. Changing properties (status, owner, priority,
+estimate, iteration, labels) never creates a revision and never affects
+approvals.
+
+## Edit as Markdown
+
+**Edit as Markdown** in the toolbar switches the draft to its Markdown text.
+Your Markdown edits are yours until they are applied: the status line says
+**Markdown not applied yet**, and the text is kept on this device.
+
+They are applied when you switch back to formatted text, save, commit or
+close the editor. Parts only you changed take your text; parts only others
+changed keep theirs. If someone changed the same part differently
+meanwhile, Lictory shows both versions and asks: **Keep my version**,
+**Keep their version**, **Keep editing Markdown** or **Discard my Markdown
+edits**. Saving waits for your choice.
+
+## When the draft is replaced
+
+Some changes replace a draft as a whole: a revision saved another way (by
+an agent through the API, or by [restoring](/specifications/history#restore-a-revision)
+an earlier one), a merged pull request, a synced branch. Everyone editing
+is moved to the new content. Nothing of the old draft is mixed into it
+silently, and nothing of yours is dropped: edits the new content does not
+contain are kept on your device, and the editor offers:
+
+- **Copy text** to paste it wherever you like;
+- **Insert at end** to add it to the new draft as an ordinary edit;
+- **Discard** to let it go.
+
+The same notice appears if the editor closed before your last edits
+reached the shared draft. Every replaced draft also stays stored on the
+server.
+
+## What to watch for
+
+- **Discussions are written on revisions, not drafts.** You start a
+  discussion from the specification as you read it, on text of a saved
+  revision. Save your edits before asking people to comment on them. See
+  [discussions](/specifications/discussions).
+- **Saving re-requests reviews.** Every saved revision marks approvals
+  outdated. Write in the draft as long as you need, and save when the change
+  is ready to be reviewed, not after every sentence.
+- **Protected main has no live draft.** After the specification has been
+  ready, editing main directly is refused; open a branch, which has its own
+  live draft.
+- **Offline is for short interruptions.** A dropped connection keeps your
+  edits in the open tab and sends them when it returns, merged with what
+  others typed. Closing the tab while offline loses edits that were never
+  saved, and the editor lets you type only once it has joined the draft. Wait for **Draft
+  saved** before you close the page.
+- **Agents do not type into live drafts.** Agents connected through MCP save
+  revisions or commit to branches directly, which replaces the draft for
+  anyone editing it, as described above.
+
+## Tips
+
+- **Write together, save once.** Let the draft absorb the back-and-forth of
+  a working session, then save one revision with a summary that says what
+  changed and why.
+- **Name the change in the summary.** _"Define timeout behavior for
+  captures"_ tells a reviewer more than _"Updates"_, and it is the first
+  thing they see in [versions](/specifications/history).
+- **Close the editor when you are done.** Others then see that nobody is
+  editing, and the specification's reader marks unsaved edits so they are
+  not forgotten.
