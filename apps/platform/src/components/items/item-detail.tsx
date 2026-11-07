@@ -9,7 +9,9 @@ import { createPortal } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
+  ChevronLeft,
   ChevronRight,
+  CornerLeftUp,
   GitCompareArrows,
   Link2,
   MoreHorizontal,
@@ -412,6 +414,29 @@ export function ItemDetail({
     itemOrigin(searchParams),
     searchParams,
   );
+  const parentHref = parent
+    ? paths.item(
+        workspace.organization.slug,
+        project.key,
+        identifier(project, parent.number),
+        originParams(searchParams),
+      )
+    : undefined;
+  const compareRevisions =
+    ctx.revisions.length > 1 && !branchScreen
+      ? () =>
+          showHistory({
+            revision: current!.id,
+            compare: (changedSinceSeen?.from ?? ctx.revisions[1])!.id,
+          })
+      : undefined;
+  const involved =
+    // Merging a breakdown makes no one the owner of its children
+    // (notifications/server.ts owners()).
+    (item.createdById === workspace.userId && !item.sourceRevisionId) ||
+    item.assigneeId === workspace.userId ||
+    ctx.messages.some((m) => m.authorId === workspace.userId) ||
+    ctx.suggestions.some((x) => x.authorId === workspace.userId);
   const update = (
     patch: Omit<
       Extract<Parameters<typeof ctx.mutate>[0], { type: "updateWorkItem" }>,
@@ -621,7 +646,10 @@ export function ItemDetail({
           />
         )}
         <div className="flex h-full flex-col">
-          <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px]">
+          {/* On phones the header keeps the way back, the item's key and
+              the actions a reviewer reaches for (Knowledge, Discussions,
+              Review & details); the parent and the rest move into More. */}
+          <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px] max-sm:gap-1 max-sm:pl-1.5">
             <WorkItemListToggle />
             <nav
               aria-label="Breadcrumb"
@@ -629,31 +657,28 @@ export function ItemDetail({
             >
               <Link
                 href={origin.href}
-                className="shrink-0 hover:text-foreground"
+                title={origin.label}
+                className="shrink-0 hover:text-foreground max-sm:grid max-sm:size-8 max-sm:place-items-center max-sm:rounded-full max-sm:hover:bg-muted"
               >
-                {origin.label}
+                <ChevronLeft className="size-4 sm:hidden" aria-hidden />
+                <span className="max-sm:sr-only">{origin.label}</span>
               </Link>
               {parent && (
                 <>
-                  <ChevronRight className="size-3.5 shrink-0" />
+                  <ChevronRight className="size-3.5 shrink-0 max-sm:hidden" />
                   <Link
-                    href={paths.item(
-                      workspace.organization.slug,
-                      project.key,
-                      identifier(project, parent.number),
-                      originParams(searchParams),
-                    )}
-                    className="flex min-w-0 items-center gap-1 hover:text-foreground"
+                    href={parentHref!}
+                    className="flex min-w-0 items-center gap-1 hover:text-foreground max-sm:hidden"
                     title={parent.title}
                   >
                     <TypeIcon type={typeOf(workspace.delivery, parent)} />
-                    <span className="truncate max-sm:sr-only @max-[62rem]/frame:sr-only">
+                    <span className="truncate @max-[62rem]/frame:sr-only">
                       {parent.title}
                     </span>
                   </Link>
                 </>
               )}
-              <ChevronRight className="size-3.5 shrink-0" />
+              <ChevronRight className="size-3.5 shrink-0 max-sm:hidden" />
               <TypeIcon type={type} />
               <IssueIdentifier
                 project={project}
@@ -679,24 +704,20 @@ export function ItemDetail({
                 <Button
                   variant="secondary"
                   size="sm"
+                  className="max-sm:size-8 max-sm:px-0"
                   onClick={() => setMode({ kind: "read" })}
                 >
-                  <X className="size-3.5" /> Close history
+                  <X className="size-3.5" aria-hidden />
+                  <span className="max-sm:sr-only">Close history</span>
                 </Button>
               ) : (
-                ctx.revisions.length > 1 &&
-                !branchScreen && (
+                compareRevisions && (
                   <Button
                     variant="ghost"
                     size="sm"
                     title="Compare revisions"
-                    onClick={() =>
-                      showHistory({
-                        revision: current!.id,
-                        compare: (changedSinceSeen?.from ?? ctx.revisions[1])!
-                          .id,
-                      })
-                    }
+                    className="max-sm:hidden"
+                    onClick={compareRevisions}
                   >
                     <GitCompareArrows className="size-3.5" />
                     <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
@@ -709,6 +730,7 @@ export function ItemDetail({
                 <Button
                   variant="secondary"
                   size="sm"
+                  className="max-sm:hidden"
                   disabled={item.refinementState !== "ready"}
                   title={
                     item.refinementState === "ready"
@@ -725,15 +747,8 @@ export function ItemDetail({
                 <WatchButton
                   organizationId={workspace.organization.id}
                   workItemId={item.id}
-                  involved={
-                    // Merging a breakdown makes no one the owner of its
-                    // children (notifications/server.ts owners()).
-                    (item.createdById === workspace.userId &&
-                      !item.sourceRevisionId) ||
-                    item.assigneeId === workspace.userId ||
-                    ctx.messages.some((m) => m.authorId === workspace.userId) ||
-                    ctx.suggestions.some((x) => x.authorId === workspace.userId)
-                  }
+                  involved={involved}
+                  className="max-sm:hidden"
                 />
               )}
               <Popover
@@ -752,6 +767,50 @@ export function ItemDetail({
               >
                 {(close) => (
                   <div className="p-1">
+                    {/* Phones: what the header has no room for. */}
+                    {parent && (
+                      <Link
+                        href={parentHref!}
+                        onClick={close}
+                        className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
+                      >
+                        <CornerLeftUp
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 truncate">
+                          Parent ·{" "}
+                          <span className="font-mono text-xs">
+                            {identifier(project, parent.number)}
+                          </span>{" "}
+                          {parent.title}
+                        </span>
+                      </Link>
+                    )}
+                    {mode.kind !== "history" && compareRevisions && (
+                      <button
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
+                        onClick={() => {
+                          close();
+                          compareRevisions();
+                        }}
+                      >
+                        <GitCompareArrows
+                          className="size-3.5 text-muted-foreground"
+                          aria-hidden
+                        />
+                        Compare revisions
+                      </button>
+                    )}
+                    {!pendingCreate && (
+                      <WatchButton
+                        organizationId={workspace.organization.id}
+                        workItemId={item.id}
+                        involved={involved}
+                        appearance="menuitem"
+                        className="sm:hidden"
+                      />
+                    )}
                     <button
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
                       onClick={async () => {
@@ -764,9 +823,14 @@ export function ItemDetail({
                       <Link2 className="size-3.5 text-muted-foreground" /> Copy
                       link
                     </button>
-                    {canExport && !exportAvailability.external && (
+                    {canExport && (
                       <button
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50",
+                          // External delivery has its own header button
+                          // where there is room for it.
+                          exportAvailability.external && "sm:hidden",
+                        )}
                         disabled={item.refinementState !== "ready"}
                         title={
                           item.refinementState === "ready"
