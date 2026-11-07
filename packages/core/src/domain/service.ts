@@ -22,6 +22,7 @@ import {
   capabilitiesOf,
   entitySchema,
   estimateOptions,
+  isKnowledgeCommand,
   isProjectConfigurationCommand,
   isSpaceCommand,
   isTypeCommand,
@@ -72,6 +73,11 @@ import {
 import { auditConfiguration } from "@lictory/core/domain/audit";
 import { applySpaceCommand } from "@lictory/core/spaces/commands";
 import { refreshSpaceAccess } from "@lictory/core/spaces/access";
+import {
+  applyKnowledgeCommand,
+  recordWorkItemSource,
+} from "@lictory/core/spaces/knowledge-commands";
+import { indexSpecificationRevisions } from "@lictory/core/spaces/knowledge";
 import { applyDecisionCommand } from "@lictory/core/domain/decisions";
 import {
   refreshDirectoryProjection,
@@ -2014,6 +2020,30 @@ export async function applyMutation(
         summary,
       );
     }
+    if (isKnowledgeCommand(c)) {
+      // Knowledge links (pages attached to items, context pages) are
+      // projected with their page (`space_entity`): no `sync_entity` row
+      // and no directory input changes.
+      const summary = await applyKnowledgeCommand(
+        tx,
+        {
+          organizationId,
+          userId,
+          admin: isAdmin(membership),
+          roster,
+          delegation: delegation(actor),
+        },
+        c,
+      );
+      return receipt(
+        tx,
+        organizationId,
+        mutation.id,
+        userId,
+        fingerprint,
+        summary,
+      );
+    }
     if (c.type === "setAiPolicy") {
       require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
       await setAiPolicy(tx, organizationId, userId, c.enabled);
@@ -2221,6 +2251,11 @@ export async function applyMutation(
         changeSummary: summary?.trim() ? summary.trim() : null,
         authorId: userId,
       });
+      // The references it writes (items, pages, decisions) are indexed with
+      // it (docs/internals/knowledge-links.md).
+      await indexSpecificationRevisions(tx, organizationId, [
+        { id: revisionId, workItemId: workItemId!, content },
+      ]);
       await recordMain(
         tx,
         {
@@ -2628,17 +2663,25 @@ export async function applyMutation(
               createdById: userId,
             })),
           );
-          await tx.insert(s.specificationRevision).values(
-            children.map((child) => ({
-              organizationId,
-              workItemId: child.workItemId,
-              number: 1,
-              title: child.title,
-              content: child.description,
-              changeSummary: "Accepted delivery breakdown",
-              authorId: userId,
-            })),
-          );
+          const childRevisions = await tx
+            .insert(s.specificationRevision)
+            .values(
+              children.map((child) => ({
+                organizationId,
+                workItemId: child.workItemId,
+                number: 1,
+                title: child.title,
+                content: child.description,
+                changeSummary: "Accepted delivery breakdown",
+                authorId: userId,
+              })),
+            )
+            .returning({
+              id: s.specificationRevision.id,
+              workItemId: s.specificationRevision.workItemId,
+              content: s.specificationRevision.content,
+            });
+          await indexSpecificationRevisions(tx, organizationId, childRevisions);
           await tx.insert(s.activity).values(
             numbered.map(({ child, childType, number }) => ({
               id: crypto.randomUUID(),
@@ -2974,6 +3017,16 @@ export async function applyMutation(
           "Created",
           undefined,
         );
+        // Provenance of work created from committed page content: checked
+        // against the actor's access to the page's space, kept immutably and
+        // projected with the page (never on the organization-wide item).
+        if (c.source)
+          await recordWorkItemSource(
+            tx,
+            { organizationId, userId },
+            workItemId!,
+            c.source,
+          );
         if (
           projectRow!.deliveryMode === "native" &&
           ["started", "done"].includes(status.category)

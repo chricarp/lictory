@@ -621,6 +621,13 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
   spaces in their navigation. Page titles are in the command palette.
 - Work item mentions (`PAY-142`) in pages render as live references (status,
   refinement state, readiness) for readers who can see the item.
+- Pages and work refer to each other through
+  [knowledge links](knowledge-links.md): the references of each page's
+  published version (work items, pages with an optional pinned commit,
+  decisions), the pages specification revisions cite, pages attached to an
+  item, the page an item was created from, page branches proposed from an
+  item revision and the context pages of projects, teams and iterations.
+  Every link is visible only to readers of its page and grants nothing.
 - Images and files use [private file storage](file-storage.md) with page
   ownership checks.
 - Notifications follow [the notification rules](notifications.md): mentions,
@@ -660,7 +667,17 @@ History uses restrictive deletes.
 | `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                                 |
 | `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), `pull_request_id`, resolution; messages (never edited, removed with their line) |
 | `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed, removed with their line) with actor, time and delegating agent                                        |
+| `page_reference`                          | Derived index of the references in each page's published version (see [knowledge links](knowledge-links.md))                                                           |
+| `page_branch_origin`                      | The work item revision a branch was proposed from, kept after the branch ends                                                                                          |
 | `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                          |
+
+Main's head moves in one place (`moveHead` in `history.ts`, plus the first
+commit of `createPage`); both rewrite `page_reference` from the new head in
+the same transaction, so the index always describes the published version.
+The knowledge links that name a page (`work_item_page_attachment`,
+`work_item_page_source`, `page_branch_origin`, `page_context_link`, and the
+page citations of `specification_reference`) are described in
+[knowledge links](knowledge-links.md).
 
 `page_thread.pull_request_id` names the pull request a thread was opened on
 (a foreign key within the page). `page_commit` also records the pull request
@@ -761,10 +778,17 @@ what changed without loading histories), `mainDraft` in Direct spaces,
 - `pagePullRequestReview`: every decision, current or not.
 - `pageThread`, `pageThreadMessage` (one row per message, so a reply
   replicates one row) and `pageActivity`.
+- Knowledge links of the page (`pageReference`, `specificationCitation`,
+  `pageAttachment`, `workItemSource`, `pageBranchOrigin`,
+  `pageContextLink`), which also fill the `work_item_id` or `project_id`
+  column so a work item or project can load the rows of the pages its
+  reader can read. Archived pages and pages of archived spaces have none.
 
 `writeSpaceProjections` rewrites what a command touched: `pages`
 (summaries), `commits` (new commits by id: commits never change), `pageLines`
-(branches, pull requests, reviews), `pageDiscussions` and `pageHistories`
+(branches, pull requests, reviews), `pageDiscussions`, `knowledge` (the
+page's knowledge links; `pages` and `pageLines` rewrite them too, since they
+follow main's head, the archive state and the branches) and `pageHistories`
 (all page-level rows). Discussion commands that change counters also rewrite
 the page's lines (blocking threads feed mergeability). `rebuildSpaceProjections`,
 called by `rebuildProjections`, reconciles `space_entity` and `space_reader`,
@@ -799,9 +823,10 @@ collaboration service's stored messages, so the editor can say
 
 Both tables are in the `lictory_zero` publication. The synced queries
 `spaces({ organizationId })` (space-level rows), `page({ organizationId,
-pageId })` (one page's history) and `mySpaceAccess({ organizationId })` (my
-reader rows) require a `space_reader` row for the current user and their
-organization membership; `organization` and `workItem` read only
+pageId })` (one page's history), `mySpaceAccess({ organizationId })` (my
+reader rows) and the knowledge link queries `workItemKnowledge`, `pageWork`
+and `projectContext` require a `space_reader` row for the current user and
+their organization membership; `organization` and `workItem` read only
 `sync_entity`.
 
 ### Reads, export and deletion

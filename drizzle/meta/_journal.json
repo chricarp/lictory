@@ -288,6 +288,13 @@
       "when": 1793939366976,
       "tag": "0040_space_draft_seed_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794009063198,
+      "tag": "0041_spaces_work_integration",
+      "breakpoints": true
     }
   ]
 }
