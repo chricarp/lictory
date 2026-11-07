@@ -6,7 +6,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -187,20 +186,6 @@ export function useSuggestChange(onNavigate: (screen: BranchScreen) => void) {
       });
     }
   };
-}
-
-// Where the quoted (rendered) text sits in the Markdown source, ignoring
-// whitespace differences; undefined when it cannot be found.
-function locateQuote(source: string, quote: string) {
-  const words = quote
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  if (!words.length) return;
-  const match = new RegExp(words.join("\\s+")).exec(source);
-  return match
-    ? { start: match.index, end: match.index + match[0].length }
-    : undefined;
 }
 
 function useAction() {
@@ -851,20 +836,15 @@ function BranchEditorBody({
     },
     [focusBreakdown],
   );
-  const editorRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (suggestionFocus?.branchId !== branch.id || !canEdit) return;
-    const { quote } = suggestionFocus;
-    suggestionFocus = null;
-    requestAnimationFrame(() => {
-      const area = editorRef.current?.querySelector("textarea");
-      if (!area) return;
-      const at = locateQuote(area.value, quote);
-      area.focus({ preventScroll: true });
-      if (at) area.setSelectionRange(at.start, at.end);
-      area.scrollIntoView({ block: "center" });
-    });
-  }, [branch.id, canEdit]);
+  // The passage from "Suggest a change", selected by the live editor once
+  // it can be edited; the request is consumed only when it was selected.
+  const [suggestedQuote, setSuggestedQuote] = useState(() =>
+    suggestionFocus?.branchId === branch.id ? suggestionFocus.quote : undefined,
+  );
+  const quoteSelected = useCallback(() => {
+    if (suggestionFocus?.branchId === branch.id) suggestionFocus = null;
+    setSuggestedQuote(undefined);
+  }, [branch.id]);
   const key = `lictory:branch-draft:${userId}:${organizationId}:${itemId}:${branch.id}`;
   const [initial] = useState(() => loadBranchDraft(key, head, commits));
   const [draft, setDraft] = useState<Draft>(initial.draft);
@@ -1144,6 +1124,8 @@ function BranchEditorBody({
                     fileContext={{ organizationId, workItemId: itemId }}
                     minHeight="25rem"
                     view={tab === "changes" ? "changes" : "document"}
+                    selectText={suggestedQuote}
+                    onTextSelected={quoteSelected}
                     onClose={() => onNavigate({ kind: "branches" })}
                     footer={(controls) => (
                       <>

@@ -383,3 +383,31 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   await expect(sheet).toBeHidden();
   await expect(toggle).toBeFocused();
 });
+
+test("suggesting a change opens a branch with the chosen passage selected in its live draft", async ({
+  page,
+}) => {
+  const { path } = await open(page);
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await expect(page.locator("[data-spec-root]")).toContainText(
+    "reconciled against the first attempt",
+  );
+  await selectInSpecification(page, "reconciled against the first attempt");
+  await page
+    .getByRole("toolbar", { name: "Selection actions" })
+    .getByRole("button", { name: "Suggest a change" })
+    .click();
+  const editor = page.locator(
+    '[data-markdown-editor][aria-label="Branch specification"][contenteditable="true"]',
+  );
+  await expect(editor).toBeFocused();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("reconciled against the first attempt");
+  // Typing replaces the selected passage.
+  await page.keyboard.type("matched to the first attempt");
+  await expect(editor).toContainText(
+    "Late answers are matched to the first attempt.",
+  );
+});

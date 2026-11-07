@@ -12,7 +12,7 @@ import {
 import type { Doc } from "yjs";
 import { Extension, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
-import { Plugin } from "@tiptap/pm/state";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
@@ -155,6 +155,11 @@ export type LiveSpecificationProps = {
   // text, once.
   legacyText?: { title: string; content: string } | null;
   onLegacyKept?: () => void;
+  // Text to select (and scroll to) once the draft can be edited, such as
+  // the passage a reader chose with "Suggest a change"; `onTextSelected`
+  // runs once it was found and selected.
+  selectText?: string;
+  onTextSelected?: () => void;
 };
 
 export default function LiveSpecificationDraft(props: LiveSpecificationProps) {
@@ -561,6 +566,35 @@ function useDocumentVersion(doc: Doc, active: boolean) {
   return version;
 }
 
+// Where rendered text (words separated by any whitespace, also across
+// blocks) sits in the document; undefined when it is not there.
+function quoteRange(doc: PMNode, quote: string) {
+  const words = quote
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (!words.length) return;
+  // The document's text, one position per character; blocks and inline
+  // nodes without text count as whitespace.
+  let text = "";
+  const positions: number[] = [];
+  doc.descendants((node, pos) => {
+    if (node.isText) {
+      text += node.text;
+      for (let i = 0; i < node.nodeSize; i++) positions.push(pos + i);
+    } else if (node.isTextblock || node.isLeaf) {
+      text += "\n";
+      positions.push(pos);
+    }
+  });
+  const match = new RegExp(words.join("\\s+")).exec(text);
+  if (!match) return;
+  return {
+    from: positions[match.index]!,
+    to: positions[match.index + match[0].length - 1]! + 1,
+  };
+}
+
 function DraftEditor({
   session,
   recovery,
@@ -577,6 +611,8 @@ function DraftEditor({
   onClose,
   onSubmit,
   footer,
+  selectText,
+  onTextSelected,
 }: LiveSpecificationProps & {
   session: DraftSession;
   recovery: DraftRecoveryStore;
@@ -765,6 +801,45 @@ function DraftEditor({
       editor.off("mount", focus);
     };
   }, [editor, editable, reopened, titleLabel]);
+
+  // The requested passage is selected in the live document once it can be
+  // edited; until the synchronized content contains it, each update of the
+  // document tries again.
+  const textSelected = useRef(onTextSelected);
+  useEffect(() => {
+    textSelected.current = onTextSelected;
+  });
+  useEffect(() => {
+    if (!selectText || !editor || !editable) return;
+    const select = () => {
+      if (editor.isDestroyed || !editor.isInitialized || !editor.isEditable)
+        return;
+      const range = quoteRange(editor.state.doc, selectText);
+      if (!range) return;
+      editor.off("update", select);
+      const { view } = editor;
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, range.from, range.to),
+        ),
+      );
+      view.focus();
+      const at = view.domAtPos(range.from).node;
+      (at instanceof Element ? at : at.parentElement)?.scrollIntoView({
+        block: "center",
+      });
+      textSelected.current?.();
+    };
+    select();
+    editor.on("create", select);
+    editor.on("mount", select);
+    editor.on("update", select);
+    return () => {
+      editor.off("create", select);
+      editor.off("mount", select);
+      editor.off("update", select);
+    };
+  }, [editor, editable, selectText]);
 
   const sourceDirty = source !== null && source.text !== source.initial;
   // Leaving with edits the service has not stored, or Markdown not applied
