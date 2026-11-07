@@ -50,8 +50,10 @@ survive.
 Specifications are edited collaboratively: main and each branch have a
 shared live draft of this schema, and saving converts the stored cut back to
 Markdown on the server with the same reuse of unchanged blocks (see
-[live drafts of specifications](specification-drafts.md)). Every other field
-edits its Markdown value directly.
+[live drafts of specifications](specification-drafts.md)); "Edit as
+Markdown" there merges the text into the shared draft block by block and
+asks when someone changed the same blocks meanwhile. Every other field
+edits its Markdown value directly, its Markdown text included.
 
 Pasted plain text is read as Markdown, so a specification pasted from
 elsewhere keeps its headings, lists and references. Revision and approval

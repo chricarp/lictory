@@ -128,19 +128,38 @@ deleted with the organization.
 
 ## Interface
 
-- **Main.** "Edit" opens main's live draft for people who may edit main:
-  the status line says "Live draft · based on revision N", the save state
-  (Saving…, Saved, Offline — changes kept on this device, Save failed, Live
-  editing unavailable) and "Anna is editing"; others' carets carry their
-  name. "Save revision N+1" takes an optional summary and says that existing
-  approvals are marked outdated and reviews re-requested. "Close editor"
-  leaves the draft saved; the reader then shows "Unsaved draft changes" to
-  editors while the draft holds stored edits no revision has.
+- **Two levels of saved, named apart.** The draft is saved as people type;
+  a revision exists only once someone saves one. The status line keeps
+  them separate: "Live draft · based on revision N", the draft's save state
+  ("Draft saved", Saving…, Offline — changes kept on this device, Save
+  failed, Live editing unavailable), what no revision holds yet ("Not saved
+  as a revision yet", or "Same as revision N") and, apart from both, who is
+  editing ("Anna is editing"; others' carets carry their name). The one
+  explanation sits beside "Save revision N+1", which takes an optional
+  summary and says that existing approvals are marked outdated and reviews
+  re-requested. "Close editor" leaves the draft saved; the reader then
+  shows "Draft not saved as a revision" to editors while the draft holds
+  stored edits no revision has. Branch drafts say "Uncommitted changes" /
+  "All changes committed", as page branches do.
 - **Branches.** The branch editor binds its title and content to the
   branch's draft; "Commit changes" seals it with the message and the
   person's breakdown edits. The Uncommitted tab diffs the draft against the
   head. A branch edit kept in the browser before live drafts is offered as
   kept text.
+- **Edit as Markdown.** The Markdown text is a local edit of the draft as
+  it was when the text opened, never a snapshot that replaces it. Until it
+  is applied it counts as an unsaved change ("Markdown not applied yet",
+  the unload guard) and is kept on this device, so closing the tab, going
+  offline or a replaced epoch offers it back like other kept text. Switching
+  back to formatted text, "Save revision", "Commit" and "Close editor"
+  apply it first, and sealing waits until what it changed is stored.
+  Applying is a three-way merge of top-level blocks (`block-merge.ts`, keyed
+  by the editor's stable block keys) between that base, the text and the
+  current draft: blocks only the person changed take the text, blocks only
+  others changed keep theirs, additions at the same place keep both. Blocks
+  both changed differently are never chosen silently: the editor shows
+  their version beside the person's and asks (keep mine, keep theirs, keep
+  editing, discard my Markdown edits); saving waits for that choice.
 - **Loading.** Readers load no Yjs, Hocuspocus or editor: the live editor is
   its own chunk (`components/items/live-specification.tsx`), loaded when an
   editor opens.
