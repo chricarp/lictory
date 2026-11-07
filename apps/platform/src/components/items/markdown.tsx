@@ -154,6 +154,17 @@ const components: Components = {
       className="my-4 max-h-128 max-w-full rounded-md object-contain shadow-[0_0_0_1px_oklch(0_0_0/0.1)]"
     />
   ),
+  // Task list boxes say what they show; the item's text follows them.
+  input: ({ type, checked, disabled }) =>
+    type === "checkbox" ? (
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        disabled={disabled}
+        readOnly
+        aria-label={checked ? "Done" : "Not done"}
+      />
+    ) : null,
   del: ({ children }) => (
     <del className="text-muted-foreground decoration-current">{children}</del>
   ),
