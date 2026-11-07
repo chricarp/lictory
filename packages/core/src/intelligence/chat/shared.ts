@@ -224,8 +224,15 @@ export function contextPrompt(
   context: ChatContext,
   pages: ReadonlyMap<string, VerifiedPage | null> = new Map(),
 ) {
+  // The route label of a Spaces page is its title: withhold it, like the
+  // page's text, when the person cannot read that page now.
+  const unreadablePage =
+    context.document?.kind === "page" &&
+    !pages.get(pageContextKey(context.document));
   const lines = [
-    `[Page context: the person asked this from "${context.page.label}" (${context.page.path}).`,
+    unreadablePage
+      ? `[Page context: the person asked this from a page they cannot read now.`
+      : `[Page context: the person asked this from "${context.page.label}" (${context.page.path}).`,
   ];
   if (context.project)
     lines.push(

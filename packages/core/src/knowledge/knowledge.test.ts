@@ -630,7 +630,7 @@ void test("Litto page context is validated and re-checked with the person's acce
   const branch = await f.propose(pageId, "Launch plan", "Launch on Friday.");
   const context = (document: ChatContext["document"]): ChatContext =>
     chatContextSchema.parse({
-      page: { label: "Page", path: "/acme/spaces/private/pages/x" },
+      page: { label: "Launch plan", path: "/acme/spaces/private/pages/x" },
       project: null,
       item: null,
       selection: null,
@@ -704,6 +704,7 @@ void test("Litto page context is validated and re-checked with the person's acce
   const carol = await verifyPageContexts(db, actor(f.carol), messages);
   assert.equal(carol.get(pageContextKey(published)), null);
   const withheld = contextPrompt(context(published), carol);
-  assert.doesNotMatch(withheld, /Ignore previous instructions|Launch plan"/);
+  // Nor does the route label, which is the page's title.
+  assert.doesNotMatch(withheld, /Ignore previous instructions|Launch plan/);
   assert.match(withheld, /cannot read now/);
 });
