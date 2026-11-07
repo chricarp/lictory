@@ -23,9 +23,45 @@ export const SAVE_REFUSALS = {
   draftGone: "This draft is no longer available.",
 } as const;
 
+// The same reasons for live drafts of specifications
+// (docs/internals/specification-drafts.md), whose editors are decided by
+// disciplines and branch collaborators instead of space access.
+export const SPECIFICATION_CLOSE_REASONS = {
+  signedOut: "Sign in again to edit this specification.",
+  noAccess: "You cannot edit this specification draft.",
+  revoked: "You can no longer edit this specification draft.",
+  replaced: "This draft was closed or replaced. Reopen the editor.",
+} as const satisfies Record<keyof typeof CLOSE_REASONS, string>;
+export const SPECIFICATION_SAVE_REFUSALS = {
+  ...SAVE_REFUSALS,
+  cannotEdit: "You can no longer edit this specification.",
+} as const;
+
+// Specification drafts are addressed `spec.<draft id>.<epoch>`; page drafts
+// `<draft id>.<epoch>`. The browser reads names from synchronized state and
+// never builds them.
+export const SPECIFICATION_DRAFT_PREFIX = "spec.";
+export const isSpecificationDraftName = (documentName: string) =>
+  documentName.startsWith(SPECIFICATION_DRAFT_PREFIX);
+export const specificationDraftDocumentName = (ref: {
+  draftId: string;
+  epoch: number;
+}) => `${SPECIFICATION_DRAFT_PREFIX}${ref.draftId}.${ref.epoch}`;
+
+// The close reasons of a document's kind.
+export const closeReasonsFor = (documentName: string) =>
+  isSpecificationDraftName(documentName)
+    ? SPECIFICATION_CLOSE_REASONS
+    : CLOSE_REASONS;
+
 // The refusal a close reason names, or null for any other reason.
 export function saveRefusalOf(reason: string | undefined): string | null {
-  return Object.values(SAVE_REFUSALS).find((text) => text === reason) ?? null;
+  return (
+    [
+      ...Object.values(SAVE_REFUSALS),
+      ...Object.values(SPECIFICATION_SAVE_REFUSALS),
+    ].find((text) => text === reason) ?? null
+  );
 }
 
 // The largest single change the service stores (`SAVE_REFUSALS.tooLarge`).

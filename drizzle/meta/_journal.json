@@ -295,6 +295,13 @@
       "when": 1794009063198,
       "tag": "0041_spaces_work_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794014343903,
+      "tag": "0042_specification_live_drafts",
+      "breakpoints": true
     }
   ]
 }

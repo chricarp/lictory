@@ -1,5 +1,6 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { specificationDraftDocumentName } from "@lictory/core/spaces/collaboration-protocol";
 import type { Command } from "@lictory/core/contracts/protocol";
 import type { Tx } from "@lictory/core/domain/service";
 
@@ -95,6 +96,38 @@ export async function commandSummary(
           ),
         );
       if (commit?.revisionId) extra.revisionId = commit.revisionId;
+    }
+  }
+  // Live drafts: the draft's document and saved cut, and the line's head
+  // (a new revision or commit, or the same one when nothing changed).
+  if (
+    workItemId &&
+    (type === "openSpecificationDraft" || type === "commitSpecificationDraft")
+  ) {
+    const [draft] = await tx
+      .select()
+      .from(s.specificationDraft)
+      .where(
+        and(
+          eq(s.specificationDraft.organizationId, organizationId),
+          eq(s.specificationDraft.workItemId, workItemId),
+          type === "commitSpecificationDraft"
+            ? eq(s.specificationDraft.id, command.draftId)
+            : command.branchId
+              ? eq(s.specificationDraft.branchId, command.branchId)
+              : isNull(s.specificationDraft.branchId),
+        ),
+      );
+    if (draft) {
+      extra.draftId = draft.id;
+      extra.epoch = draft.epoch;
+      extra.documentName = specificationDraftDocumentName({
+        draftId: draft.id,
+        epoch: draft.epoch,
+      });
+      extra.committedSequence = draft.committedSequence;
+      if (draft.baseRevisionId) extra.revisionId = draft.baseRevisionId;
+      if (draft.baseCommitId) extra.commitId = draft.baseCommitId;
     }
   }
   if (type === "createPullRequest" && "pullRequestId" in command) {

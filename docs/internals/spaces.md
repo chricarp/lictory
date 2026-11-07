@@ -318,7 +318,10 @@ Browser ── /zero ───────────▶ zero-cache ──▶ P
 Live draft updates are persisted by one dedicated writer, not by
 `applyMutation`, because routing every typing batch through the exclusive
 organization lock would serialize typing against every review, delivery and
-configuration change of the organization. The exception is narrow:
+configuration change of the organization. The same writer stores the live
+drafts of specifications, in their own tables and with Work's rules for who
+writes a line ([specification drafts](specification-drafts.md)). The
+exception is narrow:
 
 - The draft tables (draft state, update log, epochs and writer fence) are not in
   the Zero publication, and no `sync_entity` projection reads them.
@@ -395,9 +398,11 @@ removes or alters commits.
   checked with the same Better Auth configuration as the API. Nothing in the
   URL and no provider token is ever trusted; the browser provider sends an
   empty token. Each stored batch re-checks that session in its transaction.
-- **Document names** are `<draft id>.<epoch>` (`draftDocumentName`); the
-  browser takes them from the page's synchronized state, never builds them
-  from anything else. A name of a fenced or replaced epoch no longer opens.
+- **Document names** are `<draft id>.<epoch>` (`draftDocumentName`), and
+  `spec.<draft id>.<epoch>` for specification drafts; the browser takes them
+  from the page's (or item's) synchronized state, never builds them from
+  anything else. A name of a fenced or replaced epoch no longer opens. The
+  `specification_draft` trigger signals on the same channel.
 - **Signals.** One NOTIFY channel, `lictory_spaces_access`, delivered on
   commit, payload `{organizationId, userIds?, draftIds?}` (identifiers only).
   `refreshSpaceAccess` sends the people whose effective access changed, from

@@ -278,6 +278,24 @@ export const entitySchema = z.discriminatedUnion("type", [
     collaboratorIds: z.array(id),
     createdAt: z.string(),
   }),
+  // The live draft of one line of a specification (main when `branchId`
+  // is null, else that branch): the collaboration document an editor
+  // connects to and whether stored edits exist beyond the last saved
+  // revision or commit. Never its content
+  // (docs/internals/specification-drafts.md).
+  z.object({
+    ...base,
+    type: z.literal("specDraft"),
+    workItemId: id,
+    branchId: id.nullable(),
+    epoch: z.number().int(),
+    documentName: z.string(),
+    committedSequence: z.number().int(),
+    uncommittedChanges: z.boolean(),
+    // The revision (main) or commit (branch) the draft's saved state is.
+    baseRevisionId: id.nullable(),
+    baseCommitId: id.nullable(),
+  }),
   z.object({
     ...base,
     type: z.literal("pullRequest"),
@@ -531,6 +549,7 @@ const entityTypes = z.enum([
   "revision",
   "specCommit",
   "specBranch",
+  "specDraft",
   "pullRequest",
   "prReview",
   "review",
@@ -2093,6 +2112,32 @@ export const commandSchema = z.discriminatedUnion("type", [
     message: text.max(500),
     // A conflict resolution may only replace the exact head shown to the user.
     expectedHeadId: id.optional(),
+  }),
+  // Live drafts of a specification line
+  // (docs/internals/specification-drafts.md). Opens the shared draft of main
+  // (no `branchId`) or a branch: creates it, or reopens a closed one as a new
+  // epoch. Its document name is projected (`specDraft`).
+  z.object({
+    type: z.literal("openSpecificationDraft"),
+    ...itemCommand,
+    branchId: id.optional(),
+    // Start again from the line's head, for everyone editing the draft.
+    discardChanges: z.boolean().optional(),
+  }),
+  // Seals the draft at exactly `expectedSequence` (the stored sequence the
+  // editor last saw): on main a new revision ("Save revision"; `message` is
+  // its change summary), on a branch a commit. The content is the stored cut,
+  // never sent by the client. A branch commit may carry the person's
+  // breakdown edits, made from `breakdownBaseCommitId`.
+  z.object({
+    type: z.literal("commitSpecificationDraft"),
+    ...itemCommand,
+    draftId: id,
+    epoch: z.number().int().positive(),
+    expectedSequence: z.number().int().min(0),
+    message: z.string().trim().max(500).optional(),
+    proposedChildren: proposedChildrenSchema.optional(),
+    breakdownBaseCommitId: id.optional(),
   }),
   z.object({
     type: z.literal("syncBranch"),

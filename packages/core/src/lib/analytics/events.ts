@@ -42,6 +42,8 @@ export const commandEvents = {
   createBranch: "branch_created",
   setBranchCollaborator: "branch_collaborator_changed",
   commitBranch: "branch_committed",
+  openSpecificationDraft: "specification_draft_opened",
+  commitSpecificationDraft: "specification_draft_saved",
   syncBranch: "branch_updated",
   deleteBranch: "branch_deleted",
   createPullRequest: "pull_request_created",

@@ -7,6 +7,7 @@ import {
 import {
   CLOSE_REASONS,
   DRAFT_SEQUENCE_REQUEST,
+  SPECIFICATION_CLOSE_REASONS,
   draftProviderOptions,
   saveRefusalOf,
   stopSendingDraft,
@@ -80,8 +81,10 @@ function releaseSocket() {
 }
 
 export function closedKindOf(reason: string | undefined): ClosedKind | null {
-  for (const [kind, text] of Object.entries(CLOSE_REASONS))
-    if (reason === text) return kind as ClosedKind;
+  // Page drafts and specification drafts close with the same kinds.
+  for (const reasons of [CLOSE_REASONS, SPECIFICATION_CLOSE_REASONS])
+    for (const [kind, text] of Object.entries(reasons))
+      if (reason === text) return kind as ClosedKind;
   return null;
 }
 

@@ -264,6 +264,10 @@ export const deletionOrder: readonly PgTable[] = [
   s.review,
   s.pullRequestReview,
   s.specificationPullRequest,
+  // Live specification drafts reference branches, revisions and commits.
+  s.specificationDraftUpdate,
+  s.specificationDraftSeed,
+  s.specificationDraft,
   s.specificationBranch,
   s.readinessCheck,
   s.readinessSignOff,

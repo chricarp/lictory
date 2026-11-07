@@ -427,6 +427,17 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     description:
       "Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId, title, description) or a change to an existing direct child (changeId, workItemId, base {revisionId, title} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
   },
+  openSpecificationDraft: {
+    title: "Open specification draft",
+    description:
+      "Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. `discardChanges: true` starts the draft again from the line's latest Markdown for everyone editing it (the discarded edits stay recoverable on the server). Agents cannot type into live drafts; they change specifications with updateSpecification or a branch commit.",
+  },
+  commitSpecificationDraft: {
+    title: "Save specification draft",
+    description:
+      "Seal the live draft of a specification line (`draftId`, `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw: on main a new revision (`message` is its change summary; existing approvals are marked outdated and reviews re-requested, as for updateSpecification), on a branch a commit (`message` is the commit message; optional `proposedChildren` made from `breakdownBaseCommitId`). The content is what the server stored, never sent. Edits that cancel out record the cut without a revision or commit. Main of a protected specification is refused.",
+    decision: true,
+  },
   syncBranch: {
     title: "Sync branch",
     description:

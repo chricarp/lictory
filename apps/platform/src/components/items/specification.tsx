@@ -12,6 +12,12 @@ import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import {
+  SpecificationDraftEditor,
+  useSpecificationDraft,
+} from "@lictory/platform/components/items/specification-draft";
+import type { LiveControls } from "@lictory/platform/components/items/live-specification";
+import { SPECIFICATION_CLOSE_REASONS } from "@lictory/core/spaces/collaboration-protocol";
 import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
 import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
 
@@ -31,6 +37,7 @@ export function Specification({
   onSuggest?: (quote: string) => void;
 }) {
   const { current, readOnly, canEdit, memberName, reviewable } = useItem();
+  const mainDraft = useSpecificationDraft();
   if (!current) return null;
   // Plain work (tasks, bugs) has a description that is edited directly; only
   // specifications are reviewed through suggestions and anchored discussions.
@@ -46,6 +53,22 @@ export function Specification({
         </span>
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">
+            {/* Stored edits in main's live draft that no revision holds
+                yet: only people who may edit main see (and open) them. */}
+            {canEdit && reviewable && mainDraft?.uncommittedChanges && (
+              <button
+                type="button"
+                onClick={() => setMode("edit")}
+                title="Edits in the live draft are saved but not yet a revision. Open the editor to review and save them."
+                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-warning/10 px-2.5 text-xs font-medium text-warning outline-none hover:bg-warning/15 focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <span
+                  aria-hidden
+                  className="size-1.5 rounded-full bg-warning"
+                />
+                Unsaved draft changes
+              </button>
+            )}
             {canEdit && (
               <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
                 <Pencil className="size-3.5" /> Edit
@@ -60,6 +83,8 @@ export function Specification({
           onSuggest={reviewable && !readOnly ? onSuggest : undefined}
           onEdit={() => canEdit && setMode("edit")}
         />
+      ) : reviewable ? (
+        <LiveEditor onDone={() => setMode("read")} />
       ) : (
         <Editor mode={mode} onDone={() => setMode("read")} />
       )}
@@ -321,8 +346,201 @@ function Reader({
   );
 }
 
-// Edits and suggestions share the editor. Saving creates a revision against the
-// exact base; if the base moved while typing the user sees a diff, never a merge.
+// Main's live draft (docs/internals/specification-drafts.md): everyone who
+// may edit main types into one shared draft, saved as they type; "Save
+// revision" seals what is stored into the next revision. "Close editor"
+// leaves the draft saved.
+function LiveEditor({ onDone }: { onDone: () => void }) {
+  const { current, revisions, item, canEdit } = useItem();
+  const submitRef = useRef<(() => void) | null>(null);
+  // Editing ended while the editor was open: main became protected, or my
+  // disciplines no longer edit specifications.
+  if (!canEdit)
+    return (
+      <div
+        role="alert"
+        className="space-y-2 rounded-md border border-dashed px-4 py-6 text-sm"
+      >
+        <p>
+          {item.mainProtected
+            ? "This specification is ready, so main is protected. Changes go through a branch and a reviewed pull request."
+            : SPECIFICATION_CLOSE_REASONS.revoked}
+        </p>
+        <Button size="sm" variant="secondary" onClick={onDone}>
+          Back to the specification
+        </Button>
+      </div>
+    );
+  return (
+    <SpecificationDraftEditor
+      line={{
+        headTitle: current?.title ?? item.title,
+        headMarkdown: current?.content ?? "",
+        basedOn: `revision ${current?.number ?? 1}`,
+        isMain: true,
+      }}
+      label="Specification"
+      placeholder="Why this matters and for whom, the expected behavior, failure behavior and acceptance criteria. Type / for headings, lists and references."
+      fileContext={{ organizationId: item.organizationId, workItemId: item.id }}
+      onClose={onDone}
+      onSubmit={() => submitRef.current?.()}
+      footer={(controls) => (
+        <SaveRevision
+          controls={controls}
+          next={(revisions[0]?.number ?? 0) + 1}
+          submitRef={submitRef}
+          onDone={onDone}
+        />
+      )}
+    />
+  );
+}
+
+function SaveRevision({
+  controls,
+  next,
+  submitRef,
+  onDone,
+}: {
+  controls: LiveControls;
+  next: number;
+  submitRef: { current: (() => void) | null };
+  onDone: () => void;
+}) {
+  const { base } = useItem();
+  const draft = useSpecificationDraft();
+  const [summary, setSummary] = useState("");
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState<"saving" | "discarding" | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const save = async () => {
+    if (!draft || pending) return;
+    setPending("saving");
+    setError(undefined);
+    try {
+      await controls.seal((expectedSequence) => ({
+        type: "commitSpecificationDraft",
+        workItemId: base.workItemId,
+        draftId: draft.id,
+        epoch: draft.epoch,
+        expectedSequence,
+        ...(summary.trim() ? { message: summary.trim() } : {}),
+      }));
+      // Someone who went elsewhere meanwhile stays there.
+      if (mounted.current) onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save.");
+    } finally {
+      setPending(null);
+    }
+  };
+  useEffect(() => {
+    submitRef.current = () => void save();
+    return () => {
+      submitRef.current = null;
+    };
+  });
+  return (
+    <div className="space-y-3">
+      <input
+        value={summary}
+        onChange={(e) => setSummary(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void save();
+        }}
+        placeholder="What changed? (optional)"
+        aria-label="Change summary"
+        maxLength={500}
+        className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
+      />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {controls.uncommitted &&
+          (confirmDiscard ? (
+            <span className="mr-auto inline-flex flex-wrap items-center gap-2 text-xs">
+              Discard the unsaved changes for everyone editing?
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pending !== null}
+                onClick={() => {
+                  setPending("discarding");
+                  setError(undefined);
+                  void controls
+                    .discard()
+                    .catch((e: unknown) =>
+                      setError(
+                        e instanceof Error ? e.message : "Could not discard.",
+                      ),
+                    )
+                    .finally(() => {
+                      setPending(null);
+                      setConfirmDiscard(false);
+                    });
+                }}
+              >
+                Discard changes
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmDiscard(false)}
+              >
+                Keep them
+              </Button>
+            </span>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mr-auto"
+              onClick={() => setConfirmDiscard(true)}
+            >
+              Discard changes…
+            </Button>
+          ))}
+        <Button
+          variant="ghost"
+          size="md"
+          title="Back to the specification. The draft stays saved."
+          onClick={onDone}
+        >
+          Close editor
+        </Button>
+        <Button
+          size="md"
+          onClick={() => void save()}
+          disabled={pending !== null || !controls.editable || !draft}
+        >
+          {pending === "saving"
+            ? `Saving revision ${next}…`
+            : `Save revision ${next}`}
+          <Kbd>⌘↵</Kbd>
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Saving creates an immutable revision. Existing approvals are marked
+        outdated and reviews are re-requested. Until then your edits are shared
+        with everyone editing, never a revision.
+      </p>
+    </div>
+  );
+}
+
+// Plain work items (no specification): the description is edited directly.
+// Saving creates a revision against the exact base; if the base moved while
+// typing the user sees a diff, never a merge.
 function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
   const { current, mutate, base, revisions, item } = useItem();
   const [baseRevision] = useState(current!);

@@ -24,16 +24,36 @@ import {
 import {
   DRAFT_UPDATE_BYTES,
   SAVE_REFUSALS,
+  SPECIFICATION_SAVE_REFUSALS,
 } from "@lictory/core/spaces/collaboration-protocol";
 import { refreshDraftProjections } from "@lictory/core/spaces/projections";
+import { refreshSpecificationDraftProjection } from "@lictory/core/domain/specification-drafts";
 
 // One epoch of one draft. A new epoch replaces the content (restore, merging
-// main into a branch); writes for an older epoch are refused.
+// main into a branch); writes for an older epoch are refused. Drafts belong
+// to a page line (Lictory Spaces, the default) or to a specification line
+// (`kind: "specification"`, docs/internals/specification-drafts.md); both use
+// this writer, each with its own tables and access checks.
+export type DraftKind = "page" | "specification";
 export type DraftRef = {
   organizationId: string;
   draftId: string;
   epoch: number;
+  kind?: DraftKind;
 };
+
+// The draft row and update log of a kind of draft (same columns).
+function tablesOf(ref: DraftRef) {
+  return ref.kind === "specification"
+    ? {
+        draft: sql.identifier("specification_draft"),
+        update: sql.identifier("specification_draft_update"),
+      }
+    : {
+        draft: sql.identifier("space_draft"),
+        update: sql.identifier("space_draft_update"),
+      };
+}
 
 // Space access, decided inside the writer's transaction. The production
 // adapters over the domain checks are `canReadDraft` and `canWriteDraft` in
@@ -61,6 +81,7 @@ async function currentDraft(
   ref: DraftRef,
   forUpdate: boolean,
 ) {
+  const t = tablesOf(ref);
   const rows = await tx.execute<{
     organization_id: string;
     epoch: number;
@@ -72,10 +93,10 @@ async function currentDraft(
   }>(
     forUpdate
       ? sql`select organization_id, epoch, sequence, committed_sequence, fenced_at, null::bytea as snapshot, snapshot_sequence
-              from space_draft where id = ${ref.draftId} and organization_id = ${ref.organizationId}
+              from ${t.draft} where id = ${ref.draftId} and organization_id = ${ref.organizationId}
               for update`
       : sql`select organization_id, epoch, sequence, committed_sequence, fenced_at, snapshot, snapshot_sequence
-              from space_draft where id = ${ref.draftId} and organization_id = ${ref.organizationId}`,
+              from ${t.draft} where id = ${ref.draftId} and organization_id = ${ref.organizationId}`,
   );
   const draft = rows[0];
   if (!draft || draft.fenced_at || draft.epoch !== ref.epoch)
@@ -89,7 +110,7 @@ export async function loadDraft(db: Database, ref: DraftRef) {
     async (tx) => {
       const draft = await currentDraft(tx, ref, false);
       const updates = await tx.execute<{ update: Buffer }>(
-        sql`select "update" from space_draft_update
+        sql`select "update" from ${tablesOf(ref).update}
               where draft_id = ${ref.draftId} and epoch = ${ref.epoch}
                 and sequence > ${draft.snapshot_sequence}
               order by sequence`,
@@ -258,12 +279,13 @@ export async function appendDraftUpdates(
     for (const [key, author] of authors)
       if (!(await authorMayWrite(tx, author, ref, canEdit))) denied.add(key);
     const draft = await currentDraft(tx, ref, true);
+    const t = tablesOf(ref);
     const accepted = entries.filter((e) => !denied.has(authorKey(e)));
     let sequence = draft.sequence;
     for (const entry of accepted) {
       const digest = createHash("sha256").update(entry.update).digest();
       const inserted = await tx.execute(
-        sql`insert into space_draft_update
+        sql`insert into ${t.update}
               (organization_id, draft_id, epoch, sequence, author_id, digest, "update")
               values (${ref.organizationId}, ${ref.draftId}, ${ref.epoch}, ${sequence + 1},
                       ${entry.userId}, ${digest}, ${Buffer.from(entry.update)})
@@ -274,7 +296,7 @@ export async function appendDraftUpdates(
     }
     if (sequence !== draft.sequence)
       await tx.execute(
-        sql`update space_draft set sequence = ${sequence}, updated_at = now()
+        sql`update ${t.draft} set sequence = ${sequence}, updated_at = now()
               where id = ${ref.draftId}`,
       );
     // The first stored edit beyond the last commit: projections show
@@ -374,18 +396,25 @@ export class DraftWriter {
           for (const entry of batch)
             if (denied.has(authorKey(entry)))
               entry.reject(
-                new DomainError("forbidden", SAVE_REFUSALS.cannotEdit),
+                new DomainError(
+                  "forbidden",
+                  this.ref.kind === "specification"
+                    ? SPECIFICATION_SAVE_REFUSALS.cannotEdit
+                    : SAVE_REFUSALS.cannotEdit,
+                ),
               );
             else entry.resolve(sequence);
           // After the authors were told "Saved": a failure here only delays
           // the flag until the next commit or projection rebuild, and the
           // merge gates read the draft itself.
           if (becameDirty)
-            await refreshDraftProjections(
-              this.db,
-              this.ref.organizationId,
-              this.ref.draftId,
-            ).catch(() => undefined);
+            await (
+              this.ref.kind === "specification"
+                ? refreshSpecificationDraftProjection
+                : refreshDraftProjections
+            )(this.db, this.ref.organizationId, this.ref.draftId).catch(
+              () => undefined,
+            );
         } catch (error) {
           for (const entry of batch) entry.reject(error);
         } finally {
