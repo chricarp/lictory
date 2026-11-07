@@ -1,11 +1,23 @@
 import { formatReference } from "@lictory/core/contracts/references";
 import { canonicalizeDocument, type PageNode } from "./canonical";
+import {
+  withResolvedWorkLists,
+  workListMarkdown,
+  type MarkdownOptions,
+} from "./blocks";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
 }
-/** Deterministic GFM projection, never the source of truth. */
-export function documentToMarkdown(json: unknown): string {
-  return render(canonicalizeDocument(json));
+/**
+ * Deterministic GFM projection, never the source of truth. `workList`
+ * resolves live work lists at export time (otherwise they render as their
+ * label only); see `./blocks`.
+ */
+export function documentToMarkdown(
+  json: unknown,
+  options: MarkdownOptions = {},
+): string {
+  return render(withResolvedWorkLists(canonicalizeDocument(json), options));
 }
 export function fragmentMarkdown(nodes: PageNode[]): string {
   return nodes.map((n) => render(n)).join("\n\n");
@@ -104,6 +116,8 @@ function render(n: PageNode): string {
             "page",
           )
         : `[[page:${String(a.pageId)}]]`;
+    case "workList":
+      return workListMarkdown(n);
     case "decisionRef":
       return formatReference(
         { kind: "decision", id: String(a.decisionId) },
