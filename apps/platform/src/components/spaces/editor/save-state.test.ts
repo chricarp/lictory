@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   CLOSE_REASONS,
   SAVE_REFUSALS,
+  SPECIFICATION_CLOSE_REASONS,
   saveRefusalOf,
 } from "@lictory/core/spaces/collaboration-protocol";
 import {
@@ -311,6 +312,14 @@ void test("a save that is only slow never shows as failed", () => {
     "61000 Saved",
   ]);
   assert.deepEqual(announced, []);
+});
+
+void test("a closed specification draft speaks of the editor, not a page", () => {
+  const closed = { ...synced(), closed: "replaced" as const };
+  assert.equal(saveStateOf(closed).label, CLOSE_REASONS.replaced);
+  const spec = saveStateOf({ ...closed, specification: true }).label;
+  assert.equal(spec, SPECIFICATION_CLOSE_REASONS.replaced);
+  assert.doesNotMatch(spec, /page/i);
 });
 
 void test("a closed session wins over a refusal", () => {
