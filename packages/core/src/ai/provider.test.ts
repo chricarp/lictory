@@ -20,7 +20,6 @@ import {
   providerFingerprint,
   resolveAiProvider,
   resolveTranscription,
-  transcriptionRule,
   type AiProviderConfig,
 } from "@lictory/core/ai/provider";
 import { checkAiProvider } from "@lictory/core/ai/check";
@@ -73,8 +72,8 @@ void test("existing installations: an OpenAI key alone selects OpenAI, nothing s
 
 void test("each provider needs its own complete settings, and nothing is guessed", () => {
   assert.match(
-    problems({ LICTORY_AI_PROVIDER: "ollama" }),
-    /must be one of openai, anthropic, azure, openai-compatible/,
+    problems({ LICTORY_AI_PROVIDER: "llama" }),
+    /must be one of openai, anthropic, google, vertex, azure, bedrock/,
   );
   // New settings without a provider are not silently sent to OpenAI.
   assert.match(
@@ -125,7 +124,7 @@ void test("each provider needs its own complete settings, and nothing is guessed
       LICTORY_AI_API_KEY: "sk",
       LICTORY_AI_STRUCTURED_OUTPUT: "json-object",
     }),
-    /applies only to LICTORY_AI_PROVIDER=openai-compatible/,
+    /applies only to self-hosted and OpenAI-compatible endpoints/,
   );
   assert.match(
     problems({ OPENAI_API_KEY: "sk", LICTORY_AI_TIMEOUT_SECONDS: "5" }),
@@ -234,21 +233,26 @@ void test("dictation: on with OpenAI itself, otherwise only by explicit choice",
   };
   assert.equal(resolveTranscription(local).state, "disabled");
   assert.match(
-    transcriptionRule({ ...local, LICTORY_TRANSCRIPTION_PROVIDER: "openai" })!,
-    /needs OPENAI_API_KEY/,
+    JSON.stringify(
+      aiProviderRule({
+        ...local,
+        LICTORY_TRANSCRIPTION_PROVIDER: "openai-realtime",
+      }),
+    ),
+    /LICTORY_TRANSCRIPTION_API_KEY is required for OpenAI Realtime/,
   );
-  assert.deepEqual(
-    resolveTranscription({
-      ...local,
-      LICTORY_TRANSCRIPTION_PROVIDER: "openai",
-      OPENAI_API_KEY: "sk-audio",
-    }),
-    {
-      state: "configured",
-      apiKey: "sk-audio",
-      baseUrl: "https://api.openai.com/v1",
-    },
-  );
+  const chosen = resolveTranscription({
+    ...local,
+    LICTORY_TRANSCRIPTION_PROVIDER: "openai-realtime",
+    OPENAI_API_KEY: "sk-audio",
+  });
+  assert.equal(chosen.state, "configured");
+  const config = (
+    chosen as { config: { apiKey: string; baseURL: string; mode: string } }
+  ).config;
+  assert.equal(config.apiKey, "sk-audio");
+  assert.equal(config.baseURL, "https://api.openai.com/v1");
+  assert.equal(config.mode, "realtime");
   assert.equal(
     resolveTranscription({
       OPENAI_API_KEY: "sk",
@@ -728,15 +732,18 @@ void test("the connection check passes a server that streams tool calls and read
     LICTORY_AI_BASE_URL: `${server.url}/v1`,
     LICTORY_AI_MODEL: "qwen-local",
   });
-  const report = await checkAiProvider({ target: target(config) });
+  const report = await checkAiProvider({
+    text: { state: "configured", config },
+    transcription: { state: "disabled" },
+  });
   assert.deepEqual(
-    report.checks.map((c) => [c.id, c.ok]),
+    report.text.checks.map((c) => [c.id, c.ok]),
     [
       ["structured-output", true],
       ["streamed-tool-call", true],
       ["tool-result", true],
     ],
-    JSON.stringify(report.checks),
+    JSON.stringify(report.text.checks),
   );
   assert.equal(report.ok, true);
   // The replayed tool result reached the endpoint as a tool message.
@@ -768,17 +775,20 @@ void test("the connection check reports a model without tool support and skips w
     LICTORY_AI_BASE_URL: `${server.url}/v1`,
     LICTORY_AI_MODEL: "gemma3:4b",
   });
-  const report = await checkAiProvider({ target: target(config) });
+  const report = await checkAiProvider({
+    text: { state: "configured", config },
+    transcription: { state: "disabled" },
+  });
   assert.equal(report.ok, false);
   assert.deepEqual(
-    report.checks.map((c) => [c.id, c.ok]),
+    report.text.checks.map((c) => [c.id, c.ok]),
     [
       ["structured-output", true],
       ["streamed-tool-call", false],
     ],
   );
-  assert.match(report.checks[1]!.detail, /does not support tool calls/);
-  assert.match(report.checks[1]!.needs, /Litto/);
+  assert.match(report.text.checks[1]!.detail, /does not support tool calls/);
+  assert.match(report.text.checks[1]!.needs, /Litto/);
 });
 
 void test("a substituted model keeps working for tests and drills", () => {

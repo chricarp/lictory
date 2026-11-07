@@ -81,7 +81,10 @@ export const emptyDirectoryProjection: DirectoryProjection = {
     available: false,
     provider: null,
     model: null,
+    customEndpoint: false,
     dictation: false,
+    dictationMode: null,
+    dictationProvider: null,
   },
 };
 

@@ -250,9 +250,11 @@ prepare() {
   docker cp -q "$container:/opt/lictory/deploy" "$dir/bundle"
   docker rm "$container" >/dev/null
   cp "$dir/bundle/compose.production.yaml" "$dir/compose.production.yaml"
-  rm -f "$dir/compose.external-database.yaml"
+  rm -f "$dir/compose.external-database.yaml" "$dir/compose.host-models.yaml"
   [ ! -f "$dir/bundle/compose.external-database.yaml" ] ||
     cp "$dir/bundle/compose.external-database.yaml" "$dir/compose.external-database.yaml"
+  [ ! -f "$dir/bundle/compose.host-models.yaml" ] ||
+    cp "$dir/bundle/compose.host-models.yaml" "$dir/compose.host-models.yaml"
   validate_proxy "$dir" || die "Proxy validation failed; nothing was activated."
   mkdir -p "$home/postgres"
   # This code-only bind mount is read by PostgreSQL's unprivileged user.

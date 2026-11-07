@@ -20,15 +20,13 @@ url.pathname = `/${name}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
 let created = false;
-const aiSettings = [
-  "OPENAI_API_KEY",
-  "OPENAI_BASE_URL",
-  "LICTORY_AI_PROVIDER",
-  "LICTORY_AI_BASE_URL",
-  "LICTORY_AI_MODEL",
-  "LICTORY_AI_API_KEY",
-  "LICTORY_TRANSCRIPTION_PROVIDER",
-] as const;
+// Every AI setting, so a developer's own never changes the outcome.
+const aiSettings = Object.keys(process.env).filter(
+  (k) =>
+    k.startsWith("LICTORY_AI_") ||
+    k.startsWith("LICTORY_TRANSCRIPTION_") ||
+    k.startsWith("OPENAI_"),
+);
 const saved = Object.fromEntries(aiSettings.map((k) => [k, process.env[k]]));
 for (const k of aiSettings) delete process.env[k];
 before(async () => {
@@ -104,7 +102,10 @@ void test("connecting or changing an AI provider reaches existing directories at
     available: true,
     provider: "openai",
     model: "gpt-6-luna",
+    customEndpoint: false,
     dictation: true,
+    dictationMode: "realtime",
+    dictationProvider: "openai-realtime",
   });
   // Nothing left to refresh on the next start.
   assert.equal(await refreshAiAvailability(db), 0);
@@ -119,7 +120,10 @@ void test("connecting or changing an AI provider reaches existing directories at
     available: true,
     provider: "openai-compatible",
     model: "qwen3:32b",
+    customEndpoint: true,
     dictation: false,
+    dictationMode: null,
+    dictationProvider: null,
   });
   assert.equal(await refreshAiAvailability(db), 0);
   delete process.env.LICTORY_AI_PROVIDER;

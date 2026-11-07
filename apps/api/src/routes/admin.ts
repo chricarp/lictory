@@ -3,6 +3,16 @@ import { z } from "zod";
 import { db } from "@lictory/core/db";
 import { checkAiProvider } from "@lictory/core/ai/check";
 import {
+  describeAiProvider,
+  describeTranscription,
+} from "@lictory/core/ai/provider-settings";
+import {
+  aiSettingsInput,
+  aiSettingsView,
+  candidateState,
+  saveAiSettings,
+} from "@lictory/core/domain/ai-settings";
+import {
   addOrganizationMember,
   createAccount,
   createOrganization,
@@ -91,10 +101,11 @@ function admin(
 }
 
 // One live AI check at a time per API process, and not more than one every
-// ten seconds: each check costs the operator three model calls. It accepts no
-// input, so it only ever reaches the configured provider.
+// ten seconds: each check costs a few model calls. A check reaches only the
+// configured provider, or the candidate an instance administrator is about
+// to save (its endpoint guarded like a saved one).
 let aiCheck: { running: boolean; at: number } = { running: false, at: 0 };
-async function runAiCheck() {
+async function limitedCheck<T>(run: () => Promise<T>) {
   if (aiCheck.running)
     throw new InstanceAdminError(
       "busy",
@@ -109,7 +120,7 @@ async function runAiCheck() {
     );
   aiCheck = { running: true, at: Date.now() };
   try {
-    return await checkAiProvider();
+    return await run();
   } finally {
     aiCheck = { running: false, at: Date.now() };
   }
@@ -118,9 +129,41 @@ async function runAiCheck() {
 export function adminRoutes() {
   const app = new Hono();
 
+  const aiView = async () => ({
+    ...(await aiSettingsView(db)),
+    text: describeAiProvider(),
+    dictation: describeTranscription(),
+  });
+  app.get("/api/admin/ai", admin(aiView));
+
+  app.put(
+    "/api/admin/ai",
+    admin(async (c, actor) => {
+      await saveAiSettings(db, actor, await body(c, aiSettingsInput));
+      return aiView();
+    }),
+  );
+
+  // Tests settings before they are saved; nothing is stored.
+  app.post(
+    "/api/admin/ai/test",
+    admin(async (c) => {
+      const input = await body(c, aiSettingsInput);
+      const { state, problems } = await candidateState(db, input);
+      if (problems.length)
+        throw new InstanceAdminError("validation", problems.join(" "));
+      return limitedCheck(() =>
+        checkAiProvider({
+          text: state.text,
+          transcription: state.transcription,
+        }),
+      );
+    }),
+  );
+
   app.post(
     "/api/admin/ai/check",
-    admin(() => runAiCheck()),
+    admin(() => limitedCheck(() => checkAiProvider())),
   );
 
   app.get(

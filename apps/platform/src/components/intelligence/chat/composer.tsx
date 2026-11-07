@@ -89,43 +89,50 @@ export const Composer = forwardRef<
       ];
     setValue(next);
   };
-  const voice = useDictation(organizationId, {
-    onText: (spoken, final) => {
-      const d = dictation.current;
-      if (!d) return;
-      const result = write(current.current, d, spoken, final);
-      if (!result) return;
-      dictation.current = result.dictation;
-      rewrite(result.value, result.change);
+  // The server offers dictation only when its operator configured it, live
+  // (audio straight to OpenAI) or by recorded clips (through this server to
+  // the configured provider).
+  const ai = useOptionalWorkspace()?.directory.ai;
+  const dictationMode = ai?.dictationMode ?? "realtime";
+  const voice = useDictation(
+    organizationId,
+    {
+      onText: (spoken, final) => {
+        const d = dictation.current;
+        if (!d) return;
+        const result = write(current.current, d, spoken, final);
+        if (!result) return;
+        dictation.current = result.dictation;
+        rewrite(result.value, result.change);
+      },
+      onEnd: (reason) => {
+        const d = dictation.current;
+        dictation.current = null;
+        if (!d) return;
+        // Errors keep dictated words; only an empty attempt is undone.
+        if (reason !== "cancelled" && d.range.start !== d.range.end) return;
+        const removed = discard(current.current, d);
+        const value = removed?.value ?? current.current;
+        const start = d.range.start;
+        if (d.pristine && replaced.current) {
+          const restored =
+            value.slice(0, start) + replaced.current + value.slice(start);
+          rewrite(restored, {
+            at: d.range.start,
+            removed: d.range.end - d.range.start,
+            inserted: replaced.current.length,
+          });
+        } else if (removed) rewrite(removed.value, removed.change);
+      },
     },
-    onEnd: (reason) => {
-      const d = dictation.current;
-      dictation.current = null;
-      if (!d) return;
-      // Errors keep dictated words; only an empty attempt is undone.
-      if (reason !== "cancelled" && d.range.start !== d.range.end) return;
-      const removed = discard(current.current, d);
-      const value = removed?.value ?? current.current;
-      const start = d.range.start;
-      if (d.pristine && replaced.current) {
-        const restored =
-          value.slice(0, start) + replaced.current + value.slice(start);
-        rewrite(restored, {
-          at: d.range.start,
-          removed: d.range.end - d.range.start,
-          inserted: replaced.current.length,
-        });
-      } else if (removed) rewrite(removed.value, removed.change);
-    },
-  });
+    dictationMode,
+  );
   const supported = useSyncExternalStore(
     noSubscribe,
-    dictationSupported,
+    () => dictationSupported(dictationMode),
     () => false,
   );
-  // The server offers dictation only when its operator configured it (audio
-  // goes straight to OpenAI's Realtime API, a separate destination).
-  const configured = useOptionalWorkspace()?.directory.ai.dictation ?? false;
+  const configured = ai?.dictation ?? false;
   const canDictate = !!organizationId && supported && configured;
   const dictating = voice.state !== "idle";
   const shortcut = useSyncExternalStore(

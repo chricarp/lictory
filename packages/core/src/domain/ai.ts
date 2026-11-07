@@ -22,7 +22,7 @@ import type { Database, Tx } from "@lictory/core/domain/service";
 import {
   aiConfigured,
   aiProvider,
-  dictationConfigured,
+  dictationConfig,
 } from "@lictory/core/ai/provider-settings";
 
 // Commands that ask Lictory Intelligence for something. They only record
@@ -44,11 +44,17 @@ export { aiConfigured };
 // which one and which model (never its endpoint or key), and dictation.
 export function aiServerState() {
   const config = aiProvider();
+  const dictation = config ? dictationConfig() : undefined;
   return {
     available: Boolean(config),
     provider: config?.provider ?? null,
     model: config?.model ?? null,
-    dictation: Boolean(config) && dictationConfigured(),
+    // A gateway or proxy in front of the provider: members are not told the
+    // vendor's name as if requests went to it directly.
+    customEndpoint: Boolean(config?.customBaseUrl),
+    dictation: Boolean(dictation),
+    dictationMode: dictation?.mode ?? null,
+    dictationProvider: dictation?.provider ?? null,
   };
 }
 export async function aiPolicy(
@@ -78,7 +84,10 @@ export async function refreshAiAvailability(db: Database) {
         sql`(coalesce((${ai}->>'available')::boolean, false) <> ${state.available}
           or coalesce(${ai}->>'provider', '') <> ${state.provider ?? ""}
           or coalesce(${ai}->>'model', '') <> ${state.model ?? ""}
-          or coalesce((${ai}->>'dictation')::boolean, false) <> ${state.dictation})`,
+          or coalesce((${ai}->>'dictation')::boolean, false) <> ${state.dictation}
+          or coalesce((${ai}->>'customEndpoint')::boolean, false) <> ${state.customEndpoint}
+          or coalesce(${ai}->>'dictationMode', '') <> ${state.dictationMode ?? ""}
+          or coalesce(${ai}->>'dictationProvider', '') <> ${state.dictationProvider ?? ""})`,
       ),
     );
   await refreshDirectories(
@@ -106,7 +115,7 @@ export function requireAi(ai: Directory["ai"]) {
   if (!ai.available)
     throw new DomainError(
       "unavailable",
-      "Lictory Intelligence is not configured on this server. Ask an administrator to connect an AI provider (LICTORY_AI_PROVIDER).",
+      "Lictory Intelligence is not configured on this server. An instance administrator can connect an AI provider in the admin console (/admin).",
     );
   if (!ai.enabled)
     throw new DomainError(

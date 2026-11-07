@@ -22,7 +22,7 @@ export async function chatOwner(
     if (!ai.available)
       throw new CapabilityError(
         "unavailable",
-        "Lictory Intelligence is not configured on this server. Ask an administrator to connect an AI provider (LICTORY_AI_PROVIDER).",
+        "Lictory Intelligence is not configured on this server. An instance administrator can connect an AI provider in the admin console (/admin).",
       );
     if (!ai.enabled)
       throw new CapabilityError(

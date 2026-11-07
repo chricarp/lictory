@@ -70,20 +70,31 @@ x-server-environment: &server-environment
   R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
   R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
   R2_S3_ENDPOINT: ${R2_S3_ENDPOINT:-}
-  # Lictory Intelligence (docs/operations/ai-providers.md). Unset: OpenAI when
-  # OPENAI_API_KEY is set, otherwise off. A self-hosted endpoint on this
-  # server is http://host.docker.internal:<port>/... (localhost is the
-  # container itself).
+  # Lictory Intelligence (docs/operations/ai-providers.md). Set here, these
+  # take precedence over the admin console. Unset: the console's settings, or
+  # OpenAI when OPENAI_API_KEY is set. A model server on this machine is
+  # http://host.docker.internal:<port>/... (localhost is the container
+  # itself) with LICTORY_HOST_MODEL_SERVER=true (compose.host-models.yaml).
   LICTORY_AI_PROVIDER: ${LICTORY_AI_PROVIDER:-}
   LICTORY_AI_MODEL: ${LICTORY_AI_MODEL:-}
   LICTORY_AI_BASE_URL: ${LICTORY_AI_BASE_URL:-}
   LICTORY_AI_API_KEY: ${LICTORY_AI_API_KEY:-}
   LICTORY_AI_STRUCTURED_OUTPUT: ${LICTORY_AI_STRUCTURED_OUTPUT:-}
   LICTORY_AI_TIMEOUT_SECONDS: ${LICTORY_AI_TIMEOUT_SECONDS:-}
+  LICTORY_AI_REGION: ${LICTORY_AI_REGION:-}
+  LICTORY_AI_PROJECT: ${LICTORY_AI_PROJECT:-}
+  LICTORY_AI_LOCATION: ${LICTORY_AI_LOCATION:-}
+  LICTORY_AI_AWS_ACCESS_KEY_ID: ${LICTORY_AI_AWS_ACCESS_KEY_ID:-}
+  LICTORY_AI_AWS_SECRET_ACCESS_KEY: ${LICTORY_AI_AWS_SECRET_ACCESS_KEY:-}
+  LICTORY_AI_CONSOLE: ${LICTORY_AI_CONSOLE:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
   LICTORY_TRANSCRIPTION_PROVIDER: ${LICTORY_TRANSCRIPTION_PROVIDER:-}
   LICTORY_TRANSCRIPTION_MODEL: ${LICTORY_TRANSCRIPTION_MODEL:-}
+  LICTORY_TRANSCRIPTION_BASE_URL: ${LICTORY_TRANSCRIPTION_BASE_URL:-}
+  LICTORY_TRANSCRIPTION_API_KEY: ${LICTORY_TRANSCRIPTION_API_KEY:-}
+  LICTORY_TRANSCRIPTION_PROJECT: ${LICTORY_TRANSCRIPTION_PROJECT:-}
+  LICTORY_TRANSCRIPTION_LOCATION: ${LICTORY_TRANSCRIPTION_LOCATION:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
@@ -308,9 +319,6 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
-    # A model server on this machine (Ollama, vLLM…) is reached as
-    # host.docker.internal; Docker Desktop defines it, Linux needs this line.
-    extra_hosts: ["host.docker.internal:host-gateway"]
     mem_limit: ${API_MEM_LIMIT:-768m}
     stop_grace_period: 30s
     environment:
@@ -330,9 +338,6 @@ services:
     init: true
     cap_drop: [ALL]
     networks: [internal, egress]
-    # A model server on this machine (Ollama, vLLM…) is reached as
-    # host.docker.internal; Docker Desktop defines it, Linux needs this line.
-    extra_hosts: ["host.docker.internal:host-gateway"]
     mem_limit: ${WORKER_MEM_LIMIT:-512m}
     # Lets an in-flight job finish; leases make interrupted work resumable.
     stop_grace_period: 60s

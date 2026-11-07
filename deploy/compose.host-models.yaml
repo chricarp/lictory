@@ -1,0 +1,13 @@
+# Opt-in override for an AI model server on this machine (Ollama, vLLM, a
+# Whisper server…): the API and the worker reach it as host.docker.internal.
+# lictory-compose adds this file with LICTORY_HOST_MODEL_SERVER=true in .env
+# (`lictory ai setup` sets it when you choose a model server on this
+# machine). It is not part of the base file because Docker cannot resolve
+# host-gateway on every setup (for example without the default bridge), and
+# installations without such a server must start regardless.
+# See docs/operations/ai-providers.md.
+services:
+  api:
+    extra_hosts: ["host.docker.internal:host-gateway"]
+  worker:
+    extra_hosts: ["host.docker.internal:host-gateway"]

@@ -16,7 +16,11 @@ import {
   openChat,
   updateChat,
 } from "@lictory/core/intelligence/chat/store";
-import { createDictationSession } from "@lictory/core/intelligence/voice/transcription";
+import {
+  createDictationSession,
+  MAX_SEGMENT_BYTES,
+  transcribeSegment,
+} from "@lictory/core/intelligence/voice/transcription";
 import { limit, MB, noStore } from "@lictory/api/middleware";
 
 const turn = z
@@ -80,6 +84,23 @@ const notFound = () =>
   new CapabilityError("validation", "This conversation no longer exists.", {
     status: 404,
   });
+
+// At most 240 clips per person in ten minutes (a clip ends at every pause):
+// generous for dictation, a bound for a misbehaving client. Per API process.
+const segments = new Map<string, number[]>();
+function segmentBudget(userId: string) {
+  const now = Date.now();
+  const recent = (segments.get(userId) ?? []).filter((t) => now - t < 600_000);
+  if (recent.length >= 240)
+    throw new CapabilityError(
+      "unavailable",
+      "Dictation is paused for a few minutes: too many clips in a short time.",
+      { retryable: true },
+    );
+  recent.push(now);
+  segments.set(userId, recent);
+  if (segments.size > 10_000) segments.clear();
+}
 
 export function intelligenceRoutes() {
   const app = new Hono();
@@ -191,6 +212,34 @@ export function intelligenceRoutes() {
       return errorResponse(error);
     }
   });
+
+  // One recorded clip of dictation (providers other than OpenAI Realtime):
+  // the body is the audio. It is sent to the configured speech-to-text
+  // provider and dropped; nothing is stored or logged.
+  app.post(
+    "/api/intelligence/transcription/segment",
+    limit(MAX_SEGMENT_BYTES + 64 * 1024, "A dictated clip is too long."),
+    async (c) => {
+      try {
+        const { owner } = await chatOwner(
+          c.req.raw,
+          c.req.query("organizationId"),
+          { requireAi: true },
+        );
+        segmentBudget(owner.userId);
+        const audio = new Uint8Array(await c.req.arrayBuffer());
+        return c.json(
+          await transcribeSegment(audio, c.req.header("content-type") ?? "", {
+            signal: c.req.raw.signal,
+          }),
+          200,
+          noStore,
+        );
+      } catch (error) {
+        return errorResponse(error);
+      }
+    },
+  );
 
   return app;
 }

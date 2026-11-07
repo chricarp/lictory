@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  recordSegments,
+  segmentDictationSupported,
+  type SegmentRecorder,
+} from "@lictory/platform/components/intelligence/chat/segment-recorder";
 
-// Live dictation over WebRTC. The microphone streams straight to the speech-to-
-// text provider using a short-lived credential from our server; nothing is
-// recorded or uploaded here, and the audio is gone once the call closes.
+// Dictation in one of the server's two modes (directory.ai.dictationMode):
+// - realtime: live over WebRTC. The microphone streams straight to the
+//   speech-to-text provider using a short-lived credential from our server;
+//   nothing is recorded or uploaded here, and the audio is gone once the call
+//   closes.
+// - segments: clips cut at pauses are posted to our server, which sends each
+//   to the configured provider (cloud or self-hosted) and returns its text
+//   (segment-recorder.ts). Words arrive after each pause.
 
 export type DictationState = "idle" | "connecting" | "listening" | "finishing";
 
@@ -24,6 +34,7 @@ const FINAL_TIMEOUT_MS = 10_000;
 
 type Run = {
   abort: AbortController;
+  recorder?: SegmentRecorder;
   mic?: MediaStream;
   pc?: RTCPeerConnection;
   channel?: RTCDataChannel;
@@ -36,12 +47,41 @@ type Run = {
   ended: boolean;
 };
 
-export function dictationSupported() {
+export type DictationMode = "realtime" | "segments";
+
+export function dictationSupported(mode: DictationMode = "realtime") {
+  if (mode === "segments") return segmentDictationSupported();
   return (
     typeof window !== "undefined" &&
     typeof RTCPeerConnection !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia
   );
+}
+
+async function transcribeClip(
+  organizationId: string,
+  clip: Blob,
+  signal: AbortSignal,
+) {
+  const response = await fetch(
+    `/api/intelligence/transcription/segment?organizationId=${encodeURIComponent(organizationId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": clip.type },
+      body: clip,
+      signal,
+    },
+  );
+  const json = (await response.json().catch(() => null)) as {
+    text?: string;
+    error?: { message?: string };
+  } | null;
+  if (!response.ok || typeof json?.text !== "string")
+    throw new Error(
+      json?.error?.message ??
+        "Voice input could not transcribe what you said. What was transcribed is kept.",
+    );
+  return json.text;
 }
 
 function micError(error: unknown) {
@@ -74,6 +114,7 @@ async function requestSession(organizationId: string, signal: AbortSignal) {
 export function useDictation(
   organizationId: string | undefined,
   handlers: Handlers,
+  mode: DictationMode = "realtime",
 ) {
   const [state, setState] = useState<DictationState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +130,7 @@ export function useDictation(
     r.ended = true;
     run.current = null;
     r.abort.abort();
+    r.recorder?.cancel();
     r.timers.forEach(clearTimeout);
     r.mic?.getTracks().forEach((t) => t.stop());
     r.channel?.close();
@@ -107,7 +149,7 @@ export function useDictation(
 
   const start = useCallback(async () => {
     if (run.current || !organizationId) return;
-    if (!dictationSupported()) {
+    if (!dictationSupported(mode)) {
       setError("This browser does not support voice input.");
       return;
     }
@@ -132,6 +174,23 @@ export function useDictation(
         },
       });
       if (r.ended) return r.mic.getTracks().forEach((t) => t.stop());
+      if (mode === "segments") {
+        r.recorder = recordSegments(r.mic, {
+          transcribe: (clip) =>
+            transcribeClip(organizationId, clip, r.abort.signal),
+          onText: (spoken) => {
+            if (run.current !== r) return;
+            r.spoken = spoken;
+            latest.current.onText(spoken, false);
+          },
+          onError: (e) => {
+            if (run.current === r)
+              fail(e instanceof Error ? e.message : "Voice input stopped.");
+          },
+        });
+        setState("listening");
+        return;
+      }
       const session = await requestSession(organizationId, r.abort.signal);
 
       const pc = new RTCPeerConnection();
@@ -224,13 +283,26 @@ export function useDictation(
           (e instanceof Error ? e.message : "Voice input could not start."),
       );
     }
-  }, [organizationId, end, fail]);
+  }, [organizationId, end, fail, mode]);
 
   // Finish: let the last audio arrive, commit, release the microphone right
   // away, and wait for the provider's final transcript.
   const stop = useCallback(() => {
     const r = run.current;
     if (!r) return;
+    if (r.recorder) {
+      if (r.stopping) return;
+      r.stopping = true;
+      setState("finishing");
+      // The last clip is sent now; the words arrive once it is transcribed.
+      r.mic?.getTracks().forEach((t) => t.stop());
+      void r.recorder.finish().then(() => {
+        if (r.ended) return;
+        latest.current.onText(r.spoken, true);
+        end("done");
+      });
+      return;
+    }
     if (r.channel?.readyState !== "open") return end("cancelled");
     if (r.stopping) return;
     r.stopping = true;

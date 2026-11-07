@@ -2,6 +2,10 @@
 import "@lictory/worker/configuration";
 
 import { createJobDatabase, listenForWork } from "@lictory/core/jobs";
+import {
+  refreshAiState,
+  watchAiSettings,
+} from "@lictory/core/domain/ai-settings";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { mailTransportSummary } from "@lictory/core/lib/mailer";
 import { flushPosthogLogs } from "@lictory/core/lib/posthog-logs";
@@ -60,6 +64,14 @@ log("info", "worker.started", {
   },
   shutdownTimeoutMs: config.shutdownTimeoutMs,
   mail,
+});
+// AI provider settings stored from the admin console; kept current while the
+// worker runs, so a change applies to the next run without a restart.
+await refreshAiState(database.db).catch((error: unknown) =>
+  log("warn", "worker.ai_settings_load_failed", { ...describeError(error) }),
+);
+watchAiSettings(database.db, {
+  log: (event, detail) => log("info", event, detail as Record<string, unknown>),
 });
 supervisor.start();
 

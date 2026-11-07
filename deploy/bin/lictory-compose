@@ -3,7 +3,8 @@
 #   lictory-compose <environment> <compose arguments...>
 #
 # Uses the active release (<home>/current -> releases/<version>): its compose
-# file (plus compose.external-database.yaml with LICTORY_DATABASE=external) and
+# file (plus compose.external-database.yaml with LICTORY_DATABASE=external,
+# compose.host-models.yaml with LICTORY_HOST_MODEL_SERVER=true) and
 # image digests (release.env), plus the environment's .env.
 # LICTORY_RELEASE_DIR selects another release (deploy.sh while rolling).
 set -euo pipefail
@@ -43,6 +44,24 @@ case "${database:-bundled}" in
     ;;
   *)
     echo "LICTORY_DATABASE must be bundled or external (got $database) in $home/.env." >&2
+    exit 64
+    ;;
+esac
+
+# LICTORY_HOST_MODEL_SERVER=true: an AI model server runs on this machine and
+# the API and worker reach it as host.docker.internal.
+host_models=$(grep -E '^LICTORY_HOST_MODEL_SERVER=' "$home/.env" | tail -n 1 | cut -d= -f2- | tr -d "\"'" || true)
+case "${host_models:-false}" in
+  true)
+    [ -f "$release/compose.host-models.yaml" ] || {
+      echo "The release at $release does not support LICTORY_HOST_MODEL_SERVER; install a newer release." >&2
+      exit 1
+    }
+    files+=(--file "$release/compose.host-models.yaml")
+    ;;
+  false | "") ;;
+  *)
+    echo "LICTORY_HOST_MODEL_SERVER must be true or false (got $host_models) in $home/.env." >&2
     exit 64
     ;;
 esac

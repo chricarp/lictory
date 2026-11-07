@@ -26,32 +26,63 @@ export type Overview = {
 };
 
 // Where Lictory Intelligence sends content (ai/provider-settings.ts
-// describeAiProvider); never a key.
-export type AiProviderOverview = { dictation: boolean } & (
+// describeAiProvider / describeTranscription); never a key.
+export type Described =
   | { state: "disabled" | "invalid"; problems: string[] }
   | {
       state: "configured";
       provider: string;
       label: string;
-      protocol: string;
+      hosting: "cloud" | "self-hosted";
+      protocol?: string;
+      mode?: "realtime" | "segments";
       model: string;
       endpoint: string;
       authenticated: boolean;
       keySetting: string | null;
-      structuredOutput: "json-schema" | "json-object";
-      timeoutSeconds: number;
-    }
-);
+      source: "environment" | "console";
+    };
 
+export type AiProviderOverview = {
+  text: Described;
+  dictation: Described;
+  source: "environment" | "console" | "none";
+};
+
+// GET /api/admin/ai (domain/ai-settings.ts aiSettingsView).
+export type AiSettingsView = {
+  source: "environment" | "console";
+  editable: boolean;
+  consoleAllowed: boolean;
+  stored: {
+    text: Record<string, string | boolean> | null;
+    transcription: Record<string, string | boolean> | "default" | null;
+    timeoutSeconds: number | null;
+    version: number;
+    updatedAt: string;
+  } | null;
+  problems: string[];
+  warnings: string[];
+  text: Described;
+  dictation: Described;
+};
+
+type CheckStep = {
+  id: string;
+  needs: string;
+  ok: boolean;
+  ms: number;
+  detail: string;
+};
 export type AiCheckReport = {
   ok: boolean;
-  checks: {
-    id: string;
-    needs: string;
+  text: { state: string; problems: string[]; checks: CheckStep[]; ok: boolean };
+  dictation: {
+    state: string;
+    problems: string[];
+    checks: CheckStep[];
     ok: boolean;
-    ms: number;
-    detail: string;
-  }[];
+  };
 };
 
 export type AdminUser = {
@@ -108,7 +139,7 @@ export type ActivityPage = { events: ActivityEvent[]; before: string | null };
 
 export async function adminRequest<T>(
   path: string,
-  init?: { method?: "GET" | "POST"; body?: unknown },
+  init?: { method?: "GET" | "POST" | "PUT"; body?: unknown },
 ): Promise<T> {
   const response = await fetch(`/api/admin${path}`, {
     method: init?.method ?? "GET",

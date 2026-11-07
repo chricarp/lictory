@@ -90,10 +90,10 @@ void test("a self-hosted text provider does not open OpenAI dictation unless the
       createDictationSession("u", { fetch: spy }),
       (e: unknown) =>
         e instanceof CapabilityError &&
-        e.message.includes("LICTORY_TRANSCRIPTION_PROVIDER=openai"),
+        e.message.includes("LICTORY_TRANSCRIPTION_PROVIDER"),
     );
     assert.equal(calls, 0);
-    process.env.LICTORY_TRANSCRIPTION_PROVIDER = "openai";
+    process.env.LICTORY_TRANSCRIPTION_PROVIDER = "openai-realtime";
     await createDictationSession("u", { fetch: spy });
     assert.equal(calls, 1);
   } finally {

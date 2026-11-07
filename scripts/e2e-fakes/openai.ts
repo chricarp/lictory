@@ -23,6 +23,8 @@
 // - The administrator's connection check (ai/check.ts): an "item_review" of
 //   its synthetic item DEMO-1, a lookupWorkItem tool call, and an answer
 //   after the tool result.
+// - Dictation clips (/v1/audio/transcriptions) always transcribe to the same
+//   sentence.
 import type { ServerResponse } from "node:http";
 import { json, listen, send } from "./http";
 
@@ -305,6 +307,14 @@ export async function startScriptedAi(port: number) {
     const path = new URL(request.url, "http://fake").pathname;
     if (request.method === "GET" && path === "/__scripted-ai/requests")
       return send(response, 200, requests);
+    // Dictation clips (OpenAI's transcription API): every clip is "heard"
+    // as the same sentence, so a test can see dictated words arrive.
+    if (request.method === "POST" && path === "/v1/audio/transcriptions") {
+      requests.push({ at: new Date().toISOString(), body: "[audio clip]" });
+      return send(response, 200, {
+        text: "Dictated by the scripted provider.",
+      });
+    }
     if (request.method !== "POST" || path !== "/v1/responses")
       return send(response, 404, { error: { message: "Not found" } });
     requests.push({ at: new Date().toISOString(), body: request.body });

@@ -46,7 +46,7 @@ test("members see where content goes and an instance administrator checks the pr
   await page.goto(`/${seeded.slug}/settings/intelligence`);
   const settings = page.locator("#ai");
   await expect(
-    settings.getByText("OpenAI, which is asked not to store requests."),
+    settings.getByText(/OpenAI models through an endpoint chosen by/),
   ).toBeVisible();
   await expect(settings.getByText("e2e-scripted")).toBeVisible();
   await expect(settings.getByText("Not offered on this server.")).toBeVisible();
@@ -57,32 +57,38 @@ test("members see where content goes and an instance administrator checks the pr
   await expect(page.getByRole("textbox").first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Dictate/ })).toHaveCount(0);
 
-  // The admin console: provider, endpoint, model and the live check.
+  // The admin console: a summary on the overview, the details read-only
+  // (the environment configures AI) with the live check.
   await page.goto("/admin");
+  const summary = page.locator("#ai-provider");
+  await expect(summary.getByText(/^OpenAI · e2e-scripted$/)).toBeVisible();
+  await summary.getByRole("button", { name: "View" }).click();
+  await expect(page).toHaveURL(/\/admin\/ai$/);
   const provider = page.locator("#ai-provider");
   await expect(
-    provider.getByRole("heading", { name: "AI provider" }),
+    provider.getByText(/Set in the server's environment/),
   ).toBeVisible();
   await expect(provider.getByText("OpenAI", { exact: true })).toBeVisible();
-  await expect(provider.getByText("OpenAI Responses API")).toBeVisible();
   await expect(
-    provider.getByText(/^http:\/\/127\.0\.0\.1:\d+\/v1$/),
+    provider.getByText(
+      /http:\/\/127\.0\.0\.1:\d+\/v1 · key from OPENAI_API_KEY/,
+    ),
   ).toBeVisible();
-  await expect(provider.getByText("Key from OPENAI_API_KEY.")).toBeVisible();
   await expect(provider.getByText("e2e-scripted")).toBeVisible();
-  await expect(provider.getByText("e2e-scripted-ai-key")).toHaveCount(0);
+  await expect(page.getByText("e2e-scripted-ai-key")).toHaveCount(0);
+  // No form: nothing here can change what the environment sets.
+  await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
 
   const before = await sentToProvider();
   await provider.getByRole("button", { name: "Check connection" }).click();
+  const result = page.getByRole("status", { name: "Connection check" });
   await expect(
-    provider.getByText(
-      /This provider and model work with Lictory Intelligence/,
-    ),
+    result.getByText(/These providers work with Lictory Intelligence/),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(provider.getByLabel("Passed")).toHaveCount(3);
-  await expect(provider.getByText("Structured output")).toBeVisible();
-  await expect(provider.getByText("Streamed tool call")).toBeVisible();
-  await expect(provider.getByText("Answer after a tool result")).toBeVisible();
+  await expect(result.getByLabel("Passed")).toHaveCount(3);
+  await expect(result.getByText("Structured output")).toBeVisible();
+  await expect(result.getByText("Streamed tool call")).toBeVisible();
+  await expect(result.getByText("Answer after a tool result")).toBeVisible();
 
   // Only synthetic content reached the provider: nothing of the workspace.
   const sent = (await sentToProvider()).slice(before.length);
@@ -95,7 +101,7 @@ test("members see where content goes and an instance administrator checks the pr
 
   // A second check right away is refused instead of calling the provider.
   await provider.getByRole("button", { name: "Check connection" }).click();
-  await expect(provider.getByText(/was just checked/)).toBeVisible();
+  await expect(result.getByText(/was just checked/)).toBeVisible();
   expect((await sentToProvider()).length).toBe(before.length + 3);
 });
 

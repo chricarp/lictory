@@ -157,6 +157,9 @@ export const browserOperations: readonly BrowserOperation[] = [
       "POST /api/admin/organizations",
       "POST /api/admin/organizations/:id/members",
       "GET /api/admin/activity",
+      "GET /api/admin/ai",
+      "PUT /api/admin/ai",
+      "POST /api/admin/ai/test",
       "POST /api/admin/ai/check",
     ],
   },
@@ -224,6 +227,7 @@ export const browserOperations: readonly BrowserOperation[] = [
       "PATCH /api/intelligence/chats/:id",
       "DELETE /api/intelligence/chats/:id",
       "POST /api/intelligence/transcription",
+      "POST /api/intelligence/transcription/segment",
     ],
   },
   {

@@ -678,13 +678,31 @@ export const declarations: readonly Declaration[] = [
     name: "LICTORY_AI_PROVIDER",
     group: "AI",
     services: server,
-    default: "`openai` when `OPENAI_API_KEY` is set, otherwise none",
+    default:
+      "the admin console's settings, or `openai` when `OPENAI_API_KEY` is set",
     value: {
       type: "choice",
-      values: ["openai", "anthropic", "azure", "openai-compatible"],
+      values: [
+        "openai",
+        "anthropic",
+        "google",
+        "vertex",
+        "azure",
+        "bedrock",
+        "mistral",
+        "xai",
+        "groq",
+        "deepseek",
+        "openrouter",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp",
+        "openai-compatible",
+      ],
     },
     description:
-      "Where Lictory Intelligence sends content: `openai`, `anthropic`, `azure` (Azure OpenAI Responses) or `openai-compatible` (a self-hosted or private Chat Completions endpoint such as Ollama or vLLM). There is no fallback to another provider. Organizations must still opt in. See docs/operations/ai-providers.md.",
+      "The text provider of Lictory Intelligence (reviews, proposal intake, Litto). Setting any AI variable makes the environment the source and the admin console read-only. There is no fallback to another provider. `lictory ai providers` lists them; see docs/operations/ai-providers.md.",
   },
   {
     name: "LICTORY_AI_MODEL",
@@ -712,6 +730,52 @@ export const declarations: readonly Declaration[] = [
       "Key of `LICTORY_AI_PROVIDER`. Required except for `openai-compatible` endpoints without authentication; with `openai`, `OPENAI_API_KEY` is used when it is unset.",
   },
   {
+    name: "LICTORY_AI_REGION",
+    group: "AI",
+    services: server,
+    description:
+      "`bedrock`: the AWS region of the model, such as `eu-central-1`.",
+  },
+  {
+    name: "LICTORY_AI_PROJECT",
+    group: "AI",
+    services: server,
+    default: "the service account key's project",
+    description:
+      "`vertex`: the Google Cloud project (not needed with an express-mode API key).",
+  },
+  {
+    name: "LICTORY_AI_LOCATION",
+    group: "AI",
+    services: server,
+    description:
+      "`vertex`: the location, such as `us-central1` or `global` (not needed with an express-mode API key).",
+  },
+  {
+    name: "LICTORY_AI_AWS_ACCESS_KEY_ID",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "`bedrock`: an access key ID, with `LICTORY_AI_AWS_SECRET_ACCESS_KEY`. Without a key pair or a Bedrock API key (`LICTORY_AI_API_KEY`), the server's own AWS identity is used (instance or task role).",
+  },
+  {
+    name: "LICTORY_AI_AWS_SECRET_ACCESS_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`bedrock`: the secret of `LICTORY_AI_AWS_ACCESS_KEY_ID`.",
+  },
+  {
+    name: "LICTORY_AI_CONSOLE",
+    group: "AI",
+    services: server,
+    default: "`true`",
+    value: { type: "boolean" },
+    description:
+      "`false` stops instance administrators from configuring AI providers in the admin console and with `lictory ai setup`; then only these environment variables do. The console is read-only anyway whenever any AI variable is set.",
+  },
+  {
     name: "LICTORY_AI_STRUCTURED_OUTPUT",
     group: "AI",
     services: server,
@@ -735,7 +799,7 @@ export const declarations: readonly Declaration[] = [
     services: server,
     secret: "issued",
     description:
-      "OpenAI key. Without `LICTORY_AI_PROVIDER` it selects OpenAI (existing installations). Dictation uses it with `LICTORY_TRANSCRIPTION_PROVIDER=openai`.",
+      "OpenAI key. Without `LICTORY_AI_PROVIDER` it selects OpenAI (existing installations); with another text provider it serves OpenAI dictation (`openai` or `openai-realtime`).",
   },
   {
     name: "OPENAI_BASE_URL",
@@ -749,17 +813,64 @@ export const declarations: readonly Declaration[] = [
     name: "LICTORY_TRANSCRIPTION_PROVIDER",
     group: "AI",
     services: server,
-    default: "`openai` when text goes to OpenAI's own API, otherwise `none`",
-    value: { type: "choice", values: ["openai", "none"] },
+    default:
+      "`openai-realtime` when text goes to OpenAI's own API, otherwise `none`",
+    value: {
+      type: "choice",
+      values: [
+        "openai-realtime",
+        "openai",
+        "azure",
+        "vertex",
+        "groq",
+        "deepgram",
+        "elevenlabs",
+        "assemblyai",
+        "mistral",
+        "speaches",
+        "whisper-cpp",
+        "openai-compatible",
+        "none",
+      ],
+    },
     description:
-      "Live dictation in the Litto composer. Audio goes from the browser straight to OpenAI's Realtime API, a separate destination from the text provider: set `openai` explicitly (with `OPENAI_API_KEY`) to offer it with another provider or a gateway.",
+      "Dictation in the Litto composer. `openai-realtime` streams audio from the browser straight to OpenAI; every other provider receives short clips through this server, which keeps nothing. A provider of the text provider's vendor reuses its key.",
   },
   {
     name: "LICTORY_TRANSCRIPTION_MODEL",
     group: "AI",
-    services: ["api"],
-    default: "`gpt-live-transcribe`",
-    description: "Model for live dictation in the Intelligence composer.",
+    services: server,
+    default:
+      "the provider's default (`gpt-live-transcribe` for `openai-realtime`)",
+    description: "Speech-to-text model, or the deployment name with `azure`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_BASE_URL",
+    group: "AI",
+    services: server,
+    default: "the provider's API; required for `azure` and `openai-compatible`",
+    description:
+      "Base URL of the speech-to-text API, such as a self-hosted Whisper server's `http://host.docker.internal:8000/v1`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    default: "the text provider's key when it is the same vendor",
+    description: "Key of `LICTORY_TRANSCRIPTION_PROVIDER`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_PROJECT",
+    group: "AI",
+    services: server,
+    description: "`vertex` dictation: the Google Cloud project.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_LOCATION",
+    group: "AI",
+    services: server,
+    description: "`vertex` dictation: the location.",
   },
 
   // ------------------------------------------------------------- analytics

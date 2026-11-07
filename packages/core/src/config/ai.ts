@@ -3,9 +3,6 @@
 // explicit but incomplete provider stops the API and the worker instead of
 // leaving AI silently off or sending content somewhere else.
 import type { ConfigurationRule } from "@lictory/core/config/validate";
-import {
-  aiProviderRule,
-  transcriptionRule,
-} from "@lictory/core/ai/provider-settings";
+import { aiProviderRule } from "@lictory/core/ai/provider-settings";
 
-export const aiRules: ConfigurationRule[] = [aiProviderRule, transcriptionRule];
+export const aiRules: ConfigurationRule[] = [aiProviderRule];

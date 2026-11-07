@@ -238,7 +238,7 @@ RUN apk add --no-cache age rclone curl bash coreutils jq \
 ENV RCLONE_CONFIG=/opt/rclone.conf
 COPY deploy/backup/*.sh deploy/monitor/*.sh /opt/lictory/
 COPY deploy/monitor/*.sql /opt/lictory/sql/
-COPY deploy/compose.production.yaml deploy/compose.external-database.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
+COPY deploy/compose.production.yaml deploy/compose.external-database.yaml deploy/compose.host-models.yaml deploy/compose.restore-drill.yaml /opt/lictory/deploy/
 COPY deploy/postgres /opt/lictory/deploy/postgres
 COPY deploy/bin deploy/deploy.sh /opt/lictory/deploy/bin/
 # Host installation (lictory CLI, deploy/get.sh): install.sh, timers, templates.

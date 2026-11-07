@@ -81,18 +81,13 @@ function oidcEnv(issuer: string | undefined) {
 // reach provider redirects.
 // Never a developer's own AI provider, endpoint or key: every AI setting is
 // cleared, then each phase configures the scripted provider explicitly.
-const aiSettings = [
-  "LICTORY_AI_PROVIDER",
-  "LICTORY_AI_MODEL",
-  "LICTORY_AI_BASE_URL",
-  "LICTORY_AI_API_KEY",
-  "LICTORY_AI_STRUCTURED_OUTPUT",
-  "LICTORY_AI_TIMEOUT_SECONDS",
-  "OPENAI_API_KEY",
-  "OPENAI_BASE_URL",
-  "LICTORY_TRANSCRIPTION_PROVIDER",
-  "LICTORY_TRANSCRIPTION_MODEL",
-];
+const aiSettings = Object.keys(process.env).filter(
+  (name) =>
+    name.startsWith("LICTORY_AI_") ||
+    name.startsWith("LICTORY_TRANSCRIPTION_") ||
+    name.startsWith("OPENAI_") ||
+    name === "LICTORY_HOST_MODEL_SERVER",
+);
 const inherited = { ...process.env };
 for (const name of aiSettings) delete inherited[name];
 const parentEnv = { ...process.env };
@@ -336,10 +331,18 @@ if (shard) {
 }
 if (!files.length) throw new Error("No browser tests match these arguments.");
 // Workflows of Lictory Intelligence run after the others, against the API and
-// worker restarted with the scripted AI provider.
+// worker restarted with the scripted AI provider: configured in their
+// environment (*.ai.spec.ts, as existing installations do), or by an instance
+// administrator in the admin console (*.ai-console.spec.ts, which starts
+// with no AI settings at all and stores its own).
 const needsAi = (file: string) => file.endsWith(".ai.spec.ts");
+const configuresAi = (file: string) => file.endsWith(".ai-console.spec.ts");
 const phases = [
-  { ai: false, files: files.filter((file) => !needsAi(file)) },
+  {
+    ai: false,
+    files: files.filter((file) => !needsAi(file) && !configuresAi(file)),
+  },
+  { ai: false, console: true, files: files.filter(configuresAi) },
   { ai: true, files: files.filter(needsAi) },
 ].filter((phase) => phase.files.length);
 const projects = new Set(
@@ -557,7 +560,7 @@ try {
   for (const [index, phase] of phases.entries()) {
     if (index > 0) {
       console.log(
-        `Restarting the API and worker ${phase.ai ? "with" : "without"} the scripted AI provider for ${phase.files.join(", ")}.`,
+        `Restarting the API and worker ${phase.ai ? "with" : "without"} the scripted AI provider${"console" in phase ? " (configured in the admin console)" : ""} for ${phase.files.join(", ")}.`,
       );
       await startBackend(phase.ai);
       await waitFor("api", `http://localhost:${ports.api}/readyz`);
@@ -577,7 +580,9 @@ try {
         // The test's side of the fakes (what people do in Jira, what was
         // sent to the AI provider).
         E2E_FAKE_JIRA_URL: fakeJira.url,
-        ...(phase.ai && { E2E_SCRIPTED_AI_URL: scriptedAi.url }),
+        ...((phase.ai || "console" in phase) && {
+          E2E_SCRIPTED_AI_URL: scriptedAi.url,
+        }),
         // Tests seed through the domain writer, which records in each
         // organization's directory whether the server has an AI provider
         // (and which): the same answer as the API and worker of this phase.

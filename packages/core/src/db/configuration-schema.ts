@@ -196,3 +196,27 @@ export const invitationPlacement = pgTable(
   },
   (t) => [index("invitation_placement_org_idx").on(t.organizationId)],
 );
+
+// The installation's AI provider settings, when instance administrators set
+// them in the admin console or with `lictory ai setup` (environment settings
+// take precedence and are never stored here). One row (`id = 'instance'`).
+// `settings` holds what is not secret (providers, models, endpoints, regions);
+// `secrets` the keys, encrypted like delivery credentials
+// (delivery/credentials.ts). `version` increases with every change so API
+// and worker replicas notice it (domain/ai-settings.ts). Changes are recorded
+// in `instance_audit_event` (`ai.configured`), without secrets.
+export const instanceAiSetting = pgTable(
+  "instance_ai_setting",
+  {
+    id: text("id").primaryKey(),
+    settings: jsonb("settings")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    secrets: text("secrets"),
+    version: integer("version").notNull().default(1),
+    updatedById: text("updated_by_id"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [check("instance_ai_setting_single", sql`${t.id} = 'instance'`)],
+);

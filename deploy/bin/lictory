@@ -173,6 +173,7 @@ Usage: lictory <command> [options]
 Set up
   install            Install or reconfigure an environment (guided, or --yes)
   admin <command>    Instance administration (lictory admin help)
+  ai <command>       AI providers for Lictory Intelligence (lictory ai help)
 
 Operate
   status [--json]    Active release, service health and access policy
@@ -422,6 +423,7 @@ USAGE
       ;;
     config) config_usage ;;
     admin) admin_usage ;;
+    ai) ai_usage ;;
     *) usage ;;
   esac
 }
@@ -469,8 +471,7 @@ Usage: lictory admin <command> [options]
                            (prompt, or LICTORY_USER_PASSWORD)
   deactivate <email>       Block sign-in and end every session (reversible)
   reactivate <email>       Allow a deactivated account to sign in again
-  ai-check [--json]        Check the configured AI provider and model from
-                           the api service (synthetic prompts only)
+  ai-check [--json]        Same as lictory ai check
 
 Instance administrators manage accounts and organizations in the admin
 console at <your address>/admin. These commands work from the server even
@@ -572,6 +573,7 @@ parse() { # parse <value options> <flag options> <arguments...>
   if [ "$(opt help)" = true ]; then
     case "$command" in
       "admin "*) admin_usage ;;
+      "ai "*) ai_usage ;;
       "config "*) config_usage ;;
       *) command_usage "$command" ;;
     esac
@@ -2408,35 +2410,7 @@ cmd_admin() {
         check_ok "$(user_label) is no longer an instance administrator."
       fi
       ;;
-    ai-check)
-      parse "" "json" "$@"
-      [ ${#positional[@]} -eq 0 ] || usage_error "admin ai-check takes no arguments."
-      select_environment
-      admin_ready
-      local ai_status=0
-      admin_call ai-check </dev/null || ai_status=$?
-      if [ "$(opt json)" = true ]; then
-        printf '%s\n' "$admin_out"
-        return "$ai_status"
-      fi
-      case "$(admin_value '.provider.state')" in
-        configured)
-          say "$(admin_value '.provider.label') at $(admin_value '.provider.endpoint'), model $(admin_value '.provider.model')"
-          admin_value '.checks[] | "\(if .ok then "ok" else "FAIL" end)\t\(.id): \(.detail)"' |
-            while IFS=$'\t' read -r mark line; do
-              if [ "$mark" = ok ]; then check_ok "$line"; else check_warn "$line"; fi
-            done
-          ;;
-        invalid) die "The AI provider settings are invalid: $(admin_value '.provider.problems | join(" ")')" ;;
-        disabled)
-          say "No AI provider is configured, so Lictory Intelligence is off. Connect one with: sudo lictory config set LICTORY_AI_PROVIDER=<provider> ..."
-          return 0
-          ;;
-        *) die "$(admin_message)" ;;
-      esac
-      [ "$ai_status" -eq 0 ] || die "Some Lictory Intelligence features will fail with this provider and model. See docs.lictory.com/self-hosting/ai-providers." 1
-      check_ok "Lictory Intelligence can use this provider (compatibility with synthetic content, not review quality)."
-      ;;
+    ai-check) cmd_ai check "$@" ;;
     deactivate | reactivate)
       parse "" "" "$@"
       email=$(need_email "$sub")
@@ -2588,7 +2562,7 @@ _lictory() {
     --output | --backup-identity-file | --database-ca-file) COMPREPLY=(\$(compgen -f -- "\$cur")); return ;;
   esac
   if [ "\$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=(\$(compgen -W "install admin status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version help" -- "\$cur"))
+    COMPREPLY=(\$(compgen -W "install admin ai status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version help" -- "\$cur"))
     return
   fi
   case "\$command" in
@@ -2625,7 +2599,7 @@ _lictory() {
       else
         COMPREPLY=(\$(compgen -W "--json --env --help" -- "\$cur"))
       fi ;;
-    help) COMPREPLY=(\$(compgen -W "install admin status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version" -- "\$cur")) ;;
+    help) COMPREPLY=(\$(compgen -W "install admin ai status doctor database config logs upgrade rollback backup restore registry-login support-bundle uninstall version" -- "\$cur")) ;;
     *) COMPREPLY=(\$(compgen -W "--env --yes --help" -- "\$cur")) ;;
   esac
 }
@@ -3001,6 +2975,267 @@ cmd_registry_login() {
     # get.sh pulls the bootstrap image as root.
     printf '%s\n' "$token" | docker login "$host" --username "$user" --password-stdin >/dev/null
   fi
+}
+
+# ------------------------------------------------------------------------ ai
+ai_usage() {
+  cat <<'USAGE'
+Usage: lictory ai <command> [options]
+
+  status [--json]   The language model and dictation providers in use,
+                    and where their settings come from
+  providers         Every supported provider (cloud and self-hosted)
+  setup             Choose providers, models and keys, test them, save them
+                    (guided; or --provider, --model, --base-url, --region,
+                    --project, --location, --dictation, --dictation-model,
+                    --dictation-base-url with --yes; keys from
+                    LICTORY_AI_API_KEY / LICTORY_TRANSCRIPTION_API_KEY or a
+                    hidden prompt, never from arguments)
+  check [--json]    Send synthetic content through every configured feature
+                    and report what works
+  off               No AI provider (removes stored keys)
+
+The admin console (<your address>/admin/ai) edits the same settings. When
+.env sets LICTORY_AI_* or OPENAI_API_KEY, those win and setup refuses:
+change them with lictory config set, or unset them to manage AI here.
+Guide: https://docs.lictory.com/self-hosting/ai-providers
+USAGE
+}
+
+# ai_describe <json path>: one line for a described provider.
+ai_describe() {
+  admin_value "$1 | if .state == \"configured\" then \"\\(.label) (\\(.hosting)\\(if .mode then \", \" + (if .mode == \"realtime\" then \"live\" else \"recorded clips\" end) else \"\" end)) · model \\(if .model == \"\" then \"default\" else .model end) · \\(.endpoint)\\(if .authenticated then \" · key: \" + .keySetting else \"\" end)\" elif .state == \"invalid\" then \"misconfigured: \" + (.problems | join(\" \")) else \"off\" end"
+}
+
+# ai_report: prints a check report held in admin_out.
+ai_report() {
+  local part
+  for part in text dictation; do
+    case "$(admin_value ".$part.state")" in
+      disabled) [ "$part" = dictation ] && note "Dictation: off" ;;
+      invalid) check_fail "$part: $(admin_value ".$part.problems | join(\" \")")" ;;
+    esac
+    admin_value ".$part.checks[] | \"\\(if .ok then \"ok\" else \"FAIL\" end)\\t\\(.id): \\(.detail)\"" |
+      while IFS=$'\t' read -r mark line; do
+        if [ "$mark" = ok ]; then check_ok "$line"; else check_warn "$line"; fi
+      done
+  done
+}
+
+# ai_pick <kind text|transcription> <current id>: numbered choice; sets answer.
+ai_pick() {
+  local kind="$1" current="$2" ids labels i=1 id choice extra=""
+  [ "$kind" = transcription ] && extra=$'default\tAutomatic (live OpenAI when text uses OpenAI)\tchoice\nnone\tOff\tchoice\n'
+  ids=$( { printf '%s' "$extra"; admin_value ".$kind | to_entries[] | \"\\(.key)\\t\\(.value.label)\\t\\(.value.hosting)\""; } | sed '/^$/d')
+  say ""
+  while IFS=$'\t' read -r id label hosting; do
+    printf '  %2d) %-40s %s\n' "$i" "$label" "$( [ "$hosting" = choice ] || printf '%s' "$hosting")" >/dev/tty
+    i=$((i + 1))
+  done <<<"$ids"
+  while :; do
+    prompt_line "Choose (number or id)" "$current"
+    choice="${answer:-$current}"
+    if [[ "$choice" =~ ^[0-9]+$ ]]; then
+      id=$(sed -n "${choice}p" <<<"$ids" | cut -f1)
+    else
+      id=$(cut -f1 <<<"$ids" | grep -xF -- "$choice" || true)
+    fi
+    [ -n "$id" ] && { answer="$id"; return 0; }
+    prompt_problem "Choose one of the numbers above."
+  done
+}
+
+# ai_fields <kind> <provider> <prefix>: asks for each field of the provider;
+# fills the JSON object in ai_json_<prefix>.
+ai_fields() {
+  local kind="$1" provider="$2" prefix="$3" field need label default value json secret keyvar
+  json=$(jq -n --arg p "$provider" '{provider: $p}')
+  for field in baseUrl model region project location apiKey accessKeyId secretAccessKey structuredOutput; do
+    need=$(admin_value ".$kind[\"$provider\"].fields.$field // empty")
+    [ -n "$need" ] || continue
+    label=$(admin_value ".fieldLabels.$field")
+    secret=""
+    case "$field" in apiKey | accessKeyId | secretAccessKey) secret=secret ;; esac
+    default=""
+    case "$field" in
+      baseUrl) default=$(admin_value ".$kind[\"$provider\"].defaultBaseUrl // empty") ;;
+      model) default=$(admin_value ".$kind[\"$provider\"].defaultModel // .$kind[\"$provider\"].models[0] // empty") ;;
+      structuredOutput) default=json-schema ;;
+    esac
+    # Non-interactive values: options for the visible fields, the
+    # environment for keys (never arguments).
+    value=""
+    case "$prefix:$field" in
+      text:model) value=$(opt model) ;;
+      text:baseUrl) value=$(opt base-url) ;;
+      text:region) value=$(opt region) ;;
+      text:project) value=$(opt project) ;;
+      text:location) value=$(opt location) ;;
+      transcription:model) value=$(opt dictation-model) ;;
+      transcription:baseUrl) value=$(opt dictation-base-url) ;;
+      text:apiKey) value="${LICTORY_AI_API_KEY:-}" ;;
+      transcription:apiKey) value="${LICTORY_TRANSCRIPTION_API_KEY:-}" ;;
+    esac
+    if [ -z "$value" ] && [ "$interactive" = true ]; then
+      [ "$field" = model ] && note "$(admin_value ".$kind[\"$provider\"].modelHint")"
+      [ "$field" = baseUrl ] && [ "$(admin_value ".$kind[\"$provider\"].hosting")" = self-hosted ] &&
+        note "From inside Lictory's containers, a server on this machine is host.docker.internal, not localhost."
+      while :; do
+        prompt_line "$label$( [ "$need" = optional ] && printf ' (optional)')" "$( [ -n "$secret" ] || printf '%s' "$default")" $secret
+        value="${answer:-}"
+        [ -n "$value" ] || [ -n "$secret" ] || value="$default"
+        [ -n "$value" ] || [ "$need" = optional ] || [ -n "$secret" ] && break
+        prompt_problem "$label is required."
+      done
+    fi
+    [ -n "$value" ] || [ -n "$secret" ] || value="$default"
+    [ -n "$value" ] || continue
+    json=$(jq --arg f "$field" --arg v "$value" '. + {($f): $v}' <<<"$json")
+  done
+  printf -v "ai_json_$prefix" '%s' "$json"
+}
+
+cmd_ai() {
+  local sub="${1:-help}"
+  [ $# -eq 0 ] || shift
+  command="ai $sub"
+  case "$sub" in
+    help | -h | --help) ai_usage ;;
+    status)
+      parse "" "json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "ai status takes no arguments."
+      select_environment
+      admin_ready
+      admin_call ai-status </dev/null || die "$(admin_message)"
+      if [ "$(opt json)" = true ]; then printf '%s\n' "$admin_out"; return 0; fi
+      row_width=16
+      say "$(row "Settings" "$(admin_value 'if .source == "environment" then "the server environment (.env)" elif .stored then "the admin console / lictory ai setup" else "none yet" end')")"
+      say "$(row "Language model" "$(ai_describe .text)")"
+      say "$(row "Dictation" "$(ai_describe .dictation)")"
+      admin_value '.problems[]' | while IFS= read -r line; do check_fail "$line"; done
+      admin_value '.warnings[]' | while IFS= read -r line; do check_warn "$line"; done
+      ;;
+    providers)
+      parse "" "" "$@"
+      select_environment
+      admin_ready
+      admin_call ai-providers </dev/null || die "$(admin_message)"
+      say "Language models (LICTORY_AI_PROVIDER):"
+      admin_value '.text | to_entries[] | "  \(.key)\t\(.value.label)\t\(.value.hosting)"' | column -t -s $'\t'
+      say "Dictation (LICTORY_TRANSCRIPTION_PROVIDER):"
+      admin_value '.transcription | to_entries[] | "  \(.key)\t\(.value.label)\t\(.value.hosting), \(if .value.mode == "realtime" then "live" else "recorded clips" end)"' | column -t -s $'\t'
+      ;;
+    check)
+      parse "" "json" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "ai check takes no arguments."
+      select_environment
+      admin_ready
+      local ai_status=0
+      admin_call ai-check </dev/null || ai_status=$?
+      if [ "$(opt json)" = true ]; then
+        printf '%s\n' "$admin_out"
+        # AI intentionally off is not a failure, as in text mode.
+        [ "$(admin_value '.text.state')" != disabled ] || return 0
+        return "$ai_status"
+      fi
+      case "$(admin_value '.text.state')" in
+        disabled)
+          say "No AI provider is configured, so Lictory Intelligence is off. Set one up: sudo lictory ai setup"
+          return 0
+          ;;
+        "") die "$(admin_message)" ;;
+      esac
+      ai_report
+      [ "$ai_status" -eq 0 ] || die "Some Lictory Intelligence features will fail with these settings. See https://docs.lictory.com/self-hosting/ai-providers" 1
+      check_ok "Lictory Intelligence can use these providers (synthetic content; this does not measure quality)."
+      ;;
+    off)
+      parse "" "" "$@"
+      select_environment
+      admin_ready
+      confirm "Turn off Lictory Intelligence on $environment and remove the stored AI keys?" || die "Nothing changed."
+      admin_call ai-off </dev/null || die "$(admin_message)"
+      check_ok "No AI provider is configured; organizations see Lictory Intelligence as unavailable."
+      ;;
+    setup)
+      parse "provider model base-url region project location dictation dictation-model dictation-base-url" "no-test" "$@"
+      [ ${#positional[@]} -eq 0 ] || usage_error "ai setup takes no arguments; see lictory ai help."
+      select_environment
+      [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
+      admin_ready
+      admin_call ai-status </dev/null || die "$(admin_message)"
+      if [ "$(admin_value '.source')" = environment ]; then
+        say "$(row "Language model" "$(ai_describe .text)")"
+        die "The environment configures AI ($home/.env sets LICTORY_AI_* or OPENAI_API_KEY), which takes precedence. Change it with: sudo lictory config set LICTORY_AI_…=… — or unset those settings to manage AI with lictory ai setup and the admin console." 65
+      fi
+      [ "$(admin_value '.consoleAllowed')" = true ] ||
+        die "LICTORY_AI_CONSOLE=false: AI providers are configured only in $home/.env (lictory config set LICTORY_AI_…)." 65
+      local current_text current_dictation stored_text
+      current_text=$(admin_value '.stored.text.provider // empty')
+      current_dictation=$(admin_value 'if .stored == null or .stored.transcription == "default" then "default" elif .stored.transcription == null then "none" else .stored.transcription.provider end')
+      admin_call ai-providers </dev/null || die "$(admin_message)"
+      banner "AI providers"
+      step "Language model (reviews, proposal intake, Litto)"
+      local provider dictation
+      provider=$(opt provider)
+      if [ -z "$provider" ]; then
+        [ "$interactive" = true ] || usage_error "--provider is required with --yes (lictory ai providers lists them)."
+        ai_pick text "${current_text:-openai}"
+        provider="$answer"
+      fi
+      [ -n "$(admin_value ".text[\"$provider\"].label // empty")" ] || usage_error "Unknown provider: $provider (lictory ai providers lists them)."
+      [ "$provider" != "$current_text" ] || note "Leave a key empty to keep the stored one."
+      ai_fields text "$provider" text
+      step "Dictation (speech to text in the Litto composer)"
+      dictation=$(opt dictation)
+      if [ -z "$dictation" ]; then
+        if [ "$interactive" = true ]; then
+          ai_pick transcription "$current_dictation"
+          dictation="$answer"
+        else
+          dictation="$current_dictation"
+        fi
+      fi
+      local transcription_json='"default"'
+      case "$dictation" in
+        default) ;;
+        none | off) transcription_json=null ;;
+        *)
+          [ -n "$(admin_value ".transcription[\"$dictation\"].label // empty")" ] || usage_error "Unknown dictation provider: $dictation"
+          [ "$(admin_value ".transcription[\"$dictation\"].vendor")" != "$(admin_value ".text[\"$provider\"].vendor")" ] ||
+            note "Same vendor as the language model: leave its key empty to reuse that key."
+          ai_fields transcription "$dictation" transcription
+          transcription_json="$ai_json_transcription"
+          ;;
+      esac
+      local settings
+      settings=$(jq -n --argjson t "$ai_json_text" --argjson d "$transcription_json" '{text: $t, transcription: $d}')
+      if [ "$(opt no-test)" != true ]; then
+        step "Test"
+        note "Sending synthetic content (no organization data) to the providers…"
+        local test_status=0
+        printf '%s' "$settings" | admin_call ai-test || test_status=$?
+        [ -n "$(admin_value '.text.state // empty')" ] || die "$(admin_message)"
+        ai_report
+        if [ "$test_status" -ne 0 ]; then
+          confirm "Some checks failed. Save these settings anyway?" || die "Nothing was saved."
+        fi
+      fi
+      printf '%s' "$settings" | admin_call ai-save || die "$(admin_message)"
+      check_ok "Saved. The API and worker use the new settings within seconds."
+      say "$(row "Language model" "$(ai_describe .text)")"
+      say "$(row "Dictation" "$(ai_describe .dictation)")"
+      # A model server on this machine needs the host alias in the containers.
+      if printf '%s' "$settings" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then
+        note "The containers reach a server on this machine as host.docker.internal once LICTORY_HOST_MODEL_SERVER=true (it restarts the services)."
+        if confirm "Set LICTORY_HOST_MODEL_SERVER=true now?"; then
+          "$0" config set --env "$environment" --yes LICTORY_HOST_MODEL_SERVER=true
+        fi
+      fi
+      note "Organizations turn Lictory Intelligence on in their settings. Check any time: sudo lictory ai check"
+      ;;
+    *) usage_error "Unknown command: ai $sub (lictory ai help)" ;;
+  esac
 }
 
 # ----------------------------------------------------------------------- config
@@ -4228,6 +4463,7 @@ command="${1:-help}"
 case "$command" in
   install) cmd_install "$@" ;;
   admin) cmd_admin "$@" ;;
+  ai) cmd_ai "$@" ;;
   bootstrap) cmd_bootstrap "$@" ;;
   status) cmd_status "$@" ;;
   doctor) cmd_doctor "$@" ;;
