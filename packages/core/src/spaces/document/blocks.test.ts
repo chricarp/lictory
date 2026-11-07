@@ -92,7 +92,7 @@ void test("a work list is a canonical block with a narrow, validated filter", ()
     assert.throws(() => doc(list(bad)), PageDocumentError, JSON.stringify(bad));
   // It is a block: not allowed inside a paragraph.
   assert.throws(
-    () => doc(p("x", list({ filter: "referenced" }) as PageNode)),
+    () => doc(p("x", list({ filter: "referenced" }))),
     PageDocumentError,
   );
 });
@@ -133,7 +133,7 @@ void test("work lists and decision references round trip through drafts, merges 
   if (merged.status === "clean") {
     assert.equal(merged.document.content![1]!.attrs!.title, "Sprint 4");
     assert.equal(
-      (merged.document.content![0]!.content![0] as PageNode).text,
+      merged.document.content![0]!.content![0]!.text,
       "Intro, edited",
     );
   }

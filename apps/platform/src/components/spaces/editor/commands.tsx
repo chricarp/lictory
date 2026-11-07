@@ -23,6 +23,7 @@ import {
   type FileContext,
 } from "@lictory/platform/components/items/file-upload";
 import type { MenuItem } from "@lictory/platform/components/spaces/editor/suggestions";
+import { workBlockSlashItems } from "@lictory/platform/components/spaces/blocks/insert-store";
 
 // The blocks of the page schema as commands, shared by the toolbar and
 // the "/" menu, and the inserts for references and images.
@@ -172,6 +173,7 @@ export function slashItems(
       run: (editor, range) =>
         editor.chain().focus().deleteRange(range).insertContent("[[").run(),
     });
+  items.push(...workBlockSlashItems(query));
   return items;
 }
 

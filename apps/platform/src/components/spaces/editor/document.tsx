@@ -8,6 +8,7 @@ import {
   PageReference,
   WorkItemReference,
 } from "@lictory/platform/components/spaces/editor/references";
+import { withWorkBlockView } from "@lictory/platform/components/spaces/blocks/views";
 import "@lictory/platform/components/spaces/editor/page-document.css";
 
 // The page schema as the browser renders it: the shared extensions (so a
@@ -34,7 +35,7 @@ export function documentExtensions(
           addNodeView: () =>
             ReactNodeViewRenderer(PageReference, { as: "span" }),
         });
-      return extension;
+      return withWorkBlockView(extension);
     }),
     CommentHighlights,
   ];

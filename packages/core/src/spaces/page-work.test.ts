@@ -96,15 +96,18 @@ async function organization(owner: string, members: string[] = []) {
     name: "Payments",
     key: "PAY",
   });
-  const [story] = await db
-    .select({ id: s.workItemType.id })
-    .from(s.workItemType)
-    .where(
-      and(
-        eq(s.workItemType.organizationId, organizationId),
-        eq(s.workItemType.name, "Story"),
-      ),
-    );
+  const typeId = async (name: string) =>
+    (
+      await db
+        .select({ id: s.workItemType.id })
+        .from(s.workItemType)
+        .where(
+          and(
+            eq(s.workItemType.organizationId, organizationId),
+            eq(s.workItemType.name, name),
+          ),
+        )
+    )[0]!.id;
   const spaceId = crypto.randomUUID();
   await run(owner, {
     type: "createSpace",
@@ -114,16 +117,21 @@ async function organization(owner: string, members: string[] = []) {
     home: { projectId },
     accessMode: "inherited",
   });
-  const item = async (title: string) => {
+  const item = async (
+    title: string,
+    options: { type?: string; parentId?: string; archived?: boolean } = {},
+  ) => {
     const workItemId = crypto.randomUUID();
     await run(owner, {
       type: "createWorkItem",
       projectId,
       workItemId,
-      typeId: story!.id,
-      parentId: null,
+      typeId: await typeId(options.type ?? "Story"),
+      parentId: options.parentId ?? null,
       title,
     });
+    if (options.archived)
+      await run(owner, { type: "archiveWorkItem", workItemId, archived: true });
     const [revision] = await db
       .select({ id: s.specificationRevision.id })
       .from(s.specificationRevision)
@@ -205,7 +213,7 @@ void test("a page created from a template publishes the template as its first ve
       content: {
         type: "doc",
         content: [{ type: "workList", attrs: { filter: "status" } }],
-      } as Record<string, never>,
+      },
     }),
     (e: unknown) => e instanceof DomainError && e.category === "validation",
   );
@@ -289,4 +297,70 @@ void test("decision cards read recorded decisions by id, archived ones included,
     decisionIds: [decisionId],
   })) as { decisions: unknown[] };
   assert.deepEqual(none.decisions, []);
+});
+
+void test("an export resolves a page's work lists into static references; the stored Markdown stays live", async () => {
+  const owner = await user("Owner");
+  const o = await organization(owner);
+  const epic = await o.item("Refunds", { type: "Epic" });
+  const partial = await o.item("Partial refunds", {
+    parentId: epic.workItemId,
+  });
+  const window = await o.item("Refund window", { parentId: epic.workItemId });
+  await o.item("Withdrawn idea", {
+    parentId: epic.workItemId,
+    archived: true,
+  });
+  const pageId = crypto.randomUUID();
+  const content = {
+    type: "doc",
+    content: [
+      {
+        type: "workList",
+        attrs: {
+          projectId: o.projectId,
+          filter: "epic-children",
+          filterId: epic.workItemId,
+        },
+      },
+    ],
+  };
+  await o.run(owner, {
+    type: "createPage",
+    spaceId: o.spaceId,
+    pageId,
+    title: "Refund plan",
+    content: content,
+  });
+  const read = (await invoke(o.as(owner), "getPage", {
+    organizationId: o.organizationId,
+    pageId,
+  })) as { markdown: string };
+  const keys = await db
+    .select({ id: s.workItem.id, number: s.workItem.number })
+    .from(s.workItem)
+    .where(eq(s.workItem.organizationId, o.organizationId));
+  const key = (id: string) => `PAY-${keys.find((k) => k.id === id)!.number}`;
+  const lines = read.markdown.split("\n");
+  assert.equal(
+    lines[0],
+    `**Children of ${key(epic.workItemId)}** (live list in Lictory)`,
+  );
+  assert.deepEqual(
+    lines.filter((l) => l.startsWith("- ")).sort(),
+    [
+      `- [${key(partial.workItemId)}](item:${partial.workItemId}) Partial refunds`,
+      `- [${key(window.workItemId)}](item:${window.workItemId}) Refund window`,
+    ].sort(),
+  );
+  // The commit's own Markdown is derived without Work: it says the list is
+  // live and holds no item state.
+  const [commit] = await db
+    .select({ markdown: s.pageCommit.markdown })
+    .from(s.pageCommit)
+    .where(eq(s.pageCommit.pageId, pageId));
+  assert.equal(
+    commit!.markdown,
+    "**Work in this epic** (live list in Lictory)",
+  );
 });
