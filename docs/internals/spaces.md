@@ -619,8 +619,12 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 
 - Navigation: Spaces in the organization sidebar, and each project's and team's
   spaces in their navigation. Page titles are in the command palette.
-- Work item mentions (`PAY-142`) in pages render as live references (status,
-  refinement state, readiness) for readers who can see the item.
+- References to work items, other pages (optionally pinned to a version) and
+  recorded decisions render as live chips for readers who can see the target:
+  an item's key, title and delivery status, with its type, refinement state,
+  readiness, owner and iteration in the chip's card; see
+  [one editor for pages and Markdown](editor.md#references). Page comments are
+  written in the same editor as everything else.
 - Pages and work refer to each other through
   [knowledge links](knowledge-links.md): the references of each page's
   published version (work items, pages with an optional pinned commit,
@@ -892,11 +896,13 @@ attributed to the anonymized account, like specification threads.
   rendered by a read-only Tiptap editor from the commit's canonical JSON with
   the same extensions that wrote it, so a commit looks the same everywhere.
   Readers load no Yjs and open no socket; while the reader's code loads, the
-  commit's derived Markdown stands in. Work item mentions render as live
-  chips (identifier, status, refinement and readiness as I can see the item
-  now); an item I cannot see shows only the key stored in the content. Page
-  links show the linked page's current title, or "Unavailable page" without
-  a title when I cannot read it.
+  commit's derived Markdown stands in. References render as the shared
+  chips ([one editor for pages and Markdown](editor.md#references)): a work
+  item with its identifier, title and status, with type, refinement,
+  readiness, owner and iteration in its card; an item I cannot see shows only
+  the key stored in the content. Page links show the linked page's current
+  title (and the cited version when pinned), or "Unavailable page" without a
+  title when I cannot read it. Decisions show their stored title.
 - **Editing.** Main in a Direct space opens as published; "Edit" (or
   "Edit unpublished draft" when it has unpublished changes) opens its live draft.
   A branch I author or collaborate on opens in its draft. In a Reviewed
@@ -918,12 +924,14 @@ attributed to the anonymized account, like specification threads.
   `default` fragment) so every editor sees the same title, and a commit
   seals the title stored at its cut; the editor shows the line's committed
   title while the draft's is empty. Blocks come from the toolbar, from "/"
-  (blocks, image, work item, page link) and from Markdown shortcuts; "#"
-  picks a work item and "[[" a page from what I can read. Images are pasted,
+  (blocks, image, work item, page link, decision) and from Markdown
+  shortcuts; "#" picks a work item and "[[" a page from what I can read
+  (Shift+Enter pins the version published now), "/" → Decision a recorded
+  decision. Images are pasted,
   dropped or chosen and stored as page files (`/api/files/{id}`).
 - **Toolbar.** Undo and redo, the inline marks (bold, italic, strikethrough,
   code, link) and "Comment" stay visible; block styles are one "Text" menu,
-  table, divider, image, work item and page link one "Insert" menu, and a
+  table, divider, image, work item, page link and decision one "Insert" menu, and a
   "Table" menu appears inside a table. "Close editor" returns to the
   published page (main of a Direct space); the draft stays saved.
 - **Save state**, beside the title: "Saving…" while the provider has edits
@@ -1016,7 +1024,9 @@ attributed to the anonymized account, like specification threads.
   rule) and what removing the named access leaves.
 - **Loading.** The space home and tree load none of this: the page surface
   (Tiptap, the reader, comments) is its own chunk, and the live editor (Yjs,
-  y-tiptap, the Hocuspocus provider) another one that only editors load.
+  y-tiptap, the Hocuspocus provider) another one that only editors load. The
+  editor core (node views, toolbar, pickers in `components/editor`) is
+  shared with Work's Markdown editor, which adds no Yjs.
 - **Administrators without access.** `/{org}/spaces` lists the restricted
   spaces I administer but cannot read (from `listSpaces`, names only) with an
   explicit, audited "Grant myself access".
