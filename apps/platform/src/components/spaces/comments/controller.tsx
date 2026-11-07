@@ -38,6 +38,10 @@ import type {
   PageThread,
 } from "@lictory/platform/components/spaces/comments/store";
 import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
+import {
+  SelectionWorkAction,
+  useSelectionWorkAvailable,
+} from "@lictory/platform/components/spaces/work/selection-actions";
 
 // The live editor's Mod+Alt+M and toolbar ask for a comment on the selection.
 export const COMMENT_SELECTION_EVENT = "lictory:comment-selection";
@@ -316,6 +320,7 @@ export function PageComments({
   );
 
   const selection = useEditorSelection(editor);
+  const workAction = useSelectionWorkAvailable(editor);
   const startComment = useCallback(
     (range: { from: number; to: number } | null) => {
       if (!editor || !range) return;
@@ -433,22 +438,34 @@ export function PageComments({
 
   return (
     <>
-      {canComment &&
+      {(canComment || workAction) &&
         selection &&
+        editor &&
         createPortal(
-          <button
-            type="button"
-            // Keeps the selection: the button acts on what is selected.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => startComment(selection)}
+          // What can be done with the selected text: comment on it, or
+          // (on the published page) create work from it.
+          <div
+            role="group"
+            aria-label="Selected text"
             style={{
               top: Math.max(8, selection.top - 40),
               left: selection.left,
             }}
-            className="fixed z-40 inline-flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            className="fixed z-40 flex -translate-x-1/2 items-center gap-1.5"
           >
-            <MessageSquarePlus className="size-3.5" aria-hidden /> Comment
-          </button>,
+            {canComment && (
+              <button
+                type="button"
+                // Keeps the selection: the button acts on what is selected.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => startComment(selection)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <MessageSquarePlus className="size-3.5" aria-hidden /> Comment
+              </button>
+            )}
+            <SelectionWorkAction editor={editor} range={selection} />
+          </div>,
           document.body,
         )}
       {wide && slot && open && createPortal(panel, slot)}

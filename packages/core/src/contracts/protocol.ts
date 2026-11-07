@@ -1598,6 +1598,9 @@ export const commandSchema = z.discriminatedUnion("type", [
     pageId: z.uuid(),
     parentId: id.nullable().optional(),
     title: pageTitle,
+    // Starting content (canonical page JSON, e.g. a template); absent: an
+    // empty page. It becomes the page's first version.
+    content: pageNodeInput.optional(),
     ...pagePosition,
   }),
   z.object({

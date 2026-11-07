@@ -12,6 +12,11 @@ import {
   PageChip,
   type ChipMode,
 } from "@lictory/platform/components/references/chips";
+import {
+  DecisionCardView,
+  isDecisionCard,
+} from "@lictory/platform/components/spaces/blocks/decision-view";
+import { WorkListView } from "@lictory/platform/components/spaces/blocks/work-list-view";
 
 // How references, mentions and verbatim Markdown look inside an editor (or a
 // read-only document). One set of views for page drafts, page readers and
@@ -52,6 +57,8 @@ function PageRefView(props: ReactNodeViewProps) {
 
 function DecisionRefView(props: ReactNodeViewProps) {
   const { node, selected } = props;
+  // Alone in its paragraph of a page: a card (Lictory Spaces).
+  if (isDecisionCard(props)) return <DecisionCardView {...props} />;
   return (
     <NodeViewWrapper as="span" data-type="decisionRef" className="editor-ref">
       <DecisionChip
@@ -112,6 +119,7 @@ const views: Record<string, (props: ReactNodeViewProps) => ReactNode> = {
   mention: MentionView,
   rawInline: RawInlineView,
   rawBlock: RawBlockView,
+  workList: WorkListView,
 };
 
 /** Gives the schema's reference, mention and raw nodes their React views. */
@@ -119,7 +127,7 @@ export function withNodeViews(extensions: AnyExtension[]): AnyExtension[] {
   return extensions.map((extension) => {
     const view = views[extension.name];
     if (!view) return extension;
-    const inline = extension.name !== "rawBlock";
+    const inline = !["rawBlock", "workList"].includes(extension.name);
     return (extension as Node).extend({
       addNodeView: () =>
         ReactNodeViewRenderer(view, inline ? { as: "span" } : {}),

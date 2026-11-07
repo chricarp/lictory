@@ -6,6 +6,7 @@ import { pageExtensions } from "@lictory/core/spaces/document/schema";
 import { CommentHighlights } from "@lictory/platform/components/spaces/comments/highlights";
 import { withNodeViews } from "@lictory/platform/components/editor/node-views";
 import "@lictory/platform/components/editor/document.css";
+import { withWorkBlockPlugins } from "@lictory/platform/components/spaces/blocks/views";
 
 // The page schema as the browser renders it: the shared extensions (so a
 // commit renders exactly as it was written), live reference views and
@@ -24,7 +25,7 @@ export function documentExtensions(
           ? (extension as Extension).configure(uniqueId)
           : extension,
       ),
-    ),
+    ).map(withWorkBlockPlugins),
     CommentHighlights,
   ];
 }

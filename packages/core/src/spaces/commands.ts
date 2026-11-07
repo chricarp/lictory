@@ -20,9 +20,11 @@ import {
 } from "@lictory/core/spaces/access";
 import { applyPageDiscussionCommand } from "@lictory/core/spaces/discussions";
 import {
+  canonicalizeDocument,
   documentHash,
   documentToMarkdown,
   emptyDocument,
+  PageDocumentError,
   PAGE_SCHEMA_VERSION,
 } from "@lictory/core/spaces/document";
 import {
@@ -65,9 +67,18 @@ const fail = (
 };
 
 // The first commit of a new page: its title and the engine's canonical
-// empty document.
-export function initialPageCommit(title: string) {
-  const content = emptyDocument();
+// empty document, or the starting content it was created with (a template,
+// docs/internals/spaces.md).
+export function initialPageCommit(title: string, start?: unknown) {
+  let content;
+  try {
+    content =
+      start === undefined ? emptyDocument() : canonicalizeDocument(start);
+  } catch (error) {
+    if (error instanceof PageDocumentError)
+      fail(`The page's starting content is invalid: ${error.message}`);
+    throw error;
+  }
   return {
     title,
     content: content as unknown as Record<string, unknown>,
@@ -679,7 +690,7 @@ export async function applySpaceCommand(
         createdById: userId,
       });
       const commitId = crypto.randomUUID();
-      const initial = initialPageCommit(c.title);
+      const initial = initialPageCommit(c.title, c.content);
       await tx.insert(s.pageCommit).values({
         id: commitId,
         organizationId,
