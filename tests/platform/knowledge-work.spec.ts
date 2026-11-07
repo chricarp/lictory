@@ -398,10 +398,14 @@ test("a knowledge row opens each version the item relies on, never the latest in
     row.getByRole("link", { name: /^Mentioned in latest/ }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}#block-p-batch$`));
   await expect(
-    row.getByRole("link", { name: "v2: open version 2 of “Batch settlement”" }),
+    row.getByRole("link", {
+      name: /^v2\W+open version 2 of “Batch settlement”/,
+    }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v2}$`));
   await expect(
-    row.getByRole("link", { name: "v3: open version 3 of “Batch settlement”" }),
+    row.getByRole("link", {
+      name: /^v3\W+open version 3 of “Batch settlement”/,
+    }),
   ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v3}$`));
   // The header says how many pages are about the item and brings them into
   // view; screens that replace the specification show them in place.
@@ -418,7 +422,7 @@ test("a knowledge row opens each version the item relies on, never the latest in
   await page.keyboard.press("Escape");
   await page.goto(seeded.itemPath(number));
   await row
-    .getByRole("link", { name: "v2: open version 2 of “Batch settlement”" })
+    .getByRole("link", { name: /^v2\W+open version 2 of “Batch settlement”/ })
     .click();
   await expect(page).toHaveURL(new RegExp(`\\?commit=${v2}`));
   await expect(page.getByText("18:00").first()).toBeVisible();

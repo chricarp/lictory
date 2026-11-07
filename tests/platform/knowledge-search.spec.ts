@@ -188,7 +188,10 @@ test("See all results lists every match a batch at a time, by kind, and forgets 
   });
 
   await signIn(page, seeded.users[1]!.email);
-  await page.goto(`/${seeded.slug}/inbox`);
+  await page.goto(`/${seeded.slug}/spaces`);
+  await expect(
+    page.getByRole("link", { name: /Handbook/ }).first(),
+  ).toBeVisible();
   const palette = await openPalette(page);
   await palette.getByRole("textbox", { name: "Search" }).fill("kumquat");
   await palette
