@@ -32,7 +32,7 @@ import {
 
 // Content search (searchKnowledge), published pages in product knowledge
 // and Litto's page context, against a real, disposable PostgreSQL database
-// (docs/internals/discoverability.md#content-search, docs/internals/ai.md).
+// (docs/internals/spaces.md#search-and-product-knowledge, docs/internals/ai.md).
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -295,7 +295,7 @@ void test("content search finds published page text with its exact version, bloc
   );
   const [hit, ...others] = await f.search(f.carol, "SECOND APPROVER");
   assert.equal(others.length, 0);
-  assert.ok(hit && hit.kind === "page");
+  assert.ok(hit?.kind === "page");
   assert.equal(hit.pageId, pageId);
   assert.equal(hit.commitId, head);
   // createPage made version 1, the merge version 2.

@@ -4,7 +4,7 @@ import * as s from "@lictory/core/db/schema";
 import type { Tx } from "@lictory/core/domain/service";
 
 // Content searches behind searchKnowledge and searchProductKnowledge
-// (docs/internals/discoverability.md#content-search). Every function runs
+// (docs/internals/spaces.md#search-and-product-knowledge). Every function runs
 // inside the caller's read-only snapshot, after the caller checked the
 // person's organization membership, and returns at most `limit` rows ranked
 // title matches first, then most recent. Matching is a case-insensitive
@@ -301,34 +301,49 @@ async function pageAncestors(tx: Tx, org: string, pageIds: string[]) {
 // reads every project) whose title or current specification (the latest
 // revision on main) matches. Branches and unmerged proposals are not
 // searched.
+//
+// Matching revisions are found first and then kept only when they are their
+// item's latest, so the trigram index on revision content can find them
+// without reading every item's specification.
 export async function searchWorkItems(tx: Tx, scope: SearchScope) {
   const org = scope.organizationId;
   const p = scope.query ? patterns(scope.query) : null;
-  const contentMatch = p
-    ? p.markdown
-      ? sql`(l.content ilike ${p.plain} or l.content ilike ${p.markdown})`
-      : sql`l.content ilike ${p.plain}`
-    : sql`true`;
-  const titleMatch = p ? sql`w.title ilike ${p.plain}` : sql`false`;
+  const matched = p
+    ? sql`
+      select w.id, true as title_match from work_item w
+      where w.organization_id = ${org} and w.title ilike ${p.plain}
+      union all
+      select r.work_item_id, false from specification_revision r
+      where r.organization_id = ${org}
+        and ${
+          p.markdown
+            ? sql`(r.content ilike ${p.plain} or r.content ilike ${p.markdown})`
+            : sql`r.content ilike ${p.plain}`
+        }
+        and not exists (
+          select 1 from specification_revision n
+          where n.organization_id = ${org}
+            and n.work_item_id = r.work_item_id and n.number > r.number
+        )`
+    : sql`select w.id, false as title_match from work_item w
+      where w.organization_id = ${org}`;
   const found = await tx.execute<{
     id: string;
     revision_id: string | null;
     title_match: boolean;
   }>(sql`
-    select w.id, l.id as revision_id, (${titleMatch}) as title_match
-    from work_item w
+    with matched(id, title_match) as (${matched})
+    select w.id, bool_or(m.title_match) as title_match,
+      (select l.id from specification_revision l
+        where l.organization_id = ${org} and l.work_item_id = w.id
+        order by l.number desc limit 1) as revision_id
+    from matched m
+    join work_item w on w.organization_id = ${org} and w.id = m.id
     join project p on p.organization_id = ${org} and p.id = w.project_id
-    left join lateral (
-      select r.id, r.content from specification_revision r
-      where r.organization_id = ${org} and r.work_item_id = w.id
-      order by r.number desc
-      limit 1
-    ) l on true
-    where w.organization_id = ${org}
-      and w.archived_at is null
+    where w.archived_at is null
       and p.archived_at is null
       ${scope.projectId ? sql`and w.project_id = ${scope.projectId}` : sql``}
-      and ((${titleMatch}) or (l.id is not null and ${contentMatch}))
+    group by w.id, w.updated_at
     order by title_match desc, w.updated_at desc, w.id desc
     limit ${scope.limit}
   `);

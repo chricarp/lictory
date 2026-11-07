@@ -89,9 +89,11 @@ function nodeText(node: DocNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "hardBreak") return " ";
   const a = node.attrs ?? {};
-  if (node.type === "workItemRef") return String(a.key ?? "");
-  if (node.type === "decisionRef") return String(a.label ?? "decision");
-  if (node.type === "pageRef") return String(a.label ?? "page");
+  const attr = (key: string, fallback: string) =>
+    typeof a[key] === "string" ? a[key] : fallback;
+  if (node.type === "workItemRef") return attr("key", "");
+  if (node.type === "decisionRef") return attr("label", "decision");
+  if (node.type === "pageRef") return attr("label", "page");
   const parts = (node.content ?? []).map(nodeText);
   return node.type === "paragraph" ||
     node.type === "heading" ||
