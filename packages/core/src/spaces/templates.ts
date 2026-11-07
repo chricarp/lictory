@@ -1,61 +1,24 @@
+import type { Command } from "@lictory/core/contracts/protocol";
 import {
   canonicalizeDocument,
   type PageNode,
 } from "@lictory/core/spaces/document/canonical";
+import type {
+  PageTemplateContext,
+  PageTemplateKind,
+} from "@lictory/core/spaces/template-catalog";
 
 // Starting documents for new pages: small, opinionated structures built
 // from ordinary blocks, with a live work list or a decision prompt where it
 // helps. A template becomes the page's first version exactly like the empty
 // document it replaces; everything in it is ordinary content people edit.
 
-export const pageTemplateKinds = [
-  "blank",
-  "product-requirements",
-  "design-doc",
-  "runbook",
-  "decision-record",
-  "retrospective",
-  "iteration-notes",
-] as const;
-export type PageTemplateKind = (typeof pageTemplateKinds)[number];
-
-export const pageTemplates: Record<
-  PageTemplateKind,
-  { name: string; description: string }
-> = {
-  blank: { name: "Blank", description: "An empty page." },
-  "product-requirements": {
-    name: "Product requirements",
-    description: "Problem, goals, scope, requirements and open questions.",
-  },
-  "design-doc": {
-    name: "Design doc",
-    description: "Context, proposal, alternatives, risks and decisions.",
-  },
-  runbook: {
-    name: "Runbook",
-    description: "When to use it, steps, verification, rollback, escalation.",
-  },
-  "decision-record": {
-    name: "Decision record",
-    description: "Context, the decision, options considered, consequences.",
-  },
-  retrospective: {
-    name: "Retrospective",
-    description: "What went well, what did not, and actions to take.",
-  },
-  "iteration-notes": {
-    name: "Iteration notes",
-    description: "Goal, the iteration's live work list, notes and demo.",
-  },
-};
-
-// What the template can point its live work list at.
-export type PageTemplateContext = {
-  projectId?: string | null;
-  iterationId?: string | null;
-  epicId?: string | null;
-};
+export {
+  pageTemplateKinds,
+  pageTemplates,
+  type PageTemplateContext,
+  type PageTemplateKind,
+} from "@lictory/core/spaces/template-catalog";
 
 type Node = PageNode;
 const text = (value: string): Node[] =>
@@ -224,3 +187,14 @@ export function templateDocument(
 ): PageNode {
   return canonicalizeDocument({ type: "doc", content: content(kind, context) });
 }
+
+/** The template as `createPage`'s `content`. */
+export function templatePageContent(
+  kind: PageTemplateKind,
+  context: PageTemplateContext = {},
+): CreatePageContent {
+  return templateDocument(kind, context) as unknown as CreatePageContent;
+}
+type CreatePageContent = NonNullable<
+  Extract<Command, { type: "createPage" }>["content"]
+>;
