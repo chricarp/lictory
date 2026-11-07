@@ -110,10 +110,11 @@ export function DecisionCardView({ node }: ReactNodeViewProps) {
               </span>
             )}
             {entry.state === "ready" && entry.stale && (
-              <span
-                title={`Last checked ${relativeTime(new Date(entry.checkedAt).toISOString())}`}
-              >
-                Couldn’t refresh
+              // Said in text (not only on hover), so touch and screen
+              // readers learn when it was last checked too.
+              <span>
+                Couldn’t refresh · last checked{" "}
+                {relativeTime(new Date(entry.checkedAt).toISOString())}
                 <button
                   type="button"
                   className="decision-card-retry"

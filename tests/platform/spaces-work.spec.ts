@@ -399,6 +399,8 @@ test("decision cards and live work lists render what Work holds now", async ({
     await refocus("focus");
     await expect(card).toContainText("Couldn’t refresh", { timeout: 1000 });
   }).toPass({ timeout: 20_000 });
+  // When it was last checked is text, not only a hover title.
+  await expect(card).toContainText(/Couldn’t refresh · last checked \S/);
   await expect(card).toContainText("Refunds reuse the original payment");
   await expect(card.locator(".decision-card-archived")).toHaveCount(0);
   await ada.page.unroute(offline);
