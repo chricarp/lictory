@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillMarkdown, richEditor } from "../helpers/editor";
 import { seedItem, seedWorkspace, signIn } from "../helpers/seed";
 import { reloadWhenSaved } from "../helpers/sync-helpers";
 
@@ -82,12 +83,13 @@ test.describe("touch devices", () => {
       await title.press("Escape");
 
       await page.getByRole("button", { name: "Edit", exact: true }).tap();
-      const specification = page.getByRole("textbox", {
-        name: "Specification",
-        exact: true,
-      });
+      const specification = await richEditor(page, "Specification");
       await expect(specification).toHaveCSS("font-size", "16px");
-      await specification.fill("Mobile editing preserves the agreed behavior.");
+      await fillMarkdown(
+        page,
+        "Specification",
+        "Mobile editing preserves the agreed behavior.",
+      );
       const summary = page.getByRole("textbox", { name: "Change summary" });
       await expect(summary).toHaveCSS("font-size", "16px");
       await summary.fill("Clarify behavior from a touch device");

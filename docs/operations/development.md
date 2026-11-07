@@ -207,6 +207,47 @@ grows past about two minutes along the people it uses. After adding or growing
 files, refresh the durations with `E2E_UPDATE_TIMINGS=1 bun run test:e2e`; a
 file without an entry is estimated from its number of tests.
 
+### External services in browser workflows
+
+Browser workflows never reach a real external service. `scripts/test-e2e.ts`
+starts two stand-ins of its own on 127.0.0.1 (`scripts/e2e-fakes`), in its own
+process, for the length of the run:
+
+- **A Jira Cloud site** (`jira.ts`, port 3005 + offset). It answers the Jira
+  REST endpoints the real adapter (`packages/core/src/delivery/jira`) calls,
+  with Jira's shapes, so connecting, handing off, recovering a lost create and
+  the status sync run unchanged. The site is `https://lictory-e2e.atlassian.net`:
+  it passes the adapter's production allowlist (Atlassian hosts over https,
+  the protection against server-side request forgery), which stays strict.
+  The API and worker reach the stand-in only because the runner starts them
+  with `node --import ./scripts/e2e-fakes/route-fake-sites.ts`, which routes
+  exactly the origins in `E2E_FAKE_ROUTES` to it, like an `/etc/hosts` entry.
+  Tests play the people working in Jira through its `/__fake/*` routes
+  (`E2E_FAKE_JIRA_URL`): create a project, move an issue, lose the answer to
+  the next create.
+- **A scripted AI provider** (`openai.ts`, port 3006 + offset), behind
+  OpenAI's Responses API. It decides what a model would do from the request
+  alone (the person's words, the page context and the tool results the server
+  sent) and fails with a provider error when it has no script. Tools still run
+  in the worker with the asking person's permissions, and citations come from
+  what they returned, so it exercises authorization, tool calls and rendering
+  instead of faking them. It records every request (`E2E_SCRIPTED_AI_URL`
+  `/__scripted-ai/requests`) so a test can prove what never reached the
+  provider. The API and worker reach it through the AI SDK's own
+  `OPENAI_BASE_URL`.
+
+Only the files named `*.ai.spec.ts` get the AI provider, because a server with
+AI changes what every other workflow sees (Litto as the home page, AI
+controls, onboarding). The runner runs the other files first against a
+server without AI, as a default installation has, then restarts the API and
+worker with the scripted provider (`OPENAI_API_KEY`, `OPENAI_BASE_URL`) for
+the `*.ai.spec.ts` files. Sharded runs keep each file in its shard and phase.
+
+Neither stand-in can be reached outside the browser suite: production images
+contain neither `scripts/` nor the preload, no application code imports
+them, and nothing but `scripts/test-e2e.ts` passes the preload or sets these
+variables. The runner also never inherits a developer's `OPENAI_BASE_URL`.
+
 ### Tests that pass on every contributor's machine
 
 The verification sequence runs on contributors' laptops and their agents'
@@ -274,6 +315,11 @@ What earns a test, while the product is young:
   minutes in CI; adding one means retiring or merging another. A smoke test
   must pass on its own: it creates its own people and organizations instead of
   relying on what an earlier test left behind.
+- A boundary with an external system (handing off to Jira, a Lictory
+  Intelligence answer): a domain test of the adapter and its guarantees, plus
+  at most one browser workflow per journey against the
+  [stand-ins](#external-services-in-browser-workflows). These workflows are
+  long and run in their own phase, so they stay out of `@smoke`.
 
 What does not: markup snapshots, component internals, mocks of our own
 modules, copy assertions unless the wording is the behavior, and browser tests

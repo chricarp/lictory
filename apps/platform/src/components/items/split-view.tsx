@@ -4,8 +4,10 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
+import { useElementWidth } from "@lictory/platform/components/discussions/width";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
@@ -27,16 +29,27 @@ import {
   useLifecycleQueues,
 } from "@lictory/platform/components/items/queues";
 
-const ListPanelContext = createContext<{
+type ListPanel = {
   collapsed: boolean;
   toggle: () => void;
   id: string;
-} | null>(null);
+  // Stepped aside for a specification's discussions (not remembered).
+  aside: boolean;
+  setAside: (aside: boolean) => void;
+  // Its width when shown, 0 when it is not laid out.
+  width: number;
+};
+const ListPanelContext = createContext<ListPanel | null>(null);
+
+export function useListPanel() {
+  return useContext(ListPanelContext);
+}
 
 export function WorkItemListToggle() {
   const panel = useContext(ListPanelContext);
   if (!panel) return null;
-  const label = panel.collapsed ? "Show work item list" : "Hide work item list";
+  const hidden = panel.collapsed || panel.aside;
+  const label = hidden ? "Show work item list" : "Hide work item list";
   return (
     <Button
       variant="ghost"
@@ -44,7 +57,7 @@ export function WorkItemListToggle() {
       className="hidden @min-[65rem]/frame:inline-flex"
       aria-label={label}
       title={label}
-      aria-expanded={!panel.collapsed}
+      aria-expanded={!hidden}
       aria-controls={panel.id}
       onClick={panel.toggle}
     >
@@ -83,7 +96,32 @@ export function SplitView({ children }: { children: ReactNode }) {
     collapse: { collapsed, setCollapsed },
   });
   const listId = resize.pane.id;
-  const { attach: attachList } = resize.pane;
+  const { attach } = resize.pane;
+  const [listElement, setListElement] = useState<HTMLElement | null>(null);
+  const attachList = useCallback(
+    (element: HTMLDivElement | null) => {
+      attach(element);
+      if (element) setListElement(element);
+    },
+    [attach],
+  );
+  const measured = useElementWidth(listElement);
+  // The list steps aside while a specification's discussions need its room
+  // (asked by the item), unless I bring it back; the next time they need it
+  // the question is asked again.
+  const [stepAside, setStepAside] = useState(false);
+  const [kept, setKept] = useState(false);
+  const aside = stepAside && !kept && !collapsed;
+  const [width, setWidth] = useState(0);
+  if (!aside && measured !== width) setWidth(measured);
+  const setAside = useCallback((next: boolean) => {
+    setStepAside(next);
+    if (!next) setKept(false);
+  }, []);
+  const toggleList = useCallback(() => {
+    if (aside) setKept(true);
+    else toggle();
+  }, [aside, toggle]);
   const project = useProject();
   const queues = useLifecycleQueues(project);
   const origin = itemOrigin(searchParams);
@@ -120,7 +158,12 @@ export function SplitView({ children }: { children: ReactNode }) {
       ),
     [organization.slug, project, searchParams],
   );
-  if (!selected) return <div className="h-full">{children}</div>;
+  if (!selected)
+    return (
+      <div data-item-split className="h-full">
+        {children}
+      </div>
+    );
   const { label } = originLink(
     organization.slug,
     project.key,
@@ -128,8 +171,17 @@ export function SplitView({ children }: { children: ReactNode }) {
     searchParams,
   );
   return (
-    <ListPanelContext.Provider value={{ collapsed, toggle, id: listId }}>
-      <div className="flex h-full">
+    <ListPanelContext.Provider
+      value={{
+        collapsed,
+        toggle: toggleList,
+        id: listId,
+        aside,
+        setAside,
+        width,
+      }}
+    >
+      <div data-item-split className="flex h-full">
         <div
           id={listId}
           ref={attachList}
@@ -138,7 +190,7 @@ export function SplitView({ children }: { children: ReactNode }) {
           className={cn(
             "hidden shrink-0 border-r bg-shell/50",
             resize.pane.sized ? "w-(--pane-w)" : "w-[clamp(272px,26cqw,400px)]",
-            !collapsed && "@min-[65rem]/frame:block",
+            !collapsed && !aside && "@min-[65rem]/frame:block",
           )}
         >
           {!collapsed && (
@@ -170,7 +222,7 @@ export function SplitView({ children }: { children: ReactNode }) {
           resize={resize.handle}
           className={cn(
             "hidden",
-            (!collapsed || resize.handle.dragging) &&
+            ((!collapsed && !aside) || resize.handle.dragging) &&
               "@min-[65rem]/frame:block",
           )}
         />

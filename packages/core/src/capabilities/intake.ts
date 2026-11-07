@@ -128,6 +128,9 @@ const draftProposals = defineCapability({
         projectId: project.id,
         query: "",
         limit: KNOWLEDGE_CANDIDATES,
+        // Agreements and conclusions only: drafts cite what the project
+        // agreed, not documentation.
+        kinds: ["decision", "approved", "delivered"],
       }),
       ctx.db.transaction((tx) =>
         composeIntelligenceContext(tx, input.organizationId, {
@@ -136,17 +139,23 @@ const draftProposals = defineCapability({
         }),
       ),
     ]);
-    const knowledge: IntakeKnowledge[] = found.results.map((r, index) => ({
-      ref: `K${index + 1}`,
-      kind: r.kind,
-      id: r.id,
-      key: r.key,
-      title: r.title,
-      revisionId: r.revisionId ?? null,
-      revisionNumber: r.revisionNumber ?? null,
-      href: r.href,
-      excerpt: r.excerpt.slice(0, KNOWLEDGE_EXCERPT),
-    }));
+    const knowledge: IntakeKnowledge[] = found.results.flatMap((r, index) =>
+      r.kind === "page"
+        ? []
+        : [
+            {
+              ref: `K${index + 1}`,
+              kind: r.kind,
+              id: r.id,
+              key: r.key,
+              title: r.title,
+              revisionId: r.revisionId ?? null,
+              revisionNumber: r.revisionNumber ?? null,
+              href: r.href,
+              excerpt: r.excerpt.slice(0, KNOWLEDGE_EXCERPT),
+            },
+          ],
+    );
     const disciplines = roster.disciplines
       .filter((d) => d.projectId === project.id && !d.archivedAt)
       .map((d) => ({ id: d.id, name: d.name, description: d.description }));

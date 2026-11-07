@@ -7,7 +7,9 @@ import {
 import {
   CLOSE_REASONS,
   DRAFT_SEQUENCE_REQUEST,
+  SPECIFICATION_CLOSE_REASONS,
   draftProviderOptions,
+  isSpecificationDraftName,
   saveRefusalOf,
   stopSendingDraft,
   storedSequenceOf,
@@ -41,6 +43,9 @@ export type SessionSnapshot = {
   // The service could not be reached before the first sync.
   unavailable: boolean;
   closed: ClosedKind | null;
+  // A specification draft (its close reasons speak of the editor, not a
+  // page). Absent: a page draft.
+  specification?: boolean;
   // Why the service refused to store this tab's edits (see
   // `SAVE_REFUSALS`). Final for this session: nothing more is saved.
   refused: string | null;
@@ -80,8 +85,10 @@ function releaseSocket() {
 }
 
 export function closedKindOf(reason: string | undefined): ClosedKind | null {
-  for (const [kind, text] of Object.entries(CLOSE_REASONS))
-    if (reason === text) return kind as ClosedKind;
+  // Page drafts and specification drafts close with the same kinds.
+  for (const reasons of [CLOSE_REASONS, SPECIFICATION_CLOSE_REASONS])
+    for (const [kind, text] of Object.entries(reasons))
+      if (reason === text) return kind as ClosedKind;
   return null;
 }
 
@@ -126,6 +133,7 @@ export class DraftSession {
       online: typeof navigator === "undefined" ? true : navigator.onLine,
       unavailable: false,
       closed: null,
+      specification: isSpecificationDraftName(documentName),
       refused: null,
       peers: [],
     });
@@ -362,7 +370,13 @@ export type SaveState =
 // draft is not offered again by reconnecting, so it stays failed, online or
 // not, until the editor reopens it.
 export function saveStateOf(s: Omit<SessionSnapshot, "save">): SaveState {
-  if (s.closed) return { kind: "closed", label: CLOSE_REASONS[s.closed] };
+  if (s.closed)
+    return {
+      kind: "closed",
+      label: (s.specification ? SPECIFICATION_CLOSE_REASONS : CLOSE_REASONS)[
+        s.closed
+      ],
+    };
   if (s.refused) return { kind: "failed", label: "Save failed" };
   if (!s.everSynced)
     return s.unavailable

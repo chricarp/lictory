@@ -1,10 +1,27 @@
+import { formatReference } from "@lictory/core/contracts/references";
 import { canonicalizeDocument, type PageNode } from "./canonical";
+import {
+  withResolvedWorkLists,
+  workListMarkdown,
+  type MarkdownOptions,
+} from "./blocks";
 function escape(text: string) {
   return text.replace(/([\\`*_{}\[\]<>|])/g, "\\$1");
 }
-/** Deterministic GFM projection, never the source of truth. */
-export function documentToMarkdown(json: unknown): string {
-  return render(canonicalizeDocument(json));
+/**
+ * Deterministic GFM projection, never the source of truth. References keep
+ * their identity as typed links (`[PAY-2](item:ID)`, `[[page:ID]]`, a pinned
+ * `[page](page:ID@COMMIT)`, `[label](decision:ID)`; see
+ * contracts/references.ts). A linked page's title is never written: whoever
+ * reads this page may not read that one. `markdownToDocument` reads them all
+ * back. `workList` resolves live work lists at export time (otherwise they
+ * render as their label only); see `./blocks`.
+ */
+export function documentToMarkdown(
+  json: unknown,
+  options: MarkdownOptions = {},
+): string {
+  return render(withResolvedWorkLists(canonicalizeDocument(json), options));
 }
 export function fragmentMarkdown(nodes: PageNode[]): string {
   return nodes.map((n) => render(n)).join("\n\n");
@@ -95,9 +112,24 @@ function render(n: PageNode): string {
     case "image":
       return `![${escape(typeof a.alt === "string" ? a.alt : "")}](<${String(a.src).replace(/>/g, "%3E")}>)`;
     case "workItemRef":
-      return String(a.key);
+      return formatReference(
+        { kind: "item", id: String(a.workItemId) },
+        String(a.key),
+      );
     case "pageRef":
-      return `[[page:${String(a.pageId)}]]`;
+      return typeof a.commitId === "string"
+        ? formatReference(
+            { kind: "page", id: String(a.pageId), commitId: a.commitId },
+            "page",
+          )
+        : `[[page:${String(a.pageId)}]]`;
+    case "workList":
+      return workListMarkdown(n);
+    case "decisionRef":
+      return formatReference(
+        { kind: "decision", id: String(a.decisionId) },
+        typeof a.label === "string" ? a.label : "decision",
+      );
     default:
       return blocks();
   }

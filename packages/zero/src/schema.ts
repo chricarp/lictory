@@ -40,7 +40,8 @@ const syncEntity = table("syncEntity")
 // Lictory Spaces projections, apart from `syncEntity` so the organization and
 // work item queries can never return space data. A NULL `pageId` marks a
 // space-level row (space, grants, page tree); otherwise the row belongs to
-// that page's history.
+// that page's history. Knowledge links also name the work item or project
+// they concern (docs/internals/knowledge-links.md).
 const spaceEntity = table("spaceEntity")
   .from("space_entity")
   .columns({
@@ -48,6 +49,8 @@ const spaceEntity = table("spaceEntity")
     organizationId: string().from("organization_id"),
     spaceId: string().from("space_id"),
     pageId: string().from("page_id").optional(),
+    workItemId: string().from("work_item_id").optional(),
+    projectId: string().from("project_id").optional(),
     type: string(),
     data: json<Readonly<Record<string, ReadonlyJSONValue>>>(),
     updatedAt: number().from("updated_at"),

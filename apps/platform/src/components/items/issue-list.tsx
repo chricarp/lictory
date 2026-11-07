@@ -1,3 +1,4 @@
+import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { paths } from "@lictory/core/lib/paths";
@@ -232,6 +233,7 @@ export function IssueList({
   const previewedItem = previewed
     ? items.find((i) => i.id === previewed.itemId)
     : undefined;
+  const pageCounts = useItemPageCounts();
   const links = useMemo(
     () =>
       externalLinksByItem(
@@ -1047,6 +1049,7 @@ export function IssueList({
                         if (item.id === focus) setCursorShown(false);
                       }}
                       preview={compact ? previewTarget : undefined}
+                      pages={pageCounts.get(item.id)}
                     />
                   ))}
                 </ul>

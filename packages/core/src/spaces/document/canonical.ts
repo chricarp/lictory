@@ -1,6 +1,11 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { isSafePageLink, pageSchema, PAGE_SCHEMA_VERSION } from "./schema";
+import {
+  isSafePageLink,
+  pageSchema,
+  PAGE_SCHEMA_VERSION,
+  workListFilters,
+} from "./schema";
 
 export type PageNode = {
   type: string;
@@ -51,7 +56,12 @@ function checkAttrs(attrs: unknown, allowed: Record<string, unknown>) {
       "language",
       "colwidth",
       "pageId",
+      "commitId",
       "workItemId",
+      "decisionId",
+      "label",
+      "projectId",
+      "filterId",
       "key",
       "src",
       "href",
@@ -124,9 +134,38 @@ function inspect(value: unknown, depth = 0): PageNode {
     ? ["workItemId", "key"]
     : n.type === "pageRef"
       ? ["pageId"]
-      : [])
+      : n.type === "decisionRef"
+        ? ["decisionId"]
+        : [])
     if (typeof a[key] !== "string" || !a[key].trim())
       throw new PageDocumentError("Page references require an identifier.");
+  if (
+    n.type === "pageRef" &&
+    a.commitId != null &&
+    (typeof a.commitId !== "string" ||
+      !/^[A-Za-z0-9_-]{1,160}$/.test(a.commitId))
+  )
+    throw new PageDocumentError("A pinned page reference needs a commit id.");
+  if (n.type === "workList") {
+    const filter = a.filter ?? "referenced";
+    if (!(workListFilters as readonly unknown[]).includes(filter))
+      throw new PageDocumentError("A work list needs a supported filter.");
+    for (const key of ["projectId", "filterId"] as const) {
+      const value = a[key];
+      const required = filter !== "referenced";
+      if (value == null ? required : !isIdentifier(value))
+        throw new PageDocumentError(
+          "A work list needs its project and what it lists.",
+        );
+    }
+    if (
+      a.title != null &&
+      (typeof a.title !== "string" || a.title.length > 200)
+    )
+      throw new PageDocumentError(
+        "A work list title has at most 200 characters.",
+      );
+  }
   if (
     n.type === "image" &&
     (typeof a.src !== "string" ||
@@ -147,6 +186,9 @@ function inspect(value: unknown, depth = 0): PageNode {
     n.content.forEach((v) => inspect(v, depth + 1));
   }
   return n as PageNode;
+}
+function isIdentifier(value: unknown) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value);
 }
 function isHttps(value: string) {
   try {
@@ -175,6 +217,9 @@ export function canonicalizeDocument(json: unknown): PageNode {
         n.attrs = { ...n.attrs, id: next };
         seen.add(next);
       }
+      // An unpinned page reference has no `commitId` in canonical JSON.
+      if (n.type === "pageRef" && n.attrs && n.attrs.commitId == null)
+        delete n.attrs.commitId;
       n.content?.forEach(visit);
     }
     visit(output);

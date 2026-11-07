@@ -1,4 +1,11 @@
 import { test, expect } from "@playwright/test";
+import {
+  expectMarkdown,
+  fillMarkdown,
+  markdownOf,
+  richEditor,
+  selectText,
+} from "../helpers/editor";
 import { consentStatePath } from "../consent-setup";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -15,6 +22,7 @@ import { paths } from "@lictory/core/lib/paths";
 import packageJson from "../../package.json" with { type: "json" };
 import { platformOrigin } from "../helpers/app-urls";
 import { clientAddress } from "../helpers/client-address";
+import { openDiscussions } from "../helpers/discussions";
 import {
   password,
   people,
@@ -411,11 +419,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // 2. Edit Epic content (creates revision 2).
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Specification" })
-    .fill(
-      "# Intent\n\nMerchants need to cancel part of a settled transaction.\n\n## Behavior\n\nCancellation reuses the original transaction ID.",
-    );
+  await fillMarkdown(
+    page,
+    "Specification",
+    "# Intent\n\nMerchants need to cancel part of a settled transaction.\n\n## Behavior\n\nCancellation reuses the original transaction ID.",
+  );
   await page.getByRole("button", { name: /Save revision 2/ }).click();
   await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
 
@@ -432,27 +440,29 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   const epicCombobox = page.getByRole("combobox", { name: "Parent: None" });
   await epicCombobox.fill("Partial");
   await page.getByRole("option", { name: /Partial cancellation/ }).click();
-  const description = page.getByRole("textbox", { name: "Description" });
-  const initialDescriptionHeight = await description.evaluate(
-    (textarea) => textarea.getBoundingClientRect().height,
+  // The description grows with its text up to a bound, then scrolls.
+  const description = await richEditor(page, "Description");
+  const area = description.locator("xpath=../..");
+  const initialDescriptionHeight = await area.evaluate(
+    (element) => element.getBoundingClientRect().height,
   );
-  await description.fill(
+  await fillMarkdown(
+    page,
+    "Description",
     Array.from(
       { length: 24 },
       (_, index) =>
         `Behavior note ${index + 1}: preserve cancellation context.`,
-    ).join("\n"),
+    ).join("\n\n"),
   );
   await expect
     .poll(() =>
-      description.evaluate(
-        (textarea) => textarea.getBoundingClientRect().height,
-      ),
+      area.evaluate((element) => element.getBoundingClientRect().height),
     )
     .toBeGreaterThan(initialDescriptionHeight);
   expect(
-    await description.evaluate((textarea) =>
-      Math.ceil(textarea.getBoundingClientRect().height),
+    await area.evaluate((element) =>
+      Math.ceil(element.getBoundingClientRect().height),
     ),
   ).toBeLessThanOrEqual(320);
   await page
@@ -550,10 +560,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByText("payments", { exact: true }).first(),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: /^Milestone:/ })
-    .first()
-    .click();
+  // Named by what it shows ("No milestone" until one is set).
+  await page.getByRole("button", { name: "No milestone" }).first().click();
   await page.getByRole("button", { name: "New milestone" }).click();
   await page
     .getByRole("textbox", { name: "Milestone name" })
@@ -565,33 +573,38 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Write the story specification with acceptance criteria.
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Specification" })
-    .fill(
-      "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
-    );
-  const specificationEditor = page.getByRole("textbox", {
-    name: "Specification",
-  });
-  await specificationEditor.evaluate((textarea: HTMLTextAreaElement) => {
-    const start = textarea.value.indexOf("POST");
-    textarea.setSelectionRange(start, start + 4);
-  });
-  const specificationToolbar = specificationEditor
-    .locator("..")
-    .getByRole("toolbar", { name: "Markdown formatting" });
-  await specificationToolbar.getByRole("button", { name: "Bold (⌘B)" }).click();
-  await expect(specificationEditor).toHaveValue(/\*\*POST\*\*/);
-  await specificationToolbar.getByRole("button", { name: "Bold (⌘B)" }).click();
-  await expect(specificationEditor).not.toHaveValue(/\*\*POST\*\*/);
-  await specificationToolbar
-    .getByRole("button", { name: "Preview Markdown" })
-    .click();
-  await expect(page.getByRole("heading", { name: "Behavior" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue writing" }).click();
-  await page.getByRole("button", { name: /Save revision 2/ }).click();
+  const specificationEditor = await fillMarkdown(
+    page,
+    "Specification",
+    "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
+  );
+  // Pasted Markdown became formatted text.
   await expect(
-    page.getByText("Duplicate callbacks do not create duplicate cancellations"),
+    specificationEditor.getByRole("heading", { name: "Behavior" }),
+  ).toBeVisible();
+  // Bold from the toolbar on a selection, and off again.
+  await selectText(specificationEditor, "POST");
+  const specificationToolbar = page.getByRole("toolbar", {
+    name: "Specification formatting",
+  });
+  await specificationToolbar.getByRole("button", { name: "Bold" }).click();
+  await expect(specificationEditor.locator("strong")).toHaveText("POST");
+  await specificationToolbar.getByRole("button", { name: "Bold" }).click();
+  await expect(specificationEditor.locator("strong")).toHaveCount(0);
+  await expectMarkdown(
+    page,
+    "Specification",
+    "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
+  );
+  await page.getByRole("button", { name: /Save revision 2/ }).click();
+  await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
+  await expect(
+    page.getByText(
+      "Duplicate callbacks do not create duplicate cancellations",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
 
   // Invite the engineer straight into the project's Engineering discipline,
@@ -663,10 +676,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     reviewer.getByText("Alex Morgan is viewing", { exact: false }),
   ).toBeVisible({ timeout: 30_000 });
 
-  // 7-8. Reviewer opens a blocking discussion anchored to the text; owner replies.
-  await reviewer
-    .getByRole("textbox", { name: "Start a discussion" })
-    .fill("What happens when the provider answers after the client timeout?");
+  // 7-8. Reviewer opens a blocking discussion beside the text; owner replies.
+  await openDiscussions(reviewer);
+  await openDiscussions(page);
+  await fillMarkdown(
+    reviewer,
+    "Start a discussion",
+    "What happens when the provider answers after the client timeout?",
+  );
   await reviewer.getByText("Blocks readiness").click();
   await reviewer
     .getByRole("button", { name: "Post blocking discussion" })
@@ -676,22 +693,32 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
       "What happens when the provider answers after the client timeout?",
     ),
   ).toBeVisible();
-  await expect(page.getByText("1 open · 1 blocking")).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "1 discussion, 1 blocking readiness",
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Reply", exact: true }).click();
-  const replyBox = page.getByRole("textbox", { name: "Reply" });
-  await replyBox.fill(
-    "Late answers are acknowledged and reconciled against the original ID. cc ",
+  const replyBox = await fillMarkdown(
+    page,
+    "Reply",
+    "Late answers are acknowledged and reconciled against the original ID.",
   );
-  // Typing @ offers members; choosing one stores a mention token.
-  await replyBox.pressSequentially("@ril");
+  await replyBox.press("End");
+  // Typing @ offers members; choosing one inserts a mention.
+  await replyBox.pressSequentially(" cc @ril");
   await expect(page.getByRole("option", { name: /@riley_chen/ })).toBeVisible();
   await page.getByRole("option", { name: /Riley Chen/ }).click();
-  await expect(replyBox).toHaveValue(/@\[riley_chen\]\(mention:[^)]+\) $/);
+  await expect(replyBox.locator('[data-type="mention"]')).toHaveText([
+    "@riley_chen",
+  ]);
   // Typing a full handle links it without using the list.
   await replyBox.pressSequentially("and @alex_morgan ");
-  await expect(replyBox).toHaveValue(
-    /@\[riley_chen\]\(mention:[^)]+\) and @\[alex_morgan\]\(mention:[^)]+\) $/,
-  );
+  await expect(replyBox.locator('[data-type="mention"]')).toHaveText([
+    "@riley_chen",
+    "@alex_morgan",
+  ]);
   await page.getByRole("button", { name: "Reply", exact: true }).click();
   await expect(
     reviewer.getByText(
@@ -769,7 +796,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .click();
   await reviewerInbox.close();
 
-  // Collaborators resolve overlapping commits against the exact new head.
+  // Collaborators edit the branch's one live draft and commit what both
+  // see.
   await page.getByRole("button", { name: /Branches & pull requests/ }).click();
   await page
     .getByRole("textbox", { name: "New branch name" })
@@ -785,18 +813,15 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Remove Riley Chen", exact: true }),
   ).toBeVisible();
   await reviewer.goto(conflictBranchUrl);
-  await expect(
-    reviewer.getByRole("textbox", { name: "Branch specification" }),
-  ).toBeVisible();
-  const sourceText = await page
-    .getByRole("textbox", { name: "Branch specification" })
-    .inputValue();
-  await page
-    .getByRole("textbox", { name: "Branch specification" })
-    .fill(sourceText.replace("partial amount", "bounded amount"));
-  await reviewer
-    .getByRole("textbox", { name: "Branch specification" })
-    .fill(sourceText.replace("partial amount", "specified amount"));
+  const reviewerEditor = await richEditor(reviewer, "Branch specification");
+  const sourceText = await markdownOf(page, "Branch specification");
+  await fillMarkdown(
+    page,
+    "Branch specification",
+    sourceText.replace("partial amount", "bounded amount"),
+  );
+  await expect(reviewerEditor).toContainText("bounded amount");
+  await expect(page.getByText("Riley Chen is editing")).toBeVisible();
   await page
     .getByRole("textbox", { name: "Commit message" })
     .fill("Bound the amount");
@@ -806,27 +831,8 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByRole("textbox", { name: "Commit message" }),
   ).toHaveValue("");
-  await reviewer
-    .getByRole("textbox", { name: "Commit message" })
-    .fill("Resolve amount wording");
-  await expect(
-    reviewer.getByText("Another commit overlaps your edits", { exact: false }),
-  ).toBeVisible();
-  await reviewer
-    .getByRole("button", { name: "Resolve & commit", exact: true })
-    .click();
-  await reviewer
-    .getByRole("button", { name: "Keep theirs", exact: true })
-    .click();
-  await reviewer
-    .getByRole("button", { name: "Commit resolution", exact: true })
-    .click();
-  await expect(
-    reviewer.getByRole("textbox", { name: "Branch specification" }),
-  ).toHaveValue(/bounded amount/);
-  await expect(
-    reviewer.getByRole("textbox", { name: "Commit message" }),
-  ).toHaveValue("");
+  await expect(reviewer.getByText("All changes committed")).toBeVisible();
+  await expect(reviewerEditor).toContainText("bounded amount");
   await page
     .getByRole("button", { name: "Delete branch", exact: true })
     .click();
@@ -851,11 +857,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .click();
   await expect(page).toHaveURL(/\?branch=/);
   const branchUrl = page.url();
-  await page
-    .getByRole("textbox", { name: "Branch specification" })
-    .fill(
-      "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
-    );
+  await fillMarkdown(
+    page,
+    "Branch specification",
+    "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
+  );
   await page
     .getByRole("textbox", { name: "Commit message" })
     .fill("Define cancellation timeouts");
@@ -867,9 +873,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toHaveValue("");
   // The branch draft is durable locally and main still shows revision 2.
   await page.reload();
-  await expect(
-    page.getByRole("textbox", { name: "Branch specification" }),
-  ).toHaveValue(/Late provider responses/);
+  await expect(await richEditor(page, "Branch specification")).toContainText(
+    "Late provider responses",
+  );
   await page
     .getByRole("button", { name: "Open pull request", exact: true })
     .click();
@@ -932,11 +938,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // 13-14. Owner changes the specification → approval becomes outdated.
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Specification" })
-    .fill(
-      "# Behavior\n\nPOST /cancellations accepts a partial amount up to the settled total.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
-    );
+  await fillMarkdown(
+    page,
+    "Specification",
+    "# Behavior\n\nPOST /cancellations accepts a partial amount up to the settled total.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
+  );
   await page
     .getByRole("textbox", { name: "Change summary" })
     .fill("Bound the amount");
@@ -952,7 +958,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewer.getByText("up to the settled total").first(),
   ).toBeVisible();
-  await reviewer.getByRole("button", { name: "Close comparison" }).click();
+  await reviewer.getByRole("button", { name: "Close history" }).click();
 
   // 15-16. Resolve the blocking discussion, keeping its conclusion as a
   // decision, approve again → readiness passes → Ready.
@@ -979,9 +985,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page
     .getByRole("textbox", { name: "Decision title" })
     .fill("Cancellation amounts are bounded");
-  await page
-    .getByRole("textbox", { name: "Decision details" })
-    .fill("A partial cancellation cannot exceed the settled total.");
+  await fillMarkdown(
+    page,
+    "Decision details",
+    "A partial cancellation cannot exceed the settled total.",
+  );
   await page
     .getByRole("button", { name: "Resolve and save decision", exact: true })
     .click();
@@ -1093,14 +1101,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // sent once it is back.
   const zero = await controlZeroConnection(page);
   await page.goto(storyUrl);
-  await expect(
-    page.getByRole("toolbar", { name: "Markdown formatting" }),
-  ).toBeVisible();
+  await richEditor(page, "Start a discussion");
   await waitUntilSaved(page);
   await zero.interrupt();
-  await page
-    .getByRole("textbox", { name: "Start a discussion" })
-    .fill("Pending comment survives reload");
+  await fillMarkdown(
+    page,
+    "Start a discussion",
+    "Pending comment survives reload",
+  );
   await page.getByRole("button", { name: "Post", exact: true }).click();
   const pendingDiscussion = page
     .getByRole("article", { name: "discussion" })
@@ -1158,6 +1166,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Changes", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]history=/);
   await expect(
     page.getByRole("button", { name: /Restore revision/ }),
   ).toHaveCount(0);
@@ -1167,7 +1176,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     ),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Close comparison", exact: true })
+    .getByRole("button", { name: "Close history", exact: true })
     .click();
   await expect(page.getByText("Revision 4 ·").first()).toBeVisible();
   await expect(

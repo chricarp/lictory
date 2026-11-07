@@ -7,7 +7,12 @@ import {
   canWriteDraft,
   resolveDraftDocument,
 } from "@lictory/core/spaces/draft-access";
-import type { DraftAuthor } from "@lictory/core/spaces/drafts";
+import {
+  canEditSpecificationDraft,
+  resolveSpecificationDraftDocument,
+} from "@lictory/core/domain/specification-draft-access";
+import { isSpecificationDraftName } from "@lictory/core/spaces/collaboration-protocol";
+import type { DraftAccess, DraftAuthor } from "@lictory/core/spaces/drafts";
 import {
   SPACES_ACCESS_CHANNEL,
   spacesAccessSignalSchema,
@@ -17,7 +22,8 @@ import { describeError, type Log } from "@lictory/collaboration/log";
 import { claimOwnership } from "@lictory/collaboration/owner";
 
 // The collaboration service: Hocuspocus for live drafts of Lictory Spaces
-// (docs/internals/spaces.md#synchronization-and-the-collaboration-service).
+// (docs/internals/spaces.md#synchronization-and-the-collaboration-service)
+// and of specifications (docs/internals/specification-drafts.md).
 // It authenticates every connection with the Better Auth session cookie of
 // the WebSocket upgrade, stores each change before anyone sees it, and
 // rechecks open connections when access changes (signals after commit) and
@@ -45,6 +51,17 @@ export function sessionAuthenticator(getSession: SessionLookup) {
       : null;
   };
 }
+
+// Page drafts follow space access; specification drafts are opened only by
+// the people who may write their line (disciplines, branch collaborators).
+const readAnyDraft: DraftAccess = (tx, userId, ref) =>
+  ref.kind === "specification"
+    ? canEditSpecificationDraft(tx, userId, ref)
+    : canReadDraft(tx, userId, ref);
+const writeAnyDraft: DraftAccess = (tx, userId, ref) =>
+  ref.kind === "specification"
+    ? canEditSpecificationDraft(tx, userId, ref)
+    : canWriteDraft(tx, userId, ref);
 
 export type CollaborationOptions = {
   db: Database;
@@ -82,9 +99,12 @@ export async function startCollaboration(options: CollaborationOptions) {
   const collaboration = draftCollaboration({
     db: options.db,
     authenticate: options.authenticate,
-    resolve: (name) => resolveDraftDocument(options.db, name),
-    canRead: canReadDraft,
-    canEdit: canWriteDraft,
+    resolve: (name) =>
+      isSpecificationDraftName(name)
+        ? resolveSpecificationDraftDocument(options.db, name)
+        : resolveDraftDocument(options.db, name),
+    canRead: readAnyDraft,
+    canEdit: writeAnyDraft,
     revalidateEveryMs: options.revalidateEveryMs,
   });
   const hocuspocus = new Hocuspocus({

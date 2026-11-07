@@ -184,13 +184,64 @@ list.
   the transcript and shown above the message. It only names things; the
   assistant still reads them through tools with the person's permissions, so
   context cannot widen access.
+- **Pages of Lictory Spaces.** On a page the context also carries a
+  discriminated `document` of kind `page` (space, page, optional branch and
+  commit, optional selection with its block and quote): the exact version on
+  screen (never a live draft, which is not history), the line when it is not main,
+  and the text selected in the reader with the block holding it ("Ask Litto"
+  under a selection, like in a specification). Every turn re-checks each page
+  context with the person's access at that moment
+  (`intelligence/chat/context.ts`): the page must be readable and in the
+  named space, and the commit and branch must be the page's. Only then does
+  the model learn its title, space, publishing policy and version; otherwise
+  it is told the page is unavailable and the quoted text is withheld, even
+  though the transcript still stores it for its owner. The same holds for
+  earlier turns, which are sent again with every question: a tool call
+  whose input or result names a page the person cannot read now (a
+  `getPage` result, a search hit) reaches the model as a withheld note, and
+  so does the text of an earlier answer that used one or was asked from that
+  page. The stored transcript is unchanged; only the copy sent to the
+  provider is.
+  Quoted page text is fenced and marked as data written by people, never
+  instructions.
 - **Adapts to the page.** The sheet offers what fits: explaining a
   selection, assessing the open item (or its proposed concerns once
-  assessed), or questions for the board, backlog, inbox and other pages.
+  assessed), questions for the board, backlog, inbox and other pages, and on
+  Spaces: summarizing a page, drafting proposals from it, listing the work
+  items it mentions and comparing it with the agreed specification of the
+  items it references; on a space, its history and pull requests, what
+  changed and what waits for review.
 - **Unlisted conversations.** Dock conversations are saved like any chat but
   stay out of the history (`intelligence_chat.listed = false`) until the person
   opens them on the Litto page, which lists them.
 - The dock is absent when Lictory Intelligence is off or unavailable.
+
+## Evidence and citations
+
+Litto and agents search before they describe established behavior
+(`searchProductKnowledge`) and weigh what they find by authority, strongest
+first:
+
+1. an approved or delivered specification revision: agreed intent, or the
+   recorded delivery scope (approval alone never proves delivery);
+2. a recorded decision: a durable conclusion;
+3. a page published through review (its space publishes through reviewed
+   pull requests);
+4. a page published directly;
+5. discussion.
+
+Published documentation is not agreed intent or delivered behavior: when a
+page disagrees with an agreement, the assistant names both rather than
+choosing silently. Answers cite exact versions: the revision number of a
+specification, the version (and commit) of a page, linked to that version
+(`?commit=`). `searchKnowledge` finds where something is written; a match is
+navigation, not evidence. Results and page reads come from what the person
+can read, in one snapshot per call (see
+[search and product knowledge](spaces.md#search-and-product-knowledge)).
+
+In the conversation, each step that searched or read pages lists them with
+their space and version, linked to that exact version, and an answer that
+rests on page reads shows those pages under it after its steps fold away.
 
 ## Proposal intake
 
@@ -224,8 +275,10 @@ drafts become proposals, and they are created with the ordinary
   ten sources are analysed, and the result reports truncation.
 - **Grounding.** Related knowledge comes from the project's recent recorded
   decisions and approved or delivered revisions (the `searchProductKnowledge`
-  results), and the organization and project Lictory Intelligence Context
-  applies as for reviews.
+  results, without published pages: drafts cite what the project agreed),
+  and the organization and project Lictory Intelligence Context applies as
+  for reviews. To draft from a page, Litto reads it and passes its text as a
+  source labelled with the page and version.
 
 ## Lictory Actions
 
@@ -314,8 +367,9 @@ discipline names and descriptions, excerpts of recent product knowledge and the
 applicable Lictory Intelligence Context.
 
 Conversations send the person's messages, including the page context of dock
-messages (with any text they selected), and the tool results the assistant
-reads with their permissions.
+messages (with any text they selected; a page of Lictory Spaces only while
+they can still read it), and the tool results the assistant reads with their
+permissions, such as published pages it opens with `getPage`.
 
 Requests use `store: false`.
 

@@ -11,7 +11,6 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { PageReader } from "@lictory/platform/components/spaces/editor/document";
-import { ReferencesProvider } from "@lictory/platform/components/spaces/editor/references";
 import {
   versionOf,
   type PageHistory,
@@ -27,6 +26,8 @@ import {
 } from "@lictory/platform/components/spaces/comments/controller";
 import type { LineDiscussions } from "@lictory/platform/components/spaces/comments/store";
 import { blockingEffect } from "@lictory/platform/components/spaces/space-meta";
+import { revealBlockFromHash } from "@lictory/platform/components/spaces/editor/block-target";
+import { DockPageSource } from "@lictory/platform/components/intelligence/dock/page-source";
 
 // The page's content with its discussions: a published (or selected)
 // commit rendered read-only, or the line's live draft for the people who
@@ -75,15 +76,7 @@ function commitAnchoring(
   };
 }
 
-export default function PageSurface(props: PageSurfaceProps) {
-  return (
-    <ReferencesProvider>
-      <Surface {...props} />
-    </ReferencesProvider>
-  );
-}
-
-function Surface({
+export default function PageSurface({
   space,
   page,
   history,
@@ -113,12 +106,18 @@ function Surface({
     [],
   );
   const onReader = useCallback(
-    (editor: Editor | null) =>
+    (editor: Editor | null) => {
       setBound({
         editor,
         anchoring:
           editor && shown ? commitAnchoring(shown.id, line.branchId) : null,
-      }),
+      });
+      // A search result names the block that matched.
+      if (editor)
+        requestAnimationFrame(() => {
+          if (!editor.isDestroyed) revealBlockFromHash(editor.view.dom);
+        });
+    },
     [shown, line.branchId],
   );
   const versionHref = useCallback(
@@ -207,6 +206,17 @@ function Surface({
           blockingEffect={blockingEffect(space)}
         />
       )}
+      {/* What Litto is told the person is reading (never a live draft's
+          content: while editing it names the line, not a version). */}
+      <DockPageSource
+        spaceId={space.id}
+        pageId={page.id}
+        title={(live ? line.head?.title : shown?.title) ?? page.title}
+        branchId={line.isMain ? undefined : line.branchId}
+        commitId={live ? undefined : shown?.id}
+        content={live ? line.head?.content : shown?.content}
+        editor={live ? null : bound.editor}
+      />
     </>
   );
 }

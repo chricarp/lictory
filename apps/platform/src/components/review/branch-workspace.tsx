@@ -2,7 +2,14 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "@lictory/ui/toast";
 import {
   GitBranch,
@@ -44,10 +51,15 @@ import {
 } from "@lictory/core/contracts/merge";
 import { Button } from "@lictory/ui/button";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
-import { MarkdownEditor } from "@lictory/platform/components/ui/markdown-editor";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
+import { SpecDiff } from "@lictory/platform/components/review/spec-diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import {
+  SpecificationDraftEditor,
+  useSpecificationDraft,
+} from "@lictory/platform/components/items/specification-draft";
+import type { LiveControls } from "@lictory/platform/components/items/live-specification";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   Thread,
@@ -325,10 +337,13 @@ export function BranchWorkspace({
   screen,
   onNavigate,
   onMain,
+  nav,
 }: {
   screen: BranchScreen;
   onNavigate: (screen: BranchScreen) => void;
   onMain: () => void;
+  // The specification's history views, above the branch list.
+  nav?: ReactNode;
 }) {
   const data = useBranchData();
   const current =
@@ -339,6 +354,7 @@ export function BranchWorkspace({
         : undefined;
   return (
     <div className="space-y-6">
+      {screen.kind === "branches" && nav}
       <div className="flex flex-wrap items-center gap-1.5 border-b pb-3 text-[13px]">
         <Button variant="ghost" size="sm" onClick={onMain}>
           <ArrowLeft className="size-3.5" />
@@ -676,6 +692,60 @@ function BranchOverview({
 
 // ─── Branch: edit → commit → open pull request ─────────────────────────────
 type Draft = Snapshot & { baseCommitId: string; message: string };
+// The person's own part of a branch edit, kept in this browser: the
+// breakdown they are changing (from `baseCommitId`) and the commit message.
+// Title and content are the branch's shared live draft. A draft saved here
+// before live editing whose text differs from its commit is handed to the
+// live editor as kept text, never dropped.
+function loadBranchDraft(key: string, head: Commit, commits: Commit[]) {
+  const fresh: Draft = {
+    title: head.title,
+    content: head.content,
+    proposedChildren: head.proposedChildren,
+    baseCommitId: head.id,
+    message: "",
+  };
+  if (typeof window === "undefined") return { draft: fresh, legacy: null };
+  try {
+    const raw = JSON.parse(localStorage.getItem(key) ?? "null") as Draft | null;
+    if (
+      raw &&
+      typeof raw.title === "string" &&
+      typeof raw.content === "string" &&
+      typeof raw.baseCommitId === "string" &&
+      typeof raw.message === "string"
+    ) {
+      const base = commits.find((c) => c.id === raw.baseCommitId) ?? head;
+      const legacy =
+        raw.content !== base.content || raw.title !== base.title
+          ? { title: raw.title, content: raw.content }
+          : null;
+      return {
+        draft: {
+          ...raw,
+          title: base.title,
+          content: base.content,
+          proposedChildren: proposedChildrenSchema.parse(
+            raw.proposedChildren ?? base.proposedChildren,
+          ),
+        },
+        legacy,
+      };
+    }
+  } catch {}
+  return { draft: fresh, legacy: null };
+}
+// Reports the live draft's uncommitted state to the branch screen.
+function Uncommitted({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  useEffect(() => onChange(value), [value, onChange]);
+  return null;
+}
 function BranchEditor({
   branchId,
   onNavigate,
@@ -759,18 +829,28 @@ function BranchEditorBody({
   const { directory } = useWorkspace();
   const { branches, prs } = useBranchData();
   const { run, error, pending } = useAction();
-  const breakdownRef = useRef<HTMLDivElement>(null);
+  // The breakdown sits below the live editor, which loads on its own: focus
+  // moves there once it has mounted.
+  const [focusBreakdown, setFocusBreakdown] = useState(false);
   useEffect(() => {
     if (breakdownFocus !== branch.id || !canEdit) return;
     breakdownFocus = null;
-    requestAnimationFrame(() => {
-      const section = breakdownRef.current;
-      section?.scrollIntoView({ block: "center" });
-      section
-        ?.querySelector<HTMLInputElement>("input:not([type=hidden])")
-        ?.focus({ preventScroll: true });
-    });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- consumes a one-time request from the "Propose breakdown" action
+    setFocusBreakdown(true);
   }, [branch.id, canEdit]);
+  const breakdownRef = useCallback(
+    (section: HTMLDivElement | null) => {
+      if (!section || !focusBreakdown) return;
+      setFocusBreakdown(false);
+      requestAnimationFrame(() => {
+        section.scrollIntoView({ block: "center" });
+        section
+          .querySelector<HTMLInputElement>("input:not([type=hidden])")
+          ?.focus({ preventScroll: true });
+      });
+    },
+    [focusBreakdown],
+  );
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (suggestionFocus?.branchId !== branch.id || !canEdit) return;
@@ -786,35 +866,14 @@ function BranchEditorBody({
     });
   }, [branch.id, canEdit]);
   const key = `lictory:branch-draft:${userId}:${organizationId}:${itemId}:${branch.id}`;
-  const [draft, setDraft] = useState<Draft>(() => {
-    if (typeof window !== "undefined")
-      try {
-        const raw = JSON.parse(
-          localStorage.getItem(key) ?? "null",
-        ) as Draft | null;
-        if (
-          raw &&
-          typeof raw.title === "string" &&
-          typeof raw.content === "string" &&
-          typeof raw.baseCommitId === "string" &&
-          typeof raw.message === "string"
-        )
-          return {
-            ...raw,
-            proposedChildren: proposedChildrenSchema.parse(
-              raw.proposedChildren ?? head.proposedChildren,
-            ),
-          };
-      } catch {}
-    return {
-      title: head.title,
-      content: head.content,
-      proposedChildren: head.proposedChildren,
-      baseCommitId: head.id,
-      message: "",
-    };
-  });
-  const [resolving, setResolving] = useState(false);
+  const [initial] = useState(() => loadBranchDraft(key, head, commits));
+  const [draft, setDraft] = useState<Draft>(initial.draft);
+  const [legacy, setLegacy] = useState(initial.legacy);
+  const [liveChanged, setLiveChanged] = useState(false);
+  const [sealing, setSealing] = useState(false);
+  const [sealError, setSealError] = useState("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const liveDraft = useSpecificationDraft(branch.id);
   const [opening, setOpening] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [committed, setCommitted] = useState<string | null>(null);
@@ -825,72 +884,61 @@ function BranchEditorBody({
     if (canEdit) localStorage.setItem(key, JSON.stringify(draft));
   }, [draft, key, canEdit]);
   const start = commits.find((c) => c.id === draft.baseCommitId) ?? head;
-  const result = useMemo(
-    () => mergeSnapshot(start, draft, head),
-    [start, draft, head],
+  const breakdownChanged = !sameProposedChildren(
+    draft.proposedChildren,
+    start.proposedChildren,
   );
-  const changed =
-    draft.title !== start.title ||
-    draft.content !== start.content ||
-    !sameProposedChildren(draft.proposedChildren, start.proposedChildren);
-  const edit = (patch: Partial<Draft>) => {
-    setCommitted(null);
-    setDraft((d) => ({ ...d, ...patch }));
-  };
-  const reset = () => {
-    setDraft({
+  const changed = canEdit && (liveChanged || breakdownChanged);
+  const resetBreakdown = () =>
+    setDraft((d) => ({
+      ...d,
       title: head.title,
       content: head.content,
       proposedChildren: head.proposedChildren,
       baseCommitId: head.id,
-      message: "",
-    });
-    setResolving(false);
-  };
-  const commit = (snapshot: Snapshot, resolve = false) => {
+    }));
+  // "Commit": seals the shared draft's stored cut, with this person's
+  // breakdown edits when they made any.
+  const commit = (controls: LiveControls) => {
+    if (!liveDraft || sealing) return;
     const message = draft.message.trim();
-    void run(
-      {
-        type: "commitBranch",
+    setSealing(true);
+    setSealError("");
+    void controls
+      .seal((expectedSequence) => ({
+        type: "commitSpecificationDraft",
         workItemId: itemId,
-        branchId: branch.id,
-        baseCommitId: draft.baseCommitId,
-        ...snapshot,
+        draftId: liveDraft.id,
+        epoch: liveDraft.epoch,
+        expectedSequence,
         message,
-        ...(resolve ? { expectedHeadId: head.id } : {}),
-      },
-      () => {
-        // The synchronized head is refreshed by mutate before it resolves. Start
-        // the next draft from that committed snapshot on the next render.
-        localStorage.removeItem(key);
-        setDraft({
-          ...(!resolve
-            ? {
-                title: result.title,
-                content: result.content,
-                proposedChildren: result.proposedChildren,
-              }
-            : snapshot),
-          baseCommitId: head.id,
-          message: "",
-        });
-        setResolving(false);
-        setCommitted(message);
+        ...(breakdownChanged
+          ? {
+              proposedChildren: draft.proposedChildren,
+              breakdownBaseCommitId: draft.baseCommitId,
+            }
+          : {}),
+      }))
+      .then((outcome) => {
+        setDraft((d) => ({ ...d, message: "" }));
+        if (outcome === "saved") setCommitted(message);
         setTab("document");
-      },
-    );
+      })
+      .catch((e: unknown) =>
+        setSealError(
+          e instanceof Error ? e.message : "The commit could not be saved.",
+        ),
+      )
+      .finally(() => setSealing(false));
   };
-  // A successful commit's snapshot can automatically advance its editor base
-  // without replacing an in-progress draft when someone else commits.
+  // Breakdown edits start from the head they were made on; an untouched
+  // breakdown (or one the head now equals) follows the branch.
   useEffect(() => {
     if (
       head.id !== draft.baseCommitId &&
-      (!changed ||
-        (head.title === draft.title &&
-          head.content === draft.content &&
-          sameProposedChildren(head.proposedChildren, draft.proposedChildren)))
+      (!breakdownChanged ||
+        sameProposedChildren(head.proposedChildren, draft.proposedChildren))
     ) {
-      // Reconcile a confirmed commit (or an idle editor) with the durable head.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDraft((d) => ({
         ...d,
@@ -900,14 +948,7 @@ function BranchEditorBody({
         baseCommitId: head.id,
       }));
     }
-  }, [
-    head,
-    changed,
-    draft.title,
-    draft.content,
-    draft.proposedChildren,
-    draft.baseCommitId,
-  ]);
+  }, [head, breakdownChanged, draft.proposedChildren, draft.baseCommitId]);
   const history = ancestry(commits, head.id);
   const main = branches.find(isMain);
   const mainHead = commits.find((c) => c.id === main?.headId);
@@ -975,8 +1016,9 @@ function BranchEditorBody({
     </NextStep>
   ) : stage === 0 ? (
     <NextStep title="Edit the specification below.">
-      Your edits are a draft saved in this browser. Commit them to record a
-      checkpoint on this branch; main stays untouched.
+      Edits are saved as you type and shared with this branch&apos;s
+      collaborators. Commit them to record a checkpoint on this branch; main
+      stays untouched.
     </NextStep>
   ) : stage === 1 ? (
     <NextStep tone="warning" title="You have uncommitted edits.">
@@ -1037,7 +1079,7 @@ function BranchEditorBody({
           )}
         </div>
       </div>
-      <ErrorMessage message={error} />
+      <ErrorMessage message={error || sealError} />
       {deleting && (
         <DeletePrompt
           name={`branch ${branch.name}`}
@@ -1082,114 +1124,131 @@ function BranchEditorBody({
                   { id: "commits", label: "Commits", count: history.length },
                 ]}
               />
-              {head.id !== start.id && changed && (
-                <div className="space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
-                  <p>
-                    {result.conflicted
-                      ? "Another commit overlaps your edits. Resolve the conflicts before committing."
-                      : "This branch advanced while you were editing. Independent changes will be merged into your commit."}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setResolving(true)}
-                    >
-                      Compare & resolve
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={reset}>
-                      Discard my changes
-                    </Button>
-                  </div>
+              {canEdit && (
+                // Kept mounted on every tab, so switching tabs keeps the
+                // live session (and the carets) open.
+                <div hidden={tab === "commits"} className="space-y-4">
+                  <SpecificationDraftEditor
+                    branchId={branch.id}
+                    line={{
+                      headTitle: head.title,
+                      headMarkdown: head.content,
+                      basedOn: "the latest commit",
+                      isMain: false,
+                      branchName: branch.name,
+                    }}
+                    label="Branch specification"
+                    titleLabel="Branch work item title"
+                    legacyText={legacy}
+                    onLegacyKept={() => setLegacy(null)}
+                    fileContext={{ organizationId, workItemId: itemId }}
+                    minHeight="25rem"
+                    view={tab === "changes" ? "changes" : "document"}
+                    onClose={() => onNavigate({ kind: "branches" })}
+                    footer={(controls) => (
+                      <>
+                        <Uncommitted
+                          value={controls.uncommitted}
+                          onChange={setLiveChanged}
+                        />
+                        <div
+                          ref={breakdownRef}
+                          hidden={tab !== "document"}
+                          className="scroll-mt-24"
+                        >
+                          <BreakdownProposal
+                            proposals={draft.proposedChildren ?? []}
+                            accepted={mainHead?.proposedChildren}
+                            onChange={(proposedChildren) => {
+                              setCommitted(null);
+                              setDraft((d) => ({ ...d, proposedChildren }));
+                            }}
+                          />
+                        </div>
+                        {tab === "changes" && breakdownChanged && (
+                          <p className="text-sm text-muted-foreground">
+                            The proposed breakdown changed too; it is committed
+                            with the text.
+                          </p>
+                        )}
+                        {confirmDiscard && (
+                          <div
+                            role="alert"
+                            className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"
+                          >
+                            <p className="min-w-0 flex-1 basis-60">
+                              Discard the uncommitted changes of this branch for
+                              everyone editing it? Commits are kept.
+                            </p>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={sealing}
+                              onClick={() => {
+                                setConfirmDiscard(false);
+                                resetBreakdown();
+                                if (controls.uncommitted)
+                                  void controls
+                                    .discard()
+                                    .catch((e: unknown) =>
+                                      setSealError(
+                                        e instanceof Error
+                                          ? e.message
+                                          : "The changes could not be discarded.",
+                                      ),
+                                    );
+                              }}
+                            >
+                              Discard changes
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setConfirmDiscard(false)}
+                            >
+                              Keep them
+                            </Button>
+                          </div>
+                        )}
+                        <CommitBox
+                          branchName={branch.name}
+                          changed={changed}
+                          message={draft.message}
+                          onMessage={(message) =>
+                            setDraft((d) => ({ ...d, message }))
+                          }
+                          conflicted={false}
+                          disabled={
+                            pending || sealing || !changed || !controls.editable
+                          }
+                          onDiscard={() => setConfirmDiscard(true)}
+                          onCommit={() => commit(controls)}
+                          updatesPr={pr?.title}
+                        />
+                      </>
+                    )}
+                  />
                 </div>
               )}
-              {resolving ? (
-                <ConflictResolver
-                  base={start}
-                  ours={draft}
-                  theirs={head}
-                  onCancel={() => setResolving(false)}
-                  onResolve={(s) => commit(s, true)}
-                  pending={pending}
-                  action="Commit resolution"
-                />
-              ) : tab === "commits" ? (
+              {tab === "commits" ? (
                 <CommitHistory commits={history} memberName={memberName} />
-              ) : tab === "changes" ? (
-                changed ? (
-                  <>
-                    {start.title !== draft.title && (
-                      <p className="text-sm">
-                        Title: {start.title} → {draft.title}
-                      </p>
-                    )}
-                    <RevisionDiff
-                      before={start.content}
-                      after={draft.content}
-                    />
-                  </>
-                ) : (
+              ) : (
+                !canEdit &&
+                (tab === "changes" ? (
                   <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
                     No uncommitted edits. Everything on this branch is
                     committed.
                   </p>
-                )
-              ) : canEdit ? (
-                <>
-                  <label className="block space-y-1 text-xs font-medium">
-                    Work item title
-                    <input
-                      aria-label="Branch work item title"
-                      className={`${field} h-10 text-base font-semibold`}
-                      value={draft.title}
-                      onChange={(e) => edit({ title: e.target.value })}
-                      maxLength={240}
-                    />
-                  </label>
-                  <div ref={editorRef} className="contents">
-                    <MarkdownEditor
-                      aria-label="Branch specification"
-                      fileContext={{ organizationId, workItemId: itemId }}
-                      value={draft.content}
-                      onValueChange={(content) => edit({ content })}
-                      className="min-h-100 px-4 pt-4 font-mono"
-                      previewClassName="min-h-[400px] px-4 pt-4"
-                    />
-                  </div>
-                  <div ref={breakdownRef} className="scroll-mt-24">
+                ) : (
+                  <>
+                    <h2 className="text-xl font-semibold">{head.title}</h2>
+                    <Markdown source={head.content} />
                     <BreakdownProposal
-                      proposals={draft.proposedChildren ?? []}
+                      proposals={head.proposedChildren}
                       accepted={mainHead?.proposedChildren}
-                      onChange={(proposedChildren) =>
-                        edit({ proposedChildren })
-                      }
                     />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-xl font-semibold">{head.title}</h2>
-                  <Markdown source={head.content} />
-                  <BreakdownProposal
-                    proposals={head.proposedChildren}
-                    accepted={mainHead?.proposedChildren}
-                  />
-                </>
-              )}
-              {canEdit && !resolving && (
-                <CommitBox
-                  branchName={branch.name}
-                  changed={changed}
-                  message={draft.message}
-                  onMessage={(message) => setDraft((d) => ({ ...d, message }))}
-                  conflicted={result.conflicted}
-                  disabled={pending || !changed || !draft.title.trim()}
-                  onDiscard={reset}
-                  onCommit={() =>
-                    result.conflicted ? setResolving(true) : commit(draft)
-                  }
-                  updatesPr={pr?.title}
-                />
+                  </>
+                ))
               )}
             </div>
             <aside className="space-y-5 text-sm">
@@ -1597,9 +1656,11 @@ function CreatePR({
                       Title: {theirs.title} → {preview.title}
                     </p>
                   )}
-                  <RevisionDiff
+                  <SpecDiff
                     before={theirs.content}
                     after={preview.content}
+                    beforeLabel={targetBranch?.name ?? "main"}
+                    afterLabel="This change"
                   />
                   <BreakdownProposal
                     includeApplied
@@ -2572,9 +2633,15 @@ function PullRequestView({
                       </Button>
                     )}
                   </div>
-                  <RevisionDiff
+                  {/* Changed words in context; "Show full text" reads the
+                      complete merge result. */}
+                  <SpecDiff
                     before={before.content}
                     after={display.content}
+                    beforeLabel={targetName}
+                    afterLabel={
+                      p.status === "merged" ? "Merged" : "This change"
+                    }
                   />
                   <BreakdownProposal
                     includeApplied
@@ -2583,14 +2650,6 @@ function PullRequestView({
                       before.proposedChildren,
                     )}
                   />
-                  <details className="rounded-md border p-3">
-                    <summary className="cursor-pointer text-sm">
-                      Read the complete merge result
-                    </summary>
-                    <div className="mt-3">
-                      <Markdown source={display.content} />
-                    </div>
-                  </details>
                 </>
               ) : (
                 <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">

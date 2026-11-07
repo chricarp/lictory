@@ -64,6 +64,7 @@ import {
   RecommendationCard,
 } from "@lictory/platform/components/intelligence/chat/recommendation";
 import { useLookup } from "@lictory/platform/components/intelligence/chat/use-lookup";
+import { PageCitations } from "@lictory/platform/components/intelligence/citations";
 
 type Part = ChatMessage["parts"][number];
 // Tools answered by the person in the chat rather than run on the server.
@@ -215,6 +216,18 @@ export function MessageView({
     0,
   );
   const changes = live ? [] : changesOf(activities);
+  // The page versions the answer rests on stay visible after the steps fold:
+  // what was read, not every search hit.
+  const pagesRead = fold
+    ? [
+        ...new Map(
+          activities
+            .filter((a) => a.done && getToolName(a.part) === "getPage")
+            .flatMap((a) => a.step.outcome.pages ?? [])
+            .map((p) => [`${p.pageId}@${p.commitId ?? ""}`, p] as const),
+        ).values(),
+      ]
+    : [];
   // Figures the workspace computed stay visible: after the steps that
   // produced them, or above the answer once those steps fold away.
   const foldedInsights = fold ? insightsOf(activities) : [];
@@ -358,6 +371,14 @@ export function MessageView({
             label="Thinking"
             delay={tail ? 450 : 0}
           />
+        )}
+        {pagesRead.length > 0 && (
+          <div className="text-[12px]">
+            <p className="mb-0.5 text-muted-foreground">
+              Read {pagesRead.length === 1 ? "this page" : "these pages"}
+            </p>
+            <PageCitations pages={pagesRead} />
+          </div>
         )}
         {changes.length > 0 && <Changes changes={changes} />}
         {!streaming && text && (
@@ -857,6 +878,7 @@ function StepDetail({ activity }: { activity: Activity }) {
           ))}
         </div>
       )}
+      {step.outcome.pages && <PageCitations pages={step.outcome.pages} />}
       {step.fields.length > 0 && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
           {step.fields.map(([k, v]) => (
@@ -1166,6 +1188,8 @@ function CopyButton({ text }: { text: string }) {
 // What the person was looking at when they asked, so later readers know what
 // "this" meant.
 function SentContext({ context }: { context: ChatContext }) {
+  const quote =
+    context.selection?.quote ?? context.document?.selection?.quote ?? null;
   return (
     <div className="flex max-w-[85%] min-w-0 flex-col items-end gap-1">
       <Link
@@ -1179,9 +1203,9 @@ function SentContext({ context }: { context: ChatContext }) {
             : context.page.label}
         </span>
       </Link>
-      {context.selection && (
+      {quote && (
         <blockquote className="line-clamp-3 border-r-2 border-primary/40 pr-2.5 text-right text-[12px] leading-5 text-muted-foreground italic">
-          “{context.selection.quote}”
+          “{quote}”
         </blockquote>
       )}
     </div>

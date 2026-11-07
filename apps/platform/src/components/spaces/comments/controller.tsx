@@ -16,7 +16,11 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { keepTabInside } from "@lictory/platform/components/spaces/dialog";
+import { DiscussionSheet } from "@lictory/platform/components/discussions/presentation";
+import {
+  SelectionAskAction,
+  useSelectionAskAvailable,
+} from "@lictory/platform/components/intelligence/dock/page-source";
 import type { FileContext } from "@lictory/platform/components/items/file-upload";
 import {
   blockIndex,
@@ -38,6 +42,14 @@ import type {
   PageThread,
 } from "@lictory/platform/components/spaces/comments/store";
 import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
+import {
+  SelectionWorkAction,
+  useSelectionWorkAvailable,
+} from "@lictory/platform/components/spaces/work/selection-actions";
+
+// The secondary actions of the selection toolbar.
+const toolbarAction =
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60";
 
 // The live editor's Mod+Alt+M and toolbar ask for a comment on the selection.
 export const COMMENT_SELECTION_EVENT = "lictory:comment-selection";
@@ -316,6 +328,8 @@ export function PageComments({
   );
 
   const selection = useEditorSelection(editor);
+  const workAction = useSelectionWorkAvailable(editor);
+  const askAction = useSelectionAskAvailable(editor);
   const startComment = useCallback(
     (range: { from: number; to: number } | null) => {
       if (!editor || !range) return;
@@ -433,85 +447,48 @@ export function PageComments({
 
   return (
     <>
-      {canComment &&
+      {(canComment || workAction || askAction) &&
         selection &&
+        editor &&
         createPortal(
-          <button
-            type="button"
-            // Keeps the selection: the button acts on what is selected.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => startComment(selection)}
+          // What can be done with the selected text, in one bar: comment on
+          // it, or (on the published page) create work from it or ask
+          // Litto about it.
+          <div
+            role="group"
+            aria-label="Selected text"
             style={{
-              top: Math.max(8, selection.top - 40),
+              top: Math.max(8, selection.top - 44),
               left: selection.left,
             }}
-            className="fixed z-40 inline-flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            className="fixed z-40 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-0.5 rounded-full bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10"
           >
-            <MessageSquarePlus className="size-3.5" aria-hidden /> Comment
-          </button>,
+            {canComment && (
+              <button
+                type="button"
+                // Keeps the selection: the button acts on what is selected.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => startComment(selection)}
+                className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <MessageSquarePlus className="size-3.5" aria-hidden /> Comment
+              </button>
+            )}
+            <SelectionWorkAction
+              editor={editor}
+              range={selection}
+              className={toolbarAction}
+            />
+            <SelectionAskAction editor={editor} className={toolbarAction} />
+          </div>,
           document.body,
         )}
       {wide && slot && open && createPortal(panel, slot)}
       {!wide && open && (
-        <CommentsSheet onClose={() => onOpenChange(false)}>
+        <DiscussionSheet label="Comments" onClose={() => onOpenChange(false)}>
           {panel}
-        </CommentsSheet>
+        </DiscussionSheet>
       )}
     </>
-  );
-}
-
-function CommentsSheet({
-  onClose,
-  children,
-}: {
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  // The caller passes a new function each render; the sheet must not move
-  // focus on re-renders (a remote reply would pull focus out of a composer).
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    ref.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onCloseRef.current();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, []);
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-      />
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Tab bubbles from the sheet's controls; keeping it inside is the modal dialog pattern. */}
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Comments"
-        tabIndex={-1}
-        onKeyDown={(event) => {
-          if (ref.current) keepTabInside(event, ref.current);
-        }}
-        className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl bg-background px-4 pb-4 shadow-(--shadow-panel) outline-none"
-      >
-        {children}
-      </div>
-    </div>,
-    document.body,
   );
 }

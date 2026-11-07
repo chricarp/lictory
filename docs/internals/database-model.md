@@ -132,6 +132,21 @@ to commits, with exactly one `main` per page. `space_reader` (effective
 access) and `space_entity` (read projections) are derived and rebuilt by the
 projection rebuild. See [Lictory Spaces](spaces.md#implementation).
 
+## Knowledge links
+
+Links between pages and work live in `packages/core/src/db/knowledge-schema.ts`
+([knowledge links](knowledge-links.md)). `page_reference` and
+`specification_reference` are derived indexes of the references written in
+each page's published version and in each main specification revision,
+maintained with the head move or revision insert they derive from and
+rebuilt exactly from stored commits and revisions; their targets are plain
+text (what the content says), never foreign keys. The explicit links
+(attachments, sources, branch origins, context links) use
+organization-composite foreign keys to their page, commit, branch, work
+item, revision, project, team or iteration, keep removed links as history
+(`detached_at`, `removed_at`) and never store page titles. Their projections
+are `space_entity` rows of the page's space.
+
 ## Retention
 
 Domain history and actor references use restrictive foreign keys. Deleting a

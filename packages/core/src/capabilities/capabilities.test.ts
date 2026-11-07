@@ -1565,6 +1565,26 @@ void test("product knowledge preserves delivered scope after a newer draft", asy
     found.results.map((r) => [r.kind, r.revisionNumber, r.excerpt]),
     [["delivered", 1, "The delivered retry behavior."]],
   );
+  // The delivered revision opens as that revision, not as the item's later
+  // specification; the item as it is now is a separate link.
+  const hit = (
+    (await invoke(f.web, "searchKnowledge", {
+      organizationId: f.organizationId,
+      query: "delivered retry",
+    })) as {
+      results: {
+        kind: string;
+        revisionId: string;
+        href: string;
+        currentHref?: string;
+      }[];
+    }
+  ).results.find((r) => r.kind === "delivered")!;
+  assert.equal(hit.revisionId, created.revisionId);
+  const href = new URL(hit.href, "https://lictory.test");
+  assert.equal(href.searchParams.get("history"), created.revisionId);
+  assert.equal(href.searchParams.get("compare"), "none");
+  assert.equal(hit.currentHref, href.pathname);
   const completed = (await invoke(f.web, "listWorkItems", {
     organizationId: f.organizationId,
     lifecycle: "completed",

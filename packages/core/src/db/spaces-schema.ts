@@ -258,6 +258,18 @@ export const pageCommit = pgTable(
       foreignColumns: [page.organizationId, page.id],
     }).onDelete("restrict"),
     index("page_commit_page_idx").on(t.organizationId, t.pageId, t.createdAt),
+    // Content search (docs/internals/knowledge-links.md) matches substrings
+    // (ILIKE '%term%') of published titles and Markdown; it joins main heads,
+    // so every commit is indexed and older versions are filtered out after
+    // the index scan.
+    index("page_commit_title_trgm_idx").using(
+      "gin",
+      t.title.op("gin_trgm_ops"),
+    ),
+    index("page_commit_markdown_trgm_idx").using(
+      "gin",
+      t.markdown.op("gin_trgm_ops"),
+    ),
     check("page_commit_title_present", sql`length(trim(${t.title})) > 0`),
     check("page_commit_schema_version", sql`${t.schemaVersion} > 0`),
     check(
@@ -745,6 +757,9 @@ export const pageActivity = pgTable(
 // queries (or the directory). `data` holds a protocol `SpaceEntity`. Rows with
 // a NULL `page_id` are space-level (the space, its grants and its page tree);
 // the others belong to that page's history, loaded when the page is opened.
+// Knowledge links (docs/internals/knowledge-links.md) also name the work
+// item (`work_item_id`) or the project (`project_id`) they concern, so a work
+// item or a project can load the rows of the pages its reader can read.
 // Written in the same transaction as the domain rows
 // (packages/core/src/spaces/projections.ts).
 export const spaceEntity = pgTable(
@@ -756,6 +771,8 @@ export const spaceEntity = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     spaceId: text("space_id").notNull(),
     pageId: text("page_id"),
+    workItemId: text("work_item_id"),
+    projectId: text("project_id"),
     type: text("type").notNull(),
     data: jsonb("data").$type<Record<string, unknown>>().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -769,5 +786,7 @@ export const spaceEntity = pgTable(
       t.pageId,
       t.type,
     ),
+    index("space_entity_work_item_idx").on(t.organizationId, t.workItemId),
+    index("space_entity_project_idx").on(t.organizationId, t.projectId),
   ],
 );

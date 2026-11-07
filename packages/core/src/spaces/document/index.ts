@@ -3,6 +3,8 @@ export {
   pageExtensions,
   pageSchema,
   PAGE_SCHEMA_VERSION,
+  workListFilters,
+  type WorkListFilter,
 } from "./schema";
 export {
   canonicalizeDocument,
@@ -24,3 +26,10 @@ export {
 } from "./merge";
 export { diffDocuments, type BlockChange } from "./diff";
 export { markdownToDocument } from "./from-markdown";
+export {
+  workListAttrs,
+  workListLabels,
+  type MarkdownOptions,
+  type ResolvedWorkList,
+  type WorkListAttrs,
+} from "./blocks";

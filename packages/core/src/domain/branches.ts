@@ -15,6 +15,11 @@ import {
 import type { Tx } from "@lictory/core/domain/service";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
+  markSealed,
+  requireOpenDraft,
+  sealedSpecificationDraft,
+} from "@lictory/core/domain/specification-drafts";
+import {
   entryKey,
   isChildChange,
   isNewChild,
@@ -30,6 +35,7 @@ export const branchCommands = new Set([
   "createBranch",
   "setBranchCollaborator",
   "commitBranch",
+  "commitSpecificationDraft",
   "syncBranch",
   "deleteBranch",
   "createPullRequest",
@@ -197,6 +203,19 @@ export async function applyBranchCommand(
 ) {
   if (!branchCommands.has(c.type) || !("workItemId" in c)) return;
   const { organizationId, workItemId, userId, capabilities, roster, log } = ctx;
+  // Sealing main's live draft is a revision (service.ts); only branch
+  // drafts are commits.
+  const sealing =
+    c.type === "commitSpecificationDraft"
+      ? await requireOpenDraft(
+          tx,
+          organizationId,
+          workItemId,
+          c.draftId,
+          c.epoch,
+        )
+      : undefined;
+  if (sealing && !sealing.branchId) return;
   const disciplines = roster.disciplines.filter(
     (d) => d.projectId === ctx.projectId,
   );
@@ -276,6 +295,7 @@ export async function applyBranchCommand(
     snapshot: Snapshot,
     message: string,
     parents: string[],
+    detail?: Record<string, unknown>,
   ) => {
     const id = crypto.randomUUID();
     await tx.insert(s.specificationCommit).values({
@@ -291,7 +311,12 @@ export async function applyBranchCommand(
       .update(s.specificationBranch)
       .set({ headId: id })
       .where(eq(s.specificationBranch.id, b.id));
-    log("branch_committed", { branch: b.name, message, commitId: id });
+    log("branch_committed", {
+      branch: b.name,
+      message,
+      commitId: id,
+      ...detail,
+    });
     return id;
   };
   // `previous` is the branch head's breakdown: unchanged pending changes to
@@ -479,6 +504,67 @@ export async function applyBranchCommand(
       )
         break;
       await insertCommit(b, snapshot, c.message, [b.headId]);
+      break;
+    }
+    // "Commit" in a branch's live draft
+    // (docs/internals/specification-drafts.md): the stored cut of the shared
+    // draft (content and working title) becomes the branch's next commit.
+    // The draft always sits on the branch head (a head moved from outside
+    // starts a new epoch), so there is nothing to merge. Breakdown edits are
+    // still the committer's own and merge three-way against the head.
+    case "commitSpecificationDraft": {
+      const b = branch(sealing!.branchId!);
+      editBranch(b);
+      const head = commit(b.headId);
+      const cut = await sealedSpecificationDraft(
+        tx,
+        sealing!,
+        c.expectedSequence,
+      );
+      let proposedChildren = head.proposedChildren;
+      if (c.proposedChildren) {
+        const base = c.breakdownBaseCommitId
+          ? commit(c.breakdownBaseCommitId)
+          : head;
+        if (
+          !sameProposedChildren(base.proposedChildren, head.proposedChildren) &&
+          !sameProposedChildren(c.proposedChildren, head.proposedChildren)
+        )
+          throw new DomainError(
+            "conflict",
+            "The proposed breakdown changed on this branch while you edited it. Review the branch's breakdown and choose the children again before committing.",
+          );
+        proposedChildren = c.proposedChildren;
+      }
+      const snapshot = {
+        title: cut.title || head.title,
+        content: cut.markdown,
+        proposedChildren,
+      };
+      await validateBreakdown(snapshot.proposedChildren, head.proposedChildren);
+      const unchanged =
+        snapshot.title === head.title &&
+        snapshot.content === head.content &&
+        sameProposedChildren(snapshot.proposedChildren, head.proposedChildren);
+      if (unchanged && c.expectedSequence === sealing!.committedSequence)
+        throw new DomainError(
+          "validation",
+          "Nothing to commit: the draft equals the branch's latest commit.",
+        );
+      const commitId = unchanged
+        ? null
+        : await insertCommit(
+            b,
+            snapshot,
+            c.message?.trim() ? c.message.trim() : `Edit ${b.name}`,
+            [b.headId],
+            // Who wrote the sealed edits, beside who committed them.
+            { liveDraft: true, contributorIds: cut.authorIds },
+          );
+      await markSealed(tx, sealing!, {
+        committedSequence: c.expectedSequence,
+        commitId,
+      });
       break;
     }
     case "syncBranch": {

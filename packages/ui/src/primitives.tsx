@@ -29,11 +29,17 @@ export function Badge({
       className={cn(
         // Soft status pills: a tint, a hairline of the same hue, no fill.
         "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] font-medium whitespace-nowrap ring-1 ring-inset",
-        tone === "good" && "bg-success/8 text-success ring-success/20",
-        tone === "warning" && "bg-warning/8 text-warning ring-warning/25",
+        // Text leans a fifth toward the foreground: darker in light themes,
+        // lighter in dark ones, so 11px labels keep 4.5:1 on their tint and
+        // on hovered rows in every theme.
+        tone === "good" &&
+          "bg-success/8 text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))] ring-success/20",
+        tone === "warning" &&
+          "bg-warning/8 text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))] ring-warning/25",
         tone === "danger" &&
-          "bg-destructive/8 text-destructive ring-destructive/20",
-        tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+          "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/20",
+        tone === "info" &&
+          "bg-ring/8 text-[color-mix(in_oklab,var(--ring)_80%,var(--foreground))] ring-ring/25",
         tone === "neutral" &&
           "bg-muted text-muted-foreground ring-foreground/8",
         className,

@@ -16,6 +16,7 @@ import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { Dialog } from "@lictory/platform/components/spaces/dialog";
 import type { PageBranch } from "@lictory/platform/data/spaces";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
+import { useSearchParams } from "@lictory/platform/lib/navigation";
 import { ActionError, useHistoryAction } from "./shared";
 import { commitReview } from "./approval";
 
@@ -45,8 +46,11 @@ export function Versions({
   const reviewOf = (approverIds: readonly string[]) =>
     commitReview(publishing, approverIds.map(memberName));
   const action = useHistoryAction();
-  const [selected, setSelected] = useState("");
-  const [compare, setCompare] = useState("");
+  // `?version=…&compare=…` opens a comparison (a work item's pinned page
+  // version against the published one).
+  const search = useSearchParams();
+  const [selected, setSelected] = useState(() => search.get("version") ?? "");
+  const [compare, setCompare] = useState(() => search.get("compare") ?? "");
   const [restore, setRestore] = useState<string>();
   const [discard, setDiscard] = useState(false);
   const commit = commits.find((c) => c.id === selected) ?? lineHead;

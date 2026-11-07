@@ -20,6 +20,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -54,7 +55,9 @@ import {
 } from "@lictory/platform/components/intelligence/chat/thread";
 import {
   pageOf,
+  pageSelectionSuggestions,
   pageSuggestions,
+  spacePageSuggestions,
   type Suggestion,
 } from "@lictory/platform/components/intelligence/dock/page";
 import {
@@ -62,9 +65,11 @@ import {
   useDockState,
   reviewState,
   type DockItem,
+  type DockPage,
   type DockReview,
   type DockSelection,
 } from "@lictory/platform/components/intelligence/dock/store";
+import { useSpaces } from "@lictory/platform/components/spaces/store";
 import {
   PaneResizer,
   usePaneResize,
@@ -173,7 +178,8 @@ function useWide() {
 export function IntelligenceDock() {
   const { directory, organization, projects } = useWorkspace();
   const store = useDock();
-  const { item, selection, request } = useDockState();
+  const { item, page: dockPage, selection, request } = useDockState();
+  const { spaces, index: spaceIndex } = useSpaces();
   const pathname = usePathname();
   const params = useParams<{ project?: string }>();
   const router = useRouter();
@@ -183,6 +189,36 @@ export function IntelligenceDock() {
   const available = directory.ai.available && directory.ai.enabled;
   const hidden = !store || !available || page.kind === "intelligence";
   const openItem = page.kind === "item" ? item : null;
+  // A page of Lictory Spaces: what the reader publishes (exact version,
+  // mentioned items), or on its history the page the address names.
+  const routeSpace = page.space
+    ? spaces.find((s) => s.slug === page.space)
+    : undefined;
+  const summary = page.pageId ? spaceIndex.pageById.get(page.pageId) : null;
+  const openPage = useMemo((): DockPage | null => {
+    if (page.kind !== "space-page" && page.kind !== "page-history") return null;
+    if (page.kind === "space-page" && dockPage?.pageId === page.pageId)
+      return dockPage;
+    return summary
+      ? {
+          spaceId: summary.spaceId,
+          pageId: summary.id,
+          title: summary.title,
+          items: [],
+        }
+      : null;
+  }, [page.kind, page.pageId, dockPage, summary]);
+  const pageLabel = (
+    openPage
+      ? page.kind === "page-history"
+        ? `${openPage.title} · History`
+        : openPage.title
+      : routeSpace
+        ? page.kind === "space"
+          ? routeSpace.name
+          : `${routeSpace.name} · ${page.label}`
+        : page.label
+  ).slice(0, 120);
 
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState<LittoChat | null>(null);
@@ -213,7 +249,13 @@ export function IntelligenceDock() {
   if (seenItem !== itemId) {
     setSeenItem(itemId);
     setAssessing(null);
-    if (attached && attached.itemId !== itemId) setAttached(null);
+    if (attached?.itemId && attached.itemId !== itemId) setAttached(null);
+  }
+  const openPageId = openPage?.pageId;
+  const [seenPage, setSeenPage] = useState(openPageId);
+  if (seenPage !== openPageId) {
+    setSeenPage(openPageId);
+    if (attached?.pageId && attached.pageId !== openPageId) setAttached(null);
   }
 
   const context = useCallback(
@@ -221,7 +263,7 @@ export function IntelligenceDock() {
       const quoted = extra.selection !== undefined ? extra.selection : attached;
       return {
         page: {
-          label: openItem ? `${openItem.key} ${openItem.title}` : page.label,
+          label: openItem ? `${openItem.key} ${openItem.title}` : pageLabel,
           path: pathname,
         },
         project: project
@@ -231,13 +273,30 @@ export function IntelligenceDock() {
           ? { id: openItem.id, key: openItem.key, title: openItem.title }
           : null,
         selection:
-          quoted && quoted.itemId === openItem?.id
+          quoted?.itemId && quoted.itemId === openItem?.id
             ? { quote: quoted.quote, section: quoted.section }
             : null,
         reviewRunId: extra.reviewRunId ?? openItem?.review?.viewing ?? null,
+        document: openPage
+          ? {
+              kind: "page",
+              spaceId: openPage.spaceId,
+              pageId: openPage.pageId,
+              ...(openPage.branchId ? { branchId: openPage.branchId } : {}),
+              ...(openPage.commitId ? { commitId: openPage.commitId } : {}),
+              ...(quoted?.pageId && quoted.pageId === openPage.pageId
+                ? {
+                    selection: {
+                      blockId: quoted.blockId,
+                      quote: quoted.quote,
+                    },
+                  }
+                : {}),
+            }
+          : null,
       };
     },
-    [openItem, page.label, pathname, project, attached],
+    [openItem, openPage, pageLabel, pathname, project, attached],
   );
 
   const ensureChat = useCallback(() => {
@@ -387,13 +446,17 @@ export function IntelligenceDock() {
           reduce={!!reduce}
           chat={chat}
           item={openItem}
-          pageLabel={page.label}
+          pageLabel={pageLabel}
           suggestions={
-            attached
-              ? selectionSuggestions
-              : openItem
-                ? itemSuggestions(openItem)
-                : pageSuggestions(page.kind, project)
+            attached?.pageId
+              ? pageSelectionSuggestions
+              : attached
+                ? selectionSuggestions
+                : openItem
+                  ? itemSuggestions(openItem)
+                  : openPage && page.kind === "space-page"
+                    ? spacePageSuggestions(openPage)
+                    : pageSuggestions(page.kind, project)
           }
           attached={attached}
           onDetach={() => setAttached(null)}

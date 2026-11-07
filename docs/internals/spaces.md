@@ -318,7 +318,10 @@ Browser ── /zero ───────────▶ zero-cache ──▶ P
 Live draft updates are persisted by one dedicated writer, not by
 `applyMutation`, because routing every typing batch through the exclusive
 organization lock would serialize typing against every review, delivery and
-configuration change of the organization. The exception is narrow:
+configuration change of the organization. The same writer stores the live
+drafts of specifications, in their own tables and with Work's rules for who
+writes a line ([specification drafts](specification-drafts.md)). The
+exception is narrow:
 
 - The draft tables (draft state, update log, epochs and writer fence) are not in
   the Zero publication, and no `sync_entity` projection reads them.
@@ -395,9 +398,11 @@ removes or alters commits.
   checked with the same Better Auth configuration as the API. Nothing in the
   URL and no provider token is ever trusted; the browser provider sends an
   empty token. Each stored batch re-checks that session in its transaction.
-- **Document names** are `<draft id>.<epoch>` (`draftDocumentName`); the
-  browser takes them from the page's synchronized state, never builds them
-  from anything else. A name of a fenced or replaced epoch no longer opens.
+- **Document names** are `<draft id>.<epoch>` (`draftDocumentName`), and
+  `spec.<draft id>.<epoch>` for specification drafts; the browser takes them
+  from the page's (or item's) synchronized state, never builds them from
+  anything else. A name of a fenced or replaced epoch no longer opens. The
+  `specification_draft` trigger signals on the same channel.
 - **Signals.** One NOTIFY channel, `lictory_spaces_access`, delivered on
   commit, payload `{organizationId, userIds?, draftIds?}` (identifiers only).
   `refreshSpaceAccess` sends the people whose effective access changed, from
@@ -618,15 +623,185 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 ## Integration with the rest of Lictory
 
 - Navigation: Spaces in the organization sidebar, and each project's and team's
-  spaces in their navigation. Page titles are in the command palette.
-- Work item mentions (`PAY-142`) in pages render as live references (status,
-  refinement state, readiness) for readers who can see the item.
+  spaces in their navigation. Page titles are in the command palette, and
+  what pages say is found by [content search](#search-and-product-knowledge).
+- References to work items, other pages (optionally pinned to a version) and
+  recorded decisions render as live chips for readers who can see the target:
+  an item's key, title and delivery status, with its type, refinement state,
+  readiness, owner and iteration in the chip's card; see
+  [one editor for pages and Markdown](editor.md#references). Page comments are
+  written in the same editor as everything else.
+- Pages and work refer to each other through
+  [knowledge links](knowledge-links.md): the references of each page's
+  published version (work items, pages with an optional pinned commit,
+  decisions), the pages specification revisions cite, pages attached to an
+  item, the page an item was created from, page branches proposed from an
+  item revision and the context pages of projects, teams and iterations.
+  Every link is visible only to readers of its page and grants nothing.
 - Images and files use [private file storage](file-storage.md) with page
   ownership checks.
 - Notifications follow [the notification rules](notifications.md): mentions,
   review requests, stale approvals and blocking comments, never every edit.
 - Access changes are recorded in the [audit log](audit.md); organization data
   export, organization deletion and account anonymization cover Spaces.
+
+### Work in pages
+
+Pages show work and start work; they never hold delivery state. Work stays
+owned by its delivery owner (Lictory or the delivery tool), and everything a
+page shows of it is read live with the reader's own access.
+
+- **Work lists** (`workList` block: a project and one narrow filter, `epic-children`,
+  `iteration` or `label` with `filterId`, or `referenced` for the items the
+  page mentions, optionally limited to a project; an optional `title`). The
+  commit stores only that query. Readers see the matching items they can
+  see now (key, title, status, refinement, estimate; in external-delivery
+  projects the status read back from the delivery tool) with "N of M done",
+  counting only those items (canceled ones count toward neither). A list
+  shows ten rows and grows ten at a time; on narrow screens titles take up
+  to two lines and the status moves under them. Nothing in a list changes
+  an item. A list is not a snapshot: an old version shows
+  today's items. The commit's derived Markdown states the list's label and
+  "(live list in Lictory)"; exports that run with a reader's access (`getPage`,
+  for agents and Litto) resolve it at that moment into static `[KEY](item:ID)`
+  references, which import back as plain references, never as a live list.
+- **Decisions** (`decisionRef`, inline): the shared decision chip inside a
+  sentence; a card
+  when it stands alone in its paragraph (title, the conclusion, the item key,
+  the revision it was recorded on, and "Archived" when it or its item was
+  withdrawn). The decision's text stays canonical in Work (`getDecisions`
+  reads it, once for every reference on screen); the node keeps a `label`
+  for readers it cannot be resolved for. Archiving or restoring elsewhere
+  reaches an open page without a reload: what is on screen is read again
+  when the window regains focus or becomes visible and every minute while
+  visible, and the cache belongs to one person and organization. A failed
+  first read offers Retry; a failed refresh keeps the decision it read
+  (being offline is no reason to hide it) but marks it stale with when it
+  was last checked, and the card says "Couldn't refresh · last checked 3m
+  ago · Retry" in text (not only on hover) instead of presenting it as
+  current. Every later refresh retries it.
+  Work's Decisions section offers "Add to a page", which proposes a page
+  change (`proposePageChange` with the item revision as `origin`) appending
+  the card; main is never edited directly.
+- **Work from page text.** Selecting text of a commit in the reader offers
+  "Create work item" beside "Comment", and every open task item without a
+  work item mention offers it too, to people who can create work in some
+  project. The dialog prefills the title (the selection, or the nearest
+  heading for long selections; the task's text) and a description quoting
+  the text with a pinned link to the page version, lets the person choose
+  project and type, and says before anything is created that the quote is
+  copied into the item, whose readers may differ from the page's (warning
+  when the space is restricted). With Lictory Intelligence available, "Draft
+  with Litto" sends the text to `draftProposals` and creates only the drafts
+  the person ticks. Every item created records `source` (page, commit,
+  top-level block, quote); each item has a stable mutation id, so a retry
+  after a lost answer cannot create a second one, and a partial failure keeps
+  what was created and retries only the rest. Live drafts are never a source.
+  Afterwards, when the person can edit main, "Add to the page" opens the
+  live draft and mentions the new items right after their text (found by
+  block id and the words before the selection's end; at the end of the page
+  when the block is gone): an ordinary, visible draft edit, published only
+  when they publish.
+- **Work linked to this page.** Under the published page, a compact list of the
+  work the page knows about (`pageWork`): items created from it, items it
+  mentions, items it is attached to and items whose specification cites it,
+  each once with how it is linked, with a "N of M done" rollup; page changes
+  proposed from work items; and the projects, teams and iterations that
+  keep it as context. Items the reader cannot see are left out without a
+  trace.
+- **Linked work.** The home of a project or team space lists the work items
+  linked to its pages (`spaceWork`: mentioned by a published version,
+  created from a page, attached, or cited by a specification; links of that
+  space only), each once with how it is linked, open work first, with how
+  much is done.
+- **Templates.** "New page" offers Blank, Product requirements, Design doc,
+  Runbook, Decision record, Retrospective and Iteration notes:
+  `templateDocument(kind, context)` in `packages/core/src/spaces/templates.ts`
+  (`templatePageContent` for `createPage`'s `content`; names in
+  `template-catalog.ts`). `context` (`projectId`, `iterationId`, `epicId`)
+  points the template's live work list at an iteration or epic; without it
+  the list is left out. The template is the page's first version, like the
+  empty document it replaces (also in Reviewed spaces: the page's creator
+  wrote no content).
+
+### Search and product knowledge
+
+`searchKnowledge` finds a phrase in what the person can read: published
+pages, work items (title and current specification), recorded decisions and
+approved or delivered specification revisions. The command palette shows its
+results under its instant title matches ("In pages", "In specifications",
+"Decisions"), and a page result opens at the block that matched
+(`#block-<id>`). "See all results" opens the search results view
+(`/{org}/search?q=`, with `kind` and `project` filters in the address):
+every match a batch of 20 per kind at a time, each with its space path or
+key, version and excerpt. "Show more results" asks for the next batch of
+the kinds that have more: the capability returns `more` and an opaque
+`cursor`, the position of each kind's last row in its order, and the next
+batch starts strictly after that position. A page published or a decision
+recorded meanwhile sorts before the position, so batches never repeat or
+skip a result, and there is no depth limit (no offset to bound). What it
+loaded belongs to one person, organization, query and filter, and the
+palette's answers to one person, organization and query; a change of any of
+them starts again, so nothing is shown from another scope.
+
+Open results also follow what changes while they are on screen
+(`search-freshness.ts`). The browser already synchronizes my access to each
+space, each page's published version and archiving, and each item's
+archiving, revision, refinement and delivered revision. A result those rows
+say I can no longer read (its space, page, item or project gone or
+archived) leaves at once; when they change anything about the loaded
+results, every loaded batch (and the palette's answer) is read again and
+the server decides what remains, such as a superseded publication or
+approval. The batches are read again in order from the beginning, as many
+as were loaded, each continuing after the newly read one: re-reading each
+from its old position would lose a result pushed across a boundary by one
+added before it (or show one twice after a removal). What no synchronized
+row reports (a decision archived on an item I have not opened) is caught by
+the same re-read at a bounded interval (60 seconds) while the window is
+visible and on return to it. A failed re-read keeps what is shown, since
+being offline is no reason to hide it, but says so in text: "Couldn't
+refresh · last checked 2m ago · Retry", beside the results and in the
+palette's footer, until a re-read succeeds.
+
+- **Published only.** A page is searched as the head commit of its main line.
+  Live drafts, branches and pull requests are never searched, so text nobody
+  published cannot be found, quoted or cited.
+- **Readable only.** Pages come from active spaces the person reads
+  (`space_reader` and a current organization membership, the same predicate
+  as `pageAccess`): restricted spaces only for their named readers, never for
+  administrators without a grant. Archived pages, the pages under them and
+  archived spaces are left out; restoring brings them back. Nothing about an
+  unreadable page reaches the result: no title, excerpt, version or count.
+  Work items follow organization membership (every member reads every
+  project); archived items and projects are left out with their decisions.
+- **One snapshot.** Membership and every search are read in one read-only,
+  repeatable-read transaction, so a change in the middle of a search cannot
+  mix old and new access.
+- **Exact versions.** Each result names its kind, the page's commit and
+  version number ("version N", main's first-parent position, as the history
+  numbers it) or the revision number, a link to that version, an excerpt
+  with the matched ranges and whether the title or only the content matched.
+  An approved or delivered revision opens as that revision in the item's
+  history (`?history=<revisionId>&compare=none`), and a decision as the
+  revision it was recorded on, even after the specification moved on;
+  `currentHref` ("Open current") opens the item as it is now.
+- **Simple matching.** A case-insensitive phrase match (LIKE wildcards are
+  literal; Markdown escapes such as `refund\_limit` do not hide a match),
+  title matches first, then the most recent (ties by id, so a position is
+  exact), at most `limit` results of each kind. Trigram indexes make it fast; there is no separate search index to
+  keep in sync, because results come from the same rows readers see.
+
+A search hit is not evidence of authority. `searchProductKnowledge`, which
+grounds Litto and agents before they describe established behavior, adds
+published pages as their own evidence kind (`page`, with the space's
+publishing policy, the commit and version) beside recorded decisions and
+approved or delivered revisions. For equal match quality agreements and
+decisions rank above pages published through review, and those above pages
+published directly; a title match ranks above content-only matches. Its
+description tells agents that published documentation is neither agreed
+intent nor delivered behavior (see the
+[evidence ladder](ai.md#evidence-and-citations)). Proposal intake keeps to
+agreements and decisions.
 
 ## Capacity
 
@@ -660,7 +835,17 @@ History uses restrictive deletes.
 | `page_pull_request_review`                | Decisions (append-only): approved or changes requested, `result_hash`, inspected heads, `stale_at` with `stale_reason`, `withdrawn_at`                                 |
 | `page_thread`, `page_thread_message`      | Discussions: status, blocking, `anchor` (checked against `commit_id` and `branch_id`), `pull_request_id`, resolution; messages (never edited, removed with their line) |
 | `page_activity`                           | Discussion events (opened, resolved, reopened, blocking changed, removed with their line) with actor, time and delegating agent                                        |
+| `page_reference`                          | Derived index of the references in each page's published version (see [knowledge links](knowledge-links.md))                                                           |
+| `page_branch_origin`                      | The work item revision a branch was proposed from, kept after the branch ends                                                                                          |
 | `space_entity`                            | Spaces read projections (derived, replicated)                                                                                                                          |
+
+Main's head moves in one place (`moveHead` in `history.ts`, plus the first
+commit of `createPage`); both rewrite `page_reference` from the new head in
+the same transaction, so the index always describes the published version.
+The knowledge links that name a page (`work_item_page_attachment`,
+`work_item_page_source`, `page_branch_origin`, `page_context_link`, and the
+page citations of `specification_reference`) are described in
+[knowledge links](knowledge-links.md).
 
 `page_thread.pull_request_id` names the pull request a thread was opened on
 (a foreign key within the page). `page_commit` also records the pull request
@@ -761,10 +946,17 @@ what changed without loading histories), `mainDraft` in Direct spaces,
 - `pagePullRequestReview`: every decision, current or not.
 - `pageThread`, `pageThreadMessage` (one row per message, so a reply
   replicates one row) and `pageActivity`.
+- Knowledge links of the page (`pageReference`, `specificationCitation`,
+  `pageAttachment`, `workItemSource`, `pageBranchOrigin`,
+  `pageContextLink`), which also fill the `work_item_id` or `project_id`
+  column so a work item or project can load the rows of the pages its
+  reader can read. Archived pages and pages of archived spaces have none.
 
 `writeSpaceProjections` rewrites what a command touched: `pages`
 (summaries), `commits` (new commits by id: commits never change), `pageLines`
-(branches, pull requests, reviews), `pageDiscussions` and `pageHistories`
+(branches, pull requests, reviews), `pageDiscussions`, `knowledge` (the
+page's knowledge links; `pages` and `pageLines` rewrite them too, since they
+follow main's head, the archive state and the branches) and `pageHistories`
 (all page-level rows). Discussion commands that change counters also rewrite
 the page's lines (blocking threads feed mergeability). `rebuildSpaceProjections`,
 called by `rebuildProjections`, reconciles `space_entity` and `space_reader`,
@@ -799,9 +991,10 @@ collaboration service's stored messages, so the editor can say
 
 Both tables are in the `lictory_zero` publication. The synced queries
 `spaces({ organizationId })` (space-level rows), `page({ organizationId,
-pageId })` (one page's history) and `mySpaceAccess({ organizationId })` (my
-reader rows) require a `space_reader` row for the current user and their
-organization membership; `organization` and `workItem` read only
+pageId })` (one page's history), `mySpaceAccess({ organizationId })` (my
+reader rows) and the knowledge link queries `workItemKnowledge`, `pageWork`
+and `projectContext` require a `space_reader` row for the current user and
+their organization membership; `organization` and `workItem` read only
 `sync_entity`.
 
 ### Reads, export and deletion
@@ -809,7 +1002,9 @@ organization membership; `organization` and `workItem` read only
 The capabilities `listSpaces` (readable spaces with the reader's level, plus
 the restricted spaces the person administers without reading them, names
 only), `listPages` (one space's tree in reading order), `getPage` (main's
-latest title and Markdown, or any commit with `commitId`; never a draft),
+latest title and Markdown with its commit and version number, or any commit
+with `commitId`; never a draft), `searchKnowledge` (content search, see
+above),
 `listPageCommits` (the history, newest first, optionally of one line),
 `diffPageCommits` (title and block changes between two commits),
 `previewPageMerge` (a pull request's or a sync's merge now: conflicts with
@@ -867,11 +1062,13 @@ attributed to the anonymized account, like specification threads.
   rendered by a read-only Tiptap editor from the commit's canonical JSON with
   the same extensions that wrote it, so a commit looks the same everywhere.
   Readers load no Yjs and open no socket; while the reader's code loads, the
-  commit's derived Markdown stands in. Work item mentions render as live
-  chips (identifier, status, refinement and readiness as I can see the item
-  now); an item I cannot see shows only the key stored in the content. Page
-  links show the linked page's current title, or "Unavailable page" without
-  a title when I cannot read it.
+  commit's derived Markdown stands in. References render as the shared
+  chips ([one editor for pages and Markdown](editor.md#references)): a work
+  item with its identifier, title and status, with type, refinement,
+  readiness, owner and iteration in its card; an item I cannot see shows only
+  the key stored in the content. Page links show the linked page's current
+  title (and the cited version when pinned), or "Unavailable page" without a
+  title when I cannot read it. Decisions show their stored title.
 - **Editing.** Main in a Direct space opens as published; "Edit" (or
   "Edit unpublished draft" when it has unpublished changes) opens its live draft.
   A branch I author or collaborate on opens in its draft. In a Reviewed
@@ -893,12 +1090,14 @@ attributed to the anonymized account, like specification threads.
   `default` fragment) so every editor sees the same title, and a commit
   seals the title stored at its cut; the editor shows the line's committed
   title while the draft's is empty. Blocks come from the toolbar, from "/"
-  (blocks, image, work item, page link) and from Markdown shortcuts; "#"
-  picks a work item and "[[" a page from what I can read. Images are pasted,
+  (blocks, image, work item, page link, decision) and from Markdown
+  shortcuts; "#" picks a work item and "[[" a page from what I can read
+  (Shift+Enter pins the version published now), "/" → Decision a recorded
+  decision. Images are pasted,
   dropped or chosen and stored as page files (`/api/files/{id}`).
 - **Toolbar.** Undo and redo, the inline marks (bold, italic, strikethrough,
   code, link) and "Comment" stay visible; block styles are one "Text" menu,
-  table, divider, image, work item and page link one "Insert" menu, and a
+  table, divider, image, work item, page link and decision one "Insert" menu, and a
   "Table" menu appears inside a table. "Close editor" returns to the
   published page (main of a Direct space); the draft stays saved.
 - **Save state**, beside the title: "Saving…" while the provider has edits
@@ -989,9 +1188,18 @@ attributed to the anonymized account, like specification threads.
   effective level and its source (named access, or membership of the
   location, computed for display from the directory with the server's
   rule) and what removing the named access leaves.
+- **Work blocks.** "/" offers Decision (the shared decision picker: a card
+  on an empty line, a chip inside a sentence) and Work list (a small
+  dialog: what to list, project, epic, iteration or label, optional title;
+  the list's settings button reopens it in the editor). The task item action
+  shows on hover or keyboard focus (always on touch screens) and only where
+  the page offers work actions. The selection's actions sit above it
+  ("Comment", "Create work item"); "Ask Litto" sits below.
 - **Loading.** The space home and tree load none of this: the page surface
   (Tiptap, the reader, comments) is its own chunk, and the live editor (Yjs,
-  y-tiptap, the Hocuspocus provider) another one that only editors load.
+  y-tiptap, the Hocuspocus provider) another one that only editors load. The
+  editor core (node views, toolbar, pickers in `components/editor`) is
+  shared with Work's Markdown editor, which adds no Yjs.
 - **Administrators without access.** `/{org}/spaces` lists the restricted
   spaces I administer but cannot read (from `listSpaces`, names only) with an
   explicit, audited "Grant myself access".
