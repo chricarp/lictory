@@ -159,7 +159,7 @@ void test("only readers of a page learn where it mentions work and which version
         block("heading", "h-escalate", text("Escalation")),
         block("paragraph", "p-page", text("Page the on-call engineer.")),
       ],
-    } as Record<string, never>,
+    } as unknown as Record<string, never>,
     message: "Escalation",
   });
   await run({
