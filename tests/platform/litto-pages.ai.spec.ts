@@ -46,6 +46,18 @@ async function workspace(name: string, key: string, ai = true) {
 const reader = (page: Page) => page.getByRole("document", { name: /content/ });
 const dock = (page: Page) => page.getByRole("complementary", { name: "Litto" });
 
+// ⌘J / Ctrl+J opens the dock once the workspace directory, which says whether
+// Litto is available, has synchronized; the page's text can arrive before it,
+// and a press before then does nothing. Press again only while the dock is
+// still closed, so a press that already opened it is never undone.
+async function openDockByShortcut(page: Page) {
+  await expect(async () => {
+    if ((await dock(page).count()) === 0)
+      await page.keyboard.press("ControlOrMeta+j");
+    await expect(dock(page)).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 // What the scripted provider was sent, as raw request bodies.
 async function providerRequests() {
   const response = await fetch(
@@ -261,7 +273,9 @@ test("a page the person cannot read never reaches Litto's answer, its citations 
     // Nothing about the page was sent to the provider for Rhea either.
     const sent = (await providerRequests())
       .map((r) => r.body)
-      .filter((body) => body.includes("Rhea Reader"));
+      .filter(
+        (body) => body.includes(seeded.slug) && body.includes("Rhea Reader"),
+      );
     expect(sent.length).toBeGreaterThan(0);
     for (const body of sent)
       for (const secret of [
@@ -307,9 +321,8 @@ test("a page whose access is withdrawn mid-conversation stays out of the next an
     await page.goto(bands.url);
     await expect(reader(page)).toContainText("retention bonus formula");
     await reader(page).click();
-    await page.keyboard.press("ControlOrMeta+j");
+    await openDockByShortcut(page);
     const litto = dock(page);
-    await expect(litto).toBeVisible();
     const question = "Which work items does this page mention?";
     const composer = litto.getByRole("textbox", { name: "Message Litto" });
     await composer.fill(question);
@@ -354,7 +367,9 @@ test("a page whose access is withdrawn mid-conversation stays out of the next an
     const sent = (await providerRequests())
       .slice(sentBefore)
       .map((r) => r.body)
-      .filter((body) => body.includes("Rhea Reader"));
+      .filter(
+        (body) => body.includes(seeded.slug) && body.includes("Rhea Reader"),
+      );
     expect(sent.length).toBeGreaterThan(0);
     for (const body of sent)
       for (const secret of [...secrets, "retention bonus formula"])
@@ -378,8 +393,7 @@ test("with Lictory Intelligence turned off, pages offer no AI controls and work 
   await page.goto(policy.url);
   await expect(reader(page)).toContainText("second approver");
   await reader(page).click();
-  await page.keyboard.press("ControlOrMeta+j");
-  await expect(dock(page)).toBeVisible();
+  await openDockByShortcut(page);
   await dock(page).getByRole("button", { name: "Close Litto" }).click();
   await expect(dock(page)).toHaveCount(0);
   await selectPageText(page, "need a second approver");
