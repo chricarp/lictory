@@ -5,6 +5,7 @@ import type { WorkListFilter } from "@lictory/core/spaces/document/schema";
 import type { WorkListAttrs } from "@lictory/core/spaces/document/blocks";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
+import { toast } from "@lictory/ui/toast";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   insertBlockAt,
   type BlockRequest,
 } from "@lictory/platform/components/spaces/blocks/insert-store";
+import { findBlock } from "@lictory/platform/components/spaces/blocks/anchor";
 
 // The dialog behind "/" → Work list. Mounted once beside
 // the page; they insert into the editor that asked, as an ordinary edit of
@@ -145,21 +147,31 @@ function WorkListDialog({
     const { editor } = request;
     blockRequests.close();
     if (editor.isDestroyed) return;
-    if (request.existing)
-      editor
+    const { existing } = request;
+    if (existing) {
+      const changed = editor
         .chain()
         .focus()
         .command(({ tr }) => {
-          const node = tr.doc.nodeAt(request.existing!.pos);
-          if (node?.type.name !== "workList") return false;
-          tr.setNodeMarkup(request.existing!.pos, undefined, {
-            ...node.attrs,
-            ...attrs,
-          });
+          // The list as it is now: by its id, since others may have moved
+          // it (or deleted it) while the dialog was open.
+          const pos = existing.id
+            ? findBlock(tr.doc, existing.id, "workList")
+            : existing.pos;
+          const node = pos === undefined ? null : tr.doc.nodeAt(pos);
+          if (pos === undefined || node?.type.name !== "workList") return false;
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs });
           return true;
         })
         .run();
-    else insertBlockAt(editor, request.at, { type: "workList", attrs });
+      if (!changed)
+        toast.add({
+          title: "The work list was not changed",
+          description:
+            "Someone removed it from the draft while you were changing it.",
+          type: "error",
+        });
+    } else insertBlockAt(editor, request.anchor, { type: "workList", attrs });
   };
   const targetLabel =
     filter === "epic-children"

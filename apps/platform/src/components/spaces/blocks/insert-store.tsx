@@ -2,6 +2,11 @@ import type { Editor } from "@tiptap/core";
 import { ListTodo } from "lucide-react";
 import type { WorkListAttrs } from "@lictory/core/spaces/document/blocks";
 import type { MenuItem } from "@lictory/platform/components/editor/suggestions";
+import {
+  blockAnchor,
+  insertionRange,
+  type BlockAnchor,
+} from "@lictory/platform/components/spaces/blocks/anchor";
 
 // What "/" → Work list asks for: a small dialog (rendered by
 // `BlockInsertHost`) that configures a work list, then inserts it into the
@@ -11,9 +16,12 @@ import type { MenuItem } from "@lictory/platform/components/editor/suggestions";
 export type BlockRequest = {
   kind: "workList";
   editor: Editor;
-  at: number;
-  // Editing an existing list (its position and attributes).
-  existing?: { pos: number; attrs: WorkListAttrs };
+  // Where a new block goes, resolved when the dialog applies it.
+  anchor: BlockAnchor;
+  // Editing an existing list: its block id (found again when the dialog
+  // applies, wherever others' edits moved it), the position it had for a
+  // list without one, and its attributes.
+  existing?: { id: string | null; pos: number; attrs: WorkListAttrs };
 };
 
 let current: BlockRequest | null = null;
@@ -52,33 +60,29 @@ export function workBlockSlashItems(query: string): MenuItem[] {
       icon: <ListTodo className="size-4" />,
       run: (editor, range) => {
         editor.chain().focus().deleteRange(range).run();
-        blockRequests.open({ kind: "workList", editor, at: range.from });
+        blockRequests.open({
+          kind: "workList",
+          editor,
+          anchor: blockAnchor(editor.state.doc, range.from),
+        });
       },
     });
   return items;
 }
 
 // Inserts a block where "/" was typed: replacing the paragraph when it is
-// empty, otherwise after the block holding the position.
+// still empty, otherwise after the block holding the position, as the
+// document is now.
 export function insertBlockAt(
   editor: Editor,
-  at: number,
+  anchor: BlockAnchor,
   node: Record<string, unknown>,
 ) {
   if (editor.isDestroyed) return;
-  const doc = editor.state.doc;
-  const $at = doc.resolve(Math.min(at, doc.content.size));
-  const parent = $at.parent;
-  if ($at.depth >= 1 && parent.isTextblock && parent.content.size === 0)
-    editor
-      .chain()
-      .focus()
-      .insertContentAt({ from: $at.before(), to: $at.after() }, node)
-      .run();
-  else
-    editor
-      .chain()
-      .focus()
-      .insertContentAt($at.depth >= 1 ? $at.after(1) : at, node)
-      .run();
+  const range = insertionRange(editor.state.doc, anchor);
+  editor
+    .chain()
+    .focus()
+    .insertContentAt(range.from === range.to ? range.from : range, node)
+    .run();
 }

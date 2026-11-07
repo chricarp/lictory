@@ -18,6 +18,7 @@ import {
   type WorkFact,
 } from "@lictory/platform/components/spaces/work/work-row";
 import { blockRequests } from "@lictory/platform/components/spaces/blocks/insert-store";
+import { blockAnchor } from "@lictory/platform/components/spaces/blocks/anchor";
 
 // A work list in a page: a read-only, live list of the items its stored
 // query names (an epic's children, an iteration, a label, or the work the
@@ -157,8 +158,12 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
                 blockRequests.open({
                   kind: "workList",
                   editor,
-                  at: pos,
-                  existing: { pos, attrs },
+                  anchor: blockAnchor(editor.state.doc, pos),
+                  existing: {
+                    id: (node.attrs.id as string | null) ?? null,
+                    pos,
+                    attrs,
+                  },
                 });
               }}
             >
