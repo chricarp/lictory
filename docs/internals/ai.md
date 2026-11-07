@@ -197,10 +197,13 @@ list.
   it is told the page is unavailable and the quoted text is withheld, even
   though the transcript still stores it for its owner. The same holds for
   earlier turns, which are sent again with every question: a tool call
-  whose input or result names a page the person cannot read now (a
-  `getPage` result, a search hit) reaches the model as a withheld note, and
+  whose input or result touches a page or space the person cannot read now
+  (a `getPage` result, a search hit, a space's page tree, a merge preview
+  that names only a pull request) reaches the model as a withheld note, and
   so does the text of an earlier answer that used one or was asked from that
-  page. The stored transcript is unchanged; only the copy sent to the
+  page. For the tools of Spaces, branch, pull request, discussion,
+  attachment and context link ids are resolved to their pages; anything
+  that cannot be resolved or checked counts as unreadable. The stored transcript is unchanged; only the copy sent to the
   provider is.
   Quoted page text is fenced and marked as data written by people, never
   instructions.

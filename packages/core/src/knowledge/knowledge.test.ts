@@ -17,9 +17,12 @@ import { seedOrganization } from "@lictory/core/domain/organization";
 import { projectionDrift } from "@lictory/core/domain/projection-reader.test-helper";
 import { directory, executeMutation } from "@lictory/core/domain/service";
 import {
+  isSpacesTool,
   verifyPageContexts,
   withholdUnreadablePages,
 } from "@lictory/core/intelligence/chat/context";
+import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
+import { knowledgeCapabilities } from "@lictory/core/capabilities/knowledge";
 import {
   chatContextSchema,
   contextPrompt,
@@ -822,4 +825,137 @@ void test("Litto page context is validated and re-checked with the person's acce
   assert.match(forCarol, /Anything else\?/);
   assert.match(forCarol, /And when is the launch\?/);
   assert.match(JSON.stringify(transcript), /Launch on Monday/);
+});
+
+void test("earlier Spaces results that name pages by space, id, branch or pull request are withheld once access is revoked", async () => {
+  const f = await fixture();
+  const restricted = await f.space({
+    name: "Private",
+    accessMode: "restricted",
+  });
+  const pageId = await f.page(restricted, "Launch plan");
+  await f.publish(pageId, "Launch plan", "Launch on Monday.");
+  const proposal = await f.propose(pageId, "Launch plan", "Launch on Friday.");
+  await f.run(f.owner, {
+    type: "setSpaceGrant",
+    spaceId: restricted,
+    userId: f.carol,
+    level: "view",
+  });
+  const actor = { organizationId: f.organizationId, userId: f.carol };
+  // Results Carol obtained while she could read the space: the page tree
+  // names the page by `id` and the space by the input's `spaceId`; the
+  // merge preview names only the pull request and its branches.
+  const call = async (name: string, input: Record<string, unknown>) => ({
+    type: `tool-${name}` as const,
+    toolCallId: crypto.randomUUID(),
+    state: "output-available" as const,
+    input,
+    output: {
+      ok: true,
+      result: await invoke(web(f.carol), name, {
+        organizationId: f.organizationId,
+        ...input,
+      }),
+    },
+  });
+  const tree = await call("listPages", { spaceId: restricted });
+  const preview = await call("previewPageMerge", {
+    pullRequestId: proposal.pullRequestId,
+  });
+  assert.doesNotMatch(JSON.stringify(tree), /pageId/);
+  assert.doesNotMatch(JSON.stringify(preview), /pageId/);
+  assert.match(JSON.stringify(preview), /Launch on Friday/);
+  // A specification branch shares the key name but is not a page's.
+  const specification = {
+    type: "tool-getWorkItem" as const,
+    toolCallId: crypto.randomUUID(),
+    state: "output-available" as const,
+    input: { workItemId: crypto.randomUUID() },
+    output: { ok: true, result: { branchId: crypto.randomUUID() } },
+  };
+  const answer = (id: string, ...parts: ChatMessage["parts"]): ChatMessage => ({
+    id,
+    role: "assistant",
+    parts,
+  });
+  const question = (id: string, text: string): ChatMessage => ({
+    id,
+    role: "user",
+    parts: [{ type: "text", text }],
+  });
+  const transcript: ChatMessage[] = [
+    question("q1", "What is in the private space?"),
+    answer("a1", tree, {
+      type: "text",
+      text: "It has one page, “Launch plan”.",
+    }),
+    question("q2", "What would the open change do?"),
+    answer("a2", preview, {
+      type: "text",
+      text: "It moves the launch to Friday.",
+    }),
+    question("q3", "And my work item?"),
+    answer("a3", specification, {
+      type: "text",
+      text: "Its branch is ready.",
+    }),
+    question("q4", "Anything else?"),
+  ];
+  const sent = async () =>
+    JSON.stringify(
+      await withholdUnreadablePages(
+        db,
+        actor,
+        transcript,
+        await verifyPageContexts(db, actor, transcript),
+      ),
+    );
+  const before = await sent();
+  assert.match(before, /Launch plan/);
+  assert.match(before, /Launch on Friday/);
+  assert.doesNotMatch(before, /Withheld/);
+
+  await f.run(f.owner, {
+    type: "setSpaceGrant",
+    spaceId: restricted,
+    userId: f.carol,
+    level: null,
+  });
+  const after = await sent();
+  assert.doesNotMatch(after, /Launch plan|Launch on|Friday|Monday/);
+  assert.doesNotMatch(after, new RegExp(restricted));
+  assert.doesNotMatch(after, new RegExp(proposal.pullRequestId));
+  assert.equal(after.match(/Withheld: this read a page/g)?.length, 2);
+  assert.equal(after.match(/An earlier answer drawn from a page/g)?.length, 2);
+  // What does not rest on the space stays.
+  assert.match(after, /Its branch is ready\./);
+  assert.match(after, /Anything else\?/);
+
+  // Every read of Spaces and of knowledge links resolves its branch and
+  // pull request ids as a page's (they name page lines there).
+  for (const c of [...spaceCapabilities, ...knowledgeCapabilities])
+    assert.ok(isSpacesTool(c.name), c.name);
+  assert.ok(!isSpacesTool("getWorkItem") && !isSpacesTool("commitBranch"));
+
+  // A call whose page cannot be resolved any more counts as unreadable.
+  const unknown: ChatMessage[] = [
+    question("q1", "Reply there"),
+    answer(
+      "a1",
+      {
+        type: "tool-replyToPageThread",
+        toolCallId: crypto.randomUUID(),
+        state: "output-available",
+        input: { threadId: crypto.randomUUID(), body: "Launch on Friday" },
+        output: { ok: true, result: { mutationId: crypto.randomUUID() } },
+      } as never,
+      { type: "text", text: "Replied." },
+    ),
+    question("q2", "Thanks"),
+  ];
+  const withheld = JSON.stringify(
+    await withholdUnreadablePages(db, actor, unknown, new Map()),
+  );
+  assert.doesNotMatch(withheld, /Launch on Friday|Replied\./);
 });

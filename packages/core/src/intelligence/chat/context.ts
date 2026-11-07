@@ -1,8 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type { Database } from "@lictory/core/domain/service";
 import { commitVersions } from "@lictory/core/knowledge/search";
-import { pageAccess } from "@lictory/core/spaces/access";
+import {
+  canManageSpaceAccess,
+  pageAccess,
+  spaceAccess,
+} from "@lictory/core/spaces/access";
 import {
   pageContextKey,
   type ChatMessage,
@@ -93,48 +97,197 @@ async function verify(
 }
 
 // Earlier turns are sent to the model again with every turn: their tool
-// results (a page read with getPage, a page found by search) and the answers
-// built on them. When the person can no longer read a page those name, the
-// model must not get it back from the transcript either: the tool's input
-// and result are replaced by a note, and so are the words of an earlier
-// answer that used them or that was asked from that page. The stored
-// transcript is unchanged (it is the person's own record); only what the
-// model is sent is withheld.
+// results (a page read with getPage, a page found by search, a space's page
+// tree, a merge preview) and the answers built on them. When the person can
+// no longer read a page or space those touched, the model must not get it
+// back from the transcript either: the tool's input and result are replaced
+// by a note, and so are the words of an earlier answer that used them or
+// that was asked from that page. The stored transcript is unchanged (it is
+// the person's own record); only what the model is sent is withheld.
+//
+// What a call touched comes from its input and its result: page and space
+// ids wherever they appear, and for the tools of Lictory Spaces also the
+// branches, pull requests, discussions, attachments and context links they
+// name (each resolved to its page), the pages and spaces their results list
+// by `id`. Anything that cannot be resolved or checked counts as unreadable.
 export const WITHHELD_RESULT =
   "Withheld: this read a page the person cannot read now. Do not use or repeat anything from it.";
 export const WITHHELD_ANSWER =
   "[An earlier answer drawn from a page the person cannot read now; withheld. Do not repeat anything from it.]";
-// More distinct pages than this in one conversation are not checked one by
-// one; the rest count as unreadable.
-const MAX_CHECKED_PAGES = 200;
+// More distinct pages and spaces than this in one conversation are not
+// checked one by one; the rest count as unreadable.
+const MAX_CHECKED = 200;
+const MAX_DEPTH = 12;
 
-function pagesNamedIn(value: unknown, into: Set<string>, depth = 0) {
-  if (depth > 12 || value === null || typeof value !== "object") return;
-  if (Array.isArray(value)) {
-    for (const v of value) pagesNamedIn(v, into, depth + 1);
+// Tools of Lictory Spaces and of the links between pages and work, whose
+// branch, pull request, discussion, attachment and link ids name pages
+// (elsewhere `branchId` names a specification branch).
+const spacesToolExtras = new Set([
+  "commitDraft",
+  "getWorkItemKnowledge",
+  "listReferencesTo",
+]);
+export const isSpacesTool = (name: string) =>
+  /Page|Space/.test(name) || spacesToolExtras.has(name);
+// Commands that manage a space: a manager may name a restricted space they
+// cannot read (to grant themselves access), as listSpaces lists it.
+const managingTools = new Set([
+  "createSpace",
+  "updateSpace",
+  "setSpaceAccessMode",
+  "setSpaceGrant",
+  "archiveSpace",
+]);
+
+// What a reference names; resolved to pages and spaces before checking.
+type RefKind =
+  | "page"
+  | "space"
+  | "managedSpace"
+  | "pageBranch"
+  | "pagePullRequest"
+  | "pageThread"
+  | "pageAttachment"
+  | "contextLink"
+  // Too deep or malformed to check.
+  | "unchecked";
+const spacesKeys: Record<string, RefKind> = {
+  branchId: "pageBranch",
+  sourceBranchId: "pageBranch",
+  targetBranchId: "pageBranch",
+  fromBranchId: "pageBranch",
+  pullRequestId: "pagePullRequest",
+  threadId: "pageThread",
+  attachmentId: "pageAttachment",
+  linkId: "contextLink",
+};
+const ref = (kind: RefKind, id: string) => `${kind}:${id}`;
+
+function collect(
+  value: unknown,
+  into: Set<string>,
+  spaces: boolean,
+  depth = 0,
+) {
+  if (value === null || typeof value !== "object") return;
+  if (depth > MAX_DEPTH) {
+    into.add(ref("unchecked", ""));
     return;
   }
-  for (const [key, v] of Object.entries(value)) {
-    if (key === "pageId" && typeof v === "string" && v.length <= 100)
-      into.add(v);
-    else pagesNamedIn(v, into, depth + 1);
+  if (Array.isArray(value)) {
+    for (const v of value) collect(v, into, spaces, depth + 1);
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  // A page named by kind (a reference, a search result).
+  if (record.kind === "page" && typeof record.id === "string")
+    into.add(ref("page", record.id));
+  for (const [key, v] of Object.entries(record)) {
+    const kind =
+      key === "pageId"
+        ? "page"
+        : key === "spaceId"
+          ? "space"
+          : spaces
+            ? spacesKeys[key]
+            : undefined;
+    if (kind && typeof v === "string")
+      into.add(v.length <= 100 ? ref(kind, v) : ref("unchecked", ""));
+    else collect(v, into, spaces, depth + 1);
   }
 }
 
 type Part = ChatMessage["parts"][number];
+type ToolPart = {
+  type: string;
+  toolName?: string;
+  input?: unknown;
+  output?: unknown;
+  state?: string;
+};
 const toolPart = (part: Part) =>
   part.type.startsWith("tool-") || part.type === "dynamic-tool"
-    ? (part as { input?: unknown; output?: unknown; state?: string })
+    ? (part as ToolPart)
     : null;
-const pagesOfTool = (part: Part) => {
-  const ids = new Set<string>();
+const nameOf = (tool: ToolPart) =>
+  tool.type === "dynamic-tool" ? (tool.toolName ?? "") : tool.type.slice(5);
+const ids = (list: unknown) =>
+  Array.isArray(list)
+    ? list.flatMap((x) =>
+        typeof (x as { id?: unknown } | null)?.id === "string"
+          ? [(x as { id: string }).id]
+          : [],
+      )
+    : [];
+
+// The references a tool call's input and result make.
+function referencesOfTool(part: Part): Set<string> {
+  const refs = new Set<string>();
   const tool = toolPart(part);
-  if (tool) {
-    pagesNamedIn(tool.input, ids);
-    pagesNamedIn(tool.output, ids);
+  if (!tool) return refs;
+  const name = nameOf(tool);
+  const spaces = isSpacesTool(name);
+  collect(tool.input, refs, spaces);
+  collect(tool.output, refs, spaces);
+  const result = (tool.output as { result?: Record<string, unknown> } | null)
+    ?.result;
+  if (result && typeof result === "object") {
+    // Page trees and space lists name their entries by `id`.
+    if (name === "listPages") {
+      for (const id of ids(result.pages)) refs.add(ref("page", id));
+      const space = (result.space as { id?: unknown } | undefined)?.id;
+      if (typeof space === "string") refs.add(ref("space", space));
+    }
+    if (name === "getPage") {
+      const page = (result.page as { id?: unknown } | undefined)?.id;
+      if (typeof page === "string") refs.add(ref("page", page));
+    }
+    if (name === "listSpaces") {
+      for (const id of ids(result.spaces)) refs.add(ref("space", id));
+      for (const id of ids(result.manageableWithoutAccess))
+        refs.add(ref("managedSpace", id));
+    }
   }
-  return ids;
-};
+  if (managingTools.has(name))
+    for (const r of [...refs])
+      if (r.startsWith("space:")) {
+        refs.delete(r);
+        refs.add(ref("managedSpace", r.slice("space:".length)));
+      }
+  return refs;
+}
+
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+// The page each branch, pull request, discussion, attachment or context
+// link names, in the actor's organization; missing ones are left out.
+async function pagesOf(
+  tx: Tx,
+  organizationId: string,
+  kind: RefKind,
+  wanted: string[],
+): Promise<Map<string, string>> {
+  const table =
+    kind === "pageBranch"
+      ? s.pageBranch
+      : kind === "pagePullRequest"
+        ? s.pagePullRequest
+        : kind === "pageThread"
+          ? s.pageThread
+          : kind === "pageAttachment"
+            ? s.workItemPageAttachment
+            : kind === "contextLink"
+              ? s.pageContextLink
+              : null;
+  if (!table || !wanted.length) return new Map();
+  const rows = await tx
+    .select({ id: table.id, pageId: table.pageId })
+    .from(table)
+    .where(
+      and(eq(table.organizationId, organizationId), inArray(table.id, wanted)),
+    );
+  return new Map(rows.map((r) => [r.id, r.pageId]));
+}
 
 export async function withholdUnreadablePages(
   db: Database,
@@ -142,24 +295,70 @@ export async function withholdUnreadablePages(
   messages: readonly ChatMessage[],
   contexts: ReadonlyMap<string, VerifiedPage | null>,
 ): Promise<ChatMessage[]> {
-  const named = new Set(
-    messages.flatMap((m) => m.parts.flatMap((p) => [...pagesOfTool(p)])),
-  );
+  const refsOf = new Map<Part, Set<string>>();
+  for (const message of messages)
+    for (const part of message.parts) {
+      const refs = referencesOfTool(part);
+      if (refs.size) refsOf.set(part, refs);
+    }
+  const named = new Set([...refsOf.values()].flatMap((r) => [...r]));
   const unreadable = new Set<string>();
   if (named.size)
     await db.transaction(
       async (tx) => {
         let checked = 0;
-        for (const pageId of named) {
-          if (checked++ >= MAX_CHECKED_PAGES) unreadable.add(pageId);
-          else if (!(await pageAccess(tx, actor, pageId))?.level)
-            unreadable.add(pageId);
+        const within = () => checked++ < MAX_CHECKED;
+        const byKind = new Map<RefKind, string[]>();
+        for (const r of named) {
+          const at = r.indexOf(":");
+          const kind = r.slice(0, at) as RefKind;
+          byKind.set(kind, [...(byKind.get(kind) ?? []), r.slice(at + 1)]);
+        }
+        // Page access, checked once per page.
+        const pageReadable = new Map<string, boolean>();
+        const canReadPage = async (pageId: string) => {
+          let readable = pageReadable.get(pageId);
+          if (readable === undefined) {
+            readable =
+              within() && Boolean((await pageAccess(tx, actor, pageId))?.level);
+            pageReadable.set(pageId, readable);
+          }
+          return readable;
+        };
+        for (const [kind, wanted] of byKind) {
+          if (kind === "unchecked") {
+            unreadable.add(ref(kind, ""));
+            continue;
+          }
+          if (kind === "page") {
+            for (const id of wanted)
+              if (!(await canReadPage(id))) unreadable.add(ref(kind, id));
+            continue;
+          }
+          if (kind === "space" || kind === "managedSpace") {
+            for (const id of wanted) {
+              const ok =
+                within() &&
+                (Boolean((await spaceAccess(tx, actor, id))?.level) ||
+                  (kind === "managedSpace" &&
+                    (await canManageSpaceAccess(tx, actor, id))));
+              if (!ok) unreadable.add(ref(kind, id));
+            }
+            continue;
+          }
+          const bounded = wanted.slice(0, MAX_CHECKED);
+          const pages = await pagesOf(tx, actor.organizationId, kind, bounded);
+          for (const id of wanted) {
+            const pageId = pages.get(id);
+            if (!pageId || !(await canReadPage(pageId)))
+              unreadable.add(ref(kind, id));
+          }
         }
       },
       { isolationLevel: "repeatable read", accessMode: "read only" },
     );
   const namesUnreadable = (part: Part) =>
-    [...pagesOfTool(part)].some((id) => unreadable.has(id));
+    [...(refsOf.get(part) ?? [])].some((r) => unreadable.has(r));
   const askedFromUnreadable = (message: ChatMessage) =>
     message.parts.some(
       (p) =>
