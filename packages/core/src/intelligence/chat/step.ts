@@ -21,7 +21,10 @@ import {
   type ChatMessage,
 } from "@lictory/core/intelligence/chat/shared";
 import type { ChatOwner } from "@lictory/core/intelligence/chat/runs";
-import { replayableMessages } from "@lictory/core/intelligence/chat/replay";
+import {
+  continuedBy,
+  replayableMessages,
+} from "@lictory/core/intelligence/chat/replay";
 import {
   providerFingerprint,
   providerOptions,
@@ -115,10 +118,7 @@ export function chatGenerator(
     try {
       for await (const updated of readUIMessageStream<ChatMessage>({
         // The steps generated now come from this provider.
-        message: {
-          ...structuredClone(message),
-          metadata: { ...message.metadata, generatedBy: fingerprint },
-        },
+        message: continuedBy(structuredClone(message), fingerprint),
         stream,
         terminateOnError: true,
       }))

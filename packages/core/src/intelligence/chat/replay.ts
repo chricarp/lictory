@@ -16,6 +16,36 @@ const metadataKeys = [
   "resultProviderMetadata",
 ] as const;
 
+// Provider metadata removed, reasoning text kept for the person to read.
+function withoutProviderMetadata(parts: ChatMessage["parts"]) {
+  return parts.map((part) => {
+    if (!metadataKeys.some((key) => key in part)) return part;
+    const copy: Record<string, unknown> = { ...part };
+    for (const key of metadataKeys) delete copy[key];
+    return copy as typeof part;
+  });
+}
+
+/**
+ * The assistant message a provider continues, stamped as its own. Steps an
+ * earlier provider generated in it keep their text but lose that provider's
+ * metadata, so the stamp never vouches for metadata another provider wrote.
+ */
+export function continuedBy(
+  message: ChatMessage,
+  fingerprint: string,
+): ChatMessage {
+  const origin = message.metadata?.generatedBy ?? legacyFingerprint;
+  return {
+    ...message,
+    parts:
+      origin === fingerprint
+        ? message.parts
+        : withoutProviderMetadata(message.parts),
+    metadata: { ...message.metadata, generatedBy: fingerprint },
+  };
+}
+
 export function replayableMessages(
   messages: ChatMessage[],
   fingerprint: string,
@@ -23,17 +53,21 @@ export function replayableMessages(
   return messages.map((message) => {
     if (message.role !== "assistant") return message;
     const origin = message.metadata?.generatedBy ?? legacyFingerprint;
-    if (origin === fingerprint) return message;
+    // Reasoning is replayed only with the metadata its provider needs; a
+    // reasoning part without any (from another provider, or one that sends
+    // none) is left out.
+    const parts = message.parts.filter(
+      (part) => part.type !== "reasoning" || "providerMetadata" in part,
+    );
+    if (origin === fingerprint)
+      return parts.length === message.parts.length
+        ? message
+        : { ...message, parts };
     return {
       ...message,
-      parts: message.parts
-        .filter((part) => part.type !== "reasoning")
-        .map((part) => {
-          if (!metadataKeys.some((key) => key in part)) return part;
-          const copy: Record<string, unknown> = { ...part };
-          for (const key of metadataKeys) delete copy[key];
-          return copy as typeof part;
-        }),
+      parts: withoutProviderMetadata(
+        message.parts.filter((part) => part.type !== "reasoning"),
+      ),
     };
   });
 }

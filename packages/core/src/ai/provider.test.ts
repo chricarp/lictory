@@ -26,7 +26,10 @@ import {
 import { checkAiProvider } from "@lictory/core/ai/check";
 import { checkConfiguration } from "@lictory/core/config/validate";
 import { aiRules } from "@lictory/core/config/ai";
-import { replayableMessages } from "@lictory/core/intelligence/chat/replay";
+import {
+  continuedBy,
+  replayableMessages,
+} from "@lictory/core/intelligence/chat/replay";
 import type { ChatMessage } from "@lictory/core/intelligence/chat/shared";
 
 const configured = (source: Record<string, string>) => {
@@ -791,4 +794,85 @@ void test("a substituted model keeps working for tests and drills", () => {
   });
   assert.equal(substitute.modelId, "drill");
   assert.equal(substitute.config.structuredOutput, "json-schema");
+});
+
+void test("invalid base URLs are reported without echoing anything secret", () => {
+  for (const value of [
+    "https://user:hunter2-secret@host.example/v1?api-key=query-secret",
+    "ftp://user:hunter2-secret@host.example/v1",
+    "http://host.example/v1?api-key=query-secret",
+    "http://host.example/v1#query-secret",
+    "not a url query-secret",
+  ]) {
+    const source = {
+      LICTORY_AI_PROVIDER: "openai-compatible",
+      LICTORY_AI_MODEL: "m",
+      LICTORY_AI_BASE_URL: value,
+    };
+    const text = problems(source);
+    assert.doesNotMatch(text, /secret/, value);
+    assert.doesNotMatch(
+      JSON.stringify(describeAiProvider(source)),
+      /secret/,
+      value,
+    );
+  }
+  assert.doesNotMatch(
+    problems({
+      OPENAI_API_KEY: "sk",
+      OPENAI_BASE_URL: "https://u:legacy-secret@gateway.example/v1",
+    }),
+    /secret/,
+  );
+});
+
+void test("a turn resumed on another provider keeps no metadata under the new provider's name", () => {
+  const before = providerFingerprint({
+    provider: "openai",
+    baseURL: "https://gateway-a.internal/v1",
+  });
+  const after = providerFingerprint({
+    provider: "openai",
+    baseURL: "https://gateway-b.internal/v1",
+  });
+  // The turn paused for an approval on endpoint A.
+  const waiting = {
+    id: "a1",
+    role: "assistant",
+    metadata: { generatedBy: before },
+    parts: [
+      {
+        type: "reasoning",
+        text: "Need the item first.",
+        providerMetadata: {
+          openai: { itemId: "rs_a", reasoningEncryptedContent: "enc-a" },
+        },
+      },
+      {
+        type: "tool-getWorkItem",
+        toolCallId: "call_a",
+        state: "output-available",
+        input: { key: "PAY-1" },
+        output: { title: "Retry" },
+        callProviderMetadata: { openai: { itemId: "fc_a" } },
+      },
+    ],
+  } as unknown as ChatMessage;
+  // Endpoint B continues it and stamps the message as its own.
+  const continued = continuedBy(waiting, after);
+  assert.equal(continued.metadata?.generatedBy, after);
+  assert.ok(!JSON.stringify(continued).includes("enc-a"));
+  assert.ok(!JSON.stringify(continued).includes("fc_a"));
+  // The person still sees the earlier reasoning text.
+  assert.equal(continued.parts[0]!.type, "reasoning");
+  // On B's next step, nothing from A is sent: the reasoning without B's
+  // metadata is left out, the tool call and result stay paired.
+  const sent = replayableMessages([continued], after)[0]!;
+  assert.deepEqual(
+    sent.parts.map((p) => p.type),
+    ["tool-getWorkItem"],
+  );
+  assert.ok(!JSON.stringify(sent).includes("enc-a"));
+  // Endpoint A's own continuation is unchanged.
+  assert.deepEqual(continuedBy(waiting, before).parts, waiting.parts);
 });

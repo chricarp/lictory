@@ -120,6 +120,8 @@ const explicitSettings = [
   "LICTORY_AI_STRUCTURED_OUTPUT",
 ] as const;
 
+// Never echoes the value: a URL may carry credentials in its user info or
+// query, and these messages reach startup logs and the admin console.
 function baseUrlProblem(name: string, value: string, https: boolean) {
   let url: URL | undefined;
   try {
@@ -127,15 +129,15 @@ function baseUrlProblem(name: string, value: string, https: boolean) {
   } catch {
     // Reported below.
   }
+  if (url && (url.username || url.password))
+    return `${name} must not contain credentials. Put the key in LICTORY_AI_API_KEY.`;
   if (
     !url ||
     !(https ? ["https:"] : ["http:", "https:"]).includes(url.protocol) ||
     url.search ||
     url.hash
   )
-    return `${name} must be an ${https ? "https" : "http(s)"} URL without query or fragment, such as ${https ? "https://<resource>.openai.azure.com/openai/v1" : "http://inference.internal:11434/v1"}, got "${value}".`;
-  if (url.username || url.password)
-    return `${name} must not contain credentials. Put the key in LICTORY_AI_API_KEY.`;
+    return `${name} must be an ${https ? "https" : "http(s)"} URL without credentials, query or fragment, such as ${https ? "https://<resource>.openai.azure.com/openai/v1" : "http://inference.internal:11434/v1"}.`;
   return undefined;
 }
 const trimSlash = (url: string) => url.replace(/\/+$/, "");
