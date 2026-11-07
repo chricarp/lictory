@@ -71,6 +71,7 @@ test("two people edit one specification draft live and one saves the revision bo
     ...base,
     reviewId: crypto.randomUUID(),
     disciplineId: qa,
+    userId: null,
     required: true,
   });
   await seeded.command(
