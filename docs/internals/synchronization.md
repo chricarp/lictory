@@ -432,8 +432,9 @@ least one required review requested; every required responsibility approved on
 the current revision; and, for items with spec-backed children, every child
 ready. Readiness is
 computed server-side; the status is only a workflow summary. Threads may quote the
-text they discuss; the quote is interpreted against the thread's revision and the
-UI reports when it no longer appears. Resolving/reopening threads never
+text they discuss; the quote (with its heading and, when the words repeat, which
+copy) is interpreted against the thread's revision and the UI reports when it no
+longer appears ([reviewing a specification](lifecycle.md#reviewing-a-specification)). Resolving/reopening threads never
 deletes messages; durable activity records retain these actions.
 
 ## Verification and deferred work

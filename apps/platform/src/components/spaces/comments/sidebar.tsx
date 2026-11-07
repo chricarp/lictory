@@ -25,6 +25,10 @@ import type {
 } from "@lictory/platform/components/spaces/comments/store";
 import type { OtherLine } from "@lictory/platform/components/spaces/comments/line-threads";
 import { useSelectLine } from "@lictory/platform/components/spaces/editor/line";
+import {
+  DiscussionCounts,
+  QuoteBlock,
+} from "@lictory/platform/components/discussions/presentation";
 
 // The page's discussions beside the document, in document order: threads
 // whose text is on screen first, then those whose text changed or was
@@ -147,21 +151,7 @@ export function CommentsPanel({
             on {lineName}
           </span>
         </h2>
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-          {open.length} open
-          {blocking ? (
-            <>
-              <span className="sr-only">, </span>
-              <span className="ml-2 inline-flex items-center gap-1 font-medium text-foreground">
-                <span
-                  aria-hidden
-                  className="size-1.5 rounded-full bg-destructive/80"
-                />
-                {blocking} blocking
-              </span>
-            </>
-          ) : null}
-        </span>
+        <DiscussionCounts open={open.length} blocking={blocking} />
         {onClose && (
           <Button
             variant="ghost"
@@ -323,45 +313,6 @@ function OtherLines({ lines }: { lines: readonly OtherLine[] }) {
 
 function useMentionable() {
   return useWorkspace().directory.members;
-}
-
-// The commented passage, drawn with the tint its text has in the page (a
-// quote whose text is no longer on screen stays neutral and italic).
-function QuoteBlock({
-  quote,
-  muted,
-  blocking,
-  onClick,
-}: {
-  quote: string;
-  muted?: boolean;
-  blocking?: boolean;
-  onClick?: () => void;
-}) {
-  const content = <span className="line-clamp-4 text-left">{quote}</span>;
-  const className = cn(
-    "block w-full rounded-r-md border-l-2 px-2.5 py-1 text-[13px] leading-5 text-foreground/80",
-    muted
-      ? "border-foreground/15 bg-muted/60 text-muted-foreground italic"
-      : blocking
-        ? "border-destructive/50 bg-destructive/6"
-        : "border-warning/60 bg-warning/8",
-  );
-  return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      title="Show in the page"
-      className={cn(
-        className,
-        "outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
-      )}
-    >
-      {content}
-    </button>
-  ) : (
-    <blockquote className={className}>{content}</blockquote>
-  );
 }
 
 function ThreadCard({

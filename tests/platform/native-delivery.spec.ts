@@ -302,7 +302,7 @@ test("native delivery preserves accepted scope through an amendment, completion 
       .first(),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Close comparison", exact: true })
+    .getByRole("button", { name: "Close history", exact: true })
     .click();
   await properties
     .getByRole("button", { name: "Status: In Progress", exact: true })

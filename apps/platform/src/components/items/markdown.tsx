@@ -2,6 +2,7 @@ import { Children, isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
+  type Options,
 } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Link, Root, Text } from "mdast";
@@ -165,8 +166,18 @@ const components: Components = {
         aria-label={checked ? "Done" : "Not done"}
       />
     ) : null,
-  del: ({ children }) => (
-    <del className="text-muted-foreground decoration-current">{children}</del>
+  // Strikethrough reads muted; words a diff marks as removed keep their
+  // own class (review/markdown-marks.ts).
+  del: ({ children, className }) => (
+    <del
+      className={
+        className?.includes("diff-word")
+          ? className
+          : "text-muted-foreground decoration-current"
+      }
+    >
+      {children}
+    </del>
   ),
 };
 
@@ -213,22 +224,34 @@ function remarkLegacyPageLinks() {
 }
 
 const remarkPlugins = [remarkGfm, remarkLegacyPageLinks];
+type Plugins = NonNullable<Options["remarkPlugins"]>;
 
 // CommonMark plus GitHub-flavored tables, task lists, strikethrough and
 // autolinks. react-markdown emits React nodes and does not execute raw HTML.
 // Parsing is the expensive part, so a document is only re-parsed when its
 // source changes.
+//
+// `marks` are remark plugins that wrap passages of the readable text
+// (discussion highlights, changed words; editor/markdown-text.ts). They run
+// on the tree as parsed, before Lictory's own rewrites, so their offsets
+// are those of the readable text. Pass a stable array.
 export const Markdown = memo(function Markdown({
   source,
   className,
+  marks,
 }: {
   source: string;
   className?: string;
+  marks?: Plugins;
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
       <ReactMarkdown
-        remarkPlugins={remarkPlugins}
+        remarkPlugins={
+          marks?.length
+            ? [remarkGfm, ...marks, remarkLegacyPageLinks]
+            : remarkPlugins
+        }
         components={components}
         urlTransform={urlTransform}
       >

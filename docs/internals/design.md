@@ -50,7 +50,9 @@ panel for agreeing on what to build.
   beside the first. Panes inside the frame size to the frame (a named
   container, `@container/frame`), not the window: the item list shows from
   1040px of frame, the review rail from 848px (a "Review & details" drawer
-  otherwise). Opening Litto therefore folds only what no longer fits; a large
+  otherwise). A specification's discussions take a column beside the rail
+  while the text keeps about 420px, the rail's place when only one fits, and
+  a sheet on phones. Opening Litto therefore folds only what no longer fits; a large
   display keeps everything open.
 - **Resizable panes.** The item list, the review rail and Litto's sheet can be
   resized from their edge: drag it, or focus it and use the arrow keys

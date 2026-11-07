@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { fillMarkdown } from "../helpers/editor";
+import { openDiscussions } from "../helpers/discussions";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import {
@@ -162,6 +163,7 @@ test("without an AI provider or file storage, refinement works and those feature
   );
   await page.getByRole("button", { name: /Save revision 2/ }).click();
   await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
+  await openDiscussions(page);
   await fillMarkdown(
     page,
     "Start a discussion",
