@@ -42,8 +42,7 @@ function blocksOf(markdown: string): Parsed[] {
   }));
 }
 
-const readable = (source: string) =>
-  textModel(parseMarkdownTree(source)).text;
+const readable = (source: string) => textModel(parseMarkdownTree(source)).text;
 
 // Longest common subsequence of block keys; past a size that would make the
 // table expensive, everything between the common ends counts as replaced.
@@ -53,8 +52,14 @@ function matches(a: Parsed[], b: Parsed[]) {
     endB = b.length;
   while (start < endA && start < endB && a[start]!.key === b[start]!.key)
     start++;
-  while (endA > start && endB > start && a[endA - 1]!.key === b[endB - 1]!.key)
-    endA--, endB--;
+  while (
+    endA > start &&
+    endB > start &&
+    a[endA - 1]!.key === b[endB - 1]!.key
+  ) {
+    endA--;
+    endB--;
+  }
   const pairs: [number, number][] = [];
   for (let i = 0; i < start; i++) pairs.push([i, i]);
   const n = endA - start,
@@ -91,10 +96,9 @@ export function diffMarkdown(before: string, after: string): BlockChange[] {
   const push = (change: BlockChange) => {
     const last = changes.at(-1);
     if (
-      last &&
-      last.kind === change.kind &&
       (change.kind === "added" || change.kind === "removed") &&
-      (last.kind === "added" || last.kind === "removed")
+      (last?.kind === "added" || last?.kind === "removed") &&
+      last.kind === change.kind
     )
       last.blocks.push(...change.blocks);
     else changes.push(change);
@@ -107,7 +111,7 @@ export function diffMarkdown(before: string, after: string): BlockChange[] {
     while (i < removed.length || j < added.length) {
       const r = removed[i],
         d = added[j];
-      if (r && d && r.type === d.type) {
+      if (r && r.type === d?.type) {
         changes.push({
           kind: "changed",
           before: strip(r),

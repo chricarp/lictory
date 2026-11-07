@@ -34,7 +34,7 @@ const quoted = (markdown: string, placement: ReturnType<typeof placeQuote>) =>
     ? model(markdown).text.slice(placement.from, placement.to)
     : placement.kind;
 
-test("a quote is found under its heading, at the occurrence that was selected", () => {
+void test("a quote is found under its heading, at the occurrence that was selected", () => {
   const text = model(spec);
   const under = (section: string, occurrence?: number) =>
     placeQuote(text, {
@@ -65,7 +65,7 @@ test("a quote is found under its heading, at the occurrence that was selected", 
   );
 });
 
-test("a quote that moved to another heading is found only when it is unique", () => {
+void test("a quote that moved to another heading is found only when it is unique", () => {
   const moved = `# Scope\n\nTimeouts after 30 seconds.\n\n# Other\n\nSomething else.`;
   assert.equal(
     quoted(
@@ -84,7 +84,7 @@ test("a quote that moved to another heading is found only when it is unique", ()
   );
 });
 
-test("a missing quote reads as changed while its section exists, removed otherwise", () => {
+void test("a missing quote reads as changed while its section exists, removed otherwise", () => {
   const text = model(spec);
   assert.deepEqual(
     placeQuote(text, { quote: "No such sentence", section: "Behavior" }),
@@ -100,12 +100,12 @@ test("a missing quote reads as changed while its section exists, removed otherwi
   );
 });
 
-test("the occurrence of a selection counts earlier copies under its heading", () => {
+void test("the occurrence of a selection counts earlier copies under its heading", () => {
   assert.equal(occurrenceIn("ID. More text ID.", "ID."), 1);
   assert.equal(occurrenceIn("Retries reuse  the ID", "the ID"), 0);
 });
 
-test("marking wraps exactly the ranges and leaves the readable text intact", () => {
+void test("marking wraps exactly the ranges and leaves the readable text intact", () => {
   const source = "Late **answers** are `reconciled` here.";
   const tree = parseMarkdownTree(source);
   const text = textModel(tree);
@@ -123,13 +123,13 @@ test("marking wraps exactly the ranges and leaves the readable text intact", () 
   const marks: string[] = [];
   const walk = (node: Nodes) => {
     if (node.data?.hName === "mark") marks.push(toString(node));
-    if ("children" in node) node.children.forEach((c) => walk(c as Nodes));
+    if ("children" in node) node.children.forEach((c) => walk(c));
   };
   walk(tree);
   assert.deepEqual(marks, ["answers", " are ", "reconciled"]);
 });
 
-test("block diffs pair an edited block and mark only its changed words", () => {
+void test("block diffs pair an edited block and mark only its changed words", () => {
   const before = `# Behavior\n\nRetries reuse the original transaction ID.\n\nUnchanged paragraph.`;
   const after = `# Behavior\n\nRetries reuse the first transaction ID.\n\nUnchanged paragraph.\n\nNew paragraph.`;
   const changes = diffMarkdown(before, after);
@@ -160,7 +160,7 @@ test("block diffs pair an edited block and mark only its changed words", () => {
   ]);
 });
 
-test("blocks of another type are removed and added, not compared word by word", () => {
+void test("blocks of another type are removed and added, not compared word by word", () => {
   const changes = diffMarkdown("Intro.\n\nTail.", "- Intro.\n\nTail.");
   assert.deepEqual(
     changes.map((c) => c.kind),

@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
+  ChevronDown,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
   CornerDownRight,
-  MessageSquare,
-  Quote,
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import {
@@ -21,14 +21,20 @@ import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useRecordDecisionFrom } from "@lictory/platform/components/review/decisions";
+import { QuoteBlock } from "@lictory/platform/components/discussions/presentation";
+import type {
+  Draft,
+  Placement,
+} from "@lictory/platform/components/review/spec-discussions";
 
 function useMentionable() {
   const { directory } = useWorkspace();
   return directory.members;
 }
 
-type Draft = { quote?: string; section: string } | null;
-
+// Comments on plain work (tasks, bugs): a conversation under the
+// description. Specifications discuss in the panel beside the text
+// (review/discussion-panel.tsx).
 export function Discussions({
   draft,
   onDraftChange,
@@ -36,28 +42,21 @@ export function Discussions({
   draft: Draft;
   onDraftChange: (draft: Draft) => void;
 }) {
-  const { threads, readOnly, reviewable } = useItem();
+  const { threads, readOnly } = useItem();
   const [showResolved, setShowResolved] = useState(false);
   const open = threads.filter((t) => t.status === "open");
   const resolved = threads.filter((t) => t.status === "resolved");
-  const blocking = open.filter((t) => t.blocking).length;
-  const composerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (draft)
-      composerRef.current?.scrollIntoView({
-        block: "center",
-        behavior: "smooth",
-      });
-  }, [draft]);
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Discussions</SectionLabel>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {open.length} open{blocking ? ` · ${blocking} blocking` : ""}
+          {open.length} open
         </span>
         {resolved.length > 0 && (
           <button
+            type="button"
+            aria-expanded={showResolved}
             onClick={() => setShowResolved((v) => !v)}
             className="ml-auto text-xs text-muted-foreground hover:text-foreground"
           >
@@ -68,9 +67,7 @@ export function Discussions({
       <div className="space-y-3">
         {open.length === 0 && !draft && (
           <p className="text-[13px] text-muted-foreground">
-            {reviewable
-              ? "No open discussions. Select text in the specification to comment on it, or start a general discussion below."
-              : "No comments yet. Start a discussion below."}
+            No comments yet. Start a discussion below.
           </p>
         )}
         {open.map((t) => (
@@ -79,7 +76,7 @@ export function Discussions({
         {showResolved && resolved.map((t) => <Thread key={t.id} thread={t} />)}
       </div>
       {!readOnly && (
-        <div ref={composerRef} className="mt-4">
+        <div className="mt-4">
           <ThreadComposer draft={draft} onDraftChange={onDraftChange} />
         </div>
       )}
@@ -87,7 +84,31 @@ export function Discussions({
   );
 }
 
-export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
+// One discussion as a card: its state, the passage it is about and its
+// messages, then the actions my capabilities allow (the server re-checks).
+// Beside a specification the panel says where the passage is (`placement`)
+// and links the card with its highlight (`active`, `hovered`); elsewhere
+// (pull requests, suggestions) the card checks its quote itself.
+export function Thread({
+  thread,
+  placement,
+  active = false,
+  hovered = false,
+  onHover,
+  onShowInText,
+  onShowRevision,
+  onBeforeDecision,
+}: {
+  thread: EntityOf<"thread">;
+  placement?: Placement;
+  active?: boolean;
+  hovered?: boolean;
+  onHover?: (threadId: string | null) => void;
+  onShowInText?: (threadId: string) => void;
+  onShowRevision?: (revisionId: string, threadId: string) => void;
+  // Recording a decision opens its composer in the document.
+  onBeforeDecision?: () => void;
+}) {
   const {
     messages,
     memberName,
@@ -105,24 +126,38 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
   const [replying, setReplying] = useState(false);
   const replyForm = useRef<HTMLFormElement>(null);
   const isOpen = thread.status === "open";
+  const [expanded, setExpanded] = useState(false);
+  const showMessages = isOpen || expanded;
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   const revision = revisionNumber(thread.revisionId);
   const discussedCommit = entities.find(
     (e) => e.type === "specCommit" && e.id === thread.commitId,
   );
-  const quoteStillPresent = thread.anchor?.quote
-    ? (
-        (discussedCommit?.type === "specCommit"
-          ? discussedCommit.content
-          : current?.content
-        )?.replace(/\s+/g, " ") ?? ""
-      ).includes(thread.anchor.quote.replace(/\s+/g, " "))
-    : true;
+  const quote = thread.anchor?.quote;
+  const where: Placement =
+    placement ??
+    (!quote
+      ? "general"
+      : (
+            (discussedCommit?.type === "specCommit"
+              ? discussedCommit.content
+              : current?.content
+            )?.replace(/\s+/g, " ") ?? ""
+          ).includes(quote.replace(/\s+/g, " "))
+        ? "here"
+        : "changed");
   // Specification discussions (not pull request or suggestion threads) can
   // become a recorded decision once resolved.
   const recordDecision = useRecordDecisionFrom();
   const decisionSource =
     recordDecision && !thread.pullRequestId && !thread.suggestionId
-      ? recordDecision
+      ? (...args: Parameters<typeof recordDecision>) => {
+          onBeforeDecision?.();
+          recordDecision(...args);
+        }
       : undefined;
   const recorded = entities.some(
     (e) =>
@@ -137,88 +172,137 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
       resolved: patch.resolved ?? !isOpen,
       blocking: patch.blocking ?? thread.blocking,
     });
+  const author = memberName(thread.authorId);
+  const linked = where === "here" && isOpen && onHover;
+  const writtenOn = thread.commitId
+    ? `commit ${thread.commitId.slice(0, 8)}`
+    : `revision ${revision ?? "?"}`;
+  const revisionLink =
+    !thread.commitId && revision !== undefined && onShowRevision ? (
+      <button
+        type="button"
+        onClick={() => onShowRevision(thread.revisionId, thread.id)}
+        className="rounded underline decoration-current/40 underline-offset-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        {writtenOn}
+      </button>
+    ) : (
+      writtenOn
+    );
   return (
     <article
+      ref={ref}
       data-thread-id={thread.id}
       tabIndex={-1}
+      aria-label={`${isOpen && thread.blocking ? "Blocking discussion" : "Discussion"} by ${author}`}
+      onMouseEnter={linked ? () => onHover(thread.id) : undefined}
+      onMouseLeave={linked ? () => onHover(null) : undefined}
       className={cn(
-        "scroll-mt-24 rounded-lg border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        isOpen && thread.blocking && "border-destructive/40",
-        !isOpen && "opacity-75",
+        "scroll-mt-24 rounded-xl bg-card text-[13px] ring-1 ring-foreground/10 transition-[box-shadow] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        isOpen && thread.blocking && "ring-destructive/25",
+        hovered && !active && "ring-foreground/25",
+        active && "ring-2 ring-ring/55",
       )}
-      aria-label={`${thread.blocking ? "Blocking " : ""}discussion`}
     >
-      <header className="flex flex-wrap items-center gap-2 border-b px-3 py-1.5 text-xs text-muted-foreground">
-        {isOpen ? (
-          thread.blocking ? (
+      <header className="flex flex-wrap items-center gap-2 px-3 pt-2.5 text-xs text-muted-foreground">
+        {!isOpen ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <Badge tone="good">
+              <CircleCheck className="size-3" aria-hidden /> Resolved
+            </Badge>
+            {expanded ? (
+              <ChevronDown className="size-3.5" aria-hidden />
+            ) : (
+              <ChevronRight className="size-3.5" aria-hidden />
+            )}
+            <span className="sr-only">
+              {expanded ? "Collapse" : "Expand"} resolved discussion
+            </span>
+          </button>
+        ) : thread.blocking ? (
+          <span
+            title={
+              thread.pullRequestId || thread.suggestionId
+                ? "Must be resolved before this change can merge."
+                : "Must be resolved before the specification is ready."
+            }
+          >
             <Badge tone="danger">
-              <CircleAlert className="size-3" /> Blocking
+              <CircleAlert className="size-3" aria-hidden /> Blocking
             </Badge>
-          ) : (
-            <Badge>
-              <MessageSquare className="size-3" /> Open
-            </Badge>
-          )
-        ) : (
-          <Badge tone="good">
-            <CircleCheck className="size-3" /> Resolved
-          </Badge>
-        )}
+          </span>
+        ) : null}
         {recorded && (
           <Badge>
-            <BookOpen className="size-3" /> Decision recorded
+            <BookOpen className="size-3" aria-hidden /> Decision recorded
           </Badge>
         )}
         {thread.anchor?.section && (
-          <span className="truncate">on “{thread.anchor.section}”</span>
+          <span className="min-w-0 truncate">on “{thread.anchor.section}”</span>
         )}
-        <span className="ml-auto tabular-nums">
-          {thread.commitId
-            ? `commit ${thread.commitId.slice(0, 8)}`
-            : `revision ${revision ?? "?"}`}
-        </span>
+        <span className="ml-auto tabular-nums">{revisionLink}</span>
       </header>
-      {thread.anchor?.quote && (
-        <blockquote
-          className={cn(
-            "mx-3 mt-2 flex gap-2 rounded bg-muted/60 px-2 py-1.5 text-[13px] text-muted-foreground",
-            !quoteStillPresent && "italic",
-          )}
-        >
-          <Quote className="mt-1 size-3 shrink-0" />
-          <span className="line-clamp-3">{thread.anchor.quote}</span>
-        </blockquote>
-      )}
-      {thread.anchor?.quote && !quoteStillPresent && (
-        <p className="mx-3 mt-1 text-[11px] text-warning">
-          The quoted text changed in a later revision.
+      {(where === "changed" || where === "removed") && (
+        <p className="px-3 pt-1.5 text-xs font-medium text-warning">
+          {where === "removed"
+            ? "Original text removed"
+            : "The quoted text changed"}
+          {revision !== undefined &&
+            !thread.commitId &&
+            revision !== current?.number && <> since revision {revision}</>}
         </p>
       )}
-      <ol className="divide-y">
-        {own.map((m) => (
-          <li key={m.id} className="px-3 py-2 text-[13px]">
-            <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-              <Avatar
-                userId={m.authorId}
-                name={memberName(m.authorId)}
-                size="xs"
+      {quote && (
+        <div className="px-3 pt-2">
+          <QuoteBlock
+            quote={quote}
+            muted={where !== "here"}
+            blocking={isOpen && thread.blocking}
+            title="Show in the specification"
+            onClick={
+              where === "here" && onShowInText
+                ? () => onShowInText(thread.id)
+                : undefined
+            }
+          />
+        </div>
+      )}
+      {showMessages ? (
+        <ol className="mt-1">
+          {own.map((m) => (
+            <li key={m.id} className="px-3 py-2">
+              <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <Avatar
+                  userId={m.authorId}
+                  name={memberName(m.authorId)}
+                  size="xs"
+                />
+                <span className="font-medium text-foreground">
+                  {memberName(m.authorId)}
+                </span>
+                <time dateTime={m.createdAt} title={absoluteTime(m.createdAt)}>
+                  {relativeTime(m.createdAt)}
+                </time>
+              </div>
+              <Markdown
+                source={m.body}
+                className="text-[13px] leading-6 [&>p]:my-0"
               />
-              <span className="font-medium text-foreground">
-                {memberName(m.authorId)}
-              </span>
-              <time title={new Date(m.createdAt).toLocaleString()}>
-                {relativeTime(m.createdAt)}
-              </time>
-            </div>
-            <Markdown
-              source={m.body}
-              className="text-[13px] leading-6 [&>p]:my-0"
-            />
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="px-3 py-2 text-xs text-muted-foreground">
+          {own.length === 1 ? "1 message" : `${own.length} messages`} · {author}
+        </p>
+      )}
       {!readOnly && (
-        <footer className="flex flex-wrap items-center gap-1 border-t px-2 py-1.5">
+        <footer className="flex flex-wrap items-center gap-0.5 border-t px-1.5 py-1.5">
           {replying ? (
             <form
               ref={replyForm}
@@ -267,26 +351,31 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
             </form>
           ) : (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setReplying(true)}
-              >
-                Reply
-              </Button>
+              {showMessages && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="px-2.5"
+                  onClick={() => setReplying(true)}
+                >
+                  Reply
+                </Button>
+              )}
               {isOpen ? (
                 <>
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="px-2.5"
                     onClick={() => setState({ resolved: true })}
                   >
-                    <CircleCheck className="size-3.5" /> Resolve
+                    <CircleCheck className="size-3.5" aria-hidden /> Resolve
                   </Button>
                   {decisionSource && (
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="px-2.5"
                       title="Resolve this discussion and keep its conclusion as a decision"
                       onClick={() =>
                         decisionSource(thread.id, conclusion, {
@@ -294,13 +383,15 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                         })
                       }
                     >
-                      <BookOpen className="size-3.5" /> Resolve as decision
+                      <BookOpen className="size-3.5" aria-hidden /> Resolve as
+                      decision
                     </Button>
                   )}
                   {reviewable && (
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="px-2.5"
                       onClick={() => setState({ blocking: !thread.blocking })}
                     >
                       {thread.blocking ? "Mark non-blocking" : "Mark blocking"}
@@ -311,18 +402,20 @@ export function Thread({ thread }: { thread: EntityOf<"thread"> }) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   onClick={() => setState({ resolved: false })}
                 >
-                  <RotateCcw className="size-3.5" /> Reopen
+                  <RotateCcw className="size-3.5" aria-hidden /> Reopen
                 </Button>
               )}
               {!isOpen && decisionSource && !recorded && (
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="px-2.5"
                   onClick={() => decisionSource(thread.id, conclusion)}
                 >
-                  <BookOpen className="size-3.5" /> Record decision
+                  <BookOpen className="size-3.5" aria-hidden /> Record decision
                 </Button>
               )}
             </>
@@ -339,6 +432,7 @@ export function ThreadComposer({
   suggestionId,
   pullRequestId,
   commitId,
+  onCreated,
 }: {
   draft: Draft;
   onDraftChange: (d: Draft) => void;
@@ -346,6 +440,7 @@ export function ThreadComposer({
   suggestionId?: string;
   pullRequestId?: string;
   commitId?: string;
+  onCreated?: (threadId: string) => void;
 }) {
   const { mutate, base, current, item, reviewable } = useItem();
   const mentionable = useMentionable();
@@ -359,22 +454,27 @@ export function ThreadComposer({
   const submit = async () => {
     if (!body.trim() || !current) return;
     setError(undefined);
+    const threadId = crypto.randomUUID();
     try {
       await mutate({
         type: "createThread",
         ...base,
-        threadId: crypto.randomUUID(),
+        threadId,
         messageId: crypto.randomUUID(),
         body: body.trim(),
         blocking,
         section: draft?.section ?? "",
         quote: draft?.quote,
+        ...(draft?.quote && draft.occurrence
+          ? { occurrence: draft.occurrence }
+          : {}),
         ...(suggestionId ? { suggestionId } : {}),
         ...(pullRequestId ? { pullRequestId, commitId } : {}),
       });
       setBody("");
       setBlocking(false);
       onDraftChange(null);
+      onCreated?.(threadId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not post.");
     }
@@ -382,8 +482,8 @@ export function ThreadComposer({
   return (
     <form
       className={cn(
-        "rounded-md border bg-card",
-        draft && "border-primary/40 ring-2 ring-primary/10",
+        "rounded-xl bg-card ring-1 ring-foreground/10",
+        draft && "ring-2 ring-primary/25",
       )}
       onSubmit={(e) => {
         e.preventDefault();
@@ -391,12 +491,13 @@ export function ThreadComposer({
       }}
     >
       {draft?.quote && (
-        <div className="flex items-start gap-2 border-b bg-muted/50 px-3 py-1.5 text-[13px] text-muted-foreground">
-          <Quote className="mt-1 size-3 shrink-0" />
-          <span className="line-clamp-2 flex-1">{draft.quote}</span>
+        <div className="flex items-start gap-2 px-3 pt-2.5">
+          <div className="min-w-0 flex-1">
+            <QuoteBlock quote={draft.quote} />
+          </div>
           <button
             type="button"
-            className="text-xs hover:text-foreground"
+            className="shrink-0 rounded text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
             onClick={() => onDraftChange(null)}
           >
             Remove quote
@@ -413,6 +514,7 @@ export function ThreadComposer({
         value={body}
         onValueChange={setBody}
         onSubmit={() => void submit()}
+        onEscape={draft?.quote ? () => onDraftChange(null) : undefined}
         compact
         minHeight="4.5rem"
         maxHeight="20rem"

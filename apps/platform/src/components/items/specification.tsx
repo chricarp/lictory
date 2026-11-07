@@ -1,19 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import {
-  CircleAlert,
-  MessageSquare,
-  MessageSquarePlus,
-  Pencil,
-  PenLine,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";
-import { cn } from "@lictory/core/lib/utils";
+import { occurrenceIn } from "@lictory/core/editor/markdown-text";
 import { CONTEXT_QUOTE_LIMIT } from "@lictory/core/intelligence/chat/shared";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
@@ -24,6 +12,8 @@ import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
+import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
 
 type Mode = "read" | "edit";
 
@@ -35,7 +25,8 @@ export function Specification({
 }: {
   mode: Mode;
   setMode: (mode: Mode) => void;
-  onQuote: (quote: string, section: string) => void;
+  // Starts a discussion on the selected passage.
+  onQuote: (draft: QuoteDraft) => void;
   // Starts a branch to change the selected text (reviewable specifications).
   onSuggest?: (quote: string) => void;
 }) {
@@ -78,40 +69,73 @@ export function Specification({
 
 // Nearest heading above the selection: climb to the block inside the rendered
 // document, then walk back through previous siblings.
-function sectionFor(node: Node | null): string {
+function headingFor(node: Node | null): Element | null {
   let element: Element | null =
     node instanceof Element ? node : (node?.parentElement ?? null);
   while (element && !element.parentElement?.classList.contains("spec-prose"))
     element = element.parentElement;
   while (element) {
-    const heading = element.getAttribute("data-heading");
-    if (heading) return heading;
+    if (element.getAttribute("data-heading")) return element;
     element = element.previousElementSibling;
   }
-  return "";
+  return null;
 }
+
+type Selected = QuoteDraft & { x: number; y: number };
+
+// The selected passage as an anchor: its quote, the heading it is under and
+// which copy of those words under that heading it is (so repeated words
+// never point at another passage).
+function selectedPassage(root: HTMLElement): Selected | undefined {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.commonAncestorContainer)) return;
+  const text = sel.toString();
+  const quote = text.replace(/\s+/g, " ").trim().slice(0, CONTEXT_QUOTE_LIMIT);
+  if (quote.length < 2) return;
+  const heading = headingFor(range.startContainer);
+  const before = document.createRange();
+  if (heading) before.setStartBefore(heading);
+  else before.setStart(root, 0);
+  before.setEnd(range.startContainer, range.startOffset);
+  const rect = range.getBoundingClientRect();
+  const rootRect = root.getBoundingClientRect();
+  return {
+    x: rect.left - rootRect.left + rect.width / 2,
+    y: rect.top - rootRect.top,
+    quote,
+    section: heading?.getAttribute("data-heading") ?? "",
+    occurrence: occurrenceIn(before.toString() + text, quote),
+  };
+}
+
+type QuoteDraft = { quote: string; section: string; occurrence: number };
+
+// The thread under a pointer event, from the marks of discussed passages.
+const threadAt = (target: EventTarget | null) =>
+  (target as HTMLElement | null)
+    ?.closest?.("mark[data-threads]")
+    ?.getAttribute("data-threads")
+    ?.split(" ")[0] ?? null;
 
 function Reader({
   onQuote,
   onSuggest,
   onEdit,
 }: {
-  onQuote: (quote: string, section: string) => void;
+  onQuote: (draft: QuoteDraft) => void;
   onSuggest?: (quote: string) => void;
   onEdit: () => void;
 }) {
-  const { item, current, threads, readOnly, canEdit, reviewable } = useItem();
+  const { item, current, readOnly, canEdit, reviewable } = useItem();
+  const discussions = useSpecDiscussions();
   const dock = useDock();
   const { directory } = useWorkspace();
   const canAsk = !!dock && directory.ai.available && directory.ai.enabled;
   const canComment = !readOnly && reviewable;
   const rootRef = useRef<HTMLDivElement>(null);
-  const [selection, setSelection] = useState<{
-    x: number;
-    y: number;
-    quote: string;
-    section: string;
-  }>();
+  const [selection, setSelection] = useState<Selected>();
   const content = current?.content ?? "";
   const isEmpty = !content.trim();
   // The dock follows the selection so it can offer to explain it.
@@ -132,26 +156,7 @@ function Reader({
     // Defer so the browser has finalized the selection.
     requestAnimationFrame(() => {
       const root = rootRef.current;
-      const sel = window.getSelection();
-      if (!root || !sel || sel.isCollapsed || sel.rangeCount === 0)
-        return setSelection(undefined);
-      const range = sel.getRangeAt(0);
-      if (!root.contains(range.commonAncestorContainer))
-        return setSelection(undefined);
-      const quote = sel
-        .toString()
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, CONTEXT_QUOTE_LIMIT);
-      if (quote.length < 2) return setSelection(undefined);
-      const rect = range.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      setSelection({
-        x: rect.left - rootRect.left + rect.width / 2,
-        y: rect.top - rootRect.top,
-        quote,
-        section: sectionFor(range.startContainer),
-      });
+      setSelection(root ? selectedPassage(root) : undefined);
     });
   }, []);
   useEffect(() => {
@@ -162,67 +167,55 @@ function Reader({
     document.addEventListener("selectionchange", clear);
     return () => document.removeEventListener("selectionchange", clear);
   }, []);
-  const [markers, setMarkers] = useState<Marker[]>([]);
-  const [layout, setLayout] = useState(0);
-  // Highlight quoted text of open discussions where the browser supports the
-  // CSS Custom Highlight API. Purely progressive: threads still show quotes.
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const highlights = (
-      globalThis as { CSS?: { highlights?: Map<string, unknown> } }
-    ).CSS?.highlights;
-    const HighlightCtor = (
-      globalThis as { Highlight?: new (...ranges: Range[]) => unknown }
-    ).Highlight;
-    if (!root || !highlights || !HighlightCtor) return;
-    // The bundler's CSS parser rejects ::highlight(), so the rules live next to
-    // the feature check instead of in the stylesheet.
-    if (!document.getElementById("lictory-highlights")) {
-      const style = document.createElement("style");
-      style.id = "lictory-highlights";
-      style.textContent =
-        "::highlight(lictory-anchor){background-color:oklch(0.85 0.15 85 / 0.35)}::highlight(lictory-anchor-blocking){background-color:oklch(0.7 0.19 25 / 0.28)}";
-      document.head.append(style);
-    }
-    const open = threads.filter((t) => t.status === "open" && t.anchor?.quote);
-    const blocking: Range[] = [];
-    const normal: Range[] = [];
-    const found: Marker[] = [];
-    const origin = root.getBoundingClientRect().top;
-    for (const thread of open) {
-      const range = findRange(root, thread.anchor!.quote!);
-      if (!range) continue;
-      (thread.blocking ? blocking : normal).push(range);
-      const line = range.getClientRects()[0];
-      if (line)
-        found.push({
-          id: thread.id,
-          top: line.top - origin + line.height / 2,
-          blocking: thread.blocking,
-          quote: thread.anchor!.quote!,
-        });
-    }
-    setMarkers(found);
-    highlights.set("lictory-anchor", new HighlightCtor(...normal));
-    highlights.set("lictory-anchor-blocking", new HighlightCtor(...blocking));
-    return () => {
-      highlights.delete("lictory-anchor");
-      highlights.delete("lictory-anchor-blocking");
-    };
-  }, [threads, content, layout]);
-  // Markers follow the text when the column reflows.
+  // Mod+Alt+M comments on the selected text, as in the page editor; without
+  // a selection it opens the discussions at the composer.
   useEffect(() => {
-    const root = rootRef.current;
-    if (!root || typeof ResizeObserver === "undefined") return;
-    let width = root.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (root.clientWidth === width) return;
-      width = root.clientWidth;
-      setLayout((n) => n + 1);
-    });
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [isEmpty]);
+    if (!canComment) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey) return;
+      if (event.code !== "KeyM") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.("[contenteditable=true], input, textarea")) return;
+      const root = rootRef.current;
+      const passage = root ? selectedPassage(root) : undefined;
+      event.preventDefault();
+      if (passage) {
+        const { quote, section, occurrence } = passage;
+        onQuote({ quote, section, occurrence });
+        setSelection(undefined);
+        window.getSelection()?.removeAllRanges();
+        return;
+      }
+      discussions?.setPanelOpen(true);
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(
+            '[data-discussions] [role="textbox"][aria-label="Start a discussion"], [data-discussions] textarea[aria-label="Start a discussion"]',
+          )
+          ?.focus(),
+      );
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [canComment, onQuote, discussions]);
+  // Open discussions whose passage is on screen, marked in the text.
+  const located = discussions?.located;
+  const marks = useMemo(() => {
+    const ranges = (located ?? [])
+      .filter((l) => l.placement === "here" && l.thread.status === "open")
+      .map((l) => ({
+        from: l.from!,
+        to: l.to!,
+        data: { threadId: l.thread.id, blocking: l.thread.blocking },
+      }));
+    return ranges.length ? [threadMarks(ranges)] : undefined;
+  }, [located]);
+  // The selected thread and the one pointed at read stronger, here and in
+  // the panel.
+  const tinted = [discussions?.active, discussions?.hovered].filter(
+    (id): id is string => Boolean(id),
+  );
+  const setHovered = discussions?.setHovered;
   return (
     <div className="relative">
       {isEmpty ? (
@@ -238,44 +231,40 @@ function Reader({
             : "Nothing written yet. Click to propose a first draft for review."}
         </button>
       ) : (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- reads the text selection after a mouse selection; see the known gaps in docs/internals/accessibility.md.
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- reads the text selection after a mouse selection and opens a marked passage's discussion; the panel offers both from the keyboard (docs/internals/accessibility.md).
         <div
           ref={rootRef}
           data-spec-root
           onMouseUp={onMouseUp}
+          onClick={(event) => {
+            const id = threadAt(event.target);
+            if (!id || !discussions) return;
+            if (!window.getSelection()?.isCollapsed) return;
+            discussions.setActive(id);
+            discussions.setPanelOpen(true);
+          }}
+          // Pointing at a passage marks its thread; keyboard users select
+          // threads in the panel, which marks the passage too.
+          // eslint-disable-next-line jsx-a11y/mouse-events-have-key-events
+          onMouseOver={
+            setHovered
+              ? (event) => setHovered(threadAt(event.target))
+              : undefined
+          }
+          onMouseLeave={setHovered ? () => setHovered(null) : undefined}
           className="relative"
         >
-          <Markdown source={content} />
-          {/* Each highlighted sentence gets a marker in the gutter that opens
-              its discussion, so the highlight never needs explaining. */}
-          {markers.map((marker) => (
-            <button
-              key={marker.id}
-              type="button"
-              aria-label={`${marker.blocking ? "Blocking discussion" : "Discussion"} on “${marker.quote}”`}
-              title={marker.blocking ? "Blocking discussion" : "Discussion"}
-              style={{ top: marker.top }}
-              onClick={() => {
-                const target = document.querySelector<HTMLElement>(
-                  `[data-thread-id="${marker.id}"]`,
-                );
-                target?.scrollIntoView({ block: "center", behavior: "smooth" });
-                target?.focus({ preventScroll: true });
-              }}
-              className={cn(
-                "absolute -left-7 hidden size-5 -translate-y-1/2 place-items-center rounded-full shadow-(--shadow-border) transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60 lg:grid",
-                marker.blocking
-                  ? "bg-destructive/10 text-destructive hover:bg-destructive/15"
-                  : "bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {marker.blocking ? (
-                <CircleAlert aria-hidden className="size-3" />
-              ) : (
-                <MessageSquare aria-hidden className="size-3" />
-              )}
-            </button>
-          ))}
+          {tinted.length > 0 && (
+            <style>
+              {tinted
+                .map(
+                  (id) =>
+                    `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:0 1px 0 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:0 1px 0 0 var(--destructive)}`,
+                )
+                .join("")}
+            </style>
+          )}
+          <Markdown source={content} marks={marks} />
           {selection && (canComment || canAsk || onSuggest) && (
             <div
               role="toolbar"
@@ -289,7 +278,8 @@ function Reader({
                   variant="ghost"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
-                    onQuote(selection.quote, selection.section);
+                    const { quote, section, occurrence } = selection;
+                    onQuote({ quote, section, occurrence });
                     setSelection(undefined);
                     window.getSelection()?.removeAllRanges();
                   }}
@@ -329,50 +319,6 @@ function Reader({
       )}
     </div>
   );
-}
-
-type Marker = { id: string; top: number; blocking: boolean; quote: string };
-
-// Finds the first occurrence of `text` in the rendered document as a Range,
-// tolerating whitespace differences produced by rendering.
-function findRange(root: HTMLElement, text: string): Range | undefined {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
-  let full = "";
-  const offsets: number[] = [];
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    nodes.push(n as Text);
-    offsets.push(full.length);
-    full += (n as Text).data;
-  }
-  const normalized = full.replace(/\s+/g, " ");
-  const map: number[] = [];
-  let j = 0;
-  for (let i = 0; i < full.length; i++) {
-    if (
-      /\s/.test(full[i]!) &&
-      j > 0 &&
-      normalized[j - 1] === " " &&
-      /\s/.test(full[i - 1] ?? "")
-    )
-      continue;
-    map[j++] = i;
-  }
-  const start = normalized.indexOf(text.replace(/\s+/g, " "));
-  if (start === -1) return undefined;
-  const end = start + text.replace(/\s+/g, " ").length - 1;
-  const locate = (index: number) => {
-    const raw = map[index] ?? full.length - 1;
-    let k = nodes.length - 1;
-    while (k > 0 && offsets[k]! > raw) k--;
-    return { node: nodes[k]!, offset: raw - offsets[k]! };
-  };
-  const from = locate(start);
-  const to = locate(end);
-  const range = document.createRange();
-  range.setStart(from.node, from.offset);
-  range.setEnd(to.node, Math.min(to.node.data.length, to.offset + 1));
-  return range;
 }
 
 // Edits and suggestions share the editor. Saving creates a revision against the

@@ -47,6 +47,7 @@ import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
+import { SpecDiff } from "@lictory/platform/components/review/spec-diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
@@ -325,10 +326,13 @@ export function BranchWorkspace({
   screen,
   onNavigate,
   onMain,
+  nav,
 }: {
   screen: BranchScreen;
   onNavigate: (screen: BranchScreen) => void;
   onMain: () => void;
+  // The specification's history views, above the branch list.
+  nav?: ReactNode;
 }) {
   const data = useBranchData();
   const current =
@@ -339,6 +343,7 @@ export function BranchWorkspace({
         : undefined;
   return (
     <div className="space-y-6">
+      {screen.kind === "branches" && nav}
       <div className="flex flex-wrap items-center gap-1.5 border-b pb-3 text-[13px]">
         <Button variant="ghost" size="sm" onClick={onMain}>
           <ArrowLeft className="size-3.5" />
@@ -1596,9 +1601,11 @@ function CreatePR({
                       Title: {theirs.title} → {preview.title}
                     </p>
                   )}
-                  <RevisionDiff
+                  <SpecDiff
                     before={theirs.content}
                     after={preview.content}
+                    beforeLabel={targetBranch?.name ?? "main"}
+                    afterLabel="This change"
                   />
                   <BreakdownProposal
                     includeApplied
@@ -2571,9 +2578,15 @@ function PullRequestView({
                       </Button>
                     )}
                   </div>
-                  <RevisionDiff
+                  {/* Changed words in context; "Show full text" reads the
+                      complete merge result. */}
+                  <SpecDiff
                     before={before.content}
                     after={display.content}
+                    beforeLabel={targetName}
+                    afterLabel={
+                      p.status === "merged" ? "Merged" : "This change"
+                    }
                   />
                   <BreakdownProposal
                     includeApplied
@@ -2582,14 +2595,6 @@ function PullRequestView({
                       before.proposedChildren,
                     )}
                   />
-                  <details className="rounded-md border p-3">
-                    <summary className="cursor-pointer text-sm">
-                      Read the complete merge result
-                    </summary>
-                    <div className="mt-3">
-                      <Markdown source={display.content} />
-                    </div>
-                  </details>
                 </>
               ) : (
                 <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">

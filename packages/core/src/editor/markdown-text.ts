@@ -216,7 +216,7 @@ export function markText<T>(
       (r) => r.from < segment.end && r.to > segment.start && r.from < r.to,
     );
     if (!covering.length) continue;
-    const index = segment.parent.children.indexOf(segment.node as never);
+    const index = (segment.parent.children as Nodes[]).indexOf(segment.node);
     if (index === -1) continue;
     if (segment.node.type === "inlineCode") {
       segment.parent.children.splice(

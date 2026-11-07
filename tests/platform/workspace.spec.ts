@@ -22,6 +22,7 @@ import { paths } from "@lictory/core/lib/paths";
 import packageJson from "../../package.json" with { type: "json" };
 import { platformOrigin } from "../helpers/app-urls";
 import { clientAddress } from "../helpers/client-address";
+import { openDiscussions } from "../helpers/discussions";
 import {
   password,
   people,
@@ -671,7 +672,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     reviewer.getByText("Alex Morgan is viewing", { exact: false }),
   ).toBeVisible({ timeout: 30_000 });
 
-  // 7-8. Reviewer opens a blocking discussion anchored to the text; owner replies.
+  // 7-8. Reviewer opens a blocking discussion beside the text; owner replies.
+  await openDiscussions(reviewer);
+  await openDiscussions(page);
   await fillMarkdown(
     reviewer,
     "Start a discussion",
@@ -686,7 +689,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
       "What happens when the provider answers after the client timeout?",
     ),
   ).toBeVisible();
-  await expect(page.getByText("1 open · 1 blocking")).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "1 discussion, 1 blocking readiness",
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Reply", exact: true }).click();
   const replyBox = await fillMarkdown(
     page,
@@ -967,7 +975,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewer.getByText("up to the settled total").first(),
   ).toBeVisible();
-  await reviewer.getByRole("button", { name: "Close comparison" }).click();
+  await reviewer.getByRole("button", { name: "Close history" }).click();
 
   // 15-16. Resolve the blocking discussion, keeping its conclusion as a
   // decision, approve again → readiness passes → Ready.
@@ -1175,6 +1183,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Edit", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Changes", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]history=/);
   await expect(
     page.getByRole("button", { name: /Restore revision/ }),
   ).toHaveCount(0);
@@ -1184,7 +1193,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     ),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Close comparison", exact: true })
+    .getByRole("button", { name: "Close history", exact: true })
     .click();
   await expect(page.getByText("Revision 4 ·").first()).toBeVisible();
   await expect(
