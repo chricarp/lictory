@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   FilePen,
   FileText,
@@ -353,44 +353,86 @@ function KnowledgeRow({
   onDetach?: () => void;
 }) {
   const { page, space, mention, attachment, citation } = entry;
-  const version = (commitId: string) => {
+  const title = page.title || "Untitled";
+  // Every version this item relies on is its own link: a pin never hides
+  // behind a mention, and a mention never opens an older version.
+  const versionLink = (commitId: string) => {
     const n = details?.versions[commitId];
-    return n ? `v${n}` : "a pinned version";
+    return (
+      <Link
+        key={commitId}
+        href={`${href}?commit=${commitId}`}
+        aria-label={
+          n
+            ? `Open version ${n} of “${title}”`
+            : `Open the pinned version of “${title}”`
+        }
+        className="relative z-10 rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        {n ? `v${n}` : "pinned version"}
+      </Link>
+    );
   };
+  const list = (ids: string[]) =>
+    [...new Set(ids)].flatMap((id, i) =>
+      i
+        ? [<Fragment key={`sep-${id}`}>, </Fragment>, versionLink(id)]
+        : [versionLink(id)],
+    );
   const block = details?.blocks[0];
-  const facts: string[] = [];
+  const facts: React.ReactNode[] = [];
   if (mention)
     facts.push(
-      block?.heading
-        ? `Mentions ${itemKey} under “${block.heading}”`
-        : mention.blockIds.length > 1
-          ? `Mentions ${itemKey} in ${mention.blockIds.length} places`
-          : `Mentions ${itemKey}`,
+      <>
+        <Link
+          href={`${href}#block-${mention.blockIds[0]}`}
+          aria-label={`Open “${title}” where it mentions ${itemKey}, in its latest version`}
+          className="relative z-10 rounded-sm font-medium text-foreground underline decoration-foreground/30 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+        >
+          Mentioned in latest
+        </Link>
+        {block?.heading
+          ? ` under “${block.heading}”`
+          : mention.blockIds.length > 1
+            ? ` in ${mention.blockIds.length} places`
+            : ""}
+      </>,
     );
   if (attachment?.commitId)
-    facts.push(`Attached at ${version(attachment.commitId)}`);
+    facts.push(<>Attached at {versionLink(attachment.commitId)}</>);
   if (citation?.current) {
-    const pins = citation.current.commitIds.map(version);
+    const pins = citation.current.commitIds;
     facts.push(
-      pins.length
-        ? `Revision ${citation.current.number} cites ${pins.join(", ")}`
-        : `Cited by revision ${citation.current.number}`,
+      pins.length ? (
+        <>
+          Revision {citation.current.number} cites {list(pins)}
+          {citation.current.latest ? " and the latest" : ""}
+        </>
+      ) : (
+        `Cited by revision ${citation.current.number}`
+      ),
     );
   } else if (citation?.earlier)
     facts.push(
       `Cited by revision ${citation.earlier.number}, not by the current revision ${revisionNumber}`,
     );
-  // Open where the item is mentioned; a pin opens its version.
-  const pin = attachment?.commitId ?? citation?.current?.commitIds[0];
-  const target = mention
-    ? `${href}#block-${mention.blockIds[0]}`
-    : pin
-      ? `${href}?commit=${pin}`
+  // The title opens the version the item relies on: its one pin, the
+  // latest otherwise (at the mention, when there is one).
+  const pins = [
+    ...new Set([
+      ...(attachment?.commitId ? [attachment.commitId] : []),
+      ...(citation?.current?.commitIds ?? []),
+    ]),
+  ];
+  const pinned = pins.length === 1 ? pins[0] : undefined;
+  const target = pinned
+    ? `${href}?commit=${pinned}`
+    : mention
+      ? `${href}#block-${mention.blockIds[0]}`
       : href;
+  const targetVersion = pinned ? details?.versions[pinned] : undefined;
   const newerPin = entry.newer
-    ? [attachment?.commitId, ...(citation?.current?.commitIds ?? [])].find(
-        (id) => id && id !== page.publishedCommitId,
-      )
+    ? pins.find((id) => id !== page.publishedCommitId)
     : undefined;
   return (
     <li className="group relative flex items-start gap-2.5 border-b px-3 py-2.5 text-[13px] last:border-b-0 hover:bg-muted/50">
@@ -409,9 +451,14 @@ function KnowledgeRow({
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <Link
             href={target}
+            title={
+              pinned
+                ? `Opens ${targetVersion ? `version ${targetVersion}` : "the pinned version"}`
+                : "Opens the latest version"
+            }
             className="min-w-0 truncate font-medium outline-none after:absolute after:inset-0 focus-visible:underline"
           >
-            {page.title || "Untitled"}
+            {title}
           </Link>
           {attachment && <Badge>{purposeLabels[attachment.purpose]}</Badge>}
           <span className="min-w-0 truncate text-xs text-muted-foreground">
@@ -420,7 +467,12 @@ function KnowledgeRow({
         </div>
         {facts.length > 0 && (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {facts.join(" · ")}
+            {facts.map((fact, i) => (
+              <Fragment key={i}>
+                {i > 0 && " · "}
+                {fact}
+              </Fragment>
+            ))}
           </p>
         )}
         {block?.excerpt && (

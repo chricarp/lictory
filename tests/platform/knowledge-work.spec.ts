@@ -148,7 +148,7 @@ test("an item lists the pages about it, attaches one with undo and hides restric
   await page.goto(seeded.itemPath(1));
   const section = knowledge(page);
   await expect(section).toContainText("Payments handbook");
-  await expect(section).toContainText(`Mentions ${key} under “Retries”`);
+  await expect(section).toContainText("Mentioned in latest under “Retries”");
   await expect(section).toContainText("reuse the idempotency key");
   await expect(section).toContainText("Incident secrets");
 
@@ -298,6 +298,102 @@ test("proposing a page update opens a branch in the editor and the item follows 
     .getByRole("listitem")
     .filter({ hasText: "refund-limits-wording" });
   await expect(reviewed).toContainText("In review");
+});
+
+test("a knowledge row opens each version the item relies on, never the latest in a pin's place", async ({
+  page,
+}) => {
+  await signIn(page, seeded.owner.email);
+  const itemId = await seedItem(seeded, { title: "Settle refunds in batches" });
+  const { number } = await withDb(async (db) => {
+    const [row] = await db
+      .select({ number: s.workItem.number })
+      .from(s.workItem)
+      .where(eq(s.workItem.id, itemId));
+    return row!;
+  });
+  const key = `KW-${number}`;
+  const guides = await space(page, "Settlement guides");
+  // v2 mentions the item; v3 is published after it.
+  const pageId = await publishedPage(page, guides.spaceId, "Batch settlement", [
+    block("heading", "h-batches", text("Batches")),
+    block(
+      "paragraph",
+      "p-batch",
+      text("Batches close at 18:00, see "),
+      itemRef(itemId, key),
+    ),
+  ]);
+  const v2 = (await capability(page, "getPage", { pageId })).commitId!;
+  const pullRequestId = crypto.randomUUID();
+  const proposed = await capability(page, "proposePageChange", {
+    pageId,
+    branchId: crypto.randomUUID(),
+    pullRequestId,
+    title: "Batch settlement",
+    content: {
+      type: "doc",
+      content: [
+        block("heading", "h-batches", text("Batches")),
+        block(
+          "paragraph",
+          "p-batch",
+          text("Batches close at 20:00, see "),
+          itemRef(itemId, key),
+        ),
+      ],
+    },
+    message: "Later cut-off",
+  });
+  await capability(page, "mergePagePullRequest", {
+    pullRequestId,
+    inspectedSourceHead: proposed.commitId,
+    inspectedTargetHead: v2,
+  });
+  const v3 = (await capability(page, "getPage", { pageId })).commitId!;
+  expect(v3).not.toBe(v2);
+  // Attached at v2, and the specification cites v3.
+  await capability(page, "attachPage", {
+    workItemId: itemId,
+    attachmentId: crypto.randomUUID(),
+    pageId,
+    purpose: "design",
+    commitId: v2,
+  });
+  const revision = await currentRevision(itemId);
+  await seeded.command({
+    type: "updateSpecification",
+    workItemId: itemId,
+    baseRevisionId: revision.id,
+    title: "Settle refunds in batches",
+    content: `# Behavior\n\nFollow [Batch settlement](page:${pageId}@${v3}).`,
+  });
+
+  await page.goto(seeded.itemPath(number));
+  const row = knowledge(page)
+    .getByRole("listitem")
+    .filter({ hasText: "Batch settlement" });
+  await expect(row).toContainText("Mentioned in latest under “Batches”");
+  await expect(row).toContainText("Attached at v2");
+  await expect(row).toContainText("Revision 2 cites v3");
+  // Each target is explicit: the mention opens the latest at its block,
+  // each pin its own version.
+  await expect(
+    row.getByRole("link", {
+      name: /where it mentions .* in its latest version/,
+    }),
+  ).toHaveAttribute("href", new RegExp(`/pages/${pageId}#block-p-batch$`));
+  await expect(
+    row.getByRole("link", { name: "Open version 2 of “Batch settlement”" }),
+  ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v2}$`));
+  await expect(
+    row.getByRole("link", { name: "Open version 3 of “Batch settlement”" }),
+  ).toHaveAttribute("href", new RegExp(`/pages/${pageId}\\?commit=${v3}$`));
+  await row
+    .getByRole("link", { name: "Open version 2 of “Batch settlement”" })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`\\?commit=${v2}`));
+  await expect(page.getByText("18:00").first()).toBeVisible();
 });
 
 test("delivery surfaces keep context pages and an iteration gets notes", async ({

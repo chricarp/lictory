@@ -160,11 +160,15 @@ visibility rule.
 - **Knowledge on a work item**, after the breakdown and beside Relations
   (it is reading context for the specification, and the item's other kind of
   link). One row per readable page: where its published version mentions the
-  item (section heading and excerpt; opening it lands on the block),
-  attachments with their purpose, and citations by the current revision (or
-  only earlier ones). A pin shows its version (`v3`) and, when the page has
-  published since, a quiet "Newer version" with a comparison in the page
-  history. Above: the page the item was created from, as a quote with "Open
+  item (section heading and excerpt), attachments with their purpose, and
+  citations by the current revision (or only earlier ones). Every version
+  the row speaks of is its own link, so a mention never opens a pinned
+  version's place or the other way round: "Mentioned in latest" opens the
+  published version at the block, each distinct pin (the attachment's, each
+  version the current revision cites) is a `vN` link to that commit, and the
+  title opens the item's one pinned version (the latest, at the mention,
+  when there is no pin or several). When the page has published since a
+  pin, a quiet "Newer version" offers a comparison in the page history. Above: the page the item was created from, as a quote with "Open
   source" at the exact commit and block. Below: page updates proposed from
   the item, with their pull request status. People with `changeProperties`
   attach pages (purpose, optional pin) and detach them, with undo.
