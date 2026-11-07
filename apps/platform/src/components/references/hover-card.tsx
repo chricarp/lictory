@@ -150,17 +150,40 @@ export function HoverCard({
       const gap = 6;
       const height = panel.offsetHeight;
       const panelWidth = panel.offsetWidth;
-      let top = anchor.bottom + gap;
-      if (
-        top + height > window.innerHeight - 8 &&
-        anchor.top - gap - height > 8
-      )
-        top = anchor.top - gap - height;
-      const left = Math.min(
-        Math.max(8, anchor.left),
-        window.innerWidth - panelWidth - 8,
+      const clampLeft = (left: number) =>
+        Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
+      // Below, then above; aligned to the reference's start, then its end.
+      // The first place that fits the window and covers no other reference
+      // wins, so the next reference in the text stays reachable.
+      const candidates = [anchor.bottom + gap, anchor.top - gap - height]
+        .filter((top) => top >= 8 && top + height <= window.innerHeight - 8)
+        .flatMap((top) => [
+          { top, left: clampLeft(anchor.left) },
+          { top, left: clampLeft(anchor.right - panelWidth) },
+        ]);
+      const others = [
+        ...document.querySelectorAll<HTMLElement>("[data-reference]"),
+      ]
+        .filter((el) => el !== anchorElement && !panel.contains(el))
+        .map((el) => el.getBoundingClientRect())
+        .filter(
+          (r) => r.width > 0 && r.bottom > 0 && r.top < window.innerHeight,
+        );
+      const covers = (c: { top: number; left: number }) =>
+        others.some(
+          (r) =>
+            r.left < c.left + panelWidth &&
+            r.right > c.left &&
+            r.top < c.top + height &&
+            r.bottom > c.top,
+        );
+      setPosition(
+        candidates.find((c) => !covers(c)) ??
+          candidates[0] ?? {
+            top: anchor.bottom + gap,
+            left: clampLeft(anchor.left),
+          },
       );
-      setPosition({ top, left: Math.max(8, left) });
     };
     place();
     window.addEventListener("scroll", place, true);

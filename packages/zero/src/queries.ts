@@ -42,6 +42,15 @@ export const queries = defineQueries({
       .where("workItemId", args.workItemId)
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // One work item's readiness checks alone, for a reference card naming
+  // what is missing without loading the item's history.
+  workItemReadiness: defineQuery(workItemArgs, ({ args, ctx }) =>
+    zql.syncEntity
+      .where("organizationId", args.organizationId)
+      .where("workItemId", args.workItemId)
+      .where("type", "readiness")
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
   // Lictory Spaces: every space I can read, with its grants and page tree
   // (space-level rows). Authorized by my effective access and my
   // organization membership; never part of the queries above.
