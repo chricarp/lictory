@@ -57,7 +57,7 @@ export function replayableMessages(
     // reasoning part without any (from another provider, or one that sends
     // none) is left out.
     const parts = message.parts.filter(
-      (part) => part.type !== "reasoning" || "providerMetadata" in part,
+      (part) => part.type !== "reasoning" || part.providerMetadata != null,
     );
     if (origin === fingerprint)
       return parts.length === message.parts.length

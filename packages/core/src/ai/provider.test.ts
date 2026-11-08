@@ -431,6 +431,22 @@ void test("earlier turns from another provider are replayed without its reasonin
     replayableMessages(stamped, providerFingerprint(anthropic)),
     stamped,
   );
+  // Reasoning whose metadata is absent, even as an empty key, is left out.
+  const bare = [
+    {
+      ...stamped[0]!,
+      parts: [
+        { type: "reasoning", text: "…", providerMetadata: undefined },
+        { type: "text", text: "Done." },
+      ],
+    },
+  ] as unknown as ChatMessage[];
+  assert.deepEqual(
+    replayableMessages(bare, providerFingerprint(anthropic))[0]!.parts.map(
+      (p) => p.type,
+    ),
+    ["text"],
+  );
 });
 
 // ------------------------------------------------- protocol contract fakes
