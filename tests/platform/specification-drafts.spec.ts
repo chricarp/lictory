@@ -313,6 +313,14 @@ test("Markdown edited as text is saved with the revision, merged with what other
     });
   const toolbar = (page: Page) =>
     page.getByRole("toolbar", { name: "Specification formatting" });
+  const keptOnDevice = (text: string) =>
+    ada.page.evaluate(
+      (text) =>
+        Object.keys(localStorage).some((key) =>
+          (localStorage.getItem(key) ?? "").includes(text),
+        ),
+      text,
+    );
   const asMarkdown = async (page: Page) => {
     await toolbar(page)
       .getByRole("button", { name: "Edit as Markdown" })
@@ -395,15 +403,7 @@ test("Markdown edited as text is saved with the revision, merged with what other
       `${await source(ada.page).inputValue()}\n\nRefunds are out of scope.`,
     );
     await expect
-      .poll(() =>
-        ada.page.evaluate(() =>
-          Object.keys(localStorage).some((key) =>
-            (localStorage.getItem(key) ?? "").includes(
-              "Refunds are out of scope.",
-            ),
-          ),
-        ),
-      )
+      .poll(() => keptOnDevice("Refunds are out of scope."))
       .toBe(true);
     ada.page.on("dialog", (dialog) => void dialog.accept());
     await ada.page.reload();
@@ -422,6 +422,26 @@ test("Markdown edited as text is saved with the revision, merged with what other
     // time, until the person inserts or discards it.
     await ada.page.reload();
     await edit(ada.page);
+    await expect(kept).toContainText("Refunds are out of scope.");
+    // Editing Markdown again neither hides, replaces nor drops it: this
+    // session keeps and applies its own text.
+    await asMarkdown(ada.page);
+    await expect(kept).toContainText("Refunds are out of scope.");
+    await source(ada.page).fill(
+      `${await source(ada.page).inputValue()}\n\nPartial refunds are manual.`,
+    );
+    await expect
+      .poll(() => keptOnDevice("Partial refunds are manual."))
+      .toBe(true);
+    await toolbar(ada.page)
+      .getByRole("button", { name: "Edit formatted text" })
+      .click();
+    await expect(await richEditor(ada.page, "Specification")).toContainText(
+      "Partial refunds are manual.",
+    );
+    await expect
+      .poll(() => keptOnDevice("Partial refunds are manual."))
+      .toBe(false);
     await expect(kept).toContainText("Refunds are out of scope.");
   } finally {
     await Promise.all([ada.context.close(), ben.context.close()]);
