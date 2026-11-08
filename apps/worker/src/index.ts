@@ -32,10 +32,25 @@ const config = workerConfig(process.env);
 const mail = mailTransportSummary();
 
 const database = createJobDatabase(databaseUrl, { max: config.poolMax });
-const supervisor = createSupervisor(workerJobs(database.db, config), {
-  log,
-  stuckMs: config.stuckMs,
-});
+// AI provider settings stored from the admin console. The AI and chat jobs
+// wait for the first successful load, including runs a work signal starts
+// before startup reaches it; a failed load is retried by the next run.
+let aiSettingsLoaded: Promise<void> | undefined;
+const aiSettings = () =>
+  (aiSettingsLoaded ??= refreshAiState(database.db).then(
+    () => undefined,
+    (error: unknown) => {
+      aiSettingsLoaded = undefined;
+      throw error;
+    },
+  ));
+const supervisor = createSupervisor(
+  workerJobs(database.db, config, { aiSettings }),
+  {
+    log,
+    stuckMs: config.stuckMs,
+  },
+);
 const listener = listenForWork(listenUrl, {
   onSignal: (kind) => supervisor.signal(kind),
   onListening: (reconnected) => {
@@ -65,9 +80,9 @@ log("info", "worker.started", {
   shutdownTimeoutMs: config.shutdownTimeoutMs,
   mail,
 });
-// AI provider settings stored from the admin console; kept current while the
-// worker runs, so a change applies to the next run without a restart.
-await refreshAiState(database.db).catch((error: unknown) =>
+// Kept current while the worker runs, so a change applies to the next run
+// without a restart.
+await aiSettings().catch((error: unknown) =>
   log("warn", "worker.ai_settings_load_failed", { ...describeError(error) }),
 );
 watchAiSettings(database.db, {
