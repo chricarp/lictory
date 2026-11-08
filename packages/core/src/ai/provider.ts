@@ -225,6 +225,9 @@ const vertex = (
     ...(config.apiKey
       ? { apiKey: config.apiKey }
       : {
+          // An empty key, so the SDK never falls back to GOOGLE_VERTEX_API_KEY
+          // and switches to express mode behind the configuration's back.
+          apiKey: "",
           project: config.project,
           location: config.location,
           googleAuthOptions: config.googleCredentials
@@ -267,10 +270,12 @@ export function languageModel(config: AiProviderConfig): LanguageModel {
           ? { apiKey }
           : config.accessKeyId
             ? {
+                // Never AWS_BEARER_TOKEN_BEDROCK from the environment.
+                apiKey: "",
                 accessKeyId: config.accessKeyId,
                 secretAccessKey: config.secretAccessKey,
               }
-            : { credentialProvider: awsIdentity() }),
+            : { apiKey: "", credentialProvider: awsIdentity() }),
       })(model);
     case "mistral":
       return createMistral({ apiKey, baseURL, fetch })(model);

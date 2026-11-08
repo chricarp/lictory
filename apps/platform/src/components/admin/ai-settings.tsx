@@ -109,17 +109,25 @@ function toInput(form: Form, removed: Set<string>) {
     }
     return out;
   };
-  const timeout = Number(form.timeoutSeconds);
+  const timeout = form.timeoutSeconds.trim();
   return {
     text: part("text", form.text),
     transcription:
       form.transcription === "default"
         ? "default"
         : part("transcription", form.transcription),
-    ...(form.timeoutSeconds && Number.isFinite(timeout)
-      ? { timeoutSeconds: timeout }
-      : {}),
+    // Empty: back to the default. Checked before sending (timeoutProblem).
+    timeoutSeconds: timeout ? Number(timeout) : null,
   };
+}
+
+function timeoutProblem(value: string) {
+  const v = value.trim();
+  if (!v) return "";
+  const n = Number(v);
+  return /^\d+$/.test(v) && n >= 30 && n <= 480
+    ? ""
+    : "The timeout is a whole number of seconds from 30 to 480, or empty for the default (240).";
 }
 
 // Whether the server maps host.docker.internal (LICTORY_HOST_MODEL_SERVER).
@@ -430,6 +438,12 @@ function AiSettingsForm({
     setBusy(kind);
     setError("");
     setDone("");
+    const invalid = timeoutProblem(form.timeoutSeconds);
+    if (invalid) {
+      setError(invalid);
+      setBusy(null);
+      return;
+    }
     try {
       const body = toInput(form, removed);
       if (kind === "test")

@@ -3066,7 +3066,10 @@ ai_fields() {
     case "$field" in apiKey | accessKeyId | secretAccessKey | clientSecret) secret=secret ;; esac
     default=""
     case "$field" in
-      baseUrl) default=$(admin_value ".$kind[\"$provider\"].defaultBaseUrl // empty") ;;
+      # Empty means the provider's own API (or, for dictation of the same
+      # vendor, the language model's endpoint): the server decides, so a
+      # gateway is never bypassed by writing a public default here.
+      baseUrl) default="" ;;
       model) default=$(admin_value ".$kind[\"$provider\"].defaultModel // .$kind[\"$provider\"].models[0] // empty") ;;
       structuredOutput) default=json-schema ;;
     esac
@@ -3099,6 +3102,8 @@ ai_fields() {
       [ "$field" = model ] && note "$(admin_value ".$kind[\"$provider\"].modelHint")"
       [ "$field" = baseUrl ] && [ "$(admin_value ".$kind[\"$provider\"].hosting")" = self-hosted ] &&
         note "From inside Lictory's containers, a server on this machine is host.docker.internal, not localhost."
+      [ "$field" = baseUrl ] &&
+        note "Empty: $(admin_value ".$kind[\"$provider\"].defaultBaseUrl // \"required\"")$( [ "$kind" = transcription ] && printf ' (or the language model'"'"'s endpoint for the same vendor)')."
       while :; do
         prompt_line "$label$( [ "$need" = optional ] && printf ' (optional)')" "$( [ -n "$secret" ] || printf '%s' "$default")" $secret
         value="${answer:-}"

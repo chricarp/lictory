@@ -40,6 +40,8 @@ export const aiSettingsInput = z.object({
     .int()
     .min(AI_TIMEOUT_SECONDS_RANGE.minimum)
     .max(AI_TIMEOUT_SECONDS_RANGE.maximum)
+    // null: back to the default; absent: keep what is stored.
+    .nullable()
     .optional(),
 });
 export type AiSettingsInput = z.infer<typeof aiSettingsInput>;
@@ -102,6 +104,9 @@ export function mergeSettings(
             input.transcription,
             stored?.transcription ?? undefined,
           ),
-    timeoutSeconds: input.timeoutSeconds ?? stored?.timeoutSeconds,
+    timeoutSeconds:
+      input.timeoutSeconds === null
+        ? undefined
+        : (input.timeoutSeconds ?? stored?.timeoutSeconds),
   };
 }

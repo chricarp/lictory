@@ -1180,3 +1180,70 @@ void test("speech failures name dictation's own settings", async () => {
     setAiState(undefined);
   }
 });
+
+void test("Vertex never picks up an SDK key from the environment, and a cleared timeout returns to the default", async () => {
+  const saved = process.env.GOOGLE_VERTEX_API_KEY;
+  process.env.GOOGLE_VERTEX_API_KEY = "stray-express-key";
+  const server = await fake(() => ({
+    json: {
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: JSON.stringify(review) }] },
+          finishReason: "STOP",
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 1,
+        candidatesTokenCount: 1,
+        totalTokenCount: 2,
+      },
+    },
+  }));
+  try {
+    const account = JSON.stringify({
+      client_email: "a@p.iam.gserviceaccount.com",
+      private_key: "-----BEGIN PRIVATE KEY-----",
+      project_id: "acme",
+    });
+    const config: AiProviderConfig = {
+      ...configured({
+        LICTORY_AI_PROVIDER: "vertex",
+        LICTORY_AI_MODEL: "gemini-3.8-flash",
+        LICTORY_AI_API_KEY: account,
+        LICTORY_AI_LOCATION: "europe-west4",
+      }),
+      baseURL: `${server.url}/v1beta1/projects/acme/locations/europe-west4/publishers/google`,
+      customBaseUrl: true,
+    };
+    // The request fails to sign (a fake private key) rather than switching
+    // to express mode with the stray key.
+    await assert.rejects(structured(config));
+    assert.ok(
+      !server.seen.some(
+        (s) => s.headers["x-goog-api-key"] === "stray-express-key",
+      ),
+    );
+  } finally {
+    if (saved === undefined) delete process.env.GOOGLE_VERTEX_API_KEY;
+    else process.env.GOOGLE_VERTEX_API_KEY = saved;
+  }
+  const stored: AiSettings = {
+    text: { provider: "ollama", model: "m" },
+    timeoutSeconds: 300,
+  };
+  assert.equal(
+    mergeSettings(stored, {
+      text: { provider: "ollama", model: "m" },
+      transcription: null,
+    }).timeoutSeconds,
+    300,
+  );
+  assert.equal(
+    mergeSettings(stored, {
+      text: { provider: "ollama", model: "m" },
+      transcription: null,
+      timeoutSeconds: null,
+    }).timeoutSeconds,
+    undefined,
+  );
+});
