@@ -82,8 +82,11 @@ and the answer is still validated.
 
 When dictation uses the same vendor as the language model (OpenAI and
 OpenAI, Azure and Azure, Groq and Groq…), fields you leave empty reuse the
-language model's key, endpoint (so a gateway in front of the vendor serves
-both) and project. Google speech never reuses an express-mode API key. The default (**Automatic**) is
+language model's endpoint (so a gateway in front of the vendor serves both),
+project and sign-in. Sign-in is reused whole or not at all: give dictation
+any credential of its own (a key, or a Microsoft Entra service principal with
+`LICTORY_TRANSCRIPTION_AZURE_*`) and it uses only that. Google speech never
+reuses an express-mode API key. The default (**Automatic**) is
 live OpenAI dictation when text goes to OpenAI's own API, otherwise none.
 
 ## Three ways to configure
@@ -151,7 +154,7 @@ LICTORY_AI_API_KEY=<anthropic-key> sudo -E lictory ai setup --yes \
 LICTORY_AI_AZURE_CLIENT_SECRET=<secret> sudo -E lictory ai setup --yes \
   --provider azure --base-url https://<resource>.openai.azure.com/openai/v1 \
   --model <deployment> --tenant-id <tenant> --client-id <client> \
-  --dictation azure --dictation-model <whisper-deployment>
+  --dictation azure --dictation-model <whisper-deployment> --timeout 300
 
 sudo lictory ai setup --yes --provider ollama --model qwen3:32b \
   --dictation speaches --dictation-model Systran/faster-whisper-large-v3

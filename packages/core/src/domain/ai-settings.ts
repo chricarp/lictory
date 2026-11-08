@@ -32,6 +32,7 @@ import {
   type ProviderSettings,
 } from "@lictory/core/ai/provider-settings";
 import {
+  secretFields,
   textProviderOf,
   transcriptionProviderOf,
   type AiField,
@@ -345,7 +346,7 @@ function changedSecrets(input: AiSettingsInput) {
   for (const name of ["text", "transcription"] as const) {
     const part = input[name];
     if (!part || part === "default") continue;
-    for (const f of ["apiKey", "accessKeyId", "secretAccessKey"] as const)
+    for (const f of secretFields)
       if (part[f] !== undefined)
         changed.push(`${name}.${f}${part[f] === "" ? " (cleared)" : ""}`);
   }

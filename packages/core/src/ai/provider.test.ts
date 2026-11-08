@@ -690,7 +690,7 @@ void test(
     });
     await assert.rejects(
       generateStructured({ ...target(config) }, reviewRequest, {}, "Retry"),
-      /could not reach the AI endpoint\. Retry later.*container itself/,
+      /could not reach the AI provider\. Retry later.*container itself/,
     );
     assert.equal(openai.seen.length, 0);
   },

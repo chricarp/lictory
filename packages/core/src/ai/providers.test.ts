@@ -1046,3 +1046,137 @@ void test("Vertex AI: generateContent with an express-mode key and a response sc
     /response(Json)?Schema/,
   );
 });
+
+// ------------------------------------------------- second review follow-ups
+
+void test("dictation signs in with its own credentials or all of the language model's, never a mix", () => {
+  const base = {
+    LICTORY_AI_PROVIDER: "azure",
+    LICTORY_AI_MODEL: "gpt",
+    LICTORY_AI_BASE_URL: "https://acme.openai.azure.com/openai/v1",
+    LICTORY_TRANSCRIPTION_PROVIDER: "azure",
+    LICTORY_TRANSCRIPTION_MODEL: "whisper",
+  };
+  // Text with a service principal, dictation with its own key.
+  const own = clipConfig({
+    ...base,
+    LICTORY_AI_AZURE_TENANT_ID: "t",
+    LICTORY_AI_AZURE_CLIENT_ID: "c",
+    LICTORY_AI_AZURE_CLIENT_SECRET: "s",
+    LICTORY_TRANSCRIPTION_API_KEY: "speech-key",
+  });
+  assert.equal(own.apiKey, "speech-key");
+  assert.equal(own.entra, undefined);
+  // Text with a key, dictation with its own service principal.
+  const principal = clipConfig({
+    ...base,
+    LICTORY_AI_API_KEY: "text-key",
+    LICTORY_TRANSCRIPTION_AZURE_TENANT_ID: "t2",
+    LICTORY_TRANSCRIPTION_AZURE_CLIENT_ID: "c2",
+    LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET: "s2",
+  });
+  assert.equal(principal.apiKey, undefined);
+  assert.deepEqual(principal.entra, {
+    kind: "service-principal",
+    tenantId: "t2",
+    clientId: "c2",
+    clientSecret: "s2",
+  });
+  // Nothing of its own: the language model's whole bundle.
+  const shared = clipConfig({
+    ...base,
+    LICTORY_AI_AZURE_TENANT_ID: "t",
+    LICTORY_AI_AZURE_CLIENT_ID: "c",
+    LICTORY_AI_AZURE_CLIENT_SECRET: "s",
+  });
+  assert.equal(shared.entra?.kind, "service-principal");
+});
+
+void test("a rotated client secret never reuses the previous token", async () => {
+  let calls = 0;
+  const issue = (async () => {
+    calls++;
+    return Response.json({ access_token: `token-${calls}`, expires_in: 3600 });
+  }) as unknown as typeof fetch;
+  const first = await entraToken(
+    {
+      kind: "service-principal",
+      tenantId: "rot",
+      clientId: "c",
+      clientSecret: "old",
+    },
+    issue,
+  );
+  const again = await entraToken(
+    {
+      kind: "service-principal",
+      tenantId: "rot",
+      clientId: "c",
+      clientSecret: "old",
+    },
+    issue,
+  );
+  const rotated = await entraToken(
+    {
+      kind: "service-principal",
+      tenantId: "rot",
+      clientId: "c",
+      clientSecret: "new",
+    },
+    issue,
+  );
+  assert.equal(first, again);
+  assert.notEqual(rotated, first);
+  assert.equal(calls, 2);
+});
+
+void test("the check fails when dictation is misconfigured, and passes when it is deliberately off", async () => {
+  const server = await fake(() => chat(JSON.stringify(review)));
+  const config = configured({
+    LICTORY_AI_PROVIDER: "openai-compatible",
+    LICTORY_AI_BASE_URL: `${server.url}/v1`,
+    LICTORY_AI_MODEL: "m",
+  });
+  // Text alone: the streamed tool call fails against this fake, so only the
+  // verdict's dependence on dictation is asserted.
+  const invalid = await checkAiProvider({
+    text: { state: "configured", config },
+    transcription: {
+      state: "invalid",
+      problems: ["Dictation API key is required."],
+    },
+  });
+  assert.equal(invalid.ok, false);
+  assert.deepEqual(invalid.dictation.problems, [
+    "Dictation API key is required.",
+  ]);
+});
+
+void test("speech failures name dictation's own settings", async () => {
+  const server = await fake(() => ({
+    status: 404,
+    json: { error: { message: "model not found" } },
+  }));
+  const config = clipConfig({
+    LICTORY_AI_PROVIDER: "ollama",
+    LICTORY_AI_MODEL: "qwen3",
+    LICTORY_TRANSCRIPTION_PROVIDER: "speaches",
+    LICTORY_TRANSCRIPTION_MODEL: "missing-whisper",
+    LICTORY_TRANSCRIPTION_BASE_URL: `${server.url}/v1`,
+  });
+  setAiState({
+    ...environmentState({}),
+    transcription: { state: "configured", config },
+  });
+  try {
+    await assert.rejects(
+      transcribeSegment(syntheticWav(), "audio/wav"),
+      (e: Error) =>
+        e.message.includes('LICTORY_TRANSCRIPTION_MODEL') &&
+        e.message.includes('LICTORY_TRANSCRIPTION_BASE_URL') &&
+        !e.message.includes('LICTORY_AI_MODEL'),
+    );
+  } finally {
+    setAiState(undefined);
+  }
+});

@@ -2988,13 +2988,17 @@ Usage: lictory ai <command> [options]
   setup             Choose providers, models and keys, test them, save them
                     (guided; or with --yes: --provider, --model, --base-url,
                     --region, --project, --location, --structured-output,
-                    --tenant-id, --client-id, --dictation, --dictation-model,
-                    --dictation-base-url, --dictation-project,
-                    --dictation-location. Secrets come from a hidden prompt or
-                    LICTORY_AI_API_KEY, LICTORY_AI_AWS_ACCESS_KEY_ID,
+                    --tenant-id, --client-id, --timeout, --dictation,
+                    --dictation-model, --dictation-base-url,
+                    --dictation-project, --dictation-location,
+                    --dictation-tenant-id, --dictation-client-id. Secrets come
+                    from a hidden prompt or LICTORY_AI_API_KEY,
+                    LICTORY_AI_AWS_ACCESS_KEY_ID,
                     LICTORY_AI_AWS_SECRET_ACCESS_KEY,
                     LICTORY_AI_AZURE_CLIENT_SECRET,
-                    LICTORY_TRANSCRIPTION_API_KEY; never from arguments)
+                    LICTORY_TRANSCRIPTION_API_KEY,
+                    LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET; never from
+                    arguments)
   check [--json]    Send synthetic content through every configured feature
                     and report what works
   off               No AI provider (removes stored keys)
@@ -3081,6 +3085,9 @@ ai_fields() {
       transcription:model) value=$(opt dictation-model) ;;
       transcription:baseUrl) value=$(opt dictation-base-url) ;;
       transcription:project) value=$(opt dictation-project) ;;
+      transcription:tenantId) value=$(opt dictation-tenant-id) ;;
+      transcription:clientId) value=$(opt dictation-client-id) ;;
+      transcription:clientSecret) value="${LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET:-}" ;;
       transcription:location) value=$(opt dictation-location) ;;
       text:apiKey) value="${LICTORY_AI_API_KEY:-}" ;;
       text:accessKeyId) value="${LICTORY_AI_AWS_ACCESS_KEY_ID:-}" ;;
@@ -3170,7 +3177,7 @@ cmd_ai() {
       check_ok "No AI provider is configured; organizations see Lictory Intelligence as unavailable."
       ;;
     setup)
-      parse "provider model base-url region project location structured-output tenant-id client-id dictation dictation-model dictation-base-url dictation-project dictation-location" "no-test" "$@"
+      parse "provider model base-url region project location structured-output tenant-id client-id timeout dictation dictation-model dictation-base-url dictation-project dictation-location dictation-tenant-id dictation-client-id" "no-test" "$@"
       [ ${#positional[@]} -eq 0 ] || usage_error "ai setup takes no arguments; see lictory ai help."
       select_environment
       [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
@@ -3221,7 +3228,12 @@ cmd_ai() {
           ;;
       esac
       local settings
-      settings=$(jq -n --argjson t "$ai_json_text" --argjson d "$transcription_json" '{text: $t, transcription: $d}')
+      local timeout_json=null
+      if [ -n "$(opt timeout)" ]; then
+        [[ "$(opt timeout)" =~ ^[0-9]+$ ]] || usage_error "--timeout is a number of seconds (30 to 480)."
+        timeout_json=$(opt timeout)
+      fi
+      settings=$(jq -n --argjson t "$ai_json_text" --argjson d "$transcription_json" --argjson s "$timeout_json" '{text: $t, transcription: $d} + (if $s == null then {} else {timeoutSeconds: $s} end)')
       # A model server on this machine needs the host alias in the
       # containers, before the test can reach it.
       if printf '%s' "$settings" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then

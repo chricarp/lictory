@@ -29,7 +29,10 @@ import {
 } from "@lictory/core/ai/provider";
 import { experimental_transcribe as transcribe } from "ai";
 import { CapabilityError } from "@lictory/core/capabilities/core";
-import { createDictationSession } from "@lictory/core/intelligence/voice/transcription";
+import {
+  createDictationSession,
+  speechNames,
+} from "@lictory/core/intelligence/voice/transcription";
 
 export type AiCheckStep = {
   id: "structured-output" | "streamed-tool-call" | "tool-result" | "dictation";
@@ -116,10 +119,11 @@ export async function checkAiProvider(
   const textPart = await checkText(textResolution, options);
   const dictationPart = await checkDictation(dictationResolution, options);
   return {
+    // Text must work; dictation must work too unless it is deliberately off.
     ok:
-      (textPart.state !== "configured" || textPart.ok) &&
-      (dictationPart.state !== "configured" || dictationPart.ok) &&
-      textPart.state === "configured",
+      textPart.state === "configured" &&
+      textPart.ok &&
+      (dictationPart.state === "disabled" || dictationPart.ok),
     text: textPart,
     dictation: dictationPart,
   };
@@ -333,11 +337,7 @@ async function checkDictation(
       ok: false,
     };
   const { config } = resolution;
-  const named = {
-    provider: "openai-compatible" as const,
-    baseURL: config.baseURL,
-    keySetting: config.keySetting,
-  };
+  const named = speechNames(config);
   const check = await step(
     "dictation",
     "dictation in the Litto composer",
@@ -370,7 +370,8 @@ async function checkSegments(
       providerOptions: transcriptionOptions(config),
       maxRetries: 0,
       abortSignal: AbortSignal.any([
-        AbortSignal.timeout(30_000),
+        // The configured clip timeout, as in use.
+        AbortSignal.timeout(config.timeoutMs),
         ...(signal ? [signal] : []),
       ]),
     });

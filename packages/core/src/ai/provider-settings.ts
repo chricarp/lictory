@@ -94,6 +94,9 @@ const envNames: Record<Part, Partial<Record<AiField | "provider", string>>> = {
     model: setting("LICTORY_TRANSCRIPTION_MODEL"),
     project: setting("LICTORY_TRANSCRIPTION_PROJECT"),
     location: setting("LICTORY_TRANSCRIPTION_LOCATION"),
+    tenantId: setting("LICTORY_TRANSCRIPTION_AZURE_TENANT_ID"),
+    clientId: setting("LICTORY_TRANSCRIPTION_AZURE_CLIENT_ID"),
+    clientSecret: setting("LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET"),
   },
 };
 const fieldNames = Object.keys(envNames.text).filter(
@@ -640,30 +643,29 @@ export function resolveTranscriptionSettings(
   const merged: ProviderSettings = { ...chosen };
   let keySetting = options.keySetting;
   if (shared) {
-    for (const field of [
-      "apiKey",
-      "project",
-      "location",
-      "region",
-      "tenantId",
-      "clientId",
-      "clientSecret",
-    ] as const)
-      if (
-        !merged[field] &&
-        textSettings[field] &&
-        spec.fields[field] &&
-        // Google speech takes no express-mode API key: share only a service
-        // account key.
-        !(
-          field === "apiKey" &&
-          spec.adapter === "vertex" &&
-          googleKey(textSettings.apiKey) === undefined
-        )
-      ) {
+    // Sign-in is one bundle: dictation that names any of its own
+    // credentials uses only those; otherwise it takes all of the language
+    // model's (Google speech never takes an express-mode API key).
+    const auth = ["apiKey", "tenantId", "clientId", "clientSecret"] as const;
+    const ownAuth = auth.some((field) => merged[field]);
+    if (!ownAuth)
+      for (const field of auth)
+        if (
+          textSettings[field] &&
+          spec.fields[field] &&
+          !(
+            field === "apiKey" &&
+            spec.adapter === "vertex" &&
+            googleKey(textSettings.apiKey) === undefined
+          )
+        ) {
+          merged[field] = textSettings[field];
+          if (field === "apiKey" || field === "clientSecret")
+            keySetting = text.config.keySetting;
+        }
+    for (const field of ["project", "location", "region"] as const)
+      if (!merged[field] && textSettings[field] && spec.fields[field])
         merged[field] = textSettings[field];
-        if (field === "apiKey") keySetting = text.config.keySetting;
-      }
     // A gateway or resource endpoint in front of the vendor serves both:
     // audio never goes to the vendor's public API behind the operator's back.
     if (!merged.baseUrl && spec.fields.baseUrl && textSettings.baseUrl)

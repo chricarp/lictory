@@ -6,6 +6,7 @@ import { experimental_transcribe as transcribe } from "ai";
 import {
   dictationConfig,
   OPENAI_REALTIME_URL,
+  type TranscriptionConfig,
 } from "@lictory/core/ai/provider-settings";
 import {
   EndpointRefused,
@@ -179,11 +180,22 @@ export async function transcribeSegment(
       "unavailable",
       error instanceof EndpointRefused
         ? error.message
-        : describeProviderError(error, "Try again", {
-            provider: "openai-compatible",
-            baseURL: config.baseURL,
-            keySetting: config.keySetting,
-          }).replace("AI provider", "speech-to-text provider"),
+        : describeProviderError(error, "Try again", speechNames(config)),
     );
   }
+}
+
+/** How failure messages name dictation's own settings. */
+export function speechNames(config: TranscriptionConfig) {
+  const env = config.source === "environment";
+  return {
+    provider: "openai-compatible" as const,
+    baseURL: config.baseURL,
+    keySetting:
+      config.keySetting ??
+      (env ? "LICTORY_TRANSCRIPTION_API_KEY" : "the dictation API key"),
+    modelSetting: env ? "LICTORY_TRANSCRIPTION_MODEL" : "the dictation model",
+    urlSetting: config.urlSetting,
+    service: "speech-to-text provider",
+  };
 }

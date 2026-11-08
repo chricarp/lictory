@@ -917,6 +917,26 @@ export const declarations: readonly Declaration[] = [
     services: server,
     description: "`vertex` dictation: the location.",
   },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_TENANT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure` dictation with its own Microsoft Entra service principal (with the client ID and secret). Empty: the language model's Azure sign-in when it is Azure too, otherwise the managed identity.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_CLIENT_ID",
+    group: "AI",
+    services: server,
+    description: "`azure` dictation: the service principal's client ID.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`azure` dictation: the service principal's client secret.",
+  },
 
   // ------------------------------------------------------------- analytics
   {

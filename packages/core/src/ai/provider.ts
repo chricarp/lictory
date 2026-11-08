@@ -2,6 +2,7 @@
 // ai/provider-settings.ts, which this module re-exports). Only the selected
 // provider's adapter is ever built, and every setting is passed explicitly so
 // an SDK never falls back to its own environment variables.
+import { createHash } from "node:crypto";
 import { lookup as lookupAddress, type LookupAddress } from "node:dns";
 import { Agent } from "undici";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -119,9 +120,10 @@ export async function entraToken(
   entra: EntraCredentials,
   request: typeof fetch = fetch,
 ): Promise<string> {
+  // A rotated secret is a different identity: its token is never reused.
   const id =
     entra.kind === "service-principal"
-      ? `sp:${entra.tenantId}:${entra.clientId}`
+      ? `sp:${entra.tenantId}:${entra.clientId}:${createHash("sha256").update(entra.clientSecret).digest("hex").slice(0, 16)}`
       : `mi:${entra.clientId ?? ""}`;
   const cached = tokens.get(id);
   if (cached && cached.expires - 120_000 > Date.now()) return cached.token;

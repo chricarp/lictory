@@ -235,11 +235,17 @@ const mentions = (text: string, ...patterns: RegExp[]) =>
 export function describeProviderError(
   error: unknown,
   again: string,
-  config: Pick<
-    AiProviderConfig,
-    "provider" | "baseURL" | "keySetting"
-  > = aiProvider() ?? substituted,
+  config: Pick<AiProviderConfig, "provider" | "baseURL" | "keySetting"> & {
+    /** What names the model and the URL, and what the service is called
+     * (dictation names its own settings). */
+    modelSetting?: string;
+    urlSetting?: string;
+    service?: string;
+  } = aiProvider() ?? substituted,
 ) {
+  const service = config.service ?? "AI provider";
+  const model = config.modelSetting ?? "LICTORY_AI_MODEL";
+  const url = config.urlSetting ?? "LICTORY_AI_BASE_URL";
   // Our own explanations (Microsoft Entra sign-in, refused endpoints) are
   // written for people already, also when the SDK wrapped them.
   for (let e: unknown = error, depth = 0; e && depth < 5; depth++) {
@@ -260,13 +266,13 @@ export function describeProviderError(
   const keySetting = config.keySetting ?? "LICTORY_AI_API_KEY";
   const body = `${e?.message ?? ""} ${e?.responseBody ?? ""}`;
   if (e?.statusCode === 401 || e?.statusCode === 403)
-    return `The AI provider rejected the configured credentials. Ask an administrator to check ${keySetting}.`;
+    return `The ${service} rejected the configured credentials. Ask an administrator to check ${keySetting}.`;
   if (e?.statusCode === 404)
     return config.provider === "azure"
-      ? "The configured Azure deployment is unavailable. Ask an administrator to check LICTORY_AI_MODEL (the deployment name) and LICTORY_AI_BASE_URL."
-      : `The configured AI model is unavailable. Ask an administrator to check LICTORY_AI_MODEL${explicit && config.provider !== "openai" ? " and LICTORY_AI_BASE_URL" : ""}.`;
+      ? `The configured Azure deployment is unavailable. Ask an administrator to check ${model} (the deployment name) and ${url}.`
+      : `The configured model is unavailable. Ask an administrator to check ${model}${explicit && config.provider !== "openai" ? ` and ${url}` : ""}.`;
   if (e?.statusCode === 429)
-    return `The AI provider is rate limiting requests. ${again} in a few minutes.`;
+    return `The ${service} is rate limiting requests. ${again} in a few minutes.`;
   if (e?.statusCode === 400 || e?.statusCode === 422) {
     if (
       mentions(
@@ -275,7 +281,7 @@ export function describeProviderError(
         /not support|unsupported|not allowed/i,
       )
     )
-      return "The configured AI model does not support tool calls, which Litto needs. Ask an administrator to choose a model with tool support (lictory admin ai-check tests it).";
+      return "The configured AI model does not support tool calls, which Litto needs. Ask an administrator to choose a model with tool support (sudo lictory ai check, or Check connection in the admin console, tests it).";
     if (
       mentions(
         body,
@@ -297,14 +303,14 @@ export function describeProviderError(
   if (e?.name?.includes("NoObjectGenerated") || e?.name?.includes("NoOutput"))
     return `The model did not return a valid result. ${again}.`;
   if (e?.name?.includes("Timeout") || e?.name === "AbortError")
-    return `The AI provider did not answer in time. ${again}.`;
+    return `The ${service} did not answer in time. ${again}.`;
   // No response at all: the server could not connect to the provider.
   if (APICallError.isInstance(last) && last.statusCode === undefined)
     return /\/\/host\.docker\.internal[:/]/.test(config.baseURL) &&
       !hostModelServer()
-      ? `This server could not reach the AI endpoint on this machine. ${again} later, or ask an administrator to set LICTORY_HOST_MODEL_SERVER=true on the server (sudo lictory config set LICTORY_HOST_MODEL_SERVER=true) and check that the model server listens on 0.0.0.0.`
+      ? `This server could not reach the ${service} on this machine. ${again} later, or ask an administrator to set LICTORY_HOST_MODEL_SERVER=true on the server (sudo lictory config set LICTORY_HOST_MODEL_SERVER=true) and check that the model server listens on 0.0.0.0.`
       : isLoopbackUrl(config.baseURL)
-        ? `This server could not reach the AI endpoint. ${again} later, or ask an administrator to check LICTORY_AI_BASE_URL: it points at localhost, which inside a container is the container itself, not the server.`
-        : `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider${explicit ? " (LICTORY_AI_BASE_URL)" : ""}.`;
-  return `The AI provider could not complete the request. ${again} shortly.`;
+        ? `This server could not reach the ${service}. ${again} later, or ask an administrator to check ${url}: it points at localhost, which inside a container is the container itself, not the server.`
+        : `This server could not reach the ${service}. ${again} later, or ask an administrator to check the server's network access to the provider${explicit ? ` (${url})` : ""}.`;
+  return `The ${service} could not complete the request. ${again} shortly.`;
 }
