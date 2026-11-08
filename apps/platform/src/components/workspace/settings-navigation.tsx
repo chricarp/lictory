@@ -7,10 +7,14 @@ import type { SettingsNavItem } from "@lictory/platform/components/workspace/set
 // to render again just to update the selected navigation link.
 export function SettingsNavigation({ nav }: { nav: SettingsNavItem[] }) {
   const pathname = usePathname();
+  // The most specific link wins: /admin/people is People, not Overview's /admin.
   const selected =
-    nav.find(
-      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-    )?.id ?? nav[0]?.id;
+    nav
+      .filter(
+        (item) =>
+          pathname === item.href || pathname.startsWith(`${item.href}/`),
+      )
+      .sort((a, b) => b.href.length - a.href.length)[0]?.id ?? nav[0]?.id;
   const groups: { group?: string; items: SettingsNavItem[] }[] = [];
   for (const item of nav) {
     const last = groups.at(-1);

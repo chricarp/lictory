@@ -112,7 +112,7 @@ function AiPolicySection() {
       }
       footer={
         available
-          ? "This installation's operator chooses the AI provider and model on the server. Each project chooses how the review action treats its pull requests."
+          ? "The installation's instance administrators choose the AI provider and model. Each project chooses how the review action treats its pull requests."
           : "This server has no AI provider connected. An instance administrator can connect a cloud provider or a self-hosted model in the admin console (/admin)."
       }
     >

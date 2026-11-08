@@ -167,7 +167,7 @@ async function checkText(
   checks.push(
     await step(
       "structured-output",
-      "Item reviews, pull request reviews, proposal intake and conversation titles",
+      "item reviews, pull request reviews, proposal intake and conversation titles",
       async () => {
         const output = await generateStructured(
           { model, config },
@@ -340,7 +340,7 @@ async function checkDictation(
   };
   const check = await step(
     "dictation",
-    "Dictation in the Litto composer",
+    "dictation in the Litto composer",
     config.mode === "realtime"
       ? () => checkRealtime(config)
       : () => checkSegments(config, options.signal),

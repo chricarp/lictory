@@ -606,7 +606,7 @@ function ProviderEditor({
   return (
     <SettingsBody className="space-y-4 text-[13px]">
       <div>
-        <span className="font-medium">Provider</span>
+        <span className="block font-medium">Provider</span>
         <ProviderSelect
           part={part}
           value={values?.provider ?? "none"}
@@ -653,12 +653,15 @@ function DictationEditor({
     : undefined;
   const values =
     typeof form.transcription === "object" ? form.transcription : null;
+  // Self-hosted servers are separate machines: they share nothing.
   const shared =
-    values && specOf("transcription", values.provider)?.vendor === textVendor;
+    values &&
+    textVendor !== "self-hosted" &&
+    specOf("transcription", values.provider)?.vendor === textVendor;
   return (
     <SettingsBody className="space-y-4 text-[13px]">
       <div>
-        <span className="font-medium">Provider</span>
+        <span className="block font-medium">Provider</span>
         <ProviderSelect
           part="transcription"
           value={value}

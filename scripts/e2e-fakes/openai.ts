@@ -312,7 +312,7 @@ export async function startScriptedAi(port: number) {
     if (request.method === "POST" && path === "/v1/audio/transcriptions") {
       requests.push({ at: new Date().toISOString(), body: "[audio clip]" });
       return send(response, 200, {
-        text: "Dictated by the scripted provider.",
+        text: "Retry a failed card payment at most three times.",
       });
     }
     if (request.method !== "POST" || path !== "/v1/responses")

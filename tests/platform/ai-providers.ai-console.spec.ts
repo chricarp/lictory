@@ -125,9 +125,12 @@ test("an instance administrator connects a provider in the console, tests it, sa
   await expect(dictate).toBeVisible();
   await dictate.click();
   const composer = page.getByRole("textbox", { name: "Message Litto" });
-  await expect(composer).toHaveValue(/Dictated by the scripted provider\./, {
-    timeout: 20_000,
-  });
+  await expect(composer).toHaveValue(
+    /Retry a failed card payment at most three times\./,
+    {
+      timeout: 20_000,
+    },
+  );
   await page.getByRole("button", { name: /Stop dictation/ }).click();
   await expect(page.getByRole("button", { name: /^Dictate/ })).toBeVisible();
 });

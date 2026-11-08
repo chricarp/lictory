@@ -896,11 +896,11 @@ void test("Azure with Microsoft Entra ID: a service principal or the managed ide
         clientId: "c2",
         clientSecret: "s3cr3t",
       },
-      async () =>
-        new Response("{}", { status: 401 }),
+      async () => new Response("{}", { status: 401 }),
     ),
     (e: Error) =>
-      e.message.includes('Check the tenant ID') && !e.message.includes("s3cr3t"),
+      e.message.includes("Check the tenant ID") &&
+      !e.message.includes("s3cr3t"),
   );
 });
 
