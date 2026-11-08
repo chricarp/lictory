@@ -1007,3 +1007,42 @@ void test("ElevenLabs and AssemblyAI dictation: their APIs and keys", async () =
     setAiState(undefined);
   }
 });
+
+void test("Vertex AI: generateContent with an express-mode key and a response schema", async () => {
+  const server = await fake(() => ({
+    json: {
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: JSON.stringify(review) }] },
+          finishReason: "STOP",
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 1,
+        candidatesTokenCount: 1,
+        totalTokenCount: 2,
+      },
+    },
+  }));
+  const config: AiProviderConfig = {
+    ...configured({
+      LICTORY_AI_PROVIDER: "vertex",
+      LICTORY_AI_MODEL: "gemini-3.8-flash",
+      LICTORY_AI_API_KEY: "vertex-express-key",
+    }),
+    // A fake stands in for aiplatform.googleapis.com/v1/publishers/google.
+    baseURL: `${server.url}/v1/publishers/google`,
+    customBaseUrl: true,
+  };
+  assert.deepEqual(await structured(config), review);
+  const [seen] = server.seen;
+  assert.equal(
+    seen!.path,
+    "/v1/publishers/google/models/gemini-3.8-flash:generateContent",
+  );
+  assert.equal(seen!.headers["x-goog-api-key"], "vertex-express-key");
+  assert.match(
+    JSON.stringify(seen!.body.generationConfig),
+    /response(Json)?Schema/,
+  );
+});

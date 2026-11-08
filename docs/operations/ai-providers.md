@@ -288,7 +288,7 @@ a time and at most every ten seconds.
 - No provider was verified live in Lictory's test suite. Contract tests run
   against local fakes of each protocol: OpenAI, Anthropic, Gemini, Azure
   (key and Entra), Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter and the
-  OpenAI-compatible servers for text; OpenAI, Azure, Groq, Mistral,
-  Deepgram, ElevenLabs, AssemblyAI and Whisper servers for dictation. Vertex
-  AI (text and speech) and OpenAI Realtime are covered by settings tests
-  only. Run the check with your own keys.
+  OpenAI-compatible servers and Vertex AI (express mode) for text; OpenAI,
+  Azure, Groq, Mistral, Deepgram, ElevenLabs, AssemblyAI and Whisper servers
+  for dictation. Vertex AI with service accounts, Google speech and OpenAI
+  Realtime are covered by settings tests only. Run the check with your own keys.

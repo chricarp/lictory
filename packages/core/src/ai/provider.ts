@@ -203,6 +203,34 @@ const azure = (
         }),
   });
 
+// Vertex AI: an express-mode API key, a service account key, or the
+// server's own Google Cloud identity. A base URL is set only by tests (the
+// catalog offers none).
+const vertex = (
+  config: {
+    apiKey?: string;
+    project?: string;
+    location?: string;
+    googleCredentials?: Record<string, string>;
+    baseURL: string;
+    customBaseUrl: boolean;
+  },
+  fetch: typeof globalThis.fetch | undefined,
+) =>
+  createVertex({
+    fetch,
+    ...(config.customBaseUrl ? { baseURL: config.baseURL } : {}),
+    ...(config.apiKey
+      ? { apiKey: config.apiKey }
+      : {
+          project: config.project,
+          location: config.location,
+          googleAuthOptions: config.googleCredentials
+            ? { credentials: config.googleCredentials }
+            : {},
+        }),
+  });
+
 // The server's own AWS identity (instance profile, task role, web identity
 // or the AWS_* variables), when no key is configured.
 const awsIdentity = () => {
@@ -225,18 +253,7 @@ export function languageModel(config: AiProviderConfig): LanguageModel {
     case "google":
       return createGoogleGenerativeAI({ apiKey, baseURL, fetch })(model);
     case "vertex":
-      return createVertex(
-        config.apiKey
-          ? { apiKey, fetch }
-          : {
-              project: config.project,
-              location: config.location,
-              fetch,
-              googleAuthOptions: config.googleCredentials
-                ? { credentials: config.googleCredentials }
-                : {},
-            },
-      )(model);
+      return vertex(config, fetch)(model);
     case "azure":
       return azure(config, fetch)(model);
     case "bedrock":
@@ -304,18 +321,7 @@ export function transcriptionModel(
     case "azure":
       return azure(config, fetch).transcription(model);
     case "vertex":
-      return createVertex(
-        config.apiKey
-          ? { apiKey, fetch }
-          : {
-              project: config.project,
-              location: config.location,
-              fetch,
-              googleAuthOptions: config.googleCredentials
-                ? { credentials: config.googleCredentials }
-                : {},
-            },
-      ).transcription(model);
+      return vertex(config, fetch).transcription(model);
     case "groq":
       return createGroq({ apiKey, baseURL, fetch }).transcription(model);
     case "deepgram":
