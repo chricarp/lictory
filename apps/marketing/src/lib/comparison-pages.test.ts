@@ -158,8 +158,16 @@ void describe("comparison and alternatives pages", () => {
     const index = llmsIndex();
     for (const path of comparisonPaths)
       assert.ok(index.includes(absoluteUrl(markdownPath(path))), path);
-    assert.ok(index.includes(repositoryUrl));
-    assert.ok(index.includes("https://docs.lictory.com"));
+    // Compare parsed link targets, not substrings of the document.
+    const targets = [...index.matchAll(/\]\((https:[^)\s]+)\)/g)].map(
+      ([, url]) => new URL(url!),
+    );
+    assert.ok(targets.some((url) => url.href === repositoryUrl));
+    assert.ok(
+      targets.some(
+        (url) => url.host === "docs.lictory.com" && url.pathname === "/",
+      ),
+    );
     assert.ok(llmsFull().includes("## Alternatives and roundups"));
   });
 });

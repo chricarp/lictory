@@ -132,7 +132,7 @@ export function FactsTable({
       </div>
       <div className="mt-6 grid gap-3 sm:hidden">
         {products.map((product) => (
-          <dl
+          <div
             key={product.id}
             className={cn(
               "rounded-xl border border-border p-4 text-sm",
@@ -140,17 +140,19 @@ export function FactsTable({
             )}
           >
             <p className="font-medium">{product.name}</p>
-            {keys.map((key) => (
-              <div key={key} className="mt-3">
-                <dt className="text-[13px] text-muted-foreground">
-                  {factLabels[key]}
-                </dt>
-                <dd className="mt-0.5 leading-6 text-foreground/85">
-                  {product[key]}
-                </dd>
-              </div>
-            ))}
-          </dl>
+            <dl>
+              {keys.map((key) => (
+                <div key={key} className="mt-3">
+                  <dt className="text-[13px] text-muted-foreground">
+                    {factLabels[key]}
+                  </dt>
+                  <dd className="mt-0.5 leading-6 text-foreground/85">
+                    {product[key]}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         ))}
       </div>
     </>
