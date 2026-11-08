@@ -226,7 +226,7 @@
 .md-menu {
   position: absolute;
   /* Just under the provider select, well clear of the next field */
-  top: 86px;
+  top: 83px;
   left: 124px;
   z-index: 3;
   display: grid;

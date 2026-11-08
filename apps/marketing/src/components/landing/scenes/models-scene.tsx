@@ -278,9 +278,14 @@ function SentTo({ s }: { s: S }) {
           }}
         />
         <span className="md-label">Model</span>
-        <span className="md-mono md-strong">
-          {s.beat >= DONE ? MODEL : "—"}
-        </span>
+        <States
+          align="start"
+          value={s.beat >= DONE ? "model" : "none"}
+          states={{
+            none: <span className="md-placeholder">—</span>,
+            model: <span className="md-mono md-strong">{MODEL}</span>,
+          }}
+        />
         <span className="md-filler" style={{ width: 52 }} />
         <span className="md-filler" style={{ width: 180 }} />
         <span className="md-filler" style={{ width: 40 }} />
