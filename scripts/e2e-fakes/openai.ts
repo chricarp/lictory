@@ -20,6 +20,11 @@
 //   quotes the sentence holding the phrase, or says nothing readable matched.
 // - Structured output "title" names the conversation; "proposal_intake"
 //   drafts one proposal per sentence of the first source, citing it verbatim.
+// - The administrator's connection check (ai/check.ts): an "item_review" of
+//   its synthetic item DEMO-1, a lookupWorkItem tool call, and an answer
+//   after the tool result.
+// - Dictation clips (/v1/audio/transcriptions) always transcribe to the same
+//   sentence.
 import type { ServerResponse } from "node:http";
 import { json, listen, send } from "./http";
 
@@ -99,6 +104,14 @@ function chatStep(body: Body): Step | null {
       output: outputs.get(i.call_id),
     }));
   const latest = (name: string) => calls.findLast((c) => c.name === name);
+
+  if (asked.includes("lookupWorkItem tool to look up work item DEMO-1")) {
+    const lookup = latest("lookupWorkItem");
+    if (!lookup)
+      return { kind: "call", name: "lookupWorkItem", args: { key: "DEMO-1" } };
+    const status = textOr(record(parsed(lookup.output))?.status) ?? "unknown";
+    return { kind: "text", text: `DEMO-1 is ${status}.` };
+  }
 
   if (/which work items does this page mention/i.test(asked)) {
     const read = latest("getPage");
@@ -213,6 +226,12 @@ function structured(body: Body) {
   if (name === "title")
     return { title: prompt.split(/\s+/).slice(0, 5).join(" ") || "Question" };
   if (name === "proposal_intake") return intake(prompt);
+  if (name === "item_review" && prompt.includes("DEMO-1"))
+    return {
+      summary: "DEMO-1 describes a retry without its failure behavior.",
+      strengths: [],
+      findings: [],
+    };
   return null;
 }
 
@@ -288,6 +307,14 @@ export async function startScriptedAi(port: number) {
     const path = new URL(request.url, "http://fake").pathname;
     if (request.method === "GET" && path === "/__scripted-ai/requests")
       return send(response, 200, requests);
+    // Dictation clips (OpenAI's transcription API): every clip is "heard"
+    // as the same sentence, so a test can see dictated words arrive.
+    if (request.method === "POST" && path === "/v1/audio/transcriptions") {
+      requests.push({ at: new Date().toISOString(), body: "[audio clip]" });
+      return send(response, 200, {
+        text: "Retry a failed card payment at most three times.",
+      });
+    }
     if (request.method !== "POST" || path !== "/v1/responses")
       return send(response, 404, { error: { message: "Not found" } });
     requests.push({ at: new Date().toISOString(), body: request.body });
@@ -319,7 +346,24 @@ export async function startScriptedAi(port: number) {
       });
     }
     const step = chatStep(body);
-    if (!step || !body.stream) return unscripted(response);
-    stream(response, model, step);
+    if (!step) return unscripted(response);
+    if (body.stream) return stream(response, model, step);
+    // A non-streamed answer (the connection check's answer after a tool result).
+    if (step.kind !== "text") return unscripted(response);
+    const id = crypto.randomUUID().replaceAll("-", "");
+    return send(response, 200, {
+      id: `resp_${id}`,
+      created_at: Math.floor(Date.now() / 1000),
+      model,
+      output: [
+        {
+          type: "message",
+          role: "assistant",
+          id: `msg_${id}`,
+          content: [{ type: "output_text", text: step.text, annotations: [] }],
+        },
+      ],
+      usage,
+    });
   });
 }

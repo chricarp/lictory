@@ -7,6 +7,7 @@ import {
   KeyRound,
   Mail,
   ShieldUser,
+  Sparkles,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -35,6 +36,7 @@ import {
   SettingsSection,
   type SettingsNavItem,
 } from "@lictory/platform/components/workspace/settings-section";
+import { AiSettings } from "@lictory/platform/components/admin/ai-settings";
 import {
   adminRequest,
   date,
@@ -57,6 +59,7 @@ const sections = [
   { id: "overview", label: "Overview" },
   { id: "people", label: "People" },
   { id: "organizations", label: "Organizations" },
+  { id: "ai", label: "AI providers" },
   { id: "activity", label: "Activity" },
 ] as const;
 type Section = (typeof sections)[number]["id"];
@@ -131,6 +134,7 @@ export function AdminSection({ section }: { section?: string }) {
       {active === "overview" && <AdminOverview />}
       {active === "people" && <People />}
       {active === "organizations" && <Organizations />}
+      {active === "ai" && <AiSettings />}
       {active === "activity" && <ActivityLog />}
     </>
   );
@@ -316,7 +320,38 @@ function AdminOverview() {
           />
         </div>
       </SettingsSection>
+      <AiProviderSection ai={data.ai} />
     </>
+  );
+}
+
+// A summary; the settings are in the AI providers section.
+function AiProviderSection({ ai }: { ai: Overview["ai"] }) {
+  const line = (d: Overview["ai"]["text"]) =>
+    d.state === "configured"
+      ? `${d.label}${d.hosting === "self-hosted" ? " (self-hosted)" : ""} · ${d.model || "default model"}`
+      : d.state === "invalid"
+        ? "Misconfigured"
+        : "Off";
+  return (
+    <SettingsSection
+      id="ai-provider"
+      icon={<Sparkles />}
+      title="AI providers"
+      description="Where Lictory Intelligence sends content when an organization turns it on."
+      action={
+        <Link href={paths.admin("ai")}>
+          <Button variant="outline" size="sm">
+            {ai.source === "environment" ? "View" : "Configure"}
+          </Button>
+        </Link>
+      }
+    >
+      <div className="divide-y divide-border">
+        <PolicyRow label="Language model" value={line(ai.text)} />
+        <PolicyRow label="Dictation" value={line(ai.dictation)} />
+      </div>
+    </SettingsSection>
   );
 }
 

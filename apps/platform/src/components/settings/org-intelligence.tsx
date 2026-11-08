@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { IntelligenceMark, useAfterglow } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
+import {
+  textProviders,
+  transcriptionProviderOf,
+  type AiProviderKind,
+} from "@lictory/core/contracts/ai-provider";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
@@ -8,6 +13,38 @@ import {
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
 import { IntelligenceContextSection } from "@lictory/platform/components/intelligence/context-settings";
+
+// Where content goes, in the organization's terms. The endpoint itself is
+// not shown to members. A self-hosted server or a gateway is described as
+// such: only the operator knows where it runs.
+function destination(
+  provider: AiProviderKind,
+  customEndpoint: boolean,
+): string {
+  const spec = textProviders[provider];
+  if (spec.hosting === "self-hosted")
+    return `A model server run by this installation's operator (${spec.label}). Ask them where it runs.`;
+  if (customEndpoint)
+    return `${spec.label} models through an endpoint chosen by this installation's operator (a gateway or proxy). Ask them where it runs.`;
+  return `${spec.label}${spec.noStorageRequest ? ", which is asked not to store requests" : ""}.`;
+}
+
+function dictationDestination(
+  provider: string | null,
+  mode: string | null,
+  customEndpoint: boolean,
+) {
+  if (!provider) return "Not offered on this server.";
+  const spec = transcriptionProviderOf(provider);
+  if (!spec) return "Offered on this server.";
+  if (customEndpoint && spec.hosting === "cloud")
+    return `Short clips go through this server to ${spec.label} through an endpoint chosen by this installation's operator (a gateway or proxy). Lictory does not store them.`;
+  if (mode === "realtime")
+    return `Audio goes from the browser straight to ${spec.label.replace(/ \(live\)$/, "")} and is not stored by Lictory.`;
+  return spec.hosting === "self-hosted"
+    ? `Short clips go through this server to a speech-to-text server run by the operator (${spec.label}). Lictory does not store them.`
+    : `Short clips go through this server to ${spec.label}. Lictory does not store them.`;
+}
 
 export function OrganizationIntelligence() {
   return (
@@ -22,7 +59,17 @@ export function OrganizationIntelligence() {
 // opts in. Turning it off stops queued runs before anything is sent.
 function AiPolicySection() {
   const { isAdmin, directory, mutate } = useWorkspace();
-  const { enabled, available } = directory.ai;
+  const {
+    enabled,
+    available,
+    provider,
+    model,
+    customEndpoint,
+    dictationProvider,
+    dictationMode,
+    dictationCustomEndpoint,
+  } = directory.ai;
+  const sentTo = provider ? destination(provider, customEndpoint) : null;
   const [error, setError] = useState("");
   const woke = useAfterglow(!enabled);
   return (
@@ -65,8 +112,8 @@ function AiPolicySection() {
       }
       footer={
         available
-          ? "Content is sent to OpenAI without being retained for training. Each project chooses how the review action treats its pull requests."
-          : "This server has no AI provider connected. Set OPENAI_API_KEY to make Lictory Intelligence available."
+          ? "The installation's instance administrators choose the AI provider and model. Each project chooses how the review action treats its pull requests."
+          : "This server has no AI provider connected. An instance administrator can connect a cloud provider or a self-hosted model in the admin console (/admin)."
       }
     >
       <SettingsBody className="space-y-3 text-[13px]">
@@ -103,6 +150,32 @@ function AiPolicySection() {
             Reviewed items (specifications, open discussions, pull request
             changes) and the context that applies to them.
           </dd>
+          {sentTo && (
+            <>
+              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+                Sent to
+              </dt>
+              <dd>
+                {sentTo}
+                {model && (
+                  <>
+                    {" "}
+                    Model <span className="font-mono text-xs">{model}</span>.
+                  </>
+                )}
+              </dd>
+              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+                Voice input
+              </dt>
+              <dd>
+                {dictationDestination(
+                  dictationProvider,
+                  dictationMode,
+                  dictationCustomEndpoint,
+                )}
+              </dd>
+            </>
+          )}
           <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
             Who can change this
           </dt>

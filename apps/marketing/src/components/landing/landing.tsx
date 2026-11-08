@@ -22,6 +22,7 @@ import {
 import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
 import { HeroScene } from "@lictory/marketing/components/landing/scenes/hero-scene";
 import { AgentsScene } from "@lictory/marketing/components/landing/scenes/agents-scene";
+import { ModelsScene } from "@lictory/marketing/components/landing/scenes/models-scene";
 import { SpacesEditorScene } from "@lictory/marketing/components/landing/scenes/spaces-editor-scene";
 import { SpacesReviewScene } from "@lictory/marketing/components/landing/scenes/spaces-review-scene";
 import {
@@ -40,6 +41,7 @@ export function Landing() {
         <Shift />
         <Workflow />
         <Agents />
+        <Models />
         <Disciplines />
         <Delivery />
         <Spaces />
@@ -355,6 +357,52 @@ function Agents() {
               agents are audited too.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Models() {
+  return (
+    <section
+      id="models"
+      aria-labelledby="models-title"
+      className="models site-width"
+    >
+      <SectionHeading
+        id="models"
+        label="Your models"
+        title="Use the AI your company trusts, in the cloud or on your own hardware"
+      >
+        Connect OpenAI, Anthropic, Google Gemini or Vertex AI, Azure OpenAI,
+        Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter. Or run
+        open-weight models with Ollama, vLLM, LM Studio or llama.cpp, and
+        dictate through your own Whisper server. Lictory works without AI, too.
+      </SectionHeading>
+      <ModelsScene />
+      <div className="model-facts">
+        <div>
+          <h3>Set up in the admin console</h3>
+          <p>
+            Pick a provider, paste a key and test every feature before you save.
+            Keys stay encrypted on your server. Prefer the terminal?{" "}
+            <code>lictory ai setup</code> does the same.
+          </p>
+        </div>
+        <div>
+          <h3>Self-hosted means self-hosted</h3>
+          <p>
+            Choose a model server you run, and content goes there and nowhere
+            else. Nothing falls back to a cloud you did not choose.
+          </p>
+        </div>
+        <div>
+          <h3>Every organization decides</h3>
+          <p>
+            Instance administrators choose the provider. Each organization
+            chooses whether its content may be sent, and sees where it goes.
+          </p>
         </div>
       </div>
     </section>

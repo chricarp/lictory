@@ -317,6 +317,34 @@ void test("a committed request wakes the worker through LISTEN, also after the c
   }
 });
 
+void test("the AI job claims nothing until the AI provider settings have loaded", async () => {
+  process.env.OPENAI_API_KEY ??= "test-key";
+  const org = await organization();
+  let loaded = false;
+  const supervisor = createSupervisor(
+    workerJobs(db, workerConfig({ WORKER_AI_INTERVAL_MS: "50" }), {
+      analyzer,
+      aiSettings: () =>
+        loaded
+          ? Promise.resolve()
+          : Promise.reject(new Error("settings not loaded")),
+    }).filter((j) => j.name === "ai"),
+    { log: quiet, backoffMs: 20, maxBackoffMs: 50 },
+  );
+  const status = await org.review();
+  const queued = await status();
+  try {
+    supervisor.start();
+    await until(() => supervisor.status()[0]!.consecutiveFailures >= 3);
+    // Still waiting, not claimed and failed for want of a provider.
+    assert.equal(await status(), queued);
+    loaded = true;
+    await until(async () => (await status()) === "completed", 30_000);
+  } finally {
+    await supervisor.stop({ timeoutMs: 1_000, cancelAfterMs: 500 });
+  }
+});
+
 void test("the worker process reports health and exits cleanly on SIGTERM", async () => {
   const child = spawn(process.execPath, ["apps/worker/src/index.ts"], {
     env: {

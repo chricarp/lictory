@@ -611,6 +611,34 @@ html {
   margin-top: 80px;
 }
 
+/* Your models: the AI provider section after the agents band */
+.models {
+  margin-top: 128px;
+}
+.models-scene {
+  margin-top: 56px;
+}
+.model-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px;
+  margin-top: 72px;
+}
+.model-facts > div {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.model-facts p {
+  margin-top: 8px;
+  color: var(--secondary-text);
+  font-size: 15px;
+  line-height: 24px;
+}
+.model-facts code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+}
+
 /* Disciplines and FAQ: heading beside a list. Long lists keep their heading
    in view. */
 @media (min-width: 960px) {
@@ -1019,6 +1047,7 @@ html {
   .hero-scene,
   .review-scene,
   .agents-scene,
+  .models-scene,
   .spaces-editor-scene,
   .spaces-review-scene {
     margin-inline: -16px;
@@ -1065,7 +1094,8 @@ html {
   .principles,
   .review-tools,
   .spaces-facts,
-  .agent-facts {
+  .agent-facts,
+  .model-facts {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
     margin-top: 56px;

@@ -32,11 +32,16 @@ import {
   type ChatToolPart,
 } from "@lictory/core/intelligence/chat/runs";
 import { getChat, updateChat } from "@lictory/core/intelligence/chat/store";
+import { aiProvider } from "@lictory/core/ai/provider-settings";
 import { generateTitle } from "@lictory/core/intelligence/chat/assistant";
 import type { ChatMessage } from "@lictory/core/intelligence/chat/shared";
 
 const MAX_STEPS = 24;
-const ATTEMPT_MS = 5 * 60_000;
+// One attempt may span several model steps and tools; a slow (for example
+// local) model gets at least its configured provider timeout plus a minute.
+// The lease is renewed meanwhile, so a longer attempt is safe.
+const attemptMs = () =>
+  Math.max(5 * 60_000, (aiProvider()?.timeoutMs ?? 0) + 60_000);
 
 // Rejects even if a provider/adapter ignores cancellation. Writes from the
 // abandoned computation remain fenced; unsafe tool calls are never replayed.
@@ -70,7 +75,7 @@ export async function processChatRuns(
   const run: ClaimedChatRun = claimed;
   if (run.status === "failed") return { claimed: 1 };
   const lost = new AbortController();
-  const deadline = AbortSignal.timeout(options.timeoutMs ?? ATTEMPT_MS);
+  const deadline = AbortSignal.timeout(options.timeoutMs ?? attemptMs());
   const signal = AbortSignal.any([
     lost.signal,
     deadline,

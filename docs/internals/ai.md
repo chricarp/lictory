@@ -26,8 +26,8 @@ assistant name does not change stored identifiers, routes or authorization.
   discussions it creates. Every run records who requested it.
 - An organization administrator must enable Lictory Intelligence
   (`setAiPolicy`). It is off by default and unavailable when the server has no
-  `OPENAI_API_KEY`. Turning it off fails queued runs before any content is
-  sent.
+  AI provider (see [providers](#providers)). Turning it off fails queued runs
+  before any content is sent.
 
 ## What an AI approval means
 
@@ -374,35 +374,121 @@ messages (with any text they selected; a page of Lictory Spaces only while
 they can still read it), and the tool results the assistant reads with their
 permissions, such as published pages it opens with `getPage`.
 
-Requests use `store: false`.
+Requests to OpenAI and Azure OpenAI use `store: false`. Other providers have
+no such request parameter; their retention is the operator's agreement with
+that provider (or their own policy, for a self-hosted endpoint).
 
-`LICTORY_AI_MODEL` selects the model; the default is `gpt-6-luna`. The provider
-is an adapter (`src/ai/analyzer.ts`). The domain depends on the `Analyzer`
-interface only.
+## Providers
+
+An installation uses one **language model** provider (reviews, proposal
+intake, Litto, titles) and optionally one **speech-to-text** provider
+(dictation). Both come from one catalog (`contracts/ai-provider.ts`): cloud
+providers (OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI,
+Amazon Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter; for speech also
+Deepgram, ElevenLabs, AssemblyAI) and self-hosted servers (Ollama, vLLM,
+LM Studio, llama.cpp, Whisper servers, any OpenAI-compatible endpoint). The
+catalog states each provider's fields, defaults and protocol; the server, the
+admin console and `lictory ai` all read it. Setup is in
+[AI providers](../operations/ai-providers.md). Organizations only decide
+whether their content may be sent.
+
+Invariants:
+
+- **Two sources, never mixed.** Settings come from the server's environment
+  (`LICTORY_AI_*`, `LICTORY_TRANSCRIPTION_*`, or the legacy `OPENAI_API_KEY`)
+  or, when the environment sets none, from instance administrators (admin
+  console, `lictory ai setup`), stored in `instance_ai_setting` with keys
+  encrypted like delivery credentials. The environment wins and makes the
+  console read-only; `LICTORY_AI_CONSOLE=false` turns console configuration
+  off. Without `LICTORY_AI_PROVIDER`, `OPENAI_API_KEY` selects OpenAI as
+  before, and setting a new variable without a provider is an error rather
+  than a guess.
+- **Who chooses endpoints.** Only the operator (environment) and instance
+  administrators (console, CLI) set endpoints; organization members and
+  administrators never do, and no request carries one. Endpoints typed in the
+  console go through a fetch that resolves the host and refuses link-local
+  and cloud metadata addresses (where the machine's own credentials live) and
+  follows no redirect. Environment endpoints are the operator's own and are
+  not restricted.
+- **One destination, no fallback.** Settings resolve
+  (`ai/provider-settings.ts`) to _disabled_, _configured_ or _invalid_; an
+  invalid environment stops the API and worker, an invalid console change is
+  refused before it is stored. Only the selected provider's SDK adapter is
+  built (`ai/provider.ts`), with every setting passed explicitly so an SDK
+  never reads its own environment defaults. A failure names what to check
+  and is never retried on another provider. A provider never receives
+  another vendor's key: a stored key stays with its provider, and dictation
+  reuses the language model's key, endpoint and project only for the same
+  vendor.
+- **Every replica agrees.** Each API and worker process holds the resolved
+  state (`aiState()`); `watchAiSettings` notices a new stored version within
+  ten seconds and refreshes the organizations' directories, which carry the
+  provider kind, model, whether a custom endpoint is in front of it, and how
+  dictation travels (never an endpoint or key).
+- **Credentials stay on the server.** Keys are never written to the
+  directory, logs, run records, responses or the audit log (which records
+  which keys changed, not their values). The console sees only whether each
+  key is set. Live dictation is the one deliberate exception: the browser
+  receives a 60-second, transcription-only OpenAI token, never the key.
+- **The model is untrusted, whatever it is.** Output is validated against the
+  schema and filtered against the analysed context for every provider. In
+  JSON mode (DeepSeek, servers without JSON schemas) the schema is written
+  into the instructions and the answer is still validated.
+- **Capabilities are tested, not assumed.** Whether a model calls tools or
+  follows a schema cannot be read from the protocol. The console's Test
+  before saving and Check connection, and `lictory ai check`, send synthetic
+  content (never organization data) through the real code paths (the review
+  schema, a streamed tool call, an answer after a tool result, a dictation
+  test tone) and report each. Passing proves compatibility, not quality.
+  Known failures (no tool support, no JSON schemas, a context window
+  exceeded, an unreachable `localhost`) become messages that name the
+  setting to change; raw provider bodies never reach people.
+- **Changing provider.** Queued runs and later turns of existing
+  conversations go to the new provider. Each assistant message records which
+  provider configuration generated it (`metadata.generatedBy`, a hash naming
+  no host or key); when earlier turns are sent to a different one, their
+  reasoning and provider metadata are left out of the copy sent, and a turn
+  resumed on another provider drops the old metadata before it is stamped as
+  the new provider's. The stored transcript is unchanged.
+- **Deadlines.** A structured call gives up after the configured timeout (240
+  seconds by default, at most 480), retries included; a review run ends a
+  minute later, inside its ten-minute lease. A Litto attempt runs at least
+  five minutes, or that timeout plus a minute.
+
+Adding a provider means an entry in `contracts/ai-provider.ts`, its SDK
+adapter in `ai/provider.ts` and a contract test against a fake of its
+protocol (`ai/providers.test.ts`). The domain depends on the `Analyzer` and
+drafter interfaces and on `generateStructured`, never on a provider.
 
 ## Voice dictation
 
-The Litto composer can dictate. Words stream into the draft at the
-caret where dictation started, and the person can keep editing while they
-talk. Dictation only fills the draft: nothing is sent until the person sends
-it.
+The Litto composer can dictate. Words go into the draft at the caret where
+dictation started, and the person can keep editing while they talk.
+Dictation only fills the draft: nothing is sent until the person sends it.
 
-- **Same gate as the chat.** The server issues a dictation session only to a
-  member of the organization, and only while Lictory Intelligence is configured and
-  enabled for that organization.
-- **Audio never reaches Lictory.** The server mints a short-lived (60 s),
-  transcription-only credential from the provider. The browser streams the
-  microphone straight to the provider over WebRTC. The key is never sent to
-  the browser, and audio is neither recorded nor stored. A hashed user
-  identifier is sent as the provider's safety identifier.
-- **Edits win.** While nobody touches the dictated words, the provider's final
-  transcript replaces its partial words. Once the person edits inside them,
-  later words are only appended and the final pass is skipped. Edits before or
-  after the dictated words move its anchor. Escape cancels: untouched dictated
-  words are removed, and text that was selected when dictation started is
-  restored.
+- **Same gate as the chat, plus its own.** The server serves dictation only
+  to a member of the organization, only while Lictory Intelligence is
+  configured and enabled for that organization, and only when a dictation
+  provider is configured. The composer shows the microphone only when the
+  directory says so, and the server refuses otherwise.
+- **Live (OpenAI Realtime).** The server mints a short-lived (60 s),
+  transcription-only credential; the browser streams the microphone straight
+  to OpenAI over WebRTC. Audio never reaches Lictory. A hashed user
+  identifier is sent as the provider's safety identifier. While nobody
+  touches the dictated words, the provider's final transcript replaces its
+  partial words; once the person edits inside them, later words are only
+  appended.
+- **Recorded clips (every other provider).** The browser cuts speech into
+  clips at each pause (16 kHz mono WAV, at most 12 s) and posts them in
+  order to `/api/intelligence/transcription/segment`; the server sends each
+  to the configured provider and returns its words, which are appended to
+  the dictated range. Clips are bounded (size, type, a per-person rate) and
+  held in memory for one request: never stored, never logged.
+- **A separate destination.** By default dictation is live OpenAI only when
+  text goes to OpenAI's own API; any other choice is the operator's or an
+  instance administrator's. Members see in their settings where audio goes.
+- Escape cancels: untouched dictated words are removed, and text that was
+  selected when dictation started is restored.
 
-`LICTORY_TRANSCRIPTION_MODEL` selects the model; the default is
-`gpt-live-transcribe`. The provider adapter is
-`src/intelligence/voice/transcription.ts`. It calls the OpenAI Realtime API
-directly because the AI SDK cannot stream this model yet.
+The adapters are `src/intelligence/voice/transcription.ts` (server) and
+`use-dictation.ts` / `segment-recorder.ts` (browser).

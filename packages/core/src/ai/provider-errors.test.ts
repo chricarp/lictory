@@ -35,7 +35,7 @@ void test("provider failures say what to do, after the SDK's retries too", () =>
   );
   assert.match(
     describeProviderError(call(404), "Retry"),
-    /configured AI model is unavailable/,
+    /configured model is unavailable/,
   );
   // Raw provider messages never reach people.
   assert.doesNotMatch(describeProviderError(call(500), "Retry"), /secret/);

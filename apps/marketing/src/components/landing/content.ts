@@ -49,6 +49,11 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
       "Yes. Branches, reviews, discussions, approvals and delivery work without AI. Litto and automated findings assist refinement when Lictory Intelligence is enabled; they never silently rewrite, resolve, approve or publish your work.",
   },
   {
+    question: "Which AI models can we use? Can they run on our own servers?",
+    answer:
+      "Your installation chooses one language model and, for dictation, one speech-to-text model. Cloud: OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI, Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter. Self-hosted: open-weight models on Ollama, vLLM, LM Studio, llama.cpp or any OpenAI-compatible server, and Whisper servers such as Speaches or whisper.cpp for dictation. An instance administrator sets it up in the admin console or with lictory ai setup, and tests it before saving. Requests go only to the provider you chose.",
+  },
+  {
     question: "How long does setup take?",
     answer:
       "Install Lictory on your own server with the lictory command, then create an organization, a project and a team; defaults for work item types, workflow and readiness are ready to use.",

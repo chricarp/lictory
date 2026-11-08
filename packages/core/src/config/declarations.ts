@@ -675,27 +675,267 @@ export const declarations: readonly Declaration[] = [
 
   // ---------------------------------------------------------------------- AI
   {
-    name: "OPENAI_API_KEY",
+    name: "LICTORY_AI_PROVIDER",
     group: "AI",
     services: server,
-    secret: "issued",
+    default:
+      "the admin console's settings, or `openai` when `OPENAI_API_KEY` is set",
+    value: {
+      type: "choice",
+      values: [
+        "openai",
+        "anthropic",
+        "google",
+        "vertex",
+        "azure",
+        "bedrock",
+        "mistral",
+        "xai",
+        "groq",
+        "deepseek",
+        "openrouter",
+        "ollama",
+        "vllm",
+        "lmstudio",
+        "llamacpp",
+        "openai-compatible",
+      ],
+    },
     description:
-      "Enables Lictory Intelligence. Organizations must still opt in. See docs/internals/ai.md.",
+      "The text provider of Lictory Intelligence (reviews, proposal intake, Litto). Setting any AI variable makes the environment the source and the admin console read-only. There is no fallback to another provider. `lictory ai providers` lists them; see docs/operations/ai-providers.md.",
   },
   {
     name: "LICTORY_AI_MODEL",
     group: "AI",
     services: server,
-    default: "`gpt-6-luna`",
+    default: "`gpt-6-luna` with OpenAI; required for other providers",
     description:
-      "Model for review analysis, proposal intake and the assistant.",
+      "Model for review analysis, proposal intake and the assistant: a model id, or the deployment name with `azure`.",
+  },
+  {
+    name: "LICTORY_AI_BASE_URL",
+    group: "AI",
+    services: server,
+    default:
+      "the provider's public API (`openai`, `anthropic`); required for `azure` and `openai-compatible`",
+    description:
+      "The provider's API base URL, set by the operator only. In a container, `localhost` is the container itself: use `host.docker.internal` (same machine) or a private address. No credentials in the URL.",
+  },
+  {
+    name: "LICTORY_AI_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "Key of `LICTORY_AI_PROVIDER`. Required except for `openai-compatible` endpoints without authentication; with `openai`, `OPENAI_API_KEY` is used when it is unset.",
+  },
+  {
+    name: "LICTORY_AI_REGION",
+    group: "AI",
+    services: server,
+    description:
+      "`bedrock`: the AWS region of the model, such as `eu-central-1`.",
+  },
+  {
+    name: "LICTORY_AI_PROJECT",
+    group: "AI",
+    services: server,
+    default: "the service account key's project",
+    description:
+      "`vertex`: the Google Cloud project (not needed with an express-mode API key).",
+  },
+  {
+    name: "LICTORY_AI_LOCATION",
+    group: "AI",
+    services: server,
+    description:
+      "`vertex`: the location, such as `us-central1` or `global` (not needed with an express-mode API key).",
+  },
+  {
+    name: "LICTORY_AI_AWS_ACCESS_KEY_ID",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "`bedrock`: an access key ID, with `LICTORY_AI_AWS_SECRET_ACCESS_KEY`. Without a key pair or a Bedrock API key (`LICTORY_AI_API_KEY`), the server's own AWS identity is used (instance or task role).",
+  },
+  {
+    name: "LICTORY_AI_AWS_SECRET_ACCESS_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`bedrock`: the secret of `LICTORY_AI_AWS_ACCESS_KEY_ID`.",
+  },
+  {
+    name: "LICTORY_AI_AZURE_TENANT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure`: the Microsoft Entra tenant of a service principal, with `LICTORY_AI_AZURE_CLIENT_ID` and `LICTORY_AI_AZURE_CLIENT_SECRET`. Without a key or a service principal, the server's managed identity is used.",
+  },
+  {
+    name: "LICTORY_AI_AZURE_CLIENT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure`: the service principal's client ID, or alone the client ID of a user-assigned managed identity.",
+  },
+  {
+    name: "LICTORY_AI_AZURE_CLIENT_SECRET",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`azure`: the service principal's client secret.",
+  },
+  {
+    name: "IDENTITY_ENDPOINT",
+    group: "AI",
+    services: server,
+    description:
+      "Set by Azure App Service and Container Apps for their managed identity; used for `azure` without a key or service principal. Not configured by hand.",
+  },
+  {
+    name: "IDENTITY_HEADER",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "Set by Azure App Service and Container Apps with `IDENTITY_ENDPOINT`. Not configured by hand.",
+  },
+  {
+    name: "LICTORY_HOST_MODEL_SERVER",
+    group: "AI",
+    services: server,
+    default: "`false`",
+    value: { type: "boolean" },
+    description:
+      "`true` when an AI model server runs on the same machine: Compose maps `host.docker.internal` to the host for the API and worker (`compose.host-models.yaml`), and the admin console stops warning about it.",
+  },
+  {
+    name: "LICTORY_AI_CONSOLE",
+    group: "AI",
+    services: server,
+    default: "`true`",
+    value: { type: "boolean" },
+    description:
+      "`false` stops instance administrators from configuring AI providers in the admin console and with `lictory ai setup`; then only these environment variables do. The console is read-only anyway whenever any AI variable is set.",
+  },
+  {
+    name: "LICTORY_AI_STRUCTURED_OUTPUT",
+    group: "AI",
+    services: server,
+    default: "`json-schema`",
+    value: { type: "choice", values: ["json-schema", "json-object"] },
+    description:
+      "`openai-compatible` only: `json-schema` sends `response_format` with the schema; `json-object` for servers that only support JSON mode (the schema goes into the instructions, the answer is still validated).",
+  },
+  {
+    name: "LICTORY_AI_TIMEOUT_SECONDS",
+    group: "AI",
+    services: server,
+    default: "`240`",
+    value: { type: "integer", minimum: 30 },
+    description:
+      "How long one structured model call may take, retries included (30 to 480). Raise it for slow self-hosted models; review runs end a minute after it.",
+  },
+  {
+    name: "OPENAI_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "OpenAI key. Without `LICTORY_AI_PROVIDER` it selects OpenAI (existing installations); with another text provider it serves OpenAI dictation (`openai` or `openai-realtime`).",
+  },
+  {
+    name: "OPENAI_BASE_URL",
+    group: "AI",
+    services: server,
+    default: "`https://api.openai.com/v1`",
+    description:
+      "Kept for existing installations: the OpenAI base URL when `LICTORY_AI_BASE_URL` is unset and the provider is OpenAI. Prefer `LICTORY_AI_BASE_URL`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_PROVIDER",
+    group: "AI",
+    services: server,
+    default:
+      "`openai-realtime` when text goes to OpenAI's own API, otherwise `none`",
+    value: {
+      type: "choice",
+      values: [
+        "openai-realtime",
+        "openai",
+        "azure",
+        "vertex",
+        "groq",
+        "deepgram",
+        "elevenlabs",
+        "assemblyai",
+        "mistral",
+        "speaches",
+        "whisper-cpp",
+        "openai-compatible",
+        "none",
+      ],
+    },
+    description:
+      "Dictation in the Litto composer. `openai-realtime` streams audio from the browser straight to OpenAI; every other provider receives short clips through this server, which keeps nothing. A provider of the text provider's vendor reuses its key.",
   },
   {
     name: "LICTORY_TRANSCRIPTION_MODEL",
     group: "AI",
-    services: ["api"],
-    default: "`gpt-live-transcribe`",
-    description: "Model for live dictation in the Intelligence composer.",
+    services: server,
+    default:
+      "the provider's default (`gpt-live-transcribe` for `openai-realtime`)",
+    description: "Speech-to-text model, or the deployment name with `azure`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_BASE_URL",
+    group: "AI",
+    services: server,
+    default: "the provider's API; required for `azure` and `openai-compatible`",
+    description:
+      "Base URL of the speech-to-text API, such as a self-hosted Whisper server's `http://host.docker.internal:8000/v1`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_API_KEY",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    default: "the text provider's key when it is the same vendor",
+    description: "Key of `LICTORY_TRANSCRIPTION_PROVIDER`.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_PROJECT",
+    group: "AI",
+    services: server,
+    description: "`vertex` dictation: the Google Cloud project.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_LOCATION",
+    group: "AI",
+    services: server,
+    description: "`vertex` dictation: the location.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_TENANT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure` dictation with its own Microsoft Entra service principal (with the client ID and secret). Empty: the language model's Azure sign-in when it is Azure too, otherwise the managed identity.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_CLIENT_ID",
+    group: "AI",
+    services: server,
+    description: "`azure` dictation: the service principal's client ID.",
+  },
+  {
+    name: "LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`azure` dictation: the service principal's client secret.",
   },
 
   // ------------------------------------------------------------- analytics

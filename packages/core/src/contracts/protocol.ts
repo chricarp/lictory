@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { aiProviderKinds } from "@lictory/core/contracts/ai-provider";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
 import {
   aiActionPolicies,
@@ -976,10 +977,33 @@ export const directorySchema = z.object({
   // The readiness checks each project currently requires (latest revision).
   readiness: z.array(readinessRevisionSchema).default([]),
   // enabled: the organization allows sending its content to the AI provider.
-  // available: this deployment has a configured provider.
+  // available: this deployment has a configured provider. provider and model
+  // say where content goes (never the endpoint or a key); dictation, its mode
+  // (live streaming or recorded clips) and provider: whether and how the
+  // composer dictates.
   ai: z
-    .object({ enabled: z.boolean(), available: z.boolean() })
-    .default({ enabled: false, available: false }),
+    .object({
+      enabled: z.boolean(),
+      available: z.boolean(),
+      provider: z.enum(aiProviderKinds).nullable().default(null),
+      model: z.string().nullable().default(null),
+      customEndpoint: z.boolean().default(false),
+      dictation: z.boolean().default(false),
+      dictationMode: z.enum(["realtime", "segments"]).nullable().default(null),
+      dictationProvider: z.string().nullable().default(null),
+      dictationCustomEndpoint: z.boolean().default(false),
+    })
+    .default({
+      enabled: false,
+      available: false,
+      provider: null,
+      model: null,
+      customEndpoint: false,
+      dictation: false,
+      dictationMode: null,
+      dictationProvider: null,
+      dictationCustomEndpoint: false,
+    }),
 });
 export type Directory = z.infer<typeof directorySchema>;
 // How history names someone who is no longer in the organization.

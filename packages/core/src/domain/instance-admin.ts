@@ -21,6 +21,11 @@ import { auth, policy, signInOptions } from "@lictory/core/lib/auth";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { emailConfigured } from "@lictory/core/lib/mailer";
 import {
+  aiState,
+  describeAiProvider,
+  describeTranscription,
+} from "@lictory/core/ai/provider-settings";
+import {
   normalizeOrganizationHandle,
   organizationHandleProblem,
   suggestOrganizationHandle,
@@ -73,6 +78,7 @@ export const instanceAuditActions = {
   "organization.deletion_scheduled": "Scheduled an organization's deletion",
   "organization.deletion_cancelled": "Cancelled an organization's deletion",
   "organization.deleted": "Deleted an organization",
+  "ai.configured": "Changed the AI provider settings",
 } as const;
 export type InstanceAuditAction = keyof typeof instanceAuditActions;
 
@@ -226,6 +232,13 @@ export async function instanceOverview(db: Database) {
       sso: signInOptions.ssoName,
     },
     email: emailConfigured(),
+    // Where Lictory Intelligence sends content: the endpoint origin and the
+    // setting the key comes from, never the key.
+    ai: {
+      text: describeAiProvider(),
+      dictation: describeTranscription(),
+      source: aiState().source,
+    },
     counts: {
       users: Number(users?.total ?? 0),
       deactivated: Number(users?.deactivated ?? 0),

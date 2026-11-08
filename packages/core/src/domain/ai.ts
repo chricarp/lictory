@@ -19,6 +19,11 @@ import { applyBranchCommand, ensureMain } from "@lictory/core/domain/branches";
 import { DomainError } from "@lictory/core/domain/errors";
 import { refreshDirectories } from "@lictory/core/domain/projections";
 import type { Database, Tx } from "@lictory/core/domain/service";
+import {
+  aiConfigured,
+  aiProvider,
+  dictationConfig,
+} from "@lictory/core/ai/provider-settings";
 
 // Commands that ask Lictory Intelligence for something. They only record
 // requests or apply results a human explicitly chose; the model never runs
@@ -32,8 +37,26 @@ export const aiCommands = new Set([
 const activeStatuses = ["queued", "running"] as const;
 type RunRow = typeof s.aiRun.$inferSelect;
 
-export function aiConfigured() {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+export { aiConfigured };
+
+// What this server's configuration says about Lictory Intelligence, as every
+// organization's directory records it: whether a provider is configured,
+// which one and which model (never its endpoint or key), and dictation.
+export function aiServerState() {
+  const config = aiProvider();
+  const dictation = config ? dictationConfig() : undefined;
+  return {
+    available: Boolean(config),
+    provider: config?.provider ?? null,
+    model: config?.model ?? null,
+    // A gateway or proxy in front of the provider: members are not told the
+    // vendor's name as if requests went to it directly.
+    customEndpoint: Boolean(config?.customBaseUrl),
+    dictation: Boolean(dictation),
+    dictationMode: dictation?.mode ?? null,
+    dictationProvider: dictation?.provider ?? null,
+    dictationCustomEndpoint: Boolean(dictation?.customBaseUrl),
+  };
 }
 export async function aiPolicy(
   db: Database | Tx,
@@ -43,22 +66,30 @@ export async function aiPolicy(
     .select({ enabled: s.organizationAiPolicy.enabled })
     .from(s.organizationAiPolicy)
     .where(eq(s.organizationAiPolicy.organizationId, organizationId));
-  return { enabled: row?.enabled ?? false, available: aiConfigured() };
+  return { enabled: row?.enabled ?? false, ...aiServerState() };
 }
-// Directories record whether this server has an AI provider when they are
-// written, so connecting (or removing) a provider and restarting would leave
-// every organization showing the old state until its next configuration
-// change. At startup, refresh the directories that disagree with this
-// server's configuration. Idempotent; replicas may run it concurrently.
+// Directories record this server's AI configuration when they are written, so
+// connecting, changing or removing a provider and restarting would leave every
+// organization showing the old state until its next configuration change. At
+// startup, refresh the directories that disagree with this server's
+// configuration. Idempotent; replicas may run it concurrently.
 export async function refreshAiAvailability(db: Database) {
-  const configured = aiConfigured();
+  const state = aiServerState();
+  const ai = sql`${s.syncEntity.data}->'ai'`;
   const stale = await db
     .select({ organizationId: s.syncEntity.organizationId })
     .from(s.syncEntity)
     .where(
       and(
         eq(s.syncEntity.type, "directory"),
-        sql`coalesce((${s.syncEntity.data}->'ai'->>'available')::boolean, false) <> ${configured}`,
+        sql`(coalesce((${ai}->>'available')::boolean, false) <> ${state.available}
+          or coalesce(${ai}->>'provider', '') <> ${state.provider ?? ""}
+          or coalesce(${ai}->>'model', '') <> ${state.model ?? ""}
+          or coalesce((${ai}->>'dictation')::boolean, false) <> ${state.dictation}
+          or coalesce((${ai}->>'customEndpoint')::boolean, false) <> ${state.customEndpoint}
+          or coalesce(${ai}->>'dictationMode', '') <> ${state.dictationMode ?? ""}
+          or coalesce(${ai}->>'dictationProvider', '') <> ${state.dictationProvider ?? ""}
+          or coalesce((${ai}->>'dictationCustomEndpoint')::boolean, false) <> ${state.dictationCustomEndpoint})`,
       ),
     );
   await refreshDirectories(
@@ -86,7 +117,7 @@ export function requireAi(ai: Directory["ai"]) {
   if (!ai.available)
     throw new DomainError(
       "unavailable",
-      "Lictory Intelligence is not configured on this server. Ask an administrator to set OPENAI_API_KEY.",
+      "Lictory Intelligence is not configured on this server. An instance administrator can connect an AI provider in the admin console (/admin).",
     );
   if (!ai.enabled)
     throw new DomainError(

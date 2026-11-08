@@ -309,6 +309,13 @@
       "when": 1794048067551,
       "tag": "0043_page_branch_origin_title",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794093199785,
+      "tag": "0044_instance_ai_settings",
+      "breakpoints": true
     }
   ]
 }

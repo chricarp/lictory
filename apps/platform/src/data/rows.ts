@@ -76,7 +76,17 @@ export const emptyDirectoryProjection: DirectoryProjection = {
   iterations: [],
   delivery: { connections: [], targets: [] },
   readiness: [],
-  ai: { enabled: false, available: false },
+  ai: {
+    enabled: false,
+    available: false,
+    provider: null,
+    model: null,
+    customEndpoint: false,
+    dictation: false,
+    dictationMode: null,
+    dictationProvider: null,
+    dictationCustomEndpoint: false,
+  },
 };
 
 // Archived projects still prove that an organization was set up.

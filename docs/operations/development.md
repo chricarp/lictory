@@ -236,12 +236,22 @@ process, for the length of the run:
   provider. The API and worker reach it through the AI SDK's own
   `OPENAI_BASE_URL`.
 
-Only the files named `*.ai.spec.ts` get the AI provider, because a server with
-AI changes what every other workflow sees (Litto as the home page, AI
-controls, onboarding). The runner runs the other files first against a
-server without AI, as a default installation has, then restarts the API and
-worker with the scripted provider (`OPENAI_API_KEY`, `OPENAI_BASE_URL`) for
-the `*.ai.spec.ts` files. Sharded runs keep each file in its shard and phase.
+Only the AI files get the AI provider, because a server with AI changes what
+every other workflow sees (Litto as the home page, AI controls, onboarding).
+The runner runs the browser files in three phases, restarting the API and
+worker between them:
+
+1. Every other file, against a server without AI, as a default installation
+   has.
+2. The `*.ai-console.spec.ts` files, against a server whose environment sets
+   no AI variable at all. An instance administrator connects the scripted
+   provider in the admin console, as an installation without environment
+   settings does.
+3. The `*.ai.spec.ts` files, with the scripted provider configured in the
+   environment (`OPENAI_API_KEY`, `OPENAI_BASE_URL`), as existing
+   installations do.
+
+Sharded runs keep each file in its shard and phase.
 
 Neither stand-in can be reached outside the browser suite: production images
 contain neither `scripts/` nor the preload, no application code imports

@@ -295,6 +295,18 @@ if (command === "setup")
 if (command === "grant-admin" || command === "revoke-admin")
   answer({ user: user(rest[0]), instanceAdmin: command === "grant-admin" });
 if (command === "set-password") answer({ user: user(rest[0]) });
+// AI providers: the real catalog; a save answers with what it saved.
+const off = { state: "disabled" };
+if (command === "ai-status")
+  answer({ source: "console", editable: true, consoleAllowed: true, stored: null, problems: [], warnings: [], hostModelServer: false, text: off, dictation: off });
+if (command === "ai-providers") {
+  const catalog = await import(${JSON.stringify(join(import.meta.dirname, "../contracts/ai-provider.ts"))});
+  answer({ text: catalog.textProviders, transcription: catalog.transcriptionProviders, fieldLabels: catalog.aiFieldLabels });
+}
+if (command === "ai-save") {
+  const saved = JSON.parse(stdin).text;
+  answer({ text: { state: "configured", label: "Mistral", hosting: "cloud", model: saved.model, endpoint: "https://api.mistral.ai/v1", authenticated: true, keySetting: "console" }, dictation: off });
+}
 answer({ error: { code: "usage", message: "unknown command " + command } }, 64);
 `,
     { mode: 0o755 },
@@ -864,6 +876,46 @@ void test(
     assert.ok(!adminCalls(weak.calls).some((call) => call.args[0] === "setup"));
   },
 );
+
+void test("lictory ai setup saves the settings and reports what the server saved", (t) => {
+  const f = bootstrapped(t);
+  stubAdministration(f);
+  mkdirSync(join(f.root, "production"), { recursive: true });
+  writeFileSync(
+    join(f.root, "production/.env"),
+    "APP_HOST=lictory.example.test\n",
+    { mode: 0o600 },
+  );
+  const setup = f.lictory(
+    [
+      "ai",
+      "setup",
+      "--yes",
+      "--no-test",
+      "--provider",
+      "mistral",
+      "--model",
+      "mistral-small-latest",
+      "--dictation",
+      "none",
+    ],
+    { FAKE_ADMINS: "1", LICTORY_AI_API_KEY: "mistral-secret" },
+  );
+  assert.equal(setup.status, 0, setup.stderr + setup.stdout);
+  const save = adminCalls(setup.calls).find((c) => c.args[0] === "ai-save")!;
+  // The key travels on stdin, never as an argument.
+  assert.ok(!save.args.join(" ").includes("mistral-secret"));
+  assert.deepEqual(JSON.parse(save.stdin), {
+    text: {
+      provider: "mistral",
+      model: "mistral-small-latest",
+      apiKey: "mistral-secret",
+    },
+    transcription: null,
+  });
+  // The summary is the save's answer, not an earlier command's output.
+  assert.match(setup.stdout, /Mistral \(cloud\) · model mistral-small-latest/);
+});
 
 void test("lictory admin passes commands to the api container", (t) => {
   const f = bootstrapped(t);

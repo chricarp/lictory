@@ -184,20 +184,26 @@ an existing account is linked automatically only when the provider asserts
 
 ## Lictory Intelligence
 
-| Setting                       | Meaning                                  |
-| ----------------------------- | ---------------------------------------- |
-| `OPENAI_API_KEY`              | Enables Lictory Intelligence with OpenAI |
-| `LICTORY_AI_MODEL`            | Model for reviews and chat (optional)    |
-| `LICTORY_TRANSCRIPTION_MODEL` | Model for dictation (optional)           |
+Set AI providers up in the admin console (**Admin console → AI providers**)
+or in the terminal:
 
 ```sh
-sudo lictory config set OPENAI_API_KEY=sk-…
+sudo lictory ai setup     # choose providers, models and keys; test; save
+sudo lictory ai check     # check what is saved
 ```
 
-With a key configured, an organization administrator still decides whether
-Lictory Intelligence may run for their organization (**Organization settings
-→ Lictory Intelligence**). Content people ask it to analyze is sent to
-OpenAI; uploaded documents are converted to text on your server first.
+Cloud providers (OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI,
+Amazon Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter) and open-weight models
+on your own hardware (Ollama, vLLM, LM Studio, llama.cpp, Whisper servers for
+dictation) are supported. [AI providers](/self-hosting/ai-providers) covers each
+one, self-hosted models on the same machine or a private server, dictation and
+the environment variables (`LICTORY_AI_*`), which take precedence when set.
+
+With a provider configured, an organization administrator still decides
+whether Lictory Intelligence may run for their organization (**Organization
+settings → Lictory Intelligence**). Content people ask it to analyze is sent
+to the configured provider; uploaded documents are converted to text on your
+server first.
 
 ## Live editing
 

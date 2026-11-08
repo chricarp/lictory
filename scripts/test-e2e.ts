@@ -79,9 +79,19 @@ function oidcEnv(issuer: string | undefined) {
 // Application settings shared by the API, the worker and the collaboration
 // service. Integrations stay disabled; placeholder OAuth clients let tests
 // reach provider redirects.
-// Never a developer's own AI endpoint.
+// Never a developer's own AI provider, endpoint or key: every AI setting is
+// cleared, then each phase configures the scripted provider explicitly.
+const aiSettings = Object.keys(process.env).filter(
+  (name) =>
+    name.startsWith("LICTORY_AI_") ||
+    name.startsWith("LICTORY_TRANSCRIPTION_") ||
+    name.startsWith("OPENAI_") ||
+    name === "LICTORY_HOST_MODEL_SERVER",
+);
 const inherited = { ...process.env };
-delete inherited.OPENAI_BASE_URL;
+for (const name of aiSettings) delete inherited[name];
+const parentEnv = { ...process.env };
+for (const name of aiSettings) delete parentEnv[name];
 const appEnv = {
   ...inherited,
   NODE_ENV: "production" as const,
@@ -321,10 +331,18 @@ if (shard) {
 }
 if (!files.length) throw new Error("No browser tests match these arguments.");
 // Workflows of Lictory Intelligence run after the others, against the API and
-// worker restarted with the scripted AI provider.
+// worker restarted with the scripted AI provider: configured in their
+// environment (*.ai.spec.ts, as existing installations do), or by an instance
+// administrator in the admin console (*.ai-console.spec.ts, which starts
+// with no AI settings at all and stores its own).
 const needsAi = (file: string) => file.endsWith(".ai.spec.ts");
+const configuresAi = (file: string) => file.endsWith(".ai-console.spec.ts");
 const phases = [
-  { ai: false, files: files.filter((file) => !needsAi(file)) },
+  {
+    ai: false,
+    files: files.filter((file) => !needsAi(file) && !configuresAi(file)),
+  },
+  { ai: false, console: true, files: files.filter(configuresAi) },
   { ai: true, files: files.filter(needsAi) },
 ].filter((phase) => phase.files.length);
 const projects = new Set(
@@ -343,6 +361,7 @@ const reportDir = process.env.E2E_UPDATE_TIMINGS
 
 let fakeJira: Awaited<ReturnType<typeof startFakeJira>> | undefined;
 let scriptedAi: Awaited<ReturnType<typeof startScriptedAi>> | undefined;
+let aiEnv: (ai: boolean) => Record<string, string> = () => ({});
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
 try {
@@ -416,14 +435,20 @@ try {
   // route that only this script passes; with `ai`, the scripted provider
   // through the AI SDK's OPENAI_BASE_URL.
   const scriptedAiKey = "e2e-scripted-ai-key";
+  // The existing-installation configuration (an OpenAI key, the SDK's base
+  // URL), so the browser suite keeps covering it.
+  aiEnv = (ai: boolean): Record<string, string> =>
+    ai
+      ? {
+          OPENAI_API_KEY: scriptedAiKey,
+          OPENAI_BASE_URL: `${scriptedAi!.url}/v1`,
+          LICTORY_AI_MODEL: "e2e-scripted",
+        }
+      : { OPENAI_API_KEY: "" };
   const backendEnv = (ai: boolean): NodeJS.ProcessEnv => ({
     ...appEnv,
     E2E_FAKE_ROUTES: JSON.stringify({ [FAKE_JIRA_SITE]: fakeJira!.url }),
-    ...(ai && {
-      OPENAI_API_KEY: scriptedAiKey,
-      OPENAI_BASE_URL: `${scriptedAi!.url}/v1`,
-      LICTORY_AI_MODEL: "e2e-scripted",
-    }),
+    ...aiEnv(ai),
   });
   const preload = ["--import", "./scripts/e2e-fakes/route-fake-sites.ts"];
   let backend: ChildProcess[] = [];
@@ -535,7 +560,7 @@ try {
   for (const [index, phase] of phases.entries()) {
     if (index > 0) {
       console.log(
-        `Restarting the API and worker ${phase.ai ? "with" : "without"} the scripted AI provider for ${phase.files.join(", ")}.`,
+        `Restarting the API and worker ${phase.ai ? "with" : "without"} the scripted AI provider${"console" in phase ? " (configured in the admin console)" : ""} for ${phase.files.join(", ")}.`,
       );
       await startBackend(phase.ai);
       await waitFor("api", `http://localhost:${ports.api}/readyz`);
@@ -547,7 +572,7 @@ try {
       stdio: "inherit",
       detached: true,
       env: {
-        ...process.env,
+        ...parentEnv,
         DATABASE_URL: url,
         E2E_PLATFORM_URL: platformUrl,
         E2E_MARKETING_URL: siteUrl,
@@ -555,11 +580,13 @@ try {
         // The test's side of the fakes (what people do in Jira, what was
         // sent to the AI provider).
         E2E_FAKE_JIRA_URL: fakeJira.url,
-        ...(phase.ai && { E2E_SCRIPTED_AI_URL: scriptedAi.url }),
+        ...((phase.ai || "console" in phase) && {
+          E2E_SCRIPTED_AI_URL: scriptedAi.url,
+        }),
         // Tests seed through the domain writer, which records in each
-        // organization's directory whether the server has an AI provider:
-        // the same answer as the API and worker of this phase.
-        OPENAI_API_KEY: phase.ai ? scriptedAiKey : "",
+        // organization's directory whether the server has an AI provider
+        // (and which): the same answer as the API and worker of this phase.
+        ...aiEnv(phase.ai),
         // This phase's files (playwright.config.ts restricts the run to them).
         E2E_FILES: JSON.stringify(phase.files),
         E2E_JSON_REPORT: jsonReport,

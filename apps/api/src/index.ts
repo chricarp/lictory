@@ -4,6 +4,10 @@ import "@lictory/api/configuration";
 import { serve } from "@hono/node-server";
 import { closeDatabase, db } from "@lictory/core/db";
 import { refreshAiAvailability } from "@lictory/core/domain/ai";
+import {
+  refreshAiState,
+  watchAiSettings,
+} from "@lictory/core/domain/ai-settings";
 import { realtime } from "@lictory/core/domain/realtime";
 import { flushAnalytics } from "@lictory/core/lib/analytics/server";
 import { env, envInteger } from "@lictory/core/lib/env";
@@ -22,6 +26,21 @@ const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
 // Partial mail settings stop the API (configuration rules); without any
 // transport it starts with email disabled and a startup warning.
 const mail = mailTransportSummary();
+
+// AI provider settings stored from the admin console (the environment, when
+// it configures AI, is already in effect). A database that cannot be read yet
+// leaves AI as the environment says and the watcher retries.
+await refreshAiState(db).catch((error: unknown) =>
+  console.warn(
+    JSON.stringify({
+      event: "api.ai_settings_load_failed",
+      reason: error instanceof Error ? error.message : String(error),
+    }),
+  ),
+);
+watchAiSettings(db, {
+  log: (event, detail) => console.info(JSON.stringify({ event, ...detail })),
+});
 
 // File storage is optional: without it attachments are disabled. A partial or
 // malformed configuration stops the API with the variables to fix.

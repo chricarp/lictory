@@ -10,6 +10,7 @@ import postgres from "postgres";
 
 import * as s from "@lictory/core/db/schema";
 import { rebuildProjections } from "@lictory/core/domain/projections";
+import { refreshAiState } from "@lictory/core/domain/ai-settings";
 import { env } from "@lictory/core/lib/env";
 
 const url = env("DATABASE_URL_UNPOOLED") ?? env("DATABASE_URL");
@@ -19,6 +20,8 @@ const db = drizzle(client, { schema: s });
 
 try {
   const requested = process.argv.slice(2);
+  // Directories record the AI provider: use the stored settings, like the API.
+  await refreshAiState(db);
   const organizationIds = requested.length
     ? requested
     : (await db.select({ id: s.organization.id }).from(s.organization)).map(

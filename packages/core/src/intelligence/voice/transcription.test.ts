@@ -63,3 +63,42 @@ void test("is unavailable without a configured key", async () => {
       e instanceof CapabilityError && e.category === "unavailable",
   );
 });
+
+void test("a self-hosted text provider does not open OpenAI dictation unless the operator chose it", async () => {
+  const names = [
+    "LICTORY_AI_PROVIDER",
+    "LICTORY_AI_BASE_URL",
+    "LICTORY_AI_MODEL",
+    "OPENAI_API_KEY",
+    "LICTORY_TRANSCRIPTION_PROVIDER",
+  ];
+  const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+  Object.assign(process.env, {
+    LICTORY_AI_PROVIDER: "openai-compatible",
+    LICTORY_AI_BASE_URL: "http://ollama:11434/v1",
+    LICTORY_AI_MODEL: "qwen3",
+    OPENAI_API_KEY: "sk-present-but-not-chosen",
+  });
+  delete process.env.LICTORY_TRANSCRIPTION_PROVIDER;
+  let calls = 0;
+  const spy = (async () => {
+    calls++;
+    return Response.json({ value: "ek", expires_at: 1 });
+  }) as unknown as typeof fetch;
+  try {
+    await assert.rejects(
+      createDictationSession("u", { fetch: spy }),
+      (e: unknown) =>
+        e instanceof CapabilityError &&
+        e.message.includes("LICTORY_TRANSCRIPTION_PROVIDER"),
+    );
+    assert.equal(calls, 0);
+    process.env.LICTORY_TRANSCRIPTION_PROVIDER = "openai-realtime";
+    await createDictationSession("u", { fetch: spy });
+    assert.equal(calls, 1);
+  } finally {
+    for (const n of names)
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+  }
+});

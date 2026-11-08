@@ -81,7 +81,15 @@ const DELETION_INTERVAL_MS = 5 * 60_000;
 export function workerJobs(
   db: Database,
   config: WorkerConfig,
-  options: { analyzer?: Analyzer } = {},
+  options: {
+    analyzer?: Analyzer;
+    /**
+     * Resolves once the AI provider settings are loaded. The AI and chat jobs
+     * claim nothing before it does: a run claimed without its provider would
+     * fail. A rejection fails the run, so the job backs off and tries again.
+     */
+    aiSettings?: () => Promise<void>;
+  } = {},
 ): Job[] {
   return [
     ...Array.from({ length: 4 }, (_, index): Job => ({
@@ -89,6 +97,7 @@ export function workerJobs(
       kind: "chat",
       intervalMs: 5_000,
       async run({ cancel }) {
+        await options.aiSettings?.();
         const counts = await processChatRuns(db, { signal: cancel });
         return { more: counts.claimed > 0 && !cancel.aborted, counts };
       },
@@ -100,6 +109,7 @@ export function workerJobs(
       // One run at a time: model calls are long, and the loop keeps going
       // while runs are queued.
       async run({ cancel }) {
+        await options.aiSettings?.();
         const r = await processAiRuns(db, {
           analyzer: options.analyzer,
           limit: 1,

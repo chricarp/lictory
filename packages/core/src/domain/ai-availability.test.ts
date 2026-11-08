@@ -20,21 +20,30 @@ url.pathname = `/${name}`;
 const client = postgres(url.toString(), { max: 5, onnotice: () => undefined });
 const db = drizzle(client, { schema: s });
 let created = false;
-const savedKey = process.env.OPENAI_API_KEY;
+// Every AI setting, so a developer's own never changes the outcome.
+const aiSettings = Object.keys(process.env).filter(
+  (k) =>
+    k.startsWith("LICTORY_AI_") ||
+    k.startsWith("LICTORY_TRANSCRIPTION_") ||
+    k.startsWith("OPENAI_"),
+);
+const saved = Object.fromEntries(aiSettings.map((k) => [k, process.env[k]]));
+for (const k of aiSettings) delete process.env[k];
 before(async () => {
   await admin`CREATE DATABASE ${admin(name)}`;
   created = true;
   await migrate(db, { migrationsFolder: "drizzle" });
 });
 after(async () => {
-  if (savedKey === undefined) delete process.env.OPENAI_API_KEY;
-  else process.env.OPENAI_API_KEY = savedKey;
+  for (const k of aiSettings)
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
   await client.end();
   if (created) await admin`DROP DATABASE ${admin(name)} WITH (FORCE)`;
   await admin.end();
 });
 
-void test("connecting an AI provider reaches existing directories at startup", async () => {
+void test("connecting or changing an AI provider reaches existing directories at startup", async () => {
   delete process.env.OPENAI_API_KEY;
   const userId = crypto.randomUUID();
   const organizationId = crypto.randomUUID();
@@ -70,7 +79,7 @@ void test("connecting an AI provider reaches existing directories at startup", a
       },
     },
   );
-  const available = async () => {
+  const ai = async () => {
     const [row] = await db
       .select({ data: s.syncEntity.data })
       .from(s.syncEntity)
@@ -80,15 +89,48 @@ void test("connecting an AI provider reaches existing directories at startup", a
           eq(s.syncEntity.type, "directory"),
         ),
       );
-    return (row!.data as unknown as Directory).ai.available;
+    return (row!.data as unknown as Directory).ai;
   };
+  const available = async () => (await ai()).available;
   assert.equal(await available(), false);
   // The provider is connected and the server restarts.
   process.env.OPENAI_API_KEY = "test-key-not-a-credential";
   assert.equal(await refreshAiAvailability(db), 1);
   assert.equal(await available(), true);
+  assert.deepEqual(await ai(), {
+    enabled: false,
+    available: true,
+    provider: "openai",
+    model: "gpt-6-luna",
+    customEndpoint: false,
+    dictation: true,
+    dictationMode: "realtime",
+    dictationProvider: "openai-realtime",
+    dictationCustomEndpoint: false,
+  });
   // Nothing left to refresh on the next start.
   assert.equal(await refreshAiAvailability(db), 0);
+  // Moving to a self-hosted model is a change members must see: where
+  // content goes, and that dictation (OpenAI) is no longer offered.
+  process.env.LICTORY_AI_PROVIDER = "openai-compatible";
+  process.env.LICTORY_AI_BASE_URL = "http://host.docker.internal:11434/v1";
+  process.env.LICTORY_AI_MODEL = "qwen3:32b";
+  assert.equal(await refreshAiAvailability(db), 1);
+  assert.deepEqual(await ai(), {
+    enabled: false,
+    available: true,
+    provider: "openai-compatible",
+    model: "qwen3:32b",
+    customEndpoint: true,
+    dictation: false,
+    dictationMode: null,
+    dictationProvider: null,
+    dictationCustomEndpoint: false,
+  });
+  assert.equal(await refreshAiAvailability(db), 0);
+  delete process.env.LICTORY_AI_PROVIDER;
+  delete process.env.LICTORY_AI_BASE_URL;
+  delete process.env.LICTORY_AI_MODEL;
   // Removing the provider is reflected the same way.
   delete process.env.OPENAI_API_KEY;
   assert.equal(await refreshAiAvailability(db), 1);

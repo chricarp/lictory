@@ -106,7 +106,7 @@ import { notifyItemActivity } from "@lictory/core/notifications/server";
 import {
   actionCheckProblem,
   aiCommands,
-  aiConfigured,
+  aiServerState,
   aiPolicy,
   aiRunEntities,
   aiRunEntity,
@@ -285,7 +285,7 @@ export async function directory(
       iterations: [],
       delivery: { connections: [], targets: [] },
       readiness: [],
-      ai: { enabled: false, available: aiConfigured() },
+      ai: { enabled: false, ...aiServerState() },
     };
   requireValue(
     organizations.find((o) => o.id === organizationId),
