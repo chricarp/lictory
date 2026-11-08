@@ -3241,7 +3241,17 @@ cmd_ai() {
       settings=$(jq -n --argjson t "$ai_json_text" --argjson d "$transcription_json" --argjson s "$timeout_json" '{text: $t, transcription: $d} + (if $s == null then {} else {timeoutSeconds: $s} end)')
       # A model server on this machine needs the host alias in the
       # containers, before the test can reach it.
-      if printf '%s' "$settings" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then
+      # The effective endpoints: what was typed, or else the provider's
+      # default (self-hosted presets default to this machine).
+      local endpoints text_url dictation_url=""
+      text_url=$(jq -r '.text.baseUrl // empty' <<<"$settings")
+      [ -n "$text_url" ] || text_url=$(admin_value ".text[\"$provider\"].defaultBaseUrl // empty")
+      if [ "$(jq -r '.transcription | type' <<<"$settings")" = object ]; then
+        dictation_url=$(jq -r '.transcription.baseUrl // empty' <<<"$settings")
+        [ -n "$dictation_url" ] || dictation_url=$(admin_value ".transcription[\"$dictation\"].defaultBaseUrl // empty")
+      fi
+      endpoints="$text_url $dictation_url"
+      if printf '%s' "$endpoints" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then
         note "The containers reach a server on this machine as host.docker.internal once LICTORY_HOST_MODEL_SERVER=true (it restarts the services, about a minute)."
         if confirm "Set LICTORY_HOST_MODEL_SERVER=true now?"; then
           "$0" config set --env "$environment" --yes LICTORY_HOST_MODEL_SERVER=true || die "LICTORY_HOST_MODEL_SERVER was not applied; nothing about AI was saved."
