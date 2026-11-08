@@ -1,13 +1,13 @@
 "use client";
 
 import { ChevronDown, Server } from "lucide-react";
-import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 
 import { Stage } from "@lictory/marketing/vendor/stageshow/stage";
 import type { Act } from "@lictory/marketing/vendor/stageshow/act";
 import type { Layout } from "@lictory/marketing/vendor/stageshow/looks";
 import { Window } from "@lictory/marketing/vendor/stageshow/window";
 import { Check } from "@lictory/marketing/vendor/stageshow/parts/Check";
+import { Field as KitField } from "@lictory/marketing/vendor/stageshow/controls/Field";
 import { States } from "@lictory/marketing/vendor/stageshow/motion/States";
 import { Collapse } from "@lictory/marketing/vendor/stageshow/motion/Collapse";
 import {
@@ -95,7 +95,7 @@ async function script(a: Act<S>) {
   a.put({ beat: 2 });
   await a.wait(500);
   a.mark("test");
-  if (!compact) await a.click("test");
+  if (!compact) await a.click({ at: "test", x: 0.86, y: 0.7 });
   a.put({ beat: 3 });
   await a.stagger(
     CHECKS,
@@ -106,7 +106,7 @@ async function script(a: Act<S>) {
     0,
   );
   await a.wait(500);
-  if (!compact) await a.click("save");
+  if (!compact) await a.click({ at: "save", x: 0.82, y: 0.7 });
   a.put({ beat: 4 });
   await a.wait(450);
   a.put({ beat: DONE });
@@ -165,9 +165,6 @@ function ConsoleWindow({ s, layout }: { s: S; layout: Layout }) {
       <div className="md-console">
         <div className="md-card">
           <div className="md-card-head">
-            <span className="md-mark">
-              <IntelligenceMark />
-            </span>
             <span className="md-card-title">Language model</span>
           </div>
           <div className="md-field">
@@ -205,19 +202,16 @@ function ConsoleWindow({ s, layout }: { s: S; layout: Layout }) {
               }}
             />
           </Field>
-          <Field label="Model" target="model">
-            {s.model ? (
-              <span className="md-mono">{s.model}</span>
-            ) : (
-              <span className="md-placeholder">qwen3:32b</span>
-            )}
-            <span
-              className="md-caret"
-              data-on={
-                (s.beat === 1 && s.model.length < MODEL.length) || undefined
-              }
+          <div className="md-field">
+            <span className="md-label">Model</span>
+            <KitField
+              className="md-kit-field"
+              value={s.model}
+              placeholder="A model you pulled"
+              focused={s.beat === 1}
+              box={{ "data-target": "model" }}
             />
-          </Field>
+          </div>
         </div>
         <div className="md-card md-card--dictation">
           <Field label="Dictation">
@@ -238,13 +232,13 @@ function ConsoleWindow({ s, layout }: { s: S; layout: Layout }) {
         </div>
         <div className="md-actions">
           <span className="md-button md-button--primary" data-target="save">
-            <States
-              value={s.beat >= 4 ? "saved" : "save"}
-              states={{ save: "Save", saved: "Saved" }}
-            />
+            Save
           </span>
           <span className="md-button" data-target="test">
             Test before saving
+          </span>
+          <span className="md-saved" data-on={s.beat >= 4 || undefined}>
+            Saved
           </span>
         </div>
         <Collapse open={s.beat >= 3} reveal="drop">
@@ -287,6 +281,12 @@ function SentTo({ s }: { s: S }) {
         <span className="md-mono md-strong">
           {s.beat >= DONE ? MODEL : "—"}
         </span>
+        <span className="md-filler" style={{ width: 52 }} />
+        <span className="md-filler" style={{ width: 180 }} />
+        <span className="md-filler" style={{ width: 40 }} />
+        <span className="md-filler" style={{ width: 210 }} />
+        <span className="md-filler" style={{ width: 58 }} />
+        <span className="md-filler" style={{ width: 150 }} />
       </div>
     </Window>
   );
@@ -314,7 +314,7 @@ export function ModelsScene() {
           key={run}
           width={1184}
           height={520}
-          compact={{ below: 860, width: 390, height: 600 }}
+          compact={{ below: 860, width: 390, height: 430 }}
           initial={initial}
           poster={poster}
           script={script}

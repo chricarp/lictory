@@ -21,17 +21,21 @@
 
 .md-win--org {
   top: 196px;
-  left: 772px;
+  /* One gutter on the right, the console's 28px on the left */
+  left: 784px;
   z-index: 2;
   width: 372px;
+  /* Runs off the bottom edge: only its filler rows are cut */
+  height: 360px;
   box-shadow: var(--ss-shadow-satellite);
 }
 
+/* The window runs off the bottom edge: no empty band under the checks */
 .md .ss-stage[data-layout="compact"] .md-win--console {
   top: 16px;
   left: 16px;
   width: 358px;
-  height: 620px;
+  height: 460px;
 }
 
 .md .ss-stage[data-layout="compact"] .md-console {
@@ -39,9 +43,11 @@
   padding: 14px;
 }
 
+/* Phone: no card boxes, so labels, buttons and checks share one edge */
 .md .ss-stage[data-layout="compact"] .md-card {
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 0;
+  box-shadow: none;
 }
 
 .md .ss-stage[data-layout="compact"] .md-card-head {
@@ -51,7 +57,7 @@
 .md .ss-stage[data-layout="compact"] .md-checks {
   grid-template-columns: 1fr;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 4px 0 0;
 }
 
 .md-console {
@@ -92,6 +98,7 @@
 .md-mark svg {
   width: 18px;
   height: 18px;
+  overflow: visible;
 }
 
 .md-field {
@@ -101,9 +108,26 @@
   gap: 12px;
 }
 
+/* Phone: a summary, not a squeezed form. Each value sits under its label as
+   plain text; only the field being typed keeps its box. */
 .md .ss-stage[data-layout="compact"] .md-field {
   grid-template-columns: 1fr;
-  gap: 6px;
+  gap: 4px;
+}
+
+.md .ss-stage[data-layout="compact"] :is(.md-input, .md-select) {
+  height: auto;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.md .ss-stage[data-layout="compact"] .md-chevron {
+  display: none;
+}
+
+.md .ss-stage[data-layout="compact"] :is(.md-input, .md-select) .md-mono {
+  font-size: 11.5px;
 }
 
 .md-label {
@@ -113,6 +137,7 @@
 
 .md-input,
 .md-select {
+  will-change: transform;
   position: relative;
   display: flex;
   align-items: center;
@@ -163,6 +188,7 @@
 }
 
 .md-tag {
+  will-change: transform;
   display: inline-flex;
   align-items: center;
   height: 20px;
@@ -173,6 +199,15 @@
   color: var(--ss-text);
   font-size: 11px;
   font-weight: 500;
+}
+
+/* The kit's typed field, in the form's own size and type */
+.md-kit-field .ss-field__box {
+  will-change: transform;
+  height: 34px;
+  border-radius: var(--ss-radius-md);
+  font-family: var(--ss-mono);
+  font-size: 12px;
 }
 
 .md-caret {
@@ -190,7 +225,8 @@
 /* The provider list: cloud and self-hosted in one menu, under the select. */
 .md-menu {
   position: absolute;
-  top: 88px;
+  /* Just under the provider select, well clear of the next field */
+  top: 86px;
   left: 124px;
   z-index: 3;
   display: grid;
@@ -202,17 +238,41 @@
     var(--ss-shadow-satellite),
     inset 0 0 0 1px var(--ss-line);
   opacity: 0;
-  transform: translateY(-4px) scale(0.98);
+  will-change: transform;
   transform-origin: top left;
-  transition:
-    opacity 0.16s ease,
-    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Closing only fades: the menu never moves on its way out */
+  transition: opacity 0.16s ease;
   pointer-events: none;
 }
 
 .md-menu[data-open] {
   opacity: 1;
-  transform: none;
+  animation: md-menu-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes md-menu-in {
+  from {
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.md-saved {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px;
+  color: var(--ss-success-text);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.md-saved[data-on] {
+  opacity: 1;
 }
 
 .md-group {
@@ -229,7 +289,8 @@
   align-items: center;
   justify-content: space-between;
   height: 28px;
-  padding: 0 10px;
+  /* A pill inside keeps one inset all round */
+  padding: 0 4px 0 10px;
   border-radius: var(--ss-radius-sm);
   color: var(--ss-text-strong);
   font-size: 12.5px;
@@ -246,6 +307,7 @@
 }
 
 .md-button {
+  will-change: transform;
   display: inline-flex;
   align-items: center;
   height: 32px;
@@ -266,17 +328,12 @@
   color: var(--lx-on-accent);
 }
 
-.md-button[data-pressed] {
-  transform: scale(0.97);
-}
-
 .md-checks {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 16px;
-  padding: 12px 14px;
-  border-radius: var(--ss-radius-lg);
-  background: var(--ss-chrome);
+  /* Check rows start where the buttons do */
+  padding: 4px 0 0;
 }
 
 .md-check {
@@ -285,10 +342,6 @@
   gap: 8px;
   color: var(--ss-text-strong);
   font-size: 12.5px;
-}
-
-.md-check .ss-check[data-on] {
-  color: var(--ss-success);
 }
 
 /* The organization's view: where its content goes. */
@@ -316,6 +369,13 @@
   height: 15px;
   margin-top: 1px;
   color: var(--ss-success);
+}
+
+.md-filler {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ss-line-faint);
 }
 
 .md-rest {
