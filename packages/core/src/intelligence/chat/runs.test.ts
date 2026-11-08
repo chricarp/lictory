@@ -520,60 +520,65 @@ void test("the real model adapter persists questions and approvals and continues
   const f = await fixture();
   await submitChatRun(db, f.owner, f.chatId, f.input);
   let calls = 0;
-  const model = new MockLanguageModelV4({
-    doStream: async () => {
-      const step = calls++;
-      const asking = step === 0;
-      const approving = step === 1;
-      return {
-        stream: new ReadableStream({
-          start(controller) {
-            controller.enqueue({ type: "stream-start", warnings: [] });
-            if (asking)
+  // A `config` of its own, as the OpenAI SDK's models have: still a model,
+  // not a configured model and provider pair.
+  const model = Object.assign(
+    new MockLanguageModelV4({
+      doStream: async () => {
+        const step = calls++;
+        const asking = step === 0;
+        const approving = step === 1;
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: "stream-start", warnings: [] });
+              if (asking)
+                controller.enqueue({
+                  type: "tool-call",
+                  toolCallId: "real-question",
+                  toolName: "askQuestions",
+                  input: JSON.stringify(question),
+                });
+              else if (approving)
+                controller.enqueue({
+                  type: "tool-call",
+                  toolCallId: "real-approval",
+                  toolName: "setAiPolicy",
+                  input: JSON.stringify({ enabled: true }),
+                });
+              else {
+                controller.enqueue({ type: "text-start", id: "answer" });
+                controller.enqueue({
+                  type: "text-delta",
+                  id: "answer",
+                  delta: "Thanks, scope recorded.",
+                });
+                controller.enqueue({ type: "text-end", id: "answer" });
+              }
               controller.enqueue({
-                type: "tool-call",
-                toolCallId: "real-question",
-                toolName: "askQuestions",
-                input: JSON.stringify(question),
-              });
-            else if (approving)
-              controller.enqueue({
-                type: "tool-call",
-                toolCallId: "real-approval",
-                toolName: "setAiPolicy",
-                input: JSON.stringify({ enabled: true }),
-              });
-            else {
-              controller.enqueue({ type: "text-start", id: "answer" });
-              controller.enqueue({
-                type: "text-delta",
-                id: "answer",
-                delta: "Thanks, scope recorded.",
-              });
-              controller.enqueue({ type: "text-end", id: "answer" });
-            }
-            controller.enqueue({
-              type: "finish",
-              finishReason: {
-                unified: asking || approving ? "tool-calls" : "stop",
-                raw: undefined,
-              },
-              usage: {
-                inputTokens: {
-                  total: 1,
-                  noCache: 1,
-                  cacheRead: 0,
-                  cacheWrite: 0,
+                type: "finish",
+                finishReason: {
+                  unified: asking || approving ? "tool-calls" : "stop",
+                  raw: undefined,
                 },
-                outputTokens: { total: 1, text: 1, reasoning: 0 },
-              },
-            });
-            controller.close();
-          },
-        }),
-      };
-    },
-  });
+                usage: {
+                  inputTokens: {
+                    total: 1,
+                    noCache: 1,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  outputTokens: { total: 1, text: 1, reasoning: 0 },
+                },
+              });
+              controller.close();
+            },
+          }),
+        };
+      },
+    }),
+    { config: { provider: "openai.responses" } },
+  );
   await f.work(chatGenerator(() => model));
   assert.equal((await f.snapshot()).run?.status, "waiting");
   await submitChatRun(db, f.owner, f.chatId, {

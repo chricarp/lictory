@@ -58,8 +58,10 @@ export function chatGenerator(
 ): ChatGenerator {
   return async function* ({ messages, roster, owner, ctx, signal }) {
     const resolved = source();
+    // Every SDK model declares its specification version; a configured pair
+    // does not (SDK models may have a `config` of their own).
     const { model, config } =
-      typeof resolved === "object" && "config" in resolved
+      typeof resolved === "object" && !("specificationVersion" in resolved)
         ? resolved
         : { model: resolved, config: substituted };
     const fingerprint = providerFingerprint(config);
