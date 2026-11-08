@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 
 import { ComparisonTable } from "@lictory/marketing/components/landing/comparison";
-import { comparisons } from "@lictory/marketing/content/comparisons";
+import {
+  comparisonPath,
+  comparisons,
+} from "@lictory/marketing/content/comparisons";
+import { roundups } from "@lictory/marketing/content/roundups";
 import { faqs } from "@lictory/marketing/components/landing/content";
 import { StructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
@@ -35,7 +39,7 @@ import { TrackedLink } from "@lictory/marketing/components/marketing/tracked-lin
 export function Landing() {
   return (
     <div className="marketing-site min-h-dvh bg-background text-foreground">
-      <MarketingHeader />
+      <MarketingHeader page="home" />
       <main id="main-content">
         <Hero />
         <Shift />
@@ -68,8 +72,8 @@ function Hero() {
             specification in parallel, then approve one reviewed result.
           </p>
           <div className="hero-actions">
-            <GetStartedCta placement="hero" />
-            <RepositoryCta placement="hero" />
+            <GetStartedCta placement="hero" page="home" />
+            <RepositoryCta placement="hero" page="home" />
           </div>
         </div>
       </div>
@@ -594,8 +598,14 @@ function Comparison() {
       <ComparisonTable />
       <div className="compare-links">
         {comparisons.map((item) => (
-          <Link key={item.slug} href={`/compare/${item.slug}`}>
+          <Link key={item.slug} href={comparisonPath(item)}>
             Lictory vs {item.competitor}
+            <ArrowRight aria-hidden />
+          </Link>
+        ))}
+        {roundups.map((item) => (
+          <Link key={item.path} href={item.path}>
+            {item.headline}
             <ArrowRight aria-hidden />
           </Link>
         ))}
@@ -619,7 +629,7 @@ function OpenSource() {
       </div>
       <TrackedLink
         href={openSource.repositoryUrl}
-        tracking={{ cta: "github", placement: "open_source" }}
+        tracking={{ cta: "github", placement: "open_source", page: "home" }}
         className="source-link"
       >
         View on GitHub <ArrowUpRight aria-hidden />
@@ -667,8 +677,8 @@ function FinalCta() {
         </p>
       </div>
       <div className="final-cta-actions">
-        <GetStartedCta placement="final" />
-        <RepositoryCta placement="final" />
+        <GetStartedCta placement="final" page="home" />
+        <RepositoryCta placement="final" page="home" />
       </div>
     </section>
   );

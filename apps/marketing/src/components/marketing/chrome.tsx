@@ -2,10 +2,14 @@ import Link from "next/link";
 
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { Logo } from "@lictory/ui/logo";
-import { comparisons } from "@lictory/marketing/content/comparisons";
+import {
+  comparisonPath,
+  comparisons,
+} from "@lictory/marketing/content/comparisons";
+import { roundups } from "@lictory/marketing/content/roundups";
 import { cn } from "@lictory/core/lib/utils";
 
-// Shared footer for the landing page, guides and comparisons.
+// Shared footer for the landing page, guides, comparisons and roundups.
 
 const footerLinkClass = "hover:text-foreground";
 
@@ -37,10 +41,21 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             {comparisons.map((comparison) => (
               <Link
                 key={comparison.slug}
-                href={`/compare/${comparison.slug}`}
+                href={comparisonPath(comparison)}
                 className={footerLinkClass}
               >
                 Lictory vs {comparison.competitor}
+              </Link>
+            ))}
+          </div>
+          <div className="flex flex-col gap-2">
+            {roundups.map((roundup) => (
+              <Link
+                key={roundup.path}
+                href={roundup.path}
+                className={footerLinkClass}
+              >
+                {roundup.headline}
               </Link>
             ))}
             <Link href="/guides" className={footerLinkClass}>

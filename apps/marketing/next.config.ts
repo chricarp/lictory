@@ -70,6 +70,15 @@ const nextConfig: NextConfig = {
           source: "/compare/:product.md",
           destination: "/markdown/compare/:product.md",
         },
+        {
+          source: "/alternatives/:slug.md",
+          destination: "/markdown/alternatives/:slug.md",
+        },
+        {
+          source:
+            "/:page(self-hosted-jira-alternative|best-requirements-management-tools).md",
+          destination: "/markdown/:page.md",
+        },
       ],
       afterFiles: [],
       fallback: [],

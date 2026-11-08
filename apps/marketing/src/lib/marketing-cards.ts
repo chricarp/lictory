@@ -1,5 +1,6 @@
 import { comparison as findComparison } from "@lictory/marketing/content/comparisons";
 import { guide as findGuide } from "@lictory/marketing/content/guides";
+import { roundup as findRoundup } from "@lictory/marketing/content/roundups";
 import { ogCard } from "@lictory/marketing/lib/og-card";
 import { siteUrl } from "@lictory/marketing/lib/site";
 
@@ -27,5 +28,17 @@ export function comparisonCard(slug: string) {
     titleSize: 84,
     subtitle: item.verdict.lictory,
     footer: ["Requirements, reviewed like code.", `${host}/compare/${slug}`],
+  });
+}
+
+export function roundupCard(path: string) {
+  const item = findRoundup(path)!;
+  return ogCard({
+    eyebrow: item.page === "roundup" ? "Roundup" : "Alternatives",
+    title: item.headline,
+    titleSize: item.headline.length > 32 ? 64 : 76,
+    subtitle:
+      "Who each tool suits, with licensing, hosting and pricing from the vendors’ own sources.",
+    footer: ["Requirements, reviewed like code.", `${host}${path}`],
   });
 }

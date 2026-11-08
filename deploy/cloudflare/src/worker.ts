@@ -53,8 +53,10 @@ export default {
       if (path.startsWith("/markdown/"))
         return new Response(null, { status: 404 });
       if (
-        path === "/guides.md" ||
-        /^\/(guides|compare)\/[^/]+\.md$/.test(path)
+        /^\/(guides|self-hosted-jira-alternative|best-requirements-management-tools)\.md$/.test(
+          path,
+        ) ||
+        /^\/(guides|compare|alternatives)\/[^/]+\.md$/.test(path)
       ) {
         const assetUrl = new URL(request.url);
         assetUrl.pathname = `/markdown${path}`;

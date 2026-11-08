@@ -4,6 +4,7 @@
 import { openSource } from "@lictory/marketing/lib/open-source";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import { roundups } from "@lictory/marketing/content/roundups";
 import { configuredOrigin } from "@lictory/marketing/lib/origin";
 
 /**
@@ -92,6 +93,14 @@ export const publicPages: readonly PublicPage[] = [
   },
   ...comparisons.map((item): PublicPage => ({
     path: `/compare/${item.slug}`,
+    title: item.title,
+    description: item.description,
+    changeFrequency: "monthly",
+    priority: 0.8,
+    lastModified: item.updated,
+  })),
+  ...roundups.map((item): PublicPage => ({
+    path: item.path,
     title: item.title,
     description: item.description,
     changeFrequency: "monthly",

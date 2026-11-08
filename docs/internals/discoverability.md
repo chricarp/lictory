@@ -30,7 +30,8 @@ as the visible page:
   short Markdown index and a complete product overview for AI assistants. The
   landing page links to the index with `rel="alternate"`. The index links to
   the Markdown version of a page where one exists.
-- **Markdown pages**: the guides index, each guide and each comparison are also
+- **Markdown pages**: the guides index, each guide, each comparison and each
+  alternatives or roundup page are also
   served as Markdown at the page URL plus `.md` (`/guides/definition-of-ready.md`),
   so AI assistants and agents can read them without navigation or scripts. The
   HTML page advertises it with `rel="alternate" type="text/markdown"`, and the
@@ -41,11 +42,13 @@ as the visible page:
   page and every guide. Dates come from the content, never the build.
 - **JSON-LD** on the landing page describes the `Organization` (with logo),
   `WebSite`, `WebPage` and its primary image, the product as a
-  `WebApplication` (its free offer links to the installation guide on
+  `SoftwareApplication` (its free offer links to the installation guide on
   `docs.lictory.com`) and the
-  `FAQPage`. Guides, comparisons and the legal notices publish
-  their own `WebPage` and `BreadcrumbList` with the shared `Organization` and
-  `WebSite`, because search engines do not resolve `@id` references across
+  `FAQPage`. Guides, comparisons, alternatives pages and the legal notices
+  publish their own `WebPage` and `BreadcrumbList` with the shared
+  `Organization` and `WebSite`; comparisons and alternatives pages add the same
+  `SoftwareApplication` node and their `FAQPage` (roundups also an `ItemList`
+  naming the listed products, without claims about them), because search engines do not resolve `@id` references across
   pages. Payloads escape `<` so content can never close the script element.
   Never add ratings, reviews or prices that the page does not show.
 - **Metadata**: every indexable public page gets its own title, description,
@@ -58,10 +61,11 @@ as the visible page:
 - Content that is collapsed for people (comparison rows, FAQ answers) stays in
   the HTML and is only hidden visually, so crawlers read all of it.
 
-## Guides and comparisons
+## Guides, comparisons and alternatives
 
-`/guides/*` and `/compare/*` are statically generated from the content modules
-in `src/content/`. They give search engines and AI assistants pages that answer
+`/guides/*`, `/compare/*`, `/alternatives/*`, `/self-hosted-jira-alternative`
+and `/best-requirements-management-tools` are statically generated from the
+content modules in `src/content/`. They give search engines and AI assistants pages that answer
 specific questions (what is a Definition of Ready, how does Lictory compare with
 Jira) instead of one landing page competing for every query. Each page has its
 own generated social card, a visible breadcrumb matching its `BreadcrumbList`,
@@ -70,10 +74,22 @@ change it only for material edits. The full text of the guides and comparisons
 is also in `/llms-full.txt`.
 
 Guides lead with product-neutral advice and describe Lictory only where it
-applies. Comparisons state other products' built-in capabilities as we
-understand them, say where those products fit better, and must not claim
+applies. Comparisons say where other products fit better and must not claim
 integrations Lictory does not have: publishing is to Jira Cloud today, and
 Linear is described as coming.
+
+Facts about other products (license, hosting, pricing model, Jira import) live
+once, in the product profiles of `src/content/products.ts`, and every page that
+mentions a product reads them from there. Each profile lists the vendor pages
+it was checked against and the date of that check; pages show the sources and a
+"Last reviewed" date. Only state what the vendor's own website, documentation
+or repository says; when something cannot be confirmed there, leave it out or
+mark the capability "Not documented" rather than guess. Lictory's own
+limitations (no importer, no Gantt or time tracking, OpenID Connect only, Jira
+Cloud only) are stated as plainly as anyone else's. Re-check the profiles before
+changing their `reviewed` date. Pages about the same products answer different
+questions (open-source licensing versus running it yourself) and must stay
+distinct rather than become near-duplicates.
 
 ## Boundaries
 

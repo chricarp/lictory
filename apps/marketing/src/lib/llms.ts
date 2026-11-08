@@ -1,5 +1,6 @@
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import { roundups } from "@lictory/marketing/content/roundups";
 import {
   comparisonCellText,
   comparisonProducts,
@@ -12,7 +13,9 @@ import {
   guideMarkdown,
   hasMarkdown,
   markdownPath,
+  roundupMarkdown,
 } from "@lictory/marketing/lib/markdown";
+import { installUrl, repositoryUrl } from "@lictory/marketing/lib/get-started";
 import {
   absoluteUrl,
   guidesFeedPath,
@@ -101,6 +104,18 @@ function comparisonArticles() {
 ${comparisons.map((item) => demoteHeadings(comparisonMarkdown(item), 2)).join("\n\n")}`;
 }
 
+function roundupArticles() {
+  return `## Alternatives and roundups
+
+${roundups.map((item) => demoteHeadings(roundupMarkdown(item), 2)).join("\n\n")}`;
+}
+
+const projectLinks = `## Project
+
+- [Source code on GitHub](${repositoryUrl}): the MIT-licensed repository, with releases, issues and the contribution guide.
+- [Documentation](https://docs.lictory.com): how to use Lictory, self-host it and connect agents.
+- [Installation guide](${installUrl}): install Lictory on your own Linux server.`;
+
 function faq() {
   return `## Frequently asked questions
 
@@ -115,9 +130,11 @@ export function llmsIndex() {
 
 ${pageLinks()}
 
+${projectLinks}
+
 ## Optional
 
-- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the comparisons and guides.
+- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the comparisons, alternatives, roundups and guides.
 - [Guides feed](${absoluteUrl(guidesFeedPath)}): RSS feed of new and updated guides.
 `;
 }
@@ -134,10 +151,14 @@ ${faq()}
 
 ${comparisonArticles()}
 
+${roundupArticles()}
+
 ${guideArticles()}
 
 ## Pages
 
 ${pageLinks()}
+
+${projectLinks}
 `;
 }

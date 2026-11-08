@@ -44,7 +44,7 @@ export default async function GuidePage({
   const path = `/guides/${guide.slug}`;
   const related = guides.filter((other) => other.slug !== guide.slug);
   return (
-    <MarketingPage>
+    <MarketingPage page="guide">
       <Breadcrumbs
         items={[
           { name: "Lictory", href: "/" },
@@ -58,7 +58,7 @@ export default async function GuidePage({
         </PageHeading>
         <Prose className="mt-10">{guide.body}</Prose>
       </article>
-      <TryLictory />
+      <TryLictory page="guide" />
       <section aria-labelledby="related-title" className="mt-16">
         <h2 id="related-title" className="text-lg font-medium">
           More guides

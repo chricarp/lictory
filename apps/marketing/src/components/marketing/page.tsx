@@ -3,19 +3,28 @@ import { ArrowRight, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
+import { formatDate } from "@lictory/marketing/components/marketing/comparison-parts";
 import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
 import {
   GetStartedCta,
   RepositoryCta,
 } from "@lictory/marketing/components/marketing/get-started-cta";
+import type { CtaPageType } from "@lictory/marketing/lib/cta-analytics";
 import { cn } from "@lictory/core/lib/utils";
 
 /** Shared marketing frame for public guides and comparisons. */
-export function MarketingPage({ children }: { children: ReactNode }) {
+export function MarketingPage({
+  page,
+  children,
+}: {
+  /** Reported with the page's calls to action. */
+  page: CtaPageType;
+  children: ReactNode;
+}) {
   return (
     <div className="marketing-site min-h-dvh bg-background text-foreground">
-      <MarketingHeader sections="/" />
+      <MarketingHeader sections="/" page={page} />
       <main
         id="main-content"
         className="marketing-article px-5 py-16 sm:px-8 sm:py-24"
@@ -79,18 +88,23 @@ export function PageHeading({
   );
 }
 
-export function Updated({ date }: { date: string }) {
+export function Updated({
+  date,
+  reviewed,
+}: {
+  date: string;
+  /** When facts about other products were last checked against their sites. */
+  reviewed?: string;
+}) {
   return (
     <p className="mt-4 text-[13px] text-muted-foreground">
-      Updated{" "}
-      <time dateTime={date}>
-        {new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          timeZone: "UTC",
-        })}
-      </time>
+      Updated <time dateTime={date}>{formatDate(date)}</time>
+      {reviewed ? (
+        <>
+          {" · "}Last reviewed{" "}
+          <time dateTime={reviewed}>{formatDate(reviewed)}</time>
+        </>
+      ) : null}
     </p>
   );
 }
@@ -144,6 +158,7 @@ export function Prose({
         "text-[15px] leading-7 text-foreground/80 sm:text-base sm:leading-8",
         "[&_li]:pl-1 [&_ol]:mt-5 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_p]:mt-5 [&_ul]:mt-5 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5",
         "[&_strong]:font-medium [&_strong]:text-foreground",
+        "[&_code]:text-[0.9em] [&_code]:[overflow-wrap:anywhere]",
         "[&_a]:text-foreground [&_a]:underline [&_a]:decoration-foreground/25 [&_a]:underline-offset-4 [&_a:hover]:decoration-foreground",
         "[&_blockquote]:mt-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/50 [&_blockquote]:pl-5 [&_blockquote]:text-foreground/90",
         className,
@@ -155,9 +170,11 @@ export function Prose({
 }
 
 export function TryLictory({
+  page,
   title = "Try it with one spec",
   children = "Start with one rough idea. Invite your team. Turn it into a spec you can build.",
 }: {
+  page: CtaPageType;
   title?: string;
   children?: ReactNode;
 }) {
@@ -170,8 +187,16 @@ export function TryLictory({
         </p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
-        <GetStartedCta placement="final" className="w-full sm:w-auto" />
-        <RepositoryCta placement="final" className="w-full sm:w-auto" />
+        <GetStartedCta
+          placement="final"
+          page={page}
+          className="w-full sm:w-auto"
+        />
+        <RepositoryCta
+          placement="final"
+          page={page}
+          className="w-full sm:w-auto"
+        />
       </div>
     </aside>
   );
