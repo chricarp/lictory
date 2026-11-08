@@ -19,7 +19,7 @@ export const metadata = publicPageMetadata("/guides");
 export default function GuidesPage() {
   const { title, description } = publicPage("/guides");
   return (
-    <MarketingPage>
+    <MarketingPage page="guide">
       <Breadcrumbs
         items={[{ name: "Lictory", href: "/" }, { name: "Guides" }]}
       />
@@ -33,7 +33,7 @@ export default function GuidesPage() {
           </li>
         ))}
       </ul>
-      <TryLictory />
+      <TryLictory page="guide" />
       <JsonLd
         data={publicPageStructuredData("/guides", {
           pageType: "CollectionPage",

@@ -98,7 +98,7 @@ test("the landing page describes itself with structured data", async ({
     expect.arrayContaining([
       "Organization",
       "WebSite",
-      "WebApplication",
+      "SoftwareApplication",
       "FAQPage",
     ]),
   );

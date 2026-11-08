@@ -1,18 +1,13 @@
 import { JsonLd } from "@lictory/marketing/components/json-ld";
-import { installUrl } from "@lictory/marketing/lib/get-started";
-import {
-  comparisonRows,
-  faqs,
-} from "@lictory/marketing/components/landing/content";
+import { faqs } from "@lictory/marketing/components/landing/content";
 import {
   absoluteUrl,
   marketingImage,
   siteDescription,
-  siteName,
-  siteSummary,
   siteTitle,
 } from "@lictory/marketing/lib/site";
 import {
+  applicationNode,
   faqNode,
   organizationNode,
   schemaIds,
@@ -55,32 +50,7 @@ export const landingStructuredData = {
       primaryImageOfPage: { "@id": ids.image },
       image: { "@id": ids.image },
     },
-    {
-      // A SoftwareApplication that people use in the browser; each team
-      // installs its own server.
-      "@type": "WebApplication",
-      "@id": ids.application,
-      name: siteName,
-      url: absoluteUrl("/"),
-      description: siteSummary,
-      applicationCategory: "BusinessApplication",
-      applicationSubCategory: "Requirements management and project management",
-      operatingSystem: "Web browser",
-      browserRequirements: "Requires JavaScript and a modern web browser.",
-      image: { "@id": ids.image },
-      publisher: { "@id": ids.organization },
-      isAccessibleForFree: true,
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-        description: "Free and open source (MIT), installed on your own server",
-        url: installUrl,
-      },
-      featureList: comparisonRows
-        .filter((row) => row.lictory === "yes")
-        .map((row) => row.feature),
-    },
+    { ...applicationNode, image: { "@id": ids.image } },
     faqNode("/", faqs),
   ],
 };

@@ -1,12 +1,13 @@
-import { Check, Minus } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "@lictory/marketing/components/json-ld";
 import {
-  comparisonCellText,
-  comparisonRows,
-  type ComparisonCell,
-} from "@lictory/marketing/components/landing/content";
+  CapabilityValue,
+  FactsTable,
+  FaqSection,
+  SectionTitle,
+  Sources,
+} from "@lictory/marketing/components/marketing/comparison-parts";
 import {
   Breadcrumbs,
   LinkCard,
@@ -17,15 +18,16 @@ import {
   Updated,
 } from "@lictory/marketing/components/marketing/page";
 import {
+  capabilityRows,
   comparison as findComparison,
+  comparisonPath,
   comparisons,
 } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import { product as findProduct } from "@lictory/marketing/content/products";
+import { roundups } from "@lictory/marketing/content/roundups";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
-import {
-  faqNode,
-  publicPageStructuredData,
-} from "@lictory/marketing/lib/structured-data";
+import { comparisonStructuredData } from "@lictory/marketing/lib/comparison-structured-data";
 import { cn } from "@lictory/core/lib/utils";
 
 export const dynamicParams = false;
@@ -41,54 +43,29 @@ export async function generateMetadata({
   return publicPageMetadata(`/compare/${product}`, { ownImage: true });
 }
 
-function Cell({
-  value,
-  highlight,
-}: {
-  value: ComparisonCell;
-  highlight?: boolean;
-}) {
-  if (value === "yes")
-    return (
-      <Check
-        role="img"
-        aria-label={comparisonCellText.yes}
-        className={cn(
-          "size-4",
-          highlight ? "text-primary" : "text-foreground/70",
-        )}
-      />
-    );
-  if (value === "no")
-    return (
-      <Minus
-        role="img"
-        aria-label={comparisonCellText.no}
-        className="size-4 text-muted-foreground"
-      />
-    );
-  return (
-    <span className="text-xs text-muted-foreground">
-      {comparisonCellText[value]}
-    </span>
-  );
-}
-
 export default async function ComparisonPage({
   params,
 }: PageProps<"/compare/[product]">) {
   const { product } = await params;
   const item = findComparison(product);
   if (!item) notFound();
-  const path = `/compare/${item.slug}`;
   const others = comparisons.filter((other) => other.slug !== item.slug);
+  const profiles = item.product
+    ? [findProduct("lictory"), findProduct(item.product)]
+    : [];
+  // Roundups that include this competitor.
+  const related = roundups.filter(
+    (roundup) =>
+      item.product &&
+      roundup.entries.some((entry) => entry.product === item.product),
+  );
   return (
-    <MarketingPage>
+    <MarketingPage page="comparison">
       <Breadcrumbs
         items={[{ name: "Lictory", href: "/" }, { name: item.headline }]}
       />
       <PageHeading title={item.headline} lead={item.intro}>
-        <Updated date={item.updated} />
+        <Updated date={item.updated} reviewed={profiles[1]?.reviewed} />
       </PageHeading>
 
       <div className="mt-10 grid gap-3 sm:grid-cols-2">
@@ -116,12 +93,7 @@ export default async function ComparisonPage({
       </div>
 
       <section aria-labelledby="table-title" className="mt-14">
-        <h2
-          id="table-title"
-          className="text-2xl font-semibold tracking-[-0.03em] sm:text-3xl"
-        >
-          Capabilities at a glance
-        </h2>
+        <SectionTitle id="table-title">Capabilities at a glance</SectionTitle>
         <div className="mt-6 overflow-hidden rounded-xl border border-border">
           <table className="w-full text-sm">
             <caption className="sr-only">
@@ -150,22 +122,27 @@ export default async function ComparisonPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {comparisonRows.map((row) => (
+              {capabilityRows(item).map((row) => (
                 <tr key={row.feature}>
                   <th
                     scope="row"
                     className="px-4 py-3 text-left font-normal text-foreground/85 sm:px-5"
                   >
                     {row.feature}
+                    {row.note ? (
+                      <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                        {row.note}
+                      </span>
+                    ) : null}
                   </th>
                   <td className="bg-primary/5 px-2 py-3">
                     <span className="flex justify-center">
-                      <Cell value={row.lictory} highlight />
+                      <CapabilityValue value={row.lictory} highlight />
                     </span>
                   </td>
                   <td className="px-2 py-3">
                     <span className="flex justify-center">
-                      <Cell value={row[item.slug]} />
+                      <CapabilityValue value={row.competitor} />
                     </span>
                   </td>
                 </tr>
@@ -174,10 +151,23 @@ export default async function ComparisonPage({
           </table>
         </div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-          Built-in capabilities as we understand them. Marketplace add-ons and
-          integrations may change the picture.
+          {item.capabilities
+            ? `Built-in capabilities, checked against ${item.competitor}’s public documentation. “Not documented” means we could not find it there, not that it is impossible.`
+            : "Built-in capabilities as we understand them. Marketplace add-ons and integrations may change the picture."}
         </p>
       </section>
+
+      {profiles.length ? (
+        <section aria-labelledby="facts-title" className="mt-14">
+          <SectionTitle id="facts-title">
+            Licensing, hosting and pricing
+          </SectionTitle>
+          <FactsTable
+            products={profiles}
+            caption={`Licensing, hosting and pricing of Lictory and ${item.competitor}`}
+          />
+        </section>
+      ) : null}
 
       {item.sections.map((section) => (
         <section key={section.id} id={section.id} className="scroll-mt-24">
@@ -185,39 +175,27 @@ export default async function ComparisonPage({
         </section>
       ))}
 
-      <section
-        id="faq"
-        aria-labelledby="faq-title"
-        className="mt-14 scroll-mt-24"
-      >
-        <h2
-          id="faq-title"
-          className="text-2xl font-semibold tracking-[-0.03em] sm:text-3xl"
-        >
-          Frequently asked questions
-        </h2>
-        <div className="mt-6 divide-y divide-border border-y border-border">
-          {item.faqs.map(({ question, answer }) => (
-            <div key={question} className="py-5">
-              <h3 className="text-[15px] font-medium">{question}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {answer}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <FaqSection faqs={item.faqs} />
 
-      <TryLictory />
+      <TryLictory page="comparison" />
+
+      <Sources products={profiles} />
 
       <section aria-labelledby="more-title" className="mt-16">
         <h2 id="more-title" className="text-lg font-medium">
           Keep reading
         </h2>
         <ul className="mt-4 grid gap-3">
+          {related.map((roundup) => (
+            <li key={roundup.path}>
+              <LinkCard href={roundup.path} title={roundup.headline}>
+                {roundup.description}
+              </LinkCard>
+            </li>
+          ))}
           {others.map((other) => (
             <li key={other.slug}>
-              <LinkCard href={`/compare/${other.slug}`} title={other.headline}>
+              <LinkCard href={comparisonPath(other)} title={other.headline}>
                 {other.description}
               </LinkCard>
             </li>
@@ -232,11 +210,7 @@ export default async function ComparisonPage({
         </ul>
       </section>
 
-      <JsonLd
-        data={publicPageStructuredData(path, {
-          nodes: [faqNode(path, item.faqs)],
-        })}
-      />
+      <JsonLd data={comparisonStructuredData(item)} />
     </MarketingPage>
   );
 }

@@ -24,20 +24,24 @@ afterEach(() => {
   configureAnalytics(null);
 });
 
-void test("a call to action click reports which one, where, and its destination", () => {
+void test("a call to action click reports which one, where, on which kind of page, and its destination", () => {
   configureAnalytics({
     projectToken: "phc_test",
     host: "https://eu.i.posthog.com",
     consent: "cookieless",
   });
   const captured = fakePostHog();
-  trackCtaClick({ cta: "get_started", placement: "hero" }, installUrl);
+  trackCtaClick(
+    { cta: "get_started", placement: "final", page: "comparison" },
+    installUrl,
+  );
   assert.deepEqual(captured, [
     [
       "cta_clicked",
       {
         cta: "get_started",
-        placement: "hero",
+        placement: "final",
+        page_type: "comparison",
         href: installUrl,
         analytics_version: 1,
         source: "client",
@@ -49,6 +53,9 @@ void test("a call to action click reports which one, where, and its destination"
 void test("without analytics settings a click sends nothing", () => {
   configureAnalytics(null);
   const captured = fakePostHog();
-  trackCtaClick({ cta: "github", placement: "open_source" }, installUrl);
+  trackCtaClick(
+    { cta: "github", placement: "open_source", page: "home" },
+    installUrl,
+  );
   assert.deepEqual(captured, []);
 });

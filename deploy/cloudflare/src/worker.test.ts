@@ -160,6 +160,45 @@ void test("exported Markdown has a canonical HTML target and cannot be indexed a
   );
 });
 
+void test("comparison, alternatives and roundup pages have exported Markdown versions", async () => {
+  const requested: string[] = [];
+  const assets = {
+    ...env,
+    ASSETS: {
+      fetch: (request: Request) => {
+        requested.push(new URL(request.url).pathname);
+        return Promise.resolve(new Response("# Page"));
+      },
+    },
+  };
+  for (const path of [
+    "/compare/lictory-vs-plane",
+    "/alternatives/jira",
+    "/self-hosted-jira-alternative",
+    "/best-requirements-management-tools",
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}.md`),
+      assets,
+    );
+    assert.equal(
+      response.headers.get("Content-Type"),
+      "text/markdown; charset=utf-8",
+      path,
+    );
+    assert.equal(
+      response.headers.get("Link"),
+      `<https://lictory.com${path}>; rel="canonical"`,
+    );
+  }
+  assert.deepEqual(requested, [
+    "/markdown/compare/lictory-vs-plane.md",
+    "/markdown/alternatives/jira.md",
+    "/markdown/self-hosted-jira-alternative.md",
+    "/markdown/best-requirements-management-tools.md",
+  ]);
+});
+
 void test("the documentation relays analytics like the website, and only when PostHog is configured", async () => {
   const sent = captureFetch();
   const docs = {

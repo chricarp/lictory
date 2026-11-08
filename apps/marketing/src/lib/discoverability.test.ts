@@ -56,7 +56,7 @@ void describe("search discoverability", () => {
 
   void test("the landing page offer leads to the installation guide", () => {
     const application = landingStructuredData["@graph"].find(
-      (node) => node["@type"] === "WebApplication",
+      (node) => node["@type"] === "SoftwareApplication",
     ) as { offers: { "@type": string; url: string } };
     assert.equal(application.offers["@type"], "Offer");
     assert.equal(application.offers.url, installUrl);

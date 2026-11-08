@@ -6,9 +6,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@lictory/ui/logo";
 import { HeaderGetStartedLinks } from "@lictory/marketing/components/marketing/get-started-cta";
 import { MobileNav } from "@lictory/marketing/components/marketing/mobile-nav";
+import type { CtaPageType } from "@lictory/marketing/lib/cta-analytics";
 
 /** Section anchors point home when this header appears on an article. */
-export function MarketingHeader({ sections = "" }: { sections?: string }) {
+export function MarketingHeader({
+  sections = "",
+  page,
+}: {
+  sections?: string;
+  /** Reported with the header's calls to action. */
+  page: CtaPageType;
+}) {
   const pathname = usePathname();
   const links = useMemo(
     () =>
@@ -77,7 +85,7 @@ export function MarketingHeader({ sections = "" }: { sections?: string }) {
         <Logo className="header-logo" />
         <DesktopNav links={links} activeHref={activeHref} />
         <div className="header-account">
-          <HeaderGetStartedLinks />
+          <HeaderGetStartedLinks page={page} />
         </div>
         <MobileNav links={links} activeHref={activeHref} />
       </div>

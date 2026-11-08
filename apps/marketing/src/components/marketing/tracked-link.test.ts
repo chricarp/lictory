@@ -30,7 +30,7 @@ void test("clicking a tracked link reports the CTA and still runs its own handle
   let handled = 0;
   const link = TrackedLink({
     href: repositoryUrl,
-    tracking: { cta: "github", placement: "open_source" },
+    tracking: { cta: "github", placement: "open_source", page: "home" },
     onClick: () => handled++,
     children: "View on GitHub",
   }) as ReactElement<{
@@ -48,10 +48,11 @@ void test("clicking a tracked link reports the CTA and still runs its own handle
   assert.equal(handled, 1);
   assert.equal(prevented, false);
   assert.deepEqual(
-    captured.map(([event, { cta, placement, href }]) => ({
+    captured.map(([event, { cta, placement, page_type, href }]) => ({
       event,
       cta,
       placement,
+      page_type,
       href,
     })),
     [
@@ -59,6 +60,7 @@ void test("clicking a tracked link reports the CTA and still runs its own handle
         event: "cta_clicked",
         cta: "github",
         placement: "open_source",
+        page_type: "home",
         href: repositoryUrl,
       },
     ],

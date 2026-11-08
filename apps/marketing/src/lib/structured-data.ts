@@ -1,5 +1,8 @@
+import { comparisonRows } from "@lictory/marketing/components/landing/content";
+import { installUrl } from "@lictory/marketing/lib/get-started";
 import {
   absoluteUrl,
+  marketingImage,
   publicPage,
   publicPages,
   siteDescription,
@@ -47,6 +50,37 @@ export const websiteNode = {
   description: siteDescription,
   inLanguage: "en",
   publisher: { "@id": schemaIds.organization },
+};
+
+/**
+ * Lictory itself. Each team installs its own server and uses it in the
+ * browser. Published on every page that describes the product, with the same
+ * @id, so search engines and AI assistants connect the pages to one product.
+ * Never add ratings or reviews: the pages show none.
+ */
+export const applicationNode = {
+  "@type": "SoftwareApplication",
+  "@id": schemaIds.application,
+  name: siteName,
+  url: absoluteUrl("/"),
+  description: siteSummary,
+  applicationCategory: "BusinessApplication",
+  applicationSubCategory: "Requirements management and project management",
+  operatingSystem: "Linux (server, Docker); used in a web browser",
+  license: "https://opensource.org/license/mit",
+  image: absoluteUrl(marketingImage.path),
+  publisher: { "@id": schemaIds.organization },
+  isAccessibleForFree: true,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+    description: "Free and open source (MIT), installed on your own server",
+    url: installUrl,
+  },
+  featureList: comparisonRows
+    .filter((row) => row.lictory === "yes")
+    .map((row) => row.feature),
 };
 
 /** Home, then every ancestor that is itself a public page, then the page. */
