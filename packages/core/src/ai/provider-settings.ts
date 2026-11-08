@@ -545,7 +545,9 @@ export function resolveText(
           ? (keySetting ?? name("apiKey"))
           : text.clientSecret
             ? name("clientSecret")
-            : undefined,
+            : spec.vendor === "azure"
+              ? "the server's managed identity"
+              : undefined,
       region: text.region,
       accessKeyId: text.accessKeyId,
       secretAccessKey: text.secretAccessKey,
@@ -708,7 +710,11 @@ export function resolveTranscriptionSettings(
       keySetting:
         merged.apiKey || checked.googleCredentials
           ? (keySetting ?? name("apiKey"))
-          : undefined,
+          : merged.clientSecret
+            ? (keySetting ?? name("clientSecret"))
+            : spec.vendor === "azure"
+              ? "the server's managed identity"
+              : undefined,
       entra: entraOf(spec.vendor, merged),
       timeoutMs: clipTimeoutMs(settings),
       source,
@@ -1035,7 +1041,7 @@ export function describeAiProvider(source?: Environment) {
       !!config.apiKey ||
       !!config.accessKeyId ||
       !!config.googleCredentials ||
-      config.entra?.kind === "service-principal",
+      !!config.entra,
     ),
     keySetting: config.keySetting ?? null,
     region: config.region ?? null,
@@ -1065,9 +1071,7 @@ export function describeTranscription(source?: Environment) {
     model: config.model,
     endpoint: endpointOf(config.baseURL),
     authenticated:
-      !!config.apiKey ||
-      !!config.googleCredentials ||
-      config.entra?.kind === "service-principal",
+      !!config.apiKey || !!config.googleCredentials || !!config.entra,
     keySetting: config.keySetting ?? null,
     source: config.source,
   } as const;

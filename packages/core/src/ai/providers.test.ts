@@ -1172,9 +1172,9 @@ void test("speech failures name dictation's own settings", async () => {
     await assert.rejects(
       transcribeSegment(syntheticWav(), "audio/wav"),
       (e: Error) =>
-        e.message.includes('LICTORY_TRANSCRIPTION_MODEL') &&
-        e.message.includes('LICTORY_TRANSCRIPTION_BASE_URL') &&
-        !e.message.includes('LICTORY_AI_MODEL'),
+        e.message.includes("LICTORY_TRANSCRIPTION_MODEL") &&
+        e.message.includes("LICTORY_TRANSCRIPTION_BASE_URL") &&
+        !e.message.includes("LICTORY_AI_MODEL"),
     );
   } finally {
     setAiState(undefined);
