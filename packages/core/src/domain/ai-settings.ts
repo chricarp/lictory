@@ -33,6 +33,7 @@ import {
   type ProviderSettings,
 } from "@lictory/core/ai/provider-settings";
 import {
+  aiFieldLabels,
   secretFields,
   textProviderOf,
   transcriptionProviderOf,
@@ -59,9 +60,8 @@ const ROW = "instance";
 // Bound as associated data: the ciphertext only decrypts as these settings.
 const AAD = "instance-ai-settings";
 
-type Secrets = Partial<
-  Record<"text" | "transcription", Partial<Record<AiField, string>>>
->;
+type Part = "text" | "transcription";
+type Secrets = Partial<Record<Part, Partial<Record<AiField, string>>>>;
 
 type Stored = {
   settings: AiSettings;
@@ -74,6 +74,12 @@ type Stored = {
    * until an administrator enters them again (or the old key comes back).
    */
   keysUnreadable?: boolean;
+  /**
+   * Which keys each part stored (names only, kept in the clear): what an
+   * unreadable row held, so none of them is dropped without a decision.
+   * Absent on rows saved before it was recorded.
+   */
+  keyNames?: Partial<Record<Part, AiField[]>>;
 };
 
 const KEYS_UNREADABLE =
@@ -89,6 +95,7 @@ export async function readStoredSettings(db: Database): Promise<Stored | null> {
     text?: ProviderSettings | null;
     transcription?: ProviderSettings | null;
     timeoutSeconds?: number;
+    keyNames?: Partial<Record<Part, AiField[]>>;
   };
   let secrets: Secrets = {};
   let keysUnreadable = false;
@@ -100,10 +107,8 @@ export async function readStoredSettings(db: Database): Promise<Stored | null> {
       // must still be able to enter new keys or turn AI off.
       keysUnreadable = true;
     }
-  const join = (
-    part: "text" | "transcription",
-    value: ProviderSettings | null | undefined,
-  ) => (value ? { ...value, ...secrets[part] } : value);
+  const join = (part: Part, value: ProviderSettings | null | undefined) =>
+    value ? { ...value, ...secrets[part] } : value;
   return {
     settings: {
       text: join("text", plain.text) ?? null,
@@ -114,6 +119,7 @@ export async function readStoredSettings(db: Database): Promise<Stored | null> {
     updatedAt: row.updatedAt,
     updatedById: row.updatedById,
     keysUnreadable,
+    keyNames: plain.keyNames,
   };
 }
 
@@ -246,7 +252,38 @@ export async function candidateState(db: Database, input: AiSettingsInput) {
     state,
     problems: endpointProblems(settings),
     keysUnreadable: stored?.keysUnreadable ?? false,
+    keysLeftBehind: keysLeftBehind(stored, input),
   };
+}
+
+/**
+ * Unreadable keys of a provider the change keeps that it neither enters
+ * again nor removes ("" for that key): saving would lose them without anyone
+ * deciding so, and restoring the old credentials key could no longer bring
+ * them back. Switching a provider or turning it off is a decision already.
+ */
+function keysLeftBehind(stored: Stored | null, input: AiSettingsInput) {
+  if (!stored?.keysUnreadable) return [];
+  const left: string[] = [];
+  for (const part of ["text", "transcription"] as const) {
+    const before = stored.settings[part];
+    const next = input[part];
+    if (!before || !next || next === "default") continue;
+    if (next.provider !== before.provider) continue;
+    const spec =
+      part === "text"
+        ? textProviderOf(before.provider)
+        : transcriptionProviderOf(before.provider);
+    const names = stored.keyNames
+      ? (stored.keyNames[part] ?? [])
+      : secretFields.filter((f) => spec?.fields[f]);
+    for (const f of names)
+      if (next[f] === undefined)
+        left.push(
+          `${part === "text" ? "language model" : "dictation"} ${aiFieldLabels[f]}`,
+        );
+  }
+  return left;
 }
 
 const problemsOf = (state: AiState) => [
@@ -263,18 +300,16 @@ export async function saveAiSettings(
   actor: InstanceActor,
   input: AiSettingsInput,
 ) {
-  const { settings, state, problems, keysUnreadable } = await candidateState(
-    db,
-    input,
-  );
-  // Unreadable keys are replaced only on purpose: by entering keys or by
-  // turning AI off, never as a side effect of changing a model or a URL.
-  if (
-    keysUnreadable &&
-    input.text !== null &&
-    !changedSecrets(input).some((c) => !c.endsWith("(cleared)"))
-  )
-    throw new InstanceAdminError("keys_unreadable", KEYS_UNREADABLE, 409);
+  const { settings, state, problems, keysUnreadable, keysLeftBehind } =
+    await candidateState(db, input);
+  // Unreadable keys go only on purpose: entered again, removed, or with
+  // their provider; never as a side effect of changing a model or a URL.
+  if (keysLeftBehind.length)
+    throw new InstanceAdminError(
+      "keys_unreadable",
+      `${KEYS_UNREADABLE} To save, enter or remove: ${keysLeftBehind.join(", ")}.`,
+      409,
+    );
   const all = [...problems, ...problemsOf(state)];
   if (all.length) throw new InstanceAdminError("validation", all.join(" "));
   const secrets: Secrets = {};
@@ -297,6 +332,9 @@ export async function saveAiSettings(
     plain[name] = open;
   }
   const hasSecrets = Object.keys(secrets).length > 0;
+  plain.keyNames = Object.fromEntries(
+    Object.entries(secrets).map(([part, keys]) => [part, Object.keys(keys)]),
+  );
   if (hasSecrets && derivedCredentialsKeyInProduction(process.env)) {
     const [existing] = await db
       .select({ secrets: s.instanceAiSetting.secrets })
@@ -402,7 +440,7 @@ export async function aiSettingsView(db: Database) {
   const state = aiState();
   const stored =
     environment.source === "environment" ? null : await readStoredSettings(db);
-  const view = (value: ProviderSettings | null | undefined) => {
+  const view = (part: Part, value: ProviderSettings | null | undefined) => {
     if (!value) return value;
     const shown: Record<string, string | boolean> = {
       provider: value.provider,
@@ -411,7 +449,12 @@ export async function aiSettingsView(db: Database) {
       textProviderOf(value.provider) ?? transcriptionProviderOf(value.provider);
     for (const f of allFields) {
       if (spec && !spec.fields[f]) continue;
-      if (isSecret(f)) shown[`${f}Set`] = Boolean(value[f]);
+      // An unreadable key is still stored: shown as set, so the console
+      // offers to remove it.
+      if (isSecret(f))
+        shown[`${f}Set`] = stored?.keysUnreadable
+          ? (stored.keyNames?.[part]?.includes(f) ?? false)
+          : Boolean(value[f]);
       else if (value[f] !== undefined) shown[f] = value[f];
     }
     return shown;
@@ -423,11 +466,11 @@ export async function aiSettingsView(db: Database) {
     consoleAllowed: environment.consoleAllowed,
     stored: stored
       ? {
-          text: view(stored.settings.text),
+          text: view("text", stored.settings.text),
           transcription:
             stored.settings.transcription === undefined
               ? "default"
-              : view(stored.settings.transcription),
+              : view("transcription", stored.settings.transcription),
           timeoutSeconds: stored.settings.timeoutSeconds ?? null,
           version: stored.version,
           updatedAt: stored.updatedAt.toISOString(),

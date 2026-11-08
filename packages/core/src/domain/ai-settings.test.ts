@@ -255,43 +255,82 @@ void test("turning AI off removes the stored keys", async () => {
   assert.equal(aiState().text.state, "disabled");
 });
 
-void test("keys that no longer decrypt are reported, kept until replaced on purpose, and AI can still be turned off", async () => {
+void test("keys that no longer decrypt are reported, kept until replaced or removed on purpose, and AI can still be turned off", async () => {
   const previousKey = process.env.DELIVERY_CREDENTIALS_KEY;
-  const mistral = (extra: Record<string, string> = {}) => ({
-    text: { provider: "mistral", model: "mistral-large-latest", ...extra },
-    transcription: "default" as const,
+  const settings = (
+    text: Record<string, string> = {},
+    dictation: Record<string, string> = {},
+  ) => ({
+    text: {
+      provider: "llamacpp",
+      baseUrl: "http://inference.internal:8080/v1",
+      model: "qwen3",
+      ...text,
+    },
+    transcription: {
+      provider: "speaches",
+      baseUrl: "http://inference.internal:8000/v1",
+      model: "Systran/faster-whisper-large-v3",
+      ...dictation,
+    },
   });
+  const refused =
+    (message: RegExp) => (error: { code?: string; message?: string }) =>
+      error.code === "keys_unreadable" && message.test(error.message ?? "");
   try {
     process.env.DELIVERY_CREDENTIALS_KEY = "the-key-the-keys-were-saved-with";
-    await saveAiSettings(db, actor, mistral({ apiKey: "mistral-secret" }));
+    await saveAiSettings(
+      db,
+      actor,
+      settings({ apiKey: "llama-secret" }, { apiKey: "speaches-secret" }),
+    );
     process.env.DELIVERY_CREDENTIALS_KEY = "a-different-key-after-a-rotation";
 
-    // Loading never throws: the provider is reported unusable, with the fix.
+    // Loading never throws: the providers are reported unusable, with the fix.
     assert.equal((await loadAiState(db)).text.state, "invalid");
     await refreshAiState(db);
     const view = await aiSettingsView(db);
     assert.match(view.problems.join(" "), /cannot be decrypted/);
     assert.equal(view.problems.length, 1);
+    // Still stored, so the console offers to remove them.
+    assert.deepEqual(
+      [view.stored?.text, view.stored?.transcription].map(
+        (p) => (p as Record<string, unknown>).apiKeySet,
+      ),
+      [true, true],
+    );
 
-    // A change that enters no key would drop the old ones: refused.
+    // Saving without a decision about every key would lose the rest.
     const [before] = await db.select().from(s.instanceAiSetting);
     await assert.rejects(
-      saveAiSettings(db, actor, mistral({ model: "mistral-small-latest" })),
-      (error: { code?: string }) => error.code === "keys_unreadable",
+      saveAiSettings(db, actor, settings({ model: "qwen3-coder" })),
+      refused(/language model API key, dictation API key/),
+    );
+    await assert.rejects(
+      saveAiSettings(db, actor, settings({ apiKey: "llama-new-secret" })),
+      refused(/enter or remove: dictation API key\.$/),
     );
     const [unchanged] = await db.select().from(s.instanceAiSetting);
     assert.equal(unchanged!.secrets, before!.secrets);
 
-    // Entering the key again replaces them.
-    await saveAiSettings(db, actor, mistral({ apiKey: "mistral-new-secret" }));
-    assert.equal(aiState().text.state, "configured");
-    assert.equal(
-      (await readStoredSettings(db))!.settings.text!.apiKey,
-      "mistral-new-secret",
+    // Entering one key and removing the other is a decision about both.
+    await saveAiSettings(
+      db,
+      actor,
+      settings({ apiKey: "llama-new-secret" }, { apiKey: "" }),
     );
+    assert.equal(aiState().text.state, "configured");
+    const stored = (await readStoredSettings(db))!.settings;
+    assert.equal(stored.text!.apiKey, "llama-new-secret");
+    assert.equal(stored.transcription!.apiKey, undefined);
 
-    // And turning AI off always works.
+    // Switching a provider decides for its keys; turning AI off always works.
     process.env.DELIVERY_CREDENTIALS_KEY = "yet-another-key-after-rotation";
+    await saveAiSettings(db, actor, {
+      text: { provider: "ollama", model: "qwen3" },
+      transcription: null,
+    });
+    process.env.DELIVERY_CREDENTIALS_KEY = "one-more-key-after-rotation";
     await saveAiSettings(db, actor, { text: null, transcription: null });
     assert.equal(aiState().text.state, "disabled");
   } finally {
