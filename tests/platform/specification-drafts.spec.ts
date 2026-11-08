@@ -10,6 +10,7 @@ import {
   signIn,
   withDb,
 } from "../helpers/seed";
+import { documentEnd } from "../helpers/keyboard";
 
 // Live co-editing of specification drafts
 // (docs/internals/specification-drafts.md): the people who may edit a line
@@ -101,7 +102,7 @@ test("two people edit one specification draft live and one saves the revision bo
     await expect(adaEditor).toContainText("for 24 hours");
     // Ada adds a sentence at the end; each sees the other's named caret.
     await adaEditor.click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.type(" Late callbacks are ignored.");
     await expect(benEditor).toContainText("Late callbacks are ignored.");
     await benEditor.click();
@@ -271,7 +272,7 @@ test("edits typed offline stay in the editor and are saved after reconnecting", 
       saveState(ada.page).filter({ hasText: /^Offline/ }),
     ).toBeVisible();
     await editor.click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.type(" Written while offline.");
     await expect(editor).toContainText("Written while offline.");
     await ada.context.setOffline(false);
@@ -312,6 +313,14 @@ test("Markdown edited as text is saved with the revision, merged with what other
     });
   const toolbar = (page: Page) =>
     page.getByRole("toolbar", { name: "Specification formatting" });
+  const keptOnDevice = (text: string) =>
+    ada.page.evaluate(
+      (text) =>
+        Object.keys(localStorage).some((key) =>
+          (localStorage.getItem(key) ?? "").includes(text),
+        ),
+      text,
+    );
   const asMarkdown = async (page: Page) => {
     await toolbar(page)
       .getByRole("button", { name: "Edit as Markdown" })
@@ -394,15 +403,7 @@ test("Markdown edited as text is saved with the revision, merged with what other
       `${await source(ada.page).inputValue()}\n\nRefunds are out of scope.`,
     );
     await expect
-      .poll(() =>
-        ada.page.evaluate(() =>
-          Object.keys(localStorage).some((key) =>
-            (localStorage.getItem(key) ?? "").includes(
-              "Refunds are out of scope.",
-            ),
-          ),
-        ),
-      )
+      .poll(() => keptOnDevice("Refunds are out of scope."))
       .toBe(true);
     ada.page.on("dialog", (dialog) => void dialog.accept());
     await ada.page.reload();
@@ -417,6 +418,31 @@ test("Markdown edited as text is saved with the revision, merged with what other
     expect((await currentRevision(workItemId)).content).not.toContain(
       "Refunds are out of scope.",
     );
+    // Opening the editor does not drop it: it is still offered the next
+    // time, until the person inserts or discards it.
+    await ada.page.reload();
+    await edit(ada.page);
+    await expect(kept).toContainText("Refunds are out of scope.");
+    // Editing Markdown again neither hides, replaces nor drops it: this
+    // session keeps and applies its own text.
+    await asMarkdown(ada.page);
+    await expect(kept).toContainText("Refunds are out of scope.");
+    await source(ada.page).fill(
+      `${await source(ada.page).inputValue()}\n\nPartial refunds are manual.`,
+    );
+    await expect
+      .poll(() => keptOnDevice("Partial refunds are manual."))
+      .toBe(true);
+    await toolbar(ada.page)
+      .getByRole("button", { name: "Edit formatted text" })
+      .click();
+    await expect(await richEditor(ada.page, "Specification")).toContainText(
+      "Partial refunds are manual.",
+    );
+    await expect
+      .poll(() => keptOnDevice("Partial refunds are manual."))
+      .toBe(false);
+    await expect(kept).toContainText("Refunds are out of scope.");
   } finally {
     await Promise.all([ada.context.close(), ben.context.close()]);
   }

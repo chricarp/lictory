@@ -20,6 +20,7 @@ import {
   seedWorkspace,
   signIn,
 } from "../helpers/seed";
+import { documentEnd } from "../helpers/keyboard";
 
 // The page-to-work loop in a project that hands work off to Jira
 // (docs/internals/knowledge-links.md, docs/internals/delivery.md#external-delivery),
@@ -270,7 +271,7 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
       ada.page.getByTestId("draft-save-state").filter({ hasText: /^Saved$/ }),
     ).toBeVisible({ timeout: 20_000 });
     await liveEditor(ada.page).click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.press("Enter");
     await ada.page.keyboard.type("Finance approves within one business day.");
     await expect(

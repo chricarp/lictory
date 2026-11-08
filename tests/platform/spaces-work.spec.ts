@@ -18,6 +18,7 @@ import {
   withDb,
   type Seeded,
 } from "../helpers/seed";
+import { documentEnd } from "../helpers/keyboard";
 
 // Work in Lictory Spaces pages: selected page text and open tasks become
 // work items that remember their source and can be mentioned back in the
@@ -462,7 +463,7 @@ test("decisions and work lists are inserted from the / menu", async ({
   const editor = liveEditor(ada.page);
   await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
   await editor.click();
-  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.press(documentEnd);
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("/decision");
   await ada.page.keyboard.press("Enter");
@@ -476,8 +477,11 @@ test("decisions and work lists are inserted from the / menu", async ({
     .click();
   // Alone on its line: a card.
   await expect(editor.locator(".decision-card")).toHaveCount(2);
+  // The editor takes focus back a frame later; keys typed before that reach
+  // the page's shortcuts instead ("c" creates an item).
+  await expect(editor).toBeFocused();
 
-  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.press(documentEnd);
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("/epic");
   await ada.page.keyboard.press("Enter");

@@ -874,18 +874,22 @@ function DraftEditor({
   // Markdown edited as text is kept on this device until it is applied or
   // discarded, so closing the tab, going offline or a replaced draft never
   // loses it (offered back like other unsaved text).
-  const sourceEntryId = `source:${draft.documentName}`;
+  // Each opening of the editor keeps its Markdown under its own entry, so
+  // text an earlier session kept (the tab reloaded, the editor reopened) is
+  // offered until the person inserts or discards it: never hidden, replaced
+  // or dropped by what this session edits, applies or discards.
+  const [openingId] = useState(() => crypto.randomUUID());
+  const sourceEntryId = `${SOURCE_ENTRY}${draft.documentName}:${openingId}`;
   const [sourceBox] = useState(() => new Latest<SourceEdit | null>(null));
   useLayoutEffect(() => {
     sourceBox.set(source);
   }, [source, sourceBox]);
   const keepSource = useCallback(
     (edit: SourceEdit | null) => {
-      if (!edit || edit.text === edit.initial) {
-        recovery.remove(sourceEntryId);
-        return;
-      }
-      const kept = keptSourceText(edit, sourceEntryId, draft.documentName);
+      const kept =
+        edit && edit.text !== edit.initial
+          ? keptSourceText(edit, sourceEntryId, draft.documentName)
+          : null;
       if (kept) recovery.put(kept);
       else recovery.remove(sourceEntryId);
     },

@@ -18,6 +18,7 @@ import {
 } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
 import { openDiscussions } from "../helpers/discussions";
+import { documentEnd } from "../helpers/keyboard";
 
 // Collaboration through Zero against the real stack: what one person does
 // reaches the others without reloading, the server stays authoritative, and
@@ -169,7 +170,7 @@ test("two people see each other's work live; concurrent specification edits neve
     const adaEditor = await richEditor(ada.page, "Specification");
     await expect(adaEditor).toContainText("for 24 hours");
     await adaEditor.click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.type(" Late callbacks are ignored.");
     await expect(await richEditor(ben.page, "Specification")).toContainText(
       "Late callbacks are ignored.",

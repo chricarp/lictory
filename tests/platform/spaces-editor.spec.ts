@@ -10,6 +10,7 @@ import { consentStatePath } from "../consent-setup";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import { clientAddress } from "../helpers/client-address";
 import { seedItem, seedWorkspace, signIn, type Seeded } from "../helpers/seed";
+import { documentEnd, lineEnd } from "../helpers/keyboard";
 
 // The page editor of Lictory Spaces from the browser: two editors write one
 // live draft together (text, carets, "Saved"), mention a work item, add an
@@ -236,7 +237,7 @@ test("two editors write one live draft, publish it, and a reader sees the publis
   expect(saveStates.length, saveStates.join(" → ")).toBeLessThanOrEqual(12);
   expect(saveStates.at(-1)).toBe("Saved");
   await liveEditor(ben.page).click();
-  await ben.page.keyboard.press("ControlOrMeta+End");
+  await ben.page.keyboard.press(documentEnd);
   await expectCaretAtEnd(ada.page, "Ben Editor");
   await ben.page.keyboard.press("Enter");
   await ben.page.keyboard.type("Escalate disputes to finance.");
@@ -257,7 +258,7 @@ test("two editors write one live draft, publish it, and a reader sees the publis
 
   // A work item mention picked with "#".
   await liveEditor(ada.page).click();
-  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.press(documentEnd);
   await expectCaretAtEnd(ben.page, "Ada Owner");
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("Policy: #HB-1");
@@ -412,7 +413,7 @@ test("offline edits stay on the page and are saved after reconnecting", async ({
     ada.page.getByTestId("draft-save-state").filter({ hasText: /^Offline/ }),
   ).toBeVisible();
   await liveEditor(ada.page).click();
-  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.press(documentEnd);
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("Written while offline.");
   await expect(liveEditor(ada.page)).toContainText("Written while offline.");
@@ -588,7 +589,7 @@ test("a change the service refuses shows Save failed, keeps the text and offers 
   await expect(liveEditor(ada.page)).not.toContainText("Imported appendix");
   await expect(failed).toBeHidden();
   await expect(liveEditor(ada.page)).toBeFocused();
-  await ada.page.keyboard.press("ControlOrMeta+End");
+  await ada.page.keyboard.press(documentEnd);
   await ada.page.keyboard.type(" Partial refunds too.");
   await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
   await expect(liveEditor(ben.page)).toContainText("Partial refunds too.");
@@ -659,7 +660,7 @@ test("the link form refuses an address the page cannot keep and explains why", a
   const ada = await person(browser, owner);
   await openEditor(ada.page);
   await liveEditor(ada.page).click();
-  await ada.page.keyboard.press("End");
+  await ada.page.keyboard.press(lineEnd);
   await ada.page.keyboard.press("Enter");
   await ada.page.keyboard.type("Refund status page");
   await selectText(ada.page, "Refund status page");

@@ -17,6 +17,7 @@ import {
   seedWorkspace,
   signIn,
 } from "../helpers/seed";
+import { documentEnd } from "../helpers/keyboard";
 
 // The whole loop between pages and work (docs/internals/knowledge-links.md):
 // a page's text becomes a work item that remembers it, the specification
@@ -175,7 +176,7 @@ test("a page becomes reviewed, delivered work that proposes the page update back
       ada.page.getByTestId("draft-save-state").filter({ hasText: /^Saved$/ }),
     ).toBeVisible({ timeout: 20_000 });
     await liveEditor(ada.page).click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.press("Enter");
     await ada.page.keyboard.type("Finance approves within one business day.");
     await expect(
