@@ -274,10 +274,10 @@ void test("the admin description names the endpoint and key setting, never the k
   });
   assert.equal(description.state, "configured");
   assert.ok(!JSON.stringify(description).includes("secret-value"));
-  assert.match(JSON.stringify(description), /LICTORY_AI_API_KEY/);
-  assert.match(
-    JSON.stringify(description),
-    /example\.services\.ai\.azure\.com\/anthropic\/v1/,
+  assert.equal(description.keySetting, "LICTORY_AI_API_KEY");
+  assert.equal(
+    description.endpoint,
+    "https://example.services.ai.azure.com/anthropic/v1",
   );
 });
 

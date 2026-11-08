@@ -145,7 +145,11 @@ void test("the catalog is complete: every provider has an adapter, a hint and a 
     assert.ok(p.label && p.modelHint && p.protocol, id);
     assert.ok(Object.keys(p.fields).length > 0, id);
     if (p.hosting === "self-hosted" && id !== "openai-compatible")
-      assert.match(p.defaultBaseUrl ?? "", /host\.docker\.internal/, id);
+      assert.equal(
+        new URL(p.defaultBaseUrl ?? "http://missing").hostname,
+        "host.docker.internal",
+        id,
+      );
   }
   for (const id of transcriptionProviderIds)
     assert.ok(transcriptionProviders[id].label, id);
