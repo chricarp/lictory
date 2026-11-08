@@ -208,13 +208,13 @@ test("anchored discussions sit beside the text in document order, marked, and re
   // A new discussion on selected text, from the keyboard shortcut: it
   // lands in document order between the two marked passages.
   await selectInSpecification(page, "reconciled against the first attempt");
-  await page.keyboard.press("Control+Alt+m");
+  await page.keyboard.press("ControlOrMeta+Alt+m");
   const composer = await fillMarkdown(
     page,
     "Comment on selection",
     "Which attempt is the first one?",
   );
-  await composer.press("Control+Enter");
+  await composer.press("ControlOrMeta+Enter");
   await expect(panel.getByRole("article")).toHaveCount(4);
   await expect(panel.getByRole("article").nth(1)).toContainText(
     "Which attempt is the first one?",

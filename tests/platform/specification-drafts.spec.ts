@@ -10,6 +10,7 @@ import {
   signIn,
   withDb,
 } from "../helpers/seed";
+import { documentEnd } from "../helpers/keyboard";
 
 // Live co-editing of specification drafts
 // (docs/internals/specification-drafts.md): the people who may edit a line
@@ -101,7 +102,7 @@ test("two people edit one specification draft live and one saves the revision bo
     await expect(adaEditor).toContainText("for 24 hours");
     // Ada adds a sentence at the end; each sees the other's named caret.
     await adaEditor.click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.type(" Late callbacks are ignored.");
     await expect(benEditor).toContainText("Late callbacks are ignored.");
     await benEditor.click();
@@ -271,7 +272,7 @@ test("edits typed offline stay in the editor and are saved after reconnecting", 
       saveState(ada.page).filter({ hasText: /^Offline/ }),
     ).toBeVisible();
     await editor.click();
-    await ada.page.keyboard.press("ControlOrMeta+End");
+    await ada.page.keyboard.press(documentEnd);
     await ada.page.keyboard.type(" Written while offline.");
     await expect(editor).toContainText("Written while offline.");
     await ada.context.setOffline(false);
@@ -417,6 +418,11 @@ test("Markdown edited as text is saved with the revision, merged with what other
     expect((await currentRevision(workItemId)).content).not.toContain(
       "Refunds are out of scope.",
     );
+    // Opening the editor does not drop it: it is still offered the next
+    // time, until the person inserts or discards it.
+    await ada.page.reload();
+    await edit(ada.page);
+    await expect(kept).toContainText("Refunds are out of scope.");
   } finally {
     await Promise.all([ada.context.close(), ben.context.close()]);
   }

@@ -29,6 +29,7 @@ import {
   seedPeople,
   signIn,
 } from "../helpers/workspace-people";
+import { lineEnd } from "../helpers/keyboard";
 const version = packageJson.version;
 const email = people.project[1];
 const reviewerEmail = people.reviewer[1];
@@ -705,7 +706,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     "Reply",
     "Late answers are acknowledged and reconciled against the original ID.",
   );
-  await replyBox.press("End");
+  await replyBox.press(lineEnd);
   // Typing @ offers members; choosing one inserts a mention.
   await replyBox.pressSequentially(" cc @ril");
   await expect(page.getByRole("option", { name: /@riley_chen/ })).toBeVisible();
@@ -1091,7 +1092,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // Cross-project identifier route.
   await page.goto(storyUrl.replace(/\/pay\/items\/PAY-2$/, "/items/PAY-1"));
   await expect(page).toHaveURL(/\/pay\/items\/PAY-1(\?.*)?$/);
-  await page.keyboard.press("Meta+k");
+  await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("textbox", { name: "Search" }).fill("PAY-1");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/items\/PAY-1(\?.*)?$/);

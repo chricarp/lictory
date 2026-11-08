@@ -34,6 +34,19 @@ export async function expectNoAccessibilityViolations(
   state: string,
   options: { include?: string } = {},
 ) {
+  // A popover or tooltip still fading in has a blended, lighter text colour;
+  // contrast is checked once finite animations have finished.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
   const builder = new AxeBuilder({ page }).withTags(wcagTags);
   if (options.include) builder.include(options.include);
   const { violations } = await builder.analyze();

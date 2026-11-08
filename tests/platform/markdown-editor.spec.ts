@@ -14,6 +14,7 @@ import { openDiscussions } from "../helpers/discussions";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import { fillMarkdown, richEditor } from "../helpers/editor";
 import { waitUntilSaved } from "../helpers/sync-helpers";
+import { lineEnd } from "../helpers/keyboard";
 
 // Work's Markdown fields are the Spaces editor: formatting from the toolbar
 // and Markdown shortcuts, references picked with "#" and "[[", and Markdown
@@ -104,7 +105,7 @@ test("toolbar and Markdown shortcuts write a revision that changes only the edit
   await expectNoAccessibilityViolations(page, "specification editor");
   // A new section from the toolbar's text styles, a list from "- ".
   await editor.getByText("One charge per request", { exact: true }).click();
-  await page.keyboard.press("End");
+  await page.keyboard.press(lineEnd);
   await page.keyboard.press("Enter");
   await page.keyboard.press("Enter");
   const toolbar = page.getByRole("toolbar", {
@@ -112,6 +113,8 @@ test("toolbar and Markdown shortcuts write a revision that changes only the edit
   });
   await toolbar.getByRole("button", { name: /^Text style/ }).click();
   await page.getByRole("menuitemradio", { name: /Heading 2/ }).click();
+  // The editor takes focus back from the menu a frame later.
+  await expect(editor).toBeFocused();
   await page.keyboard.type("Failure behavior");
   await page.keyboard.press("Enter");
   await page.keyboard.type("- Timeouts retry with the same key");
@@ -139,7 +142,7 @@ test("“#” and “[[” insert references that read as live chips", async ({
   await editor
     .getByText("Retries reuse the original transaction ID.", { exact: true })
     .click();
-  await page.keyboard.press("End");
+  await page.keyboard.press(lineEnd);
   await page.keyboard.type(" See #QL-2");
   const items = page.getByRole("listbox", { name: "Work items" });
   await expect(

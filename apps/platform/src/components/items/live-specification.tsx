@@ -879,15 +879,24 @@ function DraftEditor({
   useLayoutEffect(() => {
     sourceBox.set(source);
   }, [source, sourceBox]);
+  // Only what this editor kept is dropped when its Markdown is no longer
+  // changed: text an earlier session kept (the tab reloaded) is offered
+  // until the person inserts or discards it, never dropped by reopening the
+  // editor.
+  const keptHere = useRef<string | null>(null);
   const keepSource = useCallback(
     (edit: SourceEdit | null) => {
-      if (!edit || edit.text === edit.initial) {
+      const kept =
+        edit && edit.text !== edit.initial
+          ? keptSourceText(edit, sourceEntryId, draft.documentName)
+          : null;
+      if (kept) {
+        recovery.put(kept);
+        keptHere.current = sourceEntryId;
+      } else if (keptHere.current === sourceEntryId) {
         recovery.remove(sourceEntryId);
-        return;
+        keptHere.current = null;
       }
-      const kept = keptSourceText(edit, sourceEntryId, draft.documentName);
-      if (kept) recovery.put(kept);
-      else recovery.remove(sourceEntryId);
     },
     [recovery, sourceEntryId, draft.documentName],
   );

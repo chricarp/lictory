@@ -95,6 +95,9 @@ test.describe("touch devices", () => {
       await summary.fill("Clarify behavior from a touch device");
       await expectUnscaled(page);
       await page.getByRole("button", { name: "Save revision 2" }).tap();
+      // The open editor already shows the text; a reload before the revision
+      // is saved would interrupt saving it.
+      await expect(page.getByText("Revision 2 ·").first()).toBeVisible();
       await expect(
         page.getByText("Mobile editing preserves the agreed behavior.", {
           exact: true,
