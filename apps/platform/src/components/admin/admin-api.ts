@@ -63,6 +63,7 @@ export type AiSettingsView = {
   } | null;
   problems: string[];
   warnings: string[];
+  hostModelServer: boolean;
   text: Described;
   dictation: Described;
 };

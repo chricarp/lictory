@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   CircleAlert,
   CircleCheck,
@@ -64,6 +71,9 @@ const editableFields: AiField[] = [
   "location",
   "accessKeyId",
   "secretAccessKey",
+  "tenantId",
+  "clientId",
+  "clientSecret",
   "structuredOutput",
 ];
 const isSecret = (f: AiField) => secretFields.includes(f);
@@ -112,6 +122,9 @@ function toInput(form: Form, removed: Set<string>) {
   };
 }
 
+// Whether the server maps host.docker.internal (LICTORY_HOST_MODEL_SERVER).
+const HostModelServer = createContext(false);
+
 const looksLocal = (url: string | undefined) =>
   !!url && /\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|\/|$)/i.test(url);
 
@@ -125,15 +138,17 @@ export function AiSettings() {
   if (error && !data) return <InlineError>{error}</InlineError>;
   if (!data) return <SettingsSectionSkeleton />;
   return data.editable ? (
-    <AiSettingsForm
-      key={data.stored?.version ?? 0}
-      view={data}
-      saved={saved}
-      onSaved={(message) => {
-        setSaved(message);
-        reload();
-      }}
-    />
+    <HostModelServer.Provider value={data.hostModelServer}>
+      <AiSettingsForm
+        key={data.stored?.version ?? 0}
+        view={data}
+        saved={saved}
+        onSaved={(message) => {
+          setSaved(message);
+          reload();
+        }}
+      />
+    </HostModelServer.Provider>
   ) : (
     <AiSettingsReadOnly view={data} />
   );
@@ -703,6 +718,7 @@ function Fields({
   onRemove: (field: AiField) => void;
   optionalKey?: boolean;
 }) {
+  const hostModelServer = useContext(HostModelServer);
   const spec = specOf(part, values.provider);
   if (!spec) return null;
   const id = `${part}-${values.provider}`;
@@ -813,6 +829,29 @@ function Fields({
                     </span>
                   </>
                 )}
+                {f === "baseUrl" &&
+                  !hostModelServer &&
+                  (values.baseUrl ?? spec.defaultBaseUrl ?? "").includes(
+                    "host.docker.internal",
+                  ) && (
+                    <span className="mt-1 flex gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                      <CircleAlert
+                        aria-hidden
+                        className="mt-0.5 size-3.5 shrink-0"
+                      />
+                      <span>
+                        A server on this machine: set{" "}
+                        <code className="font-mono">
+                          LICTORY_HOST_MODEL_SERVER=true
+                        </code>{" "}
+                        on the server first (
+                        <code className="font-mono">
+                          sudo lictory config set LICTORY_HOST_MODEL_SERVER=true
+                        </code>
+                        ), and let the model server listen on 0.0.0.0.
+                      </span>
+                    </span>
+                  )}
                 {f === "baseUrl" && looksLocal(values.baseUrl) && (
                   <span className="mt-1 flex gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                     <CircleAlert

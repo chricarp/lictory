@@ -125,7 +125,6 @@ export async function createDictationSession(
 
 /** The largest clip accepted: about 30 s of 16 kHz mono 16-bit WAV. */
 export const MAX_SEGMENT_BYTES = 1_200_000;
-const SEGMENT_TIMEOUT_MS = 30_000;
 const audioTypes = new Set([
   "audio/wav",
   "audio/x-wav",
@@ -167,7 +166,7 @@ export async function transcribeSegment(
       providerOptions: transcriptionOptions(config),
       maxRetries: 1,
       abortSignal: AbortSignal.any([
-        AbortSignal.timeout(SEGMENT_TIMEOUT_MS),
+        AbortSignal.timeout(config.timeoutMs),
         ...(options.signal ? [options.signal] : []),
       ]),
     });

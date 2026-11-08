@@ -171,7 +171,10 @@ void test("startup: invalid selections stop the API and worker; risky ones warn"
   );
   const ai = invalid.problems.filter((p) => p.includes("Lictory Intelligence"));
   assert.equal(ai.length, 1, invalid.problems.join("\n"));
-  assert.match(ai[0]!, /misconfigured: LICTORY_AI_API_KEY is required/);
+  assert.match(
+    ai[0]!,
+    /misconfigured: LICTORY_AI_BASE_URL is required for Azure OpenAI/,
+  );
   // An unknown provider is also caught by the declaration's choice check.
   assert.ok(
     checkConfiguration("api", { LICTORY_AI_PROVIDER: "x" }, aiRules).problems

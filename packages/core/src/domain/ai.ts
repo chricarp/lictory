@@ -55,6 +55,7 @@ export function aiServerState() {
     dictation: Boolean(dictation),
     dictationMode: dictation?.mode ?? null,
     dictationProvider: dictation?.provider ?? null,
+    dictationCustomEndpoint: Boolean(dictation?.customBaseUrl),
   };
 }
 export async function aiPolicy(
@@ -87,7 +88,8 @@ export async function refreshAiAvailability(db: Database) {
           or coalesce((${ai}->>'dictation')::boolean, false) <> ${state.dictation}
           or coalesce((${ai}->>'customEndpoint')::boolean, false) <> ${state.customEndpoint}
           or coalesce(${ai}->>'dictationMode', '') <> ${state.dictationMode ?? ""}
-          or coalesce(${ai}->>'dictationProvider', '') <> ${state.dictationProvider ?? ""})`,
+          or coalesce(${ai}->>'dictationProvider', '') <> ${state.dictationProvider ?? ""}
+          or coalesce((${ai}->>'dictationCustomEndpoint')::boolean, false) <> ${state.dictationCustomEndpoint})`,
       ),
     );
   await refreshDirectories(

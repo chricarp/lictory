@@ -767,6 +767,51 @@ export const declarations: readonly Declaration[] = [
     description: "`bedrock`: the secret of `LICTORY_AI_AWS_ACCESS_KEY_ID`.",
   },
   {
+    name: "LICTORY_AI_AZURE_TENANT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure`: the Microsoft Entra tenant of a service principal, with `LICTORY_AI_AZURE_CLIENT_ID` and `LICTORY_AI_AZURE_CLIENT_SECRET`. Without a key or a service principal, the server's managed identity is used.",
+  },
+  {
+    name: "LICTORY_AI_AZURE_CLIENT_ID",
+    group: "AI",
+    services: server,
+    description:
+      "`azure`: the service principal's client ID, or alone the client ID of a user-assigned managed identity.",
+  },
+  {
+    name: "LICTORY_AI_AZURE_CLIENT_SECRET",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description: "`azure`: the service principal's client secret.",
+  },
+  {
+    name: "IDENTITY_ENDPOINT",
+    group: "AI",
+    services: server,
+    description:
+      "Set by Azure App Service and Container Apps for their managed identity; used for `azure` without a key or service principal. Not configured by hand.",
+  },
+  {
+    name: "IDENTITY_HEADER",
+    group: "AI",
+    services: server,
+    secret: "issued",
+    description:
+      "Set by Azure App Service and Container Apps with `IDENTITY_ENDPOINT`. Not configured by hand.",
+  },
+  {
+    name: "LICTORY_HOST_MODEL_SERVER",
+    group: "AI",
+    services: server,
+    default: "`false`",
+    value: { type: "boolean" },
+    description:
+      "`true` when an AI model server runs on the same machine: Compose maps `host.docker.internal` to the host for the API and worker (`compose.host-models.yaml`), and the admin console stops warning about it.",
+  },
+  {
     name: "LICTORY_AI_CONSOLE",
     group: "AI",
     services: server,

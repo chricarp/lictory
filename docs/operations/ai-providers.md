@@ -20,24 +20,24 @@ uses the model, and the guarantees around it, are in
 
 ### Language models
 
-| Provider (`LICTORY_AI_PROVIDER`)              | Where it runs          | You need                                                                                                                   |
-| --------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| OpenAI (`openai`)                             | Cloud                  | An API key                                                                                                                 |
-| Anthropic (`anthropic`)                       | Cloud                  | An API key and a model; also Claude in Azure AI Foundry (base URL `https://<resource>.services.ai.azure.com/anthropic/v1`) |
-| Google Gemini (`google`)                      | Cloud                  | A Gemini API key and a model                                                                                               |
-| Google Vertex AI (`vertex`)                   | Cloud                  | A model and an API key, a service account key, or the server's own Google Cloud identity with project and location         |
-| Azure OpenAI (`azure`)                        | Cloud                  | A key, the resource's v1 URL (`https://<resource>.openai.azure.com/openai/v1`) and a deployment                            |
-| Amazon Bedrock (`bedrock`)                    | Cloud                  | A region, a model or inference profile, and a Bedrock API key, an access key pair, or the server's own AWS identity        |
-| Mistral AI (`mistral`)                        | Cloud                  | An API key and a model                                                                                                     |
-| xAI (`xai`)                                   | Cloud                  | An API key and a model                                                                                                     |
-| Groq (`groq`)                                 | Cloud                  | An API key and a model (open-weight models)                                                                                |
-| DeepSeek (`deepseek`)                         | Cloud                  | An API key and a model                                                                                                     |
-| OpenRouter (`openrouter`)                     | Cloud                  | An API key and a model (`vendor/model`)                                                                                    |
-| Ollama (`ollama`)                             | Self-hosted            | A model you pulled                                                                                                         |
-| vLLM (`vllm`)                                 | Self-hosted            | The model it serves                                                                                                        |
-| LM Studio (`lmstudio`)                        | Self-hosted            | The loaded model                                                                                                           |
-| llama.cpp server (`llamacpp`)                 | Self-hosted            | Any model name                                                                                                             |
-| Other OpenAI-compatible (`openai-compatible`) | Self-hosted or gateway | A base URL with `/chat/completions` and a model (LocalAI, SGLang, TGI, LiteLLM…)                                           |
+| Provider (`LICTORY_AI_PROVIDER`)              | Where it runs          | You need                                                                                                                                                                |
+| --------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI (`openai`)                             | Cloud                  | An API key                                                                                                                                                              |
+| Anthropic (`anthropic`)                       | Cloud                  | An API key and a model; also Claude in Azure AI Foundry (base URL `https://<resource>.services.ai.azure.com/anthropic/v1`)                                              |
+| Google Gemini (`google`)                      | Cloud                  | A Gemini API key and a model                                                                                                                                            |
+| Google Vertex AI (`vertex`)                   | Cloud                  | A model and an API key, a service account key, or the server's own Google Cloud identity with project and location                                                      |
+| Azure OpenAI (`azure`)                        | Cloud                  | The resource's v1 URL (`https://<resource>.openai.azure.com/openai/v1`), a deployment, and a key, a Microsoft Entra service principal, or the server's managed identity |
+| Amazon Bedrock (`bedrock`)                    | Cloud                  | A region, a model or inference profile, and a Bedrock API key, an access key pair, or the server's own AWS identity                                                     |
+| Mistral AI (`mistral`)                        | Cloud                  | An API key and a model                                                                                                                                                  |
+| xAI (`xai`)                                   | Cloud                  | An API key and a model                                                                                                                                                  |
+| Groq (`groq`)                                 | Cloud                  | An API key and a model (open-weight models)                                                                                                                             |
+| DeepSeek (`deepseek`)                         | Cloud                  | An API key and a model                                                                                                                                                  |
+| OpenRouter (`openrouter`)                     | Cloud                  | An API key and a model (`vendor/model`)                                                                                                                                 |
+| Ollama (`ollama`)                             | Self-hosted            | A model you pulled                                                                                                                                                      |
+| vLLM (`vllm`)                                 | Self-hosted            | The model it serves                                                                                                                                                     |
+| LM Studio (`lmstudio`)                        | Self-hosted            | The loaded model                                                                                                                                                        |
+| llama.cpp server (`llamacpp`)                 | Self-hosted            | Any model name                                                                                                                                                          |
+| Other OpenAI-compatible (`openai-compatible`) | Self-hosted or gateway | A base URL with `/chat/completions` and a model (LocalAI, SGLang, TGI, LiteLLM…)                                                                                        |
 
 Every feature needs JSON that matches a schema (reviews, intake, titles) and
 Litto needs streamed tool calls. The cloud providers above support both with
@@ -49,31 +49,36 @@ and the answer is still validated.
 
 ### Dictation
 
-| Provider (`LICTORY_TRANSCRIPTION_PROVIDER`)   | Where it runs | Mode           | You need                                                |
-| --------------------------------------------- | ------------- | -------------- | ------------------------------------------------------- |
-| OpenAI Realtime (`openai-realtime`)           | Cloud         | Live           | An OpenAI key                                           |
-| OpenAI (`openai`)                             | Cloud         | Recorded clips | An OpenAI key                                           |
-| Azure OpenAI (`azure`)                        | Cloud         | Recorded clips | A key, the resource URL, a deployment                   |
-| Google Cloud Speech (`vertex`)                | Cloud         | Recorded clips | Like Vertex AI for text                                 |
-| Groq (`groq`)                                 | Cloud         | Recorded clips | A Groq key (Whisper)                                    |
-| Deepgram (`deepgram`)                         | Cloud         | Recorded clips | A key                                                   |
-| ElevenLabs (`elevenlabs`)                     | Cloud         | Recorded clips | A key                                                   |
-| AssemblyAI (`assemblyai`)                     | Cloud         | Recorded clips | A key                                                   |
-| Mistral AI (`mistral`)                        | Cloud         | Recorded clips | A key (Voxtral)                                         |
-| Speaches / faster-whisper (`speaches`)        | Self-hosted   | Recorded clips | A Whisper model the server downloaded                   |
-| whisper.cpp server (`whisper-cpp`)            | Self-hosted   | Recorded clips | Its URL                                                 |
-| Other OpenAI-compatible (`openai-compatible`) | Self-hosted   | Recorded clips | A base URL with `/audio/transcriptions` (vLLM, LocalAI) |
+| Provider (`LICTORY_TRANSCRIPTION_PROVIDER`)   | Where it runs | Mode           | You need                                                                                                                              |
+| --------------------------------------------- | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI Realtime (`openai-realtime`)           | Cloud         | Live           | An OpenAI key                                                                                                                         |
+| OpenAI (`openai`)                             | Cloud         | Recorded clips | An OpenAI key                                                                                                                         |
+| Azure OpenAI (`azure`)                        | Cloud         | Recorded clips | The resource URL and a deployment; authenticates like Azure for text                                                                  |
+| Google Cloud Speech (`vertex`)                | Cloud         | Recorded clips | A service account key or the server's Google Cloud identity, with project and location (express-mode API keys do not work for speech) |
+| Groq (`groq`)                                 | Cloud         | Recorded clips | A Groq key (Whisper)                                                                                                                  |
+| Deepgram (`deepgram`)                         | Cloud         | Recorded clips | A key                                                                                                                                 |
+| ElevenLabs (`elevenlabs`)                     | Cloud         | Recorded clips | A key                                                                                                                                 |
+| AssemblyAI (`assemblyai`)                     | Cloud         | Recorded clips | A key                                                                                                                                 |
+| Mistral AI (`mistral`)                        | Cloud         | Recorded clips | A key (Voxtral)                                                                                                                       |
+| Speaches / faster-whisper (`speaches`)        | Self-hosted   | Recorded clips | A Whisper model the server downloaded                                                                                                 |
+| whisper.cpp server (`whisper-cpp`)            | Self-hosted   | Recorded clips | Its URL                                                                                                                               |
+| Other OpenAI-compatible (`openai-compatible`) | Self-hosted   | Recorded clips | A base URL with `/audio/transcriptions` (vLLM, LocalAI)                                                                               |
 
 - **Live** (OpenAI Realtime): words appear while people speak. Audio goes
   from the browser straight to OpenAI and never through your server.
 - **Recorded clips** (every other provider): the browser cuts speech into
-  short clips at each pause (16 kHz WAV, at most 20 seconds) and sends them to
+  short clips at each pause (16 kHz WAV, at most 12 seconds) and sends them to
   your server, which sends each to the provider and returns its words. Audio
-  is held in memory for one request and never stored or logged.
+  is held in memory for one request and never stored or logged. A clip that
+  fails is tried once more; if the provider cannot keep up, dictation stops
+  and keeps what it transcribed. Each clip may take as long as the request
+  timeout (at least 30 seconds, at most 2 minutes), so slow self-hosted
+  Whisper servers can be given time.
 
 When dictation uses the same vendor as the language model (OpenAI and
 OpenAI, Azure and Azure, Groq and Groq…), fields you leave empty reuse the
-language model's key, endpoint and project. The default (**Automatic**) is
+language model's key, endpoint (so a gateway in front of the vendor serves
+both) and project. Google speech never reuses an express-mode API key. The default (**Automatic**) is
 live OpenAI dictation when text goes to OpenAI's own API, otherwise none.
 
 ## Three ways to configure
@@ -134,6 +139,11 @@ Without questions (for provisioning scripts), with placeholders:
 LICTORY_AI_API_KEY=<anthropic-key> sudo -E lictory ai setup --yes \
   --provider anthropic --model claude-sonnet-5-5 --dictation none
 
+LICTORY_AI_AZURE_CLIENT_SECRET=<secret> sudo -E lictory ai setup --yes \
+  --provider azure --base-url https://<resource>.openai.azure.com/openai/v1 \
+  --model <deployment> --tenant-id <tenant> --client-id <client> \
+  --dictation azure --dictation-model <whisper-deployment>
+
 sudo lictory ai setup --yes --provider ollama --model qwen3:32b \
   --dictation speaches --dictation-model Systran/faster-whisper-large-v3
 ```
@@ -154,6 +164,12 @@ sudo lictory config set LICTORY_AI_PROVIDER=bedrock LICTORY_AI_REGION=<region> L
 sudo lictory config set LICTORY_AI_PROVIDER=vertex LICTORY_AI_LOCATION=<location> \
   LICTORY_AI_MODEL=<model> LICTORY_AI_API_KEY="$(cat <service-account.json>)"
 
+# Azure OpenAI with the server's managed identity (no key), and its Whisper
+# deployment for dictation; a service principal instead:
+# LICTORY_AI_AZURE_TENANT_ID, LICTORY_AI_AZURE_CLIENT_ID, LICTORY_AI_AZURE_CLIENT_SECRET
+sudo lictory config set LICTORY_AI_PROVIDER=azure \
+  LICTORY_AI_BASE_URL=https://<resource>.openai.azure.com/openai/v1 LICTORY_AI_MODEL=<deployment>
+
 # Azure OpenAI for text, and its Whisper deployment for dictation (same key)
 sudo lictory config set LICTORY_AI_PROVIDER=azure LICTORY_AI_API_KEY=<key> \
   LICTORY_AI_BASE_URL=https://<resource>.openai.azure.com/openai/v1 LICTORY_AI_MODEL=<deployment> \
@@ -170,8 +186,9 @@ console) when an endpoint points there.
 
 - **On the same machine:** use `host.docker.internal` (the self-hosted
   presets do) and set `LICTORY_HOST_MODEL_SERVER=true`, which maps it to the
-  host for the API and worker (`compose.host-models.yaml`; `lictory ai setup`
-  offers it). The model server must listen beyond loopback
+  host for the API and worker (`compose.host-models.yaml`). `lictory ai
+setup` offers it before testing, and the console warns beside a
+  same-machine endpoint until it is set. The model server must listen beyond loopback
   (`0.0.0.0`); keep its port closed to the outside with a firewall.
 - **On a private server:** its private address or internal name, such as
   `http://10.0.4.20:8000/v1` or `https://inference.corp.internal/v1`.
@@ -262,9 +279,16 @@ a time and at most every ten seconds.
 
 - One language model and one dictation provider per installation, not per
   organization or per feature.
-- Azure OpenAI with keys only (no Microsoft Entra ID); deployments must
-  support the v1 Responses API.
+- Azure OpenAI deployments must support the v1 Responses API. Microsoft Entra
+  ID covers service principals and managed identities (virtual machines,
+  AKS nodes, App Service, Container Apps) in the public cloud; workload
+  identity federation and sovereign clouds need a key.
 - Dictation by recorded clips shows words after each pause, not while
   speaking; live dictation is OpenAI Realtime only.
-- No provider was verified live in Lictory's test suite: its contract tests
-  run against local fakes of each protocol. Run the check with your own keys.
+- No provider was verified live in Lictory's test suite. Contract tests run
+  against local fakes of each protocol: OpenAI, Anthropic, Gemini, Azure
+  (key and Entra), Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter and the
+  OpenAI-compatible servers for text; OpenAI, Azure, Groq, Mistral,
+  Deepgram, ElevenLabs, AssemblyAI and Whisper servers for dictation. Vertex
+  AI (text and speech) and OpenAI Realtime are covered by settings tests
+  only. Run the check with your own keys.

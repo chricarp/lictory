@@ -106,6 +106,7 @@ void test("connecting or changing an AI provider reaches existing directories at
     dictation: true,
     dictationMode: "realtime",
     dictationProvider: "openai-realtime",
+    dictationCustomEndpoint: false,
   });
   // Nothing left to refresh on the next start.
   assert.equal(await refreshAiAvailability(db), 0);
@@ -124,6 +125,7 @@ void test("connecting or changing an AI provider reaches existing directories at
     dictation: false,
     dictationMode: null,
     dictationProvider: null,
+    dictationCustomEndpoint: false,
   });
   assert.equal(await refreshAiAvailability(db), 0);
   delete process.env.LICTORY_AI_PROVIDER;

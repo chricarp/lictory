@@ -22,6 +22,7 @@ import {
   aiState,
   aiWarnings,
   environmentState,
+  hostModelServer,
   isMetadataAddress,
   resolveText,
   resolveTranscriptionSettings,
@@ -146,18 +147,24 @@ export function watchAiSettings(
   } = {},
 ) {
   if (environmentState().source === "environment") return () => undefined;
+  // The settings version the directories were last refreshed for: kept apart
+  // from the loaded one, so a refresh that failed is retried on the next
+  // tick instead of being forgotten.
+  let propagated: string | undefined;
+  const tick = async () => {
+    await refreshAiState(db);
+    const current = `${aiState().source}:${aiState().version}`;
+    if (current === propagated) return;
+    const refreshed = await refreshAiAvailability(db);
+    propagated = current;
+    if (refreshed) options.log?.("ai.settings_reloaded", { refreshed });
+  };
   const timer = setInterval(() => {
-    refreshAiState(db)
-      .then(async (changed) => {
-        if (!changed) return;
-        const refreshed = await refreshAiAvailability(db);
-        options.log?.("ai.settings_reloaded", { refreshed });
-      })
-      .catch((error: unknown) =>
-        options.log?.("ai.settings_reload_failed", {
-          reason: error instanceof Error ? error.message : String(error),
-        }),
-      );
+    tick().catch((error: unknown) =>
+      options.log?.("ai.settings_reload_failed", {
+        reason: error instanceof Error ? error.message : String(error),
+      }),
+    );
   }, options.intervalMs ?? 10_000);
   timer.unref();
   return () => clearInterval(timer);
@@ -384,5 +391,7 @@ export async function aiSettingsView(db: Database) {
       : null,
     problems: problemsOf(state),
     warnings: aiWarnings(state, process.env.NODE_ENV === "production"),
+    // The console warns beside a same-machine endpoint until this is set.
+    hostModelServer: hostModelServer(),
   };
 }

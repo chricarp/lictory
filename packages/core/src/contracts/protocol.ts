@@ -991,6 +991,7 @@ export const directorySchema = z.object({
       dictation: z.boolean().default(false),
       dictationMode: z.enum(["realtime", "segments"]).nullable().default(null),
       dictationProvider: z.string().nullable().default(null),
+      dictationCustomEndpoint: z.boolean().default(false),
     })
     .default({
       enabled: false,
@@ -1001,6 +1002,7 @@ export const directorySchema = z.object({
       dictation: false,
       dictationMode: null,
       dictationProvider: null,
+      dictationCustomEndpoint: false,
     }),
 });
 export type Directory = z.infer<typeof directorySchema>;

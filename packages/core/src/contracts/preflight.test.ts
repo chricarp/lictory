@@ -53,6 +53,7 @@ const directory: Directory = {
     dictation: false,
     dictationMode: null,
     dictationProvider: null,
+    dictationCustomEndpoint: false,
   },
   organizations: [],
   members: [],

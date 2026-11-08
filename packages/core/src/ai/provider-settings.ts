@@ -82,6 +82,9 @@ const envNames: Record<Part, Partial<Record<AiField | "provider", string>>> = {
     location: setting("LICTORY_AI_LOCATION"),
     accessKeyId: setting("LICTORY_AI_AWS_ACCESS_KEY_ID"),
     secretAccessKey: setting("LICTORY_AI_AWS_SECRET_ACCESS_KEY"),
+    tenantId: setting("LICTORY_AI_AZURE_TENANT_ID"),
+    clientId: setting("LICTORY_AI_AZURE_CLIENT_ID"),
+    clientSecret: setting("LICTORY_AI_AZURE_CLIENT_SECRET"),
     structuredOutput: setting("LICTORY_AI_STRUCTURED_OUTPUT"),
   },
   transcription: {
@@ -129,6 +132,12 @@ export function aiManagedByEnvironment(source: Environment = process.env) {
   return aiVariables.some((name) => env(name, source) !== undefined);
 }
 
+/** Whether the containers reach the host as host.docker.internal. */
+export function hostModelServer(source: Environment = process.env) {
+  const value = env("LICTORY_HOST_MODEL_SERVER", source)?.toLowerCase();
+  return value === "true" || value === "yes" || value === "1";
+}
+
 /** Whether instance administrators may configure AI in the console. */
 export function aiConsoleAllowed(source: Environment = process.env) {
   const value = env("LICTORY_AI_CONSOLE", source)?.toLowerCase();
@@ -146,6 +155,9 @@ const explicitSettings = [
   "LICTORY_AI_LOCATION",
   "LICTORY_AI_AWS_ACCESS_KEY_ID",
   "LICTORY_AI_AWS_SECRET_ACCESS_KEY",
+  "LICTORY_AI_AZURE_TENANT_ID",
+  "LICTORY_AI_AZURE_CLIENT_ID",
+  "LICTORY_AI_AZURE_CLIENT_SECRET",
 ] as const;
 
 /** Which variables hold the keys and URLs, for messages naming what to check. */
@@ -264,6 +276,8 @@ export type AiProviderConfig = {
   location?: string;
   accessKeyId?: string;
   secretAccessKey?: string;
+  /** Azure without a key: a Microsoft Entra service principal or managed identity. */
+  entra?: EntraCredentials;
   /** A Google service account key, when the key is one. */
   googleCredentials?: Record<string, string>;
   structuredOutput: StructuredOutputMode;
@@ -290,7 +304,10 @@ export type TranscriptionConfig = {
   keySetting?: string;
   project?: string;
   location?: string;
+  entra?: EntraCredentials;
   googleCredentials?: Record<string, string>;
+  /** How long one recorded clip may take: the request timeout, 30 s to 2 min. */
+  timeoutMs: number;
   source: SettingsSource;
 };
 
@@ -400,13 +417,15 @@ function checkFields(
     );
   }
   if (google && !expressKey) {
+    // Speech takes no API key, so only text mentions it.
+    const orKey = part === "text" ? " unless the key is an API key" : "";
     if (!project)
       problems.push(
-        `${name("project")} is required for ${spec.label} unless the key is an API key or a service account key naming its project.`,
+        `${name("project")} is required for ${spec.label}${part === "text" ? " unless the key is an API key or a service account key naming its project" : " unless the key is a service account key naming its project"}.`,
       );
     if (!settings.location)
       problems.push(
-        `${name("location")} is required for ${spec.label} unless the key is an API key (for example us-central1 or global).`,
+        `${name("location")} is required for ${spec.label}${orKey} (for example us-central1 or global).`,
       );
   }
   if (
@@ -416,6 +435,21 @@ function checkFields(
     problems.push(
       `${name("accessKeyId")} and ${name("secretAccessKey")} go together: set both, or neither to use a Bedrock API key or the server's own AWS identity.`,
     );
+  if (spec.vendor === "azure") {
+    const entra = [settings.tenantId, settings.clientId, settings.clientSecret];
+    if (settings.clientSecret && !(settings.tenantId && settings.clientId))
+      problems.push(
+        `${name("clientSecret")} needs ${name("tenantId")} and ${name("clientId")}: a Microsoft Entra service principal is all three.`,
+      );
+    if (settings.tenantId && !settings.clientSecret)
+      problems.push(
+        `${name("tenantId")} is for a Microsoft Entra service principal: set ${name("clientId")} and ${name("clientSecret")} too, or leave it empty to use a key or the server's managed identity.`,
+      );
+    if (settings.apiKey && entra.some(Boolean))
+      problems.push(
+        `Use either ${name("apiKey")} or Microsoft Entra ID, not both.`,
+      );
+  }
   if (spec.vendor === "aws" && settings.apiKey && settings.accessKeyId)
     problems.push(
       `Use either ${name("apiKey")} (a Bedrock API key) or an access key pair, not both.`,
@@ -506,16 +540,48 @@ export function resolveText(
       keySetting:
         text.apiKey || checked.googleCredentials
           ? (keySetting ?? name("apiKey"))
-          : undefined,
+          : text.clientSecret
+            ? name("clientSecret")
+            : undefined,
       region: text.region,
       accessKeyId: text.accessKeyId,
       secretAccessKey: text.secretAccessKey,
+      entra: entraOf(spec.vendor, text),
       structuredOutput,
       timeoutMs: (settings.timeoutSeconds ?? DEFAULT_AI_TIMEOUT_SECONDS) * 1000,
       source,
     },
   };
 }
+
+export type EntraCredentials =
+  | {
+      kind: "service-principal";
+      tenantId: string;
+      clientId: string;
+      clientSecret: string;
+    }
+  | { kind: "managed-identity"; clientId?: string };
+
+// Azure without a key: a service principal when its secret is set, otherwise
+// the machine's managed identity (a client ID selects a user-assigned one).
+function entraOf(
+  vendor: string,
+  settings: ProviderSettings,
+): EntraCredentials | undefined {
+  if (vendor !== "azure" || settings.apiKey) return undefined;
+  if (settings.tenantId && settings.clientId && settings.clientSecret)
+    return {
+      kind: "service-principal",
+      tenantId: settings.tenantId,
+      clientId: settings.clientId,
+      clientSecret: settings.clientSecret,
+    };
+  return { kind: "managed-identity", clientId: settings.clientId };
+}
+
+const clipTimeoutMs = (settings: AiSettings) =>
+  Math.min(120, Math.max(30, settings.timeoutSeconds ?? 30)) * 1000;
 
 /** Dictation for these settings; a provider of the text's vendor shares its key. */
 export function resolveTranscriptionSettings(
@@ -549,6 +615,7 @@ export function resolveTranscriptionSettings(
         urlSetting: named(source, "transcription", "baseUrl"),
         apiKey: text.config.apiKey,
         keySetting: text.config.keySetting,
+        timeoutMs: clipTimeoutMs(settings),
         source,
       },
     };
@@ -573,8 +640,27 @@ export function resolveTranscriptionSettings(
   const merged: ProviderSettings = { ...chosen };
   let keySetting = options.keySetting;
   if (shared) {
-    for (const field of ["apiKey", "project", "location", "region"] as const)
-      if (!merged[field] && textSettings[field] && spec.fields[field]) {
+    for (const field of [
+      "apiKey",
+      "project",
+      "location",
+      "region",
+      "tenantId",
+      "clientId",
+      "clientSecret",
+    ] as const)
+      if (
+        !merged[field] &&
+        textSettings[field] &&
+        spec.fields[field] &&
+        // Google speech takes no express-mode API key: share only a service
+        // account key.
+        !(
+          field === "apiKey" &&
+          spec.adapter === "vertex" &&
+          googleKey(textSettings.apiKey) === undefined
+        )
+      ) {
         merged[field] = textSettings[field];
         if (field === "apiKey") keySetting = text.config.keySetting;
       }
@@ -584,12 +670,27 @@ export function resolveTranscriptionSettings(
       merged.baseUrl = textSettings.baseUrl;
   }
   const problems: string[] = [];
+  if (
+    spec.adapter === "vertex" &&
+    merged.apiKey &&
+    googleKey(merged.apiKey) === undefined
+  )
+    problems.push(
+      `${name("apiKey")}: Google Cloud Speech does not accept express-mode API keys. Use a service account key (its JSON) or the server's own Google Cloud identity, with project and location.`,
+    );
   const checked = checkFields(
     "transcription",
     source,
     id,
     spec,
-    merged,
+    {
+      ...merged,
+      ...(spec.adapter === "vertex" &&
+      merged.apiKey &&
+      googleKey(merged.apiKey) === undefined
+        ? { apiKey: undefined }
+        : {}),
+    },
     problems,
   );
   if (problems.length) return { state: "invalid", problems };
@@ -606,6 +707,8 @@ export function resolveTranscriptionSettings(
         merged.apiKey || checked.googleCredentials
           ? (keySetting ?? name("apiKey"))
           : undefined,
+      entra: entraOf(spec.vendor, merged),
+      timeoutMs: clipTimeoutMs(settings),
       source,
     },
   };
@@ -751,7 +854,27 @@ export function isPrivateHost(hostname: string) {
  * operator's own and is not restricted.
  */
 export function isMetadataAddress(address: string) {
-  const host = address.toLowerCase().replace(/^\[|\]$/g, "");
+  let host = address.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host.includes(":")) {
+    // One spelling per address: compressed, lowercase.
+    try {
+      host = new URL(`http://[${host}]`).hostname.replace(/^\[|\]$/g, "");
+    } catch {
+      return false;
+    }
+    // IPv4 in IPv6 (mapped, NAT64): judge the IPv4 address it carries.
+    const embedded =
+      /^(?:::ffff:|64:ff9b::)(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(
+        host,
+      );
+    if (embedded) {
+      if (embedded[1]) return isMetadataAddress(embedded[1]);
+      const hi = parseInt(embedded[2]!, 16);
+      const lo = parseInt(embedded[3]!, 16);
+      return isMetadataAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+    return /^fe[89ab][0-9a-f]:/.test(host) || host === "fd00:ec2::254";
+  }
   const ip = ipv4(host);
   if (ip) {
     const [a, b, c, d] = ip as [number, number, number, number];
@@ -761,13 +884,7 @@ export function isMetadataAddress(address: string) {
       a === 0
     );
   }
-  return (
-    /^fe[89ab][0-9a-f]:/.test(host) ||
-    host === "fd00:ec2::254" ||
-    host.startsWith("::ffff:169.254.") ||
-    host === "metadata.google.internal" ||
-    host === "metadata"
-  );
+  return host === "metadata.google.internal" || host === "metadata";
 }
 
 function urlWarnings(
@@ -913,7 +1030,10 @@ export function describeAiProvider(source?: Environment) {
     model: config.model,
     endpoint: endpointOf(config.baseURL),
     authenticated: Boolean(
-      !!config.apiKey || !!config.accessKeyId || !!config.googleCredentials,
+      !!config.apiKey ||
+      !!config.accessKeyId ||
+      !!config.googleCredentials ||
+      config.entra?.kind === "service-principal",
     ),
     keySetting: config.keySetting ?? null,
     region: config.region ?? null,
@@ -942,7 +1062,10 @@ export function describeTranscription(source?: Environment) {
     mode: config.mode,
     model: config.model,
     endpoint: endpointOf(config.baseURL),
-    authenticated: !!config.apiKey || !!config.googleCredentials,
+    authenticated:
+      !!config.apiKey ||
+      !!config.googleCredentials ||
+      config.entra?.kind === "service-principal",
     keySetting: config.keySetting ?? null,
     source: config.source,
   } as const;

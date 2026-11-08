@@ -27,6 +27,9 @@ const providerInput = z.object({
   apiKey: field,
   accessKeyId: field,
   secretAccessKey: field,
+  tenantId: field,
+  clientId: field,
+  clientSecret: field,
 });
 export const aiSettingsInput = z.object({
   text: providerInput.nullable(),
@@ -50,6 +53,9 @@ export const allFields: AiField[] = [
   "location",
   "accessKeyId",
   "secretAccessKey",
+  "tenantId",
+  "clientId",
+  "clientSecret",
   "structuredOutput",
 ];
 export const isSecret = (f: AiField) => secretFields.includes(f);

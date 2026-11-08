@@ -18,6 +18,9 @@ import {
   configuredModel,
   DEFAULT_AI_MODEL,
   DEFAULT_AI_TIMEOUT_SECONDS,
+  EndpointRefused,
+  EntraError,
+  hostModelServer,
   isLoopbackUrl,
   providerOptions,
   structuredSystem,
@@ -237,6 +240,14 @@ export function describeProviderError(
     "provider" | "baseURL" | "keySetting"
   > = aiProvider() ?? substituted,
 ) {
+  // Our own explanations (Microsoft Entra sign-in, refused endpoints) are
+  // written for people already, also when the SDK wrapped them.
+  for (let e: unknown = error, depth = 0; e && depth < 5; depth++) {
+    if (e instanceof EntraError || e instanceof EndpointRefused)
+      return e.message;
+    if (RetryError.isInstance(e)) e = e.lastError;
+    else e = (e as { cause?: unknown }).cause;
+  }
   // After its retries, the SDK reports the last attempt's failure.
   const last = RetryError.isInstance(error) ? error.lastError : error;
   const e = last as {
@@ -289,8 +300,11 @@ export function describeProviderError(
     return `The AI provider did not answer in time. ${again}.`;
   // No response at all: the server could not connect to the provider.
   if (APICallError.isInstance(last) && last.statusCode === undefined)
-    return isLoopbackUrl(config.baseURL)
-      ? `This server could not reach the AI endpoint. ${again} later, or ask an administrator to check LICTORY_AI_BASE_URL: it points at localhost, which inside a container is the container itself, not the server.`
-      : `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider${explicit ? " (LICTORY_AI_BASE_URL)" : ""}.`;
+    return /\/\/host\.docker\.internal[:/]/.test(config.baseURL) &&
+      !hostModelServer()
+      ? `This server could not reach the AI endpoint on this machine. ${again} later, or ask an administrator to set LICTORY_HOST_MODEL_SERVER=true on the server (sudo lictory config set LICTORY_HOST_MODEL_SERVER=true) and check that the model server listens on 0.0.0.0.`
+      : isLoopbackUrl(config.baseURL)
+        ? `This server could not reach the AI endpoint. ${again} later, or ask an administrator to check LICTORY_AI_BASE_URL: it points at localhost, which inside a container is the container itself, not the server.`
+        : `This server could not reach the AI provider. ${again} later, or ask an administrator to check the server's network access to the provider${explicit ? " (LICTORY_AI_BASE_URL)" : ""}.`;
   return `The AI provider could not complete the request. ${again} shortly.`;
 }

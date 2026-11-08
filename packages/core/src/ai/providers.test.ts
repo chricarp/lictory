@@ -12,6 +12,7 @@ import {
   itemReviewOutput,
 } from "@lictory/core/ai/analyzer";
 import {
+  entraToken,
   environmentState,
   guardedFetch,
   isMetadataAddress,
@@ -447,6 +448,22 @@ void test("console endpoints never reach instance metadata, even through DNS or 
   const server = await fake(() => ({ json: { ok: true } }));
   const response = await guardedFetch(`${server.url}/v1/models`);
   assert.equal(response.status, 200);
+  // A name that resolves to metadata is refused when connecting.
+  await assert.rejects(
+    guardedFetch("http://metadata.google.internal/computeMetadata/v1/"),
+    /link-local or cloud metadata/,
+  );
+  // Multipart bodies (dictation clips) pass through the guard intact.
+  const whisper = await fake((seen) => ({
+    json: { text: seen.raw.includes('name="model"') ? "ok" : "no form" },
+  }));
+  const form = new FormData();
+  form.append("model", "whisper");
+  const posted = await guardedFetch(`${whisper.url}/v1/audio/transcriptions`, {
+    method: "POST",
+    body: form,
+  });
+  assert.deepEqual(await posted.json(), { text: "ok" });
   // A console-configured provider uses the guard.
   const config: AiProviderConfig = {
     ...configured({
@@ -745,6 +762,246 @@ void test("Deepgram: the listen endpoint with its token", async () => {
       /^https:\/\/api\.deepgram\.com\/v1\/listen\?model=nova-3/,
     );
     assert.equal(calls[0]!.headers.get("authorization"), "Token dg-key");
+  } finally {
+    globalThis.fetch = original;
+    setAiState(undefined);
+  }
+});
+
+// ------------------------------------------------- review follow-ups
+
+void test("Google speech refuses express-mode API keys and never inherits one", () => {
+  const express = environmentState({
+    LICTORY_AI_PROVIDER: "vertex",
+    LICTORY_AI_MODEL: "m",
+    LICTORY_AI_API_KEY: "AIza-express",
+    LICTORY_TRANSCRIPTION_PROVIDER: "vertex",
+  }).transcription;
+  // Not inherited: speech needs a project and location (or a service account).
+  assert.equal(express.state, "invalid");
+  assert.match(
+    JSON.stringify(express),
+    /LICTORY_TRANSCRIPTION_PROJECT is required for Google Cloud Speech/,
+  );
+  const typed = environmentState({
+    OPENAI_API_KEY: "sk",
+    LICTORY_TRANSCRIPTION_PROVIDER: "vertex",
+    LICTORY_TRANSCRIPTION_API_KEY: "AIza-express",
+  }).transcription;
+  assert.match(JSON.stringify(typed), /does not accept express-mode API keys/);
+  const account = JSON.stringify({
+    client_email: "a@p.iam.gserviceaccount.com",
+    private_key: "-----BEGIN PRIVATE KEY-----",
+    project_id: "acme",
+  });
+  const shared = environmentState({
+    LICTORY_AI_PROVIDER: "vertex",
+    LICTORY_AI_MODEL: "m",
+    LICTORY_AI_API_KEY: account,
+    LICTORY_AI_LOCATION: "europe-west4",
+    LICTORY_TRANSCRIPTION_PROVIDER: "vertex",
+  }).transcription;
+  assert.equal(shared.state, "configured", JSON.stringify(shared));
+});
+
+void test("dictation of the same vendor goes through the language model's gateway", () => {
+  const groq = environmentState({
+    LICTORY_AI_PROVIDER: "groq",
+    LICTORY_AI_API_KEY: "gsk",
+    LICTORY_AI_MODEL: "m",
+    LICTORY_AI_BASE_URL: "https://llm-gateway.corp.internal/groq/v1",
+    LICTORY_TRANSCRIPTION_PROVIDER: "groq",
+  }).transcription;
+  const config = (groq as { config: TranscriptionConfig }).config;
+  assert.equal(config.baseURL, "https://llm-gateway.corp.internal/groq/v1");
+  assert.equal(config.customBaseUrl, true);
+});
+
+void test("Azure with Microsoft Entra ID: a service principal or the managed identity", async () => {
+  const sp = configured({
+    LICTORY_AI_PROVIDER: "azure",
+    LICTORY_AI_MODEL: "gpt",
+    LICTORY_AI_BASE_URL: "https://acme.openai.azure.com/openai/v1",
+    LICTORY_AI_AZURE_TENANT_ID: "tenant-1",
+    LICTORY_AI_AZURE_CLIENT_ID: "client-1",
+    LICTORY_AI_AZURE_CLIENT_SECRET: "secret-1",
+  });
+  assert.deepEqual(sp.entra, {
+    kind: "service-principal",
+    tenantId: "tenant-1",
+    clientId: "client-1",
+    clientSecret: "secret-1",
+  });
+  const managed = configured({
+    LICTORY_AI_PROVIDER: "azure",
+    LICTORY_AI_MODEL: "gpt",
+    LICTORY_AI_BASE_URL: "https://acme.openai.azure.com/openai/v1",
+  });
+  assert.deepEqual(managed.entra, {
+    kind: "managed-identity",
+    clientId: undefined,
+  });
+  assert.match(
+    invalid({
+      LICTORY_AI_PROVIDER: "azure",
+      LICTORY_AI_MODEL: "gpt",
+      LICTORY_AI_BASE_URL: "https://acme.openai.azure.com/openai/v1",
+      LICTORY_AI_AZURE_CLIENT_SECRET: "secret-1",
+    }),
+    /all three/,
+  );
+  assert.match(
+    invalid({
+      LICTORY_AI_PROVIDER: "azure",
+      LICTORY_AI_MODEL: "gpt",
+      LICTORY_AI_BASE_URL: "https://acme.openai.azure.com/openai/v1",
+      LICTORY_AI_API_KEY: "k",
+      LICTORY_AI_AZURE_TENANT_ID: "t",
+    }),
+    /not both/,
+  );
+  // The client credentials flow, then the bearer token on Azure requests.
+  const token: { url: string; body: string }[] = [];
+  const issued = await entraToken(sp.entra, (async (
+    url: string,
+    init: RequestInit,
+  ) => {
+    token.push({ url, body: (init.body as URLSearchParams).toString() });
+    return Response.json({ access_token: "entra-token-1", expires_in: 3600 });
+  }) as unknown as typeof fetch);
+  assert.equal(issued, "entra-token-1");
+  assert.equal(
+    token[0]!.url,
+    "https://login.microsoftonline.com/tenant-1/oauth2/v2.0/token",
+  );
+  assert.match(token[0]!.body, /grant_type=client_credentials/);
+  assert.match(
+    token[0]!.body,
+    /scope=https%3A%2F%2Fcognitiveservices\.azure\.com%2F\.default/,
+  );
+  const server = await fake(() => responses(JSON.stringify(review)));
+  // The token is cached: the adapter uses it without another sign-in.
+  assert.deepEqual(
+    await structured({ ...sp, baseURL: `${server.url}/openai/v1` }),
+    review,
+  );
+  assert.equal(server.seen[0]!.headers.authorization, "Bearer entra-token-1");
+  assert.equal(server.seen[0]!.headers["api-key"], undefined);
+  // A refused service principal says what to check, never the secret.
+  await assert.rejects(
+    entraToken(
+      {
+        kind: "service-principal",
+        tenantId: "t2",
+        clientId: "c2",
+        clientSecret: "s3cr3t",
+      },
+      async () =>
+        new Response("{}", { status: 401 }),
+    ),
+    (e: Error) =>
+      e.message.includes('Check the tenant ID') && !e.message.includes("s3cr3t"),
+  );
+});
+
+void test("Groq and Mistral dictation: multipart clips with their keys", async () => {
+  for (const [provider, path, auth] of [
+    ["groq", "/openai/v1/audio/transcriptions", "Bearer gsk-key"],
+    ["mistral", "/v1/audio/transcriptions", "Bearer mistral-key"],
+  ] as const) {
+    // Each provider's own response shape (Groq names its request, Mistral its model).
+    const server = await fake(() => ({
+      json: {
+        text: "Ship it.",
+        x_groq: { id: "req_1" },
+        model: "voxtral-mini-latest",
+      },
+    }));
+    const config = clipConfig({
+      OPENAI_API_KEY: "sk",
+      LICTORY_TRANSCRIPTION_PROVIDER: provider,
+      LICTORY_TRANSCRIPTION_API_KEY: auth.slice(7),
+      LICTORY_TRANSCRIPTION_BASE_URL: `${server.url}${path.replace("/audio/transcriptions", "")}`,
+    });
+    setAiState({
+      ...environmentState({}),
+      transcription: { state: "configured", config },
+    });
+    try {
+      assert.deepEqual(await transcribeSegment(syntheticWav(), "audio/wav"), {
+        text: "Ship it.",
+      });
+      assert.equal(server.seen[0]!.path, path, provider);
+      assert.equal(server.seen[0]!.headers.authorization, auth);
+    } finally {
+      setAiState(undefined);
+    }
+  }
+});
+
+void test("ElevenLabs and AssemblyAI dictation: their APIs and keys", async () => {
+  const original = globalThis.fetch;
+  const calls: { url: string; headers: Headers }[] = [];
+  globalThis.fetch = async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    const url = String(input instanceof Request ? input.url : input);
+    calls.push({ url, headers: new Headers(init?.headers) });
+    if (url.includes("elevenlabs"))
+      return Response.json({
+        language_code: "en",
+        language_probability: 1,
+        text: "Ship it.",
+        words: [],
+      });
+    if (url.endsWith("/v2/upload"))
+      return Response.json({ upload_url: "https://cdn.assemblyai.test/clip" });
+    if (url.endsWith("/v2/transcript"))
+      return Response.json({ id: "t1", status: "queued" });
+    return Response.json({
+      id: "t1",
+      status: "completed",
+      text: "Ship it.",
+      words: [],
+      audio_duration: 1,
+    });
+  };
+  try {
+    for (const [provider, key, host, header, value] of [
+      [
+        "elevenlabs",
+        "el-key",
+        "https://api.elevenlabs.io/v1/speech-to-text",
+        "xi-api-key",
+        "el-key",
+      ],
+      [
+        "assemblyai",
+        "aai-key",
+        "https://api.assemblyai.com/v2/upload",
+        "authorization",
+        "aai-key",
+      ],
+    ] as const) {
+      calls.length = 0;
+      const config = clipConfig({
+        OPENAI_API_KEY: "sk",
+        LICTORY_TRANSCRIPTION_PROVIDER: provider,
+        LICTORY_TRANSCRIPTION_API_KEY: key,
+      });
+      setAiState({
+        ...environmentState({}),
+        transcription: { state: "configured", config },
+      });
+      assert.deepEqual(
+        await transcribeSegment(syntheticWav(), "audio/wav"),
+        { text: "Ship it." },
+        provider,
+      );
+      assert.ok(calls[0]!.url.startsWith(host), calls[0]!.url);
+      assert.equal(calls[0]!.headers.get(header), value);
+    }
   } finally {
     globalThis.fetch = original;
     setAiState(undefined);

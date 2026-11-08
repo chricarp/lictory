@@ -10,10 +10,14 @@
 const RATE = 16_000;
 // Speech louder than this (RMS of a buffer, after auto gain) opens a clip.
 const SPEECH_RMS = 0.012;
-// A pause this long after speech closes the clip.
-const PAUSE_MS = 700;
-// Clips never exceed this; the server accepts up to 30 s.
-const MAX_CLIP_MS = 20_000;
+// A pause this long after speech closes the clip: words arrive soon after
+// people stop, and a noisy room still gets clips.
+const PAUSE_MS = 550;
+// Clips never exceed this (the server accepts up to 30 s): in steady noise,
+// words still arrive every few seconds.
+const MAX_CLIP_MS = 12_000;
+// Clips waiting for words before dictation stops instead of falling behind.
+const MAX_PENDING = 5;
 // Audio kept from just before speech starts, so first syllables are not cut.
 const PREROLL_MS = 300;
 
@@ -114,6 +118,9 @@ export function recordSegments(
   // Clips are transcribed one after another, so the text stays in order.
   let queue = Promise.resolve();
 
+  // Clips waiting for their words. A server that cannot keep up stops the
+  // dictation (keeping what it transcribed) rather than piling up audio.
+  let pending = 0;
   const send = () => {
     if (!clip.length) return;
     const samples = resample(concat(clip), rate);
@@ -121,11 +128,32 @@ export function recordSegments(
     clipMs = 0;
     speaking = false;
     handlers.onSpeech?.(false);
+    if (failed || cancelled) return;
+    if (pending >= MAX_PENDING) {
+      failed = true;
+      handlers.onError(
+        new Error(
+          "Voice input stopped: the speech-to-text service is falling behind. What was transcribed is kept.",
+        ),
+      );
+      return;
+    }
     const wav = encodeWav(samples);
+    pending++;
     queue = queue.then(async () => {
-      if (failed || cancelled) return;
       try {
-        const text = (await handlers.transcribe(wav)).trim();
+        if (failed || cancelled) return;
+        // One more try for a clip that failed (a dropped connection, a busy
+        // server), then stop with the words so far.
+        let text: string;
+        try {
+          text = await handlers.transcribe(wav);
+        } catch {
+          if (cancelled) return;
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          text = await handlers.transcribe(wav);
+        }
+        text = text.trim();
         if (!text || cancelled) return;
         spoken = spoken ? `${spoken} ${text}` : text;
         handlers.onText(spoken);
@@ -133,6 +161,8 @@ export function recordSegments(
         if (cancelled) return;
         failed = true;
         handlers.onError(error);
+      } finally {
+        pending--;
       }
     });
   };

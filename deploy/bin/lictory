@@ -2986,11 +2986,15 @@ Usage: lictory ai <command> [options]
                     and where their settings come from
   providers         Every supported provider (cloud and self-hosted)
   setup             Choose providers, models and keys, test them, save them
-                    (guided; or --provider, --model, --base-url, --region,
-                    --project, --location, --dictation, --dictation-model,
-                    --dictation-base-url with --yes; keys from
-                    LICTORY_AI_API_KEY / LICTORY_TRANSCRIPTION_API_KEY or a
-                    hidden prompt, never from arguments)
+                    (guided; or with --yes: --provider, --model, --base-url,
+                    --region, --project, --location, --structured-output,
+                    --tenant-id, --client-id, --dictation, --dictation-model,
+                    --dictation-base-url, --dictation-project,
+                    --dictation-location. Secrets come from a hidden prompt or
+                    LICTORY_AI_API_KEY, LICTORY_AI_AWS_ACCESS_KEY_ID,
+                    LICTORY_AI_AWS_SECRET_ACCESS_KEY,
+                    LICTORY_AI_AZURE_CLIENT_SECRET,
+                    LICTORY_TRANSCRIPTION_API_KEY; never from arguments)
   check [--json]    Send synthetic content through every configured feature
                     and report what works
   off               No AI provider (removes stored keys)
@@ -3050,12 +3054,12 @@ ai_pick() {
 ai_fields() {
   local kind="$1" provider="$2" prefix="$3" field need label default value json secret keyvar
   json=$(jq -n --arg p "$provider" '{provider: $p}')
-  for field in baseUrl model region project location apiKey accessKeyId secretAccessKey structuredOutput; do
+  for field in baseUrl model region project location apiKey accessKeyId secretAccessKey tenantId clientId clientSecret structuredOutput; do
     need=$(admin_value ".$kind[\"$provider\"].fields.$field // empty")
     [ -n "$need" ] || continue
     label=$(admin_value ".fieldLabels.$field")
     secret=""
-    case "$field" in apiKey | accessKeyId | secretAccessKey) secret=secret ;; esac
+    case "$field" in apiKey | accessKeyId | secretAccessKey | clientSecret) secret=secret ;; esac
     default=""
     case "$field" in
       baseUrl) default=$(admin_value ".$kind[\"$provider\"].defaultBaseUrl // empty") ;;
@@ -3071,9 +3075,17 @@ ai_fields() {
       text:region) value=$(opt region) ;;
       text:project) value=$(opt project) ;;
       text:location) value=$(opt location) ;;
+      text:structuredOutput) value=$(opt structured-output) ;;
+      text:tenantId) value=$(opt tenant-id) ;;
+      text:clientId) value=$(opt client-id) ;;
       transcription:model) value=$(opt dictation-model) ;;
       transcription:baseUrl) value=$(opt dictation-base-url) ;;
+      transcription:project) value=$(opt dictation-project) ;;
+      transcription:location) value=$(opt dictation-location) ;;
       text:apiKey) value="${LICTORY_AI_API_KEY:-}" ;;
+      text:accessKeyId) value="${LICTORY_AI_AWS_ACCESS_KEY_ID:-}" ;;
+      text:secretAccessKey) value="${LICTORY_AI_AWS_SECRET_ACCESS_KEY:-}" ;;
+      text:clientSecret) value="${LICTORY_AI_AZURE_CLIENT_SECRET:-}" ;;
       transcription:apiKey) value="${LICTORY_TRANSCRIPTION_API_KEY:-}" ;;
     esac
     if [ -z "$value" ] && [ "$interactive" = true ]; then
@@ -3158,7 +3170,7 @@ cmd_ai() {
       check_ok "No AI provider is configured; organizations see Lictory Intelligence as unavailable."
       ;;
     setup)
-      parse "provider model base-url region project location dictation dictation-model dictation-base-url" "no-test" "$@"
+      parse "provider model base-url region project location structured-output tenant-id client-id dictation dictation-model dictation-base-url dictation-project dictation-location" "no-test" "$@"
       [ ${#positional[@]} -eq 0 ] || usage_error "ai setup takes no arguments; see lictory ai help."
       select_environment
       [ "$(opt yes)" != true ] && [ -t 0 ] && interactive=true
@@ -3210,6 +3222,17 @@ cmd_ai() {
       esac
       local settings
       settings=$(jq -n --argjson t "$ai_json_text" --argjson d "$transcription_json" '{text: $t, transcription: $d}')
+      # A model server on this machine needs the host alias in the
+      # containers, before the test can reach it.
+      if printf '%s' "$settings" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then
+        note "The containers reach a server on this machine as host.docker.internal once LICTORY_HOST_MODEL_SERVER=true (it restarts the services, about a minute)."
+        if confirm "Set LICTORY_HOST_MODEL_SERVER=true now?"; then
+          "$0" config set --env "$environment" --yes LICTORY_HOST_MODEL_SERVER=true || die "LICTORY_HOST_MODEL_SERVER was not applied; nothing about AI was saved."
+          admin_ready
+        else
+          warn "Without it, the test and every request to host.docker.internal fail."
+        fi
+      fi
       if [ "$(opt no-test)" != true ]; then
         step "Test"
         note "Sending synthetic content (no organization data) to the providers…"
@@ -3225,13 +3248,6 @@ cmd_ai() {
       check_ok "Saved. The API and worker use the new settings within seconds."
       say "$(row "Language model" "$(ai_describe .text)")"
       say "$(row "Dictation" "$(ai_describe .dictation)")"
-      # A model server on this machine needs the host alias in the containers.
-      if printf '%s' "$settings" | grep -q 'host\.docker\.internal' && [ "$(setting LICTORY_HOST_MODEL_SERVER)" != true ]; then
-        note "The containers reach a server on this machine as host.docker.internal once LICTORY_HOST_MODEL_SERVER=true (it restarts the services)."
-        if confirm "Set LICTORY_HOST_MODEL_SERVER=true now?"; then
-          "$0" config set --env "$environment" --yes LICTORY_HOST_MODEL_SERVER=true
-        fi
-      fi
       note "Organizations turn Lictory Intelligence on in their settings. Check any time: sudo lictory ai check"
       ;;
     *) usage_error "Unknown command: ai $sub (lictory ai help)" ;;

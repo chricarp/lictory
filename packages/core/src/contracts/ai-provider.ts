@@ -16,6 +16,9 @@ export type AiField =
   | "location"
   | "accessKeyId"
   | "secretAccessKey"
+  | "tenantId"
+  | "clientId"
+  | "clientSecret"
   | "structuredOutput";
 export type AiFieldNeed = "required" | "optional";
 
@@ -171,13 +174,20 @@ export const textProviders = {
     adapter: "azure",
     vendor: "azure",
     protocol: "Azure OpenAI Responses API (v1)",
-    fields: { apiKey: "required", baseUrl: "required", model: "required" },
+    fields: {
+      baseUrl: "required",
+      model: "required",
+      apiKey: "optional",
+      tenantId: "optional",
+      clientId: "optional",
+      clientSecret: "optional",
+    },
     httpsOnly: true,
     models: [],
     modelHint: "The name of your model deployment.",
     structuredOutput: "native",
     noStorageRequest: true,
-    note: "Base URL: https://<resource>.openai.azure.com/openai/v1. Also serves Foundry models your resource offers through the Responses API.",
+    note: "Base URL: https://<resource>.openai.azure.com/openai/v1. Authenticate with a key, a Microsoft Entra service principal (tenant, client ID and secret), or the server's managed identity (leave them all empty). Also serves Foundry models your resource offers through the Responses API.",
   },
   bedrock: {
     label: "Amazon Bedrock",
@@ -403,11 +413,19 @@ export const transcriptionProviders = {
     adapter: "azure",
     vendor: "azure",
     mode: "segments",
-    fields: { apiKey: "required", baseUrl: "required", model: "required" },
+    fields: {
+      baseUrl: "required",
+      model: "required",
+      apiKey: "optional",
+      tenantId: "optional",
+      clientId: "optional",
+      clientSecret: "optional",
+    },
     httpsOnly: true,
     models: [],
     modelHint:
       "The name of your transcription deployment (Whisper or gpt-4o-transcribe).",
+    note: "Authenticates like Azure OpenAI for text: a key, a Microsoft Entra service principal, or the server's managed identity.",
   },
   vertex: {
     label: "Google Cloud Speech (Vertex AI)",
@@ -424,7 +442,7 @@ export const transcriptionProviders = {
     defaultModel: "chirp_3",
     models: ["chirp_3", "chirp_2"],
     modelHint: "A Speech-to-Text model.",
-    note: "Authenticates like Vertex AI for text: a service account key, an API key, or the server's own identity.",
+    note: "Authenticate with a service account key (paste its JSON as the key) or the server's own Google Cloud identity, with project and location. Express-mode API keys do not work for speech.",
   },
   groq: {
     label: "Groq (Whisper)",
@@ -432,7 +450,8 @@ export const transcriptionProviders = {
     adapter: "groq",
     vendor: "groq",
     mode: "segments",
-    fields: { apiKey: "required", model: "optional" },
+    fields: { apiKey: "required", model: "optional", baseUrl: "optional" },
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
     defaultModel: "whisper-large-v3-turbo",
     models: ["whisper-large-v3-turbo", "whisper-large-v3"],
     modelHint: "A Whisper model Groq serves.",
@@ -480,7 +499,8 @@ export const transcriptionProviders = {
     adapter: "mistral",
     vendor: "mistral",
     mode: "segments",
-    fields: { apiKey: "required", model: "optional" },
+    fields: { apiKey: "required", model: "optional", baseUrl: "optional" },
+    defaultBaseUrl: "https://api.mistral.ai/v1",
     defaultModel: "voxtral-mini-latest",
     models: ["voxtral-mini-latest"],
     modelHint: "A Voxtral model.",
@@ -553,6 +573,9 @@ export const aiFieldLabels: Record<AiField, string> = {
   location: "Location",
   accessKeyId: "Access key ID",
   secretAccessKey: "Secret access key",
+  tenantId: "Tenant ID",
+  clientId: "Client ID",
+  clientSecret: "Client secret",
   structuredOutput: "Structured output",
 };
 
@@ -561,6 +584,7 @@ export const secretFields: readonly AiField[] = [
   "apiKey",
   "accessKeyId",
   "secretAccessKey",
+  "clientSecret",
 ];
 
 export const textProviderOf = (id: string): TextProvider | undefined =>

@@ -29,10 +29,16 @@ function destination(
   return `${spec.label}${spec.noStorageRequest ? ", which is asked not to store requests" : ""}.`;
 }
 
-function dictationDestination(provider: string | null, mode: string | null) {
+function dictationDestination(
+  provider: string | null,
+  mode: string | null,
+  customEndpoint: boolean,
+) {
   if (!provider) return "Not offered on this server.";
   const spec = transcriptionProviderOf(provider);
   if (!spec) return "Offered on this server.";
+  if (customEndpoint && spec.hosting === "cloud")
+    return `Short clips go through this server to ${spec.label} through an endpoint chosen by this installation's operator (a gateway or proxy). Lictory does not store them.`;
   if (mode === "realtime")
     return `Audio goes from the browser straight to ${spec.label.replace(/ \(live\)$/, "")} and is not stored by Lictory.`;
   return spec.hosting === "self-hosted"
@@ -61,6 +67,7 @@ function AiPolicySection() {
     customEndpoint,
     dictationProvider,
     dictationMode,
+    dictationCustomEndpoint,
   } = directory.ai;
   const sentTo = provider ? destination(provider, customEndpoint) : null;
   const [error, setError] = useState("");
@@ -160,7 +167,13 @@ function AiPolicySection() {
               <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
                 Voice input
               </dt>
-              <dd>{dictationDestination(dictationProvider, dictationMode)}</dd>
+              <dd>
+                {dictationDestination(
+                  dictationProvider,
+                  dictationMode,
+                  dictationCustomEndpoint,
+                )}
+              </dd>
             </>
           )}
           <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">

@@ -139,6 +139,7 @@ void test("saved settings take effect at once, with keys encrypted and only flag
     dictation: true,
     dictationMode: "segments",
     dictationProvider: "deepgram",
+    dictationCustomEndpoint: false,
   });
   // At rest: no key in plain text.
   const [row] = await db.select().from(s.instanceAiSetting);
