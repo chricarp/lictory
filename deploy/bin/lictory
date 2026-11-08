@@ -3264,14 +3264,14 @@ cmd_ai() {
         step "Test"
         note "Sending synthetic content (no organization data) to the providers…"
         local test_status=0
-        printf '%s' "$settings" | admin_call ai-test || test_status=$?
+        admin_call ai-test <<<"$settings" || test_status=$?
         [ -n "$(admin_value '.text.state // empty')" ] || die "$(admin_message)"
         ai_report
         if [ "$test_status" -ne 0 ]; then
           confirm "Some checks failed. Save these settings anyway?" || die "Nothing was saved."
         fi
       fi
-      printf '%s' "$settings" | admin_call ai-save || die "$(admin_message)"
+      admin_call ai-save <<<"$settings" || die "$(admin_message)"
       check_ok "Saved. The API and worker use the new settings within seconds."
       say "$(row "Language model" "$(ai_describe .text)")"
       say "$(row "Dictation" "$(ai_describe .dictation)")"
