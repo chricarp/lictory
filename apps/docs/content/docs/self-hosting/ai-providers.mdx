@@ -278,18 +278,19 @@ a time and at most every ten seconds.
 
 ## Troubleshooting
 
-| Message                                                                  | What to do                                                                                        |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| "…points at localhost, which inside a container is the container itself" | Use `host.docker.internal` with `LICTORY_HOST_MODEL_SERVER=true`, or the server's private address |
-| "could not reach the AI provider / endpoint"                             | Check the URL, that the server listens beyond loopback, and firewalls                             |
-| "rejected the configured credentials"                                    | Replace the key (console) or check the variable the message names                                 |
-| "The configured AI model is unavailable"                                 | Check the model id (the deployment name with Azure) and the URL                                   |
-| "does not support tool calls"                                            | Choose a model with tool support; reviews can still work                                          |
-| "does not accept JSON schema output"                                     | Structured output → JSON mode, or another model                                                   |
-| "longer than the AI model accepts"                                       | Raise the model's context length (`OLLAMA_CONTEXT_LENGTH`, vLLM `--max-model-len`)                |
-| "did not answer in time"                                                 | Faster hardware or a smaller model, or raise the timeout                                          |
-| "resolves to a link-local or cloud metadata address"                     | Use the model server's own address                                                                |
-| The console is read-only                                                 | The environment sets AI variables; change them there or remove them                               |
+| Message                                                                  | What to do                                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| "…points at localhost, which inside a container is the container itself" | Use `host.docker.internal` with `LICTORY_HOST_MODEL_SERVER=true`, or the server's private address                        |
+| "could not reach the AI provider / endpoint"                             | Check the URL, that the server listens beyond loopback, and firewalls                                                    |
+| "rejected the configured credentials"                                    | Replace the key (console) or check the variable the message names                                                        |
+| "The configured AI model is unavailable"                                 | Check the model id (the deployment name with Azure) and the URL                                                          |
+| "does not support tool calls"                                            | Choose a model with tool support; reviews can still work                                                                 |
+| "does not accept JSON schema output"                                     | Structured output → JSON mode, or another model                                                                          |
+| "longer than the AI model accepts"                                       | Raise the model's context length (`OLLAMA_CONTEXT_LENGTH`, vLLM `--max-model-len`)                                       |
+| "did not answer in time"                                                 | Faster hardware or a smaller model, or raise the timeout                                                                 |
+| "resolves to a link-local or cloud metadata address"                     | Use the model server's own address                                                                                       |
+| The console is read-only                                                 | The environment sets AI variables; change them there or remove them                                                      |
+| "The stored AI keys cannot be decrypted"                                 | `DELIVERY_CREDENTIALS_KEY` changed after the keys were saved: enter them again, restore the previous key, or turn AI off |
 
 ## Limitations
 

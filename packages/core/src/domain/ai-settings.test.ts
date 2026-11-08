@@ -254,3 +254,48 @@ void test("turning AI off removes the stored keys", async () => {
   assert.equal(row!.secrets, null);
   assert.equal(aiState().text.state, "disabled");
 });
+
+void test("keys that no longer decrypt are reported, kept until replaced on purpose, and AI can still be turned off", async () => {
+  const previousKey = process.env.DELIVERY_CREDENTIALS_KEY;
+  const mistral = (extra: Record<string, string> = {}) => ({
+    text: { provider: "mistral", model: "mistral-large-latest", ...extra },
+    transcription: "default" as const,
+  });
+  try {
+    process.env.DELIVERY_CREDENTIALS_KEY = "the-key-the-keys-were-saved-with";
+    await saveAiSettings(db, actor, mistral({ apiKey: "mistral-secret" }));
+    process.env.DELIVERY_CREDENTIALS_KEY = "a-different-key-after-a-rotation";
+
+    // Loading never throws: the provider is reported unusable, with the fix.
+    assert.equal((await loadAiState(db)).text.state, "invalid");
+    await refreshAiState(db);
+    const view = await aiSettingsView(db);
+    assert.match(view.problems.join(" "), /cannot be decrypted/);
+    assert.equal(view.problems.length, 1);
+
+    // A change that enters no key would drop the old ones: refused.
+    const [before] = await db.select().from(s.instanceAiSetting);
+    await assert.rejects(
+      saveAiSettings(db, actor, mistral({ model: "mistral-small-latest" })),
+      (error: { code?: string }) => error.code === "keys_unreadable",
+    );
+    const [unchanged] = await db.select().from(s.instanceAiSetting);
+    assert.equal(unchanged!.secrets, before!.secrets);
+
+    // Entering the key again replaces them.
+    await saveAiSettings(db, actor, mistral({ apiKey: "mistral-new-secret" }));
+    assert.equal(aiState().text.state, "configured");
+    assert.equal(
+      (await readStoredSettings(db))!.settings.text!.apiKey,
+      "mistral-new-secret",
+    );
+
+    // And turning AI off always works.
+    process.env.DELIVERY_CREDENTIALS_KEY = "yet-another-key-after-rotation";
+    await saveAiSettings(db, actor, { text: null, transcription: null });
+    assert.equal(aiState().text.state, "disabled");
+  } finally {
+    if (previousKey === undefined) delete process.env.DELIVERY_CREDENTIALS_KEY;
+    else process.env.DELIVERY_CREDENTIALS_KEY = previousKey;
+  }
+});

@@ -27,6 +27,7 @@ import {
   resolveText,
   resolveTranscriptionSettings,
   setAiState,
+  type AiResolution,
   type AiSettings,
   type AiState,
   type ProviderSettings,
@@ -67,7 +68,16 @@ type Stored = {
   version: number;
   updatedAt: Date;
   updatedById: string | null;
+  /**
+   * The keys were stored but do not decrypt: the credentials key changed
+   * since. The settings then carry no keys, and the provider is unusable
+   * until an administrator enters them again (or the old key comes back).
+   */
+  keysUnreadable?: boolean;
 };
+
+const KEYS_UNREADABLE =
+  "The stored AI keys cannot be decrypted: DELIVERY_CREDENTIALS_KEY (or BETTER_AUTH_SECRET, when that is not set) changed after they were saved. Enter the keys again, restore the previous key, or turn AI off.";
 
 export async function readStoredSettings(db: Database): Promise<Stored | null> {
   const [row] = await db
@@ -80,9 +90,16 @@ export async function readStoredSettings(db: Database): Promise<Stored | null> {
     transcription?: ProviderSettings | null;
     timeoutSeconds?: number;
   };
-  const secrets = row.secrets
-    ? decryptCredential<Secrets>(AAD, row.secrets)
-    : {};
+  let secrets: Secrets = {};
+  let keysUnreadable = false;
+  if (row.secrets)
+    try {
+      secrets = decryptCredential<Secrets>(AAD, row.secrets);
+    } catch {
+      // Reported as a configuration problem, never fatal: administrators
+      // must still be able to enter new keys or turn AI off.
+      keysUnreadable = true;
+    }
   const join = (
     part: "text" | "transcription",
     value: ProviderSettings | null | undefined,
@@ -96,21 +113,27 @@ export async function readStoredSettings(db: Database): Promise<Stored | null> {
     version: row.version,
     updatedAt: row.updatedAt,
     updatedById: row.updatedById,
+    keysUnreadable,
   };
 }
 
 /** Resolves stored settings the way the console sees them. */
 export function consoleState(stored: Stored, consoleAllowed: boolean): AiState {
-  const text = resolveText(stored.settings, "console");
+  const unreadable: AiResolution = {
+    state: "invalid",
+    problems: [KEYS_UNREADABLE],
+  };
+  const text = stored.keysUnreadable
+    ? unreadable
+    : resolveText(stored.settings, "console");
   return {
     source: "console",
     consoleAllowed,
     text,
-    transcription: resolveTranscriptionSettings(
-      stored.settings,
-      text,
-      "console",
-    ),
+    transcription:
+      stored.keysUnreadable && stored.settings.transcription
+        ? unreadable
+        : resolveTranscriptionSettings(stored.settings, text, "console"),
     problems: [],
     version: stored.version,
     updatedAt: stored.updatedAt.toISOString(),
@@ -218,14 +241,21 @@ export async function candidateState(db: Database, input: AiSettingsInput) {
     { settings, version: 0, updatedAt: new Date(), updatedById: null },
     true,
   );
-  return { settings, state, problems: endpointProblems(settings) };
+  return {
+    settings,
+    state,
+    problems: endpointProblems(settings),
+    keysUnreadable: stored?.keysUnreadable ?? false,
+  };
 }
 
 const problemsOf = (state: AiState) => [
-  ...(state.text.state === "invalid" ? state.text.problems : []),
-  ...(state.transcription.state === "invalid"
-    ? state.transcription.problems
-    : []),
+  ...new Set([
+    ...(state.text.state === "invalid" ? state.text.problems : []),
+    ...(state.transcription.state === "invalid"
+      ? state.transcription.problems
+      : []),
+  ]),
 ];
 
 export async function saveAiSettings(
@@ -233,7 +263,18 @@ export async function saveAiSettings(
   actor: InstanceActor,
   input: AiSettingsInput,
 ) {
-  const { settings, state, problems } = await candidateState(db, input);
+  const { settings, state, problems, keysUnreadable } = await candidateState(
+    db,
+    input,
+  );
+  // Unreadable keys are replaced only on purpose: by entering keys or by
+  // turning AI off, never as a side effect of changing a model or a URL.
+  if (
+    keysUnreadable &&
+    input.text !== null &&
+    !changedSecrets(input).some((c) => !c.endsWith("(cleared)"))
+  )
+    throw new InstanceAdminError("keys_unreadable", KEYS_UNREADABLE, 409);
   const all = [...problems, ...problemsOf(state)];
   if (all.length) throw new InstanceAdminError("validation", all.join(" "));
   const secrets: Secrets = {};
@@ -314,6 +355,8 @@ export async function saveAiSettings(
             : null,
       // Which secrets changed, never their values.
       keysChanged: changedSecrets(input),
+      // The keys stored before could not be decrypted and were replaced.
+      ...(keysUnreadable ? { unreadableKeysReplaced: true } : {}),
     },
   );
   const next = consoleState(
