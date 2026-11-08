@@ -479,7 +479,7 @@ Dictation only fills the draft: nothing is sent until the person sends it.
   partial words; once the person edits inside them, later words are only
   appended.
 - **Recorded clips (every other provider).** The browser cuts speech into
-  clips at each pause (16 kHz mono WAV, at most 20 s) and posts them in
+  clips at each pause (16 kHz mono WAV, at most 12 s) and posts them in
   order to `/api/intelligence/transcription/segment`; the server sends each
   to the configured provider and returns its words, which are appended to
   the dictated range. Clips are bounded (size, type, a per-person rate) and
