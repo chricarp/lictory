@@ -187,7 +187,6 @@ function ConsoleWindow({ s, layout }: { s: S; layout: Layout }) {
               <ChevronDown aria-hidden className="md-chevron" />
             </span>
           </div>
-          {layout === "wide" ? <ProviderMenu s={s} /> : null}
           <Field label="Base URL">
             <States
               align="start"
@@ -251,6 +250,8 @@ function ConsoleWindow({ s, layout }: { s: S; layout: Layout }) {
             ))}
           </div>
         </Collapse>
+        {/* Over the cards, not inside one: a popover, not card content */}
+        {layout === "wide" ? <ProviderMenu s={s} /> : null}
       </div>
     </Window>
   );
