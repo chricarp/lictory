@@ -19,7 +19,11 @@ test("page contents follow scrolling and keep nested and wrapped labels aligned"
       range.selectNodeContents(label);
       const firstLine = range.getClientRects()[0]!;
       const marker = dot.getBoundingClientRect();
+      const rail = link
+        .querySelector(".docs-toc-rail > line")!
+        .getBoundingClientRect();
       return {
+        railAlignment: Math.abs(rail.left - (marker.left + marker.width / 2)),
         offset: marker.left - link.getBoundingClientRect().left,
         alignment: Math.abs(
           marker.top +
@@ -31,6 +35,7 @@ test("page contents follow scrolling and keep nested and wrapped labels aligned"
     });
   const nested = await geometry();
   expect(nested.alignment).toBeLessThan(2);
+  expect(nested.railAlignment).toBeLessThan(1);
 
   // Clicking a top-level entry updates both navigation and the current row.
   await contents
@@ -52,6 +57,25 @@ test("page contents follow scrolling and keep nested and wrapped labels aligned"
     .poll(async () => (await geometry()).labelHeight)
     .toBeGreaterThan(20);
   expect((await geometry()).alignment).toBeLessThan(2);
+  expect((await geometry()).railAlignment).toBeLessThan(1);
+  const railGaps = await contents.locator("a").evaluateAll((links) =>
+    links.slice(1).map((link, index) => {
+      const previous = links[index]!.querySelector(
+        ".docs-toc-rail > line",
+      )!.getBoundingClientRect();
+      const curve = link
+        .querySelector(".docs-toc-rail path")!
+        .getBoundingClientRect();
+      const line = link
+        .querySelector(".docs-toc-rail > line")!
+        .getBoundingClientRect();
+      return Math.max(
+        Math.abs(previous.bottom - curve.top),
+        Math.abs(curve.bottom - line.top),
+      );
+    }),
+  );
+  expect(Math.max(...railGaps)).toBeLessThan(1);
 
   await page.setViewportSize({ width: 1440, height: 400 });
   await page.locator("#tips").evaluate((heading) => heading.scrollIntoView());
