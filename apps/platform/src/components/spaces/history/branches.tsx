@@ -1,3 +1,7 @@
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { useState } from "react";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
 import { Button } from "@lictory/ui/button";
@@ -227,18 +231,20 @@ export function Branches({ pageId }: { pageId: string }) {
           )}
           <label className="block text-sm">
             Start from
-            <select
-              className={`${field} mt-1`}
+            <DropdownSelect
+              className="w-full"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onValueChange={(value) => setFrom(value)}
             >
-              <option value="">Current main version</option>
+              <DropdownSelectOption value="">
+                Current main version
+              </DropdownSelectOption>
               {commits.map((c) => (
-                <option key={c.id} value={c.id}>
+                <DropdownSelectOption key={c.id} value={c.id}>
                   {c.message ?? c.title} · {c.id.slice(0, 8)}
-                </option>
+                </DropdownSelectOption>
               ))}
-            </select>
+            </DropdownSelect>
           </label>
           <Button type="submit" disabled={Boolean(problem) || action.pending}>
             Create branch

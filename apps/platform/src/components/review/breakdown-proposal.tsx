@@ -1,3 +1,7 @@
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { useState } from "react";
 import { ListTree, Plus, Trash2 } from "lucide-react";
 import {
@@ -143,18 +147,18 @@ export function BreakdownProposal({
         <div className="space-y-2">
           <label className="block space-y-1 text-xs font-medium">
             Child type
-            <select
+            <DropdownSelect
               aria-label="Proposed child type"
-              className={field}
+              className="w-full"
               value={typeId}
-              onChange={(event) => setTypeId(event.target.value)}
+              onValueChange={(value) => setTypeId(value)}
             >
               {types.map((child) => (
-                <option key={child.id} value={child.id}>
+                <DropdownSelectOption key={child.id} value={child.id}>
                   {child.name}
-                </option>
+                </DropdownSelectOption>
               ))}
-            </select>
+            </DropdownSelect>
           </label>
           <label className="block space-y-1 text-xs font-medium">
             Title
@@ -352,35 +356,44 @@ function ChangeExisting({
       <p className="text-xs font-medium">Change an existing child</p>
       <label className="block space-y-1 text-xs font-medium">
         Child
-        <select
+        <DropdownSelect
           aria-label="Existing child"
-          className={field}
+          className="w-full"
           value={childId}
-          onChange={(event) => setChildId(event.target.value)}
+          onValueChange={(value) => setChildId(value)}
+          placeholder="Choose a child…"
         >
-          <option value="">Choose a child…</option>
+          <DropdownSelectOption value="">Choose a child…</DropdownSelectOption>
           {children.map((row) => (
-            <option key={row.id} value={row.id} disabled={changing.has(row.id)}>
+            <DropdownSelectOption
+              key={row.id}
+              value={row.id}
+              disabled={changing.has(row.id)}
+            >
               {identifier(project, row.number)} {row.title}
-            </option>
+            </DropdownSelectOption>
           ))}
-        </select>
+        </DropdownSelect>
       </label>
       <label className="block space-y-1 text-xs font-medium">
         Change
-        <select
+        <DropdownSelect
           aria-label="Change to the existing child"
-          className={field}
+          className="w-full"
           value={kind}
-          onChange={(event) => setKind(event.target.value as ChangeKind)}
+          onValueChange={(value) => setKind(value as ChangeKind)}
         >
-          <option value="move">Move under another item</option>
-          <option value="detach">Detach from this parent</option>
-          <option value="archive">Archive</option>
-          <option value="rename" disabled={child && !plain}>
+          <DropdownSelectOption value="move">
+            Move under another item
+          </DropdownSelectOption>
+          <DropdownSelectOption value="detach">
+            Detach from this parent
+          </DropdownSelectOption>
+          <DropdownSelectOption value="archive">Archive</DropdownSelectOption>
+          <DropdownSelectOption value="rename" disabled={child && !plain}>
             Rename (work without a specification)
-          </option>
-        </select>
+          </DropdownSelectOption>
+        </DropdownSelect>
       </label>
       {kind === "rename" && (
         <label className="block space-y-1 text-xs font-medium">
@@ -397,19 +410,22 @@ function ChangeExisting({
       {kind === "move" && (
         <label className="block space-y-1 text-xs font-medium">
           New parent
-          <select
+          <DropdownSelect
             aria-label="New parent"
-            className={field}
+            className="w-full"
             value={parentId}
-            onChange={(event) => setParentId(event.target.value)}
+            onValueChange={(value) => setParentId(value)}
+            placeholder="Choose a parent…"
           >
-            <option value="">Choose a parent…</option>
+            <DropdownSelectOption value="">
+              Choose a parent…
+            </DropdownSelectOption>
             {parents.map((id) => (
-              <option key={id} value={id}>
+              <DropdownSelectOption key={id} value={id}>
                 {label(id, proposals)}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
         </label>
       )}
       <Button

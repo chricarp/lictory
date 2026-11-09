@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
 import { cn } from "@lictory/core/lib/utils";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
@@ -70,31 +71,33 @@ function SelectContent({
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
   return (
     <SelectPrimitive.Portal>
-      <SelectPrimitive.Content
-        data-slot="select-content"
-        className={cn(
-          "relative z-50 max-h-(--radix-select-content-available-height) max-w-[calc(100vw-1rem)] min-w-[8rem] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-(--shadow-panel)",
-          className,
-        )}
-        position={position}
-        align={align}
-        sideOffset={4}
-        collisionPadding={8}
-        data-popover
-        {...props}
-      >
-        <SelectScrollUpButton />
-        <SelectPrimitive.Viewport
+      <DropdownSurface asChild>
+        <SelectPrimitive.Content
+          data-slot="select-content"
           className={cn(
-            "p-1",
-            position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1",
+            "relative max-h-(--radix-select-content-available-height) min-w-[8rem]",
+            className,
           )}
+          position={position}
+          align={align}
+          sideOffset={4}
+          collisionPadding={8}
+          data-popover
+          {...props}
         >
-          {children}
-        </SelectPrimitive.Viewport>
-        <SelectScrollDownButton />
-      </SelectPrimitive.Content>
+          <SelectScrollUpButton />
+          <SelectPrimitive.Viewport
+            className={cn(
+              "p-1",
+              position === "popper" &&
+                "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1",
+            )}
+          >
+            {children}
+          </SelectPrimitive.Viewport>
+          <SelectScrollDownButton />
+        </SelectPrimitive.Content>
+      </DropdownSurface>
     </SelectPrimitive.Portal>
   );
 }
@@ -118,26 +121,28 @@ function SelectItem({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
-    <SelectPrimitive.Item
-      data-slot="select-item"
-      className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-[13px] outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-        className,
-      )}
-      {...props}
-    >
-      <span
-        data-slot="select-item-indicator"
-        className="absolute right-2 flex size-3.5 items-center justify-center"
+    <DropdownItem asChild>
+      <SelectPrimitive.Item
+        data-slot="select-item"
+        className={cn(
+          "relative pr-8 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+          className,
+        )}
+        {...props}
       >
-        <SelectPrimitive.ItemIndicator>
-          <CheckIcon />
-        </SelectPrimitive.ItemIndicator>
-      </span>
-      <SelectPrimitive.ItemText>
-        {typeof children === "number" ? String(children) : children}
-      </SelectPrimitive.ItemText>
-    </SelectPrimitive.Item>
+        <span
+          data-slot="select-item-indicator"
+          className="absolute right-2 flex size-3.5 items-center justify-center"
+        >
+          <SelectPrimitive.ItemIndicator>
+            <CheckIcon />
+          </SelectPrimitive.ItemIndicator>
+        </span>
+        <SelectPrimitive.ItemText>
+          {typeof children === "number" ? String(children) : children}
+        </SelectPrimitive.ItemText>
+      </SelectPrimitive.Item>
+    </DropdownItem>
   );
 }
 

@@ -1,3 +1,4 @@
+import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
@@ -123,10 +124,7 @@ export function DecisionPicker({
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - 328));
   const active = Math.min(index, Math.max(0, options.length - 1));
   return createPortal(
-    <div
-      style={{ top, left }}
-      className="fixed z-50 w-80 max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10"
-    >
+    <DropdownSurface style={{ top, left }} className="fixed w-80">
       <label htmlFor={`${id}-input`} className="sr-only">
         Find a decision
       </label>
@@ -173,30 +171,31 @@ export function DecisionPicker({
       >
         {options.map((option, i) => (
           // Keys stay in the field (aria-activedescendant); pointers pick here.
-          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-          <li
-            key={option.id}
-            id={`${id}-${i}`}
-            role="option"
-            aria-selected={i === active}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => choose(option)}
-            className={cn(
-              "flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-[13px]",
-              i === active && "bg-muted",
-            )}
-          >
-            <Scale
-              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1">
-              <span className="line-clamp-2">{option.title}</span>
-              <span className="block font-mono text-[11px] text-muted-foreground">
-                {option.detail}
+          <DropdownItem asChild key={option.id}>
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
+            <li
+              id={`${id}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(option)}
+              className={cn(
+                "items-start",
+                i === active && "bg-accent text-accent-foreground",
+              )}
+            >
+              <Scale
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-2">{option.title}</span>
+                <span className="block font-mono text-[11px] text-muted-foreground">
+                  {option.detail}
+                </span>
               </span>
-            </span>
-          </li>
+            </li>
+          </DropdownItem>
         ))}
       </ul>
       {!options.length && (
@@ -208,7 +207,7 @@ export function DecisionPicker({
             (loading ? "Searching decisions…" : "No recorded decisions match.")}
         </p>
       )}
-    </div>,
+    </DropdownSurface>,
     document.body,
   );
 }

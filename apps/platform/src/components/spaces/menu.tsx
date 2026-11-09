@@ -1,5 +1,5 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { cn } from "@lictory/core/lib/utils";
 import { Link } from "@lictory/platform/lib/navigation";
 
 // Action menus of Spaces (a page's actions in the tree and in its header),
@@ -37,9 +37,6 @@ export function Menu({
 }
 
 const ITEMS = '[role="menuitem"], [role="menuitemradio"]';
-
-const itemClass =
-  "flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-foreground outline-none hover:bg-muted focus-visible:bg-muted aria-disabled:opacity-50";
 
 function moveFocus(event: KeyboardEvent<HTMLElement>) {
   const menu = event.currentTarget.closest('[role="menu"]');
@@ -99,27 +96,28 @@ export function MenuItem({
   );
   if (href)
     return (
-      <Link
-        href={href}
-        role="menuitem"
-        className={cn(itemClass, className)}
-        onClick={onSelect}
-        onKeyDown={moveFocus}
-      >
-        {content}
-      </Link>
+      <DropdownItem asChild>
+        <Link
+          href={href}
+          role="menuitem"
+          className={className}
+          onClick={onSelect}
+          onKeyDown={moveFocus}
+        >
+          {content}
+        </Link>
+      </DropdownItem>
     );
   return (
-    <button
-      type="button"
+    <DropdownItem
       role={checked === undefined ? "menuitem" : "menuitemradio"}
       aria-checked={checked}
-      className={cn(itemClass, className)}
+      className={className}
       onClick={onSelect}
       onKeyDown={moveFocus}
     >
       {content}
-    </button>
+    </DropdownItem>
   );
 }
 

@@ -1,4 +1,8 @@
 import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
+import {
   createContext,
   useCallback,
   useContext,
@@ -308,20 +312,20 @@ function NewPageDialog({
             optional
             hint="The page lists this iteration’s work, live."
           >
-            <select
+            <DropdownSelect
               id={iterationFieldId}
               value={iterationId}
-              onChange={(e) => setIterationId(e.target.value)}
-              className="h-10 w-full rounded-xl border border-input bg-card px-3 text-[13px]"
+              onValueChange={(value) => setIterationId(value)}
+              className="w-full"
             >
-              <option value="">No live list</option>
+              <DropdownSelectOption value="">No live list</DropdownSelectOption>
               {iterations.map((i) => (
-                <option key={i.id} value={i.id}>
+                <DropdownSelectOption key={i.id} value={i.id}>
                   {project.key} {iterationLabel(i, project.iterationMode)}
                   {i.state === "active" ? " (active)" : ""}
-                </option>
+                </DropdownSelectOption>
               ))}
-            </select>
+            </DropdownSelect>
           </Field>
         )}
         {template !== "blank" && (

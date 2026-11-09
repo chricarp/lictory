@@ -265,7 +265,6 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
       .getByRole("button", { name: "Create branch and edit", exact: true })
       .click();
     await expect(ada.page).toHaveURL(/[?&]branch=/);
-    const branchId = new URL(ada.page.url()).searchParams.get("branch")!;
     await expect(liveEditor(ada.page)).toBeVisible();
     await expect(
       ada.page.getByTestId("draft-save-state").filter({ hasText: /^Saved$/ }),
@@ -287,7 +286,11 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     // Its pull request, with Engineering as the required reviewer.
     await ada.page.goto(`${runbook.url}/history?view=pulls`);
     // Its title is the change named when the branch was opened.
-    await ada.page.getByLabel("Source branch").selectOption(branchId);
+    await ada.page.getByLabel("Source branch").click();
+    await ada.page
+      .getByRole("option")
+      .filter({ hasNotText: "Choose branch" })
+      .click();
     await expect(ada.page.getByLabel("Title", { exact: true })).toHaveValue(
       "Document the finance approval time",
     );

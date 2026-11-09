@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -403,16 +404,16 @@ function MenuItem({
   danger?: boolean;
 }) {
   return (
-    <button
+    <DropdownItem
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted [&_svg]:size-3.5",
+        "[&_svg]:size-3.5",
         danger ? "text-destructive" : "[&_svg]:text-muted-foreground",
       )}
     >
       {icon}
       {children}
-    </button>
+    </DropdownItem>
   );
 }
