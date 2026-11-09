@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  acceptanceSignOffLabel,
   checksFor,
   defaultReadinessChecks,
   diffReadinessChecks,
@@ -10,6 +11,7 @@ import {
   sectionContent,
   type ReadinessCheckDefinition,
   type ReadinessEvidence,
+  withAcceptanceSignOff,
 } from "@lictory/core/contracts/readiness";
 
 const evidence = (
@@ -152,6 +154,68 @@ void test("discipline approvals and manual sign-offs", () => {
   );
   assert.ok(after.every((c) => c.passed));
   assert.equal(after[1]!.signOff?.signedOffBy, "u1");
+});
+
+void test("the QA sign-off recipe adds acceptance criteria and a QA sign-off once, keeping every other check", () => {
+  let n = 0;
+  const id = () => `new-${++n}`;
+  const applied = withAcceptanceSignOff(defaultReadinessChecks, "qa", id);
+  assert.ok(readinessChecksSchema.safeParse(applied).success);
+  assert.deepEqual(
+    diffReadinessChecks(defaultReadinessChecks, applied).map((c) => [
+      c.change,
+      c.check.kind,
+    ]),
+    [
+      ["added", "section"],
+      ["added", "manual"],
+    ],
+  );
+  // Applying it again changes nothing.
+  assert.deepEqual(withAcceptanceSignOff(applied, "qa", id), applied);
+  // An existing section (any spelling) is kept; only the sign-off is added.
+  const section: ReadinessCheckDefinition = {
+    id: "ac",
+    kind: "section",
+    heading: "acceptance  criteria:",
+  };
+  assert.deepEqual(
+    withAcceptanceSignOff([section], "qa", id).map((c) => c.kind),
+    ["section", "manual"],
+  );
+  // The sign-off is QA's and, like every sign-off, belongs to one revision.
+  const checks = applied.slice(-2);
+  const content =
+    "# Behavior\n\nRetry.\n\n## Acceptance criteria\n\n- [ ] One payment.";
+  const signOffKey = applied.at(-1)!.id;
+  const signedOn = (revisionId: string) =>
+    evaluateReadiness(
+      checks,
+      evidence({
+        content,
+        signOffs: new Map([
+          [
+            signOffKey,
+            {
+              checkId: signOffKey,
+              userId: "quinn",
+              revisionId,
+              revisionNumber: 1,
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        ]),
+      }),
+    );
+  assert.deepEqual(
+    signedOn("r2").map((c) => [c.label, c.passed]),
+    [
+      ["It has a non-empty “Acceptance criteria” section", true],
+      [acceptanceSignOffLabel, true],
+    ],
+  );
+  assert.deepEqual(signedOn("r2")[1]!.signOff?.disciplineIds, ["qa"]);
+  assert.equal(signedOn("r1")[1]!.passed, false);
 });
 
 void test("rules are per type, compared by content and diffed by check", () => {

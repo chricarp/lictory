@@ -137,6 +137,62 @@ export function checksFor(rules: ReadinessRules, typeId: string) {
   return rules[typeId] ?? defaultReadinessChecks;
 }
 
+// A recipe for a common Definition of Ready: the specification has acceptance
+// criteria and a chosen discipline (QA) signs them off. The sign-off belongs
+// to the revision it was given on, so a new revision needs a new one. Adds
+// only what is missing and keeps every other check.
+export const acceptanceCriteriaHeading = "Acceptance criteria";
+export const acceptanceSignOffLabel =
+  "Acceptance criteria are complete and testable";
+export function hasAcceptanceSignOff(
+  checks: ReadinessCheckDefinition[],
+  disciplineId: string,
+) {
+  const wanted = normalizeHeading(acceptanceCriteriaHeading);
+  return {
+    section: checks.some(
+      (c) => c.kind === "section" && normalizeHeading(c.heading) === wanted,
+    ),
+    signOff: checks.some(
+      (c) =>
+        c.kind === "manual" &&
+        c.disciplineIds.length === 1 &&
+        c.disciplineIds[0] === disciplineId,
+    ),
+  };
+}
+export function withAcceptanceSignOff(
+  checks: ReadinessCheckDefinition[],
+  disciplineId: string,
+  newId: () => string = () => crypto.randomUUID(),
+): ReadinessCheckDefinition[] {
+  const has = hasAcceptanceSignOff(checks, disciplineId);
+  return [
+    ...checks,
+    ...(has.section
+      ? []
+      : [
+          {
+            id: newId(),
+            kind: "section" as const,
+            heading: acceptanceCriteriaHeading,
+          },
+        ]),
+    ...(has.signOff
+      ? []
+      : [
+          {
+            id: newId(),
+            kind: "manual" as const,
+            label: acceptanceSignOffLabel,
+            description:
+              "Confirm the acceptance criteria of this revision cover the behavior, its boundaries and its failures. A new revision needs a new sign-off.",
+            disciplineIds: [disciplineId],
+          },
+        ]),
+  ];
+}
+
 // The Definition of Ready reads as a sentence per type, grouped by what the
 // checks look at, so how each one works needs no further explanation.
 export const readinessGroups: {

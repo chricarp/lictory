@@ -17,6 +17,8 @@ import {
 import {
   checkLabel,
   checksFor,
+  hasAcceptanceSignOff,
+  withAcceptanceSignOff,
   diffReadinessChecks,
   isBuiltInKind,
   readinessChecksSchema,
@@ -333,9 +335,18 @@ function TypeRules({
     (d) => d.projectId === project.id && !d.archivedAt && d.capabilities.review,
   );
   const others = types.filter((t) => t.id !== type.id);
+  // The QA sign-off recipe needs the project's QA discipline; it only edits
+  // the draft, which is reviewed and published like any other change.
+  const qa = directory.disciplines.find(
+    (d) =>
+      d.projectId === project.id &&
+      !d.archivedAt &&
+      /^(qa|quality assurance)$/i.test(d.name.trim()),
+  );
+  const recipe = qa && hasAcceptanceSignOff(checks, qa.id);
   return (
     <div className="pb-2">
-      <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-5 pt-3 pb-1">
         <p className="flex-1 text-sm">
           {/^[aeiou]/i.test(type.name) ? "An" : "A"} <b>{type.name}</b> is ready
           when…
@@ -345,6 +356,18 @@ function TypeRules({
             </span>
           )}
         </p>
+        {canEdit && qa && recipe && !(recipe.section && recipe.signOff) && (
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Adds a non-empty “Acceptance criteria” section and a QA sign-off to this draft. A new revision needs a new sign-off."
+            onClick={() =>
+              onChange((list) => withAcceptanceSignOff(list, qa.id))
+            }
+          >
+            <Plus className="size-3" /> Require QA sign-off
+          </Button>
+        )}
         {canEdit && (others.length > 0 || !usesDefaults) && (
           <Popover
             width={240}
