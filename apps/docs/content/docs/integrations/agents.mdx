@@ -1,6 +1,6 @@
 ---
 title: AI agents and MCP
-description: Connect a terminal or editor agent to Lictory, read specifications and pages, and propose reviewed changes using your own permissions.
+description: Connect a terminal or editor agent to Lictory, read specifications and pages, propose reviewed changes and compare readings of done, using your own permissions.
 ---
 
 Lictory exposes an MCP server so a coding agent in your terminal or editor can
@@ -156,6 +156,140 @@ together; what people are writing there stays theirs.
 Commands can carry a `mutationId`: reusing it for a retry prevents the same
 change from being applied twice. A stale `baseRevisionId` returns a conflict
 with the current revision, so the agent must read and reconcile the new state.
+
+## Compare readings of done
+
+QA and the coding agent that will build the work can read the same acceptance
+criteria differently. You can find that out while the sentence is still being
+written. Each person asks their own agent to post a reading of done as a
+discussion on the **Acceptance criteria** section. A reading of done says
+what the agent would build and test for each criterion. QA replies with their
+reading. Where the readings differ, a person decides: the difference becomes
+a blocking discussion, a clearer sentence or a [decision](/specifications/decisions).
+
+The agents run on your own clients and models. This flow does not need
+Lictory Intelligence or an AI provider on the Lictory server. Each agent
+needs a **Read & write** token, and the item needs a heading for the criteria
+(here _Acceptance criteria_).
+
+### 1. The implementer's agent posts its reading
+
+Ask the coding agent that will implement the work:
+
+> Read PAY-142 in Lictory: its current revision and its open discussions.
+> Write your reading of done for the "Acceptance criteria" section: for each
+> criterion, what you would build and how you would test it, with concrete
+> numbers, states and errors. List what the text leaves open and do not fill
+> it in. Post it as one non-blocking discussion on the "Acceptance criteria"
+> section of the current revision. Start it with "My reading of done
+> (<your name>'s agent, revision N)". If my agent already has an open reading
+> there, reply to it with what changed instead. Do not change the
+> specification, resolve discussions or record decisions.
+
+### 2. QA's agent replies with QA's reading
+
+QA asks their own agent:
+
+> Read PAY-142 in Lictory and the "reading of done" discussions on its
+> "Acceptance criteria" section. Write QA's reading of done for the same
+> criteria: what you would test and which result passes. Reply to each
+> reading, criterion by criterion: where we agree and where we differ.
+> Start the reply with "QA's reading of done (<your name>'s agent)". Do not
+> resolve anything.
+
+### 3. Raise each difference on its sentence
+
+Where a difference must be settled before anyone builds the work, QA (or
+anyone who reads the exchange) marks it blocking. In the browser, select the
+sentence and start a blocking discussion. Or ask the agent explicitly:
+
+> For each criterion where the two readings of PAY-142 differ, start a
+> blocking discussion on that sentence. Quote the words exactly as they read
+> in Lictory, without Markdown markers. State both readings in one line each
+> and ask which one is done.
+
+A blocking discussion fails the readiness check _No blocking discussion is
+open_, so the item cannot become [ready](/review/readiness) until a person
+resolves it. Differences that need no decision before building can stay
+replies in the reading's discussion.
+
+### What a disagreement looks like
+
+The reading, a non-blocking discussion _on “Acceptance criteria”_ by Devi:
+
+> **My reading of done** (Devi's agent, revision 1).
+>
+> 1. _Retried up to three times_: the original attempt plus 3 retries, so
+>    at most 4 provider calls. A temporary error is a provider 429 or 503,
+>    or a network timeout.
+> 2. _Pending state_: "Payment pending" from the first failure until the last
+>    retry finishes. The customer sees it when they reload.
+> 3. _Marked failed and notified_: one email after the last retry fails.
+> 4. _Never charged twice_: every retry sends the original transaction ID as
+>    the idempotency key.
+>
+> The text does not say, so I assumed nothing about the total time the
+> retries may take or about cancelling while a retry is pending.
+
+Quinn's reply:
+
+> **QA's reading of done** (Quinn's agent, revision 1). Agree on 2 and 4.
+> **Differs on 1**: I read "retried up to three times" as three attempts in
+> total, so my test would fail the reading above. **Differs on 3**: "the
+> customer is notified" means the email and the notice on the order page.
+
+The blocking discussion that follows, on the quoted words _retried up to
+three times_:
+
+> Engineering's agent reads this as 1 attempt + 3 retries (4 provider calls);
+> QA reads it as 3 attempts in total. Which one is done? Please say the
+> number of provider calls in the sentence.
+
+The product owner rewrites the criterion as _retried at most three times
+after the first attempt: four provider calls in total_. That saves revision
+2, and the blocking discussion now says _The quoted text changed since
+revision 1_. Then they choose **Resolve as decision** and record _A retried
+charge makes at most four provider calls_. Point 3 stays open in the
+reading's discussion until someone settles it.
+
+### What the agents call
+
+| Step               | Tool            | Inputs that matter                                                                                                                                     |
+| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Read the item      | `getWorkItem`   | `key` (`PAY-142`). Returns the item's `id`, `specification.revisionId` and Markdown, its `threads` with their anchors and messages, and its readiness  |
+| Post a reading     | `createThread`  | `workItemId` (the item's `id`, not its key), `baseRevisionId` (the current revision), `section: "Acceptance criteria"`, `blocking: false`, `body`      |
+| Reply              | `replyToThread` | `workItemId`, `threadId`, `body`                                                                                                                       |
+| Raise a difference | `createThread`  | As above, with `quote` (the exact words), `blocking: true` and, when those words occur more than once under the heading, `occurrence` (0 is the first) |
+
+`section` is the heading's text without the `#` marks. It matches regardless of
+case and formatting, and an unknown heading is refused (_The section “…” is
+not in this text._). A discussion anchored to a section without a quote is
+listed under **On the whole specification**, labelled with its section. A
+quoted one is marked in the text. Lictory does not check the quote when the
+discussion is created: words that are not in the text, or that carry
+Markdown markers such as `**`, show at once as _The quoted text changed_.
+Every call also takes `organizationId`. Pass a `mutationId` so a retried call
+does not post twice.
+
+### Decisions stay with people
+
+- **Readings are not approvals.** Two readings that agree approve nothing,
+  and no reading makes the item ready. Approvals still belong to the
+  reviewers and the revision they reviewed.
+- **People resolve discussions and record decisions.** Resolve, Mark
+  blocking or non-blocking, and Resolve as decision are human decisions in
+  the [discussion panel](/specifications/discussions). A decision can cite a
+  discussion only once someone has resolved it.
+- **The guardrail is an instruction, not a lock.** The MCP server tells agents
+  not to resolve discussions or record decisions unless you ask, but a
+  read/write token can call those tools. Use a read-only token for an agent
+  that should only read.
+- **Say who wrote it.** The activity shows the agent that started a
+  discussion (_via devi-terminal (MCP)_). A reply appears under your name
+  only, which is why the prompts start each message with whose agent wrote
+  it.
+- **A reading belongs to its revision.** When the criteria change, ask the
+  agents again. An earlier reading still names the revision it read.
 
 ## Spaces
 
