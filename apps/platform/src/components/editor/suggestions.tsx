@@ -1,3 +1,4 @@
+import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
 import {
   useId,
   useLayoutEffect,
@@ -248,14 +249,14 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
   const active = state.items[state.index];
   const alternateId = `${store.id}-alternate`;
   return createPortal(
-    <div
+    <DropdownSurface
       ref={panelRef}
       style={{
         top: position?.top ?? -9999,
         left: position?.left ?? -9999,
         width: MENU_WIDTH,
       }}
-      className="fixed z-50 max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+      className="fixed"
     >
       <p
         id={titleId}
@@ -275,77 +276,77 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
             return (
               // Keys are handled by the editor, which keeps focus and points
               // aria-activedescendant at the chosen option.
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-              <li
-                key={item.id}
-                id={`${store.id}-${index}`}
-                role="option"
-                aria-selected={current}
-                // The active option says how to take its alternative.
-                aria-describedby={
-                  current && item.alternate ? alternateId : undefined
-                }
-                title={
-                  item.detail ? `${item.label}\n${item.detail}` : undefined
-                }
-                // The editor keeps focus; pointer users pick without blurring it.
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseMove={() => store.point(index)}
-                onClick={() => store.choose(index)}
-                className={cn(
-                  "flex cursor-pointer gap-2 rounded-lg px-2 py-1.5 text-[13px]",
-                  item.detail ? "items-start" : "items-center",
-                  current && "bg-muted",
-                )}
-              >
-                {item.icon && (
-                  <span
-                    className={cn(
-                      "text-muted-foreground",
-                      item.detail && "mt-0.5",
-                    )}
-                    aria-hidden
-                  >
-                    {item.icon}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="line-clamp-2 min-w-0 flex-1 break-words">
-                      {item.label}
+              <DropdownItem asChild key={item.id}>
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
+                <li
+                  id={`${store.id}-${index}`}
+                  role="option"
+                  aria-selected={current}
+                  // The active option says how to take its alternative.
+                  aria-describedby={
+                    current && item.alternate ? alternateId : undefined
+                  }
+                  title={
+                    item.detail ? `${item.label}\n${item.detail}` : undefined
+                  }
+                  // The editor keeps focus; pointer users pick without blurring it.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseMove={() => store.point(index)}
+                  onClick={() => store.choose(index)}
+                  className={cn(
+                    item.detail ? "items-start" : "items-center",
+                    current && "bg-accent text-accent-foreground",
+                  )}
+                >
+                  {item.icon && (
+                    <span
+                      className={cn(
+                        "text-muted-foreground",
+                        item.detail && "mt-0.5",
+                      )}
+                      aria-hidden
+                    >
+                      {item.icon}
                     </span>
-                    {item.hint && (
-                      <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                        {item.hint}
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="line-clamp-2 min-w-0 flex-1 break-words">
+                        {item.label}
+                      </span>
+                      {item.hint && (
+                        <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                          {item.hint}
+                        </span>
+                      )}
+                    </span>
+                    {item.detail && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {item.detail}
                       </span>
                     )}
                   </span>
-                  {item.detail && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {item.detail}
-                    </span>
+                  {current && item.alternate && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      // Pointer path to the alternative; keyboard: Shift+Enter
+                      // (the option's description).
+                      aria-hidden
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        store.choose(index, true);
+                      }}
+                      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
+                    >
+                      <Pin className="size-3" aria-hidden />
+                      Pin
+                      <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
+                    </button>
                   )}
-                </span>
-                {current && item.alternate && (
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    // Pointer path to the alternative; keyboard: Shift+Enter
-                    // (the option's description).
-                    aria-hidden
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      store.choose(index, true);
-                    }}
-                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
-                  >
-                    <Pin className="size-3" aria-hidden />
-                    Pin
-                    <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
-                  </button>
-                )}
-              </li>
+                </li>
+              </DropdownItem>
             );
           })}
         </ul>
@@ -359,7 +360,7 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
           Shift+Enter: {active.alternate.label}
         </span>
       )}
-    </div>,
+    </DropdownSurface>,
     document.body,
   );
 }

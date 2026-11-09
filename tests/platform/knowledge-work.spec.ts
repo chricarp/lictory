@@ -597,7 +597,10 @@ test("delivery surfaces keep context pages and an iteration gets notes", async (
     .click();
   const form = page.getByRole("dialog");
   await expect(form.getByLabel("Title")).toHaveValue("Sprint 1 notes");
-  await form.getByLabel("Space").selectOption({ label: "Delivery handbook" });
+  await form.getByLabel("Space", { exact: true }).click();
+  await page
+    .getByRole("option", { name: "Delivery handbook", exact: true })
+    .click();
   await form.getByRole("button", { name: "Create and open" }).click();
   await expect(page).toHaveURL(/\/pages\/[^?/]+$/);
   await expect(page.getByText("Retrospective").first()).toBeVisible();

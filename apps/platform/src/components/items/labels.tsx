@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { useState } from "react";
 import { Flag, Plus, Tag } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
@@ -203,13 +204,9 @@ export function LabelPicker({
             onSelect={toggle}
             emptyText="No labels in this project yet."
             footer={
-              <button
-                type="button"
-                onClick={() => setCreating(true)}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
+              <DropdownItem type="button" onClick={() => setCreating(true)}>
                 <Plus className="size-3.5 text-muted-foreground" /> New label
-              </button>
+              </DropdownItem>
             }
           />
         )}
@@ -337,13 +334,9 @@ export function MilestonePicker({
           value={milestoneId ?? "none"}
           onSelect={(v) => onChange(v === "none" ? null : v)}
           footer={
-            <button
-              type="button"
-              onClick={() => setCreating(true)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-            >
+            <DropdownItem type="button" onClick={() => setCreating(true)}>
               <Plus className="size-3.5 text-muted-foreground" /> New milestone
-            </button>
+            </DropdownItem>
           }
         />
       )}

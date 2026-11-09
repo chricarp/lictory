@@ -1,4 +1,8 @@
 import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
+import {
   createContext,
   lazy,
   Suspense,
@@ -362,11 +366,11 @@ export function Decisions() {
           {sources.length > 0 && (
             <label className="block space-y-1 text-xs font-medium">
               Source discussion
-              <select
+              <DropdownSelect
                 aria-label="Decision source discussion"
                 value={sourceThreadId}
-                onChange={(e) => {
-                  const threadId = e.target.value;
+                onValueChange={(value) => {
+                  const threadId = value;
                   setSourceThreadId(threadId);
                   setResolveSource(false);
                   prefill(
@@ -374,15 +378,17 @@ export function Decisions() {
                       ?.body ?? "",
                   );
                 }}
-                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                className="w-full"
               >
-                <option value="">Current revision {current?.number}</option>
+                <DropdownSelectOption value="">
+                  Current revision {current?.number}
+                </DropdownSelectOption>
                 {sources.map((t) => (
-                  <option key={t.id} value={t.id}>
+                  <DropdownSelectOption key={t.id} value={t.id}>
                     {sourceLabel(t)}
-                  </option>
+                  </DropdownSelectOption>
                 ))}
-              </select>
+              </DropdownSelect>
             </label>
           )}
           <div className="flex justify-end gap-2">

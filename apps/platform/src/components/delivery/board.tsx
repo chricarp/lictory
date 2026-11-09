@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -504,18 +505,15 @@ function ProjectBoard({ project }: { project: Project }) {
                 Swimlanes
               </p>
               {(Object.keys(laneLabel) as Lane[]).map((key) => (
-                <button
+                <DropdownItem
                   key={key}
                   onClick={() =>
                     setParam("lanes", key === "none" ? undefined : key)
                   }
-                  className={cn(
-                    "flex w-full items-center rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted",
-                    lane === key && "font-medium text-primary",
-                  )}
+                  className={cn(lane === key && "font-medium text-primary")}
                 >
                   {laneLabel[key]}
-                </button>
+                </DropdownItem>
               ))}
               <div className="my-1 border-t" />
               <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">

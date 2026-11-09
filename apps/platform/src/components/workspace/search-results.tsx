@@ -1,4 +1,8 @@
 import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
+import {
   useCallback,
   useEffect,
   useId,
@@ -407,19 +411,21 @@ export function SearchResults() {
                 className="ml-auto flex items-center gap-2 text-xs text-muted-foreground"
               >
                 Project
-                <select
+                <DropdownSelect
                   id={projectField}
                   value={projectId ?? ""}
-                  onChange={(e) => navigate({ project: e.target.value })}
-                  className="h-7 rounded-md border bg-background px-2 text-[13px] text-foreground touch:text-base"
+                  onValueChange={(value) => navigate({ project: value })}
+                  className="w-full"
                 >
-                  <option value="">All projects</option>
+                  <DropdownSelectOption value="">
+                    All projects
+                  </DropdownSelectOption>
                   {visibleProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <DropdownSelectOption key={p.id} value={p.id}>
                       {p.name}
-                    </option>
+                    </DropdownSelectOption>
                   ))}
-                </select>
+                </DropdownSelect>
               </label>
             )}
           </div>

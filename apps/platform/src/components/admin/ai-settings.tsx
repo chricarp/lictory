@@ -1,3 +1,4 @@
+import { Popover, Picker } from "@lictory/ui/popover";
 import {
   createContext,
   useContext,
@@ -815,7 +816,6 @@ function Fields({
                   type={secret ? "password" : "text"}
                   autoComplete="off"
                   spellCheck={false}
-                  list={f === "model" ? `${id}-models` : undefined}
                   placeholder={
                     stored
                       ? "Stored. Type a new value to replace it."
@@ -836,11 +836,31 @@ function Fields({
                 />
                 {f === "model" && (
                   <>
-                    <datalist id={`${id}-models`}>
-                      {spec.models.map((m) => (
-                        <option key={m} value={m} />
-                      ))}
-                    </datalist>
+                    <Popover
+                      width={280}
+                      trigger={(props) => (
+                        <Button
+                          {...props}
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="mt-1"
+                        >
+                          Choose a suggested model
+                        </Button>
+                      )}
+                    >
+                      <Picker
+                        title="Suggested models"
+                        searchable
+                        options={spec.models.map((m) => ({
+                          value: m,
+                          label: m,
+                        }))}
+                        value={values[f] ?? ""}
+                        onSelect={(value) => set(f, value)}
+                      />
+                    </Popover>
                     <span className="mt-1 block text-xs text-muted-foreground">
                       {spec.modelHint}
                     </span>

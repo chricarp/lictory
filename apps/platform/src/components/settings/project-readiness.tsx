@@ -1,3 +1,8 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { readinessHistory } from "@lictory/platform/data/lookups";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -501,14 +506,9 @@ function MenuItem({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className="block w-full rounded-md px-2.5 py-1.5 text-left hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
-    >
+    <DropdownItem type="button" role="menuitem" onClick={onClick}>
       {children}
-    </button>
+    </DropdownItem>
   );
 }
 
@@ -706,20 +706,25 @@ function CustomSentence({
         <span className="block leading-7">
           Lictory Intelligence found no{" "}
           {canEdit ? (
-            <select
+            <DropdownSelect
               value={check.severity}
               aria-label="Findings that fail the check"
-              onChange={(e) =>
+              onValueChange={(value) =>
                 onChange({
                   ...check,
-                  severity: e.target.value === "major" ? "major" : "blocker",
+                  severity: value === "major" ? "major" : "blocker",
                 })
               }
-              className={cn(chip, "outline-none touch:text-base")}
+              size="sm"
+              variant="secondary"
             >
-              <option value="blocker">blocker</option>
-              <option value="major">blocker or major finding</option>
-            </select>
+              <DropdownSelectOption value="blocker">
+                blocker
+              </DropdownSelectOption>
+              <DropdownSelectOption value="major">
+                blocker or major finding
+              </DropdownSelectOption>
+            </DropdownSelect>
           ) : (
             <span className={chip}>
               {check.severity === "major"

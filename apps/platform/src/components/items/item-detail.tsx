@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   usePathname,
@@ -769,27 +770,29 @@ export function ItemDetail({
                   <div className="p-1">
                     {/* Phones: what the header has no room for. */}
                     {parent && (
-                      <Link
-                        href={parentHref!}
-                        onClick={close}
-                        className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
-                      >
-                        <CornerLeftUp
-                          className="size-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden
-                        />
-                        <span className="min-w-0 truncate">
-                          Parent ·{" "}
-                          <span className="font-mono text-xs">
-                            {identifier(project, parent.number)}
-                          </span>{" "}
-                          {parent.title}
-                        </span>
-                      </Link>
+                      <DropdownItem asChild>
+                        <Link
+                          href={parentHref!}
+                          onClick={close}
+                          className="sm:hidden"
+                        >
+                          <CornerLeftUp
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            aria-hidden
+                          />
+                          <span className="min-w-0 truncate">
+                            Parent ·{" "}
+                            <span className="font-mono text-xs">
+                              {identifier(project, parent.number)}
+                            </span>{" "}
+                            {parent.title}
+                          </span>
+                        </Link>
+                      </DropdownItem>
                     )}
                     {mode.kind !== "history" && compareRevisions && (
-                      <button
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted sm:hidden"
+                      <DropdownItem
+                        className="sm:hidden"
                         onClick={() => {
                           close();
                           compareRevisions();
@@ -800,7 +803,7 @@ export function ItemDetail({
                           aria-hidden
                         />
                         Compare revisions
-                      </button>
+                      </DropdownItem>
                     )}
                     {!pendingCreate && (
                       <WatchButton
@@ -811,8 +814,7 @@ export function ItemDetail({
                         className="sm:hidden"
                       />
                     )}
-                    <button
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+                    <DropdownItem
                       onClick={async () => {
                         await navigator.clipboard?.writeText(
                           window.location.href,
@@ -822,9 +824,9 @@ export function ItemDetail({
                     >
                       <Link2 className="size-3.5 text-muted-foreground" /> Copy
                       link
-                    </button>
+                    </DropdownItem>
                     {canExport && (
-                      <button
+                      <DropdownItem
                         className={cn(
                           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50",
                           // External delivery has its own header button
@@ -844,10 +846,9 @@ export function ItemDetail({
                       >
                         <Upload className="size-3.5 text-muted-foreground" />
                         Export to {exportAvailability.tool.name}…
-                      </button>
+                      </DropdownItem>
                     )}
-                    <button
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted disabled:opacity-50"
+                    <DropdownItem
                       disabled={!ctx.capabilities.changeProperties}
                       title={
                         ctx.capabilities.changeProperties
@@ -869,7 +870,7 @@ export function ItemDetail({
                         <Archive className="size-3.5 text-muted-foreground" />
                       )}
                       {item.archivedAt ? "Restore" : "Archive"}
-                    </button>
+                    </DropdownItem>
                   </div>
                 )}
               </Popover>

@@ -1,3 +1,7 @@
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
 import { Popover, usePopover } from "@lictory/ui/popover";
@@ -126,21 +130,23 @@ export function PullRequests({
           <h3 className="font-medium">Create pull request</h3>
           <label className="block text-sm">
             Source branch
-            <select
+            <DropdownSelect
               required
-              className={`${field} mt-1`}
+              className="w-full"
               value={source}
-              onChange={(e) => {
-                setSource(e.target.value);
+              onValueChange={(value) => {
+                setSource(value);
                 const named =
-                  origins.find((o) => o.branchId === e.target.value)?.title ??
-                  "";
+                  origins.find((o) => o.branchId === value)?.title ?? "";
                 // Never over what the person typed themselves.
                 if (!title.trim() || title === offered) setTitle(named);
                 setOffered(named);
               }}
+              placeholder="Choose branch"
             >
-              <option value="">Choose branch</option>
+              <DropdownSelectOption value="">
+                Choose branch
+              </DropdownSelectOption>
               {branches
                 .filter(
                   (b) =>
@@ -149,28 +155,28 @@ export function PullRequests({
                       b.collaboratorIds.includes(userId)),
                 )
                 .map((b) => (
-                  <option key={b.id} value={b.id}>
+                  <DropdownSelectOption key={b.id} value={b.id}>
                     {b.name}
-                  </option>
+                  </DropdownSelectOption>
                 ))}
-            </select>
+            </DropdownSelect>
           </label>
           <label className="block text-sm">
             Target branch
-            <select
-              className={`${field} mt-1`}
+            <DropdownSelect
+              className="w-full"
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onValueChange={(value) => setTarget(value)}
             >
-              <option value="">main</option>
+              <DropdownSelectOption value="">main</DropdownSelectOption>
               {branches
                 .filter((b) => !b.isMain && b.id !== source)
                 .map((b) => (
-                  <option key={b.id} value={b.id}>
+                  <DropdownSelectOption key={b.id} value={b.id}>
                     {b.name}
-                  </option>
+                  </DropdownSelectOption>
                 ))}
-            </select>
+            </DropdownSelect>
           </label>
           <label className="block text-sm">
             Title

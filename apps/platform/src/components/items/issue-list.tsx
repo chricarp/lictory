@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -646,13 +647,10 @@ export function IssueList({
                   "number",
                 ] as SortKey[]
               ).map((key) => (
-                <button
+                <DropdownItem
                   key={key}
                   onClick={() => setSort(key)}
-                  className={cn(
-                    "flex w-full items-center rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted",
-                    sort === key && "font-medium text-primary",
-                  )}
+                  className={cn(sort === key && "font-medium text-primary")}
                 >
                   {
                     {
@@ -663,7 +661,7 @@ export function IssueList({
                       number: "Identifier",
                     }[key]
                   }
-                </button>
+                </DropdownItem>
               ))}
               <div className="my-1 border-t" />
               <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
@@ -1289,18 +1287,14 @@ function FilterPanel({
           ...(milestones.length ? (["milestone"] as const) : []),
         ] as Section[]
       ).map((key) => (
-        <button
-          key={key}
-          onClick={() => setSection(key)}
-          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-        >
+        <DropdownItem key={key} onClick={() => setSection(key)}>
           <span>{labelsFor[key]}</span>
           {(filters[key]?.length ?? 0) > 0 && (
             <span className="text-xs text-muted-foreground">
               {filters[key]!.length}
             </span>
           )}
-        </button>
+        </DropdownItem>
       ))}
       <div className="my-1 border-t" />
       <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">

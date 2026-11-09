@@ -5,18 +5,16 @@ import {
   useContext,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
+import { Popover as PopoverPrimitive } from "radix-ui";
+import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
 import { Check, Loader2, Search } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 
-// Lightweight popover primitive: click/Enter opens, Escape or outside-click
-// closes, focus returns to the trigger. Portaled to <body> and positioned near the
-// trigger, flipping when it would leave the viewport.
+// Shared shadcn/Radix surface for searchable dropdowns and contextual panels.
 type PopoverContextValue = { close: () => void; labelId: string };
 const PopoverContext = createContext<PopoverContextValue | null>(null);
 export const usePopover = () => useContext(PopoverContext);
@@ -59,128 +57,72 @@ export function Popover({
     [onOpenChange],
   );
   const triggerRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const setTriggerNode = useCallback((node: HTMLElement | null) => {
     triggerRef.current = node;
   }, []);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{
-    top: number;
-    left: number;
-    width?: number;
-    maxHeight: number;
-  }>();
   const labelId = useId();
-  const close = useCallback(() => {
-    setOpen(false);
-    triggerRef.current?.focus({ preventScroll: true });
-  }, [setOpen]);
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const anchor = triggerRef.current?.getBoundingClientRect();
-      const panel = panelRef.current;
-      if (!anchor || !panel) return;
-      const gap = 6;
-      const panelWidth = width === "trigger" ? anchor.width : width;
-      const height = panel.offsetHeight;
-      let top =
-        side === "top" ? anchor.top - gap - height : anchor.bottom + gap;
-      let left =
-        side === "right"
-          ? anchor.right + gap
-          : align === "end"
-            ? anchor.right - panelWidth
-            : anchor.left;
-      if (side === "right") top = anchor.top;
-      if (side === "bottom" && top + height > window.innerHeight - 8)
-        top = Math.max(8, anchor.top - gap - height);
-      if (top < 8) top = 8;
-      left = Math.min(Math.max(8, left), window.innerWidth - panelWidth - 8);
-      setPosition({
-        top,
-        left,
-        width: panelWidth,
-        maxHeight: Math.max(160, window.innerHeight - top - 8),
-      });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [open, align, side, width]);
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent) => {
-      const target = event.target as Node;
-      // Nested popovers are portaled siblings in the DOM; a click inside any
-      // popover panel must not dismiss the one that opened it.
-      if (
-        panelRef.current?.contains(target) ||
-        triggerRef.current?.contains(target) ||
-        (target instanceof Element && target.closest("[data-popover]"))
-      )
-        return;
-      setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        close();
-      }
-    };
-    document.addEventListener("pointerdown", onPointer, true);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointer, true);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [open, close, setOpen]);
+  const close = useCallback(() => setOpen(false), [setOpen]);
   return (
-    <>
-      {/* Render prop receives a callback ref for the trigger element. */}
-      {/* eslint-disable-next-line react-hooks/refs */}
-      {trigger({
-        "data-state": open ? "open" : "closed",
-        onClick: () => {
-          if (disabled) return;
-          setOpen(!open);
-        },
-        ref: setTriggerNode,
-        "aria-expanded": open,
-        "aria-haspopup": "dialog",
-        disabled,
-      })}
-      {open &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <PopoverContext.Provider value={{ close, labelId }}>
-            <div
-              ref={panelRef}
-              data-popover
-              role="dialog"
-              aria-labelledby={labelId}
-              style={{
-                top: position?.top ?? -9999,
-                left: position?.left ?? -9999,
-                width: position?.width,
-                maxHeight: position?.maxHeight,
-              }}
-              className={cn(
-                "fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-(--shadow-panel)",
-                position ? "animate-in" : "invisible",
-                className,
-              )}
-            >
-              {/* eslint-disable-next-line react-hooks/refs */}
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      {/* Editable pickers anchor to an input container, rather than a button.
+          Keep their semantics and let Radix position and dismiss the panel. */}
+      <PopoverPrimitive.Anchor asChild>
+        {/* The render prop receives a callback ref; it never reads current. */}
+        {/* eslint-disable-next-line react-hooks/refs */}
+        {trigger({
+          "data-state": open ? "open" : "closed",
+          onClick: () => {
+            if (!disabled) setOpen(!open);
+          },
+          ref: setTriggerNode,
+          "aria-expanded": open,
+          "aria-haspopup": "dialog",
+          disabled,
+        })}
+      </PopoverPrimitive.Anchor>
+      <PopoverPrimitive.Portal>
+        <DropdownSurface asChild>
+          <PopoverPrimitive.Content
+            ref={panelRef}
+            data-popover
+            aria-labelledby={labelId}
+            align={align}
+            side={side}
+            sideOffset={4}
+            collisionPadding={8}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              // An editor action may deliberately focus its document before
+              // closing the menu. Restore only focus left in the panel.
+              const active = document.activeElement;
+              if (
+                !active ||
+                active === document.body ||
+                panelRef.current?.contains(active)
+              )
+                triggerRef.current?.focus({ preventScroll: true });
+            }}
+            onInteractOutside={(event) => {
+              if (triggerRef.current?.contains(event.target as Node))
+                event.preventDefault();
+            }}
+            style={{
+              width:
+                width === "trigger"
+                  ? "var(--radix-popover-trigger-width)"
+                  : width,
+              maxHeight: "var(--radix-popover-content-available-height)",
+            }}
+            className={cn("flex flex-col", className)}
+          >
+            <PopoverContext.Provider value={{ close, labelId }}>
               {typeof children === "function" ? children(close) : children}
-            </div>
-          </PopoverContext.Provider>,
-          document.body,
-        )}
-    </>
+            </PopoverContext.Provider>
+          </PopoverPrimitive.Content>
+        </DropdownSurface>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
@@ -248,6 +190,7 @@ export function Picker<T extends string>({
   };
   useEffect(() => {
     if (showSearch) inputRef.current?.focus();
+    else listRef.current?.focus();
   }, [showSearch]);
   const q = query.trim().toLowerCase();
   const [lastQuery, setLastQuery] = useState(q);
@@ -286,7 +229,13 @@ export function Picker<T extends string>({
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [onEndReached, hasMore, filtered.length, loading]);
-  const selected = new Set(Array.isArray(value) ? value : value ? [value] : []);
+  const selected = new Set(
+    Array.isArray(value)
+      ? value
+      : value !== undefined && value !== null
+        ? [value]
+        : [],
+  );
   const choose = (option: PickerOption<T>) => {
     onSelect(option.value);
     if (!multiple) popover?.close();
@@ -346,6 +295,9 @@ export function Picker<T extends string>({
         ref={listRef}
         id={optionId}
         role="listbox"
+        tabIndex={showSearch ? -1 : 0}
+        aria-label={title ?? placeholder}
+        aria-multiselectable={multiple || undefined}
         className="max-h-72 min-h-0 flex-1 overflow-y-auto p-1"
       >
         {filtered.length === 0 && (
@@ -354,7 +306,7 @@ export function Picker<T extends string>({
           </p>
         )}
         {filtered.map((option, index) => (
-          <button
+          <DropdownItem
             id={optionId ? `${optionId}-option-${option.value}` : undefined}
             key={option.value}
             type="button"
@@ -366,8 +318,7 @@ export function Picker<T extends string>({
             onMouseEnter={() => setActive(index)}
             onClick={() => choose(option)}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] outline-none",
-              index === active && "bg-muted",
+              index === active && "bg-accent text-accent-foreground",
             )}
           >
             {option.icon && (
@@ -384,7 +335,7 @@ export function Picker<T extends string>({
             {selected.has(option.value) && (
               <Check className="size-3.5 shrink-0 text-primary" />
             )}
-          </button>
+          </DropdownItem>
         ))}
         {hasMore && (
           <div

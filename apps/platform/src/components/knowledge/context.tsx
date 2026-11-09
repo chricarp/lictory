@@ -1,3 +1,7 @@
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { useId, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
@@ -498,18 +502,18 @@ export function IterationNotesForm({
           <label htmlFor={spaceField} className="text-xs font-medium">
             Space
           </label>
-          <select
+          <DropdownSelect
             id={spaceField}
             value={space?.id ?? ""}
-            onChange={(e) => setSpaceId(e.target.value)}
-            className="h-8 rounded-md border bg-background px-2 text-[13px] touch:text-base"
+            onValueChange={(value) => setSpaceId(value)}
+            className="w-full"
           >
             {spaces.map((s) => (
-              <option key={s.id} value={s.id}>
+              <DropdownSelectOption key={s.id} value={s.id}>
                 {s.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
           <label htmlFor={titleField} className="text-xs font-medium">
             Title
           </label>

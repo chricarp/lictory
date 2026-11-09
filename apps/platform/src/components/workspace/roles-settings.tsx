@@ -1,3 +1,7 @@
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import { useEffect, useState } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Mail, ShieldCheck, UserPlus, Users, X } from "lucide-react";
@@ -410,23 +414,25 @@ function Invite({
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-2">
           Project
-          <select
-            className="rounded-md border bg-background px-2 py-1.5"
+          <DropdownSelect
+            className="w-full"
             aria-label="Invitation project"
             value={projectId}
-            onChange={(e) => {
-              setProjectId(e.target.value);
+            onValueChange={(value) => {
+              setProjectId(value);
               setDisciplineIds([]);
               setUrl(undefined);
             }}
           >
-            <option value="">Organization only</option>
+            <DropdownSelectOption value="">
+              Organization only
+            </DropdownSelectOption>
             {eligible.map((p) => (
-              <option key={p.id} value={p.id}>
+              <DropdownSelectOption key={p.id} value={p.id}>
                 {p.name}
-              </option>
+              </DropdownSelectOption>
             ))}
-          </select>
+          </DropdownSelect>
         </label>
         {projectId &&
           directory.disciplines

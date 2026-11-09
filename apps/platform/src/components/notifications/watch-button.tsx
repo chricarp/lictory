@@ -1,6 +1,6 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { notificationRequest } from "@lictory/platform/components/notifications/client";
 
@@ -71,13 +71,10 @@ export function WatchButton({
   };
   if (appearance === "menuitem")
     return (
-      <button
+      <DropdownItem
         type="button"
         aria-pressed={watching}
-        className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted",
-          className,
-        )}
+        className={className}
         onClick={() => void toggle()}
       >
         {watching ? (
@@ -86,7 +83,7 @@ export function WatchButton({
           <BellOff className="size-3.5 text-muted-foreground" aria-hidden />
         )}
         {watching ? "Watching" : "Watch"}
-      </button>
+      </DropdownItem>
     );
   return (
     <Button

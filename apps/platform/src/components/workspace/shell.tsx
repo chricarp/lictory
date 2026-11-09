@@ -1,3 +1,4 @@
+import { DropdownItem } from "@lictory/ui/dropdown";
 import { Link, useLinkStatus } from "@lictory/platform/lib/navigation";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
@@ -600,39 +601,34 @@ function Sidebar({
                 Organizations
               </p>
               {organizations.map((o) => (
-                <button
+                <DropdownItem
                   key={o.id}
                   onClick={() => {
                     close();
                     router.push(paths.org(o.slug));
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
                 >
                   <OrganizationMark organization={o} className="size-4" />
                   <span className="truncate">{o.name}</span>
                   {o.id === organization.id && (
                     <Check className="ml-auto size-3.5 text-primary" />
                   )}
-                </button>
+                </DropdownItem>
               ))}
               <div className="my-1 border-t" />
-              <Link
-                href={paths.settings(organization.slug)}
-                onClick={close}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
-                <Settings className="size-3.5" aria-hidden />
-                Organization settings
-              </Link>
-              {sessionUser?.canCreateOrganization && (
-                <Link
-                  href={paths.newOrganization}
-                  onClick={close}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-                >
-                  <Plus className="size-3.5" aria-hidden />
-                  Create organization
+              <DropdownItem asChild>
+                <Link href={paths.settings(organization.slug)} onClick={close}>
+                  <Settings className="size-3.5" aria-hidden />
+                  Organization settings
                 </Link>
+              </DropdownItem>
+              {sessionUser?.canCreateOrganization && (
+                <DropdownItem asChild>
+                  <Link href={paths.newOrganization} onClick={close}>
+                    <Plus className="size-3.5" aria-hidden />
+                    Create organization
+                  </Link>
+                </DropdownItem>
               )}
             </div>
           )}
@@ -787,21 +783,19 @@ function Sidebar({
                 </p>
               </div>
               <div className="my-1 border-t" />
-              <Link
-                href={paths.account(pathname)}
-                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-              >
-                <UserRound className="size-3.5 text-muted-foreground" /> Account
-                settings
-              </Link>
-              {sessionUser?.instanceAdmin && (
-                <Link
-                  href={paths.admin()}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-                >
-                  <ShieldUser className="size-3.5 text-muted-foreground" />{" "}
-                  Admin console
+              <DropdownItem asChild>
+                <Link href={paths.account(pathname)}>
+                  <UserRound className="size-3.5 text-muted-foreground" />{" "}
+                  Account settings
                 </Link>
+              </DropdownItem>
+              {sessionUser?.instanceAdmin && (
+                <DropdownItem asChild>
+                  <Link href={paths.admin()}>
+                    <ShieldUser className="size-3.5 text-muted-foreground" />{" "}
+                    Admin console
+                  </Link>
+                </DropdownItem>
               )}
               <PrivacyPreferencesButton
                 onClick={close}
@@ -810,12 +804,9 @@ function Sidebar({
                 <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
                 Privacy preferences
               </PrivacyPreferencesButton>
-              <button
-                onClick={onSignOut}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
-              >
+              <DropdownItem onClick={onSignOut}>
                 <LogOut className="size-3.5 text-muted-foreground" /> Sign out
-              </button>
+              </DropdownItem>
               <div className="mt-1 border-t px-2 pt-2 pb-1">
                 <p
                   className="text-xs text-muted-foreground"

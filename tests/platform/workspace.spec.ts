@@ -614,7 +614,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page.getByRole("link", { name: "Organization settings" }).click();
   await page.getByRole("link", { name: "Members", exact: true }).click();
   await page.getByLabel("Teammate email or username").fill("@riley_chen");
-  await expect(page.getByLabel("Invitation project")).toHaveValue(/.+/);
+  await expect(
+    page.getByRole("combobox", { name: "Invitation project" }),
+  ).toHaveText("Payments");
   await page.getByRole("checkbox", { name: "Engineering" }).check();
   await page.getByRole("button", { name: "Send invitation" }).click();
   await expect(page.getByText(/Joins Payments · Engineering/)).toBeVisible();
