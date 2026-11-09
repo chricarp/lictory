@@ -22,14 +22,15 @@ const root: string =
 
 const problems: string[] = [];
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
+// `&amp;` last, so `&amp;lt;` stays the text `&lt;`.
 const decode = (value: string) =>
   value
-    .replaceAll("&amp;", "&")
     .replaceAll("&quot;", '"')
     .replaceAll("&#x27;", "'")
     .replaceAll("&#39;", "'")
     .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 const attribute = (tag: string, name: string) =>
   decode(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? "");
 const tags = (html: string, name: string) =>
