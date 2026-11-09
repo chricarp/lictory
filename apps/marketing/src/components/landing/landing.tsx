@@ -82,14 +82,9 @@ function Hero() {
   );
 }
 
-/** A section label: the graph's commit dot, then the name. */
+/** A section label in the brand accent. */
 function Marker({ children }: { children: ReactNode }) {
-  return (
-    <p className="marker">
-      <span aria-hidden />
-      {children}
-    </p>
-  );
+  return <p className="marker">{children}</p>;
 }
 
 function SectionHeading({

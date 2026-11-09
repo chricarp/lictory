@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import {
   DocsBody,
   DocsDescription,
-  DocsPage,
   DocsTitle,
 } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 
+import { DocumentationPage } from "@lictory/docs/components/documentation-page";
 import { getMDXComponents } from "@lictory/docs/components/mdx";
 import { source } from "@lictory/docs/lib/source";
 
@@ -17,7 +17,7 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
   if (!page) notFound();
   const Content = page.data.body;
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocumentationPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle className="docs-title">{page.data.title}</DocsTitle>
       <DocsDescription className="docs-lede mb-8">
         {page.data.description}
@@ -27,7 +27,7 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
           components={getMDXComponents({ a: createRelativeLink(source, page) })}
         />
       </DocsBody>
-    </DocsPage>
+    </DocumentationPage>
   );
 }
 

@@ -153,43 +153,88 @@ body {
   background: var(--card);
 }
 
-/* On this page: one current section, marked by a cobalt dot on the rail;
-   other sections in view stay quiet instead of all turning blue. */
-#nd-toc a {
-  transition: color 120ms ease-out;
+/* Keep the current marker in the same grid row as its label. Indentation
+   belongs to the whole row, so nested and wrapped headings stay aligned. */
+.docs-toc {
+  position: sticky;
+  top: var(--fd-docs-row-1);
+  height: calc(var(--fd-docs-height) - var(--fd-docs-row-1));
+  grid-area: toc;
+  display: flex;
+  flex-direction: column;
+  width: var(--fd-toc-width);
+  padding: 3rem 1rem 0.5rem 0;
 }
-#nd-toc svg:has(path.stroke-fd-primary),
-#nd-toc div.bg-fd-primary.rounded-full {
-  display: none;
+@media (min-width: 1280px) {
+  #nd-docs-layout:has(> .docs-toc) {
+    --fd-toc-width: 268px;
+  }
 }
-#nd-toc a[data-active="true"] {
+@media (max-width: 1279px) {
+  .docs-toc {
+    display: none;
+  }
+}
+.docs-toc h2 {
   color: var(--muted-foreground);
-}
-#nd-toc a[data-active="true"]:not(a[data-active="true"] ~ a) {
-  color: var(--foreground);
+  font-size: 0.8125rem;
   font-weight: 500;
 }
-#nd-toc a[data-active="true"]:not(a[data-active="true"] ~ a)::before {
-  content: "";
+.docs-toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.docs-toc-list a {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.375rem minmax(0, 1fr);
+  gap: 0.625rem;
+  padding-block: 0.375rem;
+  padding-inline: calc(var(--toc-depth) * 0.75rem + 0.25rem) 0.5rem;
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+  scroll-margin-block: 1rem;
+}
+.docs-toc-list a:hover {
+  color: var(--foreground);
+  background: var(--muted);
+}
+.docs-toc-list a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+.docs-toc-list a[data-active="true"] {
+  color: var(--foreground);
+  font-weight: 700;
+}
+/* Each rail ends where the next row's curve begins, including after a
+   wrapped label. The curve follows the same depth as the marker and text. */
+.docs-toc-rail {
   position: absolute;
-  top: calc(0.375rem + 3px);
-  left: 13px;
-  width: 7px;
-  height: 7px;
-  border-radius: 9999px;
+  inset-inline-start: 0;
+  top: -0.375rem;
+  height: calc(100% + 0.125rem);
+  font-size: 1rem;
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.docs-toc-dot {
+  position: relative;
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-top: calc((1.25rem - 0.375rem) / 2);
+  border-radius: 50%;
+  background: transparent;
+}
+.docs-toc-list a[data-active="true"] .docs-toc-dot {
   background: var(--brand);
   box-shadow: 0 0 0 3px var(--background);
-}
-/* The dot sits on the rail, which is indented with the heading depth. */
-#nd-toc a[style*="padding-inline-start:20px"]::before {
-  left: 5.5px !important;
-}
-#nd-toc a[style*="padding-inline-start:44px"]::before {
-  left: 25px !important;
-}
-/* The first entry has no top padding. */
-#nd-toc a.pt-0[data-active="true"]::before {
-  top: 3px;
 }
 
 /* The command reference: one command per row, its summary underneath. */
@@ -240,4 +285,10 @@ html:not(.dark) .shiki code span[style*="--shiki-light:#E36209"] {
 .docs-body img[src="/screenshots/spaces-phone.webp"] {
   max-width: min(100%, 18rem);
   margin-inline: auto;
+}
+
+/* The compact contents menu uses the same single bold current section. */
+[data-toc-popover-content] a[data-active="true"] {
+  color: var(--foreground);
+  font-weight: 700;
 }
