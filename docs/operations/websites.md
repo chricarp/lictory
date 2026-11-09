@@ -44,8 +44,11 @@ search engines never see a noindexed page with status 200. The exported React
 Server Components payloads (`*.txt` other than `robots.txt`, `llms.txt` and
 `llms-full.txt`) are fetched by the router and carry `X-Robots-Tag: noindex`.
 
-Both sites publish `robots.txt`, `sitemap.xml`, `llms.txt`, `llms-full.txt`
-and a Markdown version of each content page at its URL with `.md` appended.
+Both sites publish `robots.txt`, `sitemap.xml`, `llms.txt` and
+`llms-full.txt`. Markdown versions live at the page URL with `.md` appended:
+every documentation page (the home page at `/index.md`), and the marketing
+guides, comparisons, alternatives and roundups (not its landing or legal
+pages).
 `robots.txt` allows every crawler, AI assistants and AI training crawlers
 included; blocking one is a single rule in `apps/*/src/app/robots.ts`.
 
