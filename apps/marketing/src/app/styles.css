@@ -367,21 +367,13 @@ html {
 .marker {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--secondary-text);
+  color: var(--brand);
   font-family: var(--font-geist-mono), monospace;
   font-size: 12px;
   font-weight: 500;
   line-height: 20px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-.marker > span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--brand);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .section-heading h2,
 .open-source h2,
