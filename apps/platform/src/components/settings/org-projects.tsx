@@ -193,6 +193,7 @@ function ProjectRow({
                 "External")
               : "Lictory"}
           </Badge>
+          {project.sample && <Badge>Sample</Badge>}
           {archived && <Badge>Archived</Badge>}
         </div>
         <p className="truncate text-xs text-muted-foreground">

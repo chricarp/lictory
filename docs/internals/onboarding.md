@@ -141,6 +141,49 @@ reused) or continue without them. The empty first project points to creating a
 proposal, adding people and disciplines, reviewing the project's delivery
 choices, and choosing a Jira project when necessary.
 
+## Sample project
+
+A person evaluating Lictory alone cannot see the review workflow without
+colleagues. An empty first project therefore offers organization
+administrators **Explore a sample project**: an explicit, opt-in action, never
+created automatically.
+
+`createSampleProject` (a capability on every surface) creates one project
+labelled as the sample (`project.sample`, key `SAMPLE`, or `SAMPLE2`… when
+taken). Its content: a specification with three revisions, an open blocking
+discussion anchored to a sentence of the current revision, a recorded decision,
+a required review requested of the person's own discipline, a branch with a pull
+request awaiting review, and a space homed in the project whose page references
+the item and the decision. The project follows the delivery mode and readiness
+policy of the project it was opened from, so it behaves like the person's own
+work in native and external delivery. It uses no Lictory Intelligence.
+
+Invariants:
+
+- **Ordinary commands only.** Every write is a normal domain command through
+  `applyMutation` (authorization, projections, activity, receipt), all in one
+  transaction: the sample exists completely or not at all. There are no direct
+  inserts and no sample-only domain paths beyond the `sample` flag on
+  `createProject`.
+- **No invented people, no manufactured decisions.** The requester is the author
+  of everything and the project's only member. Reviews are requested, never
+  decided. The blocking discussion is created before anything else that could
+  make the item ready. The person resolves the discussion and approves the
+  review themselves; their own pull request needs someone else's review, as any
+  pull request does.
+- **One per organization.** `createProject` with `sample` is refused under the
+  organization lock while a sample exists, active or archived. An archived
+  sample is restored in Settings → Projects instead of being created again.
+- **Removable and reversible.** `archiveSampleProject` archives the project and
+  the spaces homed in it. Nothing is deleted; history stays.
+- **Clearly labelled.** Every page of the sample project shows a strip saying
+  what it is, with the way to archive it; Settings → Projects marks it
+  “Sample”.
+
+Analytics record `sample_project_created` and `sample_project_archived` only,
+not the commands inside the sample, so sample content never counts as the
+person's own activity.
+
 Motion uses `motion/react` with `MotionConfig reducedMotion="user"`: steps slide in
 the direction of travel, selection indicators glide between options and dependent
 fields expand in place. Reduced-motion users get instant state changes.

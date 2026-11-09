@@ -165,6 +165,8 @@ export const entitySchema = z.discriminatedUnion("type", [
     upcomingIterations: z.number().int(),
     aiActionPolicy: z.enum(aiActionPolicies),
     mergeReadyNotice: z.boolean().default(true),
+    // Lictory's sample project (see createSampleProject).
+    sample: z.boolean().default(false),
     archivedAt: z.string().nullable(),
   }),
   z.object({
@@ -1858,6 +1860,9 @@ export const commandSchema = z.discriminatedUnion("type", [
     key: projectKey,
     description: z.string().trim().max(2000).optional(),
     setup: onboardingSetupSchema.optional(),
+    // Labels the project as Lictory's sample (at most one per organization).
+    // createSampleProject creates it with its content.
+    sample: z.literal(true).optional(),
   }),
   // Project administrators.
   z.object({
