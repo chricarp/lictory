@@ -10,12 +10,16 @@
 //   crawling and names the sitemap, and llms.txt exists.
 //
 // Usage: [SITE_URL=<origin>] bun scripts/check-site-indexing.ts <export directory>
+// (`out`, or NEXT_DIST_DIR when the build sets one)
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+// With `output: "export"`, Next.js writes the export to a custom distDir
+// (NEXT_DIST_DIR) instead of `out`, so the check follows it there.
+const distDir = process.env.NEXT_DIST_DIR?.trim();
 const root: string =
-  process.argv[2] ??
+  (distDir && distDir !== ".next" ? distDir : process.argv[2]) ??
   (() => {
     throw new Error("Usage: check-site-indexing.ts <export directory>");
   })();

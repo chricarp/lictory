@@ -19,7 +19,15 @@ function pages(node: Node): DocsPage[] {
   ];
 }
 
+let cached: Array<{ title: string; pages: DocsPage[] }> | undefined;
+
+/** Computed once per build: every page's metadata asks for it. */
 export function sections() {
+  cached ??= readSections();
+  return cached;
+}
+
+function readSections() {
   const result: Array<{ title: string; pages: DocsPage[] }> = [
     { title: "Start here", pages: [] },
   ];

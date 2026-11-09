@@ -30,13 +30,14 @@ function breadcrumb(page: DocsPage) {
     .slice(0, -1)
     .map((_, index) => source.getPage(page.slugs.slice(0, index + 1)))
     .filter((ancestor) => ancestor !== undefined);
-  const trail = [source.getPage([])!, ...ancestors, page];
+  const home = source.getPage([]);
+  const trail = [...(home ? [home] : []), ...ancestors, page];
   return {
     "@type": "BreadcrumbList",
     itemListElement: trail.map((crumb, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      name: index === 0 ? site.name : crumb.data.title,
+      name: crumb === home ? site.name : crumb.data.title,
       ...(index < trail.length - 1 ? { item: absoluteUrl(crumb.url) } : {}),
     })),
   };
