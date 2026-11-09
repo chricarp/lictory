@@ -138,7 +138,13 @@ stay in the browser.
 See [connecting agents](https://docs.lictory.com/integrations/agents) for setup,
 example prompts and troubleshooting. This uses your MCP client's model;
 Lictory's built-in **Litto** assistant and automated Intelligence checks are
-optional and require a configured OpenAI key and organization enablement.
+optional and require a configured language model provider and organization
+enablement. Choose a cloud provider such as OpenAI, Anthropic or Google Gemini,
+or a self-hosted model through Ollama, vLLM or another OpenAI-compatible server.
+Instance administrators configure providers in the admin console, with
+`lictory ai setup` or through environment variables. See
+[AI providers](docs/operations/ai-providers.md) for all supported providers and
+setup instructions.
 
 ## Develop locally
 
