@@ -13,7 +13,8 @@
   <a href="https://docs.lictory.com">Documentation</a> ·
   <a href="https://docs.lictory.com/self-hosting/install">Install</a> ·
   <a href="https://github.com/chricarp/lictory/releases">Releases</a> ·
-  <a href="CONTRIBUTING.md">Contribute</a>
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="https://github.com/chricarp/lictory/discussions">Discussions</a>
 </p>
 
 Lictory helps Product, Engineering and QA turn rough proposals into specifications
@@ -196,6 +197,13 @@ client also gives that client's agent access to the data your token permits.
 See [privacy and telemetry](https://docs.lictory.com/self-hosting/privacy).
 
 ## Contributing and support
+
+New here? Pick an issue labelled
+[good first issue](https://github.com/chricarp/lictory/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22):
+each one names the files involved and how to show that the change works.
+[Your first contribution](CONTRIBUTING.md#your-first-contribution) takes you
+from checkout to pull request. Ask questions and float ideas in
+[Discussions](https://github.com/chricarp/lictory/discussions).
 
 Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md) and the
 [Code of conduct](CODE_OF_CONDUCT.md). Use [Support](SUPPORT.md) for setup and
