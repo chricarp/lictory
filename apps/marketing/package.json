@@ -7,7 +7,7 @@
     "assets": "node scripts/copy-shared-assets.mjs",
     "dev": "node scripts/copy-shared-assets.mjs && next dev --port 3100",
     "build": "node scripts/copy-shared-assets.mjs && next build --webpack",
-    "build:cloudflare": "MARKETING_STATIC_EXPORT=true bun run build",
+    "build:cloudflare": "MARKETING_STATIC_EXPORT=true bun run build && bun ../../scripts/check-site-indexing.ts out",
     "preview:cloudflare": "wrangler dev --port 8787",
     "deploy:cloudflare": "wrangler deploy",
     "start": "next start --port ${PORT:-3100}",

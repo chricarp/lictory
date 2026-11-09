@@ -9,7 +9,18 @@ import { createRelativeLink } from "fumadocs-ui/mdx";
 
 import { DocumentationPage } from "@lictory/docs/components/documentation-page";
 import { getMDXComponents } from "@lictory/docs/components/mdx";
+import {
+  indexableRobots,
+  markdownPath,
+  site,
+  socialImage,
+} from "@lictory/docs/lib/site";
+import { documentTitle } from "@lictory/docs/lib/sections";
 import { source } from "@lictory/docs/lib/source";
+import {
+  pageStructuredData,
+  serializeJsonLd,
+} from "@lictory/docs/lib/structured-data";
 
 export default async function Page(props: PageProps<"/[[...slug]]">) {
   const { slug } = await props.params;
@@ -27,6 +38,12 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
           components={getMDXComponents({ a: createRelativeLink(source, page) })}
         />
       </DocsBody>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(pageStructuredData(page)),
+        }}
+      />
     </DocumentationPage>
   );
 }
@@ -41,9 +58,30 @@ export async function generateMetadata(
   const { slug } = await props.params;
   const page = source.getPage(slug);
   if (!page) notFound();
+  const title = documentTitle(page);
+  const images = [socialImage];
   return {
-    title: slug?.length ? page.data.title : { absolute: "Lictory Docs" },
+    title: { absolute: title },
     description: page.data.description,
-    alternates: { canonical: page.url },
+    robots: indexableRobots,
+    alternates: {
+      canonical: page.url,
+      types: { "text/markdown": markdownPath(page.url) },
+    },
+    openGraph: {
+      type: slug?.length ? "article" : "website",
+      title,
+      description: page.data.description,
+      url: page.url,
+      siteName: site.name,
+      locale: "en_US",
+      images,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: page.data.description,
+      images,
+    },
   };
 }

@@ -27,10 +27,35 @@ and immutable caching of hashed assets are defined once:
   Former application paths (`/app/...`, `/sign-in`, `/sign-up` and the other
   account pages) are not redirected; they are ordinary missing pages.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
-  (`/search.json`) and runs in the browser. The Worker only serves files and
-  headers and relays `/relay` to PostHog like marketing: no redirects, no
-  backend. Its analytics use the same consent model and the same PostHog
-  project, with a `site: "docs"` super property.
+  (`/search.json`) and runs in the browser. The Worker serves files and
+  headers, the Markdown versions of the pages, and relays `/relay` to PostHog
+  like marketing; there is no backend. Its analytics use the same consent
+  model and the same PostHog project, with a `site: "docs"` super property.
+
+### Search engines and AI assistants
+
+Each page has exactly one public URL: the apex host, no trailing slash, no
+`.html`, no `/index`. Cloudflare's asset server would answer the other forms
+with temporary (307) redirects; the Worker answers them first with a single
+permanent (301) redirect to the canonical URL, which is also the page's
+`<link rel="canonical">` and its sitemap entry. Next.js exports the not-found
+page as `/404` and `/_not-found`; the Worker answers both with status 404, so
+search engines never see a noindexed page with status 200. The exported React
+Server Components payloads (`*.txt` other than `robots.txt`, `llms.txt` and
+`llms-full.txt`) are fetched by the router and carry `X-Robots-Tag: noindex`.
+
+Both sites publish `robots.txt`, `sitemap.xml`, `llms.txt` and
+`llms-full.txt`. Markdown versions live at the page URL with `.md` appended:
+every documentation page (the home page at `/index.md`), and the marketing
+guides, comparisons, alternatives and roundups (not its landing or legal
+pages).
+`robots.txt` allows every crawler, AI assistants and AI training crawlers
+included; blocking one is a single rule in `apps/*/src/app/robots.ts`.
+
+After every static build, `scripts/check-site-indexing.ts` reads the export
+the way a crawler does and fails the build when a sitemap page is noindexed,
+lacks a self-referencing canonical, repeats another page's title or
+description, or when an exported page is missing from the sitemap.
 
 ## GitHub configuration
 
@@ -146,3 +171,10 @@ comparison pages, legal pages, social images, Markdown routes, query strings,
 the Microsoft publisher association file and `www` redirects before switching
 DNS (add `--var POSTHOG_HOST:<host>` to the preview to exercise the analytics
 relay). For docs, verify navigation, search, both themes and the 404 page.
+For both, check status codes with `curl -sI`: pages 200, `/404` and missing
+pages 404, `/page/` and `/page.html` a 301 to `/page`.
+
+After a deployment that changes URLs or indexing, open the site's **Indexing →
+Pages** report in Google Search Console, compare the "Excluded by 'noindex'
+tag" URLs with the intentional ones above, choose **Validate fix** on resolved
+issues, and resubmit `sitemap.xml` under **Sitemaps** when its URLs changed.

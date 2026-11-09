@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import {
   guidesFeedPath,
+  indexableRobots,
   siteDescription,
   siteTitle,
 } from "@lictory/marketing/lib/site";
@@ -11,6 +12,7 @@ export const landingMetadata: Metadata = {
   ...socialMetadata("marketing"),
   title: { absolute: siteTitle },
   description: siteDescription,
+  robots: indexableRobots,
   keywords: [
     "requirements management",
     "requirements review",

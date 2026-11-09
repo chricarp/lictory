@@ -16,3 +16,33 @@ export const site = {
   website: "https://lictory.com",
   repository: "https://github.com/chricarp/lictory",
 } as const;
+
+export function absoluteUrl(path: string) {
+  return new URL(path, site.url).toString();
+}
+
+/** The `.md` URL of a page's Markdown version (served by the Worker). */
+export function markdownPath(url: string) {
+  return url === "/" ? "/index.md" : `${url}.md`;
+}
+
+/** The website's social card, shared by every documentation page. */
+export const socialImage = {
+  url: `${site.website}/og/marketing`,
+  width: 1200,
+  height: 630,
+  alt: "Lictory: requirements, reviewed like code",
+} as const;
+
+/** Search snippet policy for every documentation page. */
+export const indexableRobots = {
+  index: true,
+  follow: true,
+  googleBot: {
+    index: true,
+    follow: true,
+    "max-snippet": -1,
+    "max-image-preview": "large",
+    "max-video-preview": -1,
+  },
+} as const;
