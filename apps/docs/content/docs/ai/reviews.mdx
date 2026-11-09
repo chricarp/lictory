@@ -151,6 +151,35 @@ discussion, and one per finding, anchored to the text it is about.
 - Blocking discussions it opens under **Required** are like any other: you
   can resolve them or mark them non-blocking.
 
+### Two readings of acceptance criteria
+
+When a pull request adds or rewords acceptance criteria, the review also
+reads each of those criteria twice: once as QA would test it (concrete cases
+and the outcome they expect) and once as someone implementing it would build
+it (what they would build, and when they would call it done).
+
+When the two readings expect a different outcome for some case, it opens a
+discussion anchored to the criterion's text. The discussion says where the
+readings part ways, asks the question that would settle it, and shows both
+readings in full so you can judge for yourself. In the **Actions** tab the
+finding offers **Two readings of the criterion**.
+
+- Criteria where both readings agree add nothing. The summary discussion
+  counts how many changed criteria were read and how many diverge.
+- A divergence is at most **Major**. It never opens a blocking discussion,
+  also under **Required**.
+- On the next commit, a criterion that still diverges gets a reply in the
+  same discussion; one that no longer diverges gets a note. Resolving is up
+  to you.
+- Only committed text is read. Edits in progress get a discussion once you
+  commit them.
+
+One model writes both readings. A divergence shows that the sentence can be
+read two ways; it is not two people disagreeing. A criterion without a
+divergence is not proven clear either: QA and engineering still review it.
+Criteria are the list items (or, without a list, the paragraphs) under an
+**Acceptance criteria** heading.
+
 ### Commit a suggestion
 
 A finding on the latest commit that proposes a change offers **Commit

@@ -58,6 +58,30 @@ export const aiEditSchema = z.object({
 });
 export type AiEdit = z.infer<typeof aiEditSchema>;
 
+// Two readings of one acceptance criterion (pull request runs only): the
+// cases QA would run and what an implementer would build, kept so people can
+// judge a reported divergence themselves. Both come from one model.
+const aiReadingsSchema = z.object({
+  // The criterion as rendered, exactly as the discussion quotes it.
+  criterion: z.string().max(1000),
+  qa: z
+    .array(
+      z.object({
+        situation: z.string().max(500),
+        expected: z.string().max(500),
+      }),
+    )
+    .min(1)
+    .max(6),
+  implementer: z.object({
+    builds: z.string().max(1000),
+    done: z.string().max(1000),
+  }),
+  // The situation where the two readings expect different observable outcomes.
+  divergence: z.string().max(2000),
+});
+export type AiReadings = z.infer<typeof aiReadingsSchema>;
+
 export const aiFindingSchema = z.object({
   id: z.string().min(1).max(160),
   workItemId: z.string().min(1).max(160),
@@ -75,6 +99,9 @@ export const aiFindingSchema = z.object({
   threadId: z.string().nullable().default(null),
   // Lictory Intelligence Context entries the finding relied on.
   context: z.array(intelligenceContextUseSchema).max(10).default([]),
+  // Present when the finding is a divergence between two readings of an
+  // acceptance criterion.
+  readings: aiReadingsSchema.nullable().default(null),
 });
 export type AiFinding = z.infer<typeof aiFindingSchema>;
 

@@ -55,8 +55,21 @@ Focus on the changed content:
 - Does it change scope in a way that affects other items, estimates or dependencies?
 - When proposed.children is present, review the proposed delivery breakdown together with the specification: coverage, missing acceptance criteria, conflicting behavior and sensible scope boundaries. These children do not exist as accepted work yet. Attribute findings about their scope to the parent item's key. Propose text edits only against the parent specification; ask a question when the breakdown itself needs changing. If childrenTruncated is true, say that the assessment covers only the included children.
 
+Two readings of acceptance criteria:
+- "acceptanceCriteria" lists the acceptance criteria this change adds or rewords (and those an open earlier finding is about), each with a ref such as A1. Return exactly one entry in "readings" for each, and none when the list is empty.
+- Read each criterion twice, independently and literally, using only the proposed specification and its parent:
+  - qa: the concrete cases a QA engineer would run to verify it as written. Each case is a situation (inputs, state, timing) and the observable outcome they would expect. Include the boundary and negative cases the wording invites. Two to five cases.
+  - implementer: what a developer or coding agent given only this specification would build to satisfy it ("builds"), and when they would consider it done ("done").
+- Do not let one reading borrow assumptions from the other. Where the text is silent, each reader fills the gap the way that role usually would.
+- diverges: true only when, for some situation, the QA cases expect an observable outcome that the implementer's build would not produce or leaves undefined. Different wording, test technique or implementation detail with the same observable behaviour is not divergence. When in doubt, false.
+- divergence: when diverges is true, the situation and the two outcomes in one or two sentences, for example "For a refund requested on day 30, QA expects it to be accepted; the implementation rejects it because it counts 30 days exclusively." Otherwise null.
+- question: the decision the team must make to settle the divergence, or null.
+- severity: "major" when the divergence would likely cause rework or a failed acceptance, otherwise "minor".
+- Do not also report a divergence you return in "readings" as a finding.
+- If acceptanceCriteriaTruncated is true, only the listed criteria were sent; do not claim the others agree.
+
 Edits apply to the proposed (source branch) content, so "find" must be copied from the proposed content.
-You may receive open findings from earlier runs on this pull request. When an issue is still present, return it again with previousFindingId set to that finding's id. Do not return earlier findings that the new commit resolved.
+You may receive open findings from earlier runs on this pull request. When an issue is still present, return it again (as a finding or a reading) with previousFindingId set to that finding's id. Do not return earlier findings that the new commit resolved.
 
 ${principles}
 

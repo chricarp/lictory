@@ -689,6 +689,7 @@ export function FindingCard({
               </div>
             </details>
           )}
+          {!compact && f.readings && <Readings readings={f.readings} />}
           <ContextCitations context={f.context} />
           {f.edit && (
             <div className="space-y-1">
@@ -706,6 +707,55 @@ export function FindingCard({
         </div>
       </div>
     </article>
+  );
+}
+
+// Both readings of an acceptance criterion, so people judge a divergence
+// themselves. One model wrote both: it signals ambiguity, not a disagreement.
+function Readings({
+  readings,
+}: {
+  readings: NonNullable<AiFinding["readings"]>;
+}) {
+  return (
+    <details className="group/readings rounded-xl bg-muted/70 px-3 py-2">
+      <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+        <ChevronRight
+          aria-hidden
+          className="size-3 transition-transform group-open/readings:rotate-90"
+        />
+        Two readings of the criterion
+      </summary>
+      <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-foreground/80">
+        <blockquote className="border-l-2 border-foreground/15 pl-2.5">
+          {readings.criterion}
+        </blockquote>
+        <div>
+          <p className="font-medium text-foreground">QA would test</p>
+          <ul className="list-disc pl-5">
+            {readings.qa.map((c, i) => (
+              <li key={i}>
+                {c.situation} → {c.expected}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="font-medium text-foreground">
+            An implementer would build
+          </p>
+          <p>{readings.implementer.builds}</p>
+          <p>
+            <span className="font-medium text-foreground">Done when </span>
+            {readings.implementer.done}
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Both readings come from one model. A divergence points to possibly
+          ambiguous text, not to two people disagreeing.
+        </p>
+      </div>
+    </details>
   );
 }
 

@@ -329,6 +329,54 @@ Each project chooses a policy for it:
 The required gate applies only while Lictory Intelligence is enabled and
 configured, so turning it off never traps a pull request.
 
+### Two readings of acceptance criteria
+
+QA and an implementer can read the same criterion and mean different things
+by "done". The review action looks for that while the text is still being
+changed, in the same model call as the rest of the review (no extra run, no
+per-keystroke analysis).
+
+- **What is read.** The criteria a pull request adds or rewords: list items
+  (each nested item separately) or, when the section has no list, paragraphs
+  under the first "Acceptance criteria" heading, subsections included.
+  Criteria are compared with the merge base as rendered text, so whitespace or
+  formatting alone is not rewording. Criteria an open two-readings discussion
+  is about are read again so a re-run can answer it. At most 20 per run; the
+  rest are reported as truncated to the model.
+- **Two readings.** For each criterion the model writes a QA reading (concrete
+  cases: situation and expected observable outcome) and an implementer reading
+  (what would be built, and when it is done), and says whether they diverge in
+  observable behaviour. Different wording or technique with the same outcome
+  is not divergence.
+- **Only divergence becomes a finding.** The server keeps a reading only when
+  it names a criterion that was sent, carries both readings and explains the
+  divergence; one per criterion, within the run's finding budget. Agreeing
+  readings are counted in the rundown ("2 of 3 changed acceptance criteria
+  read, 1 with diverging readings") and stored nowhere else.
+- **Anchored and inspectable.** A divergence is a question in the
+  `ambiguity` category whose evidence is the criterion. Its discussion is
+  anchored to the criterion's exact rendered text under its heading (with the
+  occurrence, so repeated wording attaches to the right copy) on the reviewed
+  head commit. The body states the divergence and shows both readings in
+  full; the finding stores them (`readings`) for the Actions tab.
+- **Never blocking by itself.** Severity is at most major, whatever the model
+  returns, so a divergence never opens a blocking discussion and turning the
+  check on never starts blocking merges under the `required` policy. It
+  counts toward the score like any major or minor finding.
+- **Re-runs continue the discussion.** A divergence on the same criterion
+  text (or one the model links to an earlier finding) replies in the existing
+  discussion with this commit's readings; a criterion that no longer diverges
+  gets the usual "no longer detects" note. Nothing is resolved for people.
+- **Committed text only.** Criteria come from the pull request's head
+  commit. Live drafts are not history and never receive discussions; a
+  divergence appears once the sentence is committed.
+
+**What it does not show.** One model writes both readings. A divergence means
+the text admits two readings, which is evidence of possible ambiguity, not of
+two independent people disagreeing. Agreement is weaker evidence still: both
+readings share the model's assumptions, so a criterion with no divergence is
+not thereby clear. QA and engineering review remain the authority.
+
 ## Lictory Intelligence Context
 
 People give Lictory Intelligence knowledge about how the organization works, at
