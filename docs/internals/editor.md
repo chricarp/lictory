@@ -96,6 +96,33 @@ to its history; a decision's work item and the revision it was recorded at.
 Unreadable targets show only the stored label (a page without one, "Unavailable
 page") and no card.
 
+## Wording hints in acceptance criteria
+
+While a specification is edited, phrases in its _Acceptance criteria_
+section that a tester cannot turn into pass or fail are underlined, and the
+phrase under the caret is explained in one line with **Dismiss**
+(`packages/core/src/editor/wording-hints.ts`, shown by
+`components/editor/wording-hints.tsx`). The section is found like a
+readiness section: by heading name, at any level.
+
+Hints are advice, not findings. They are decorations, never content; they
+create no discussion, revision or readiness result; they run in the browser
+without AI; a dismissal stays on that device and is keyed by the criterion's
+text, so changing the criterion shows its hints again. Lictory Intelligence
+remains the place for ambiguity and testability findings.
+
+The list is short on purpose. Generic word lists are noisy: "should", "all",
+"and/or", "some", or a retry described without its count are often precise
+in context. Only four families are flagged: placeholders (`TBD`, `TODO`,
+"to be decided", `???`), open lists ("etc.", "and so on"), escape clauses
+("if possible", "where appropriate", "as soon as possible") and unmeasurable
+qualities ("fast", "intuitive", "appropriate", "reasonable", "gracefully"),
+the last only in criteria that state no number and not in quoted text, code,
+names or hyphenated compounds. Widen the list only with examples showing the
+new phrase is a defect in acceptance criteria nearly every time it appears.
+Detection is cached per block, so a keystroke re-reads only the block it
+changed.
+
 ## Loading
 
 The editor is its own chunk. Fields people write in right away load it when
