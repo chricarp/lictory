@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import sitemap from "@lictory/marketing/app/sitemap";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import { landingMetadata } from "@lictory/marketing/components/landing/metadata";
 import { landingStructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { installUrl } from "@lictory/marketing/lib/get-started";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
@@ -22,6 +23,23 @@ void describe("search discoverability", () => {
     );
     for (const entry of entries)
       assert.equal(new URL(entry.url).origin, siteUrl);
+  });
+
+  // Google reported "Excluded by 'noindex' tag" and "Duplicate without
+  // user-selected canonical": every sitemap page must be indexable and name
+  // itself as canonical. (The static export is checked again after the build
+  // by scripts/check-site-indexing.ts.)
+  void test("every sitemap page is indexable and canonical to itself", () => {
+    for (const { path } of publicPages) {
+      const metadata =
+        path === "/" ? landingMetadata : publicPageMetadata(path);
+      assert.equal(metadata.alternates?.canonical, path, path);
+      assert.equal(
+        (metadata.robots as { index?: boolean } | undefined)?.index,
+        true,
+        path,
+      );
+    }
   });
 
   void test("the sitemap reports lastmod only for pages with a known change date", () => {

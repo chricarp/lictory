@@ -47,8 +47,102 @@ void test("www redirects to the canonical origin with the path and query", async
       ...env,
       SITE_URL: siteUrl,
     });
-    assert.equal(response.status, 308);
+    assert.equal(response.status, 301);
     assert.equal(response.headers.get("Location"), destination);
+  }
+});
+
+void test("every other form of a page URL redirects permanently to the canonical one", async () => {
+  for (const kind of ["marketing", "docs"] as const) {
+    const origin =
+      kind === "marketing" ? "https://lictory.com" : "https://docs.lictory.com";
+    for (const [path, destination] of [
+      ["/compare/jira/", "/compare/jira"],
+      ["/compare/jira.html", "/compare/jira"],
+      ["/guides/?ref=shared", "/guides?ref=shared"],
+      ["/index", "/"],
+      ["/index.html", "/"],
+      ["/guides/index.html", "/guides"],
+      ["//", "/"],
+    ] as const) {
+      const response = await worker.fetch(new Request(`${origin}${path}`), {
+        ...env,
+        SITE_KIND: kind,
+        SITE_URL: origin,
+      });
+      assert.equal(response.status, 301, `${kind} ${path}`);
+      assert.equal(
+        response.headers.get("Location"),
+        `${origin}${destination}`,
+        `${kind} ${path}`,
+      );
+    }
+  }
+  // In one hop from www.
+  const response = await worker.fetch(
+    new Request("https://www.lictory.com/compare/jira/"),
+    env,
+  );
+  assert.equal(
+    response.headers.get("Location"),
+    "https://lictory.com/compare/jira",
+  );
+  const home = await worker.fetch(
+    new Request("https://lictory.com/home?a=1"),
+    env,
+  );
+  assert.equal(home.status, 301);
+  assert.equal(home.headers.get("Location"), "https://lictory.com/?a=1");
+});
+
+void test("the exported not-found pages answer 404, never 200 with noindex", async () => {
+  const requested: string[] = [];
+  const assets = {
+    ...env,
+    ASSETS: {
+      fetch: (request: Request) => {
+        requested.push(new URL(request.url).pathname);
+        return Promise.resolve(
+          new Response("<title>Page not found</title>", {
+            headers: { "Content-Type": "text/html" },
+          }),
+        );
+      },
+    },
+  };
+  for (const path of ["/404", "/_not-found", "/_not-found.txt"]) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}`),
+      assets,
+    );
+    assert.equal(response.status, 404, path);
+    assert.equal(await response.text(), "<title>Page not found</title>");
+  }
+  assert.deepEqual(requested, ["/404", "/404", "/404"]);
+});
+
+void test("router payloads are not indexable; robots.txt and llms.txt are", async () => {
+  const assets = {
+    ...env,
+    ASSETS: { fetch: () => Promise.resolve(new Response("payload")) },
+  };
+  for (const path of [
+    "/index.txt",
+    "/compare/jira.txt",
+    "/guides/__next._tree.txt",
+  ]) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}`),
+      assets,
+    );
+    assert.equal(response.headers.get("X-Robots-Tag"), "noindex", path);
+  }
+  for (const path of ["/robots.txt", "/llms.txt", "/llms-full.txt", "/"]) {
+    const response = await worker.fetch(
+      new Request(`https://lictory.com${path}`),
+      assets,
+    );
+    assert.equal(response.headers.get("X-Robots-Tag"), null, path);
   }
 });
 
@@ -244,7 +338,7 @@ void test("the documentation serves only its static files, with the website's se
         ),
     },
   };
-  // No backend and no website redirects (the relay is tested below).
+  // No backend and no website redirects (the relay is tested above).
   for (const path of ["/api/search", "/zero/sync", "/home"]) {
     const response = await worker.fetch(
       new Request(`https://docs.lictory.com${path}`),
@@ -266,4 +360,48 @@ void test("the documentation serves only its static files, with the website's se
   );
   assert.equal(page.headers.get("X-Robots-Tag"), null);
   assert.equal(page.headers.get("Cache-Control"), null);
+});
+
+void test("documentation pages have Markdown versions with a canonical HTML target", async () => {
+  const requested: string[] = [];
+  const docs = {
+    ...env,
+    SITE_KIND: "docs" as const,
+    SITE_URL: "https://docs.lictory.com",
+    ASSETS: {
+      fetch: (request: Request) => {
+        requested.push(new URL(request.url).pathname);
+        return Promise.resolve(new Response("# Page"));
+      },
+    },
+  };
+  for (const [path, canonical] of [
+    [
+      "/self-hosting/install.md",
+      "https://docs.lictory.com/self-hosting/install",
+    ],
+    ["/index.md", "https://docs.lictory.com/"],
+  ] as const) {
+    const response = await worker.fetch(
+      new Request(`https://docs.lictory.com${path}`),
+      docs,
+    );
+    assert.equal(
+      response.headers.get("Content-Type"),
+      "text/markdown; charset=utf-8",
+    );
+    assert.equal(
+      response.headers.get("Link"),
+      `<${canonical}>; rel="canonical"`,
+    );
+  }
+  assert.deepEqual(requested, [
+    "/markdown/self-hosting/install.md",
+    "/markdown/index.md",
+  ]);
+  const internal = await worker.fetch(
+    new Request("https://docs.lictory.com/markdown/index.md"),
+    docs,
+  );
+  assert.equal(internal.status, 404);
 });

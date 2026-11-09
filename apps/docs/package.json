@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/copy-shared-assets.mjs && next dev --port 3200",
-    "build": "node scripts/copy-shared-assets.mjs && next build --webpack",
+    "build": "node scripts/copy-shared-assets.mjs && next build --webpack && bun ../../scripts/check-site-indexing.ts out",
     "build:cloudflare": "bun run build",
     "preview:cloudflare": "wrangler dev --port 8788",
     "deploy:cloudflare": "wrangler deploy",

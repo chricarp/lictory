@@ -5,7 +5,6 @@ import "./styles.css";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
 import { appearanceBootScript } from "@lictory/core/lib/appearance";
 import {
-  indexableRobots,
   siteDescription,
   siteName,
   siteThemeColors,
@@ -34,8 +33,9 @@ export const metadata: Metadata = {
   publisher: siteName,
   category: "technology",
   formatDetection: { email: false, address: false, telephone: false },
-  // Lets search engines and AI answers show full snippets and large previews.
-  robots: indexableRobots,
+  // No site-wide robots policy: each indexable page declares its own (see
+  // publicPageMetadata), so the not-found page carries only Next.js's noindex
+  // instead of a contradictory "index, follow" next to it.
 };
 
 // Paper by day, ink by night: the browser chrome follows the visitor's theme.
