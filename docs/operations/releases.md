@@ -117,9 +117,18 @@ passed the complete suite.
    (`IMAGE_REGISTRY`), tagged with the version; the deployment journal records
    their digests. No release job holds a deployment credential.
 4. Reserve the immutable tag/manifest and attach `release.env` (the exact
-   image digests self-hosted installations pull), publish a GitHub prerelease
+   image digests self-hosted installations pull; its `MARKETING_IMAGE` equals
+   `API_IMAGE` on purpose: no marketing image is built since the website moved
+   to Cloudflare, and installed `deploy.sh` versions still require the key, see
+   [deployment](deployment.md)), publish a GitHub prerelease
    (never latest), and record success. The complete workflow must succeed before
    a stable release treats the nightly as eligible.
+5. Run the [laptop trial](self-hosting.md#try-lictory-on-a-laptop) on the
+   published candidate: `deploy/try.sh` of its source with its own images and
+   compose file, then sign-in, realtime sync and email. This is the only check
+   that runs the release images with the production compose file before a
+   stable release. A failure leaves the prerelease installable for testing,
+   but the run fails, so Release does not promote it.
 
 Installations on the nightly channel (`LICTORY_CHANNEL=nightly`) pick it up
 with `lictory upgrade`; that is how a nightly is tested before it is promoted.

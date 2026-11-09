@@ -303,6 +303,13 @@ html {
   border-radius: 9999px;
   font-size: 15px;
 }
+/* The step after a trial: installing on the team's server. */
+.cta-next-step {
+  margin-top: 16px;
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--secondary-text);
+}
 
 /* Illustrated scenes (Stageshow). The stage is the shot and the page is its
    ground; the host only places it and offers Replay. */
@@ -841,6 +848,10 @@ html {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+.final-cta .cta-next-step {
+  font-size: 15px;
+  line-height: 24px;
 }
 .final-cta-actions > a {
   height: 48px;

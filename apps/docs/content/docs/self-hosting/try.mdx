@@ -1,0 +1,121 @@
+---
+title: Try Lictory in 5 minutes
+description: Run Lictory on your own computer with one command, on Linux, macOS or Windows with Docker, to evaluate it before you install it on a server.
+---
+
+One command runs a complete Lictory on your computer at `http://localhost`,
+with its own database and an inbox for the email it sends. Nothing is
+installed outside one folder, and nothing needs root, DNS or a server.
+
+<Callout type="warn" title="For evaluation, not production">
+  The trial serves plain HTTP on your computer only, keeps its generated secrets
+  in a local file and takes no backups. To run Lictory for your team, [install
+  it on a server](/self-hosting/install).
+</Callout>
+
+## What you need
+
+- **macOS or Windows:** [Docker Desktop](https://docs.docker.com/desktop/).
+  On Windows, run the command in a WSL terminal (for example Ubuntu from the
+  Microsoft Store) with Docker Desktop's WSL integration turned on.
+- **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) with the
+  Compose plugin, usable by your user (the `docker` group, or rootless Docker).
+- Docker Compose 2.24 or newer, about 2 GB of memory for Docker and 5 GB of
+  free disk: the images take about 3 GB.
+
+## Start
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+```
+
+The command:
+
+1. Downloads the newest stable release's list of images, each pinned by its
+   digest.
+2. Copies that release's own Compose file into `~/lictory-try`: the trial runs
+   exactly the services a server runs, plus [Mailpit](https://mailpit.axllent.org/)
+   to catch email.
+3. Generates every secret into `~/lictory-try/.env`.
+4. Starts PostgreSQL, applies the migrations, starts realtime sync and the
+   application, and waits until it answers.
+5. Creates the first administrator and an organization, then prints how to
+   sign in:
+
+```text
+Lictory 0.24.0 is running: http://localhost
+
+  Sign in        admin@example.com
+  Password       8c1f…   (saved in ~/lictory-try/administrator.txt)
+  Email inbox    http://localhost:8025   (Mailpit: invitations and every other email)
+  Admin console  http://localhost/admin
+```
+
+When port 80 or 8025 is taken (or Docker runs rootless, which can't use port
+80), the trial picks the next free port, such as `http://localhost:8080`, and
+prints it.
+
+## Look around
+
+Sign in with the printed email and password, choose your handle, then let
+guided setup create your first project. [Getting started](/getting-started)
+takes a proposal from draft through review to delivery.
+
+- **Invite people:** invitations land in the Mailpit inbox; open the link
+  there in another browser (or a private window) to join as that person and
+  review together.
+- **Lictory Intelligence:** connect a provider in the admin console under
+  **AI** ([AI providers](/self-hosting/ai-providers)). Everything else works
+  without it.
+
+## Stop, start again and remove
+
+| What        | Command                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| Stop        | `cd ~/lictory-try && docker compose stop`                                                      |
+| Start again | Run the start command again                                                                    |
+| Upgrade     | Run the command again: it moves the trial to the newest release and keeps your data            |
+| Remove all  | `cd ~/lictory-try && docker compose down --volumes --rmi all && cd .. && rm -rf ~/lictory-try` |
+
+Removing deletes the database with everything you created, the downloaded
+images and the folder.
+
+## Options
+
+Set these before `sh` in the command, for example
+`curl -fsSL … | LICTORY_TRY_PORT=8080 sh`:
+
+| Variable                 | Default             | Meaning                                            |
+| ------------------------ | ------------------- | -------------------------------------------------- |
+| `LICTORY_TRY_PORT`       | 80, else 8080…      | Port of `http://localhost`                         |
+| `LICTORY_TRY_MAIL_PORT`  | 8025, else 8026…    | Port of the Mailpit inbox                          |
+| `LICTORY_TRY_DIR`        | `~/lictory-try`     | Folder of the trial                                |
+| `LICTORY_VERSION`        | newest stable       | A specific release, such as `0.24.0`, or a nightly |
+| `LICTORY_ADMIN_EMAIL`    | `admin@example.com` | The first administrator's email                    |
+| `LICTORY_ADMIN_PASSWORD` | generated           | Their password (10 to 64 characters, no spaces)    |
+| `LICTORY_ORGANIZATION`   | `Evaluation`        | The organization they own                          |
+
+Other settings, such as single sign-on or an attachment bucket, go into
+`~/lictory-try/.env` ([configuration](/self-hosting/configuration)); run
+the command again to apply them.
+
+## When something goes wrong
+
+The command prints the last lines of `~/lictory-try/try.log` when a step
+fails. Common causes:
+
+- **Cannot reach Docker:** start Docker Desktop, or on Linux add your user to
+  the `docker` group and sign in again.
+- **Services restart or time out:** give Docker more memory in Docker
+  Desktop's **Settings → Resources**.
+- **A port is taken:** choose others with `LICTORY_TRY_PORT` and
+  `LICTORY_TRY_MAIL_PORT`.
+
+`cd ~/lictory-try && docker compose ps` shows each service's state and
+`docker compose logs api` its log.
+
+## Next: your team's server
+
+The trial runs the same release images and Compose file as a server. A server
+adds HTTPS with automatic certificates, backups, monitoring, upgrades and
+rollback through the `lictory` command: see [install](/self-hosting/install).

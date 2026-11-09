@@ -25,7 +25,7 @@ test("missing pages stay readable, serve shared artwork and lead back", async ({
     ).toBe(320);
     await expect(
       page.getByRole("link", { name: "Get started" }),
-    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/install");
+    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/try");
     await expect(page.getByRole("link", { name: "GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/chricarp/lictory",

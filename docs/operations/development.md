@@ -298,6 +298,7 @@ behavior.
 | Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Unless the change is prose          | Yes                    |
 | Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | When applications or tests change   | Yes                    |
 | Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full) | Yes, before publishing |
+| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email         | (CI only)             | When the trial changes              | Yes, after publishing  |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -312,6 +313,14 @@ generate the route types Next.js derives for the website and documentation
 it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
+
+The laptop trial tests published release images, not the checkout's code, so it
+is not part of the local verification sequence. On a pull request that changes
+`deploy/try.sh`, `tests/try` or `.github/actions/trial`, CI runs the changed
+script against the newest stable release; Nightly runs it against each
+candidate right after publishing it, and a failure there keeps that nightly
+from being promoted by Release
+([self-hosting](self-hosting.md#try-lictory-on-a-laptop)).
 
 What earns a test, while the product is young:
 

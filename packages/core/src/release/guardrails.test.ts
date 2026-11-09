@@ -224,6 +224,19 @@ void test("nightlies are scheduled, fully verified before publication and built 
   );
   assert.equal(verify.with?.suite, "full");
   assert.deepEqual(nightly.jobs.publish!.needs, ["plan", "verify", "build"]);
+  // The published candidate runs the laptop trial; its failure fails the
+  // run, which keeps the nightly from being promoted.
+  const trial = nightly.jobs.trial!;
+  assert.deepEqual(trial.needs, ["plan", "publish"]);
+  assert.equal(trial.if, undefined);
+  assert.deepEqual(trial.permissions, { contents: "read" });
+  assert.ok(
+    trial.steps!.some(
+      (step) =>
+        step.uses === "./.github/actions/trial" &&
+        step.with?.version === "${{ needs.plan.outputs.version }}",
+    ),
+  );
   // Days without merges publish nothing.
   for (const job of ["verify", "build"])
     assert.equal(
@@ -533,6 +546,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "static",
     "domain",
     "browser",
+    "trial",
   ]);
   assert.equal(jobs.verify!.if, "always()");
   assert.equal(
@@ -571,7 +585,13 @@ void test("pull request suite selection fails open", () => {
         .split("\n")
         .map((line) => line.split("=")),
     ) as Record<string, string>;
-  const none = { unit: "false", e2e: "false", audit: "false", docs: "false" };
+  const none = {
+    unit: "false",
+    e2e: "false",
+    audit: "false",
+    docs: "false",
+    trial: "false",
+  };
   assert.deepEqual(select("README.md", "docs/operations/releases.md"), none);
   // Documentation pages need their site built, not the application suites.
   assert.deepEqual(select("apps/docs/content/docs/index.mdx"), {
@@ -595,6 +615,16 @@ void test("pull request suite selection fails open", () => {
     );
   assert.equal(select("bun.lock").audit, "true");
   assert.equal(select("packages/ui/src/theme.css").docs, "true");
+  // The laptop trial runs when what it consists of changes; the release's
+  // compose file reaches it through the nightly candidate instead.
+  assert.deepEqual(select("deploy/try.sh"), {
+    ...none,
+    unit: "true",
+    trial: "true",
+  });
+  assert.equal(select("tests/try/trial.spec.ts").trial, "true");
+  assert.equal(select(".github/actions/trial/action.yml").trial, "true");
+  assert.equal(select("deploy/compose.production.yaml").trial, "false");
 });
 
 void test("the released version display is preserved", async () => {

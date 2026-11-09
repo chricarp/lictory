@@ -21,6 +21,7 @@ import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome"
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
 import {
   GetStartedCta,
+  InstallServerLink,
   RepositoryCta,
 } from "@lictory/marketing/components/marketing/get-started-cta";
 import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
@@ -75,6 +76,11 @@ function Hero() {
             <GetStartedCta placement="hero" page="home" />
             <RepositoryCta placement="hero" page="home" />
           </div>
+          <InstallServerLink
+            placement="hero"
+            page="home"
+            className="cta-next-step"
+          />
         </div>
       </div>
       <HeroScene />
@@ -671,9 +677,16 @@ function FinalCta() {
           too.
         </p>
       </div>
-      <div className="final-cta-actions">
-        <GetStartedCta placement="final" page="home" />
-        <RepositoryCta placement="final" page="home" />
+      <div>
+        <div className="final-cta-actions">
+          <GetStartedCta placement="final" page="home" />
+          <RepositoryCta placement="final" page="home" />
+        </div>
+        <InstallServerLink
+          placement="final"
+          page="home"
+          className="cta-next-step"
+        />
       </div>
     </section>
   );
