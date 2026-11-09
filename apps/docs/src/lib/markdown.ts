@@ -2,7 +2,7 @@ import { renderPlaceholder } from "fumadocs-core/mdx-plugins/remark-llms.runtime
 
 import { bootstrap, commands, type CliCommand } from "@lictory/docs/lib/cli";
 import { absoluteUrl, site } from "@lictory/docs/lib/site";
-import { source } from "@lictory/docs/lib/source";
+import type { source } from "@lictory/docs/lib/source";
 
 // Markdown versions of the documentation pages, for AI assistants and agents:
 // served at the page URL with `.md` appended and concatenated in

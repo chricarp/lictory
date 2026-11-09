@@ -25,7 +25,10 @@ export function sections() {
   ];
   for (const node of source.getPageTree().children) {
     if (node.type === "separator")
-      result.push({ title: String(node.name), pages: [] });
+      result.push({
+        title: typeof node.name === "string" ? node.name : "",
+        pages: [],
+      });
     else result.at(-1)!.pages.push(...pages(node));
   }
   return result.filter((section) => section.pages.length);

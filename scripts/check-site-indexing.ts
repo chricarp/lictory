@@ -14,8 +14,11 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const root = process.argv[2];
-if (!root) throw new Error("Usage: check-site-indexing.ts <export directory>");
+const root: string =
+  process.argv[2] ??
+  (() => {
+    throw new Error("Usage: check-site-indexing.ts <export directory>");
+  })();
 
 const problems: string[] = [];
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");

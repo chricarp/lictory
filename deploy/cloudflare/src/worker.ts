@@ -36,15 +36,21 @@ function relay(request: Request, env: Environment) {
 }
 
 /**
- * The one public form of a page path, or undefined when `path` already is it.
+ * The one public form of a page path.
  * The asset server answers `/page/`, `/page.html` and `/index` with temporary
  * (307) redirects, which leave search engines holding two URLs for one page;
  * the Worker answers them first, with one permanent redirect.
+ * Returns the path itself when it already is the canonical form.
  */
-function canonicalPath(path: string) {
-  let canonical = path.replace(/\.html$/, "").replace(/(^|\/)index$/, "$1");
-  if (canonical.length > 1) canonical = canonical.replace(/\/+$/, "") || "/";
-  return canonical === path ? undefined : canonical;
+function canonicalPath(path: string, kind: Environment["SITE_KIND"]) {
+  const trim = (value: string) => value.replace(/\/+$/, "") || "/";
+  const canonical = trim(
+    trim(path)
+      .replace(/\.html$/, "")
+      .replace(/(^|\/)index$/, "$1"),
+  );
+  // The landing page used to be reachable at /home as well.
+  return kind === "marketing" && canonical === "/home" ? "/" : canonical;
 }
 
 // Next.js exports its not-found page twice as ordinary files (/404.html,
@@ -88,11 +94,7 @@ export default {
     const siteHost = new URL(env.SITE_URL).hostname;
     const wwwHost =
       env.SITE_KIND === "marketing" && url.hostname === `www.${siteHost}`;
-    // The landing page used to be reachable at /home as well.
-    const page =
-      env.SITE_KIND === "marketing" && path === "/home"
-        ? "/"
-        : (canonicalPath(path) ?? path);
+    const page = canonicalPath(path, env.SITE_KIND);
     if (wwwHost || page !== path)
       return permanentRedirect(destinationUrl(env.SITE_URL, page, url.search));
     if (path.startsWith("/markdown/"))

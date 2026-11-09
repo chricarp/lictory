@@ -64,6 +64,8 @@ void test("every other form of a page URL redirects permanently to the canonical
       ["/index.html", "/"],
       ["/guides/index.html", "/guides"],
       ["//", "/"],
+      ["/guides/index/", "/guides"],
+      ["/guides.html/", "/guides"],
     ] as const) {
       const response = await worker.fetch(new Request(`${origin}${path}`), {
         ...env,
@@ -93,6 +95,11 @@ void test("every other form of a page URL redirects permanently to the canonical
   );
   assert.equal(home.status, 301);
   assert.equal(home.headers.get("Location"), "https://lictory.com/?a=1");
+  const legacyHome = await worker.fetch(
+    new Request("https://www.lictory.com/home.html"),
+    env,
+  );
+  assert.equal(legacyHome.headers.get("Location"), "https://lictory.com/");
 });
 
 void test("the exported not-found pages answer 404, never 200 with noindex", async () => {
