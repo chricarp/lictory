@@ -98,7 +98,9 @@ async function composeZeroCache() {
           .trim()
           .split("\n")
           .map((line) => JSON.parse(line) as unknown);
-    return (parsed as { State: string; Health: string; Networks: string }[])[0];
+    return (
+      parsed as { State: string; Health: string; Networks?: string }[]
+    )[0];
   } catch {
     return undefined;
   }
@@ -122,7 +124,12 @@ async function waitForZeroCache() {
   for (let attempt = 1; Date.now() < deadline; attempt++) {
     await sleep(1000);
     if (await answers(keepalive)) return true;
-    if (attempt % 5 === 0 && !starting(await composeZeroCache())) return false;
+    if (attempt % 5 === 0) {
+      const container = await composeZeroCache();
+      // Healthy yet silent here: it is published on another port than
+      // LICTORY_DEV_ZERO_PORT (changed since `docker compose up`).
+      if (!starting(container) || container?.Health === "healthy") return false;
+    }
   }
   return false;
 }
@@ -189,7 +196,7 @@ async function checkZeroCacheReachesApi() {
       `The API listens on HOST=${host} only. Unset HOST so Docker can reach it.`,
     );
   else {
-    const network = (await composeZeroCache())?.Networks.split(",")[0];
+    const network = (await composeZeroCache())?.Networks?.split(",")[0];
     const subnet = network
       ? (
           await run(
@@ -262,7 +269,11 @@ for (const [name, command, args, serviceEnv] of services) {
   child.on("exit", (code) => console.log(`[${name}] exited (${code})`));
   children.push(child);
 }
-void checkZeroCacheReachesApi();
+// Best effort: a failed diagnosis must not stop the supervisor, which would
+// leave the detached services running.
+checkZeroCacheReachesApi().catch((error: unknown) =>
+  console.error("Could not check that zero-cache reaches the API:", error),
+);
 
 function stop() {
   for (const child of children)

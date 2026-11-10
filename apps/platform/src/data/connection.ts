@@ -71,15 +71,16 @@ export function canWrite(connection: ConnectionName) {
 }
 
 // zero-cache could not call the API for queries or mutations at all (it
-// reports TransformFailed or PushFailed with this message): a server setup
-// problem, typically ZERO_QUERY_URL / ZERO_MUTATE_URL pointing somewhere
-// zero-cache cannot reach, or a host firewall between them in development.
+// reports TransformFailed or PushFailed with this message, which does not say
+// which): a server setup problem, typically ZERO_QUERY_URL / ZERO_MUTATE_URL
+// pointing somewhere zero-cache cannot reach, or a host firewall between them
+// in development.
 // The browser's own connection is fine, so say so rather than show only the
 // raw error.
 const apiUnreachable = "Fetch from API server threw error";
 
 function unreachableApi(reason: string) {
-  return `The sync service can’t reach the Lictory API, so the workspace can’t load. This is a server setup problem, not your connection: an administrator needs to make sure zero-cache can reach the API (ZERO_QUERY_URL). Details: ${reason}`;
+  return `The sync service can’t reach the Lictory API, so the workspace can’t load or save changes. This is a server setup problem, not your connection: an administrator needs to make sure zero-cache can reach the API (ZERO_QUERY_URL for loading, ZERO_MUTATE_URL for saving). Details: ${reason}`;
 }
 
 export function connectionProblem(
