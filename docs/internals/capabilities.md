@@ -140,6 +140,12 @@ shape (`category`, `message`, optional `currentRevisionId`, `issues`, `kind`,
 `retryable`) so the model can correct itself; protocol misuse is a JSON-RPC
 error.
 
+A command refused because of the state its entity is in (merging a draft pull
+request, starting a completed iteration) answers with kind `invalid_state`:
+retrying cannot help, so the agent reads the entity again. The sentences in
+tool descriptions that say which states allow a command are generated from the
+same [state machines](state-machines.md) the commands refuse from.
+
 For MCP calls, `organizationId` accepts an exact id or slug returned by
 `listOrganizations`. The registry resolves it only among the person's current
 memberships, then invokes the domain operation and audits the canonical id.

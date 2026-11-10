@@ -34,7 +34,8 @@ import {
   iterationEvents,
   lastIterationNumber,
 } from "@lictory/core/domain/delivery";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { iteration as iterationMachine } from "@lictory/core/contracts/state-machines";
 import { notifyIteration } from "@lictory/core/notifications/server";
 import type { Tx } from "@lictory/core/domain/service";
 
@@ -930,8 +931,7 @@ export async function applyProjectCommand(
         ),
         "The iteration is unavailable.",
       );
-      if (it.state !== "planned")
-        fail("Only a planned iteration can be started.");
+      requireStep(iterationMachine, it.state, "start", "validation");
       const active = roster.iterations.find(
         (i) => i.projectId === project.id && i.state === "active",
       );

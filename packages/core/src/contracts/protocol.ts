@@ -10,6 +10,7 @@ import {
 import { intelligenceContextUseSchema } from "@lictory/core/intelligence/shared";
 import { readinessRulesSchema } from "@lictory/core/contracts/readiness";
 import { proposedChildrenSchema } from "@lictory/core/contracts/decomposition";
+import { chosenRefinementStates } from "@lictory/core/contracts/state-machines";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -1982,7 +1983,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("updateWorkItem"),
     ...itemCommand,
     statusId: id.optional(),
-    refinementState: z.enum(["draft", "refinement", "in_review"]).optional(),
+    refinementState: z.enum(chosenRefinementStates).optional(),
     typeId: id.optional(),
     teamId: id.nullable().optional(),
     priority: z.enum(workItemPriorities).optional(),

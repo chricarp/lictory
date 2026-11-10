@@ -6,7 +6,8 @@ import type {
   WorkflowStatus,
 } from "@lictory/core/contracts/protocol";
 import type { labelColors } from "@lictory/core/contracts/protocol";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { iteration as iterationMachine } from "@lictory/core/contracts/state-machines";
 import { notifyIteration } from "@lictory/core/notifications/server";
 import { writeEntities } from "@lictory/core/domain/projections";
 import { serialize } from "@lictory/core/domain/service";
@@ -184,8 +185,7 @@ export async function completeIteration(
       ),
     );
   if (!it) fail("The iteration is unavailable.");
-  if (it!.state !== "active")
-    fail("Only the active iteration can be completed.");
+  requireStep(iterationMachine, it!.state, "complete", "validation");
   if (carryOverTo) {
     const [target] = await tx
       .select()

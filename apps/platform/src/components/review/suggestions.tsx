@@ -14,6 +14,7 @@ import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { diffStats } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { suggestion as suggestionMachine } from "@lictory/core/contracts/state-machines";
 
 // Everything a row or header needs to say about where a suggestion stands.
 export function useSuggestionState(suggestion: EntityOf<"suggestion">) {
@@ -43,8 +44,7 @@ export function useSuggestionState(suggestion: EntityOf<"suggestion">) {
     (t) =>
       t.suggestionId === suggestion.id && t.status === "open" && t.blocking,
   );
-  const settled =
-    suggestion.status === "merged" || suggestion.status === "closed";
+  const settled = !suggestionMachine.allows(suggestion.status, "update");
   const outdated =
     !settled && Boolean(current) && suggestion.revisionId !== current!.id;
   return {
@@ -56,7 +56,7 @@ export function useSuggestionState(suggestion: EntityOf<"suggestion">) {
     outdated,
     settled,
     mergeable:
-      suggestion.status === "open" &&
+      suggestionMachine.allows(suggestion.status, "merge") &&
       !outdated &&
       approvals.length > 0 &&
       blocking.length === 0,
@@ -127,11 +127,11 @@ export function SuggestionStatusBadge({
 export function Suggestions({ onOpen }: { onOpen: (id: string) => void }) {
   const { suggestions } = useItem();
   const [showSettled, setShowSettled] = useState(false);
-  const active = suggestions.filter(
-    (s) => s.status === "open" || s.status === "draft",
+  const active = suggestions.filter((s) =>
+    suggestionMachine.allows(s.status, "update"),
   );
   const settled = suggestions.filter(
-    (s) => s.status === "merged" || s.status === "closed",
+    (s) => !suggestionMachine.allows(s.status, "update"),
   );
   if (suggestions.length === 0) return null;
   return (

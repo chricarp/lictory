@@ -13,7 +13,11 @@ import {
   type Snapshot,
 } from "@lictory/core/contracts/merge";
 import type { Tx } from "@lictory/core/domain/service";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import {
+  pullRequestIsActive,
+  specificationPullRequest,
+} from "@lictory/core/contracts/state-machines";
 import {
   markSealed,
   requireOpenDraft,
@@ -631,7 +635,7 @@ export async function applyBranchCommand(
       if (
         prs.some(
           (p) =>
-            p.status !== "merged" &&
+            pullRequestIsActive(p) &&
             (p.sourceId === b.id || p.targetId === b.id),
         )
       )
@@ -665,7 +669,7 @@ export async function applyBranchCommand(
           (p) =>
             p.sourceId === source.id &&
             p.targetId === target.id &&
-            p.status !== "merged",
+            pullRequestIsActive(p),
         )
       )
         throw new DomainError(
@@ -740,8 +744,12 @@ export async function applyBranchCommand(
     case "setPullRequestDraft": {
       const p = pr(c.pullRequestId);
       managePR(p);
-      require(p.status !==
-        "merged", "Merged pull requests cannot become drafts.");
+      requireStep(
+        specificationPullRequest,
+        p.status,
+        c.draft ? "markDraft" : "markReady",
+        "forbidden",
+      );
       await tx
         .update(s.specificationPullRequest)
         .set({ status: c.draft ? "draft" : "open" })
@@ -785,7 +793,12 @@ export async function applyBranchCommand(
       const p = pr(c.pullRequestId);
       managePR(p);
       require(capabilities.requestReviews, "Your disciplines in this project cannot request reviews.");
-      require(p.status !== "merged", "This pull request is merged.");
+      requireStep(
+        specificationPullRequest,
+        p.status,
+        "requestReview",
+        "forbidden",
+      );
       const role = available(
         disciplines.find(
           (r) =>
@@ -830,7 +843,7 @@ export async function applyBranchCommand(
     }
     case "decidePullRequest": {
       const p = pr(c.pullRequestId);
-      require(p.status === "open", "Mark the draft ready for review first.");
+      requireStep(specificationPullRequest, p.status, "review", "forbidden");
       const { source, target } = heads(p, c.sourceHeadId, c.targetHeadId);
       const r = available(
         (
@@ -899,7 +912,7 @@ export async function applyBranchCommand(
     }
     case "mergePullRequest": {
       const p = pr(c.pullRequestId);
-      require(p.status === "open", "Only an open pull request can be merged.");
+      requireStep(specificationPullRequest, p.status, "merge", "forbidden");
       const { source, target } = heads(p, c.sourceHeadId, c.targetHeadId);
       require(target.name === "main"
         ? capabilities.editSpecifications
@@ -1111,7 +1124,7 @@ export async function applyBranchCommand(
         !prs.some(
           (other) =>
             other.id !== p.id &&
-            other.status !== "merged" &&
+            pullRequestIsActive(other) &&
             (other.sourceId === source.id || other.targetId === source.id),
         )
       ) {

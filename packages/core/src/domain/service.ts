@@ -119,7 +119,15 @@ import {
 
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import {
+  chosenRefinementStates,
+  iteration as iterationMachine,
+  review as reviewMachine,
+  specificationPullRequest,
+  suggestion as suggestionMachine,
+  type StateOf,
+} from "@lictory/core/contracts/state-machines";
 import {
   isTwoFactorHeld,
   twoFactorRequiredError,
@@ -1792,7 +1800,9 @@ export async function externalLinks(
   );
 }
 
-const preReadyStates: RefinementState[] = ["draft", "refinement", "in_review"];
+const preReadyStates: readonly RefinementState[] = chosenRefinementStates;
+// The review entity carries its status as text; the column is the enum.
+type ReviewStatus = StateOf<typeof reviewMachine>;
 
 // Readiness projections, including empty plain-work results whose policy
 // metadata must stay consistent when the project's checks change.
@@ -2507,11 +2517,7 @@ export async function applyMutation(
         ),
         "The iteration is unavailable in this project.",
       );
-      if (found.state === "completed")
-        throw new DomainError(
-          "validation",
-          "That iteration is completed. Choose an active or planned one.",
-        );
+      requireStep(iterationMachine, found.state, "plan", "validation");
       return found;
     };
     // Starting or completing a specification without an agreed revision
@@ -4007,23 +4013,29 @@ export async function applyMutation(
             ),
             "This suggestion is unavailable.",
           );
-          if (
-            target.type !== "suggestion" ||
-            (target.status !== "open" && target.status !== "draft")
-          )
+          if (target.type !== "suggestion")
             throw new DomainError(
               "conflict",
-              "This suggestion is no longer open for discussion.",
+              suggestionMachine.steps.discuss.refused as string,
             );
+          requireStep(suggestionMachine, target.status, "discuss");
           suggestionId = target.id;
         }
         if (c.pullRequestId) {
           const pr = before.find(
             (e) => e.type === "pullRequest" && e.id === c.pullRequestId,
           );
-          require(pr?.type === "pullRequest" &&
-            pr.status !==
-              "merged", "This pull request is unavailable for discussion.");
+          if (pr?.type !== "pullRequest")
+            throw new DomainError(
+              "forbidden",
+              specificationPullRequest.steps.discuss.refused as string,
+            );
+          requireStep(
+            specificationPullRequest,
+            pr.status,
+            "discuss",
+            "forbidden",
+          );
           require(!c.suggestionId, "Choose one discussion context.");
           require(Boolean(c.commitId) &&
             before.some(
@@ -4181,8 +4193,6 @@ export async function applyMutation(
             !e.supersededAt,
         );
         const isReviewer = reviewers.some((r) => r.userId === userId);
-        const settled =
-          suggestion.status === "merged" || suggestion.status === "closed";
         const patch = (values: Partial<SuggestionRow>) =>
           tx
             .update(s.suggestion)
@@ -4213,11 +4223,7 @@ export async function applyMutation(
         switch (c.type) {
           case "updateSuggestion": {
             require(isAuthor, "Only the author can update a suggestion.");
-            if (settled)
-              throw new DomainError(
-                "conflict",
-                `This suggestion was ${suggestion.status}; open a new one.`,
-              );
+            requireStep(suggestionMachine, suggestion.status, "update");
             if (c.replacement === latest?.content)
               throw new DomainError(
                 "validation",
@@ -4251,11 +4257,15 @@ export async function applyMutation(
           }
           case "setSuggestionState": {
             if (c.status === suggestion.status) break;
-            if (suggestion.status === "merged")
-              throw new DomainError(
-                "conflict",
-                "A merged suggestion cannot change state.",
-              );
+            requireStep(
+              suggestionMachine,
+              suggestion.status,
+              c.status === "closed"
+                ? "close"
+                : c.status === "open"
+                  ? "openForReview"
+                  : "returnToDraft",
+            );
             if (c.status === "closed")
               require(isAuthor ||
                 capabilities.editSpecifications, "Only the author or someone who can edit specifications can close a suggestion.");
@@ -4286,11 +4296,7 @@ export async function applyMutation(
           }
           case "setSuggestionReviewer": {
             require(isAuthor, "Only the author can choose reviewers for a suggestion.");
-            if (settled)
-              throw new DomainError(
-                "conflict",
-                `This suggestion was ${suggestion.status}.`,
-              );
+            requireStep(suggestionMachine, suggestion.status, "setReviewer");
             requireValue(
               roster.members.find((m) => m.id === c.userId),
               "That person is not a member of this organization.",
@@ -4340,11 +4346,7 @@ export async function applyMutation(
             require(!isAuthor ||
               roster.members.length ===
                 1, "You cannot review your own suggestion.");
-            if (suggestion.status !== "open")
-              throw new DomainError(
-                "conflict",
-                "This suggestion is not open for review.",
-              );
+            requireStep(suggestionMachine, suggestion.status, "review");
             if (c.version !== suggestion.version)
               throw new DomainError(
                 "conflict",
@@ -4393,11 +4395,7 @@ export async function applyMutation(
             // Merging writes the mainline: the reviewer must still hold
             // the editing capability they were chosen for.
             requireCapability(capabilities, "editSpecifications");
-            if (suggestion.status !== "open")
-              throw new DomainError(
-                "conflict",
-                "Only an open suggestion can be merged.",
-              );
+            requireStep(suggestionMachine, suggestion.status, "merge");
             if (suggestion.revisionId !== latest?.id)
               throw new DomainError(
                 "conflict",
@@ -4500,8 +4498,12 @@ export async function applyMutation(
         const review = requireValue(
           before.find((e) => e.type === "review" && e.id === c.reviewId),
         );
-        if (review.type !== "review" || review.status === "cancelled")
-          throw new DomainError("conflict", "This review is not active.");
+        if (review.type !== "review")
+          throw new DomainError(
+            "conflict",
+            reviewMachine.steps.cancel.refused as string,
+          );
+        requireStep(reviewMachine, review.status as ReviewStatus, "cancel");
         await tx
           .update(s.review)
           .set({ status: "cancelled" })
@@ -4527,8 +4529,13 @@ export async function applyMutation(
             "Request a review of the current revision.",
             latest?.id,
           );
-        if (review.status === "cancelled")
-          throw new DomainError("conflict", "This review was cancelled.");
+        const decision =
+          c.decision === "approve"
+            ? "approve"
+            : c.decision === "revoke"
+              ? "revoke"
+              : "requestChanges";
+        requireStep(reviewMachine, review.status as ReviewStatus, decision);
         const canReviewSpecification = before.some(
           (e) =>
             e.type === "assignment" &&
@@ -4572,12 +4579,7 @@ export async function applyMutation(
         await tx
           .update(s.review)
           .set({
-            status:
-              c.decision === "approve"
-                ? "completed"
-                : c.decision === "revoke"
-                  ? "requested"
-                  : "changes_requested",
+            status: reviewMachine.targets(decision)[0]!,
             completedAt: c.decision === "approve" ? now : null,
           })
           .where(
