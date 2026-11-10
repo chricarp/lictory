@@ -123,6 +123,7 @@ import { DomainError, requireStep } from "@lictory/core/domain/errors";
 import {
   chosenRefinementStates,
   iteration as iterationMachine,
+  refinement as refinementMachine,
   review as reviewMachine,
   specificationPullRequest,
   suggestion as suggestionMachine,
@@ -4828,13 +4829,15 @@ export async function applyMutation(
         c.type === "updateWorkItem" &&
         c.refinementState !== undefined &&
         c.refinementState !== next
-      )
+      ) {
+        // The evidence decides the state: an item whose checks pass is
+        // ready, and nobody moves a ready item by hand.
+        if (next === "ready") requireStep(refinementMachine, "ready", "move");
         throw new DomainError(
           "conflict",
-          next === "ready"
-            ? "This item still meets its readiness checks, so it stays ready. Change the specification or the checks before moving it back."
-            : "This item does not meet its readiness checks, so it cannot stay ready.",
+          "This item does not meet its readiness checks, so it cannot stay ready.",
         );
+      }
       if (next) {
         await setRefinement(next, state, true);
         after = await snapshot(tx, scope);
