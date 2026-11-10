@@ -7,6 +7,28 @@ agreed scope, visible evidence.
 Opening a pull request does not oblige maintainers to review or merge it. We may
 ask for a smaller scope, defer it, or solve the problem differently.
 
+## Your first contribution
+
+1. **Pick a starter issue.** Issues labelled
+   [good first issue](https://github.com/chricarp/lictory/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22)
+   are scoped by a maintainer: each names the files involved and what counts as
+   done. Comment on the issue before you start so two people don't take the
+   same one.
+2. **Ask early.** Questions about the code, setup or an idea that isn't a
+   proposal yet belong in [Discussions](https://github.com/chricarp/lictory/discussions).
+   Ask in the issue itself when the question is about that issue.
+3. **Run Lictory locally.** Follow [Develop locally](README.md#develop-locally);
+   the [repository layout](README.md#repository-layout) shows where each part
+   lives. `bun run dev` serves the app at http://localhost:3000.
+4. **Check as you go.** Run the tests nearest your change: `bun test <path>` for
+   domain code, `bun run test:e2e tests/platform/<file>.spec.ts` for a browser
+   workflow. The [development runbook](docs/operations/development.md#daily-commands)
+   lists the daily commands.
+5. **Open the pull request.** Fill in the template, show that it works (see
+   below), and run the full verification sequence first. If something on your
+   machine prevents part of it, say which step and what happened; a maintainer
+   can help.
+
 ## Before you start
 
 1. Read [`AGENTS.md`](AGENTS.md). Its product principles and glossary apply to
@@ -106,5 +128,5 @@ generated material that needs attribution. A human contributor remains
 responsible for AI-assisted work, its correctness and the right to submit it.
 
 The owner must complete the rights and artifact checks in the
-[publication runbook](docs/operations/open-source.md#before-first-publication)
+[publication runbook](docs/operations/open-source.md#public-distribution)
 before soliciting or merging outside contributions.

@@ -10,6 +10,8 @@ Use the bug form for a reproducible defect, the proposal form for intentional
 behavior changes, or the help form for setup and usage questions. Include the
 commit or release, installation method, relevant redacted output and what you
 already tried. Never include customer content, credentials or database dumps.
+Open-ended questions and early ideas can start in
+[Discussions](https://github.com/chricarp/lictory/discussions) instead.
 
 On a self-hosted server, run `lictory doctor` first: it names most problems
 and how to fix them. `sudo lictory support-bundle` writes one archive with
