@@ -230,6 +230,17 @@ void test("nightlies are scheduled, fully verified before publication and built 
   assert.deepEqual(trial.needs, ["plan", "publish"]);
   assert.equal(trial.if, undefined);
   assert.deepEqual(trial.permissions, { contents: "read" });
+  // Default-branch context: only the workflow's own commit runs, and no cached
+  // Bun binary is restored (CodeQL cache poisoning).
+  const checkout = trial.steps!.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  )!;
+  assert.equal(checkout.with?.ref, undefined);
+  assert.equal(
+    trial.steps!.find((step) => step.uses === "./.github/actions/setup")!
+      .with?.["bun-cache"],
+    "false",
+  );
   assert.ok(
     trial.steps!.some(
       (step) =>

@@ -212,7 +212,9 @@ jobs:
   # pulls, no root) on this release's own images and compose file, then
   # sign-in, realtime sync and email (tests/try). A failure leaves the
   # prerelease installable for testing but fails this run, and Release only
-  # promotes nightlies whose whole run succeeded.
+  # promotes nightlies whose whole run succeeded. Like the other jobs it runs
+  # only the workflow's own commit (the candidate planned from GITHUB_SHA) and
+  # restores no cached Bun binary.
   trial:
     name: Laptop trial of the published nightly
     needs: [plan, publish]
@@ -223,9 +225,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.plan.outputs.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup
+        with:
+          bun-cache: "false"
       - uses: ./.github/actions/trial
         with:
           version: ${{ needs.plan.outputs.version }}

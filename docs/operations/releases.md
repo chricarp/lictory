@@ -124,10 +124,10 @@ passed the complete suite.
    (never latest), and record success. The complete workflow must succeed before
    a stable release treats the nightly as eligible.
 5. Run the [laptop trial](self-hosting.md#try-lictory-on-a-laptop) on the
-   published candidate: `deploy/try.sh` of its source with its own images and
-   compose file, then sign-in, realtime sync and email. This is the only check
-   that runs the release images with the production compose file before a
-   stable release. A failure leaves the prerelease installable for testing,
+   published candidate: `deploy/try.sh` of the workflow's own commit (the
+   candidate's source) with the candidate's images and compose file, then
+   sign-in, realtime sync and email. This is the only check that runs the
+   release images with the production compose file before a stable release. A failure leaves the prerelease installable for testing,
    but the run fails, so Release does not promote it.
 
 Installations on the nightly channel (`LICTORY_CHANNEL=nightly`) pick it up
