@@ -48,6 +48,7 @@ main() {
   fetch_release
   extract_bundle
   configure
+  isolate_settings
   start_services
   create_administrator
   summary
@@ -241,6 +242,17 @@ EOF
   while IFS= read -r line; do
     set_key "${line%%=*}" "${line#*=}"
   done <"$dir/release.env"
+}
+
+# Compose prefers the shell's variables to .env, so an exported SMTP_HOST or
+# HTTP_PORT, or LICTORY_VERSION (which also names the stack's version) set to
+# choose a release, would silently replace the trial's settings.
+isolate_settings() {
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    case "$key" in '' | [!A-Z_]* | *[!A-Z0-9_]*) continue ;; esac
+    unset "$key"
+  done <"$dir/.env"
 }
 
 # The order of a server deployment (deploy/deploy.sh): database, migrations,

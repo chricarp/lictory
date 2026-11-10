@@ -36,7 +36,12 @@ function releaseFile(version: string, digit = "1") {
   ].join("\n");
 }
 
-type Call = { args: string[]; cwd: string; stdin: string };
+type Call = {
+  args: string[];
+  cwd: string;
+  stdin: string;
+  shell: Record<string, string | null>;
+};
 
 function fixture(t: TestContext) {
   const base = mkdtempSync(join(tmpdir(), "lictory-try-"));
@@ -50,12 +55,15 @@ function fixture(t: TestContext) {
   const recorder = (name: string, body: string) =>
     writeFileSync(
       join(fake, name),
-      `#!/usr/bin/env bun
+      // Bun would load the trial's .env from the working directory; the fakes
+      // must see only what the script's shell passed.
+      `#!/usr/bin/env -S bun --no-env-file
 import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const admin = ${JSON.stringify(name)} === "docker" && args.some((arg) => arg.endsWith("/admin.js"));
 const stdin = admin ? readFileSync(0, "utf8") : "";
-appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ name: ${JSON.stringify(name)}, args, cwd: process.cwd(), stdin }) + "\\n");
+const shell = Object.fromEntries(["LICTORY_VERSION", "HTTP_BINDING", "SMTP_HOST"].map((key) => [key, process.env[key] ?? null]));
+appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ name: ${JSON.stringify(name)}, args, cwd: process.cwd(), stdin, shell }) + "\\n");
 ${body}
 `,
       { mode: 0o755 },
@@ -336,6 +344,29 @@ void test("a release file that is not digest-pinned starts nothing", (t) => {
     );
     assert.ok(!existsSync(join(f.dir, ".env")));
   }
+});
+
+void test("the trial's settings win over variables exported in the shell", (t) => {
+  const f = fixture(t);
+  f.release(latest, releaseFile("0.24.0"));
+  // An empty LICTORY_VERSION means the newest release; Compose would read it
+  // as the stack's version and refuse to start.
+  const result = f.run({
+    LICTORY_VERSION: "",
+    HTTP_BINDING: "0.0.0.0:80:80",
+    SMTP_HOST: "smtp.example.com",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const stack = result.calls.filter(
+    (call) => call.args[0] === "compose" && call.args[1] !== "version",
+  );
+  assert.ok(stack.length > 0);
+  for (const call of stack)
+    assert.deepEqual(
+      call.shell,
+      { LICTORY_VERSION: null, HTTP_BINDING: null, SMTP_HOST: null },
+      call.args.join(" "),
+    );
 });
 
 void test("a chosen version is downloaded by its tag, and old Compose is refused", (t) => {
