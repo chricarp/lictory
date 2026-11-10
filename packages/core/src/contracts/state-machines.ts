@@ -145,7 +145,7 @@ export const specificationPullRequest = stateMachine({
       from: ["draft"],
       to: "open",
       idempotent: true,
-      refused: "Merged pull requests cannot become drafts.",
+      refused: "A merged pull request cannot be marked ready for review.",
     },
     requestReview: {
       does: "Request a review",
@@ -165,7 +165,10 @@ export const specificationPullRequest = stateMachine({
     review: {
       does: "Approve, request changes or revoke a decision",
       from: ["open"],
-      refused: "Mark the draft ready for review first.",
+      refused: (state) =>
+        state === "draft"
+          ? "This pull request is a draft. Mark it ready for review first."
+          : "This pull request is merged.",
     },
     merge: {
       does: "Merge",

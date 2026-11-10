@@ -124,6 +124,16 @@ void test("pull requests: only open ones are reviewed and merged; closing differ
     assert.equal(machine.allows("draft", "review"), false);
     assert.equal(machine.refusal("draft", "markDraft"), undefined);
     assert.equal(machine.available("closed").length, 0);
+    // A refusal names the state that causes it, not another one.
+    assert.equal(
+      machine.refusal("draft", "review"),
+      "This pull request is a draft. Mark it ready for review first.",
+    );
+    assert.equal(
+      machine.refusal("merged", "review"),
+      "This pull request is merged.",
+    );
+    assert.doesNotMatch(machine.refusal("merged", "markReady")!, /draft/);
   }
   // A merged specification pull request can be removed from the item; a
   // merged page pull request is history.
