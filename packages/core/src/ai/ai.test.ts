@@ -1114,8 +1114,8 @@ void test("two readings: a divergence becomes an anchored, non-blocking discussi
   const { head } = await pr.heads();
   assert.equal(thread.commitId, head.id);
   const placed = placeQuote(textModel(parseMarkdownTree(head.content)), {
-    quote: thread.anchor!.quote!,
-    section: thread.anchor!.section,
+    quote: thread.anchor.quote,
+    section: thread.anchor.section,
   });
   assert.equal(placed.kind, "found");
   const [opening] = await pr.messages(thread.id);
