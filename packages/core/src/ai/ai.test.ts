@@ -1202,3 +1202,51 @@ void test("two readings under the required policy: agreement adds nothing and a 
   assert.ok(threads.every((t) => !t.blocking));
   await pr.merge();
 });
+
+void test("two readings: a divergence on the second of two identical criteria anchors to the second copy", async () => {
+  const f = await fixture();
+  const pr = await criteriaPullRequest(f, "advisory");
+  const repeated = "The customer sees one charge.";
+  await pr.commit(
+    [
+      "## Acceptance criteria",
+      "",
+      `- [ ] ${repeated}`,
+      "- [ ] A timed-out payment is retried at most twice.",
+      `- [ ] ${repeated}`,
+    ].join("\n"),
+  );
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      (context) => {
+        assert.deepEqual(
+          context.acceptanceCriteria.map((c) => c.text),
+          [repeated, "A timed-out payment is retried at most twice.", repeated],
+        );
+        return [agree("A1"), agree("A2"), diverge("A3")];
+      },
+    ),
+  });
+  const [run] = await f.runs(f.storyId);
+  const thread = (await pr.threads()).find(
+    (t) => t.id === run!.findings[0]!.threadId,
+  )!;
+  assert.deepEqual(thread.anchor, {
+    version: 1,
+    kind: "document",
+    section: "Acceptance criteria",
+    quote: repeated,
+    occurrence: 1,
+  });
+  const { head } = await pr.heads();
+  const model = textModel(parseMarkdownTree(head.content));
+  const placed = placeQuote(model, thread.anchor);
+  assert.equal(placed.kind, "found");
+  assert.equal(
+    placed.kind === "found" && placed.from,
+    model.text.lastIndexOf(repeated),
+    "the discussion sits on the second copy",
+  );
+});
