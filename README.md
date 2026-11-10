@@ -26,6 +26,13 @@ Self-hosted. MIT licensed. Core collaboration works without AI or analytics.
 
 ## See how it works
 
+![QA asks a blocking question on one sentence of a specification. Product answers it by saving revision 3, QA resolves the discussion and approves, and Engineering's approval of revision 3 makes every readiness check pass](apps/docs/public/screenshots/review-flow.webp)
+
+A question sits on the sentence it is about and blocks readiness until someone
+resolves it. The answer becomes a new revision of the specification, each
+approval names the revision it approves, and the specification is ready when
+every readiness check passes.
+
 ### Refine the specification together
 
 ![A specification with Engineering's approval of revision 4 and four passing readiness checks](apps/docs/public/screenshots/specification-review.webp)
