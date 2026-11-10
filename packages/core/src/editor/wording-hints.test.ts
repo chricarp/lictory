@@ -11,7 +11,7 @@ const phrases = (text: string) => findWordingHints(text).map((h) => h.phrase);
 const docOf = (markdown: string) =>
   markdownSchema.nodeFromJSON(parseMarkdown(markdown).doc);
 
-test("flags phrases a tester cannot turn into pass or fail", () => {
+void test("flags phrases a tester cannot turn into pass or fail", () => {
   assert.deepEqual(phrases("Search results appear quickly."), ["quickly"]);
   assert.deepEqual(phrases("The checkout flow is intuitive."), ["intuitive"]);
   assert.deepEqual(
@@ -36,7 +36,7 @@ test("flags phrases a tester cannot turn into pass or fail", () => {
   assert.equal(findWordingHints("Login is fast.")[0]?.kind, "unmeasurable");
 });
 
-test("does not flag ordinary words that only look vague", () => {
+void test("does not flag ordinary words that only look vague", () => {
   for (const precise of [
     // Words Codex warned about: not defects in themselves.
     "Users should receive a confirmation email.",
@@ -60,7 +60,7 @@ test("does not flag ordinary words that only look vague", () => {
     assert.deepEqual(phrases(precise), [], precise);
 });
 
-test("the repository's own acceptance criteria raise no hints", () => {
+void test("the repository's own acceptance criteria raise no hints", () => {
   for (const criterion of [
     "A partial refund of 10.00 on a 25.00 payment leaves 15.00 refundable",
     "A refund without a reason code is rejected.",
@@ -75,7 +75,7 @@ test("the repository's own acceptance criteria raise no hints", () => {
     assert.deepEqual(phrases(criterion), [], criterion);
 });
 
-test("only the Acceptance criteria section is read, at any heading level", () => {
+void test("only the Acceptance criteria section is read, at any heading level", () => {
   const markdown = [
     "# Intent",
     "",
@@ -106,7 +106,7 @@ test("only the Acceptance criteria section is read, at any heading level", () =>
   assert.deepEqual(wordingHintsInDocument(docOf("Only fast here.")), []);
 });
 
-test("positions skip references, inline code and code blocks", () => {
+void test("positions skip references, inline code and code blocks", () => {
   const doc = docOf(
     [
       "## Acceptance Criteria:",
@@ -126,7 +126,7 @@ test("positions skip references, inline code and code blocks", () => {
   assert.equal(doc.textBetween(hints[0]!.pos, hints[0]!.end), "quickly");
 });
 
-test("scanning a long specification stays well under a frame", () => {
+void test("scanning a long specification stays well under a frame", () => {
   // 1,500 criteria with three hints each; typing changes one block, and
   // ProseMirror reuses every other node, whose hints are cached.
   const criteria = Array.from(

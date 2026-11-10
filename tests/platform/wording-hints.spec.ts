@@ -9,7 +9,6 @@ import {
   signIn,
   withDb,
 } from "../helpers/seed";
-import { documentEnd } from "../helpers/keyboard";
 
 // Wording hints (packages/core/src/editor/wording-hints.ts): while a
 // specification is edited, phrases in its Acceptance criteria that a tester
@@ -78,10 +77,23 @@ test("acceptance criteria hint at unmeasurable wording while editing, dismissibl
   await caretIn(page, "quickly");
   await line.getByRole("button", { name: "Dismiss" }).click();
   await expect(hints(page)).toHaveCount(0);
+  await expect(line).toContainText("dismissed on this device");
 
   // Typing a new criterion hints at it as it is written.
-  await editor.click();
-  await page.keyboard.press(documentEnd);
+  // Caret at the end of the last criterion. Keys can arrive before the
+  // browser's selectionchange, and ProseMirror would act on the caret it
+  // had before; the "dismissed" line goes away once ProseMirror has the new
+  // selection.
+  await editor.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.textContent !== "Retries reuse the transaction ID.") continue;
+      window.getSelection()!.collapse(node, node.textContent.length);
+      return;
+    }
+    throw new Error("The last criterion is not in the editor.");
+  });
+  await expect(line).toHaveCount(0);
   await page.keyboard.press("Enter");
   await page.keyboard.type("Timeout behavior: TBD");
   await expect(hints(page)).toHaveText(["TBD"]);
