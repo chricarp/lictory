@@ -247,8 +247,11 @@ export function diffReadinessChecks(
   return changes;
 }
 
+// Headings compare as a reader sees them: a backslash escape ("1\. Plan",
+// which the editor writes for "1. Plan") is the character it escapes.
 const normalizeHeading = (text: string) =>
   text
+    .replace(/\\([!-/:-@[-`{-~])/g, "$1")
     .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .replace(/[:\s]+$/, "")

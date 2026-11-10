@@ -97,6 +97,17 @@ void test("a required section passes only when it has content", () => {
     ),
     "### Happy path\nOk\n```\n## Not a heading\n```",
   );
+  // The editor escapes a numbered heading ("## 1\. Plan"); it still names
+  // the section people and agents call "1. Plan", and the reverse.
+  assert.equal(
+    sectionContent("## 1\\. Plan\n\nShip it.", "1. Plan"),
+    "\nShip it.",
+  );
+  assert.equal(
+    sectionContent("## 2) Plan\n\nShip it.", "2\\) Plan"),
+    "\nShip it.",
+  );
+  assert.equal(sectionContent("## C:\\\\temp\n\nPath.", "C:\\temp"), "\nPath.");
 });
 
 void test("discipline approvals and manual sign-offs", () => {
