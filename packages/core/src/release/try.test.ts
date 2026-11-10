@@ -53,7 +53,7 @@ function fixture(t: TestContext) {
       `#!/usr/bin/env bun
 import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
-const admin = ${JSON.stringify(name)} === "docker" && args.includes("admin.js");
+const admin = ${JSON.stringify(name)} === "docker" && args.some((arg) => arg.endsWith("/admin.js"));
 const stdin = admin ? readFileSync(0, "utf8") : "";
 appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ name: ${JSON.stringify(name)}, args, cwd: process.cwd(), stdin }) + "\\n");
 ${body}
@@ -208,10 +208,16 @@ void test("a first trial runs the release's own stack on http://localhost and cr
     "up -d --no-deps --wait --wait-timeout 300 api worker collaboration proxy",
     "exec -T api node apps/api/dist/admin.js setup --organization Evaluation --name Lictory Admin --email admin@example.com --password-stdin --json",
   ]);
-  for (const call of result.calls.filter((c) => c.args[0] === "compose"))
+  // Every command on the stack runs in the trial's directory, where Compose
+  // finds its files and .env (the version check runs before it exists).
+  for (const call of result.calls.filter(
+    (c) => c.args[0] === "compose" && c.args[1] !== "version",
+  ))
     assert.equal(call.cwd, f.dir);
   // The password reaches the API on stdin only, and is printed to sign in.
-  const admin = result.calls.find((call) => call.args.includes("admin.js"))!;
+  const admin = result.calls.find((call) =>
+    call.args.includes("apps/api/dist/admin.js"),
+  )!;
   assert.equal(admin.stdin, "evaluation-secret\n");
   assert.ok(!admin.args.includes("evaluation-secret"));
   assert.equal(

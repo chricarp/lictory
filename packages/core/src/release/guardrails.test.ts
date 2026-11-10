@@ -486,6 +486,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "static",
     "domain",
     "browser",
+    "trial",
     "verify",
   ]);
   const runs = (job: string) =>

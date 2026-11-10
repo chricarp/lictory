@@ -7,6 +7,9 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 const email = process.env.LICTORY_TRY_EMAIL ?? "admin@example.com";
 const password = process.env.LICTORY_TRY_PASSWORD ?? "";
 const mailUrl = process.env.LICTORY_TRY_MAIL_URL ?? "http://localhost:8025";
+// The organization try.sh creates (LICTORY_ORGANIZATION, default Evaluation).
+const organization =
+  process.env.LICTORY_TRY_ORGANIZATION_HANDLE ?? "evaluation";
 
 test("the first administrator signs in and the workspace syncs", async ({
   page,
@@ -20,11 +23,15 @@ test("the first administrator signs in and the workspace syncs", async ({
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"));
-  // A first sign-in asks for a handle (the suggestion is prefilled).
-  if (new URL(page.url()).pathname.startsWith("/welcome"))
+  // Signing in passes through "/" before the app settles: on the handle step
+  // of a first sign-in (the suggestion is prefilled), or in the organization.
+  const home = (url: URL) =>
+    url.pathname === `/${organization}` ||
+    url.pathname.startsWith(`/${organization}/`);
+  await page.waitForURL((url) => url.pathname === "/welcome" || home(url));
+  if (new URL(page.url()).pathname === "/welcome")
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page).not.toHaveURL(/\/(sign-in|welcome)/);
+  await page.waitForURL(home);
   // Zero's first message after the handshake proves the proxy, zero-cache
   // and the API's query endpoint work for this session.
   const socket = await sync;

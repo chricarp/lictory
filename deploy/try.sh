@@ -266,7 +266,12 @@ start_services() {
   if ! docker compose up -d --no-deps --wait --wait-timeout 300 api worker collaboration proxy >>"$log" 2>&1; then
     grep -qiE 'address already in use|port is already allocated|bind' "$log" &&
       fail_with_log "Port $port or $mail_port is taken by another program. Choose others: LICTORY_TRY_PORT=8080 LICTORY_TRY_MAIL_PORT=8026, then run this again."
-    fail_with_log "The services did not start."
+    # The reason is in the output of the first service that is not running
+    # healthy (restarting, exited or unhealthy), not in Compose's.
+    failing=$(docker compose ps -a --format '{{.Service}} {{.State}} {{.Health}}' api worker collaboration proxy 2>/dev/null |
+      awk '$2 != "running" || ($3 != "" && $3 != "healthy") { print $1; exit }' || true)
+    [ -z "$failing" ] || docker compose logs --no-color --no-log-prefix --tail 25 "$failing" >>"$log" 2>&1 || true
+    fail_with_log "${failing:-A service} did not start. Logs: cd '$dir' && docker compose logs ${failing:-}"
   fi
   ready=false
   for _ in $(seq 1 90); do
@@ -391,7 +396,7 @@ fail_with_log() {
   printf '\nlictory try: %s\n' "$1" >&2
   if [ -n "${log:-}" ] && [ -s "$log" ]; then
     printf -- '--- last lines of %s ---\n' "$log" >&2
-    tail -n 20 "$log" >&2
+    tail -n 30 "$log" >&2
   fi
   exit 1
 }
