@@ -151,7 +151,7 @@ export function SampleProjectBanner({ project }: { project: Project }) {
           variant="ghost"
           onClick={() => void archive()}
           disabled={pending}
-          title="Archives the sample project and its handbook. Restore them in Settings → Projects."
+          title="Archives the sample project and its handbook. Restore the project in Settings → Projects and the handbook in Spaces."
         >
           {pending ? "Archiving…" : "Archive sample"}
         </Button>
