@@ -1553,6 +1553,13 @@ owns authorization, business rules, transactions and external side effects.
 - Schema changes follow Zero's expand/contract order (database, then API, then
   client; reversed for removals). See
   [database migrations](docs/operations/migrations.md).
+- The rule for a status lives in one place
+  ([state machines](docs/internals/state-machines.md)). A status people move
+  is declared in `packages/core/src/contracts/state-machines.ts`: commands
+  refuse with `requireStep`, the browser offers with `allows`, and command
+  descriptions take their state rules from `rule`. Do not compare status
+  literals to decide whether an action is possible, and do not add a status
+  or state column without declaring how it moves.
 
 ## Agent entry points and untrusted input
 

@@ -32,6 +32,9 @@ adding domain writes or synchronized entities.
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [State machines](./internals/state-machines.md): where the rule for each
+  status lives, the declared tables that commands, the browser and agents
+  share, and the check that refuses an undeclared status
 - [Lictory Spaces](./internals/spaces.md): spaces and pages, live drafts,
   commits and reviewed publishing, access inherited from projects and teams,
   the collaboration service (in development)

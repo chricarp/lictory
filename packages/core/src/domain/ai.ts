@@ -16,7 +16,8 @@ import {
   type EntityOf,
 } from "@lictory/core/contracts/protocol";
 import { applyBranchCommand, ensureMain } from "@lictory/core/domain/branches";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { specificationPullRequest } from "@lictory/core/contracts/state-machines";
 import { refreshDirectories } from "@lictory/core/domain/projections";
 import type { Database, Tx } from "@lictory/core/domain/service";
 import {
@@ -328,11 +329,12 @@ export async function applyAiCommand(tx: Tx, c: Command, ctx: Context) {
             isNull(s.specificationPullRequest.deletedAt),
           ),
         );
-      if (!pr || pr.status === "merged")
+      if (!pr)
         throw new DomainError(
-          pr ? "conflict" : "not_found",
-          "This pull request is not open for review.",
+          "not_found",
+          specificationPullRequest.steps.requestAction.refused as string,
         );
+      requireStep(specificationPullRequest, pr.status, "requestAction");
       const [source] = await tx
         .select()
         .from(s.specificationBranch)
