@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD COLUMN "sample" boolean DEFAULT false NOT NULL;

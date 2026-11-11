@@ -9,6 +9,7 @@ import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
+import { SampleProjectBanner } from "@lictory/platform/components/workspace/sample-project";
 import {
   SyncIssue,
   isSyncBlocked,
@@ -47,7 +48,14 @@ export function ProjectGate({ children }: { children: ReactNode }) {
   }
   return (
     <ProjectContext.Provider value={project}>
-      {children}
+      {project.sample ? (
+        <div className="flex h-full min-h-0 flex-col">
+          <SampleProjectBanner project={project} />
+          <div className="min-h-0 flex-1">{children}</div>
+        </div>
+      ) : (
+        children
+      )}
     </ProjectContext.Provider>
   );
 }

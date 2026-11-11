@@ -2912,6 +2912,15 @@ export async function applyMutation(
           if (c.setup.aiEnabled !== undefined)
             await setAiPolicy(tx, organizationId, userId, c.setup.aiEnabled);
         }
+        if (c.sample) {
+          // One sample per organization, active or archived: a removed
+          // sample is restored rather than created again.
+          require(!c.setup, "The sample project is not the first project's setup.", "validation");
+          const existing = roster.projects.find((p) => p.sample);
+          require(!existing, existing?.archivedAt
+            ? `The sample project ${existing.key} was archived. Restore it in Settings → Projects to explore it again.`
+            : `This organization already has the sample project ${existing?.key}.`, "conflict");
+        }
         await tx.insert(s.project).values({
           id: projectId,
           organizationId,
@@ -2920,6 +2929,7 @@ export async function applyMutation(
           key: c.key,
           description: c.description?.trim() ? c.description.trim() : null,
           createdById: userId,
+          sample: c.sample === true,
           ...(c.setup
             ? {
                 deliveryMode: c.setup.deliveryMode,

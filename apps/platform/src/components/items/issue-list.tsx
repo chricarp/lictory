@@ -73,6 +73,7 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import { SampleProjectOffer } from "@lictory/platform/components/workspace/sample-project";
 import {
   ItemPreviewCard,
   useItemPreview,
@@ -967,6 +968,7 @@ export function IssueList({
                       Revisit this project’s delivery choices →
                     </Link>
                   )}
+                  <SampleProjectOffer project={project} />
                 </span>
               )}
           </EmptyState>

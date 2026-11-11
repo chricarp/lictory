@@ -186,6 +186,10 @@ export const project = pgTable(
     // Lictory Action: notify a pull request's author when it becomes ready
     // to merge.
     mergeReadyNotice: boolean("merge_ready_notice").default(true).notNull(),
+    // Lictory's sample project, created on request so a person can explore
+    // the review workflow alone (docs/internals/onboarding.md#sample-project).
+    // At most one per organization, archived rather than deleted.
+    sample: boolean("sample").default(false).notNull(),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

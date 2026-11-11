@@ -53,6 +53,7 @@ export function optimistic(
           upcomingIterations: 2,
           aiActionPolicy: "advisory",
           mergeReadyNotice: true,
+          sample: c.sample === true,
           archivedAt: null,
         };
         break;
