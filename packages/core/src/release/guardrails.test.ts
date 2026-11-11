@@ -114,6 +114,7 @@ void test("manual production intent remains frozen when retries happen after a n
 });
 
 type Step = {
+  if?: string;
   id?: string;
   uses?: string;
   run?: string;
@@ -130,7 +131,6 @@ type Workflow = {
       name?: string;
       if?: string;
       needs?: string[];
-      if?: string;
       uses?: string;
       secrets?: "inherit" | Record<string, string>;
       with?: Record<string, string>;
