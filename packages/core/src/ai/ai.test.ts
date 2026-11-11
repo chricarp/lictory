@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import * as s from "@lictory/core/db/schema";
 import { directory } from "@lictory/core/domain/service";
 import {
@@ -904,6 +905,7 @@ void test("a required review action that passes last makes the pull request read
   assert.equal(events.length, 1);
   assert.equal(events[0]!.actorId, AI_ACTOR_ID);
   assert.equal(events[0]!.detail?.pullRequestId, pullRequestId);
+  await drainNotifications(db);
   const notified = await db
     .select()
     .from(s.notification)

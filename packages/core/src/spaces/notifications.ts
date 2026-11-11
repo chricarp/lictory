@@ -2,16 +2,13 @@ import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type { Tx } from "@lictory/core/domain/service";
 import type { NotificationKind } from "@lictory/core/notifications/catalog";
-import {
-  deliverNotifications,
-  type NotificationDraft,
-} from "@lictory/core/notifications/server";
+import { queueNotifications } from "@lictory/core/notifications/events";
 import { stripMentions } from "@lictory/core/notifications/mentions";
 
 // Notifications about pages (docs/internals/notifications.md). They use the
-// shared machinery (preferences, email outbox, realtime signal) and name
-// their space and page, so `deliverNotifications` only writes them for
-// current readers of the space and every later read (inbox, unread counts,
+// shared machinery (queue, preferences, email outbox, realtime signal) and
+// name their space and page, so the fan-out only writes them for current
+// readers of the space and every later read (inbox, unread counts,
 // email) checks that access again. Preferences resolve against the space's
 // home: its team, then its project, then the organization.
 
@@ -32,7 +29,7 @@ export function messageExcerpt(body: string) {
   return text.length > 280 ? `${text.slice(0, 277)}…` : text;
 }
 
-// Writes the notices about one page in the caller's transaction (which holds
+// Queues the notices about one page in the caller's transaction (which holds
 // the organization lock). Order notices most specific first: one event
 // yields at most one notification per person and group.
 export async function notifyPage(
@@ -83,10 +80,12 @@ export async function notifyPage(
         eq(s.page.id, input.pageId),
       ),
     );
-  if (!context) return [];
-  const drafts: NotificationDraft[] = input.notices.flatMap((notice) =>
-    [...new Set(notice.userIds)].map((userId) => ({
-      userId,
+  if (!context) return;
+  await queueNotifications(
+    tx,
+    input.organizationId,
+    input.notices.map((notice) => ({
+      userIds: notice.userIds,
       kind: notice.kind,
       actorId: input.actorId,
       projectId: context.projectId,
@@ -103,7 +102,6 @@ export async function notifyPage(
       },
     })),
   );
-  return deliverNotifications(tx, input.organizationId, drafts);
 }
 
 // Entry points for page reviews (pull requests on pages). Call them inside

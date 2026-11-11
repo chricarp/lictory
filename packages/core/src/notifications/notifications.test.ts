@@ -6,7 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { refreshDirectories } from "@lictory/core/domain/projections";
 import * as s from "@lictory/core/db/schema";
-import { directory } from "@lictory/core/domain/service";
+import { directory, executeMutation } from "@lictory/core/domain/service";
 import {
   projectionDrift,
   projectionService,
@@ -14,6 +14,10 @@ import {
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
+import {
+  processNotificationEvents,
+  queueNotifications,
+} from "@lictory/core/notifications/events";
 import { mentionToken } from "@lictory/core/notifications/mentions";
 import { createNotificationService } from "@lictory/core/notifications/service";
 
@@ -488,6 +492,149 @@ void test("an email whose runner died is sent once more, with the same idempoten
   assert.equal(keys.length, 2);
   assert.equal(keys[0], keys[1]);
   assert.equal(keys[0], `lictory-notification-${row!.notificationId}`);
+});
+
+const queuedEvents = (organizationId: string) =>
+  db
+    .select()
+    .from(s.notificationEvent)
+    .where(eq(s.notificationEvent.organizationId, organizationId));
+
+void test("a command only queues its notifications; the fan-out writes them once", async () => {
+  const f = await fixture();
+  // Straight through the domain, without the fan-out the fixture runs.
+  await executeMutation(
+    db,
+    { userId: f.ownerId },
+    {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      command: {
+        type: "requestReview",
+        workItemId: f.itemId,
+        baseRevisionId: (await f.latest()).id,
+        reviewId: crypto.randomUUID(),
+        disciplineId: f.roles.Engineering,
+        userId: f.reviewerId,
+        required: true,
+      },
+    },
+  );
+  const [event] = await queuedEvents(f.organizationId);
+  assert.ok(event, "the event committed with the command");
+  assert.deepEqual(await f.kinds(f.reviewerId), [], "nothing is written yet");
+
+  const first = await processNotificationEvents(db);
+  assert.equal(first.notifications, 1);
+  assert.equal(first.emails, 1);
+  const [notice] = await f.inbox(f.reviewerId);
+  assert.equal(notice?.kind, "review_requested");
+  assert.equal(
+    notice?.createdAt,
+    event.createdAt.toISOString(),
+    "a notification carries the time of its event",
+  );
+  assert.deepEqual(await queuedEvents(f.organizationId), []);
+  assert.equal((await processNotificationEvents(db)).claimed, 0);
+  assert.equal((await f.inbox(f.reviewerId)).length, 1);
+});
+
+void test("recipients are decided when an event is fanned out", async () => {
+  const f = await fixture();
+  const leaverId = crypto.randomUUID();
+  await db.insert(s.user).values({
+    id: leaverId,
+    name: "Lee Leaver",
+    email: `${leaverId}@example.test`,
+  });
+  await db.transaction((tx) =>
+    queueNotifications(tx, f.organizationId, [
+      {
+        // Someone who is not a member, and an actor whose account is gone.
+        userIds: [f.reviewerId, leaverId],
+        kind: "status_changed",
+        actorId: crypto.randomUUID(),
+        projectId: f.projectId,
+        workItemId: f.itemId,
+        detail: { itemKey: "PAY-1", title: "Safe retries" },
+        // The bystander watches the item; the reviewer opted out of it.
+        watchers: true,
+        skipUnwatched: true,
+      },
+    ]),
+  );
+  await notifications.act(f.bystanderId, {
+    action: "watch",
+    organizationId: f.organizationId,
+    workItemId: f.itemId,
+    watching: true,
+  });
+  await notifications.act(f.reviewerId, {
+    action: "watch",
+    organizationId: f.organizationId,
+    workItemId: f.itemId,
+    watching: false,
+  });
+  await processNotificationEvents(db);
+  const [watched] = await f.inbox(f.bystanderId);
+  assert.equal(watched?.kind, "status_changed");
+  assert.equal(watched?.actorId, null);
+  assert.deepEqual(await f.kinds(f.reviewerId), []);
+  assert.deepEqual(
+    await db
+      .select()
+      .from(s.notification)
+      .where(eq(s.notification.userId, leaverId)),
+    [],
+  );
+});
+
+void test("an event that cannot be fanned out is retried, then set aside, without holding back the others", async () => {
+  const f = await fixture();
+  const [broken] = await db
+    .insert(s.notificationEvent)
+    .values({
+      organizationId: f.organizationId,
+      notices: [{ kind: "status_changed" } as never],
+      createdAt: new Date(Date.now() - 60_000),
+      nextAttemptAt: new Date(Date.now() - 60_000),
+    })
+    .returning();
+  await db.transaction((tx) =>
+    queueNotifications(tx, f.organizationId, [
+      {
+        userIds: [f.reviewerId],
+        kind: "status_changed",
+        actorId: f.ownerId,
+        projectId: f.projectId,
+        workItemId: f.itemId,
+      },
+    ]),
+  );
+  let at = new Date();
+  const run = () => processNotificationEvents(db, { now: () => at });
+  const first = await run();
+  assert.equal(first.retrying, 1);
+  assert.equal(first.notifications, 1, "the event behind it was delivered");
+  assert.deepEqual(await f.kinds(f.reviewerId), ["status_changed"]);
+  const waiting = async () =>
+    (await queuedEvents(f.organizationId)).find((e) => e.id === broken!.id);
+  assert.equal((await waiting())?.attempts, 1);
+  assert.ok((await waiting())?.lastError);
+  assert.equal((await run()).claimed, 0, "it waits for its backoff");
+  for (let attempt = 2; attempt <= 5; attempt++) {
+    at = new Date(at.getTime() + 60 * 60_000);
+    await run();
+  }
+  assert.equal((await waiting())?.attempts, 5);
+  assert.ok((await waiting())?.failedAt, "it is set aside after five attempts");
+  at = new Date(at.getTime() + 60 * 60_000);
+  assert.equal((await run()).claimed, 0);
+  // Kept for inspection, then removed.
+  at = new Date(at.getTime() + 8 * 24 * 60 * 60_000);
+  await run();
+  assert.equal(await waiting(), undefined);
 });
 
 void test("iteration start and completion notify project members once", async () => {

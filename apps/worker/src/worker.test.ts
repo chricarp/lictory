@@ -399,6 +399,7 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       "delivery-status",
       "email",
       "export",
+      "notification",
       "organization-deletion",
       "schedules",
     ]);

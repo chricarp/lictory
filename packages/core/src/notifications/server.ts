@@ -1,6 +1,5 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
-import { signalWork } from "@lictory/core/jobs/signal";
 import type { Tx } from "@lictory/core/domain/service";
 import {
   iterationLabel,
@@ -9,163 +8,15 @@ import {
   type Entity,
   type EntityOf,
 } from "@lictory/core/contracts/protocol";
+import type { NotificationKind } from "@lictory/core/notifications/catalog";
 import {
-  isNotificationKind,
-  resolveChannels,
-  type NotificationKind,
-  type PreferenceRule,
-} from "@lictory/core/notifications/catalog";
+  queueNotifications,
+  type NotificationNotice,
+} from "@lictory/core/notifications/events";
 import {
   mentionedUserIds,
   stripMentions,
 } from "@lictory/core/notifications/mentions";
-
-export type NotificationDraft = {
-  userId: string;
-  kind: NotificationKind;
-  actorId: string | null;
-  projectId?: string | null;
-  teamId?: string | null;
-  workItemId?: string | null;
-  // Lictory Spaces notifications: only people who can read the space
-  // receive them (checked here and again whenever one is read or emailed).
-  spaceId?: string | null;
-  pageId?: string | null;
-  detail?: Record<string, unknown>;
-  dedupeKey?: string;
-};
-
-// Writes notifications (and queued emails) for drafts, in the caller's
-// transaction. Recipients are filtered to current organization members (and,
-// for Spaces notifications, to current readers of the space) and to their
-// resolved preferences; the actor is never notified about their own
-// action. When one event yields several drafts for the same person on the same
-// item, only the first survives: callers order drafts most-specific first
-// (a mention beats "new discussion" for the same message).
-export async function deliverNotifications(
-  tx: Tx,
-  organizationId: string,
-  drafts: NotificationDraft[],
-) {
-  const seen = new Set<string>();
-  const unique = drafts.filter((d) => {
-    if (d.actorId && d.userId === d.actorId) return false;
-    const key = `${d.userId}:${d.workItemId ?? d.pageId ?? ""}:${typeof d.detail?.group === "string" ? d.detail.group : d.kind}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  if (!unique.length) return [];
-  const userIds = [...new Set(unique.map((d) => d.userId))];
-  const members = new Set(
-    (
-      await tx
-        .select({ userId: s.member.userId })
-        .from(s.member)
-        .where(
-          and(
-            eq(s.member.organizationId, organizationId),
-            inArray(s.member.userId, userIds),
-          ),
-        )
-    ).map((m) => m.userId),
-  );
-  const spaceIds = [
-    ...new Set(unique.flatMap((d) => (d.spaceId ? [d.spaceId] : []))),
-  ];
-  const readers = new Set(
-    spaceIds.length
-      ? (
-          await tx
-            .select({
-              spaceId: s.spaceReader.spaceId,
-              userId: s.spaceReader.userId,
-            })
-            .from(s.spaceReader)
-            .where(
-              and(
-                eq(s.spaceReader.organizationId, organizationId),
-                inArray(s.spaceReader.spaceId, spaceIds),
-                inArray(s.spaceReader.userId, userIds),
-              ),
-            )
-        ).map((r) => `${r.spaceId}:${r.userId}`)
-      : [],
-  );
-  const rules = await tx
-    .select()
-    .from(s.notificationPreference)
-    .where(
-      and(
-        eq(s.notificationPreference.organizationId, organizationId),
-        inArray(s.notificationPreference.userId, userIds),
-      ),
-    );
-  const rulesByUser = new Map<string, PreferenceRule[]>();
-  for (const r of rules) {
-    if (!isNotificationKind(r.kind)) continue;
-    const list = rulesByUser.get(r.userId) ?? [];
-    list.push({ ...r, kind: r.kind });
-    rulesByUser.set(r.userId, list);
-  }
-  const rows: (typeof s.notification.$inferInsert)[] = [];
-  const emailIds = new Set<string>();
-  for (const d of unique) {
-    if (!members.has(d.userId)) continue;
-    if (d.spaceId && !readers.has(`${d.spaceId}:${d.userId}`)) continue;
-    const channels = resolveChannels(rulesByUser.get(d.userId) ?? [], d.kind, {
-      organizationId,
-      projectId: d.projectId,
-      teamId: d.teamId,
-    });
-    if (!channels.inApp) continue;
-    const id = crypto.randomUUID();
-    const { group, ...detail } = d.detail ?? {};
-    void group;
-    rows.push({
-      id,
-      organizationId,
-      userId: d.userId,
-      kind: d.kind,
-      actorId: d.actorId,
-      projectId: d.projectId ?? null,
-      teamId: d.teamId ?? null,
-      workItemId: d.workItemId ?? null,
-      spaceId: d.spaceId ?? null,
-      pageId: d.pageId ?? null,
-      detail,
-      dedupeKey: d.dedupeKey ?? null,
-    });
-    if (channels.email) emailIds.add(id);
-  }
-  if (!rows.length) return [];
-  const inserted = await tx
-    .insert(s.notification)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: s.notification.id, userId: s.notification.userId });
-  const emails = inserted.filter((r) => emailIds.has(r.id));
-  if (emails.length) {
-    await tx.insert(s.notificationEmail).values(
-      emails.map((r) => ({
-        notificationId: r.id,
-        organizationId,
-        userId: r.userId,
-      })),
-    );
-    await signalWork(tx, "email");
-  }
-  // Delivered on commit; carries only who should refetch, never content.
-  const recipients = [...new Set(inserted.map((r) => r.userId))];
-  for (let i = 0; i < recipients.length; i += 100) {
-    const payload = JSON.stringify({
-      organizationId,
-      userIds: recipients.slice(i, i + 100),
-    });
-    await tx.execute(sql`select pg_notify('lictory_notification', ${payload})`);
-  }
-  return inserted;
-}
 
 type ItemContext = {
   organizationId: string;
@@ -181,7 +32,9 @@ type ItemContext = {
 };
 
 // Derives notifications from the activity a work-item command logged plus the
-// resulting item scope. Runs inside the mutation transaction.
+// resulting item scope, and queues them. Runs inside the mutation transaction
+// and reads nothing: explicit watch state is applied when the event is fanned
+// out.
 export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
   const { after, roster, actorId, command: c } = ctx;
   const item = after.find(
@@ -202,19 +55,6 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
   const suggestionReviewers = of("suggestionReviewer").filter(
     (r) => !r.withdrawnAt,
   );
-  const watchRows = await tx
-    .select()
-    .from(s.workItemWatcher)
-    .where(
-      and(
-        eq(s.workItemWatcher.organizationId, ctx.organizationId),
-        eq(s.workItemWatcher.workItemId, item.id),
-      ),
-    );
-  const unwatched = new Set(
-    watchRows.filter((w) => !w.watching).map((w) => w.userId),
-  );
-  const watchers = watchRows.filter((w) => w.watching).map((w) => w.userId);
   const disciplineMembers = (disciplineId: string | null) =>
     roster.disciplines.find((d) => d.id === disciplineId && !d.archivedAt)
       ?.userIds ?? [];
@@ -226,13 +66,12 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
       );
   // Children materialized from a reviewed breakdown record whoever merged it
   // as their creator; that person follows the parent specification and does
-  // not own each child. Their owners are the assignee and explicit watchers.
+  // not own each child. Their owners are the assignee and explicit watchers
+  // (added at fan-out: `followers`).
   const owners = () =>
-    [
-      item.sourceRevisionId ? null : item.createdById,
-      item.assigneeId,
-      ...watchers,
-    ].filter((u): u is string => !!u);
+    [item.sourceRevisionId ? null : item.createdById, item.assigneeId].filter(
+      (u): u is string => !!u,
+    );
   const involved = () => [
     ...owners(),
     ...reviews
@@ -262,26 +101,27 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
     teamId: item.teamId,
     workItemId: item.id,
   };
-  const drafts: NotificationDraft[] = [];
+  const notices: NotificationNotice[] = [];
   const add = (
     users: Iterable<string>,
     kind: NotificationKind,
     detail: Record<string, unknown> = {},
-    options: { respectUnwatch?: boolean } = {},
+    options: { direct?: boolean; watchers?: boolean } = {},
   ) => {
-    for (const userId of new Set(users)) {
+    notices.push({
+      ...base,
+      userIds: users,
+      kind,
+      detail: { itemKey, title: item.title, ...detail },
+      watchers: options.watchers,
       // Opting out of an item silences ambient updates, never requests that
       // are addressed to the person (review requests, mentions, assignment).
-      if (options.respectUnwatch !== false && unwatched.has(userId)) continue;
-      drafts.push({
-        ...base,
-        userId,
-        kind,
-        detail: { itemKey, title: item.title, ...detail },
-      });
-    }
+      skipUnwatched: !options.direct,
+    });
   };
-  const direct = { respectUnwatch: false };
+  const direct = { direct: true };
+  // Everyone involved in or owning the item, plus its explicit watchers.
+  const followers = { watchers: true };
   const excerpt = (body: string) => {
     const text = stripMentions(body).replace(/\s+/g, " ").trim();
     return text.length > 280 ? `${text.slice(0, 277)}…` : text;
@@ -318,15 +158,21 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
           add([detail.to], "assigned", {}, direct);
         break;
       case "status_changed":
-        add(involved(), "status_changed", {
-          from: detail.from,
-          to: detail.to,
-          category: detail.category,
-        });
+        add(
+          involved(),
+          "status_changed",
+          { from: detail.from, to: detail.to, category: detail.category },
+          followers,
+        );
         break;
       case "archived":
       case "restored":
-        add(involved(), "item_archived", { archived: action === "archived" });
+        add(
+          involved(),
+          "item_archived",
+          { archived: action === "archived" },
+          followers,
+        );
         break;
       case "relation_added":
         if (detail.kind === "blocks" && typeof detail.toId === "string")
@@ -345,16 +191,22 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
           { revision: number, group: "revision" },
           direct,
         );
-        add(involved(), "specification_revised", {
-          revision: number,
-          summary: detail.summary ?? null,
-          group: "revision",
-        });
+        add(
+          involved(),
+          "specification_revised",
+          {
+            revision: number,
+            summary: detail.summary ?? null,
+            group: "revision",
+          },
+          followers,
+        );
         break;
       }
       case "refinement_changed":
-        if (detail.to === "ready") add(involved(), "item_ready");
-        else if (detail.from === "ready") add(involved(), "item_unready");
+        if (detail.to === "ready") add(involved(), "item_ready", {}, followers);
+        else if (detail.from === "ready")
+          add(involved(), "item_unready", {}, followers);
         break;
       case "review_requested": {
         const reviewId = detail.reviewId as string;
@@ -388,6 +240,7 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
             responsibility: detail.responsibility,
             revision: detail.revision,
           },
+          followers,
         );
         break;
       }
@@ -410,15 +263,18 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
           involved(),
           detail.blocking ? "blocking_thread" : "thread_opened",
           context,
+          followers,
         );
         break;
       }
       case "thread_blocking_changed":
         if (detail.blocking)
-          add(involved(), "blocking_thread", {
-            threadId: detail.threadId,
-            marked: true,
-          });
+          add(
+            involved(),
+            "blocking_thread",
+            { threadId: detail.threadId, marked: true },
+            followers,
+          );
         break;
       case "thread_resolved":
       case "thread_reopened":
@@ -582,7 +438,7 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
   function suggestionTitle(id: unknown) {
     return suggestions.find((x) => x.id === id)?.title ?? null;
   }
-  await deliverNotifications(tx, ctx.organizationId, drafts);
+  await queueNotifications(tx, ctx.organizationId, notices);
 }
 
 async function notifyBlocked(
@@ -617,31 +473,12 @@ async function notifyBlocked(
       ),
     );
   if (!target) return;
-  const watchRows = await tx
-    .select()
-    .from(s.workItemWatcher)
-    .where(
-      and(
-        eq(s.workItemWatcher.organizationId, ctx.organizationId),
-        eq(s.workItemWatcher.workItemId, target.id),
+  await queueNotifications(tx, ctx.organizationId, [
+    {
+      userIds: [target.createdById, target.assigneeId].filter(
+        (u): u is string => !!u,
       ),
-    );
-  const unwatched = new Set(
-    watchRows.filter((w) => !w.watching).map((w) => w.userId),
-  );
-  const users = new Set(
-    [
-      target.createdById,
-      target.assigneeId,
-      ...watchRows.filter((w) => w.watching).map((w) => w.userId),
-    ].filter((u): u is string => !!u && !unwatched.has(u)),
-  );
-  await deliverNotifications(
-    tx,
-    ctx.organizationId,
-    [...users].map((userId) => ({
-      userId,
-      kind: "relation_blocked" as const,
+      kind: "relation_blocked",
       actorId: ctx.actorId,
       projectId: target.projectId,
       teamId: target.teamId,
@@ -652,8 +489,10 @@ async function notifyBlocked(
         blockerKey,
         blockerId: ctx.workItemId,
       },
-    })),
-  );
+      watchers: true,
+      skipUnwatched: true,
+    },
+  ]);
 }
 
 // Iterations belong to a project; its members are the audience.
@@ -699,11 +538,9 @@ export async function notifyIteration(
       ),
     );
   const summary = it.summary;
-  await deliverNotifications(
-    tx,
-    input.organizationId,
-    members.map((m) => ({
-      userId: m.userId,
+  await queueNotifications(tx, input.organizationId, [
+    {
+      userIds: members.map((m) => m.userId),
       kind: input.kind,
       actorId: input.actorId,
       projectId: it.projectId,
@@ -718,8 +555,8 @@ export async function notifyIteration(
       },
       // Automatic cycles may be advanced by overlapping workers.
       dedupeKey: `${input.kind}:${it.id}`,
-    })),
-  );
+    },
+  ]);
 }
 
 // The requester learns how their export ended. Failures and conflicts carry
@@ -774,9 +611,9 @@ export async function notifyExport(
       teamId = root.teamId;
     }
   }
-  await deliverNotifications(tx, publication.organizationId, [
+  await queueNotifications(tx, publication.organizationId, [
     {
-      userId: publication.requestedById,
+      userIds: [publication.requestedById],
       kind: status === "completed" ? "export_completed" : "export_failed",
       // The requester is also the actor; exports report back to them.
       actorId: null,

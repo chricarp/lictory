@@ -13,9 +13,10 @@ import {
 } from "drizzle-orm/pg-core";
 import { organization, user } from "@lictory/core/db/auth-schema";
 
-// A notification is a per-recipient record of a domain event. It is written in
-// the same transaction as the event, so a notification never exists for a
-// change that rolled back and never goes missing for one that committed.
+// A notification is a per-recipient record of a domain event. The event is
+// queued in the same transaction as the change (`notification_event`, below)
+// and fanned out by the worker, so a notification never exists for a change
+// that rolled back and never goes missing for one that committed.
 export const notification = pgTable(
   "notification",
   {
@@ -156,5 +157,56 @@ export const notificationEmail = pgTable(
     index("notification_email_pending_idx")
       .on(t.nextAttemptAt)
       .where(sql`${t.status} = 'pending'`),
+  ],
+);
+
+// One recipient group of a queued notification event: who might be told
+// what. The worker decides who actually is (membership, space access, watch
+// state, preferences) when it fans the event out.
+export type QueuedNotice = {
+  userIds: string[];
+  kind: string;
+  actorId: string | null;
+  projectId?: string | null;
+  teamId?: string | null;
+  workItemId?: string | null;
+  spaceId?: string | null;
+  pageId?: string | null;
+  detail?: Record<string, unknown>;
+  dedupeKey?: string;
+  // Also everyone who explicitly watches `workItemId`.
+  watchers?: boolean;
+  // Ambient update: people who unwatched `workItemId` are left out.
+  skipUnwatched?: boolean;
+};
+
+// Queue of notification events awaiting fan-out. A command writes one row in
+// its own transaction (so an event exists exactly when its change committed)
+// and the worker turns it into per-recipient `notification` rows, then
+// deletes it. A row that keeps failing stays, with `failed_at` set, until it
+// is removed after a retention period.
+export const notificationEvent = pgTable(
+  "notification_event",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    // Most specific first: one event yields at most one notification per
+    // person and item, and the first notice naming them wins.
+    notices: jsonb("notices").$type<QueuedNotice[]>().notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    lastError: text("last_error"),
+    failedAt: timestamp("failed_at"),
+    // The event's time; its notifications carry it as their own.
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("notification_event_pending_idx")
+      .on(t.nextAttemptAt)
+      .where(sql`${t.failedAt} is null`),
   ],
 );

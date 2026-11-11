@@ -3,6 +3,7 @@ import { processAiRuns } from "@lictory/core/ai/runner";
 import { createDeliveryService } from "@lictory/core/delivery/service";
 import { trackPublicationCompleted } from "@lictory/core/lib/analytics/server";
 import { dispatchNotificationEmails } from "@lictory/core/notifications/email";
+import { processNotificationEvents } from "@lictory/core/notifications/events";
 import { processOrganizationExports } from "@lictory/core/export/service";
 import { processOrganizationDeletions } from "@lictory/core/domain/organization-deletion";
 import { storage } from "@lictory/core/storage";
@@ -12,7 +13,12 @@ export {
   workKinds,
   type WorkKind,
 } from "@lictory/core/jobs/signal";
-export { advanceSchedules, processAiRuns, dispatchNotificationEmails };
+export {
+  advanceSchedules,
+  processAiRuns,
+  dispatchNotificationEmails,
+  processNotificationEvents,
+};
 export { rebuildProjections } from "@lictory/core/domain/projections";
 export {
   createJobDatabase,

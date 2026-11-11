@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import * as s from "@lictory/core/db/schema";
 import {
   PROTOCOL,
@@ -201,8 +202,9 @@ const projection = async <T>(key: string) =>
       .where(eq(s.spaceEntity.key, key))
   )[0]?.data as T | undefined;
 
-const notificationsOf = (userId: string, organizationId: string) =>
-  db
+const notificationsOf = async (userId: string, organizationId: string) => {
+  await drainNotifications(db);
+  return db
     .select()
     .from(s.notification)
     .where(
@@ -211,6 +213,7 @@ const notificationsOf = (userId: string, organizationId: string) =>
         eq(s.notification.organizationId, organizationId),
       ),
     );
+};
 
 void test("anchors have a versioned, bounded shape", () => {
   const valid: PageThreadAnchor[] = [
