@@ -42,6 +42,7 @@ type Call = {
   args: string[];
   env: Record<string, string | undefined>;
   signal?: string;
+  cleaned?: boolean;
 };
 
 const recordedEnv = [
@@ -62,7 +63,20 @@ const recordedEnv = [
 
 function fixture(t: TestContext, { docker = true } = {}) {
   const base = mkdtempSync(join(tmpdir(), "lictory-verify-"));
-  t.after(() => rmSync(base, { recursive: true, force: true }));
+  // A failed assertion can leave a runner waiting in a hung step: interrupt
+  // it so it still cleans up, then force it, before removing its files.
+  const runners: ReturnType<typeof spawn>[] = [];
+  t.after(async () => {
+    for (const runner of runners) {
+      if (runner.exitCode !== null || runner.signalCode) continue;
+      const closed = new Promise((resolve) => runner.once("close", resolve));
+      runner.kill("SIGINT");
+      const timer = setTimeout(() => runner.kill("SIGKILL"), 15_000);
+      await closed;
+      clearTimeout(timer);
+    }
+    rmSync(base, { recursive: true, force: true });
+  });
   const bin = join(base, "bin");
   const calls = join(base, "calls.jsonl");
   mkdirSync(bin);
@@ -97,7 +111,11 @@ if (name === "node") {
 }
 if (matches(process.env.FAKE_HANG)) {
   for (const signal of ["SIGINT", "SIGTERM"])
-    process.on(signal, () => { record({ signal }); process.exit(130); });
+    process.on(signal, () => {
+      // Cleanup that takes a while, like the browser suite dropping its database.
+      record({ signal });
+      setTimeout(() => { record({ signal, cleaned: true }); process.exit(130); }, 500);
+    });
   setInterval(() => {}, 1000);
 } else if (matches(process.env.FAKE_FAIL)) process.exit(1);
 `;
@@ -126,10 +144,11 @@ if (matches(process.env.FAKE_HANG)) {
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
+    runners.push(child);
     child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
     child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
     const exited = new Promise<{ code: number | null; output: string }>(
-      (resolve) => child.on("exit", (code) => resolve({ code, output })),
+      (resolve) => child.on("close", (code) => resolve({ code, output })),
     );
     return { child, exited };
   }
@@ -280,13 +299,47 @@ void test("Ctrl-C stops the running step first, then removes the services", asyn
   const { code, output } = await run.exited;
   assert.equal(code, 130, output);
   const calls = machine.read();
-  const stopped = calls.findIndex((call) => call.signal === "SIGINT");
-  assert.ok(stopped > 0, "the step received the interruption");
+  const stopped = calls.findIndex(
+    (call) => call.signal === "SIGINT" && call.cleaned,
+  );
+  assert.ok(stopped > 0, "the step received the interruption and cleaned up");
   const down = calls.findIndex((call) => call.args.includes("down"));
-  assert.ok(down > stopped, "services are removed after the step stopped");
+  assert.ok(down > stopped, "services are removed after the step's cleanup");
   assert.ok(!calls.some((call) => commandLine(call) === "bun run db:check"));
   assert.match(output, /STOP {2}check/);
   assert.match(output, /Continue from check: bun run verify --from check/);
+});
+
+void test("services it cannot remove fail the run, even when every step passed", async (t) => {
+  const machine = fixture(t);
+  const { code, output } = await machine.start(["--only", "db:check"], {
+    FAKE_FAIL: " down --volumes",
+  }).exited;
+  assert.equal(code, 1, output);
+  assert.match(output, /PASS {2}db:check/);
+  assert.match(output, /Could not remove the private PostgreSQL and Mailpit/);
+  assert.match(output, /Remove them with: docker compose -p lictory-verify-/);
+});
+
+void test("refuses settings that would narrow the browser suite in a full run", async (t) => {
+  for (const setting of ["E2E_SHARD", "E2E_SKIP_BUILD"]) {
+    const machine = fixture(t);
+    const { code, output } = await machine.start([], {
+      [setting]: setting === "E2E_SHARD" ? "1/4" : "1",
+    }).exited;
+    assert.equal(code, 2, output);
+    assert.match(
+      output,
+      new RegExp(`${setting} would narrow the browser suite`),
+    );
+    assert.deepEqual(machine.read(), []);
+  }
+  // While iterating on single steps they are the developer's choice.
+  const iterating = fixture(t);
+  const { code, output } = await iterating.start(["--only", "test:e2e"], {
+    E2E_SKIP_BUILD: "1",
+  }).exited;
+  assert.equal(code, 0, output);
 });
 
 void test("explains what to do without Docker, and runs nothing", async (t) => {
@@ -378,6 +431,13 @@ void test("with a developer's PostgreSQL and Mailpit, drops only its own databas
   const { code, output } = await run.exited;
   assert.equal(code, 130, output);
   assert.match(output, new RegExp(`Dropped database ${database}`));
+  // The rerun command never repeats the password.
+  const password = new URL(adminUrl).password;
+  assert.match(output, /Continue from db:migrate: bun run verify --postgres /);
+  if (password) {
+    assert.ok(!output.includes(`:${password}@`), output);
+    assert.match(output, /:PASSWORD@/);
+  }
   const [left] = await admin<{ databases: number; slots: number }[]>`
     SELECT
       (SELECT count(*)::int FROM pg_database WHERE datname = ${database}) AS databases,

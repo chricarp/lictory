@@ -76,7 +76,8 @@ Options:
 Steps: ${steps.map((step) => step.name).join(", ")}
 
 E2E_PORT_OFFSET, E2E_WORKERS and the rest of the environment reach the
-steps unchanged.`;
+steps unchanged. E2E_SHARD and E2E_SKIP_BUILD narrow the browser suite, so
+a full run refuses them.`;
 
 class UsageError extends Error {}
 
@@ -141,6 +142,17 @@ const selected = steps.filter((step, index) =>
     : index >= steps.findIndex((s) => s.name === (options.from ?? "install")),
 );
 const partial = selected.length < steps.length;
+// The browser suite reads these to run one shard or reuse earlier builds:
+// fine while iterating, never in the final verification of the working tree.
+const narrowing = ["E2E_SHARD", "E2E_SKIP_BUILD"].filter(
+  (name) => process.env[name],
+);
+if (narrowing.length && !partial) {
+  console.error(
+    `${narrowing.join(" and ")} would narrow the browser suite (one shard, or builds of an earlier tree). Unset ${narrowing.length > 1 ? "them" : "it"} for the full verification, or rerun single steps with --only.`,
+  );
+  process.exit(2);
+}
 
 // ------------------------------------------------------------- processes
 
@@ -213,7 +225,9 @@ function run(
       // Missing executable: no exit event follows.
       if (child.pid === undefined) finish(127);
     });
-    child.on("exit", (code, signal) =>
+    // "close", not "exit": captured output is complete only once the
+    // pipes have closed.
+    child.on("close", (code, signal) =>
       finish(code ?? (signal === "SIGINT" ? 130 : 128 + 15)),
     );
     let done = false;
@@ -429,7 +443,9 @@ async function useExternalMailpit(mailpit: string, smtpAddress?: string) {
     : { host: web.hostname, port: 1025 };
   if (!smtp.host || !Number.isInteger(smtp.port))
     throw new UsageError(`--smtp needs host:port, not "${smtpAddress}".`);
-  const info = await fetch(new URL("/api/v1/info", web)).then(
+  const info = await fetch(new URL("/api/v1/info", web), {
+    signal: AbortSignal.timeout(10_000),
+  }).then(
     (response) => response.ok,
     () => false,
   );
@@ -594,9 +610,15 @@ function revision() {
 }
 
 function rerun(flag: "--only" | "--from", name: string) {
-  const reuse = (["postgres", "mailpit", "smtp"] as const).flatMap((key) =>
-    options[key] ? [`--${key}`, options[key]] : [],
-  );
+  const reuse = (["postgres", "mailpit", "smtp"] as const).flatMap((key) => {
+    const value = options[key];
+    if (!value) return [];
+    // Summaries end up in shared logs: never print the password.
+    if (key !== "postgres") return [`--${key}`, value];
+    const url = new URL(value);
+    if (url.password) url.password = "PASSWORD";
+    return [`--${key}`, url.toString()];
+  });
   return shell(["bun", "run", "verify", ...reuse, flag, name]);
 }
 
@@ -685,5 +707,7 @@ try {
   }
   for (const line of cleaned) console.log(line);
   for (const line of leftovers) console.error(line);
+  // Resources left behind fail the run, even when every step passed.
+  if (leftovers.length && exitCode === 0) exitCode = 1;
 }
 process.exit(exitCode);

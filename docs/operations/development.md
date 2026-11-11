@@ -468,7 +468,8 @@ Rerun it and what follows: bun run verify --from test:domain
 ```
 
 `--only` and `--from` are for iterating; the full run must pass on the final
-changes. To use services you already run, name them:
+changes, and refuses `E2E_SHARD` and `E2E_SKIP_BUILD`, which would narrow the
+browser suite. To use services you already run, name them:
 `bun run verify --postgres postgresql://lictory:lictory@localhost:5432/postgres --mailpit http://localhost:8025`
 (the PostgreSQL admin database, which needs `wal_level=logical`; Mailpit's SMTP
 port defaults to 1025 on the same host, `--smtp host:port` overrides it). It
