@@ -1,15 +1,17 @@
 // The SDK adapters of the AI providers (settings and validation are in
 // ai/provider-settings.ts, which this module re-exports). Only the selected
-// provider's adapter is ever built, and every setting is passed explicitly so
-// an SDK never falls back to its own environment variables.
+// provider's adapter is ever built, and every setting Lictory has is passed
+// explicitly, so an SDK does not fall back to its own environment variable for
+// it. Where Lictory passes nothing (Bedrock's default endpoint, the AWS and
+// Google credential chains) the SDK's own variables still apply.
 //
-// The SDKs are loaded on first use, never when this module loads: each SDK
-// module builds a default client of its own as it is evaluated (`openai =
-// createOpenAI()`), reading its variables straight from process.env, and
-// @ai-sdk/openai refuses a blank OPENAI_BASE_URL, which compose forwards when
-// the operator sets none. A server without AI therefore never evaluates an
-// SDK, and before one is loaded blank variables are removed, so they are unset
-// for the SDK as they are for Lictory (lib/env.ts).
+// Provider SDKs are loaded on first use, never when this module loads: each
+// one builds a default client as it is evaluated (`openai = createOpenAI()`)
+// from its own variables, and @ai-sdk/openai and @ai-sdk/anthropic refuse a
+// blank base URL, which compose forwards when the operator sets none. A server
+// without AI therefore never evaluates a provider SDK, and before one is
+// loaded the blank variables the SDKs and their credential chains read are
+// removed, so they are unset for them as they are for Lictory (lib/env.ts).
 import { createHash } from "node:crypto";
 import { lookup as lookupAddress, type LookupAddress } from "node:dns";
 import { Agent } from "undici";
@@ -28,8 +30,33 @@ export * from "@lictory/core/ai/provider-settings";
 
 export class EndpointRefused extends Error {}
 
+// The variables the provider SDKs and the AWS and Google credential chains
+// read themselves (with Google's lowercase aliases). A prefix also covers
+// variables a later SDK release adds; unrelated variables are left alone.
+const sdkVariables = [
+  "OPENAI_",
+  "ANTHROPIC_",
+  "GOOGLE_",
+  "google_",
+  "GCLOUD_",
+  "gcloud_",
+  "GCE_METADATA_",
+  "CLOUDSDK_",
+  "METADATA_SERVER_DETECTION",
+  "DETECT_GCP_RETRIES",
+  "AZURE_",
+  "AWS_",
+  "MISTRAL_",
+  "XAI_",
+  "GROQ_",
+  "DEEPSEEK_",
+  "DEEPGRAM_",
+  "ELEVENLABS_",
+  "ASSEMBLYAI_",
+] as const;
+
 function sdk<T>(load: () => Promise<T>): Promise<T> {
-  unsetBlankVariables();
+  unsetBlankVariables(sdkVariables);
   return load();
 }
 

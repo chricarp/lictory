@@ -16,15 +16,22 @@ export function env(
   return value;
 }
 
-// Removes blank variables from the environment, so they are unset for code
-// that reads process.env itself as well. Libraries do not share the rule
-// above: the AI SDKs read their own variables when they load, and
-// @ai-sdk/openai refuses a blank OPENAI_BASE_URL. Safe to call again.
+// Removes blank variables whose names start with one of `prefixes`, so they
+// are unset for code that reads process.env itself as well. Libraries do not
+// share the rule above: the AI SDKs read their own variables, and
+// @ai-sdk/openai refuses a blank OPENAI_BASE_URL. Variables outside those
+// prefixes are left alone. Safe to call again.
 export function unsetBlankVariables(
+  prefixes: readonly string[],
   target: Record<string, string | undefined> = process.env,
 ) {
   for (const [name, value] of Object.entries(target))
-    if (value !== undefined && !value.trim()) delete target[name];
+    if (
+      value !== undefined &&
+      !value.trim() &&
+      prefixes.some((prefix) => name.startsWith(prefix))
+    )
+      delete target[name];
 }
 
 // A non-negative whole number, or undefined when unset or blank. A value that

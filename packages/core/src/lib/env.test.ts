@@ -21,17 +21,22 @@ void test("empty, whitespace-only and unset variables are unset", () => {
   assert.equal(envInteger("VALUE", { VALUE: " 587 " }), 587);
 });
 
-void test("blank variables are removed for code that reads the environment itself", () => {
+void test("blank variables under the given prefixes are removed, others are kept", () => {
   const target: Record<string, string | undefined> = {
     OPENAI_BASE_URL: "",
-    ANTHROPIC_BASE_URL: "  ",
+    AWS_ENDPOINT_URL: "  ",
     OPENAI_API_KEY: "sk-set",
+    // Not the SDKs': a blank NO_PROXY still hides a lowercase no_proxy.
+    NO_PROXY: "",
     PORT: " 3002 ",
   };
-  unsetBlankVariables(target);
-  unsetBlankVariables(target);
-  assert.deepEqual(target, { OPENAI_API_KEY: "sk-set", PORT: " 3002 " });
-  assert.ok(!("OPENAI_BASE_URL" in target));
+  unsetBlankVariables(["OPENAI_", "AWS_"], target);
+  unsetBlankVariables(["OPENAI_", "AWS_"], target);
+  assert.deepEqual(target, {
+    OPENAI_API_KEY: "sk-set",
+    NO_PROXY: "",
+    PORT: " 3002 ",
+  });
 });
 
 void test("a set value of the wrong kind is rejected", () => {

@@ -55,7 +55,9 @@ export function chatGenerator(
   source: () =>
     | LanguageModel
     | { model: LanguageModel; config: AiProviderConfig }
-    | Promise<{ model: LanguageModel; config: AiProviderConfig }> = chatModel,
+    | Promise<
+        LanguageModel | { model: LanguageModel; config: AiProviderConfig }
+      > = chatModel,
 ): ChatGenerator {
   return async function* ({ messages, roster, owner, ctx, signal }) {
     const resolved = await source();
