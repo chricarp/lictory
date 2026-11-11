@@ -25,9 +25,10 @@ ask for a smaller scope, defer it, or solve the problem differently.
    workflow. The [development runbook](docs/operations/development.md#daily-commands)
    lists the daily commands.
 5. **Open the pull request.** Fill in the template, show that it works (see
-   below), and run the full verification sequence first. If something on your
-   machine prevents part of it, say which step and what happened; a maintainer
-   can help.
+   below), and run the full verification sequence first: `bun run verify`
+   runs all of it, starting and removing the database and mail services it
+   needs (Docker required). If something on your machine prevents part of it,
+   say which step and what happened; a maintainer can help.
 
 ## Before you start
 
@@ -98,7 +99,8 @@ you observed. "Tests pass" alone is not evidence.
   [accessibility](docs/internals/accessibility.md).
 - Before requesting review, run the full verification sequence from
   [the runbook](docs/operations/development.md#full-verification-before-a-pull-request)
-  and report the results. Say what you could not check.
+  (`bun run verify`, or the commands by hand) and report the results; the
+  summary it prints lists every step. Say what you could not check.
 
 If an agent did the work, name the model and harness at the end of the
 description. We judge the problem, scope and evidence, not who or what wrote it.
