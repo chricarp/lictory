@@ -218,7 +218,9 @@ export class GitHubFixture {
       const id = Number(path.split("/")[2]);
       const assetId = this.nextId++;
       const name = url.searchParams.get("name")!;
-      if (json) this.assets.set(assetId, body as unknown as Manifest);
+      // Release manifests are parsed; every other asset keeps its bytes.
+      if (json && name === "release-manifest.json")
+        this.assets.set(assetId, body as unknown as Manifest);
       else this.files.set(assetId, raw ?? "");
       this.releases
         .find((value) => value.id === id)!

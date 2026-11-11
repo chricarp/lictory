@@ -18,9 +18,16 @@ import {
   buildImages,
   imageNames,
   imagesId,
+  imagesSchema,
   releaseFile,
   type BuildConfiguration,
+  type Images,
 } from "@lictory/core/release/images";
+import {
+  attestationSubjects,
+  licenseAssets,
+  sbomAssets,
+} from "@lictory/core/release/attestations";
 import {
   baselineSchema,
   fingerprint,
@@ -130,6 +137,88 @@ function buildConfiguration(
   };
 }
 
+// A stable candidate must still be the one the plan selected.
+async function validateCandidate(
+  github: GitHub,
+  graphRoot: string,
+  manifest: Manifest,
+  registry: string,
+) {
+  if (manifest.channel !== "stable") return;
+  const current = await planProduction(
+    github,
+    graphRoot,
+    manifest.sourceNightly!,
+    registry,
+    bootstrap(),
+  );
+  sameManifest(current, manifest);
+}
+
+async function inspectImage(reference: string, format: string) {
+  return JSON.parse(
+    (
+      await promisify(execFile)(
+        "docker",
+        ["buildx", "imagetools", "inspect", reference, "--format", format],
+        { maxBuffer: 256 * 1024 * 1024 },
+      )
+    ).stdout,
+  ) as unknown;
+}
+
+/**
+ * The multi-platform images of this release: the journaled build when a
+ * retry finds one, otherwise the native builds joined in the registry (or,
+ * without native builds, one multi-platform build). These are the digests
+ * the workflow signs before `publish` releases them.
+ */
+async function assemble(
+  github: GitHub,
+  graphRoot: string,
+  root: string,
+  manifest: Manifest,
+): Promise<Images> {
+  if ((await git(root, "rev-parse", "HEAD")) !== manifest.sha)
+    throw new Error("Source checkout is not the selected release commit.");
+  const registry = required("IMAGE_REGISTRY");
+  await validateCandidate(github, graphRoot, manifest, registry);
+  const journaled = await journaledBuild(github, manifest, registry);
+  if (journaled) return journaled.images;
+  const previousProxyImage = await latestProxy(
+    github,
+    registry,
+    manifest.channel,
+  );
+  const directory = optional("NATIVE_BUILDS_DIRECTORY");
+  if (directory)
+    return mergeArchitectureBuilds(
+      await Promise.all(
+        releaseArchitectures.map(
+          async (arch) =>
+            JSON.parse(
+              await readFile(resolve(directory, `${arch}.json`), "utf8"),
+            ) as unknown,
+        ),
+      ),
+      manifest,
+      registry,
+      previousProxyImage,
+      runCommand,
+      root,
+      async (tag) =>
+        z
+          .object({ digest: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
+          .parse(await inspectImage(tag, "{{json .Manifest}}")).digest,
+    );
+  await injectVersion(root, manifest.version);
+  return buildImages(
+    root,
+    manifest,
+    buildConfiguration(registry, previousProxyImage),
+  );
+}
+
 async function publish(
   github: GitHub,
   graphRoot: string,
@@ -137,73 +226,32 @@ async function publish(
   manifest: Manifest,
   runId: number,
 ) {
+  const registry = required("IMAGE_REGISTRY");
+  // The images the workflow signed and attested (`assemble`); without them,
+  // assembled here (unsigned: local and fork runs).
+  const signed = optional("RELEASE_IMAGES");
+  const assembled = signed
+    ? assertImages(imagesSchema.parse(JSON.parse(signed)), registry)
+    : await assemble(github, graphRoot, root, manifest);
   if ((await git(root, "rev-parse", "HEAD")) !== manifest.sha)
     throw new Error("Source checkout is not the selected release commit.");
-  const registry = required("IMAGE_REGISTRY");
-  // A stable candidate must still be the one the plan selected.
-  const validate = async () => {
-    if (manifest.channel !== "stable") return;
-    const current = await planProduction(
-      github,
-      graphRoot,
-      manifest.sourceNightly!,
-      registry,
-      bootstrap(),
-    );
-    sameManifest(current, manifest);
-  };
+  const licenses = optional("LICENSE_REPORT_DIRECTORY");
   const releaseUrl = `https://github.com/${github.repository}/releases/tag/${manifest.tag}`;
-  await injectVersion(root, manifest.version);
   const build = await executeRelease(manifest, {
-    validate,
-    active: () => journaledBuild(github, manifest, registry),
-    build: async () => {
-      const previousProxyImage = await latestProxy(
-        github,
-        registry,
-        manifest.channel,
-      );
-      const directory = optional("NATIVE_BUILDS_DIRECTORY");
-      const images = directory
-        ? await mergeArchitectureBuilds(
-            await Promise.all(
-              releaseArchitectures.map(
-                async (arch) =>
-                  JSON.parse(
-                    await readFile(resolve(directory, `${arch}.json`), "utf8"),
-                  ) as unknown,
-              ),
-            ),
-            manifest,
-            registry,
-            previousProxyImage,
-            runCommand,
-            root,
-            async (tag) =>
-              z
-                .object({ digest: z.string().regex(/^sha256:[a-f0-9]{64}$/) })
-                .parse(
-                  JSON.parse(
-                    (
-                      await promisify(execFile)("docker", [
-                        "buildx",
-                        "imagetools",
-                        "inspect",
-                        tag,
-                        "--format",
-                        "{{json .Manifest}}",
-                      ])
-                    ).stdout,
-                  ) as unknown,
-                ).digest,
-          )
-        : await buildImages(
-            root,
-            manifest,
-            buildConfiguration(registry, previousProxyImage),
-          );
-      return { id: imagesId(images), url: releaseUrl, images };
+    validate: () => validateCandidate(github, graphRoot, manifest, registry),
+    active: async () => {
+      const journaled = await journaledBuild(github, manifest, registry);
+      if (journaled && journaled.id !== imagesId(assembled))
+        throw new Error(
+          `${manifest.tag} already published other images than the ones signed in this run; retry the whole workflow.`,
+        );
+      return journaled;
     },
+    build: async () => ({
+      id: imagesId(assembled),
+      url: releaseUrl,
+      images: assembled,
+    }),
     record: async (build) =>
       (
         await github.recordDeployment(manifest, {
@@ -224,6 +272,23 @@ async function publish(
         releaseFile(manifest, build.images),
         reserved,
       );
+      // Copies of the evidence in the registry, for review without Docker.
+      const assets = [
+        ...(await sbomAssets(build.images, (reference) =>
+          inspectImage(reference, "{{json .SBOM}}"),
+        )),
+        ...(licenses ? await licenseAssets(licenses) : []),
+      ];
+      for (const asset of assets)
+        await github.attach(
+          manifest,
+          asset.name,
+          asset.body,
+          reserved,
+          asset.name.endsWith(".json")
+            ? "application/json"
+            : "text/plain; charset=utf-8",
+        );
     },
     publish: async () => {
       await github.publish(manifest);
@@ -340,7 +405,7 @@ try {
   const [command, planPath, sourcePath, ...extra] = process.argv.slice(2);
   if (!command || !planPath || extra.length)
     throw new Error(
-      "Usage: bun run release <plan-nightly|plan-release|build|publish> <plan.json> [source-directory]",
+      "Usage: bun run release <plan-nightly|plan-release|build|assemble|publish> <plan.json> [source-directory]",
     );
   const graphRoot = resolve(import.meta.dirname, "..");
   const github = new GitHub(
@@ -432,7 +497,7 @@ try {
         images,
       }),
     );
-  } else if (command === "publish") {
+  } else if (command === "assemble" || command === "publish") {
     const manifest = manifestSchema.parse(
       JSON.parse(await readFile(planPath, "utf8")),
     );
@@ -460,7 +525,23 @@ try {
       throw new Error(
         "Only the protected Release workflow on main can publish a stable release.",
       );
-    await publish(github, graphRoot, resolve(sourcePath), manifest, runId);
+    if (command === "assemble") {
+      const images = await assemble(
+        github,
+        graphRoot,
+        resolve(sourcePath),
+        manifest,
+      );
+      // `images` for publish, `subjects` (repository and digest per image)
+      // for signing and attestation.
+      if (process.env.GITHUB_OUTPUT)
+        await appendFile(
+          process.env.GITHUB_OUTPUT,
+          `images=${JSON.stringify(images)}\nsubjects=${JSON.stringify(attestationSubjects(images))}\n`,
+        );
+      console.log(JSON.stringify(images, null, 2));
+    } else
+      await publish(github, graphRoot, resolve(sourcePath), manifest, runId);
   } else throw new Error(`Unknown release command: ${command}`);
 } catch (error) {
   console.error(

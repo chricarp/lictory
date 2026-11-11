@@ -33,6 +33,9 @@ and release:
 - Inventory the exact distributed dependency binaries, Linux variants and
   container layers. `bun run licenses:report /tmp/lictory-licenses` inventories
   the installed tree, not every release artifact; see the notices for its limits.
+  Every release attaches that report for its source and an SPDX SBOM per image
+  and platform, the container-level inventory
+  ([signatures and attestations](releases.md#signatures-and-attestations)).
 - Keep credentials, personal data, customer content and internal hostnames out
   of commits, release assets, Actions logs/artifacts, images/layers and
   issue/PR attachments. Keep findings outside Git and revoke an exposed

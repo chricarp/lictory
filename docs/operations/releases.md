@@ -251,6 +251,62 @@ Nightly and Stable share a verified source commit, not byte-identical images:
 their versions differ. Neither embeds a domain or analytics setting; each
 server supplies them at runtime from its `.env` ([deployment](deployment.md)).
 
+## Signatures and attestations
+
+Every published release, nightly and stable, carries evidence that its images
+came from this repository's release workflow and what they contain:
+
+| Evidence                                      | Where                                         | Covers                                                                                                                                                                                                        |
+| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SPDX SBOM and SLSA provenance (`mode=max`)    | BuildKit attestations inside each image index | Packages in each platform image; build arguments, Dockerfile, base images and source commit (`vcs:revision`) of each build. The images take no build secrets, so full provenance records nothing confidential |
+| Keyless cosign signature                      | The registry, next to the image               | The index digest, signed with the workflow run's identity (Sigstore public good, logged in Rekor)                                                                                                             |
+| GitHub artifact attestation (SLSA provenance) | GitHub's attestation API and the registry     | The index digest, the workflow run that published it and the protected `main` commit that controlled it                                                                                                       |
+| SBOM files and license report                 | GitHub Release assets                         | `lictory-<image>-linux-<arch>.spdx.json` (from the attestations above), `third-party-licenses.json` and `THIRD_PARTY_NOTICES.txt` (`bun run licenses:report` of the release source)                           |
+
+An image index lists its platform images and their attestation manifests by
+digest, so a signature or attestation of the index digest covers all of them.
+`release.env` pins exactly these index digests.
+
+**Order.** The publish job joins the native builds into multi-platform images
+(`bun run release assemble`), signs and attests their digests
+(`.github/actions/sign-images`), collects the license report of the source,
+and only then reserves the tag, attaches `release.env`, the SBOMs and the
+license report to the draft, and publishes. A release whose images could not
+be signed is never published; retry the failed job. A retry that finds the
+journaled build signs the same digests again (an extra signature is
+harmless) instead of rebuilding.
+
+**Least privilege.** Only the publish job holds `id-token: write` (to request
+a signing certificate) and `attestations: write`. The build jobs, which run
+the Dockerfile, cannot sign. The license step installs the source's packages
+with `--ignore-scripts`, so no dependency code of the release source runs in
+the job that signs. The repository is public, which GitHub requires for
+artifact attestations on its free plans.
+
+**Stable promotion rebuilds; nothing is re-tagged.** A stable release
+rebuilds the nightly's source commit with the stable version (see
+[Release](#release)), so its images have new digests, signed and attested by
+the Release workflow. The nightly's own digests, signatures and attestations
+are untouched: signatures are bound to digests, not tags, and stay valid
+when a tag moves or a nightly's GitHub Release is pruned. The signing
+identity tells the channels apart:
+
+| Channel                           | Certificate identity (workflow)                                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| Stable                            | `https://github.com/chricarp/lictory/.github/workflows/release.yml@refs/heads/main` |
+| Nightly from `main`               | `https://github.com/chricarp/lictory/.github/workflows/nightly.yml@refs/heads/main` |
+| Nightly from a maintenance branch | `…/nightly.yml@refs/heads/release/<major>.<minor>`                                  |
+
+The workflow ref is the controller, not the application source: the
+application commit is the release's `LICTORY_GIT_SHA`, also recorded as the
+image label `org.opencontainers.image.revision` and in the BuildKit
+provenance.
+
+Operators verify a release before installing it with `gh attestation verify`
+or `cosign verify`; see [verify release images](self-hosting.md#verify-release-images).
+A fork that publishes its own releases signs with its own repository's
+identity and must document that identity for its users.
+
 ## Hotfixes
 
 Open a protected `release/<major>.<minor>` branch from the **current stable
