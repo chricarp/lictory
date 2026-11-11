@@ -2,7 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 
 function storedConsents(page: Page) {
   return page.evaluate(() => {
-    const stored = JSON.parse(localStorage.getItem("c15t") ?? "null") as {
+    const stored = JSON.parse(
+      localStorage.getItem("lictory_consent") ?? "null",
+    ) as {
       consents?: Record<string, boolean>;
     } | null;
     return stored?.consents;
@@ -17,6 +19,9 @@ test("visitors choose analytics consent and can reopen their choice", async ({
   await page.goto("/");
   const reject = page.getByRole("button", { name: "Reject All" });
   await expect(reject).toBeVisible();
+  await expect(
+    page.getByText(/One choice for lictory\.com and docs\.lictory\.com/),
+  ).toBeVisible();
   // Rejecting is as visible and as easy as accepting: same look, one click.
   expect(await reject.getAttribute("class")).toBe(
     await page

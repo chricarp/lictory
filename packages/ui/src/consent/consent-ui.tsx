@@ -78,8 +78,17 @@ function PreferencesButton({
   );
 }
 
-/** Without `privacyHref` (no configured notice) the banner links nowhere. */
-export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
+/**
+ * Without `privacyHref` (no configured notice) the banner links nowhere.
+ * `sites` names the websites one shared choice covers.
+ */
+export function ConsentBanner({
+  privacyHref,
+  sites,
+}: {
+  privacyHref?: string;
+  sites?: string;
+}) {
   const { banner, performBannerAction, openDialog } = useHeadlessConsentUI();
   const t = useTranslations();
   const [pending, setPending] = useState(false);
@@ -117,6 +126,7 @@ export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
             {browserAnalyticsSettings()?.consent === "cookieless"
               ? "Visits are counted without cookies. Analytics cookies are optional and need your permission."
               : "Optional analytics cookies need your permission."}
+            {sites && ` One choice for ${sites}.`}
             {privacyHref && (
               <>
                 {" "}
@@ -193,7 +203,7 @@ function Switch({
   );
 }
 
-export function ConsentDialog() {
+export function ConsentDialog({ sites }: { sites?: string }) {
   const { dialog, closeUI, performDialogAction, saveCustomPreferences } =
     useHeadlessConsentUI();
   const { getDisplayedConsents, selectedConsents, setSelectedConsent } =
@@ -262,8 +272,8 @@ export function ConsentDialog() {
               id={descriptionId}
               className="mt-1 text-[13px] leading-snug text-foreground/65"
             >
-              Choose which optional data Lictory may collect in this browser.
-              You can change this at any time.
+              Choose which optional data Lictory may collect in this browser
+              {sites ? ` on ${sites}` : ""}. You can change this at any time.
             </p>
           </div>
           <button

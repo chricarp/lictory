@@ -19,9 +19,10 @@ Two different things need legal notices, and they never share them:
 The websites accept no user input: no accounts, forms, comments or uploads,
 and documentation search runs in the browser. The notices therefore cover only
 request data at Cloudflare, PostHog analytics on both websites (through each
-Worker's first-party `/relay`, behind the c15t consent banner; cookieless
-before a choice and after a rejection, a first-party identifier only with
-consent; see [product analytics](../internals/analytics.md#consent)) and email
+Worker's first-party `/relay`, behind the c15t consent banner; one choice for
+both sites; cookieless before a choice and after a rejection, a first-party
+identifier shared by both sites only with consent; see
+[product analytics](../internals/analytics.md#consent)) and email
 correspondence. One notice in `apps/marketing` covers both websites; the
 documentation links to it.
 

@@ -53,17 +53,17 @@ The websites contain no social media buttons, embedded videos, maps or advertisi
 - **lictory.com:** clicks on the Get started and GitHub links, with where on the page the link was.
 - **docs.lictory.com:** that search was opened and which result page was chosen (not the search terms); that a code block was copied and, for documented commands, which command (not the copied text); and clicks on the GitHub and Website links in the navigation.
 
-**Your choice.** The first time you visit a website, a banner offers **Accept All**, **Reject All** and **Customize**, with equal weight. Each website asks separately: a choice on lictory.com does not apply to docs.lictory.com.
+**Your choice.** The first time you visit, a banner offers **Accept All**, **Reject All** and **Customize**, with equal weight. **One choice covers both websites**: what you choose on lictory.com also applies on docs.lictory.com, and the other way round, so you are asked once.
 
 - **Until you choose, and after you reject: cookieless statistics.** Nothing that identifies you or your browser is stored on your device: no analytics cookie and no identifier, only PostHog's record that you have not consented (section 5). PostHog counts unique visitors with a one-way hash of your IP address, user-agent and the website's name combined with a secret that changes every day and is then deleted, so the same visitor cannot be recognized from one day to the next. PostHog removes the IP address before it processes these events, so they carry no IP address, no location and no persistent identifier. They are pseudonymous rather than anonymous, so we treat them as personal data. The legal basis is our legitimate interest in measuring the reach of an open-source project with minimal data (Article 6(1)(f) GDPR). We consider that this interest is not overridden by your rights because the data are minimized, used only by us for aggregate statistics about our own websites, never used to profile you, and processed by PostHog only on our behalf. For the same reasons we use this measurement without asking consent, as the Garante's cookie guidelines allow for analytics tools that serve only aggregate statistics for the site that uses them. You can object at any time (section 9).
-- **If you accept: statistics with a browser identifier.** PostHog additionally stores a random identifier in a cookie and in local storage on that website, so it can recognize repeat visits from the same browser, and derives an approximate location (country and city) from your IP address. The IP address itself is not stored with the events, and the identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR, and Article 122 of the Italian Privacy Code, Legislative Decree 196/2003, which implements Article 5(3) of the ePrivacy Directive).
+- **If you accept: statistics with a browser identifier.** PostHog additionally stores a random identifier in a cookie shared by lictory.com and docs.lictory.com, so it can recognize repeat visits from the same browser and see your visit as one journey across both websites, for example from the project website to the installation guide. It also derives an approximate location (country and city) from your IP address. The IP address itself is not stored with the events, and the identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR, and Article 122 of the Italian Privacy Code, Legislative Decree 196/2003, which implements Article 5(3) of the ePrivacy Directive).
 
-**Changing your mind.** Open **Privacy preferences**, in the footer of lictory.com or below the navigation of docs.lictory.com, to change your choice at any time. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which goes back to cookieless statistics. Withdrawal does not affect processing that took place before it, and it does not erase events already collected.`,
+**Changing your mind.** Open **Privacy preferences**, in the footer of lictory.com or below the navigation of docs.lictory.com, to change your choice at any time; the change applies to both websites. Withdrawing consent deletes PostHog's cookies and storage from your browser and reloads the page, which goes back to cookieless statistics; the other website follows the next time it loads. Withdrawal does not affect processing that took place before it, and it does not erase events already collected.`,
   },
   {
     id: "storage",
     title: "Cookies and similar storage",
-    body: `These are all the cookies and browser-storage entries the websites use. Each website keeps its own; none is shared between lictory.com and docs.lictory.com, and none is set by a third party. \`<token>\` stands for the public key of our PostHog project.
+    body: `These are all the cookies and browser-storage entries the websites use. None is set by a third party. Cookies marked *shared* are set for lictory.com and all its subdomains, so lictory.com and docs.lictory.com both read them; every other entry belongs to the one website that set it. \`<token>\` stands for the public key of our PostHog project.
 
 Entries marked *necessary* only record your choice or keep a feature working; the law does not require consent for them. The PostHog identifier is set only with your consent. You can delete all of them at any time in your browser's settings; the websites keep working without them.`,
     table: {
@@ -71,32 +71,38 @@ Entries marked *necessary* only record your choice or keep a feature working; th
       columns: ["Name", "Type and provider", "Purpose", "Kept for"],
       rows: [
         [
-          "c15t",
-          "Cookie and local storage, first party (c15t consent manager), both websites. Necessary.",
-          "Remembers your analytics choice, with a random identifier for the choice record and its date, so the banner does not appear again. Stays in your browser: no consent service receives it.",
+          "lictory_consent",
+          "Cookie (shared) and local storage, first party (c15t consent manager), both websites. Necessary.",
+          "Remembers your analytics choice for both websites, with a random identifier for the choice record and its date, so the banner does not appear again. Stays in your browser: no consent service receives it.",
           "Cookie: 1 year. Local storage: until you change your choice or clear site data.",
         ],
         [
           "lictory_analytics_consent",
-          "Cookie, first party, both websites. Necessary.",
+          "Cookie, first party, each website. Necessary.",
           "Records that you accepted analytics. Set only when you accept.",
           "1 year, or until you withdraw consent.",
         ],
         [
           "__ph_opt_in_out_<token>",
-          "Local storage, first party (PostHog), both websites. Necessary.",
+          "Cookie (shared), first party (PostHog), both websites. Necessary.",
           "Tells PostHog whether you consented, so it stays cookieless until you do. Holds 0 or 1, no identifier.",
-          "Until you clear site data.",
+          "1 year.",
         ],
         [
           "ph_<token>_posthog",
-          "Cookie and local storage, first party (PostHog), both websites. Analytics, only with consent.",
-          "Random identifier that recognizes repeat visits from your browser.",
+          "Cookie (shared) and local storage, first party (PostHog), both websites. Analytics, only with consent.",
+          "Random identifier that recognizes repeat visits from your browser on both websites.",
           "Cookie: 1 year. Local storage: until you withdraw consent or clear site data.",
         ],
         [
+          "ph_<token>_posthog_cpm",
+          "Cookie (shared), first party (PostHog), both websites. Analytics, only with consent.",
+          "Technical details about the identifier cookie, so both websites read the same identifier. Holds no identifier of its own.",
+          "1 year, or until you withdraw consent.",
+        ],
+        [
           "ph_<token>_*",
-          "Session storage, first party (PostHog), both websites. Analytics, only with consent.",
+          "Session storage, first party (PostHog), each website. Analytics, only with consent.",
           "Technical state of the current browsing session.",
           "Until you close the tab.",
         ],
