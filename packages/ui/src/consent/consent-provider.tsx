@@ -127,6 +127,12 @@ function sharedCookieDomain(domain: string) {
     : undefined;
 }
 
+function hasCookie(name: string) {
+  return document.cookie
+    .split(";")
+    .some((c) => c.trim().startsWith(`${name}=`));
+}
+
 /**
  * Removes the per-website consent record kept before consent was shared, and
  * the PostHog state that belonged to it, so the visitor is asked once more,
@@ -134,12 +140,15 @@ function sharedCookieDomain(domain: string) {
  */
 function removeUnsharedConsent() {
   try {
-    const legacy =
-      localStorage.getItem("c15t") !== null ||
-      document.cookie.split(";").some((c) => c.trim().startsWith("c15t="));
-    if (!legacy) return;
+    if (localStorage.getItem("c15t") === null && !hasCookie("c15t")) return;
     localStorage.removeItem("c15t");
     document.cookie = "c15t=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    // Already chosen for every website on another one: PostHog's shared
+    // cookies belong to that choice, so only this website's storage goes.
+    if (hasCookie(sharedConsentKey)) {
+      clearAnalyticsStorage({ cookies: false });
+      return;
+    }
     recordAnalyticsConsent(false);
     clearAnalyticsStorage();
   } catch {

@@ -197,8 +197,10 @@ export function clearAnalyticsOrganization() {
 /**
  * Removes PostHog's first-party identifiers after measurement consent is
  * withdrawn. c15t reloads the page next, and PostHog starts again cookieless.
+ * `cookies: false` leaves PostHog's cookies alone and clears only this
+ * origin's storage.
  */
-export function clearAnalyticsStorage() {
+export function clearAnalyticsStorage({ cookies = true } = {}) {
   const isPostHogKey = (key: string) =>
     key.startsWith("ph_") || key.startsWith("__ph_");
   try {
@@ -208,6 +210,7 @@ export function clearAnalyticsStorage() {
     for (const key of Object.keys(sessionStorage)) {
       if (isPostHogKey(key)) sessionStorage.removeItem(key);
     }
+    if (!cookies) return;
     // PostHog may scope its cookie to a parent domain; expire every candidate.
     const labels = location.hostname.split(".");
     const domains = [""];
