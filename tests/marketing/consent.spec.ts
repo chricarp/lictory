@@ -17,6 +17,12 @@ test("visitors choose analytics consent and can reopen their choice", async ({
   await page.goto("/");
   const reject = page.getByRole("button", { name: "Reject All" });
   await expect(reject).toBeVisible();
+  // Rejecting is as visible and as easy as accepting: same look, one click.
+  expect(await reject.getAttribute("class")).toBe(
+    await page
+      .getByRole("button", { name: "Accept All" })
+      .getAttribute("class"),
+  );
   await reject.focus();
   await page.keyboard.press("Enter");
   await expect(reject).toBeHidden();

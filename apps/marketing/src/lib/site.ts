@@ -65,7 +65,19 @@ export const marketingImage = {
  * Date the published legal notices took effect. Shown on the pages and
  * reported to search engines, so change it only when their text changes.
  */
-export const legalVersion = { date: "2026-11-05", label: "5 November 2026" };
+export const legalVersion = { date: "2026-11-11", label: "11 November 2026" };
+
+/**
+ * Who runs lictory.com and docs.lictory.com: the controller named in the
+ * privacy notice and the contact for both legal pages. A private individual,
+ * so there is no company name, VAT number or register entry to show; add them
+ * here (and to the notices) if a business ever operates the websites.
+ */
+export const legalOperator = {
+  name: "Christian Carpinelli",
+  description: "Private individual, Rome, Italy",
+  email: "me@chricarp.com",
+} as const;
 
 export type PublicPage = {
   path: string;
@@ -128,14 +140,14 @@ export const publicPages: readonly PublicPage[] = [
     path: "/privacy",
     title: "Privacy Notice",
     description:
-      "Which personal data the Lictory websites process, including cookieless analytics on lictory.com, and how to exercise your privacy rights.",
+      "Which personal data lictory.com and docs.lictory.com process, which cookies they use, and how to exercise your privacy rights.",
     changeFrequency: "yearly",
     priority: 0.3,
     lastModified: legalVersion.date,
   },
   {
     path: "/terms-of-service",
-    title: "Terms of Service",
+    title: "Terms of Use",
     description:
       "Terms for using the Lictory project websites, lictory.com and docs.lictory.com.",
     changeFrequency: "yearly",

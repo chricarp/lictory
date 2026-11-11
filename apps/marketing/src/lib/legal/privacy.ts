@@ -1,93 +1,144 @@
 import type { LegalSection } from "@lictory/marketing/components/legal/legal-document";
 
-// The lictory.com operator's own notice for the two public websites. It is
-// operator content, not part of the Lictory software: self-hosted
-// installations never show it (docs/operations/legal.md). The operator's
-// identity comes from the build environment (LegalOperator), never from here.
-// When the websites' processing changes (analytics settings, ANALYTICS_CONSENT,
-// hosting, new third-party services), update this notice in the same change.
+// The privacy notice for lictory.com and docs.lictory.com (GDPR Article 13,
+// and the Garante's cookie guidelines of 10 June 2021). Operator content, never
+// shown by a self-hosted installation (docs/operations/legal.md). Every
+// statement here must match what the code and the provider settings do: when
+// the websites' processing changes (analytics settings, ANALYTICS_CONSENT, the
+// consent banner, hosting, new services or storage), update this notice and
+// `legalVersion` in the same change.
 export const privacySections: LegalSection[] = [
   {
-    id: "scope",
-    title: "Who is responsible and what this notice covers",
-    body: `The operator identified in the box above is the **controller** of the personal data described here, within the meaning of Regulation (EU) 2016/679 (General Data Protection Regulation, GDPR). Write to the email address shown there about anything in this notice.
+    id: "controller",
+    title: "Who is responsible",
+    body: `The **controller** of the personal data described here, within the meaning of Regulation (EU) 2016/679 (the General Data Protection Regulation, GDPR), is **Christian Carpinelli**, a private individual in Rome, Italy, who runs the Lictory open-source project and its websites. Write to **[me@chricarp.com](mailto:me@chricarp.com)** about anything in this notice or to exercise your rights.
 
-This notice covers the two public websites of the Lictory open-source project:
+We have not appointed a data protection officer: Article 37 GDPR does not require one for these websites.`,
+  },
+  {
+    id: "scope",
+    title: "What this notice covers",
+    body: `This notice covers the two public websites of the Lictory project:
 
 - **lictory.com** (and www.lictory.com), the project website; and
 - **docs.lictory.com**, the documentation.
 
-It does not cover a Lictory installation. Lictory is self-hosted software: each installation is run by its own operator, who controls the data of its users and is responsible for its own privacy notice. Installations send no telemetry to the Lictory project or to us, and connect to external services only when their operator configures them; the [self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy) lists each one. We cannot see, export, correct or delete data in an installation: send requests about that data to the installation's operator.
+Both websites are hosted and measured in the same way, and this notice says where they differ. You cannot create an account, sign in, fill in a form, comment or upload anything on either website. Documentation search runs entirely in your browser, using an index downloaded with the page, so your search terms are not sent to us.
 
-It also does not cover GitHub, where the source code, issues, discussions and release images (ghcr.io/chricarp/lictory-*) are hosted; GitHub is a separate controller under its own privacy statement. Downloading the source code or the release images sends no data to us.`,
+This notice does not cover:
+
+- **A Lictory installation.** Lictory is self-hosted software. Whoever runs an installation, usually your employer or organization, controls its users' data and provides its own privacy notice. Installations send no telemetry to us; the [self-hosting privacy page](https://docs.lictory.com/self-hosting/privacy) lists what an installation connects to.
+- **GitHub**, where the source code, issues, discussions and release images are hosted. GitHub is a separate controller under the [GitHub General Privacy Statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement). The websites link to GitHub but do not embed it: GitHub receives data about you only when you follow a link there.
+
+The websites contain no social media buttons, embedded videos, maps or advertising, and load no fonts or images from other websites. They do not link to X or other social networks. Like most websites, they include preview metadata so that a link someone shares shows a title and image; the network that displays the preview fetches it, and no data about you is sent to us or to it when you visit.`,
   },
   {
-    id: "no-input",
-    title: "No accounts, forms or uploads",
-    body: `You cannot create an account, sign in, fill in a form, comment or upload anything on these websites. Documentation search runs entirely in your browser, using an index downloaded with the page: your search terms are not sent to us.
+    id: "hosting",
+    title: "Hosting and security",
+    body: `**What.** When your browser requests a page, our hosting provider receives your IP address, the date and time, the requested address, the referring page and your browser's user-agent string (browser, version and operating system), as it would for any website.
 
-We therefore process only:
+**Why and on what basis.** To deliver the pages, keep them available and protect them against attacks and abuse. This is necessary for our legitimate interest in running secure websites (Article 6(1)(f) GDPR). A website cannot be delivered without it.
 
-1. the technical data any website needs to deliver its pages (section 3);
-2. privacy-friendly usage statistics (section 4); and
-3. the messages you choose to send us (section 5).
-
-We do not sell personal data, use it for advertising, build profiles of visitors or make automated decisions about anyone. Analytics are never required to read the websites or to download, install or use Lictory.`,
-  },
-  {
-    id: "delivery",
-    title: "Delivering the websites",
-    body: `**What.** When your browser requests a page, our hosting provider receives your IP address, the date and time, the requested address, the referring page and your browser's user-agent string (browser, version and operating system).
-
-**Why and on what basis.** To deliver the pages, keep them available and protect them against attacks and abuse. This is necessary for our legitimate interests in operating secure websites (Article 6(1)(f) GDPR), and you cannot use a website without it.
-
-**Who.** Both websites are static files served by **Cloudflare, Inc.**, which processes these data on our behalf as a processor under its data processing addendum. We keep no access logs of our own. Cloudflare may keep security and network records for a short period, as described in its own documentation. Cloudflare operates a global network, so a request can be handled in a data centre outside the European Economic Area; such transfers rely on the safeguards in Cloudflare's data processing addendum, such as the European Commission's standard contractual clauses.
-
-The pages load no third-party scripts, fonts, images or embedded content: fonts and images are served from the same website.`,
+**Who.** Both websites are served by **Cloudflare, Inc.**, which processes these data on our behalf as a processor under its data processing addendum. A small program on Cloudflare also runs the /relay path used for visit statistics (section 4). We have not enabled request logging for the websites, so we keep no access logs of our own. Cloudflare sets no cookies on the websites.`,
   },
   {
     id: "analytics",
-    title: "Usage statistics",
-    body: `We use **PostHog** to understand how many people visit lictory.com and docs.lictory.com and which pages they find useful. Both websites work the same way, with separate choices: a choice made on one does not apply to the other. On docs.lictory.com we also record that the search was opened and which page was chosen from the results (never what you typed), that a code block was copied and which command it showed (never the copied text), and clicks on the GitHub and Website links in its navigation.
+    title: "Visit statistics (PostHog)",
+    body: `We use **PostHog** to learn how many people visit the websites and which pages they find useful. We do not use the data for advertising, do not sell it and do not combine it with other data.
 
-Your browser never contacts PostHog directly: requests go to /relay on the website you are visiting and are forwarded to PostHog's EU servers. The relay forwards the event with your IP address and your browser's user-agent and language (PostHog needs the first two for the visitor count described below), never cookies. Session recording, heatmaps, click capture, page text and form capture are all disabled. Addresses are sent without their query string or fragment, and page titles are removed.
+**How it reaches PostHog.** Your browser never contacts PostHog directly. Requests go to the path /relay on the website you are visiting, which forwards them to PostHog's EU servers. The relay forwards your IP address, your browser's user-agent and language, and the event itself; it never forwards cookies or sets them. Session recording, heatmaps, automatic click capture and error reports are switched off. Page addresses are sent without their query string or fragment, and page titles are removed.
 
-The first time you visit, a banner lets you choose. Until you accept, and whenever you reject or withdraw consent, statistics are collected **without cookies**:
+**What is recorded.** The page viewed, the referring page, browser, operating system, device type and screen size. The websites also record a few actions, never anything you type:
 
-- **Without your consent (cookieless).** Nothing is stored on your device to recognize you: no analytics cookie and no identifier in local storage. PostHog counts unique visitors with a hash of your IP address, user-agent and a secret salt that changes every day, so the same visitor cannot be followed from one day to the next. PostHog does not store your IP address with the events. Events record the page viewed, the referring page, browser, operating system, device type, screen size and an approximate location (country and city) derived from your IP address. These events are pseudonymous rather than anonymous, so we treat them as personal data. The legal basis is our legitimate interest in measuring the reach and usefulness of an open-source project with minimal data (Article 6(1)(f) GDPR). We consider this interest not to be overridden by your interests or rights, because the data are minimized, cannot be linked to your name, and are never used for advertising.
-- **With your consent.** PostHog also stores a random identifier in a first-party cookie and in local storage on that website, so that repeat visits from the same browser can be recognized. The identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR and the national rules implementing Article 5(3) of the ePrivacy Directive). You can withdraw it at any time.
+- **lictory.com:** clicks on the Get started and GitHub links, with where on the page the link was.
+- **docs.lictory.com:** that search was opened and which result page was chosen (not the search terms); that a code block was copied and, for documented commands, which command (not the copied text); and clicks on the GitHub and Website links in the navigation.
 
-Open **Privacy preferences** in the footer of lictory.com or below the navigation of docs.lictory.com to change your choice at any time. Your choice is stored in your browser by the c15t consent manager, without an external consent service. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which returns to cookieless statistics. It does not affect the lawfulness of processing before withdrawal, and it does not erase events already collected.
+**Your choice.** The first time you visit a website, a banner offers **Accept All**, **Reject All** and **Customize**, with equal weight. Each website asks separately: a choice on lictory.com does not apply to docs.lictory.com.
 
-**Processor and location.** PostHog Inc. processes these data on our behalf under its data processing agreement, in its EU cloud region. If PostHog or one of its subprocessors accesses data from outside the European Economic Area, the transfer relies on the safeguards in that agreement, such as the European Commission's standard contractual clauses or the EU-U.S. Data Privacy Framework where the recipient is certified.`,
-  },
-  {
-    id: "contact",
-    title: "Messages you send us",
-    body: `If you email us, we process your email address, your name if you give it, and the content of your message, to answer you and handle your request. The legal basis is our legitimate interest in responding to people who contact us (Article 6(1)(f) GDPR), or steps you ask us to take before entering into an agreement (Article 6(1)(b)). Where you exercise a privacy right, or binding law otherwise requires it, we process the request to comply with our legal obligations (Article 6(1)(c)).
+- **Until you choose, and after you reject: cookieless statistics.** Nothing that identifies you or your browser is stored on your device: no analytics cookie and no identifier, only PostHog's record that you have not consented (section 5). PostHog counts unique visitors with a one-way hash of your IP address, user-agent and the website's name combined with a secret that changes every day and is then deleted, so the same visitor cannot be recognized from one day to the next. PostHog removes the IP address before it processes these events, so they carry no IP address, no location and no persistent identifier. They are pseudonymous rather than anonymous, so we treat them as personal data. The legal basis is our legitimate interest in measuring the reach of an open-source project with minimal data (Article 6(1)(f) GDPR). We consider that this interest is not overridden by your rights because the data are minimized, used only by us for aggregate statistics about our own websites, never used to profile you, and processed by PostHog only on our behalf. For the same reasons we use this measurement without asking consent, as the Garante's cookie guidelines allow for analytics tools that serve only aggregate statistics for the site that uses them. You can object at any time (section 9).
+- **If you accept: statistics with a browser identifier.** PostHog additionally stores a random identifier in a cookie and in local storage on that website, so it can recognize repeat visits from the same browser, and derives an approximate location (country and city) from your IP address. The IP address itself is not stored with the events, and the identifier is not linked to your name or email address. The legal basis is your consent (Article 6(1)(a) GDPR, and Article 122 of the Italian Privacy Code, Legislative Decree 196/2003, which implements Article 5(3) of the ePrivacy Directive).
 
-Our email provider processes these messages on our behalf. Do not send sensitive information, such as health data, that your message does not need.
-
-Feedback about the software belongs in the project's GitHub repository, where GitHub's terms and privacy statement apply.`,
+**Changing your mind.** Open **Privacy preferences**, in the footer of lictory.com or below the navigation of docs.lictory.com, to change your choice at any time. Withdrawing consent deletes PostHog's cookie and storage from your browser and reloads the page, which goes back to cookieless statistics. Withdrawal does not affect processing that took place before it, and it does not erase events already collected.`,
   },
   {
     id: "storage",
-    title: "Cookies and local storage",
-    body: `These are all the cookies and local-storage entries the websites use:
+    title: "Cookies and similar storage",
+    body: `These are all the cookies and browser-storage entries the websites use. Each website keeps its own; none is shared between lictory.com and docs.lictory.com, and none is set by a third party. \`<token>\` stands for the public key of our PostHog project.
 
-- **\`c15t\`** (cookie and local storage, both websites): remembers your analytics choice so the banner does not appear again. Kept for 1 year or until you change your choice.
-- **\`lictory_analytics_consent\`** (cookie, both websites): records that you granted analytics consent. Kept for 1 year and deleted when you withdraw.
-- **\`ph_…\`** (cookie and local storage, both websites): PostHog's analytics identifier, set **only with your consent**. Kept for up to 1 year and deleted when you withdraw. Without consent, PostHog stores only a flag telling it to stay cookieless.
-- **\`theme\`** (local storage, docs.lictory.com): remembers light or dark mode if you change it, until you clear site data.
+Entries marked *necessary* only record your choice or keep a feature working; the law does not require consent for them. The PostHog identifier is set only with your consent. You can delete all of them at any time in your browser's settings; the websites keep working without them.`,
+    table: {
+      caption: "Cookies and browser storage used by the websites",
+      columns: ["Name", "Type and provider", "Purpose", "Kept for"],
+      rows: [
+        [
+          "c15t",
+          "Cookie and local storage, first party (c15t consent manager), both websites. Necessary.",
+          "Remembers your analytics choice, with a random identifier for the choice record and its date, so the banner does not appear again. Stays in your browser: no consent service receives it.",
+          "Cookie: 1 year. Local storage: until you change your choice or clear site data.",
+        ],
+        [
+          "lictory_analytics_consent",
+          "Cookie, first party, both websites. Necessary.",
+          "Records that you accepted analytics. Set only when you accept.",
+          "1 year, or until you withdraw consent.",
+        ],
+        [
+          "__ph_opt_in_out_<token>",
+          "Local storage, first party (PostHog), both websites. Necessary.",
+          "Tells PostHog whether you consented, so it stays cookieless until you do. Holds 0 or 1, no identifier.",
+          "Until you clear site data.",
+        ],
+        [
+          "ph_<token>_posthog",
+          "Cookie and local storage, first party (PostHog), both websites. Analytics, only with consent.",
+          "Random identifier that recognizes repeat visits from your browser.",
+          "Cookie: 1 year. Local storage: until you withdraw consent or clear site data.",
+        ],
+        [
+          "ph_<token>_*",
+          "Session storage, first party (PostHog), both websites. Analytics, only with consent.",
+          "Technical state of the current browsing session.",
+          "Until you close the tab.",
+        ],
+        [
+          "theme",
+          "Local storage, first party, docs.lictory.com only. Necessary.",
+          "Remembers light or dark mode, if you choose one.",
+          "Until you clear site data.",
+        ],
+      ],
+    },
+  },
+  {
+    id: "contact",
+    title: "Emails you send us",
+    body: `If you email us, we process your email address, your name if you give it, and the content of your message, to answer you and handle your request. The legal basis is our legitimate interest in replying to people who write to us (Article 6(1)(f) GDPR). When you exercise a privacy right, we process your request to comply with our legal obligations (Article 6(1)(c)). Our email provider processes these messages on our behalf. Please do not send sensitive information, such as health data, that your message does not need.`,
+  },
+  {
+    id: "recipients",
+    title: "Recipients and transfers outside the EU",
+    body: `Your data is processed by us and by these processors, each acting only on our instructions under a data processing agreement:
 
-Apart from the PostHog identifier, these entries only remember choices you made; storing them does not require consent. The relay never forwards any of these cookies to PostHog. You can delete all of them at any time in your browser's settings.`,
+- **Cloudflare, Inc.** (United States), which hosts and protects both websites (section 3).
+- **PostHog Inc.** (United States), whose EU cloud stores the visit statistics in the European Union (section 4).
+- Our email provider, for messages you send us (section 6).
+
+We do not sell or share personal data with anyone else, except where the law requires disclosure to a public authority.
+
+Both providers are based in the United States, Cloudflare handles a request in the data centre nearest to you, which may be outside the European Economic Area, and PostHog's data processing agreement allows processing in the United States. These transfers are covered by:
+
+- the **EU–U.S. Data Privacy Framework**, under which the European Commission has found that certified companies protect personal data adequately (Commission Implementing Decision (EU) 2023/1795). Cloudflare, Inc. and PostHog Inc. are both certified, as the [Data Privacy Framework list](https://www.dataprivacyframework.gov/list) shows; and
+- the European Commission's **standard contractual clauses** (Decision (EU) 2021/914), which PostHog's data processing agreement includes as well, and which Cloudflare's applies if its certification lapses.
+
+You can ask us for a copy of these safeguards at the address in section 1.`,
   },
   {
     id: "retention",
-    title: "How long we keep data",
-    body: `- **Request data at Cloudflare:** only as long as Cloudflare needs it to deliver the pages and protect its network.
-- **Usage statistics:** deleted after at most 12 months; aggregated counts that no longer relate to a visitor may be kept longer.
-- **Emails:** for as long as needed to handle your request, normally no longer than 24 months after the last exchange, unless a legal claim or obligation requires keeping them longer.`,
+    title: "How long data is kept",
+    body: `- **Hosting and security records at Cloudflare:** Cloudflare keeps no request logs for us. Its traffic analytics for our websites, which can include visitors' IP addresses, cover a rolling period of about one month. Cloudflare keeps its own network security records only as long as needed to protect its network.
+- **Visit statistics at PostHog:** one year, the retention period of our PostHog plan, after which PostHog deletes them (deletion can take some time after expiry). Totals that no longer relate to any visitor, such as monthly visit counts, may be kept longer.
+- **Emails:** as long as needed to handle your request, and no longer than 24 months after the last exchange, unless a legal claim or obligation requires keeping them longer.
+- **Cookies and browser storage:** as listed in section 5.`,
   },
   {
     id: "rights",
@@ -96,24 +147,25 @@ Apart from the PostHog identifier, these entries only remember choices you made;
 
 - **access** the personal data we hold about you and receive a copy (Article 15);
 - have inaccurate data **corrected** (Article 16);
-- have data **erased** (Article 17) or its processing **restricted** (Article 18);
-- receive data you provided to us in a **portable** format (Article 20);
-- **object** at any time, on grounds relating to your particular situation, to processing based on our legitimate interests, including the cookieless statistics (Article 21); and
-- **withdraw consent** at any time, through Privacy preferences, without affecting earlier processing (Article 7(3)).
+- have data **erased** (Article 17);
+- have its processing **restricted** (Article 18);
+- receive data you gave us in a **portable** format (Article 20);
+- **object** at any time, on grounds relating to your particular situation, to processing based on our legitimate interest, including the cookieless statistics (Article 21); and
+- **withdraw your consent** at any time, as easily as you gave it, through Privacy preferences, without affecting the lawfulness of earlier processing (Article 7(3)).
 
-Write to the email address at the top of this page. We reply within one month; for complex requests we may extend this by two further months and will tell you why within the first month. Requests are free. We may ask for information to confirm your identity only where we have a reasonable doubt about it.
+Write to [me@chricarp.com](mailto:me@chricarp.com). Requests are free. We reply within one month; for complex requests this can be extended by two further months, and we will tell you why within the first month. We ask for information to confirm your identity only if we have reasonable doubts about it.
 
-Cookieless statistics contain no identifier that we can connect to you, so we usually cannot find or erase the events of a particular visitor (Article 11 GDPR). If you object, we will consider whether to stop this processing altogether. You can also stop it yourself at any time by blocking requests to lictory.com/relay and docs.lictory.com/relay with a content blocker; the websites work the same without them.
+Cookieless statistics contain no identifier that links them to you, so we usually cannot find the events of a particular visitor (Article 11 GDPR). If you object, we will stop using cookieless statistics for you where we can, or tell you why we cannot. You can also stop them yourself at any time by blocking requests to lictory.com/relay and docs.lictory.com/relay with a content blocker; the websites work the same without them.
 
-You also have the right to lodge a complaint with a data protection supervisory authority, in particular in the EU member state where you live, work or where you believe an infringement occurred (Article 77 GDPR). You do not need to contact us first, though we would welcome the chance to address your concern.`,
+You also have the right to lodge a complaint with a supervisory authority (Article 77 GDPR). In Italy this is the [Garante per la protezione dei dati personali](https://www.garanteprivacy.it); you can also complain to the authority of the EU country where you live or work, or where you believe an infringement occurred.`,
   },
   {
-    id: "changes",
-    title: "Security, children and changes",
-    body: `Both websites are served only over HTTPS. The analytics relay strips cookies and authorization headers before forwarding anything. Report a security vulnerability in Lictory or the websites privately through [GitHub private vulnerability reporting](https://github.com/chricarp/lictory/security/advisories/new), not in a public issue.
+    id: "other",
+    title: "Automated decisions, children and changes",
+    body: `Giving us data is never required to read the websites or to download, install or use Lictory. We make no decisions about anyone by automated means, including profiling (Article 22 GDPR).
 
-The websites are aimed at software professionals and are not directed at children.
+The websites are aimed at software professionals. They are not directed at children, and we do not knowingly collect data about children.
 
-We update this notice when the websites or the way they process data change. The version date at the top shows when it last changed. If we ever want to use data for a new purpose that needs your consent, we will ask for it first. See also the [Terms of Service](/terms-of-service).`,
+We update this notice when the websites or the way they process data change; the date at the top shows the last change. If we ever want to use data for a new purpose that needs your consent, we will ask first. See also the [Terms of Use](/terms-of-service).`,
   },
 ];

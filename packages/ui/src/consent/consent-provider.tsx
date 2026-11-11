@@ -30,9 +30,10 @@ import {
 //   - Analytics consent granted: normal capture with PostHog's first-party
 //     cookie, identified users and organization groups.
 //   - Not decided or rejected: c15t keeps PostHog opted out and `on_reject`
-//     switches it to cookieless capture. Nothing is stored on the device,
-//     events stay anonymous (no identify, groups or tracing headers), and
-//     PostHog derives a daily-rotating server-side hash from IP and user agent.
+//     switches it to cookieless capture. Only PostHog's opt-out flag
+//     (`__ph_opt_in_out_<token>`) is stored on the device, events stay
+//     anonymous (no identify, groups or tracing headers), and PostHog derives
+//     a daily-rotating server-side hash from IP and user agent.
 //     This requires "Cookieless server hash mode" in the PostHog project
 //     settings; without it, PostHog discards these events.
 //   Server-side events (posthog-node) are not governed by this browser choice.

@@ -245,15 +245,6 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 | `MARKETING_STATIC_EXPORT` | No       | `false`                | website  | No     | `true` builds the website as static HTML (Cloudflare) instead of a standalone server. |
 | `NEXT_DIST_DIR`           | No       | `.next`                | website  | No     | Build output directory of the website.                                                |
 
-## Website legal notices
-
-| Variable                     | Required | Default | Read by | Secret | Description                                                                                                                                |
-| ---------------------------- | -------- | ------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `LICTORY_LEGAL_NAME`         | No       |         | website | No     | Operator (controller) named on the website's legal pages; without it they remain drafts. Publicly displayed. See docs/operations/legal.md. |
-| `LICTORY_LEGAL_ADDRESS`      | No       |         | website | No     | Optional operator postal address, shown on the legal pages when set.                                                                       |
-| `LICTORY_LEGAL_EMAIL`        | No       |         | website | No     | Monitored contact address; without it the legal pages remain drafts.                                                                       |
-| `LICTORY_LEGAL_REGISTRATION` | No       |         | website | No     | VAT, company or professional registration, if applicable.                                                                                  |
-
 ## Worker
 
 | Variable                              | Required | Default     | Read by | Secret | Description                                                   |

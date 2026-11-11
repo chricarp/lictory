@@ -10,8 +10,8 @@ export default function TermsPage() {
   return (
     <>
       <LegalDocument
-        title="Terms of Service"
-        introduction="These terms govern your use of the Lictory project websites, lictory.com and docs.lictory.com. They do not govern the Lictory software, which is open source under its own license, or any installation of it, which its operator governs. You can save or print this page for your records."
+        title="Terms of Use"
+        introduction="These terms apply to the Lictory project websites, lictory.com and docs.lictory.com. The Lictory software is covered by its open-source license, and an installation of it by the terms of whoever runs it."
         sections={termsSections}
       />
       <JsonLd data={publicPageStructuredData("/terms-of-service")} />
