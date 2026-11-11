@@ -20,10 +20,11 @@ ask for a smaller scope, defer it, or solve the problem differently.
 3. **Run Lictory locally.** Follow [Develop locally](README.md#develop-locally);
    the [repository layout](README.md#repository-layout) shows where each part
    lives. `bun run dev` serves the app at http://localhost:3000.
-4. **Check as you go.** Run the tests nearest your change: `bun test <path>` for
-   domain code, `bun run test:e2e tests/platform/<file>.spec.ts` for a browser
-   workflow. The [development runbook](docs/operations/development.md#daily-commands)
-   lists the daily commands.
+4. **Check as you go.** Run the tests nearest your change:
+   `bun test --isolate <path>` for domain code,
+   `bun run test:e2e tests/platform/<file>.spec.ts` for a browser workflow. The
+   [development runbook](docs/operations/development.md#daily-commands) lists
+   the daily commands.
 5. **Open the pull request.** Fill in the template, show that it works (see
    below), and run the full verification sequence first: `bun run verify`
    runs all of it, starting and removing the database and mail services it
