@@ -518,12 +518,14 @@ void test("the CI trial masks the inbox password before replaying success or fai
     .split("      run: |\n")[1]!
     .split("    - name:")[0]!
     .replace(/^        /gm, "");
-  for (const status of [0, 1]) {
+  for (const status of [0, 1, 2]) {
     const dir = join(base, `trial-${status}`);
     mkdirSync(dir);
     writeFileSync(
       join(base, "deploy/try.sh"),
-      `#!/bin/sh
+      status === 2
+        ? "echo 'failed before configuration' >&2; exit 2\n"
+        : `#!/bin/sh
 printf '%s\\n' 'HTTP_PORT=8080' 'LICTORY_TRY_MAIL_PORT=8025' 'LICTORY_TRY_MAIL_PASSWORD=inbox-secret' > "$LICTORY_TRY_DIR/.env"
 echo 'inbox password inbox-secret'
 exit ${status}
@@ -543,7 +545,12 @@ exit ${status}
     assert.equal(result.status, status, result.stderr);
     const mask = result.stdout.indexOf("::add-mask::inbox-secret");
     const output = result.stdout.indexOf("inbox password inbox-secret");
-    assert.ok(mask >= 0 && output > mask, result.stdout);
+    if (status === 2) {
+      assert.match(result.stdout, /failed before configuration/);
+      assert.equal(mask, -1);
+    } else {
+      assert.ok(mask >= 0 && output > mask, result.stdout);
+    }
     assert.ok(!existsSync(join(base, "lictory-trial-output.log")));
   }
 });
