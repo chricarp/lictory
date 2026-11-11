@@ -7,9 +7,9 @@ import { useEffect } from "react";
 import { trackRenderFailure } from "@lictory/core/lib/analytics/client";
 import {
   getStartedLabel,
-  installUrl,
   repositoryLabel,
   repositoryUrl,
+  tryUrl,
 } from "@lictory/marketing/lib/get-started";
 
 export default function GlobalError({
@@ -52,7 +52,7 @@ export default function GlobalError({
             </p>
             <div className="recovery-actions">
               <button onClick={reset}>Try again</button>
-              <a href={installUrl}>{getStartedLabel}</a>
+              <a href={tryUrl}>{getStartedLabel}</a>
               <a href={repositoryUrl}>{repositoryLabel}</a>
             </div>
           </div>

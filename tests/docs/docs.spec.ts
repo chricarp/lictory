@@ -99,6 +99,7 @@ const publishedAddresses = [
   "/integrations/jira",
   "/integrations/agents",
   "/self-hosting",
+  "/self-hosting/try",
   "/self-hosting/install",
   "/self-hosting/configuration",
   "/self-hosting/terminal",

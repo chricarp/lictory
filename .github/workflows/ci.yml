@@ -5,6 +5,7 @@ name: CI
 #   Static checks   types, lint, formatting, unused code, migrations (always)
 #   Domain tests    bun test against PostgreSQL         (unless prose only)
 #   Browser smoke   the @smoke critical journeys        (when apps change)
+#   Laptop trial    deploy/try.sh on the newest stable  (when it changes)
 #
 # Every tier is split across parallel jobs so the slowest job, not the sum,
 # sets the duration: lint runs as three jobs over disjoint paths, domain test
@@ -20,6 +21,9 @@ name: CI
 # always means the selected tiers ran. Nightly calls this workflow with `suite: full`
 # (every browser workflow) before it publishes a candidate; Release to
 # Production re-verifies the exact candidate with its embedded version.
+# Nightly also runs the laptop trial on each candidate after publishing it
+# (a failure makes the candidate ineligible for Release); here it runs only
+# for pull requests and manual runs, because it tests published images.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -66,6 +70,7 @@ jobs:
       e2e: ${{ steps.detect.outputs.e2e }}
       audit: ${{ steps.detect.outputs.audit }}
       docs: ${{ steps.detect.outputs.docs }}
+      trial: ${{ steps.detect.outputs.trial }}
       # Drafts defer the domain and browser tiers to ready for review.
       draft: ${{ steps.state.outputs.draft == 'true' }}
     steps:
@@ -102,9 +107,13 @@ jobs:
         run: |
           # Releases, nightlies and manual runs verify everything. Pull
           # requests GitHub cannot list completely (3000+ files) do too.
+          # The laptop trial tests published images, not this source:
+          # nightlies run it on their own candidate after publishing it.
           if [ "$EVENT" != pull_request ] || [ "${CHANGED:-0}" -ge 3000 ] ||
             ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed"; then
-            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\n' | tee -a "$GITHUB_OUTPUT"
+            trial=false
+            [ "$EVENT" = workflow_call ] || trial=true
+            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\ntrial=%s\n' "$trial" | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           bash .github/scripts/ci-changes.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
@@ -264,9 +273,25 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # deploy/try.sh as an evaluator runs it, on the newest stable release:
+  # sign-in, realtime sync, email, then removal.
+  trial:
+    name: Laptop trial (newest stable release)
+    needs: changes
+    if: needs.changes.outputs.trial == 'true' && needs.changes.outputs.draft != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/trial
+
   verify:
     name: Verify
-    needs: [changes, static, domain, browser]
+    needs: [changes, static, domain, browser, trial]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -277,6 +302,7 @@ jobs:
           DRAFT: ${{ needs.changes.outputs.draft }}
           UNIT: ${{ needs.changes.outputs.unit }}
           E2E: ${{ needs.changes.outputs.e2e }}
+          TRIAL: ${{ needs.changes.outputs.trial }}
         run: |
           echo "Job results: $RESULTS"
           status=0
@@ -292,11 +318,14 @@ jobs:
           if [ "$DRAFT" = true ]; then
             [ "$UNIT" != true ] || deferred+=("domain tests")
             [ "$E2E" != true ] || deferred+=("browser smoke workflows")
+            [ "$TRIAL" != true ] || deferred+=("the laptop trial")
           fi
           if [ "${#deferred[@]}" -gt 0 ]; then
             tiers=$(printf '%s and ' "${deferred[@]}")
             tiers=${tiers% and }
-            message="Draft: $tiers have not run. They run when the pull request is marked ready for review; re-running only this job does not start them."
+            verb=have
+            [ "$tiers" != "the laptop trial" ] || verb=has
+            message="Draft: $tiers $verb not run. They run when the pull request is marked ready for review; re-running only this job does not start them."
             echo "::error title=Tests not run on a draft::$message"
             echo "$message" >> "$GITHUB_STEP_SUMMARY"
             status=1

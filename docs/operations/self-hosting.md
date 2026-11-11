@@ -19,6 +19,62 @@ covers the day-to-day experience and automation examples. This runbook keeps
 the complete flag reference and operational details. To work on specifications
 from a terminal agent, use [MCP](https://docs.lictory.com/integrations/agents).
 
+## Try Lictory on a laptop
+
+For evaluation only, `deploy/try.sh` runs a release on one computer (Linux,
+or macOS and Windows/WSL with Docker Desktop) without root, systemd or DNS.
+The user guide is [Try Lictory in 5 minutes](https://docs.lictory.com/self-hosting/try).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+```
+
+It is the server stack, not a parallel one:
+
+- It downloads the release's `release.env` (newest stable, or
+  `LICTORY_VERSION`) over HTTPS, accepts only digest-pinned images in the
+  release registry, then copies that release's own `compose.production.yaml`
+  (as `compose.yaml`) and role script out of its ops image into
+  `~/lictory-try`. It needs only Docker and `curl`, so unlike `get.sh` it does
+  not compare `release.env` with GitHub's asset digest (that needs `jq`).
+- `compose.override.yaml` adds only Mailpit (`SMTP_HOST=mailpit`; its inbox
+  asks for user `lictory` and the generated `LICTORY_TRY_MAIL_PASSWORD`,
+  because it receives password-reset links) and the project name
+  `lictory-try`. The script also sets `COMPOSE_PROJECT_NAME=lictory-try` and
+  ignores `COMPOSE_FILE`, `COMPOSE_PROFILES` and `COMPOSE_ENV_FILES` from the
+  shell, and the commands it prints pass `-p lictory-try`, so neither can reach
+  another Compose project. Everything else is `.env`: generated secrets,
+  `PROXY_SCHEME=http` on `127.0.0.1` (the `--tls http` mode of `lictory
+install`), laptop-sized PostgreSQL settings and `BACKUP_TARGET=none`.
+  `LICTORY_ENVIRONMENT` is `production` because released migrate images
+  accept only `production` or `staging` as the migration target.
+- It starts services in `deploy.sh`'s order: PostgreSQL, roles, migrations,
+  zero-cache's initial sync, roles again (the API needs grants on Zero's
+  tables), then the API, worker, collaboration service and proxy. Then it
+  creates the first administrator with `admin.js setup` and saves the
+  credentials in `~/lictory-try/administrator.txt`.
+- Port 80 (8080 and up when it is taken or Docker is rootless) and Mailpit on
+  8025 (or the next free port), both on `127.0.0.1`.
+- Running it again reuses `.env`, replaces the image digests with the newest
+  release's and migrates, waits for the running zero-cache to replicate the
+  migration (as `deploy.sh` does), then replaces the services: the trial
+  upgrades in place. To remove it, clear `COMPOSE_FILE`, `COMPOSE_PROFILES`,
+  `COMPOSE_ENV_FILES` and `COMPOSE_PATH_SEPARATOR`, then run
+  `docker compose -p lictory-try down --volumes --rmi all` in the trial directory
+  to remove the Compose resources. Only after that succeeds, leave and remove
+  that same directory (by default `~/lictory-try`) to delete `.env`,
+  `administrator.txt` and the other saved files. The launcher prints the full
+  removal command for the selected directory.
+- On Linux with Docker Engine before 28, hosts on the local network can reach
+  ports published on `127.0.0.1`; the script warns (Docker Desktop is not
+  affected).
+
+It is not a server: plain HTTP, secrets in a local file, no backups, timers or
+monitoring, and no `lictory` command. CI runs the script and a sign-in,
+realtime sync and email check (`tests/try`) on every nightly candidate after
+publishing it, and on pull requests that change the trial
+([test tiers](development.md#test-tiers)).
+
 ## Requirements
 
 | Requirement             | Minimum                                   | Why                                                                                                               |

@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-// Lictory is self-hosted: calls to action lead to the installation guide and
-// the source code.
+// Lictory is self-hosted: calls to action lead to the laptop trial, then to
+// the server installation guide and the source code.
+const tryUrl = "https://docs.lictory.com/self-hosting/try";
 const installUrl = "https://docs.lictory.com/self-hosting/install";
 const repositoryUrl = "https://github.com/chricarp/lictory";
 
@@ -72,7 +73,7 @@ for (const width of [320, 390]) {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
 
-    await expect(start).toHaveAttribute("href", installUrl);
+    await expect(start).toHaveAttribute("href", tryUrl);
   });
 }
 
@@ -125,7 +126,7 @@ test("/home permanently redirects to the landing page", async ({
   );
 });
 
-test("calls to action lead to the installation guide and the source code", async ({
+test("calls to action lead to the laptop trial, the server installation and the source code", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -133,7 +134,7 @@ test("calls to action lead to the installation guide and the source code", async
   const banner = page.getByRole("banner");
   await expect(
     banner.getByRole("link", { name: "Get started" }),
-  ).toHaveAttribute("href", installUrl);
+  ).toHaveAttribute("href", tryUrl);
   await expect(banner.getByRole("link", { name: "GitHub" })).toHaveAttribute(
     "href",
     repositoryUrl,
@@ -145,6 +146,9 @@ test("calls to action lead to the installation guide and the source code", async
     "href",
     repositoryUrl,
   );
+  await expect(
+    hero.getByRole("link", { name: "Install on a server" }),
+  ).toHaveAttribute("href", installUrl);
 });
 
 for (const width of [320, 390, 768, 1280]) {

@@ -238,3 +238,29 @@ jobs:
           NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
         # Images and a GitHub Release, not a package registry upload.
         run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]
+
+  # The published candidate as an evaluator meets it: deploy/try.sh (anonymous
+  # pulls, no root) on this release's own images and compose file, then
+  # sign-in, realtime sync and email (tests/try). A failure leaves the
+  # prerelease installable for testing but fails this run, and Release only
+  # promotes nightlies whose whole run succeeded. Like the other jobs it runs
+  # only the workflow's own commit (the candidate planned from GITHUB_SHA) and
+  # restores no cached Bun binary.
+  trial:
+    name: Laptop trial of the published nightly
+    needs: [plan, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          bun-cache: "false"
+      - uses: ./.github/actions/trial
+        with:
+          version: ${{ needs.plan.outputs.version }}
+          registry: ${{ vars.IMAGE_REGISTRY }}

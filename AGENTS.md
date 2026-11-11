@@ -1186,12 +1186,14 @@ changes. Targeted tests during implementation do not replace this final step.
 
 GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) runs on every
 pull request behind the required `Verify` check: static checks always, domain
-tests and the `@smoke` browser workflows when the changed paths need them. A
-draft pull request runs only the static checks; `Verify` fails until it is
-marked ready for review, which runs the tiers it needs, so a green check always
-means they ran. The nightly runs every browser workflow before it publishes a
-candidate. CI splits each tier across parallel jobs (lint paths, domain test
-files, browser shards) without narrowing what runs. CI is a safety net, not a
+tests and the `@smoke` browser workflows when the changed paths need them, and
+the laptop trial (`deploy/try.sh` on the newest stable release) when it
+changes. A draft pull request runs only the static checks; `Verify` fails until
+it is marked ready for review, which runs the tiers it needs, so a green check
+always means they ran. The nightly runs every browser workflow before it
+publishes a candidate, and the laptop trial on the candidate after publishing
+it. CI splits each tier across parallel jobs (lint paths, domain test files,
+browser shards) without narrowing what runs. CI is a safety net, not a
 substitute: this local sequence remains the complete gate. Execute every command
 in this order with the same arguments, running the browser suite unsharded (its
 test files run in parallel workers on your machine):

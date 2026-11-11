@@ -8,6 +8,7 @@ import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome"
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
 import {
   GetStartedCta,
+  InstallServerLink,
   RepositoryCta,
 } from "@lictory/marketing/components/marketing/get-started-cta";
 import type { CtaPageType } from "@lictory/marketing/lib/cta-analytics";
@@ -185,6 +186,11 @@ export function TryLictory({
         <p className="mt-1 text-sm leading-6 text-muted-foreground">
           {children}
         </p>
+        <InstallServerLink
+          placement="final"
+          page={page}
+          className="mt-3 text-sm leading-6 text-muted-foreground"
+        />
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <GetStartedCta

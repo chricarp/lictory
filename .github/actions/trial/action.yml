@@ -1,0 +1,95 @@
+name: Laptop trial
+description: >-
+  Runs deploy/try.sh from the checkout against a published release (as an
+  evaluator does, without root and without a registry login), signs the
+  administrator in through a browser, checks realtime sync and email
+  (tests/try), then removes the trial. Runs after actions/checkout and
+  ./.github/actions/setup.
+
+inputs:
+  version:
+    description: "Release to try (empty: the newest stable release)"
+    default: ""
+  registry:
+    description: "Registry the release's images are in (empty: try.sh's default)"
+    default: ""
+
+# Values move between steps as step outputs read through `env:`, never through
+# $GITHUB_ENV (zizmor: github-env). The trial lives in the runner's temporary
+# directory, so the cleanup steps find it even when starting failed early.
+runs:
+  using: composite
+  steps:
+    - name: Start the trial
+      id: trial
+      shell: bash
+      env:
+        LICTORY_VERSION: ${{ inputs.version }}
+        REGISTRY: ${{ inputs.registry }}
+        LICTORY_TRY_DIR: ${{ runner.temp }}/lictory-try
+      run: |
+        set -euo pipefail
+        [ -z "$REGISTRY" ] || export LICTORY_IMAGE_REGISTRY="$REGISTRY"
+        password="$(openssl rand -hex 16)"
+        echo "::add-mask::$password"
+        # Piped, exactly as the documentation tells people to run it.
+        # Register secrets before replaying output, including on failure.
+        umask 077
+        output="$RUNNER_TEMP/lictory-trial-output.log"
+        status=0
+        LICTORY_ADMIN_PASSWORD="$password" sh < deploy/try.sh >"$output" 2>&1 || status=$?
+        if [ -f "$LICTORY_TRY_DIR/.env" ]; then
+          mail_password=$(grep -E '^LICTORY_TRY_MAIL_PASSWORD=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2- || true)
+          [ -z "$mail_password" ] || echo "::add-mask::$mail_password"
+        fi
+        cat "$output"
+        rm -f "$output"
+        [ "$status" -eq 0 ] || exit "$status"
+        port=$(grep -E '^HTTP_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
+        mail=$(grep -E '^LICTORY_TRY_MAIL_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
+        url=http://localhost
+        [ "$port" = 80 ] || url="$url:$port"
+        {
+          echo "password=$password"
+          echo "url=$url"
+          echo "mail-url=http://localhost:$mail"
+          echo "mail-password=$mail_password"
+        } >> "$GITHUB_OUTPUT"
+    - name: Install the browser
+      shell: bash
+      run: bunx playwright install --with-deps --only-shell chromium
+    - name: Sign in, sync and email
+      shell: bash
+      env:
+        LICTORY_TRY_URL: ${{ steps.trial.outputs.url }}
+        LICTORY_TRY_MAIL_URL: ${{ steps.trial.outputs.mail-url }}
+        LICTORY_TRY_EMAIL: admin@example.com
+        LICTORY_TRY_PASSWORD: ${{ steps.trial.outputs.password }}
+        LICTORY_TRY_MAIL_PASSWORD: ${{ steps.trial.outputs.mail-password }}
+      run: bunx playwright test --config tests/try/playwright.config.ts
+    - name: Service logs
+      if: failure()
+      shell: bash
+      env:
+        LICTORY_TRY_DIR: ${{ runner.temp }}/lictory-try
+      run: |
+        [ -d "$LICTORY_TRY_DIR" ] || exit 0
+        cat "$LICTORY_TRY_DIR/try.log" || true
+        cd "$LICTORY_TRY_DIR"
+        docker compose -p lictory-try ps -a || true
+        docker compose -p lictory-try logs --no-color --tail 200 || true
+    # The documented removal: nothing may be left behind.
+    - name: Remove the trial
+      if: always()
+      shell: bash
+      env:
+        LICTORY_TRY_DIR: ${{ runner.temp }}/lictory-try
+      run: |
+        set -euo pipefail
+        [ -d "$LICTORY_TRY_DIR" ] || exit 0
+        (cd "$LICTORY_TRY_DIR" && docker compose -p lictory-try down --volumes --rmi all)
+        rm -rf "$LICTORY_TRY_DIR"
+        left=$(docker ps -aq --filter label=com.docker.compose.project=lictory-try)
+        [ -z "$left" ] || { echo "Containers of the trial remain: $left" >&2; exit 1; }
+        left=$(docker volume ls -q --filter label=com.docker.compose.project=lictory-try)
+        [ -z "$left" ] || { echo "Volumes of the trial remain: $left" >&2; exit 1; }

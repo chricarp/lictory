@@ -64,6 +64,6 @@ for (const path of ["/privacy", "/terms-of-service"]) {
     // Lictory is self-hosted: the header leads to the installation guide.
     await expect(
       page.getByRole("banner").getByRole("link", { name: "Get started" }),
-    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/install");
+    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/try");
   });
 }

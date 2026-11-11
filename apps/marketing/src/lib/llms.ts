@@ -15,7 +15,11 @@ import {
   markdownPath,
   roundupMarkdown,
 } from "@lictory/marketing/lib/markdown";
-import { installUrl, repositoryUrl } from "@lictory/marketing/lib/get-started";
+import {
+  installUrl,
+  repositoryUrl,
+  tryUrl,
+} from "@lictory/marketing/lib/get-started";
 import {
   absoluteUrl,
   guidesFeedPath,
@@ -114,6 +118,7 @@ const projectLinks = `## Project
 
 - [Source code on GitHub](${repositoryUrl}): the MIT-licensed repository, with releases, issues and the contribution guide.
 - [Documentation](https://docs.lictory.com): how to use Lictory, self-host it and connect agents.
+- [Try Lictory in 5 minutes](${tryUrl}): run it on your own computer with one command and Docker, for evaluation.
 - [Installation guide](${installUrl}): install Lictory on your own Linux server.`;
 
 function faq() {

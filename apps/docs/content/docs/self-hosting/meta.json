@@ -2,6 +2,7 @@
   "title": "Self-hosting",
   "pages": [
     "index",
+    "try",
     "install",
     "configuration",
     "database",

@@ -371,6 +371,7 @@ behavior.
 | Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Ready, unless the change is prose        | Yes                    |
 | Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | Ready, when applications or tests change | Yes                    |
 | Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full)      | Yes, before publishing |
+| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email         | (CI only)             | Ready, when the trial changes            | Yes, after publishing  |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -386,17 +387,26 @@ it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
 
-A draft pull request runs only the static checks. The domain and smoke tiers it
-needs wait until it is marked ready for review, which starts a new run with
-them. Each run reads whether the pull request is a draft when it starts, not
-from the event that started it: a push and "Ready for review" seconds apart
-can leave only the push's run, and it runs the tiers too; re-running all of a
-run's jobs after marking it ready does as well. Until then `Verify` fails and names
+A draft pull request runs only the static checks. The domain, smoke and
+laptop trial tiers it needs wait until it is marked ready for review, which
+starts a new run with them. Each run reads whether the pull request is a draft
+when it starts, not from the event that started it: a push and "Ready for review"
+seconds apart can leave only the push's run, and it runs the tiers too;
+re-running all of a run's jobs after marking it ready does as well. Until then
+`Verify` fails and names
 the tiers that have not run, so a green pull request always means everything
 its changes need was tested. Drafts get static feedback on every push, while
 the costly database and browser tiers run once a change is ready. Maintainers
 who want them earlier run `gh workflow run ci.yml --ref <branch>` (add
 `-f suite=full` for every browser workflow).
+
+The laptop trial tests published release images, not the checkout's code, so it
+is not part of the local verification sequence. On a pull request that changes
+`deploy/try.sh`, `tests/try` or `.github/actions/trial`, CI runs the changed
+script (once the pull request is ready for review) against the newest stable release; Nightly runs it against each
+candidate right after publishing it, and a failure there keeps that nightly
+from being promoted by Release
+([self-hosting](self-hosting.md#try-lictory-on-a-laptop)).
 
 What earns a test, while the product is young:
 
