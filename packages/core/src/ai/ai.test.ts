@@ -26,6 +26,11 @@ import {
   type PullRequestOutput,
 } from "@lictory/core/ai/analyzer";
 import { processAiRuns } from "@lictory/core/ai/runner";
+import {
+  parseMarkdownTree,
+  placeQuote,
+  textModel,
+} from "@lictory/core/editor/markdown-text";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -75,6 +80,9 @@ function fakeAnalyzer(
   pr: (
     context: Parameters<Analyzer["reviewPullRequest"]>[0],
   ) => PullRequestOutput["findings"] = () => [],
+  readings: (
+    context: Parameters<Analyzer["reviewPullRequest"]>[0],
+  ) => PullRequestOutput["readings"] = () => [],
 ): Analyzer & { calls: number } {
   const analyzer = {
     model: "fake",
@@ -91,7 +99,12 @@ function fakeAnalyzer(
       context: Parameters<Analyzer["reviewPullRequest"]>[0],
     ) {
       analyzer.calls++;
-      return { summary: "Reviewed.", strengths: [], findings: pr(context) };
+      return {
+        summary: "Reviewed.",
+        strengths: [],
+        findings: pr(context),
+        readings: readings(context),
+      };
     },
   };
   return analyzer;
@@ -916,5 +929,324 @@ void test("a required review action that passes last makes the pull request read
   assert.deepEqual(
     notified.map((n) => n.userId),
     [f.userId],
+  );
+});
+
+// A pull request whose branch adds acceptance criteria, ready for review.
+async function criteriaPullRequest(
+  f: Awaited<ReturnType<typeof fixture>>,
+  policy: "advisory" | "required",
+) {
+  await f.command({ type: "setAiPolicy", enabled: true });
+  await f.command({
+    type: "updateProject",
+    projectId: f.projectId,
+    aiActionPolicy: policy,
+  });
+  const main = await f.latest(f.storyId);
+  const branchId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  await f.command({
+    type: "createBranch",
+    workItemId: f.storyId,
+    baseRevisionId: main.id,
+    branchId,
+    name: "criteria",
+  });
+  const heads = async () => {
+    const all = await f.entities(f.storyId);
+    const branches = f.of(all, "specBranch");
+    const source = branches.find((b) => b.id === branchId)!;
+    const target = branches.find((b) => b.name === "main")!;
+    return {
+      sourceHeadId: source.headId,
+      targetHeadId: target.headId,
+      mainId: target.id,
+      head: f.of(all, "specCommit").find((c) => c.id === source.headId)!,
+    };
+  };
+  const commit = async (content: string) =>
+    f.command({
+      type: "commitBranch",
+      workItemId: f.storyId,
+      branchId,
+      baseCommitId: (await heads()).sourceHeadId,
+      title: "Retry after timeout",
+      content,
+      message: "Criteria",
+    });
+  await commit(
+    [
+      "Retry the payment when the provider times out.",
+      "",
+      "## Acceptance criteria",
+      "",
+      "- [ ] A timed-out payment is retried **at most twice**.",
+      "- [ ] The customer sees one charge.",
+    ].join("\n"),
+  );
+  await f.command({
+    type: "createPullRequest",
+    workItemId: f.storyId,
+    pullRequestId,
+    sourceId: branchId,
+    targetId: (await heads()).mainId,
+    title: "Acceptance criteria",
+    description: "",
+    draft: false,
+  });
+  const threads = async () =>
+    f
+      .of(await f.entities(f.storyId), "thread")
+      .filter((t) => t.pullRequestId === pullRequestId);
+  const messages = async (threadId: string) =>
+    f
+      .of(await f.entities(f.storyId), "message")
+      .filter((m) => m.threadId === threadId);
+  // The engineer approves the current result, then the owner merges.
+  const merge = async () => {
+    await f.command({
+      type: "requestPullRequestReview",
+      workItemId: f.storyId,
+      pullRequestId,
+      disciplineId: f.roles.Engineering,
+      userId: f.reviewerId,
+      required: true,
+    });
+    const { sourceHeadId, targetHeadId } = await heads();
+    await f.command(
+      {
+        type: "decidePullRequest",
+        workItemId: f.storyId,
+        pullRequestId,
+        reviewId: f
+          .of(await f.entities(f.storyId), "prReview")
+          .find((r) => r.pullRequestId === pullRequestId)!.id,
+        decision: "approve",
+        sourceHeadId,
+        targetHeadId,
+      },
+      f.reviewerId,
+    );
+    return f.command({
+      type: "mergePullRequest",
+      workItemId: f.storyId,
+      pullRequestId,
+      sourceHeadId,
+      targetHeadId,
+    });
+  };
+  return { commit, heads, threads, messages, merge };
+}
+
+type Reading = PullRequestOutput["readings"][number];
+const agree = (criterionRef: string): Reading => ({
+  criterionRef,
+  qa: [{ situation: "One timeout", expected: "Charged once" }],
+  implementer: { builds: "Idempotent retry", done: "Charged once" },
+  diverges: false,
+  divergence: null,
+  question: null,
+  severity: "minor",
+  previousFindingId: null,
+});
+const diverge = (criterionRef: string): Reading => ({
+  criterionRef,
+  qa: [
+    {
+      situation: "The provider times out three times",
+      expected: "Two retries after the first attempt, then a failure",
+    },
+  ],
+  implementer: {
+    builds: "A loop that stops after two attempts in total",
+    done: "No more than two provider calls are made",
+  },
+  diverges: true,
+  divergence:
+    "For three timeouts QA expects three provider calls; the build makes two, because it counts the first attempt.",
+  question: "Does “at most twice” include the first attempt?",
+  severity: "major",
+  previousFindingId: null,
+});
+
+void test("two readings: a divergence becomes an anchored, non-blocking discussion that re-runs continue", async () => {
+  const f = await fixture();
+  const pr = await criteriaPullRequest(f, "advisory");
+  let sent: string[] = [];
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      (context) => {
+        sent = context.acceptanceCriteria.map((c) => `${c.ref} ${c.text}`);
+        // The model also invents a criterion and repeats one; both are dropped.
+        return [diverge("A1"), agree("A2"), diverge("A7"), diverge("A1")];
+      },
+    ),
+  });
+  assert.deepEqual(sent, [
+    "A1 A timed-out payment is retried at most twice.",
+    "A2 The customer sees one charge.",
+  ]);
+  const [run] = await f.runs(f.storyId);
+  assert.equal(run!.status, "completed");
+  assert.equal(run!.findings.length, 1, "agreeing criteria create nothing");
+  const found = run!.findings[0]!;
+  assert.equal(found.severity, "major");
+  assert.equal(
+    found.readings?.criterion,
+    "A timed-out payment is retried at most twice.",
+  );
+
+  let threads = await pr.threads();
+  assert.equal(threads.length, 2, "one summary and one divergence");
+  const thread = threads.find((t) => t.id === found.threadId)!;
+  assert.equal(thread.blocking, false);
+  assert.deepEqual(thread.anchor, {
+    version: 1,
+    kind: "document",
+    section: "Acceptance criteria",
+    quote: "A timed-out payment is retried at most twice.",
+  });
+  // The anchor is on the committed head the run read, never a live draft, and
+  // the reader finds the criterion's exact text there.
+  const { head } = await pr.heads();
+  assert.equal(thread.commitId, head.id);
+  const placed = placeQuote(textModel(parseMarkdownTree(head.content)), {
+    quote: thread.anchor.quote,
+    section: thread.anchor.section,
+  });
+  assert.equal(placed.kind, "found");
+  const [opening] = await pr.messages(thread.id);
+  assert.match(opening!.body, /counts the first attempt/);
+  assert.match(opening!.body, /QA would test[\s\S]*three times → Two retries/);
+  assert.match(
+    opening!.body,
+    /implementer would build[\s\S]*two attempts in total/,
+  );
+  assert.match(opening!.body, /one model/);
+  const summary = threads.find((t) => t.id !== thread.id)!;
+  assert.match(
+    (await pr.messages(summary.id)).at(-1)!.body,
+    /Two readings:\*\* 2 of 2 changed acceptance criteria read, 1 with diverging/,
+  );
+
+  // A new commit rewords the other criterion. The divergence on the same
+  // text continues its discussion even when the model does not link it.
+  await pr.commit(
+    [
+      "Retry the payment when the provider times out.",
+      "",
+      "## Acceptance criteria",
+      "",
+      "- [ ] A timed-out payment is retried **at most twice**.",
+      "- [ ] The customer is charged exactly once.",
+    ].join("\n"),
+  );
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      () => [diverge("A1"), agree("A2")],
+    ),
+  });
+  threads = await pr.threads();
+  assert.equal(
+    threads.length,
+    2,
+    "no second discussion for the same criterion",
+  );
+  const replies = await pr.messages(thread.id);
+  assert.equal(replies.length, 2);
+  assert.match(replies[1]!.body, /^Still diverges at commit/);
+  assert.match(replies[1]!.body, /QA would test/);
+  assert.equal(threads.find((t) => t.id === thread.id)!.status, "open");
+  assert.equal((await f.runs(f.storyId))[0]!.findings[0]!.threadId, thread.id);
+
+  // Advisory: the open divergence never stands between people and a merge.
+  await pr.merge();
+});
+
+void test("two readings under the required policy: agreement adds nothing and a divergence never blocks", async () => {
+  const f = await fixture();
+  const pr = await criteriaPullRequest(f, "required");
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      () => [agree("A1"), agree("A2")],
+    ),
+  });
+  let threads = await pr.threads();
+  assert.equal(threads.length, 1, "only the summary");
+  assert.equal((await f.runs(f.storyId))[0]!.findings.length, 0);
+
+  await pr.commit(
+    "## Acceptance criteria\n\n- [ ] A timed-out payment is retried at most twice.",
+  );
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      () => [
+        // Even a model that calls it a blocker gets at most "major".
+        { ...diverge("A1"), severity: "blocker" as "major" },
+      ],
+    ),
+  });
+  const [run] = await f.runs(f.storyId);
+  assert.equal(run!.findings[0]!.severity, "major");
+  threads = await pr.threads();
+  assert.equal(threads.length, 2);
+  assert.ok(threads.every((t) => !t.blocking));
+  await pr.merge();
+});
+
+void test("two readings: a divergence on the second of two identical criteria anchors to the second copy", async () => {
+  const f = await fixture();
+  const pr = await criteriaPullRequest(f, "advisory");
+  const repeated = "The customer sees one charge.";
+  await pr.commit(
+    [
+      "## Acceptance criteria",
+      "",
+      `- [ ] ${repeated}`,
+      "- [ ] A timed-out payment is retried at most twice.",
+      `- [ ] ${repeated}`,
+    ].join("\n"),
+  );
+  await processAiRuns(db, {
+    analyzer: fakeAnalyzer(
+      [],
+      () => [],
+      (context) => {
+        assert.deepEqual(
+          context.acceptanceCriteria.map((c) => c.text),
+          [repeated, "A timed-out payment is retried at most twice.", repeated],
+        );
+        return [agree("A1"), agree("A2"), diverge("A3")];
+      },
+    ),
+  });
+  const [run] = await f.runs(f.storyId);
+  const thread = (await pr.threads()).find(
+    (t) => t.id === run!.findings[0]!.threadId,
+  )!;
+  assert.deepEqual(thread.anchor, {
+    version: 1,
+    kind: "document",
+    section: "Acceptance criteria",
+    quote: repeated,
+    occurrence: 1,
+  });
+  const { head } = await pr.heads();
+  const model = textModel(parseMarkdownTree(head.content));
+  const placed = placeQuote(model, thread.anchor);
+  assert.equal(placed.kind, "found");
+  assert.equal(
+    placed.kind === "found" && placed.from,
+    model.text.lastIndexOf(repeated),
+    "the discussion sits on the second copy",
   );
 });

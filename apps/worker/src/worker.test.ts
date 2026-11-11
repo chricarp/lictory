@@ -269,6 +269,7 @@ const analyzer: Analyzer = {
   reviewPullRequest: async () => ({
     summary: "Clear.",
     strengths: [],
+    readings: [],
     findings: [],
   }),
 };

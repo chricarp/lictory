@@ -41,6 +41,12 @@ import {
   pullRequestContext,
 } from "@lictory/core/ai/context";
 import {
+  normalizeReadings,
+  renderReadings,
+  type Criterion,
+} from "@lictory/core/ai/readings";
+import { normalizeQuote } from "@lictory/core/editor/markdown-text";
+import {
   scopeLabel,
   type IntelligenceContextUse,
 } from "@lictory/core/intelligence/shared";
@@ -539,16 +545,38 @@ async function execute(
     analyzer.reviewPullRequest(prepared.context, { abortSignal }),
   );
   const previousIds = new Map<string, string>();
-  const findings = normalizeFindings(
+  const reviewed = normalizeFindings(
     output.findings,
     prepared.keys,
     new Map([[prepared.item.id, prepared.head.content]]),
     previousIds,
     prepared.intelligence.uses,
   );
+  // Divergent readings of acceptance criteria, validated against the
+  // criteria that were sent; they share the run's finding budget.
+  const readings = normalizeReadings(output.readings ?? [], prepared.criteria, {
+    workItemId: prepared.item.id,
+    firstId: reviewed.length + 1,
+    max: MAX_FINDINGS - reviewed.length,
+    previous: previousIds,
+  });
+  const findings = [...reviewed, ...readings.findings];
   // Finding id → discussion of the same issue opened by an earlier run.
   const repeated = new Map<string, string>();
+  // A divergence on the same criterion text continues its discussion
+  // whatever the model says; then the model's own matches.
+  for (const f of readings.findings) {
+    const thread = prepared.previousFindings.find(
+      (p) =>
+        p.readings &&
+        normalizeQuote(p.readings.criterion) ===
+          normalizeQuote(f.readings!.criterion),
+    )?.threadId;
+    if (thread && ![...repeated.values()].includes(thread))
+      repeated.set(f.id, thread);
+  }
   for (const [id, previousId] of previousIds) {
+    if (repeated.has(id)) continue;
     const thread = prepared.previousFindings.find(
       (p) => p.id === previousId,
     )?.threadId;
@@ -609,6 +637,7 @@ async function execute(
       quote: string | undefined,
       body: string,
       blocking: boolean,
+      occurrence = 0,
     ) => {
       const id = crypto.randomUUID();
       await tx.insert(s.thread).values({
@@ -625,6 +654,7 @@ async function execute(
           kind: "document",
           section: cut(section, 200),
           ...(quote ? { quote: cut(quote, 2000) } : {}),
+          ...(quote && occurrence ? { occurrence } : {}),
         },
       });
       await reply(id, body);
@@ -634,7 +664,26 @@ async function execute(
       const existing = repeated.get(f.id);
       if (existing) {
         f.threadId = existing;
-        await reply(existing, `Still present at commit ${commit}.`);
+        // Readings are re-read on every run; show the ones this commit got.
+        await reply(
+          existing,
+          f.readings
+            ? `Still diverges at commit ${commit}: ${f.readings.divergence}\n\n${renderReadings(f.readings)}`
+            : `Still present at commit ${commit}.`,
+        );
+        continue;
+      }
+      const criterion: Criterion | undefined = readings.anchors.get(f.id);
+      if (criterion) {
+        // Anchored to the criterion's exact text in the committed head. A
+        // divergence is never blocking: its severity is capped below blocker.
+        f.threadId = await open(
+          criterion.section,
+          criterion.text,
+          renderFinding(f),
+          false,
+          criterion.occurrence,
+        );
         continue;
       }
       f.threadId = await open(
@@ -659,6 +708,14 @@ async function execute(
       score,
       commit,
       [...prepared.intelligence.uses.values()],
+      prepared.criteria.length
+        ? {
+            sent: prepared.criteria.length,
+            read: readings.read,
+            diverged: readings.findings.length,
+            truncated: prepared.criteriaTruncated,
+          }
+        : undefined,
     );
     const [summaryThread] = await tx
       .select({ id: s.thread.id, anchor: s.thread.anchor })
@@ -721,6 +778,7 @@ function renderFinding(f: AiFinding) {
     "",
     f.detail,
     ...(f.evidence.length ? ["", ...f.evidence.map((e) => `> ${e}`)] : []),
+    ...(f.readings ? ["", renderReadings(f.readings)] : []),
     ...(f.question ? ["", `**Question for the team:** ${f.question}`] : []),
     ...(f.recommendation
       ? ["", `**Recommendation:** ${f.recommendation}`]
@@ -758,6 +816,12 @@ function renderRundown(
   score: number,
   commit: string,
   context: IntelligenceContextUse[],
+  readings?: {
+    sent: number;
+    read: number;
+    diverged: number;
+    truncated: boolean;
+  },
 ) {
   const count = (severity: AiFinding["severity"]) =>
     findings.filter((f) => f.severity === severity).length;
@@ -776,6 +840,12 @@ function renderRundown(
       (f) =>
         `- ${severityLabel[f.severity]}: ${f.title}${f.edit ? " _(suggested change)_" : ""}`,
     ),
+    ...(readings
+      ? [
+          "",
+          `**Two readings:** ${readings.read} of ${readings.sent} changed acceptance ${readings.sent === 1 ? "criterion" : "criteria"} read, ${readings.diverged} with diverging readings.${readings.truncated ? ` Only the first ${readings.sent} changed criteria were read.` : ""}`,
+        ]
+      : []),
     ...(context.length
       ? [
           "",

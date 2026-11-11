@@ -81,11 +81,60 @@ export const itemReviewOutput = z.object({
   strengths: z.array(z.string()).describe("Up to three things done well."),
   findings: z.array(finding),
 });
+// Two readings of one acceptance criterion the pull request adds or changes.
+const reading = z.object({
+  criterionRef: z
+    .string()
+    .describe("Ref of the acceptance criterion, for example A1."),
+  qa: z
+    .array(
+      z.object({
+        situation: z
+          .string()
+          .describe("Inputs, state or timing of one concrete test case."),
+        expected: z
+          .string()
+          .describe("The observable outcome the tester would expect."),
+      }),
+    )
+    .describe("Concrete cases a QA engineer would run, two to five."),
+  implementer: z.object({
+    builds: z
+      .string()
+      .describe("What an implementer would build from this text."),
+    done: z.string().describe("What the implementer would consider done."),
+  }),
+  diverges: z
+    .boolean()
+    .describe(
+      "True only when the readings expect a different observable outcome for some situation.",
+    ),
+  divergence: z
+    .string()
+    .nullable()
+    .describe(
+      "The situation and the two different outcomes, or null when they agree.",
+    ),
+  question: z
+    .string()
+    .nullable()
+    .describe("The decision that would settle it, or null."),
+  severity: z.enum(["major", "minor"]),
+  previousFindingId: z
+    .string()
+    .nullable()
+    .describe(
+      "Id of an open previous finding about the same criterion, otherwise null.",
+    ),
+});
 const pullRequestOutput = z.object({
   summary: z
     .string()
     .describe("What the change does and the overall assessment."),
   strengths: z.array(z.string()),
+  readings: z
+    .array(reading)
+    .describe("One entry per acceptance criterion in acceptanceCriteria."),
   findings: z.array(
     finding.extend({
       previousFindingId: z

@@ -8,6 +8,7 @@ import {
   pendingEntries,
 } from "@lictory/core/contracts/decomposition";
 import type { Tx } from "@lictory/core/domain/service";
+import { criteriaToRead } from "@lictory/core/ai/readings";
 import {
   composeIntelligenceContext,
   promptContext,
@@ -328,6 +329,12 @@ export async function pullRequestContext(
     projectId: item!.projectId,
     teamId: item!.teamId,
   });
+  // Criteria are read from the committed head, never from a live draft.
+  const reading = criteriaToRead(
+    base.content,
+    head.content,
+    previousFindings.flatMap((f) => (f.readings ? [f.readings.criterion] : [])),
+  );
   const context = {
     intelligenceContext: promptContext(intelligence),
     item: {
@@ -378,11 +385,17 @@ export async function pullRequestContext(
       childrenTruncated: head.proposedChildren.length > MAX_ITEMS,
     },
     changedLines: clip(changed, 6_000),
+    acceptanceCriteria: reading.criteria.map((c) => ({
+      ref: c.ref,
+      text: c.text,
+    })),
+    acceptanceCriteriaTruncated: reading.truncated,
     previousFindings: previousFindings.map((f) => ({
       id: f.id,
       severity: f.severity,
       title: f.title,
       detail: f.detail,
+      ...(f.readings ? { criterion: f.readings.criterion } : {}),
     })),
   };
   return {
@@ -391,6 +404,8 @@ export async function pullRequestContext(
     head,
     item: item!,
     previousFindings,
+    criteria: reading.criteria,
+    criteriaTruncated: reading.truncated,
     intelligence,
     keys: new Map([[key(item!.number), item!.id]]),
     contextRevisions: Object.fromEntries(
