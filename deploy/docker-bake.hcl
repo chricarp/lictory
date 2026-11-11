@@ -8,6 +8,11 @@
 # Only the optional marketing website (`marketing` target) embeds its origin:
 # set SITE_URL to build it. Tags: <version> and
 # sha-<git sha>-<channel>; deploy by digest.
+#
+# Every image index carries BuildKit attestations: an SPDX SBOM and a
+# mode=max SLSA provenance (build arguments, source and base images; the
+# images take no build secrets). Release workflows also sign each digest
+# (docs/operations/releases.md#signatures-and-attestations).
 
 variable "REGISTRY" { default = "ghcr.io/lictory" }
 variable "VERSION" { default = "0.0.0" }
@@ -37,6 +42,7 @@ target "_common" {
   context    = "."
   dockerfile = "Dockerfile"
   platforms  = split(",", PLATFORMS)
+  attest     = ["type=sbom", "type=provenance,mode=max"]
   args = {
     APP_VERSION          = VERSION
     PREVIOUS_PROXY_IMAGE = PREVIOUS_PROXY_IMAGE

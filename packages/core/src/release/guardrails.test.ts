@@ -13,6 +13,7 @@ import {
 import {
   assertImages,
   bakeEnvironment,
+  imageNames,
   imagesFromBakeMetadata,
   releaseFile,
 } from "@lictory/core/release/images";
@@ -105,6 +106,7 @@ void test("manual production intent remains frozen when retries happen after a n
 });
 
 type Step = {
+  id?: string;
   uses?: string;
   run?: string;
   with?: Record<string, string>;
@@ -191,6 +193,97 @@ void test("releases publish from the exact candidate source and hold no deployme
     "backfill",
   ])
     assert.throws(() => workflow(name), name);
+});
+
+void test("release images are signed and attested before publication, and only the publishing job can sign", () => {
+  for (const flow of [workflow("release"), workflow("nightly")]) {
+    assert.equal(flow.permissions["id-token"], undefined);
+    assert.equal(flow.permissions.attestations, undefined);
+    for (const [name, job] of Object.entries(flow.jobs)) {
+      const signs = name === "publish" ? "write" : undefined;
+      assert.equal(job.permissions?.["id-token"], signs, name);
+      assert.equal(job.permissions?.attestations, signs, name);
+    }
+    const steps = flow.jobs.publish!.steps!;
+    const at = (found: (step: Step) => boolean | undefined) => {
+      const index = steps.findIndex(found);
+      assert.ok(index >= 0, String(found));
+      return index;
+    };
+    const login = at((step) => step.uses?.startsWith("docker/login-action@"));
+    const assemble = at((step) => step.id === "assemble");
+    const sign = at(
+      (step) => step.uses === "./control/.github/actions/sign-images",
+    );
+    const licenses = at((step) => step.run?.includes("license-report.ts"));
+    const publish = at((step) => step.run?.includes("bun run release publish"));
+    assert.match(steps[assemble]!.run!, /^bun run release assemble /);
+    // Nothing is released before its images are signed: publish reserves
+    // the tag and attaches release.env for exactly the signed digests.
+    assert.ok(login < sign && assemble < sign && sign < publish);
+    assert.equal(
+      steps[sign]!.with?.subjects,
+      "${{ steps.assemble.outputs.subjects }}",
+    );
+    assert.equal(
+      steps[publish]!.env?.RELEASE_IMAGES,
+      "${{ steps.assemble.outputs.images }}",
+    );
+    // The license report of the exact source, without running its
+    // dependencies' install scripts or a source bunfig preload or .env in a
+    // job that can sign, and without the job's tokens in the environment a
+    // source registry configuration could expand.
+    assert.ok(licenses < publish);
+    // Every command of the step runs with only PATH and HOME.
+    const commands = steps[licenses]!.run!.replaceAll(/\\\n\s+/g, "")
+      .trim()
+      .split("\n");
+    const clean = 'env -i PATH="$PATH" HOME="$HOME" ';
+    assert.deepEqual(commands, [
+      `${clean}bun install --frozen-lockfile --ignore-scripts`,
+      `${clean}bun --config=../control/bunfig.toml --no-env-file ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"`,
+    ]);
+    assert.equal(
+      (steps[licenses] as { "working-directory"?: string })[
+        "working-directory"
+      ],
+      "source",
+    );
+    assert.equal(
+      steps[publish]!.env?.LICENSE_REPORT_DIRECTORY,
+      "${{ runner.temp }}/licenses",
+    );
+  }
+  // Every image index digest gets a keyless cosign signature and a GitHub
+  // build provenance attestation, both stored next to the image.
+  const action = compositeAction("sign-images").runs.steps;
+  const cosign = action.find((step) => step.run?.includes("cosign sign"))!;
+  assert.match(cosign.run!, /cosign sign --yes "\$reference"/);
+  for (const name of imageNames) {
+    assert.match(cosign.run!, new RegExp(`for name in .*\\b${name}\\b`));
+    const attest = action.find(
+      (step) =>
+        step.uses?.startsWith("actions/attest@") &&
+        step.with?.["subject-name"] ===
+          `\${{ fromJSON(inputs.subjects).${name}.name }}`,
+    );
+    assert.ok(attest, name);
+    assert.equal(
+      attest.with?.["subject-digest"],
+      `\${{ fromJSON(inputs.subjects).${name}.digest }}`,
+    );
+    assert.equal(attest.with?.["push-to-registry"], "true");
+  }
+  for (const step of action)
+    if (step.uses) assert.match(step.uses, /@[a-f0-9]{40}$/, step.uses);
+  // BuildKit records an SBOM and full provenance in every image index.
+  assert.match(
+    readFileSync(
+      new URL("../../../../deploy/docker-bake.hcl", import.meta.url),
+      "utf8",
+    ),
+    /attest\s*=\s*\["type=sbom", "type=provenance,mode=max"\]/,
+  );
 });
 
 void test("nightlies are scheduled, fully verified before publication and built for both architectures", () => {

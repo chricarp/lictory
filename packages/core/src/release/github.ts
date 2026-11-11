@@ -278,9 +278,10 @@ export class GitHub {
   }
 
   /**
-   * Attaches a text asset (release.env) to a reserved draft once. A retry must
-   * carry the same bytes; a release published before the asset existed is
-   * left unchanged, since published releases are immutable.
+   * Attaches a text asset (release.env, SBOMs, the license report) to a
+   * reserved draft once. A retry must carry the same bytes; a release
+   * published before the asset existed is left unchanged, since published
+   * releases are immutable.
    *
    * Pass the release `reserve` returned: a just-created draft is invisible to
    * `/releases/tags/{tag}` and may still be missing from the `/releases`
@@ -292,6 +293,7 @@ export class GitHub {
     name: string,
     body: string,
     reserved?: Release,
+    contentType = "text/plain; charset=utf-8",
   ): Promise<void> {
     const release = reserved
       ? await this.reserved(manifest, reserved.id)
@@ -317,10 +319,11 @@ export class GitHub {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.token}`,
-          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Type": contentType,
         },
         body,
-        signal: AbortSignal.timeout(30_000),
+        // SBOMs and license notices run to megabytes.
+        signal: AbortSignal.timeout(120_000),
       },
     );
     if (!response.ok)

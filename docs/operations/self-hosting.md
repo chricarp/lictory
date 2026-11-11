@@ -430,6 +430,64 @@ newer than the nightly you run.
 Upgrades are manual. To automate them, schedule `lictory upgrade --yes` in your
 own scheduler; it is a no-op when nothing newer exists.
 
+### Verify release images
+
+Every release's images are signed (keyless cosign) and attested (GitHub
+artifact attestations, SLSA provenance) by the workflow that published them,
+and carry an SPDX SBOM; [releases](releases.md#signatures-and-attestations)
+describes what each covers. `lictory` does not check signatures itself:
+verify on any machine before you install or approve an upgrade, or wire the
+same checks into your admission policy. Take the digests from the release's
+`release.env` (on a server, the active release's is
+`/srv/lictory/<environment>/current/release.env`):
+
+```sh
+version=0.25.0
+workflow=release.yml  # nightly.yml for a nightly
+ref=refs/heads/main   # refs/heads/release/<major>.<minor> for a maintenance nightly
+
+images=
+curl -fsSL -o "lictory-$version.env" \
+  "https://github.com/chricarp/lictory/releases/download/v$version/release.env" &&
+  images=$(sed -nE 's/^(API|PROXY|MIGRATE|OPS)_IMAGE=//p' "lictory-$version.env")
+
+# Sigstore signature; needs no GitHub account.
+(set -e; for image in ${images:?release.env lists no images}; do
+  cosign verify "$image" \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity "https://github.com/chricarp/lictory/.github/workflows/$workflow@$ref" \
+    >/dev/null
+  echo "signed: $image"
+done)
+
+# GitHub artifact attestation; needs the GitHub CLI, signed in.
+(set -e; for image in ${images:?release.env lists no images}; do
+  gh attestation verify "oci://$image" --repo chricarp/lictory \
+    --signer-workflow "chricarp/lictory/.github/workflows/$workflow" \
+    --source-ref "$ref"
+done)
+```
+
+Each block stops at the first image that fails and exits non-zero unless
+every digest was signed by that workflow on that ref. Images are read only
+after `curl` completes, so a failed or interrupted download fails the checks
+instead of checking a partial list, and the version-named file keeps an older
+release's digests from being checked instead. The commit the images were
+built from is `LICTORY_GIT_SHA` in `release.env`.
+
+The SBOMs are attached to each GitHub Release
+(`lictory-<image>-linux-<arch>.spdx.json`) together with the third-party
+license report, and can be read from the image itself:
+
+```sh
+docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' "lictory-$version.env")" \
+  --format '{{ json (index .SBOM "linux/amd64").SPDX }}'
+```
+
+Releases published before signing was introduced (0.24.0 and earlier, and
+the nightlies of that time) have neither signatures nor SBOM files; `cosign
+verify` reports that no signatures were found.
+
 ## Troubleshooting
 
 Start with `lictory doctor`; every failure line names the fix.
