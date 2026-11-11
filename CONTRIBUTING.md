@@ -27,7 +27,9 @@ ask for a smaller scope, defer it, or solve the problem differently.
 5. **Open the pull request.** Fill in the template, show that it works (see
    below), and run the full verification sequence first. If something on your
    machine prevents part of it, say which step and what happened; a maintainer
-   can help.
+   can help. A draft pull request gets only the static checks in CI, and its
+   `Verify` check stays red until you mark it ready for review, which runs the
+   domain and browser tests.
 
 ## Before you start
 
