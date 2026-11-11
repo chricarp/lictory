@@ -175,6 +175,7 @@ Production images and the single-server stack are described in
 | `bun run test:sync`   | Synchronization invariants against PostgreSQL                                   |
 | `bun run test:e2e`    | Production build plus browser workflows                                         |
 | `bun run test:smoke`  | Production build plus the `@smoke` workflows only                               |
+| `bun run verify`      | The full verification sequence, services included, before a pull request        |
 | `bun run db:generate` | Committed SQL migration after a schema change                                   |
 | `bun run db:check`    | Fail when the schema has no matching migration                                  |
 | `bun run admin <cmd>` | Instance administration against `.env`'s database                               |
@@ -424,6 +425,59 @@ services and drops its database.
 
 Pull request CI runs the [test tiers](#test-tiers) the change needs, and the
 nightly runs every tier before publishing, but neither replaces this sequence.
+
+### With one command
+
+```sh
+bun run verify
+```
+
+`bun run verify` (`scripts/verify.ts`) runs the commands of the manual
+sequence below, exactly and in order, against your working tree, with their
+output unfiltered. Around them it:
+
+- starts a private PostgreSQL and Mailpit with the images and server flags CI
+  uses (`scripts/verify.compose.yaml`), under a Compose project of its own
+  (`lictory-verify-…`) on ports Docker picks, so it never touches your
+  development services or another checkout's run;
+- creates a disposable database and sets every variable listed below, with
+  `DATABASE_MIGRATION_URL` cleared so `db:migrate` can only reach that
+  database;
+- gives the browser suite the first free `E2E_PORT_OFFSET` when its default
+  ports are taken (an offset you set is kept);
+- runs `bunx playwright install` without `--with-deps`, which needs root, only
+  when Chromium already launches on this machine (proof that its system
+  libraries are installed); otherwise it runs the command as written, and
+  `sudo` may ask for your password;
+- removes everything it created (the containers and their data, or with
+  `--postgres` its database and that database's replication slots), also when
+  a step fails or you press Ctrl-C. A second Ctrl-C stops the running step at
+  once.
+
+It stops at the first failed step and ends with a summary of every step (pass,
+fail, not run, duration) and the command to rerun the failed one:
+
+```text
+  FAIL  test:domain     2m 41s  bun run test:domain  (exit 1)
+  ----  playwright     not run  bunx playwright install --with-deps --only-shell chromium
+  ----  test:e2e       not run  bun run test:e2e
+
+test:domain failed: `bun run test:domain` exited 1.
+Rerun this step:           bun run verify --only test:domain
+Rerun it and what follows: bun run verify --from test:domain
+```
+
+`--only` and `--from` are for iterating; the full run must pass on the final
+changes, and refuses `E2E_SHARD` and `E2E_SKIP_BUILD`, which would narrow the
+browser suite. To use services you already run, name them:
+`bun run verify --postgres postgresql://lictory:lictory@localhost:5432/postgres --mailpit http://localhost:8025`
+(the PostgreSQL admin database, which needs `wal_level=logical`; Mailpit's SMTP
+port defaults to 1025 on the same host, `--smtp host:port` overrides it). It
+needs Docker unless both are named. `bun run verify --help` lists the options
+and step names.
+
+### By hand
+
 Run
 the complete sequence below before opening or updating a pull request, in order
 and against a disposable database, never your development database:

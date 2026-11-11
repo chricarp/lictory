@@ -1210,7 +1210,17 @@ bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```
 
-Provide PostgreSQL (with `wal_level=logical`, as in `compose.yaml`: the browser
+`bun run verify` runs exactly these commands, in this order, against the
+current tree, and prepares what they need: a private PostgreSQL and Mailpit
+(CI's images, on ports Docker picks; `--postgres` and `--mailpit` use running
+ones instead), a disposable database with every variable below pointed at it,
+and a free `E2E_PORT_OFFSET`. It removes what it created afterwards, also on
+failure and Ctrl-C, and drops `--with-deps` only when Chromium already
+launches. Its summary lists each step's result and the command that reruns a
+failed one; a run narrowed with `--only` or `--from` is not this final
+verification.
+
+To run the sequence by hand, provide PostgreSQL (with `wal_level=logical`, as in `compose.yaml`: the browser
 suite runs zero-cache against its database) and Mailpit locally and use the test
 authentication and SMTP settings from `docs/operations/development.md`. For the
 migration step, create a new disposable database and point `DATABASE_URL` and
@@ -1230,8 +1240,9 @@ unavailable, report the exact blocker and leave the push/PR step pending. Do not
 alter unrelated user edits just to make verification pass.
 
 Report the commands run and their results in the final response and PR
-description. If the local sequence or the CI workflow changes, update both this
-section and `docs/operations/development.md` in the same change.
+description. If the local sequence or the CI workflow changes, update this
+section, `docs/operations/development.md` and `scripts/verify.ts` in the same
+change; a test fails when the three lists differ.
 
 ## Behavior verification
 

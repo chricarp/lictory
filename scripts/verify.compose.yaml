@@ -1,0 +1,62 @@
+# Disposable services for `bun run verify` (scripts/verify.ts): the
+# PostgreSQL and Mailpit of CI (.github/actions/services, same images and
+# server flags), started under a private project name for one run and removed
+# with their data afterwards. Not for development; that is compose.yaml.
+#
+# Docker picks free host ports on 127.0.0.1; `docker compose port` reports
+# them. The healthchecks let `docker compose up --wait` return once both
+# answer.
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    environment:
+      POSTGRES_DB: lictory
+      POSTGRES_USER: lictory
+      POSTGRES_PASSWORD: lictory
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_connections=200
+    ports:
+      - "127.0.0.1::5432"
+    # Over TCP: the image first runs a temporary server on the socket only to
+    # initialise the database, then restarts it.
+    healthcheck:
+      test:
+        - CMD
+        - pg_isready
+        - -h
+        - 127.0.0.1
+        - -U
+        - lictory
+        - -d
+        - lictory
+      interval: 1s
+      timeout: 3s
+      retries: 120
+
+  mailpit:
+    image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "127.0.0.1::1025"
+      - "127.0.0.1::8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
