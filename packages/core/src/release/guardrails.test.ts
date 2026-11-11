@@ -229,11 +229,16 @@ void test("release images are signed and attested before publication, and only t
       "${{ steps.assemble.outputs.images }}",
     );
     // The license report of the exact source, without running its
-    // dependencies' install scripts in a job that can sign.
+    // dependencies' install scripts or a source bunfig preload or .env in a
+    // job that can sign.
     assert.ok(licenses < publish);
     assert.match(
       steps[licenses]!.run!,
       /bun install --frozen-lockfile --ignore-scripts/,
+    );
+    assert.match(
+      steps[licenses]!.run!,
+      /bun --config=\.\.\/control\/bunfig\.toml --no-env-file \\\n\s+\.\.\/control\/scripts\/license-report\.ts /,
     );
     assert.equal(
       (steps[licenses] as { "working-directory"?: string })[

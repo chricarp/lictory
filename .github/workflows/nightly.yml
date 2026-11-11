@@ -218,10 +218,14 @@ jobs:
           subjects: ${{ steps.assemble.outputs.subjects }}
       - name: Report the third-party licenses of the release source
         working-directory: source
-        # Package manifests only: the source's dependencies run no code here.
+        # Package manifests only: no code from the release source runs in a
+        # job that can sign. --ignore-scripts skips its install scripts, and
+        # the control checkout's bunfig and no .env keep a source bunfig
+        # preload or .env out of the report process.
         run: |
           bun install --frozen-lockfile --ignore-scripts
-          bun ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"
+          bun --config=../control/bunfig.toml --no-env-file \
+            ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"
       - name: Publish this exact nightly candidate
         working-directory: control
         env:

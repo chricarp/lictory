@@ -443,36 +443,42 @@ same checks into your admission policy. Take the digests from the release's
 
 ```sh
 version=0.25.0
-curl -fsSLO "https://github.com/chricarp/lictory/releases/download/v$version/release.env"
-images=$(sed -n 's/^\(API\|PROXY\|MIGRATE\|OPS\)_IMAGE=//p' release.env)
+workflow=release.yml  # nightly.yml for a nightly
+ref=refs/heads/main   # refs/heads/release/<major>.<minor> for a maintenance nightly
+
+curl -fsSL -o "lictory-$version.env" \
+  "https://github.com/chricarp/lictory/releases/download/v$version/release.env"
+images=$(sed -nE 's/^(API|PROXY|MIGRATE|OPS)_IMAGE=//p' "lictory-$version.env")
 
 # Sigstore signature; needs no GitHub account.
-for image in $images; do
+(set -e; for image in ${images:?release.env lists no images}; do
   cosign verify "$image" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-    --certificate-identity https://github.com/chricarp/lictory/.github/workflows/release.yml@refs/heads/main \
-    >/dev/null && echo "signed: $image"
-done
+    --certificate-identity "https://github.com/chricarp/lictory/.github/workflows/$workflow@$ref" \
+    >/dev/null
+  echo "signed: $image"
+done)
 
 # GitHub artifact attestation; needs the GitHub CLI, signed in.
-for image in $images; do
+(set -e; for image in ${images:?release.env lists no images}; do
   gh attestation verify "oci://$image" --repo chricarp/lictory \
-    --signer-workflow chricarp/lictory/.github/workflows/release.yml \
-    --source-ref refs/heads/main
-done
+    --signer-workflow "chricarp/lictory/.github/workflows/$workflow" \
+    --source-ref "$ref"
+done)
 ```
 
-Both fail (non-zero exit) unless the digest was signed by Lictory's Release
-workflow on `main`. For a nightly, use `nightly.yml` instead of `release.yml`
-(`refs/heads/release/<major>.<minor>` for a maintenance nightly). The commit
-the images were built from is `LICTORY_GIT_SHA` in `release.env`.
+Each block stops at the first image that fails and exits non-zero unless
+every digest was signed by that workflow on that ref, and also when
+`release.env` could not be downloaded (the version-named file keeps an older
+release's digests from being checked instead). The commit the images were
+built from is `LICTORY_GIT_SHA` in `release.env`.
 
 The SBOMs are attached to each GitHub Release
 (`lictory-<image>-linux-<arch>.spdx.json`) together with the third-party
 license report, and can be read from the image itself:
 
 ```sh
-docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' release.env)" \
+docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' "lictory-$version.env")" \
   --format '{{ json (index .SBOM "linux/amd64").SPDX }}'
 ```
 
