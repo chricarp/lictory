@@ -1,0 +1,36 @@
+# Fallback for Linux hosts whose firewall drops traffic from Docker's bridge
+# networks to the host: zero-cache (in Docker) then cannot call the API that
+# `bun run dev` runs on the host, sign-up succeeds and the workspace does not
+# open ("Fetch from API server threw error: fetch failed"). `bun run dev`
+# detects this and points here.
+#
+# Runs zero-cache on the host's network instead of a bridge, so it reaches
+# PostgreSQL and the API on 127.0.0.1. Enable it in .env:
+#
+#   COMPOSE_FILE=compose.yaml:compose.host-network.yaml
+#
+# then run `docker compose up -d --wait` again. Linux only (Docker Desktop
+# needs host networking turned on). zero-cache then listens on every interface
+# of the host (LICTORY_DEV_ZERO_PORT and the port after it) instead of
+# LICTORY_DEV_BIND_ADDRESS: the host firewall decides who reaches it, as for
+# any other process on the host. Prefer allowing the Docker network through
+# the firewall when you can; see docs/operations/development.md,
+# "Troubleshooting".
+services:
+  zero-cache:
+    network_mode: host
+    ports: !reset []
+    extra_hosts: !reset []
+    environment:
+      ZERO_PORT: ${LICTORY_DEV_ZERO_PORT:-4848}
+      ZERO_UPSTREAM_DB: postgresql://lictory:lictory@${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:${LICTORY_DEV_POSTGRES_PORT:-5432}/lictory
+      ZERO_CVR_DB: postgresql://lictory:lictory@${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:${LICTORY_DEV_POSTGRES_PORT:-5432}/lictory_zero
+      ZERO_CHANGE_DB: postgresql://lictory:lictory@${LICTORY_DEV_BIND_ADDRESS:-127.0.0.1}:${LICTORY_DEV_POSTGRES_PORT:-5432}/lictory_zero
+      ZERO_QUERY_URL: http://127.0.0.1:${LICTORY_DEV_API_PORT:-3002}/api/zero/query
+      ZERO_MUTATE_URL: http://127.0.0.1:${LICTORY_DEV_API_PORT:-3002}/api/zero/mutate
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:${LICTORY_DEV_ZERO_PORT:-4848}/keepalive').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))

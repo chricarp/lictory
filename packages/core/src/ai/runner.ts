@@ -87,7 +87,7 @@ export async function processAiRuns(
     const bound = <T>(call: (abortSignal: AbortSignal) => Promise<T>) =>
       bounded(call, options.signal, options.timeoutMs ?? runTimeoutMs());
     try {
-      analyzer ??= createAnalyzer();
+      analyzer ??= await createAnalyzer();
       const result = await execute(db, run, analyzer, bound);
       outcome[result]++;
     } catch (error) {

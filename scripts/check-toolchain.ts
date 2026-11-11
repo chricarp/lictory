@@ -5,28 +5,19 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+import { bunHave, bunMismatch } from "./bun-version";
+
 const manifest = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-) as { packageManager: string; engines: { node: string } };
-const bunWanted = manifest.packageManager.replace(/^bun@/, "");
+) as { engines: { node: string } };
 const nodeMajor = manifest.engines.node.replace(/\.x$/, "");
 
 const problems: string[] = [];
 const warnings: string[] = [];
-const minor = (version: string) => version.split(".").slice(0, 2).join(".");
 
-// Bun runs every command and the domain tests. A different minor release can
-// change test runner and module semantics; a different patch rarely matters
-// but is worth knowing when a result differs from CI.
-const bunHave = process.versions.bun ?? "";
-if (minor(bunHave) !== minor(bunWanted))
-  problems.push(
-    `Bun ${bunHave} is installed; this repository uses ${bunWanted}. Install it with \`curl -fsSL https://bun.sh/install | bash -s "bun-v${bunWanted}"\`.`,
-  );
-else if (bunHave !== bunWanted)
-  warnings.push(
-    `Bun ${bunHave} is installed; CI uses ${bunWanted}. If a result differs from CI, install it first: \`curl -fsSL https://bun.sh/install | bash -s "bun-v${bunWanted}"\`.`,
-  );
+// Bun runs every command and the domain tests.
+const bun = bunMismatch();
+if (bun) (bun.severe ? problems : warnings).push(bun.message);
 
 // Node runs workspace builds and Zero's native SQLite module.
 const node = spawnSync("node", ["--version"], { encoding: "utf8" });

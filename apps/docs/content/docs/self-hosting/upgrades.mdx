@@ -26,6 +26,68 @@ removed. To stay on a specific nightly for longer, keep it installed: a
 removed nightly can no longer be installed by version, but an installation
 that runs it is unaffected.
 
+## Verify release images
+
+Lictory's images are signed by the GitHub Actions workflow that published
+them, so you can check that what you install is exactly what the project
+released, before you install it or approve an upgrade. Each release has:
+
+- a **cosign signature** (Sigstore keyless) and a **GitHub artifact
+  attestation** (SLSA build provenance) for every image digest;
+- an **SBOM** (SPDX) and full build provenance inside every image;
+- the SBOMs (`lictory-api-linux-amd64.spdx.json` and so on) and a
+  **third-party license report** (`third-party-licenses.json`,
+  `THIRD_PARTY_NOTICES.txt`) attached to its GitHub Release.
+
+The images to check are the digests in the release's `release.env` (on a
+server, `/srv/lictory/production/current/release.env` is the active one).
+Set the release and the workflow that published it:
+
+```sh
+version=0.25.0
+workflow=release.yml  # nightly.yml for a nightly
+ref=refs/heads/main   # refs/heads/release/X.Y for a nightly of a maintenance branch
+
+images=
+curl -fsSL -o "lictory-$version.env" \
+  "https://github.com/chricarp/lictory/releases/download/v$version/release.env" &&
+  images=$(sed -nE 's/^(API|PROXY|MIGRATE|OPS)_IMAGE=//p' "lictory-$version.env")
+
+# With cosign (no GitHub account needed)
+(set -e; for image in ${images:?release.env lists no images}; do
+  cosign verify "$image" \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity "https://github.com/chricarp/lictory/.github/workflows/$workflow@$ref" \
+    >/dev/null
+  echo "signed: $image"
+done)
+
+# Or with the GitHub CLI (signed in)
+(set -e; for image in ${images:?release.env lists no images}; do
+  gh attestation verify "oci://$image" --repo chricarp/lictory \
+    --signer-workflow "chricarp/lictory/.github/workflows/$workflow" \
+    --source-ref "$ref"
+done)
+```
+
+Each check stops at the first image that fails and exits non-zero unless
+every digest was signed by that Lictory workflow on that branch. Images are
+read only from a complete download, so a failed or interrupted download of
+`release.env` fails the checks too. To read an image's SBOM without
+downloading it:
+
+```sh
+docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' "lictory-$version.env")" \
+  --format '{{ json (index .SBOM "linux/amd64").SPDX }}'
+```
+
+`lictory` itself does not check signatures; use these commands, or the same
+identity in your cluster's admission policy. Releases published before
+signing was introduced (0.24.0 and earlier) have no signatures or SBOM
+files. The
+[release runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#signatures-and-attestations)
+explains what each signature covers.
+
 ## Before you upgrade production
 
 1. **See what is available:** `lictory upgrade --check` names the newest

@@ -162,7 +162,7 @@ const draftProposals = defineCapability({
 
     // The provider call runs outside any transaction; the organization's
     // policy was checked just above, with the person's current access.
-    const drafter = ctx.proposalDrafter ?? createProposalDrafter();
+    const drafter = ctx.proposalDrafter ?? (await createProposalDrafter());
     let output;
     try {
       output = await drafter.draft({

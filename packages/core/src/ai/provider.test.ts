@@ -510,8 +510,8 @@ const reviewRequest = {
   system: "Review the item.",
   prompt: '{"items":[]}',
 };
-const target = (config: AiProviderConfig) => ({
-  model: languageModel(config),
+const target = async (config: AiProviderConfig) => ({
+  model: await languageModel(config),
   config,
 });
 const responsesAnswer = (text: string) => ({
@@ -554,7 +554,7 @@ void test("OpenAI (existing configuration): Responses API, bearer key, asked not
     OPENAI_BASE_URL: `${server.url}/v1`,
   });
   assert.deepEqual(
-    await generateStructured(target(config), reviewRequest),
+    await generateStructured(await target(config), reviewRequest),
     review,
   );
   const [request] = server.seen;
@@ -595,7 +595,7 @@ void test("Anthropic (or Claude in Azure AI Foundry): Messages API with x-api-ke
     OPENAI_API_KEY: "sk-openai-never-sent",
   });
   assert.deepEqual(
-    await generateStructured(target(config), reviewRequest),
+    await generateStructured(await target(config), reviewRequest),
     review,
   );
   const [request] = server.seen;
@@ -619,7 +619,7 @@ void test("Azure OpenAI: the deployment at the configured v1 endpoint, api-key h
     LICTORY_AI_BASE_URL: `${server.url.replace("http:", "https:")}/openai/v1`,
   });
   // https is required for Azure; the fake speaks http.
-  const model = languageModel({
+  const model = await languageModel({
     ...config,
     baseURL: `${server.url}/openai/v1`,
   });
@@ -644,7 +644,7 @@ void test("OpenAI-compatible, json-schema: Chat Completions with the schema and 
     OPENAI_API_KEY: "sk-openai-never-sent",
   });
   assert.deepEqual(
-    await generateStructured(target(config), reviewRequest),
+    await generateStructured(await target(config), reviewRequest),
     review,
   );
   const [request] = server.seen;
@@ -669,7 +669,7 @@ void test("OpenAI-compatible, json-object: JSON mode with the schema in the inst
     LICTORY_AI_STRUCTURED_OUTPUT: "json-object",
   });
   assert.deepEqual(
-    await generateStructured(target(config), reviewRequest),
+    await generateStructured(await target(config), reviewRequest),
     review,
   );
   const [request] = server.seen;
@@ -685,7 +685,7 @@ void test("OpenAI-compatible, json-object: JSON mode with the schema in the inst
   // An answer that does not match the schema is rejected, not trusted.
   answer = JSON.stringify({ summary: "no findings field" });
   await assert.rejects(
-    generateStructured(target(config), reviewRequest),
+    generateStructured(await target(config), reviewRequest),
     /did not return a valid result/,
   );
 });
@@ -705,7 +705,12 @@ void test(
       OPENAI_BASE_URL: `${openai.url}/v1`,
     });
     await assert.rejects(
-      generateStructured({ ...target(config) }, reviewRequest, {}, "Retry"),
+      generateStructured(
+        { ...(await target(config)) },
+        reviewRequest,
+        {},
+        "Retry",
+      ),
       /could not reach the AI provider\. Retry later.*container itself/,
     );
     assert.equal(openai.seen.length, 0);
@@ -810,9 +815,9 @@ void test("the connection check reports a model without tool support and skips w
   assert.match(report.text.checks[1]!.needs, /Litto/);
 });
 
-void test("a substituted model keeps working for tests and drills", () => {
-  const substitute = analyzerTarget({
-    model: languageModel(
+void test("a substituted model keeps working for tests and drills", async () => {
+  const substitute = await analyzerTarget({
+    model: await languageModel(
       configured({
         LICTORY_AI_PROVIDER: "openai-compatible",
         LICTORY_AI_BASE_URL: "http://127.0.0.1:9/v1",
