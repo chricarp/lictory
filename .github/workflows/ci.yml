@@ -14,7 +14,10 @@ name: CI
 #
 # .github/scripts/ci-changes.sh decides from the changed paths and fails open.
 # The required `Verify` check passes only when every job passed or was
-# skipped by that decision. Nightly calls this workflow with `suite: full`
+# skipped by that decision. A draft pull request runs only the static checks:
+# the tiers it needs wait until it is marked ready for review (which starts a
+# new run), and until then `Verify` fails and names them, so a green check
+# always means the selected tiers ran. Nightly calls this workflow with `suite: full`
 # (every browser workflow) before it publishes a candidate; Release to
 # Production re-verifies the exact candidate with its embedded version.
 on:
@@ -53,7 +56,6 @@ env:
 jobs:
   changes:
     name: Changes
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -64,6 +66,8 @@ jobs:
       e2e: ${{ steps.detect.outputs.e2e }}
       audit: ${{ steps.detect.outputs.audit }}
       docs: ${{ steps.detect.outputs.docs }}
+      # Drafts defer the domain and browser tiers to ready for review.
+      draft: ${{ github.event.pull_request.draft == true }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -167,7 +171,7 @@ jobs:
   domain:
     name: Domain tests
     needs: changes
-    if: needs.changes.outputs.unit == 'true'
+    if: needs.changes.outputs.unit == 'true' && needs.changes.outputs.draft != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -190,7 +194,7 @@ jobs:
   browser:
     name: Browser workflows (${{ inputs.suite || 'smoke' }} ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: needs.changes.outputs.e2e == 'true'
+    if: needs.changes.outputs.e2e == 'true' && needs.changes.outputs.draft != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -249,14 +253,34 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: Every selected job passed
+      - name: Every selected job ran and passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          DRAFT: ${{ needs.changes.outputs.draft }}
+          UNIT: ${{ needs.changes.outputs.unit }}
+          E2E: ${{ needs.changes.outputs.e2e }}
         run: |
           echo "Job results: $RESULTS"
+          status=0
           for result in $RESULTS; do
             case "$result" in
               success | skipped) ;;
-              *) exit 1 ;;
+              *) status=1 ;;
             esac
           done
+          # A skip is acceptable only when the changed paths do not need the
+          # tier. A draft skips tiers it does need: report that, never success.
+          deferred=()
+          if [ "$DRAFT" = true ]; then
+            [ "$UNIT" != true ] || deferred+=("domain tests")
+            [ "$E2E" != true ] || deferred+=("browser smoke workflows")
+          fi
+          if [ "${#deferred[@]}" -gt 0 ]; then
+            tiers=$(printf '%s and ' "${deferred[@]}")
+            tiers=${tiers% and }
+            message="Draft: $tiers have not run. They run when the pull request is marked ready for review; re-running this job does not start them."
+            echo "::error title=Tests not run on a draft::$message"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          fi
+          exit "$status"

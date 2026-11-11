@@ -99,8 +99,8 @@ const request = {
   system: "Review the item.",
   prompt: '{"items":[]}',
 };
-const structured = (config: AiProviderConfig) =>
-  generateStructured({ model: languageModel(config), config }, request);
+const structured = async (config: AiProviderConfig) =>
+  generateStructured({ model: await languageModel(config), config }, request);
 const chat = (content: string) => ({
   json: {
     id: "c1",

@@ -1005,33 +1005,6 @@ export const declarations: readonly Declaration[] = [
     default: "`.next`",
     description: "Build output directory of the website.",
   },
-  {
-    name: "LICTORY_LEGAL_NAME",
-    group: "Website legal notices",
-    services: ["website"],
-    description:
-      "Operator (controller) named on the website's legal pages; without it they remain drafts. Publicly displayed. See docs/operations/legal.md.",
-  },
-  {
-    name: "LICTORY_LEGAL_ADDRESS",
-    group: "Website legal notices",
-    services: ["website"],
-    description:
-      "Optional operator postal address, shown on the legal pages when set.",
-  },
-  {
-    name: "LICTORY_LEGAL_EMAIL",
-    group: "Website legal notices",
-    services: ["website"],
-    description:
-      "Monitored contact address; without it the legal pages remain drafts.",
-  },
-  {
-    name: "LICTORY_LEGAL_REGISTRATION",
-    group: "Website legal notices",
-    services: ["website"],
-    description: "VAT, company or professional registration, if applicable.",
-  },
 
   // ----------------------------------------------------------------- worker
   ...(

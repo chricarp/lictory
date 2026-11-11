@@ -16,7 +16,10 @@ import {
   type ReactNode,
 } from "react";
 
-import { analyticsConfigured } from "@lictory/core/lib/analytics/client";
+import {
+  analyticsConfigured,
+  browserAnalyticsSettings,
+} from "@lictory/core/lib/analytics/client";
 import { cn } from "@lictory/core/lib/utils";
 
 // Consent surfaces are built on c15t's headless hooks so they share the landing
@@ -31,21 +34,15 @@ const glass = cn(
 );
 
 function GlassButton({
-  variant = "secondary",
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary";
-}) {
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       type="button"
       className={cn(
         "inline-flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,transform] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-white/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
-        variant === "primary" &&
-          "bg-foreground text-background hover:bg-foreground/90",
-        variant === "secondary" &&
-          "bg-white/[0.06] text-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1)] hover:bg-white/[0.1]",
+        "bg-white/[0.06] text-foreground shadow-[inset_0_0_0_1px_oklch(1_0_0/0.1)] hover:bg-white/[0.1]",
         className,
       )}
       {...props}
@@ -81,8 +78,17 @@ function PreferencesButton({
   );
 }
 
-/** Without `privacyHref` (no configured notice) the banner links nowhere. */
-export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
+/**
+ * Without `privacyHref` (no configured notice) the banner links nowhere.
+ * `sites` names the websites one shared choice covers.
+ */
+export function ConsentBanner({
+  privacyHref,
+  sites,
+}: {
+  privacyHref?: string;
+  sites?: string;
+}) {
   const { banner, performBannerAction, openDialog } = useHeadlessConsentUI();
   const t = useTranslations();
   const [pending, setPending] = useState(false);
@@ -117,7 +123,10 @@ export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
             <span className="font-medium text-foreground">
               {t.cookieBanner.title}.
             </span>{" "}
-            Optional analytics cookies need your permission.
+            {browserAnalyticsSettings()?.consent === "cookieless"
+              ? "Visits are counted without cookies. Analytics cookies are optional and need your permission."
+              : "Optional analytics cookies need your permission."}
+            {sites && ` One choice for ${sites}.`}
             {privacyHref && (
               <>
                 {" "}
@@ -136,20 +145,16 @@ export function ConsentBanner({ privacyHref }: { privacyHref?: string }) {
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:ml-auto sm:flex-nowrap">
           <GlassButton
             className="px-3 text-foreground/75 shadow-none hover:text-foreground"
-            variant="secondary"
             disabled={pending}
             onClick={openDialog}
           >
             {t.common.customize}
           </GlassButton>
+          {/* Rejecting must be as easy and as visible as accepting. */}
           <GlassButton disabled={pending} onClick={() => void act("reject")}>
             {t.common.rejectAll}
           </GlassButton>
-          <GlassButton
-            variant="primary"
-            disabled={pending}
-            onClick={() => void act("accept")}
-          >
+          <GlassButton disabled={pending} onClick={() => void act("accept")}>
             {t.common.acceptAll}
           </GlassButton>
         </div>
@@ -198,7 +203,7 @@ function Switch({
   );
 }
 
-export function ConsentDialog() {
+export function ConsentDialog({ sites }: { sites?: string }) {
   const { dialog, closeUI, performDialogAction, saveCustomPreferences } =
     useHeadlessConsentUI();
   const { getDisplayedConsents, selectedConsents, setSelectedConsent } =
@@ -267,8 +272,8 @@ export function ConsentDialog() {
               id={descriptionId}
               className="mt-1 text-[13px] leading-snug text-foreground/65"
             >
-              Choose which optional data Lictory may collect in this browser.
-              You can change this at any time.
+              Choose which optional data Lictory may collect in this browser
+              {sites ? ` on ${sites}` : ""}. You can change this at any time.
             </p>
           </div>
           <button
@@ -315,7 +320,6 @@ export function ConsentDialog() {
               {t.common.rejectAll}
             </GlassButton>
             <GlassButton
-              variant="primary"
               disabled={pending}
               onClick={() => void run(() => performDialogAction("accept"))}
             >

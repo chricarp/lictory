@@ -35,6 +35,7 @@
     "test:e2e": "bun scripts/test-e2e.ts",
     "admin": "bun apps/api/src/admin-cli.ts",
     "test:smoke": "bun scripts/test-e2e.ts --grep @smoke",
+    "verify": "bun scripts/verify.ts",
     "licenses:report": "bun scripts/license-report.ts"
   },
   "devDependencies": {

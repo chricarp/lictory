@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import "./styles.css";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
+import { websitesConsent } from "@lictory/ui/consent/shared-consent";
 import { appearanceBootScript } from "@lictory/core/lib/appearance";
 import {
   siteDescription,
@@ -58,7 +59,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: appearanceBootScript }} />
       </head>
       <body className="marketing-site min-h-full">
-        <ConsentProvider privacyHref="/privacy" site="marketing">
+        <ConsentProvider
+          privacyHref="/privacy"
+          site="marketing"
+          sharedConsent={websitesConsent}
+        >
           {children}
         </ConsentProvider>
       </body>

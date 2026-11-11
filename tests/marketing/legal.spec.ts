@@ -11,17 +11,19 @@ test("legal notices are public, linked from the landing footer, and usable on mo
   await expect(
     page.getByRole("heading", { name: "Privacy Notice", exact: true }),
   ).toBeVisible();
-  // The operator comes from the build environment (synthetic in tests).
   const operator = page.getByRole("region", {
     name: "Website operator and privacy contact",
   });
+  await expect(operator).toContainText("Christian Carpinelli");
   await expect(
-    operator.getByText("Example Operator", { exact: true }),
+    operator.getByRole("link", { name: "me@chricarp.com" }),
+  ).toHaveAttribute("href", "mailto:me@chricarp.com");
+  // Every cookie and storage entry is listed in a real table.
+  await expect(
+    page.getByRole("table", {
+      name: "Cookies and browser storage used by the websites",
+    }),
   ).toBeVisible();
-  await expect(
-    operator.getByRole("link", { name: "privacy@example.org" }),
-  ).toHaveAttribute("href", "mailto:privacy@example.org");
-  await expect(operator.getByRole("note")).toHaveCount(0);
   await page
     .getByRole("navigation", { name: "Privacy Notice contents" })
     .getByRole("link", { name: "Your rights", exact: true })
@@ -35,11 +37,11 @@ test("legal notices are public, linked from the landing footer, and usable on mo
 
   await page
     .getByRole("navigation", { name: "Legal footer" })
-    .getByRole("link", { name: "Terms of Service" })
+    .getByRole("link", { name: "Terms of Use" })
     .click();
   await expect(page).toHaveURL(/\/terms-of-service$/);
   await expect(
-    page.getByRole("heading", { name: "Terms of Service", exact: true }),
+    page.getByRole("heading", { name: "Terms of Use", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Privacy preferences" }).click();
   await expect(

@@ -42,7 +42,9 @@ own and set `LEGAL_TERMS_URL` and `LEGAL_PRIVACY_URL`
 ([legal notices](/self-hosting/configuration#legal-notices)); without them
 the app shows no acceptance notice at sign-up and no legal links.
 
-This documentation site itself loads no third-party scripts. Like
-lictory.com, it counts visits with PostHog through its own `/relay`, without
-cookies unless you allow them; it never sends search terms or copied text. Its
-[privacy notice](https://lictory.com/privacy) covers both Lictory websites.
+This documentation site is not an installation and has its own processing.
+Like lictory.com, it counts visits with PostHog, loaded through its own
+`/relay` so your browser never contacts PostHog directly, without cookies
+unless you accept them in the banner; it never sends search terms or copied
+text. The [privacy notice](https://lictory.com/privacy) for both Lictory
+websites lists what is collected and every cookie they use.

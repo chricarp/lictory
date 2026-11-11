@@ -83,26 +83,18 @@ RUN bun build scripts/migrate.ts --target=node --format=esm \
     done
 
 # The public website (lictory.com) is static and prerendered, so its origin
-# and legal notice are build arguments. Self-hosted installations do not need
+# and analytics settings are build arguments. Self-hosted installations do not need
 # this image.
 FROM source AS marketing-build
 ARG APP_VERSION
 ARG SITE_URL
 ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=""
 ARG NEXT_PUBLIC_POSTHOG_HOST=""
-ARG LICTORY_LEGAL_NAME=""
-ARG LICTORY_LEGAL_ADDRESS=""
-ARG LICTORY_LEGAL_EMAIL=""
-ARG LICTORY_LEGAL_REGISTRATION=""
 RUN test -n "$SITE_URL"
 ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION \
     SITE_URL=$SITE_URL \
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN \
-    NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST \
-    LICTORY_LEGAL_NAME=$LICTORY_LEGAL_NAME \
-    LICTORY_LEGAL_ADDRESS=$LICTORY_LEGAL_ADDRESS \
-    LICTORY_LEGAL_EMAIL=$LICTORY_LEGAL_EMAIL \
-    LICTORY_LEGAL_REGISTRATION=$LICTORY_LEGAL_REGISTRATION
+    NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST
 RUN --mount=type=cache,target=/src/apps/marketing/.next/cache \
     bun scripts/inject-release-version.ts "$APP_VERSION" \
  && bun run --filter @lictory/marketing build \

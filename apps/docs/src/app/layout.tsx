@@ -4,6 +4,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
 
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
+import { websitesConsent } from "@lictory/ui/consent/shared-consent";
 
 import "./styles.css";
 import { NavCtaTracking } from "@lictory/docs/components/analytics";
@@ -36,7 +37,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body className="flex min-h-screen flex-col">
-        <ConsentProvider site="docs" privacyHref={`${site.website}/privacy`}>
+        <ConsentProvider
+          site="docs"
+          privacyHref={`${site.website}/privacy`}
+          sharedConsent={websitesConsent}
+        >
           <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
             <DocsLayout
               tree={source.getPageTree()}

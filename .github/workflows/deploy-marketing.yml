@@ -95,10 +95,6 @@ jobs:
           NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
           NEXT_PUBLIC_ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}
-          LICTORY_LEGAL_NAME: ${{ vars.LICTORY_LEGAL_NAME }}
-          LICTORY_LEGAL_ADDRESS: ${{ vars.LICTORY_LEGAL_ADDRESS }}
-          LICTORY_LEGAL_EMAIL: ${{ vars.LICTORY_LEGAL_EMAIL }}
-          LICTORY_LEGAL_REGISTRATION: ${{ vars.LICTORY_LEGAL_REGISTRATION }}
         run: bun run --cwd apps/marketing build:cloudflare
       # The only step that receives the Cloudflare token.
       - name: Deploy to Cloudflare
