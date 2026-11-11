@@ -7,6 +7,9 @@ import { expect, test, type APIRequestContext } from "@playwright/test";
 const email = process.env.LICTORY_TRY_EMAIL ?? "admin@example.com";
 const password = process.env.LICTORY_TRY_PASSWORD ?? "";
 const mailUrl = process.env.LICTORY_TRY_MAIL_URL ?? "http://localhost:8025";
+// The inbox asks for the password try.sh generated (LICTORY_TRY_MAIL_PASSWORD
+// in the trial's .env), as it holds password-reset links.
+const mailPassword = process.env.LICTORY_TRY_MAIL_PASSWORD ?? "";
 // The organization try.sh creates (LICTORY_ORGANIZATION, default Evaluation).
 const organization =
   process.env.LICTORY_TRY_ORGANIZATION_HANDLE ?? "evaluation";
@@ -39,7 +42,13 @@ test("the first administrator signs in and the workspace syncs", async ({
   expect(socket.isClosed()).toBe(false);
 });
 
-test("email reaches the Mailpit inbox", async ({ request, baseURL }) => {
+test("email reaches the Mailpit inbox, which asks for its password", async ({
+  request,
+  baseURL,
+}) => {
+  // Password-reset links land here: without the password the inbox refuses.
+  const anonymous = await request.get(`${mailUrl}/api/v1/messages`);
+  expect(anonymous.status()).toBe(401);
   const before = await inbox(request);
   const reset = await request.post("/api/auth/request-password-reset", {
     headers: { origin: new URL(baseURL ?? "http://localhost").origin },
@@ -53,8 +62,14 @@ test("email reaches the Mailpit inbox", async ({ request, baseURL }) => {
 });
 
 async function inbox(request: APIRequestContext) {
+  expect(mailPassword, "LICTORY_TRY_MAIL_PASSWORD").not.toBe("");
   const response = await request.get(
     `${mailUrl}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`,
+    {
+      headers: {
+        authorization: `Basic ${Buffer.from(`lictory:${mailPassword}`).toString("base64")}`,
+      },
+    },
   );
   expect(response.ok()).toBe(true);
   const body = (await response.json()) as { messages_count: number };

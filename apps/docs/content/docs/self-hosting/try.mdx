@@ -48,8 +48,13 @@ Lictory 0.24.0 is running: http://localhost
   Sign in        admin@example.com
   Password       8c1f…   (saved in ~/lictory-try/administrator.txt)
   Email inbox    http://localhost:8025   (Mailpit: invitations and every other email)
+                 user lictory, password 5d0a…
   Admin console  http://localhost/admin
 ```
+
+The inbox asks for its own user and password (saved as
+`LICTORY_TRY_MAIL_PASSWORD` in `~/lictory-try/.env`): it receives
+password-reset links, so nobody else who can reach it should read them.
 
 When port 80 or 8025 is taken (or Docker runs rootless, which can't use port
 80), the trial picks the next free port, such as `http://localhost:8080`, and
@@ -70,12 +75,18 @@ takes a proposal from draft through review to delivery.
 
 ## Stop, start again and remove
 
-| What        | Command                                                                                        |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| Stop        | `cd ~/lictory-try && docker compose stop`                                                      |
-| Start again | Run the start command again                                                                    |
-| Upgrade     | Run the command again: it moves the trial to the newest release and keeps your data            |
-| Remove all  | `cd ~/lictory-try && docker compose down --volumes --rmi all && cd .. && rm -rf ~/lictory-try` |
+These commands use the default folder. If you chose another one with
+`LICTORY_TRY_DIR`, use that folder instead in both places: the start command
+prints these commands with it. `-p lictory-try` names the trial's Compose
+project, so the commands never act on another project, even when your shell
+sets `COMPOSE_PROJECT_NAME`.
+
+| What        | Command                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------- |
+| Stop        | `cd ~/lictory-try && docker compose -p lictory-try stop`                                                      |
+| Start again | Run the start command again (with the same `LICTORY_TRY_DIR`, if you set one)                                 |
+| Upgrade     | Run the command again: it moves the trial to the newest release and keeps your data                           |
+| Remove all  | `cd ~/lictory-try && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf ~/lictory-try` |
 
 Removing deletes the database with everything you created, the downloaded
 images and the folder.
@@ -101,8 +112,9 @@ the command again to apply them.
 
 ## When something goes wrong
 
-The command prints the last lines of `~/lictory-try/try.log` when a step
-fails. Common causes:
+The command prints the last lines of `try.log` in the trial's folder
+(`~/lictory-try` by default) when a step fails, with the name of the service
+that did not start. Common causes:
 
 - **Cannot reach Docker:** start Docker Desktop, or on Linux add your user to
   the `docker` group and sign in again.
@@ -111,8 +123,12 @@ fails. Common causes:
 - **A port is taken:** choose others with `LICTORY_TRY_PORT` and
   `LICTORY_TRY_MAIL_PORT`.
 
-`cd ~/lictory-try && docker compose ps` shows each service's state and
-`docker compose logs api` its log.
+`cd ~/lictory-try && docker compose -p lictory-try ps` shows each service's
+state and `docker compose -p lictory-try logs api` its log.
+
+On Linux, Docker Engine before 28 lets other computers on your local network
+reach ports published on `127.0.0.1`; the command warns about it. Upgrade
+Docker Engine, or run the trial on a network you trust.
 
 ## Next: your team's server
 

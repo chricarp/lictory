@@ -37,8 +37,13 @@ It is the server stack, not a parallel one:
   (as `compose.yaml`) and role script out of its ops image into
   `~/lictory-try`. It needs only Docker and `curl`, so unlike `get.sh` it does
   not compare `release.env` with GitHub's asset digest (that needs `jq`).
-- `compose.override.yaml` adds only Mailpit (`SMTP_HOST=mailpit`) and the
-  project name `lictory-try`. Everything else is `.env`: generated secrets,
+- `compose.override.yaml` adds only Mailpit (`SMTP_HOST=mailpit`; its inbox
+  asks for user `lictory` and the generated `LICTORY_TRY_MAIL_PASSWORD`,
+  because it receives password-reset links) and the project name
+  `lictory-try`. The script also sets `COMPOSE_PROJECT_NAME=lictory-try` and
+  ignores `COMPOSE_FILE`, `COMPOSE_PROFILES` and `COMPOSE_ENV_FILES` from the
+  shell, and the commands it prints pass `-p lictory-try`, so neither can reach
+  another Compose project. Everything else is `.env`: generated secrets,
   `PROXY_SCHEME=http` on `127.0.0.1` (the `--tls http` mode of `lictory
 install`), laptop-sized PostgreSQL settings and `BACKUP_TARGET=none`.
   `LICTORY_ENVIRONMENT` is `production` because released migrate images
@@ -51,8 +56,13 @@ install`), laptop-sized PostgreSQL settings and `BACKUP_TARGET=none`.
 - Port 80 (8080 and up when it is taken or Docker is rootless) and Mailpit on
   8025 (or the next free port), both on `127.0.0.1`.
 - Running it again reuses `.env`, replaces the image digests with the newest
-  release's and migrates: the trial upgrades in place. `docker compose down
---volumes --rmi all` in the directory removes everything.
+  release's and migrates, waits for the running zero-cache to replicate the
+  migration (as `deploy.sh` does), then replaces the services: the trial
+  upgrades in place. `docker compose -p lictory-try down --volumes --rmi all`
+  in the directory removes everything.
+- On Linux with Docker Engine before 28, hosts on the local network can reach
+  ports published on `127.0.0.1`; the script warns (Docker Desktop is not
+  affected).
 
 It is not a server: plain HTTP, secrets in a local file, no backups, timers or
 monitoring, and no `lictory` command. CI runs the script and a sign-in,

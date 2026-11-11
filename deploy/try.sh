@@ -22,6 +22,7 @@
 #   LICTORY_ADMIN_PASSWORD  their password (default: generated and printed)
 #   LICTORY_ORGANIZATION    the organization they own (default Evaluation)
 #   LICTORY_REPOSITORY / LICTORY_IMAGE_REGISTRY  a fork's releases and images
+# The Compose project is always lictory-try (COMPOSE_PROJECT_NAME is ignored).
 set -eu
 
 # Everything runs from main, so a truncated download executes nothing.
@@ -69,6 +70,15 @@ check_docker() {
   case "$major$minor" in *[!0-9]*) fail "Unrecognized Docker Compose version: $compose_version." ;; esac
   { [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 24 ]; }; } ||
     fail "Docker Compose 2.24 or newer is required (this is $compose_version); update Docker Desktop or the Compose plugin."
+  # Before Engine 28, hosts on the same network segment can reach ports
+  # published on 127.0.0.1 (Docker Desktop runs Docker in a VM instead).
+  engine=$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)
+  case "${engine%%.*}" in '' | *[!0-9]*) ;; *)
+    if [ "${engine%%.*}" -lt 28 ] && ! docker info --format '{{.OperatingSystem}}' 2>/dev/null | grep -q 'Docker Desktop'; then
+      say "Warning: Docker Engine $engine lets computers on your local network reach the trial's ports. Docker Engine 28 or newer keeps them on this computer; until then, run the trial on a network you trust."
+    fi
+    ;;
+  esac
   memory=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
   case "$memory" in '' | *[!0-9]*) memory=0 ;; esac
   if [ "$memory" -gt 0 ] && [ "$memory" -lt 3000000000 ]; then
@@ -169,6 +179,8 @@ services:
       - "127.0.0.1:${LICTORY_TRY_MAIL_PORT:-8025}:8025"
     mem_limit: 128m
     environment:
+      # The inbox receives password resets: it asks for the password in .env.
+      MP_UI_AUTH: "lictory:${LICTORY_TRY_MAIL_PASSWORD:?Run try.sh again to set the inbox password}"
       MP_MAX_MESSAGES: "1000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
@@ -229,6 +241,10 @@ EOF
     [ -z "${LICTORY_TRY_PORT:-}" ] || set_key HTTP_PORT "$(check_port_value "$LICTORY_TRY_PORT")"
     [ -z "${LICTORY_TRY_MAIL_PORT:-}" ] || set_key LICTORY_TRY_MAIL_PORT "$(check_port_value "$LICTORY_TRY_MAIL_PORT")"
   fi
+  # Trials created before the inbox had a password get one.
+  [ -n "$(value_of "$dir/.env" LICTORY_TRY_MAIL_PASSWORD)" ] ||
+    set_key LICTORY_TRY_MAIL_PASSWORD "$(secret | cut -c1-20)"
+  mail_password=$(value_of "$dir/.env" LICTORY_TRY_MAIL_PASSWORD)
   port=$(value_of "$dir/.env" HTTP_PORT)
   mail_port=$(value_of "$dir/.env" LICTORY_TRY_MAIL_PORT)
   url="http://localhost"
@@ -247,12 +263,18 @@ EOF
 # Compose prefers the shell's variables to .env, so an exported SMTP_HOST or
 # HTTP_PORT, or LICTORY_VERSION (which also names the stack's version) set to
 # choose a release, would silently replace the trial's settings.
+# Compose's own variables would also choose another project, other files or
+# another .env; the project is always lictory-try, so no command here, and
+# none it prints, can reach another Compose project.
 isolate_settings() {
   while IFS= read -r line; do
     key="${line%%=*}"
     case "$key" in '' | [!A-Z_]* | *[!A-Z0-9_]*) continue ;; esac
     unset "$key"
   done <"$dir/.env"
+  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
+  COMPOSE_PROJECT_NAME=lictory-try
+  export COMPOSE_PROJECT_NAME
 }
 
 # The order of a server deployment (deploy/deploy.sh): database, migrations,
@@ -267,6 +289,7 @@ start_services() {
   done_step
   step "Applying database migrations"
   docker compose run --rm --no-deps -T migrate >>"$log" 2>&1 || fail_with_log "The migrations failed."
+  wait_for_replication
   done_step
   step "Starting realtime sync (zero-cache)"
   docker compose up -d --no-deps --wait --wait-timeout 900 zero-cache >>"$log" 2>&1 ||
@@ -283,7 +306,7 @@ start_services() {
     failing=$(docker compose ps -a --format '{{.Service}} {{.State}} {{.Health}}' api worker collaboration proxy 2>/dev/null |
       awk '$2 != "running" || ($3 != "" && $3 != "healthy") { print $1; exit }' || true)
     [ -z "$failing" ] || docker compose logs --no-color --no-log-prefix --tail 25 "$failing" >>"$log" 2>&1 || true
-    fail_with_log "${failing:-A service} did not start. Logs: cd '$dir' && docker compose logs ${failing:-}"
+    fail_with_log "${failing:-A service} did not start. Logs: cd '$dir' && docker compose -p lictory-try logs ${failing:-}"
   fi
   ready=false
   for _ in $(seq 1 90); do
@@ -293,8 +316,25 @@ start_services() {
     fi
     sleep 2
   done
-  [ "$ready" = true ] || fail_with_log "$url/readyz did not answer. Logs: cd '$dir' && docker compose logs api proxy"
+  [ "$ready" = true ] || fail_with_log "$url/readyz did not answer. Logs: cd '$dir' && docker compose -p lictory-try logs api proxy"
   done_step
+}
+
+# On an upgrade the running zero-cache replicates the migration before the new
+# services start (deploy.sh's wait_for_zero); a new trial's first sync does.
+wait_for_replication() {
+  [ -n "$(docker compose ps -q --status running zero-cache 2>/dev/null || true)" ] || return 0
+  lsn=$(psql_admin "SELECT pg_current_wal_lsn()") || fail_with_log "Could not read the database's WAL position."
+  for _ in $(seq 1 200); do
+    caught=$(psql_admin "SELECT coalesce(bool_or(confirmed_flush_lsn >= '$lsn'::pg_lsn), false) FROM pg_replication_slots WHERE slot_type = 'logical' AND active" || echo f)
+    [ "$caught" = t ] && return 0
+    sleep 3
+  done
+  fail_with_log "zero-cache has not replicated the migration after 10 minutes. Logs: cd '$dir' && docker compose -p lictory-try logs zero-cache"
+}
+psql_admin() {
+  docker compose exec -T postgres psql -X -A -t -v ON_ERROR_STOP=1 -U postgres \
+    -d "$(value_of "$dir/.env" LICTORY_DB_NAME)" -c "$1" 2>>"$log"
 }
 
 roles() {
@@ -347,11 +387,12 @@ summary() {
     say "  Sign in        with the administrator created earlier"
   fi
   say "  Email inbox    http://localhost:$mail_port   (Mailpit: invitations and every other email)"
+  say "                 user lictory, password $mail_password"
   say "  Admin console  $url/admin"
   say ""
-  say "  Stop           cd '$dir' && docker compose stop"
+  say "  Stop           cd '$dir' && docker compose -p lictory-try stop"
   say "  Start again    run this command again"
-  say "  Remove         cd '$dir' && docker compose down --volumes --rmi all && cd .. && rm -rf '$dir'"
+  say "  Remove         cd '$dir' && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf '$dir'"
   say ""
   say "Run Lictory for your team on a server: https://docs.lictory.com/self-hosting/install"
 }

@@ -36,12 +36,15 @@ runs:
         LICTORY_ADMIN_PASSWORD="$password" sh < deploy/try.sh
         port=$(grep -E '^HTTP_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
         mail=$(grep -E '^LICTORY_TRY_MAIL_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
+        mail_password=$(grep -E '^LICTORY_TRY_MAIL_PASSWORD=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
+        echo "::add-mask::$mail_password"
         url=http://localhost
         [ "$port" = 80 ] || url="$url:$port"
         {
           echo "password=$password"
           echo "url=$url"
           echo "mail-url=http://localhost:$mail"
+          echo "mail-password=$mail_password"
         } >> "$GITHUB_OUTPUT"
     - name: Install the browser
       shell: bash
@@ -53,6 +56,7 @@ runs:
         LICTORY_TRY_MAIL_URL: ${{ steps.trial.outputs.mail-url }}
         LICTORY_TRY_EMAIL: admin@example.com
         LICTORY_TRY_PASSWORD: ${{ steps.trial.outputs.password }}
+        LICTORY_TRY_MAIL_PASSWORD: ${{ steps.trial.outputs.mail-password }}
       run: bunx playwright test --config tests/try/playwright.config.ts
     - name: Service logs
       if: failure()
@@ -63,8 +67,8 @@ runs:
         [ -d "$LICTORY_TRY_DIR" ] || exit 0
         cat "$LICTORY_TRY_DIR/try.log" || true
         cd "$LICTORY_TRY_DIR"
-        docker compose ps -a || true
-        docker compose logs --no-color --tail 200 || true
+        docker compose -p lictory-try ps -a || true
+        docker compose -p lictory-try logs --no-color --tail 200 || true
     # The documented removal: nothing may be left behind.
     - name: Remove the trial
       if: always()
@@ -74,7 +78,7 @@ runs:
       run: |
         set -euo pipefail
         [ -d "$LICTORY_TRY_DIR" ] || exit 0
-        (cd "$LICTORY_TRY_DIR" && docker compose down --volumes --rmi all)
+        (cd "$LICTORY_TRY_DIR" && docker compose -p lictory-try down --volumes --rmi all)
         rm -rf "$LICTORY_TRY_DIR"
         left=$(docker ps -aq --filter label=com.docker.compose.project=lictory-try)
         [ -z "$left" ] || { echo "Containers of the trial remain: $left" >&2; exit 1; }

@@ -62,7 +62,7 @@ import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from "node:
 const args = process.argv.slice(2);
 const admin = ${JSON.stringify(name)} === "docker" && args.some((arg) => arg.endsWith("/admin.js"));
 const stdin = admin ? readFileSync(0, "utf8") : "";
-const shell = Object.fromEntries(["LICTORY_VERSION", "HTTP_BINDING", "SMTP_HOST"].map((key) => [key, process.env[key] ?? null]));
+const shell = Object.fromEntries(["LICTORY_VERSION", "HTTP_BINDING", "SMTP_HOST", "COMPOSE_PROJECT_NAME", "COMPOSE_FILE"].map((key) => [key, process.env[key] ?? null]));
 appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ name: ${JSON.stringify(name)}, args, cwd: process.cwd(), stdin, shell }) + "\\n");
 ${body}
 `,
@@ -84,9 +84,12 @@ writeFileSync(args[args.indexOf("-o") + 1], route);`,
   // deploy directory); the administrator command answers FAKE_ADMIN_STATUS.
   recorder(
     "docker",
-    `if (args[0] === "version") console.log("29.0.0");
+    `if (args[0] === "version") console.log(process.env.FAKE_ENGINE_VERSION ?? "29.0.0");
 else if (args[0] === "compose" && args[1] === "version") console.log(process.env.FAKE_COMPOSE_VERSION ?? "2.30.0");
+else if (args[0] === "compose" && args[1] === "ps") { if (process.env.FAKE_ZERO_RUNNING) console.log("zero-container"); }
+else if (args[0] === "compose" && args.includes("psql")) console.log(args.at(-1).includes("pg_current_wal_lsn") ? "0/1A2B3C4" : "t");
 else if (args[0] === "info" && args.join(" ").includes("MemTotal")) console.log("8000000000");
+else if (args[0] === "info" && args.join(" ").includes("OperatingSystem")) console.log(process.env.FAKE_OS ?? "Ubuntu 24.04.1 LTS");
 else if (args[0] === "info") console.log(process.env.FAKE_ROOTLESS ? "[name=seccomp,profile=builtin name=rootless]" : "[name=seccomp,profile=builtin]");
 else if (args[0] === "create") console.log("ops-container");
 else if (args[0] === "cp") copyFileSync(${JSON.stringify(deploy)} + args[1].replace(/^ops-container:\\/opt\\/lictory\\/deploy/, ""), args[2]);
@@ -172,6 +175,11 @@ void test("a first trial runs the release's own stack on http://localhost and cr
   assert.match(override, /^name: lictory-try$/m);
   assert.match(override, /image: axllent\/mailpit:v[\d.]+@sha256:[0-9a-f]{64}/);
   assert.match(override, /127\.0\.0\.1:\$\{LICTORY_TRY_MAIL_PORT:-8025\}:8025/);
+  // The inbox holds password-reset links, so it asks for a password.
+  assert.match(
+    override,
+    /MP_UI_AUTH: "lictory:\$\{LICTORY_TRY_MAIL_PASSWORD:\?/,
+  );
 
   // Plain HTTP on this computer only, generated secrets, the release digests.
   const settings = env(f.dir);
@@ -182,6 +190,7 @@ void test("a first trial runs the release's own stack on http://localhost and cr
   assert.equal(settings.HTTPS_BINDING, "127.0.0.1::443");
   assert.equal(settings.LICTORY_TRY_MAIL_PORT, "8025");
   assert.equal(settings.SMTP_HOST, "mailpit");
+  assert.match(settings.LICTORY_TRY_MAIL_PASSWORD!, /^[0-9a-f]{20}$/);
   assert.equal(settings.LICTORY_SIGNUP_MODE, "invite");
   const secrets = [
     "POSTGRES_SUPERUSER_PASSWORD",
@@ -211,6 +220,8 @@ void test("a first trial runs the release's own stack on http://localhost and cr
     "up -d --wait --wait-timeout 180 postgres mailpit",
     roles,
     "run --rm --no-deps -T migrate",
+    // A new trial has no zero-cache yet: its initial sync replicates.
+    "ps -q --status running zero-cache",
     "up -d --no-deps --wait --wait-timeout 900 zero-cache",
     roles,
     "up -d --no-deps --wait --wait-timeout 300 api worker collaboration proxy",
@@ -236,7 +247,17 @@ void test("a first trial runs the release's own stack on http://localhost and cr
   assert.match(result.stdout, /running: http:\/\/localhost$/m);
   assert.match(result.stdout, /not for production/);
   assert.match(result.stdout, /evaluation-secret/);
-  assert.match(result.stdout, /docker compose down --volumes --rmi all/);
+  assert.match(
+    result.stdout,
+    new RegExp(`user lictory, password ${settings.LICTORY_TRY_MAIL_PASSWORD}`),
+  );
+  // Printed commands name the project, whatever the shell exports.
+  assert.match(
+    result.stdout,
+    /docker compose -p lictory-try down --volumes --rmi all/,
+  );
+  assert.match(result.stdout, /docker compose -p lictory-try stop/);
+  assert.doesNotMatch(result.stdout, /Docker Engine/);
   // Only the ops image's files are kept, not the image.
   assert.ok(
     result.calls.some(
@@ -287,13 +308,18 @@ void test("running the trial again keeps its secrets, data and edits and moves i
   );
 
   f.release(latest, releaseFile("0.25.0", "2"));
-  const again = f.run({ FAKE_ADMIN_STATUS: "3", FAKE_BUSY_PORTS: "80" });
+  const again = f.run({
+    FAKE_ADMIN_STATUS: "3",
+    FAKE_BUSY_PORTS: "80",
+    FAKE_ZERO_RUNNING: "1",
+  });
   assert.equal(again.status, 0, again.stderr);
   const second = env(f.dir);
   for (const key of [
     "BETTER_AUTH_SECRET",
     "LICTORY_APP_PASSWORD",
     "HTTP_BINDING",
+    "LICTORY_TRY_MAIL_PASSWORD",
   ])
     assert.equal(second[key], first[key], key);
   assert.equal(second.LICTORY_AI_CONSOLE, "false");
@@ -306,8 +332,18 @@ void test("running the trial again keeps its secrets, data and edits and moves i
     readFileSync(join(f.dir, ".env"), "utf8").match(/^API_IMAGE=/gm)?.length,
     1,
   );
-  // The migrations of the new release run; the administrator stays.
-  assert.ok(compose(again.calls).includes("run --rm --no-deps -T migrate"));
+  // The new release's migrations run, and the running zero-cache replicates
+  // them (deploy.sh's wait_for_zero) before it and the services are replaced.
+  const upgrade = compose(again.calls);
+  const migrated = upgrade.indexOf("run --rm --no-deps -T migrate");
+  assert.ok(migrated >= 0);
+  assert.match(upgrade[migrated + 2]!, /psql .*SELECT pg_current_wal_lsn\(\)$/);
+  assert.match(upgrade[migrated + 3]!, /confirmed_flush_lsn >= '0\/1A2B3C4'/);
+  assert.equal(
+    upgrade[migrated + 4],
+    "up -d --no-deps --wait --wait-timeout 900 zero-cache",
+  );
+  // The administrator stays.
   assert.equal(
     readFileSync(join(f.dir, "administrator.txt"), "utf8"),
     credentials,
@@ -317,6 +353,17 @@ void test("running the trial again keeps its secrets, data and edits and moves i
   const same = f.run({ FAKE_ADMIN_STATUS: "3" });
   assert.equal(same.status, 0, same.stderr);
   assert.ok(!same.calls.some((call) => call.args[0] === "pull"));
+
+  // A trial from before the inbox had a password gets one.
+  writeFileSync(
+    join(f.dir, ".env"),
+    readFileSync(join(f.dir, ".env"), "utf8").replace(
+      /^LICTORY_TRY_MAIL_PASSWORD=.*\n/m,
+      "",
+    ),
+  );
+  assert.equal(f.run({ FAKE_ADMIN_STATUS: "3" }).status, 0);
+  assert.match(env(f.dir).LICTORY_TRY_MAIL_PASSWORD!, /^[0-9a-f]{20}$/);
 });
 
 void test("a release file that is not digest-pinned starts nothing", (t) => {
@@ -351,10 +398,14 @@ void test("the trial's settings win over variables exported in the shell", (t) =
   f.release(latest, releaseFile("0.24.0"));
   // An empty LICTORY_VERSION means the newest release; Compose would read it
   // as the stack's version and refuse to start.
+  // An exported Compose project or file list would point the trial's
+  // commands, and the printed removal, at another project.
   const result = f.run({
     LICTORY_VERSION: "",
     HTTP_BINDING: "0.0.0.0:80:80",
     SMTP_HOST: "smtp.example.com",
+    COMPOSE_PROJECT_NAME: "lictory-production",
+    COMPOSE_FILE: "/srv/lictory/compose.yaml",
   });
   assert.equal(result.status, 0, result.stderr);
   const stack = result.calls.filter(
@@ -364,7 +415,13 @@ void test("the trial's settings win over variables exported in the shell", (t) =
   for (const call of stack)
     assert.deepEqual(
       call.shell,
-      { LICTORY_VERSION: null, HTTP_BINDING: null, SMTP_HOST: null },
+      {
+        LICTORY_VERSION: null,
+        HTTP_BINDING: null,
+        SMTP_HOST: null,
+        COMPOSE_PROJECT_NAME: "lictory-try",
+        COMPOSE_FILE: null,
+      },
       call.args.join(" "),
     );
 });
@@ -384,4 +441,25 @@ void test("a chosen version is downloaded by its tag, and old Compose is refused
   const refused = old.run({ FAKE_COMPOSE_VERSION: "2.20.2" });
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /Compose 2\.24 or newer/);
+});
+
+void test("Docker Engine before 28 on Linux warns that the local network can reach the trial", (t) => {
+  const f = fixture(t);
+  f.release(latest, releaseFile("0.24.0"));
+  const old = f.run({ FAKE_ENGINE_VERSION: "27.5.1" });
+  assert.equal(old.status, 0, old.stderr);
+  assert.match(
+    old.stdout,
+    /Docker Engine 27\.5\.1 lets computers on your local network/,
+  );
+
+  // Docker Desktop runs the engine in a VM: its ports stay on this computer.
+  const desktop = fixture(t);
+  desktop.release(latest, releaseFile("0.24.0"));
+  const result = desktop.run({
+    FAKE_ENGINE_VERSION: "27.5.1",
+    FAKE_OS: "Docker Desktop",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /local network/);
 });
