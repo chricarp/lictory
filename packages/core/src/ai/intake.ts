@@ -109,10 +109,10 @@ export type ProposalDrafter = {
   draft(context: IntakeContext, call?: AnalyzerCall): Promise<IntakeOutput>;
 };
 
-export function createProposalDrafter(
+export async function createProposalDrafter(
   options: { model?: LanguageModel; modelId?: string } = {},
-): ProposalDrafter {
-  const target = analyzerTarget(options);
+): Promise<ProposalDrafter> {
+  const target = await analyzerTarget(options);
   return {
     model: target.modelId,
     draft: (context, call) =>

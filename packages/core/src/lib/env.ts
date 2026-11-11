@@ -16,6 +16,17 @@ export function env(
   return value;
 }
 
+// Removes blank variables from the environment, so they are unset for code
+// that reads process.env itself as well. Libraries do not share the rule
+// above: the AI SDKs read their own variables when they load, and
+// @ai-sdk/openai refuses a blank OPENAI_BASE_URL. Safe to call again.
+export function unsetBlankVariables(
+  target: Record<string, string | undefined> = process.env,
+) {
+  for (const [name, value] of Object.entries(target))
+    if (value !== undefined && !value.trim()) delete target[name];
+}
+
 // A non-negative whole number, or undefined when unset or blank. A value that
 // is set but not a whole number is a configuration error, not a default.
 export function envInteger(

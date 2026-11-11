@@ -143,7 +143,7 @@ async function checkText(
   const { config } = resolution;
   let model: LanguageModel;
   try {
-    model = options.model ?? languageModel(config);
+    model = options.model ?? (await languageModel(config));
   } catch (error) {
     return {
       state: "configured",
@@ -365,7 +365,7 @@ async function checkSegments(
 ) {
   try {
     const result = await transcribe({
-      model: transcriptionModel(config),
+      model: await transcriptionModel(config),
       audio: syntheticWav(),
       providerOptions: transcriptionOptions(config),
       maxRetries: 0,
