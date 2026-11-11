@@ -6,7 +6,7 @@ import {
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
@@ -612,23 +612,22 @@ export function ItemDetail({
     (item.committedRevisionId
       ? item.committedRevisionId !== item.revisionId
       : item.refinementState === "ready");
+  // Properties lead, readiness follows, then the review and the rest.
   const panel = (
     <div className="space-y-6 p-4">
-      {ctx.reviewable && (
-        <div data-review-panel className="scroll-mt-4 space-y-6">
-          <ReviewPanel />
-          <Readiness />
-        </div>
-      )}
-      <ExternalDelivery item={item} />
       <section>
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
+      {ctx.reviewable && (
+        <div data-review-panel className="scroll-mt-4 space-y-6">
+          <Readiness />
+          <ReviewPanel />
+        </div>
+      )}
+      <ExternalDelivery item={item} />
       {ctx.reviewable ? (
-        <>
-          <RevisionPanel onHistory={showHistory} />
-        </>
+        <RevisionPanel onHistory={showHistory} />
       ) : (
         <p className="text-xs text-muted-foreground">
           {type.name} items are plain work: no reviews or readiness checks.
@@ -952,13 +951,22 @@ export function ItemDetail({
                       // The rail steps aside for discussions on mid-size
                       // frames; asking for the review brings it back.
                       if (railHidden) discussions.setPanelOpen(false);
-                      if (window.innerWidth < 1280) setPanelOpen(true);
-                      else
+                      // Checks and reviews sit below the properties: scroll
+                      // the rail to them, or the drawer when the rail is
+                      // folded away.
+                      const reveal = (panel: string) =>
                         document
-                          .querySelector(
-                            "[data-desktop-item-panel] [data-review-panel]",
-                          )
+                          .querySelector(`${panel} [data-review-panel]`)
                           ?.scrollIntoView({ block: "start" });
+                      requestAnimationFrame(() => {
+                        const rail = document.querySelector(
+                          "[data-desktop-item-panel]",
+                        );
+                        if (rail?.getClientRects().length)
+                          return reveal("[data-desktop-item-panel]");
+                        flushSync(() => setPanelOpen(true));
+                        reveal("[data-item-panel-drawer]");
+                      });
                     }}
                     onBreakdown={() =>
                       document
@@ -1187,7 +1195,10 @@ export function ItemDetail({
                   className="absolute inset-0 bg-black/30"
                   onClick={() => setPanelOpen(false)}
                 />
-                <aside className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl">
+                <aside
+                  data-item-panel-drawer
+                  className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl"
+                >
                   <div className="flex h-11 items-center justify-between border-b px-4 text-sm font-medium">
                     Review & details
                     <Button

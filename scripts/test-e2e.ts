@@ -30,6 +30,7 @@ import {
   shardFiles,
   updateTimings,
 } from "./e2e-selection";
+import { busyPorts, e2ePorts } from "./e2e-ports";
 import { FAKE_JIRA_SITE, startFakeJira } from "./e2e-fakes/jira";
 import { startScriptedAi } from "./e2e-fakes/openai";
 
@@ -38,19 +39,7 @@ const adminUrl =
   "postgresql://lictory:lictory@localhost:5432/postgres";
 // E2E_PORT_OFFSET lets several checkouts run browser tests side by side.
 const offset = Number(process.env.E2E_PORT_OFFSET ?? 0);
-const ports = {
-  edge: 3001 + offset,
-  api: 3002 + offset,
-  workerHealth: 3003 + offset,
-  collaboration: 3004 + offset,
-  marketing: 3101 + offset,
-  docs: 3201 + offset,
-  docsInspector: 9301 + offset,
-  zero: 4858 + offset * 10,
-  zeroChangeStreamer: 4859 + offset * 10,
-  fakeJira: 3005 + offset,
-  scriptedAi: 3006 + offset,
-};
+const ports = e2ePorts(offset);
 const platformUrl = `http://localhost:${ports.edge}`;
 const siteUrl = `http://localhost:${ports.marketing}`;
 const docsUrl = `http://localhost:${ports.docs}`;
@@ -274,22 +263,11 @@ const retired = new Set<ChildProcess>();
 // A stale server on one of these ports would silently answer instead of the
 // build under test.
 async function assertPortsFree() {
-  const { createConnection } = await import("node:net");
-  for (const port of Object.values(ports))
-    for (const host of ["127.0.0.1", "::1"]) {
-      const busy = await new Promise<boolean>((resolve) => {
-        const socket = createConnection({ port, host });
-        socket.once("connect", () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.once("error", () => resolve(false));
-      });
-      if (busy)
-        throw new Error(
-          `Port ${port} (${host}) is already in use; stop the process using it.`,
-        );
-    }
+  const [busy] = await busyPorts(offset);
+  if (busy)
+    throw new Error(
+      `Port ${busy.port} (${busy.host}) is already in use; stop the process using it.`,
+    );
 }
 await assertPortsFree();
 function stop(child: ChildProcess) {
@@ -412,11 +390,6 @@ try {
           ...buildEnv,
           NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
           NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
-          // A synthetic operator, never a developer's own legal details.
-          LICTORY_LEGAL_NAME: "Example Operator",
-          LICTORY_LEGAL_EMAIL: "privacy@example.org",
-          LICTORY_LEGAL_ADDRESS: "",
-          LICTORY_LEGAL_REGISTRATION: "",
         }),
       async () => {
         if (docsNeeded)

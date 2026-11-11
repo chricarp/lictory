@@ -185,6 +185,11 @@ export async function buildImages(
         "--file",
         "deploy/docker-bake.hcl",
         "--push",
+        // An SBOM and full provenance in every image index, also when an
+        // older selected source (a maintenance branch) predates them in its
+        // bake file. Publication reads the SBOMs back for the release.
+        "--sbom=true",
+        "--provenance=mode=max",
         // Override tags even for an older selected source whose bake file
         // predates TAG_SUFFIX. Architecture jobs must never overwrite each other.
         ...imageNames,

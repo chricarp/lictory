@@ -1,25 +1,20 @@
 // The SDK adapters of the AI providers (settings and validation are in
 // ai/provider-settings.ts, which this module re-exports). Only the selected
-// provider's adapter is ever built, and every setting is passed explicitly so
-// an SDK never falls back to its own environment variables.
+// provider's adapter is ever built, and every setting Lictory has is passed
+// explicitly, so an SDK does not fall back to its own environment variable for
+// it. Where Lictory passes nothing (Bedrock's default endpoint, the AWS and
+// Google credential chains) the SDK's own variables still apply.
+//
+// Provider SDKs are loaded on first use, never when this module loads: each
+// one builds a default client as it is evaluated (`openai = createOpenAI()`)
+// from its own variables, and @ai-sdk/openai and @ai-sdk/anthropic refuse a
+// blank base URL, which compose forwards when the operator sets none. A server
+// without AI therefore never evaluates a provider SDK, and before one is
+// loaded the blank variables the SDKs and their credential chains read are
+// removed, so they are unset for them as they are for Lictory (lib/env.ts).
 import { createHash } from "node:crypto";
 import { lookup as lookupAddress, type LookupAddress } from "node:dns";
 import { Agent } from "undici";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { createAssemblyAI } from "@ai-sdk/assemblyai";
-import { createAzure } from "@ai-sdk/azure";
-import { createDeepgram } from "@ai-sdk/deepgram";
-import { createDeepSeek } from "@ai-sdk/deepseek";
-import { createElevenLabs } from "@ai-sdk/elevenlabs";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createVertex } from "@ai-sdk/google-vertex";
-import { createGroq } from "@ai-sdk/groq";
-import { createMistral } from "@ai-sdk/mistral";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { createXai } from "@ai-sdk/xai";
-import { defaultProvider } from "@aws-sdk/credential-provider-node";
 import type { LanguageModel, TranscriptionModel } from "ai";
 import {
   aiProvider,
@@ -29,11 +24,41 @@ import {
   type EntraCredentials,
   type TranscriptionConfig,
 } from "@lictory/core/ai/provider-settings";
-import { env } from "@lictory/core/lib/env";
+import { env, unsetBlankVariables } from "@lictory/core/lib/env";
 
 export * from "@lictory/core/ai/provider-settings";
 
 export class EndpointRefused extends Error {}
+
+// The variables the provider SDKs and the AWS and Google credential chains
+// read themselves (with Google's lowercase aliases). A prefix also covers
+// variables a later SDK release adds; unrelated variables are left alone.
+const sdkVariables = [
+  "OPENAI_",
+  "ANTHROPIC_",
+  "GOOGLE_",
+  "google_",
+  "GCLOUD_",
+  "gcloud_",
+  "GCE_METADATA_",
+  "CLOUDSDK_",
+  "METADATA_SERVER_DETECTION",
+  "DETECT_GCP_RETRIES",
+  "AZURE_",
+  "AWS_",
+  "MISTRAL_",
+  "XAI_",
+  "GROQ_",
+  "DEEPSEEK_",
+  "DEEPGRAM_",
+  "ELEVENLABS_",
+  "ASSEMBLYAI_",
+] as const;
+
+function sdk<T>(load: () => Promise<T>): Promise<T> {
+  unsetBlankVariables(sdkVariables);
+  return load();
+}
 
 /**
  * The fetch for endpoints entered in the admin console: the host must not
@@ -190,11 +215,12 @@ export async function entraToken(
   return body.access_token;
 }
 
-const azure = (
+const azure = async (
   config: { apiKey?: string; baseURL: string; entra?: EntraCredentials },
   fetch: typeof globalThis.fetch | undefined,
-) =>
-  createAzure({
+) => {
+  const { createAzure } = await sdk(() => import("@ai-sdk/azure"));
+  return createAzure({
     baseURL: config.baseURL,
     fetch,
     ...(config.apiKey
@@ -204,11 +230,12 @@ const azure = (
             entraToken(config.entra ?? { kind: "managed-identity" }),
         }),
   });
+};
 
 // Vertex AI: an express-mode API key, a service account key, or the
 // server's own Google Cloud identity. A base URL is set only by tests (the
 // catalog offers none).
-const vertex = (
+const vertex = async (
   config: {
     apiKey?: string;
     project?: string;
@@ -218,8 +245,9 @@ const vertex = (
     customBaseUrl: boolean;
   },
   fetch: typeof globalThis.fetch | undefined,
-) =>
-  createVertex({
+) => {
+  const { createVertex } = await sdk(() => import("@ai-sdk/google-vertex"));
+  return createVertex({
     fetch,
     ...(config.customBaseUrl ? { baseURL: config.baseURL } : {}),
     ...(config.apiKey
@@ -235,10 +263,14 @@ const vertex = (
             : {},
         }),
   });
+};
 
 // The server's own AWS identity (instance profile, task role, web identity
 // or the AWS_* variables), when no key is configured.
-const awsIdentity = () => {
+const awsIdentity = async () => {
+  const { defaultProvider } = await sdk(
+    () => import("@aws-sdk/credential-provider-node"),
+  );
   const provider = defaultProvider();
   return async () => {
     const { accessKeyId, secretAccessKey, sessionToken } = await provider();
@@ -247,21 +279,34 @@ const awsIdentity = () => {
 };
 
 /** The SDK model for this configuration; only ever the selected provider. */
-export function languageModel(config: AiProviderConfig): LanguageModel {
+export async function languageModel(
+  config: AiProviderConfig,
+): Promise<LanguageModel> {
   const { apiKey, baseURL, model } = config;
   const fetch = fetchFor(config);
   switch (config.adapter) {
-    case "openai":
+    case "openai": {
+      const { createOpenAI } = await sdk(() => import("@ai-sdk/openai"));
       return createOpenAI({ apiKey, baseURL, fetch })(model);
-    case "anthropic":
+    }
+    case "anthropic": {
+      const { createAnthropic } = await sdk(() => import("@ai-sdk/anthropic"));
       return createAnthropic({ apiKey, baseURL, fetch })(model);
-    case "google":
+    }
+    case "google": {
+      const { createGoogleGenerativeAI } = await sdk(
+        () => import("@ai-sdk/google"),
+      );
       return createGoogleGenerativeAI({ apiKey, baseURL, fetch })(model);
+    }
     case "vertex":
-      return vertex(config, fetch)(model);
+      return (await vertex(config, fetch))(model);
     case "azure":
-      return azure(config, fetch)(model);
-    case "bedrock":
+      return (await azure(config, fetch))(model);
+    case "bedrock": {
+      const { createAmazonBedrock } = await sdk(
+        () => import("@ai-sdk/amazon-bedrock"),
+      );
       return createAmazonBedrock({
         region: config.region,
         ...(config.customBaseUrl ? { baseURL } : {}),
@@ -275,17 +320,29 @@ export function languageModel(config: AiProviderConfig): LanguageModel {
                 accessKeyId: config.accessKeyId,
                 secretAccessKey: config.secretAccessKey,
               }
-            : { apiKey: "", credentialProvider: awsIdentity() }),
+            : { apiKey: "", credentialProvider: await awsIdentity() }),
       })(model);
-    case "mistral":
+    }
+    case "mistral": {
+      const { createMistral } = await sdk(() => import("@ai-sdk/mistral"));
       return createMistral({ apiKey, baseURL, fetch })(model);
-    case "xai":
+    }
+    case "xai": {
+      const { createXai } = await sdk(() => import("@ai-sdk/xai"));
       return createXai({ apiKey, baseURL, fetch })(model);
-    case "groq":
+    }
+    case "groq": {
+      const { createGroq } = await sdk(() => import("@ai-sdk/groq"));
       return createGroq({ apiKey, baseURL, fetch })(model);
-    case "deepseek":
+    }
+    case "deepseek": {
+      const { createDeepSeek } = await sdk(() => import("@ai-sdk/deepseek"));
       return createDeepSeek({ apiKey, baseURL, fetch })(model);
-    case "openai-compatible":
+    }
+    case "openai-compatible": {
+      const { createOpenAICompatible } = await sdk(
+        () => import("@ai-sdk/openai-compatible"),
+      );
       return createOpenAICompatible({
         name: "openaiCompatible",
         baseURL,
@@ -295,15 +352,16 @@ export function languageModel(config: AiProviderConfig): LanguageModel {
         includeUsage: true,
         supportsStructuredOutputs: config.structuredOutput === "json-schema",
       }).chatModel(model);
+    }
   }
 }
 
 /** The configured model, or an error when none is configured. */
-export function configuredModel() {
+export async function configuredModel() {
   const config = aiProvider();
   if (!config)
     throw new Error("Lictory Intelligence has no configured AI provider.");
-  return { config, model: languageModel(config) };
+  return { config, model: await languageModel(config) };
 }
 
 /**
@@ -311,34 +369,50 @@ export function configuredModel() {
  * dictation (OpenAI Realtime) has no server-side model: the browser streams
  * to the provider with a short-lived token (intelligence/voice).
  */
-export function transcriptionModel(
+export async function transcriptionModel(
   config: TranscriptionConfig,
-): TranscriptionModel {
+): Promise<TranscriptionModel> {
   const { apiKey, baseURL, model } = config;
   const fetch = fetchFor(config);
   switch (config.adapter) {
     case "openai":
-    case "openai-compatible":
+    case "openai-compatible": {
       // Self-hosted Whisper servers speak OpenAI's /audio/transcriptions.
+      const { createOpenAI } = await sdk(() => import("@ai-sdk/openai"));
       return createOpenAI({
         apiKey: apiKey ?? "not-needed",
         baseURL,
         fetch,
       }).transcription(model);
+    }
     case "azure":
-      return azure(config, fetch).transcription(model);
+      return (await azure(config, fetch)).transcription(model);
     case "vertex":
-      return vertex(config, fetch).transcription(model);
-    case "groq":
+      return (await vertex(config, fetch)).transcription(model);
+    case "groq": {
+      const { createGroq } = await sdk(() => import("@ai-sdk/groq"));
       return createGroq({ apiKey, baseURL, fetch }).transcription(model);
-    case "deepgram":
+    }
+    case "deepgram": {
+      const { createDeepgram } = await sdk(() => import("@ai-sdk/deepgram"));
       return createDeepgram({ apiKey, fetch }).transcription(model);
-    case "elevenlabs":
+    }
+    case "elevenlabs": {
+      const { createElevenLabs } = await sdk(
+        () => import("@ai-sdk/elevenlabs"),
+      );
       return createElevenLabs({ apiKey, fetch }).transcription(model);
-    case "assemblyai":
+    }
+    case "assemblyai": {
+      const { createAssemblyAI } = await sdk(
+        () => import("@ai-sdk/assemblyai"),
+      );
       return createAssemblyAI({ apiKey, fetch }).transcription(model);
-    case "mistral":
+    }
+    case "mistral": {
+      const { createMistral } = await sdk(() => import("@ai-sdk/mistral"));
       return createMistral({ apiKey, baseURL, fetch }).transcription(model);
+    }
     case "openai-realtime":
       throw new Error("Realtime dictation has no server-side model.");
   }
@@ -355,9 +429,9 @@ export function transcriptionOptions(
     : {};
 }
 
-export function configuredTranscription() {
+export async function configuredTranscription() {
   const config = dictationConfig();
   if (config?.mode !== "segments")
     throw new Error("Dictation of recorded segments is not configured.");
-  return { config, model: transcriptionModel(config) };
+  return { config, model: await transcriptionModel(config) };
 }

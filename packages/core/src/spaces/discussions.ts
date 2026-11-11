@@ -6,7 +6,11 @@ import {
   type PageThreadAnchor,
   type StoredPageThreadAnchor,
 } from "@lictory/core/contracts/protocol";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import {
+  pagePullRequest,
+  pullRequestState,
+} from "@lictory/core/contracts/state-machines";
 import {
   authorize,
   lock,
@@ -89,6 +93,35 @@ async function threadOf(tx: Tx, actor: SpaceActor, threadId: string) {
   if (!thread) throw unavailableThread();
   await requireCommenter(tx, actor, thread.pageId, unavailableThread);
   return thread;
+}
+
+// Closing a pull request resolves its discussions, and nothing shows them
+// afterwards. Reopened or marked blocking, one would hold every merge into
+// main with no place left to resolve it.
+async function requireOpenContext(
+  tx: Tx,
+  thread: { organizationId: string; pullRequestId: string | null },
+) {
+  if (!thread.pullRequestId) return;
+  const [pr] = await tx
+    .select({
+      status: s.pagePullRequest.status,
+      deletedAt: s.pagePullRequest.deletedAt,
+    })
+    .from(s.pagePullRequest)
+    .where(
+      and(
+        eq(s.pagePullRequest.organizationId, thread.organizationId),
+        eq(s.pagePullRequest.id, thread.pullRequestId),
+      ),
+    );
+  if (pr && pullRequestState(pr) === "closed")
+    throw new DomainError(
+      "conflict",
+      "This discussion belongs to a closed pull request. Start a new discussion on the page instead.",
+      undefined,
+      "invalid_state",
+    );
 }
 
 // Checks that what an anchor references belongs to the page: the commit of
@@ -302,11 +335,7 @@ export async function applyPageDiscussionCommand(
             "This pull request is unavailable on this page.",
           );
         // Merging removed its discussions; a new one would outlive it.
-        if (pr.status === "merged")
-          throw new DomainError(
-            "conflict",
-            "This pull request is merged. Comment on the page instead.",
-          );
+        requireStep(pagePullRequest, pr.status, "discuss");
       }
       const blocking = c.blocking ?? false;
       await tx.insert(s.pageThread).values({
@@ -386,6 +415,7 @@ export async function applyPageDiscussionCommand(
       const thread = await threadOf(tx, actor, c.threadId);
       const resolved = c.type === "resolvePageThread";
       if ((thread.status === "resolved") === resolved) return undefined;
+      if (!resolved) await requireOpenContext(tx, thread);
       await tx
         .update(s.pageThread)
         .set({
@@ -412,6 +442,7 @@ export async function applyPageDiscussionCommand(
     case "setPageThreadBlocking": {
       const thread = await threadOf(tx, actor, c.threadId);
       if (thread.blocking === c.blocking) return undefined;
+      if (c.blocking) await requireOpenContext(tx, thread);
       await tx
         .update(s.pageThread)
         .set({ blocking: c.blocking, updatedAt: now })

@@ -162,7 +162,7 @@ export async function transcribeSegment(
     );
   try {
     const result = await transcribe({
-      model: transcriptionModel(config),
+      model: await transcriptionModel(config),
       audio,
       providerOptions: transcriptionOptions(config),
       maxRetries: 1,

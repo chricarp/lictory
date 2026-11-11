@@ -131,7 +131,7 @@ How to work:
 // fatal: the chat keeps a preview of the first message instead.
 export async function generateTitle(prompt: string) {
   try {
-    const { model, config } = chatModel();
+    const { model, config } = await chatModel();
     const schema = z.object({ title: z.string() });
     const { output } = await generateText({
       model,

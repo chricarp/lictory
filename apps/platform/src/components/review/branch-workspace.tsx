@@ -36,6 +36,10 @@ import {
 } from "@lictory/core/lib/branch-name";
 import type { Command, EntityOf } from "@lictory/core/contracts/protocol";
 import {
+  pullRequestIsActive,
+  specificationPullRequest,
+} from "@lictory/core/contracts/state-machines";
+import {
   proposedChildrenSchema,
   reviewResultValue,
   pendingEntries,
@@ -222,7 +226,7 @@ const isMain = (b: Branch | undefined) => b?.name === "main";
 // The pull request currently carrying a branch's work, if any.
 const activePrFor = (prs: PullRequest[], branchId: string) =>
   prs
-    .filter((p) => p.sourceId === branchId && p.status !== "merged")
+    .filter((p) => p.sourceId === branchId && pullRequestIsActive(p))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 // Commits reachable from `head` that `target` does not contain yet.
 function aheadOf(commits: Commit[], head: string, target: string | undefined) {
@@ -240,7 +244,7 @@ export function BranchEntry({
 }) {
   const { branches, prs, item, userId } = useBranchData();
   const active = prs
-    .filter((p) => p.status !== "merged")
+    .filter(pullRequestIsActive)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const mine = branches.filter(
     (b) =>
@@ -2239,7 +2243,7 @@ function PullRequestView({
     !prs.some(
       (other) =>
         other.id !== p.id &&
-        other.status !== "merged" &&
+        pullRequestIsActive(other) &&
         (other.sourceId === source.id || other.targetId === source.id),
     );
   const setDraftState = (draft: boolean) =>
@@ -2758,7 +2762,7 @@ function PullRequestView({
                       )}
                       {assigned &&
                         !readOnly &&
-                        p.status === "open" &&
+                        specificationPullRequest.allows(p.status, "review") &&
                         heads && (
                           <div className="flex flex-wrap gap-1 pl-6">
                             {(
@@ -2808,7 +2812,7 @@ function PullRequestView({
                         )}
                       {assigned &&
                         !readOnly &&
-                        p.status === "open" &&
+                        specificationPullRequest.allows(p.status, "review") &&
                         heads &&
                         contributed &&
                         !r.decision && (
@@ -2823,7 +2827,7 @@ function PullRequestView({
               </ul>
               {manage &&
                 capabilities.requestReviews &&
-                p.status !== "merged" &&
+                specificationPullRequest.allows(p.status, "requestReview") &&
                 roleOptions.length > 0 && (
                   <div className="flex gap-1.5">
                     <DropdownSelect
@@ -2889,18 +2893,19 @@ function PullRequestView({
               )}
             </section>
             <section className="space-y-2 border-t pt-4">
-              {manage && p.status === "open" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start"
-                  disabled={pending}
-                  onClick={() => setDraftState(true)}
-                >
-                  <GitPullRequest className="size-3.5" />
-                  Convert to draft
-                </Button>
-              )}
+              {manage &&
+                specificationPullRequest.allows(p.status, "markDraft") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={pending}
+                    onClick={() => setDraftState(true)}
+                  >
+                    <GitPullRequest className="size-3.5" />
+                    Convert to draft
+                  </Button>
+                )}
               {!readOnly &&
                 (p.authorId === userId || capabilities.editSpecifications) && (
                   <Button

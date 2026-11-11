@@ -1705,8 +1705,11 @@ esac
   },
 );
 
+// Each config command decodes every setting of .env, which takes seconds on a
+// busy machine: these tests share one concern each so that none comes near
+// its budget.
 void test(
-  "settings are read like Compose reads them and kept across installs",
+  "settings an install does not mention are kept across installs",
   slow,
   (t) => {
     const f = bootstrapped(t);
@@ -1745,6 +1748,17 @@ void test(
       readFileSync(join(home, ".env"), "utf8"),
       /^S3_FORCE_PATH_STYLE=true$/m,
     );
+  },
+);
+
+void test(
+  "settings are read like Compose reads them, and listed, masked and redacted in every form",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory(acmeInstall);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
 
     // Inline comments, as the reverse-proxy examples used to show them.
     writeFileSync(
@@ -1805,8 +1819,23 @@ void test(
       { encoding: "utf8" },
     ).stdout;
     assert.ok(!archived.includes("EXPORTED-SECRET-77"));
+  },
+);
 
+void test(
+  "changing a setting written as export KEY= changes the value Compose reads, whitespace included",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const home = join(f.root, "production");
+    const installed = f.lictory(acmeInstall);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
     // Changing a key written as "export KEY=" changes the value Compose reads.
+    writeFileSync(
+      join(home, ".env"),
+      readFileSync(join(home, ".env"), "utf8") +
+        "export LEGAL_TERMS_URL=https://example.test/new\n",
+    );
     assert.equal(
       f.lictory([
         "config",
@@ -1830,6 +1859,16 @@ void test(
       f.lictory(["config", "get", "SMTP_PASSWORD"]).stdout,
       "secret\t\n",
     );
+  },
+);
+
+void test(
+  "a value that only ends with a quote is literal text, and clearing the quote is a change",
+  slow,
+  (t) => {
+    const f = bootstrapped(t);
+    const installed = f.lictory(acmeInstall);
+    assert.equal(installed.status, 0, installed.stderr + installed.stdout);
 
     // A value that only ends with a quote is the literal text (Compose reads
     // it so); clearing the quote is a real change.

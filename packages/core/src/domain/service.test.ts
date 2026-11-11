@@ -4278,7 +4278,13 @@ void test("a ready item stays ready until its checks stop passing", async () => 
       workItemId: f.proposalId,
       refinementState: "refinement",
     }),
-    /stays ready/,
+    (error) => {
+      assert.ok(error instanceof DomainError);
+      assert.match(error.message, /stays ready/);
+      assert.equal(error.category, "conflict");
+      assert.equal(error.kind, "invalid_state");
+      return true;
+    },
   );
   assert.equal((await itemOf(f, f.proposalId)).refinementState, "ready");
 });

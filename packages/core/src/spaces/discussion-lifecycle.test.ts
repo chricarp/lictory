@@ -693,10 +693,37 @@ void test(
     // Older versions deleted a branch (after closing its pull request) and
     // kept its discussions.
     await f.run(f.alice, { type: "deletePagePullRequest", pullRequestId });
+    // A discussion of a closed pull request stays resolved: nothing shows
+    // it any more, so reopened or marked blocking it could never be settled.
+    await rejects(
+      f.run(f.alice, { type: "reopenPageThread", threadId: orphans[4]! }),
+      "conflict",
+      /belongs to a closed pull request/,
+    );
     await f.run(f.alice, {
-      type: "reopenPageThread",
+      type: "setPageThreadBlocking",
       threadId: orphans[4]!,
+      blocking: false,
     });
+    await rejects(
+      f.run(f.alice, {
+        type: "setPageThreadBlocking",
+        threadId: orphans[4]!,
+        blocking: true,
+      }),
+      "conflict",
+      /belongs to a closed pull request/,
+    );
+    // Rows written before that rule can still be open.
+    await db
+      .update(s.pageThread)
+      .set({
+        status: "open",
+        blocking: true,
+        resolvedAt: null,
+        resolvedById: null,
+      })
+      .where(eq(s.pageThread.id, orphans[4]!));
     await db
       .update(s.pageBranch)
       .set({ deletedAt: new Date(), deletedById: f.alice })

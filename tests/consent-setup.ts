@@ -21,10 +21,13 @@ export default async function consentSetup(config: FullConfig) {
     await page.goto(new URL("/", baseURL).toString());
     // Cookies are shared across ports on localhost: an origin may already
     // have the choice recorded by the previous one.
+    // The websites keep the choice under a key they share
+    // (packages/ui/src/consent/consent-provider.tsx).
+    const recorded = () => document.cookie.includes("lictory_consent=");
     const reject = page.getByRole("button", { name: "Reject All" });
-    if (!(await page.evaluate(() => document.cookie.includes("c15t=")))) {
+    if (!(await page.evaluate(recorded))) {
       await reject.click();
-      await page.waitForFunction(() => document.cookie.includes("c15t="));
+      await page.waitForFunction(recorded);
     }
     await page.close();
   }

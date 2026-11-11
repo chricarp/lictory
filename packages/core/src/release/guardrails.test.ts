@@ -13,6 +13,7 @@ import {
 import {
   assertImages,
   bakeEnvironment,
+  imageNames,
   imagesFromBakeMetadata,
   releaseFile,
 } from "@lictory/core/release/images";
@@ -105,6 +106,7 @@ void test("manual production intent remains frozen when retries happen after a n
 });
 
 type Step = {
+  id?: string;
   uses?: string;
   run?: string;
   with?: Record<string, string>;
@@ -127,6 +129,7 @@ type Workflow = {
       environment?: string | { name: string; url?: string };
       permissions?: Record<string, string>;
       env?: Record<string, string>;
+      outputs?: Record<string, string>;
       steps?: Step[];
     }
   >;
@@ -190,6 +193,97 @@ void test("releases publish from the exact candidate source and hold no deployme
     "backfill",
   ])
     assert.throws(() => workflow(name), name);
+});
+
+void test("release images are signed and attested before publication, and only the publishing job can sign", () => {
+  for (const flow of [workflow("release"), workflow("nightly")]) {
+    assert.equal(flow.permissions["id-token"], undefined);
+    assert.equal(flow.permissions.attestations, undefined);
+    for (const [name, job] of Object.entries(flow.jobs)) {
+      const signs = name === "publish" ? "write" : undefined;
+      assert.equal(job.permissions?.["id-token"], signs, name);
+      assert.equal(job.permissions?.attestations, signs, name);
+    }
+    const steps = flow.jobs.publish!.steps!;
+    const at = (found: (step: Step) => boolean | undefined) => {
+      const index = steps.findIndex(found);
+      assert.ok(index >= 0, String(found));
+      return index;
+    };
+    const login = at((step) => step.uses?.startsWith("docker/login-action@"));
+    const assemble = at((step) => step.id === "assemble");
+    const sign = at(
+      (step) => step.uses === "./control/.github/actions/sign-images",
+    );
+    const licenses = at((step) => step.run?.includes("license-report.ts"));
+    const publish = at((step) => step.run?.includes("bun run release publish"));
+    assert.match(steps[assemble]!.run!, /^bun run release assemble /);
+    // Nothing is released before its images are signed: publish reserves
+    // the tag and attaches release.env for exactly the signed digests.
+    assert.ok(login < sign && assemble < sign && sign < publish);
+    assert.equal(
+      steps[sign]!.with?.subjects,
+      "${{ steps.assemble.outputs.subjects }}",
+    );
+    assert.equal(
+      steps[publish]!.env?.RELEASE_IMAGES,
+      "${{ steps.assemble.outputs.images }}",
+    );
+    // The license report of the exact source, without running its
+    // dependencies' install scripts or a source bunfig preload or .env in a
+    // job that can sign, and without the job's tokens in the environment a
+    // source registry configuration could expand.
+    assert.ok(licenses < publish);
+    // Every command of the step runs with only PATH and HOME.
+    const commands = steps[licenses]!.run!.replaceAll(/\\\n\s+/g, "")
+      .trim()
+      .split("\n");
+    const clean = 'env -i PATH="$PATH" HOME="$HOME" ';
+    assert.deepEqual(commands, [
+      `${clean}bun install --frozen-lockfile --ignore-scripts`,
+      `${clean}bun --config=../control/bunfig.toml --no-env-file ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"`,
+    ]);
+    assert.equal(
+      (steps[licenses] as { "working-directory"?: string })[
+        "working-directory"
+      ],
+      "source",
+    );
+    assert.equal(
+      steps[publish]!.env?.LICENSE_REPORT_DIRECTORY,
+      "${{ runner.temp }}/licenses",
+    );
+  }
+  // Every image index digest gets a keyless cosign signature and a GitHub
+  // build provenance attestation, both stored next to the image.
+  const action = compositeAction("sign-images").runs.steps;
+  const cosign = action.find((step) => step.run?.includes("cosign sign"))!;
+  assert.match(cosign.run!, /cosign sign --yes "\$reference"/);
+  for (const name of imageNames) {
+    assert.match(cosign.run!, new RegExp(`for name in .*\\b${name}\\b`));
+    const attest = action.find(
+      (step) =>
+        step.uses?.startsWith("actions/attest@") &&
+        step.with?.["subject-name"] ===
+          `\${{ fromJSON(inputs.subjects).${name}.name }}`,
+    );
+    assert.ok(attest, name);
+    assert.equal(
+      attest.with?.["subject-digest"],
+      `\${{ fromJSON(inputs.subjects).${name}.digest }}`,
+    );
+    assert.equal(attest.with?.["push-to-registry"], "true");
+  }
+  for (const step of action)
+    if (step.uses) assert.match(step.uses, /@[a-f0-9]{40}$/, step.uses);
+  // BuildKit records an SBOM and full provenance in every image index.
+  assert.match(
+    readFileSync(
+      new URL("../../../../deploy/docker-bake.hcl", import.meta.url),
+      "utf8",
+    ),
+    /attest\s*=\s*\["type=sbom", "type=provenance,mode=max"\]/,
+  );
 });
 
 void test("nightlies are scheduled, fully verified before publication and built for both architectures", () => {
@@ -550,9 +644,29 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   );
   assert.ok(!runs("domain").some((run) => run.includes("--shard")));
   assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
-  // Static checks are never skipped; the gate waits for every job and
-  // accepts only success or a deliberate skip.
+  // Static checks are never skipped, not even on a draft; the gate waits for
+  // every job and accepts only success or a deliberate skip.
+  assert.equal(jobs.changes!.if, undefined);
   assert.equal(jobs.static!.if, undefined);
+  assert.ok(
+    (ci.on.pull_request as { types: string[] }).types.includes(
+      "ready_for_review",
+    ),
+    "marking a draft ready starts the tiers it deferred",
+  );
+  assert.equal(
+    jobs.changes!.outputs?.draft,
+    "${{ github.event.pull_request.draft == true }}",
+  );
+  // Every tier beyond the static checks waits for ready for review.
+  for (const job of Object.keys(jobs).filter(
+    (job) => !["changes", "static", "verify"].includes(job),
+  ))
+    assert.match(
+      jobs[job]!.if ?? "",
+      / && needs\.changes\.outputs\.draft != 'true'$/,
+      job,
+    );
   assert.deepEqual(jobs.verify!.needs, [
     "changes",
     "static",
@@ -583,6 +697,92 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   // CI never holds credentials beyond its read-only token.
   assert.ok(!JSON.stringify(ci).includes("secrets."));
   assert.equal(ci.permissions.contents, "read");
+});
+
+void test("Verify never reports success for a draft whose selected tiers did not run", () => {
+  const verify = workflow("ci").jobs.verify!;
+  const step = verify.steps!.find((step) => step.run)!;
+  // Runs the gate's script as Actions does (bash -eo pipefail).
+  const gate = (
+    results: string,
+    selection: {
+      draft: boolean;
+      unit: boolean;
+      e2e: boolean;
+      trial?: boolean;
+    },
+  ) => {
+    try {
+      const output = execFileSync(
+        "bash",
+        ["--noprofile", "--norc", "-eo", "pipefail", "-c", step.run!],
+        {
+          env: {
+            PATH: process.env.PATH,
+            GITHUB_STEP_SUMMARY: "/dev/null",
+            RESULTS: results,
+            DRAFT: String(selection.draft),
+            UNIT: String(selection.unit),
+            E2E: String(selection.e2e),
+            TRIAL: String(selection.trial ?? false),
+          },
+          encoding: "utf8",
+        },
+      );
+      return { passed: true, output };
+    } catch (error) {
+      return { passed: false, output: (error as { stdout: string }).stdout };
+    }
+  };
+  for (const variable of ["DRAFT", "UNIT", "E2E", "TRIAL"])
+    assert.match(step.env![variable]!, /^\$\{\{ needs\.changes\.outputs\./);
+  const staticOnly = "success success skipped skipped skipped";
+
+  // A ready pull request: skips chosen by the changed paths are fine.
+  assert.ok(gate(staticOnly, { draft: false, unit: false, e2e: false }).passed);
+  assert.ok(
+    gate("success success success success success", {
+      draft: false,
+      unit: true,
+      e2e: true,
+    }).passed,
+  );
+  assert.ok(
+    !gate("success failure success success skipped", {
+      draft: false,
+      unit: true,
+      e2e: true,
+    }).passed,
+  );
+  // A draft that needs nothing beyond the static checks has run everything.
+  assert.ok(gate(staticOnly, { draft: true, unit: false, e2e: false }).passed);
+  // A draft whose tiers were deferred fails and says which ones and why.
+  const deferred = gate(staticOnly, { draft: true, unit: true, e2e: true });
+  assert.ok(!deferred.passed);
+  assert.match(
+    deferred.output,
+    /::error .*Draft: domain tests and browser smoke workflows have not run\. They run when the pull request is marked ready for review/,
+  );
+  const browserOnly = gate(staticOnly, { draft: true, unit: false, e2e: true });
+  assert.ok(!browserOnly.passed);
+  assert.match(browserOnly.output, /Draft: browser smoke workflows have not/);
+  // The laptop trial waits for ready for review like the other tiers.
+  const trialOnly = gate(staticOnly, {
+    draft: true,
+    unit: false,
+    e2e: false,
+    trial: true,
+  });
+  assert.ok(!trialOnly.passed);
+  assert.match(trialOnly.output, /Draft: the laptop trial has not run/);
+  // A failed static check on a draft still fails.
+  assert.ok(
+    !gate("success failure skipped skipped skipped", {
+      draft: true,
+      unit: false,
+      e2e: false,
+    }).passed,
+  );
 });
 
 void test("pull request suite selection fails open", () => {

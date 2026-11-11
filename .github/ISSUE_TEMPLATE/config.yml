@@ -3,3 +3,6 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/chricarp/lictory/security/advisories/new
     about: Report vulnerabilities privately. Never in a public issue.
+  - name: Questions and early ideas
+    url: https://github.com/chricarp/lictory/discussions
+    about: Ask open-ended questions or float an idea before it is a proposal.

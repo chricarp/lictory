@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { aiModelId, DEFAULT_AI_MODEL } from "@lictory/core/ai/analyzer";
-import { env, envBoolean, envInteger } from "@lictory/core/lib/env";
+import {
+  env,
+  envBoolean,
+  envInteger,
+  unsetBlankVariables,
+} from "@lictory/core/lib/env";
 
 // Compose forwards unset variables as empty strings (`${VAR:-}`).
 const blanks = [{}, { VALUE: "" }, { VALUE: "   " }, { VALUE: "\n\t" }];
@@ -14,6 +19,24 @@ void test("empty, whitespace-only and unset variables are unset", () => {
   }
   assert.equal(env("VALUE", { VALUE: "  set  " }), "set");
   assert.equal(envInteger("VALUE", { VALUE: " 587 " }), 587);
+});
+
+void test("blank variables under the given prefixes are removed, others are kept", () => {
+  const target: Record<string, string | undefined> = {
+    OPENAI_BASE_URL: "",
+    AWS_ENDPOINT_URL: "  ",
+    OPENAI_API_KEY: "sk-set",
+    // Not the SDKs': a blank NO_PROXY still hides a lowercase no_proxy.
+    NO_PROXY: "",
+    PORT: " 3002 ",
+  };
+  unsetBlankVariables(["OPENAI_", "AWS_"], target);
+  unsetBlankVariables(["OPENAI_", "AWS_"], target);
+  assert.deepEqual(target, {
+    OPENAI_API_KEY: "sk-set",
+    NO_PROXY: "",
+    PORT: " 3002 ",
+  });
 });
 
 void test("a set value of the wrong kind is rejected", () => {

@@ -141,23 +141,23 @@ const substituted: Target["config"] = {
 };
 
 /** The configured provider's model, or the substitute a caller passes. */
-export function analyzerTarget(
+export async function analyzerTarget(
   options: { model?: LanguageModel; modelId?: string } = {},
-): Target & { modelId: string } {
+): Promise<Target & { modelId: string }> {
   if (options.model)
     return {
       model: options.model,
       config: substituted,
       modelId: options.modelId ?? aiModelId(),
     };
-  const { model, config } = configuredModel();
+  const { model, config } = await configuredModel();
   return { model, config, modelId: config.model };
 }
 
-export function createAnalyzer(
+export async function createAnalyzer(
   options: { model?: LanguageModel; modelId?: string } = {},
-): Analyzer {
-  const target = analyzerTarget(options);
+): Promise<Analyzer> {
+  const target = await analyzerTarget(options);
   const run = <T>(
     schema: z.ZodType<T>,
     name: string,

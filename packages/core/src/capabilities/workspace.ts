@@ -41,6 +41,14 @@ import {
   type Mutation,
 } from "@lictory/core/contracts/protocol";
 import {
+  iteration,
+  pagePullRequest,
+  refinement,
+  review,
+  specificationPullRequest,
+  suggestion,
+} from "@lictory/core/contracts/state-machines";
+import {
   CapabilityError,
   defineCapability,
   everywhere,
@@ -109,7 +117,9 @@ type CommandDoc = {
 
 // Every workspace command must be described here. Adding a command to the
 // protocol therefore exposes it to every surface once it has a description,
-// and the type checker refuses a command without one.
+// and the type checker refuses a command without one. Sentences about which
+// state allows a command come from its state machine (`rule`), the same
+// table the command refuses from, so the two cannot disagree.
 const commandDocs: Record<CommandType, CommandDoc> = {
   createSpace: {
     title: "Create space",
@@ -171,13 +181,13 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   reopenPageThread: {
     title: "Reopen page discussion",
     description:
-      "Commenters: reopen a resolved page discussion. The event is recorded in the page's activity.",
+      "Commenters: reopen a resolved page discussion. The event is recorded in the page's activity. Refused for a discussion of a closed pull request (kind `invalid_state`): start a new discussion on the page instead.",
     decision: true,
   },
   setPageThreadBlocking: {
     title: "Mark page discussion blocking",
     description:
-      "Commenters: mark a page discussion blocking (it blocks merging the page's changes while open) or non-blocking. Recorded in the page's activity.",
+      "Commenters: mark a page discussion blocking (it blocks merging the page's changes while open) or non-blocking. Recorded in the page's activity. A discussion of a closed pull request cannot be marked blocking.",
     decision: true,
   },
   commitDraft: {
@@ -219,19 +229,16 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   updatePagePullRequest: {
     title: "Update page pull request",
-    description:
-      "The author or a source branch collaborator: change a page pull request's title or description, or mark it draft or ready for review.",
+    description: `The author or a source branch collaborator: change a page pull request's title or description, or mark it draft or ready for review. ${pagePullRequest.rule("edit", "markDraft", "markReady")}`,
   },
   deletePagePullRequest: {
     title: "Close page pull request",
-    description:
-      "The author or an editor of the space: close an unmerged page pull request. Its reviews and discussions are kept; open discussions on it are resolved and recorded.",
+    description: `The author or an editor of the space: close an unmerged page pull request. Its reviews and discussions are kept; open discussions on it are resolved and recorded. ${pagePullRequest.rule("close")} A closed pull request is not reopened: open a new one from the branch.`,
     destructive: true,
   },
   requestPageReview: {
     title: "Request page review",
-    description:
-      "Ask someone with comment or edit access to review a page pull request; `required` reviews gate the merge. People who contributed to the change cannot approve it. The reviewer is notified.",
+    description: `Ask someone with comment or edit access to review a page pull request; \`required\` reviews gate the merge. People who contributed to the change cannot approve it. The reviewer is notified. ${pagePullRequest.rule("requestReview")}`,
   },
   cancelPageReview: {
     title: "Cancel page review request",
@@ -240,8 +247,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   decidePagePullRequest: {
     title: "Review page pull request",
-    description:
-      "Approve, request changes on, or revoke your decision on a page pull request. The decision binds to the complete merge result of `inspectedSourceHead` and `inspectedTargetHead`; any later change makes it stale. Contributors to the change cannot approve it. Refused while the merge has conflicts.",
+    description: `Approve, request changes on, or revoke your decision on a page pull request. The decision binds to the complete merge result of \`inspectedSourceHead\` and \`inspectedTargetHead\`; any later change makes it stale, and a stale decision is no longer yours to revoke. Contributors to the change cannot approve it. Refused while the merge has conflicts. ${pagePullRequest.rule("review")}`,
     decision: true,
   },
   mergePagePullRequest: {
@@ -330,8 +336,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   updateWorkItem: {
     title: "Update work item properties",
-    description:
-      "Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. An estimate must be one of the project's scale (Fibonacci, linear, or T-shirt points). Moving a ready item back is rejected while its readiness checks still pass. Never creates a revision or stales approvals. Requires change-properties in the item's project.",
+    description: `Change non-material properties: status, refinement state (${refinement.targets("move").join(", ")}; \`ready\` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. An estimate must be one of the project's scale (Fibonacci, linear, or T-shirt points). Moving a ready item back is rejected while its readiness checks still pass. Never creates a revision or stales approvals. Requires change-properties in the item's project.`,
   },
   acceptDeliveryScope: {
     title: "Accept delivery scope",
@@ -455,29 +460,25 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   setPullRequestDraft: {
     title: "Set pull request draft",
-    description: "Mark a pull request as draft or ready for review.",
+    description: `Mark a pull request as draft or ready for review. ${specificationPullRequest.rule("markDraft", "markReady")}`,
   },
   deletePullRequest: {
     title: "Close pull request",
-    description:
-      "Close and remove an unmerged pull request. Open discussions on it are resolved.",
+    description: `Close a pull request and remove it from the item. Open discussions on it are resolved. The text of a merged pull request stays in the specification. ${specificationPullRequest.rule("close")}`,
     destructive: true,
   },
   requestPullRequestReview: {
     title: "Request pull request review",
-    description:
-      "Ask a reviewing discipline of the item's project (optionally one member of it) to review a pull request.",
+    description: `Ask a reviewing discipline of the item's project (optionally one member of it) to review a pull request. ${specificationPullRequest.rule("requestReview")}`,
   },
   decidePullRequest: {
     title: "Review pull request",
-    description:
-      "Approve, request changes or revoke a decision on a pull request review assigned to you or your discipline. Heads pin the reviewed content. The only member of an organization can approve their own changes; with more members, contributors cannot.",
+    description: `Approve, request changes or revoke a decision on a pull request review assigned to you or your discipline. Heads pin the reviewed content. The only member of an organization can approve their own changes; with more members, contributors cannot. ${specificationPullRequest.rule("review")}`,
     decision: true,
   },
   mergePullRequest: {
     title: "Merge pull request",
-    description:
-      "Merge an approved pull request; merging into main creates a new revision and the result includes `revisionId`. The only member of an organization can satisfy a required review of their own changes.",
+    description: `Merge an approved pull request; merging into main creates a new revision and the result includes \`revisionId\`. The only member of an organization can satisfy a required review of their own changes. ${specificationPullRequest.rule("merge")}`,
     decision: true,
   },
   revertSpecification: {
@@ -492,12 +493,11 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   updateSuggestion: {
     title: "Update suggestion",
-    description:
-      "Author only: change a suggestion's text, title or rationale. A content change supersedes earlier decisions.",
+    description: `Author only: change a suggestion's text, title or rationale. A content change supersedes earlier decisions. ${suggestion.rule("update")}`,
   },
   setSuggestionState: {
     title: "Set suggestion state",
-    description: "Move a suggestion between draft, open and closed.",
+    description: `Move a suggestion between draft, open and closed. ${suggestion.rule("returnToDraft", "openForReview", "close")} A merged suggestion never changes state.`,
   },
   setSuggestionReviewer: {
     title: "Set suggestion reviewer",
@@ -506,14 +506,12 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   decideSuggestion: {
     title: "Review suggestion",
-    description:
-      "Assigned reviewer: approve, request changes or revoke a decision on a suggestion version.",
+    description: `Assigned reviewer: approve, request changes or revoke a decision on a suggestion version. ${suggestion.rule("review")}`,
     decision: true,
   },
   mergeSuggestion: {
     title: "Merge suggestion",
-    description:
-      "Assigned reviewer: apply an approved suggestion, creating the next revision.",
+    description: `Assigned reviewer: apply an approved suggestion, creating the next revision. ${suggestion.rule("merge")}`,
     decision: true,
   },
   requestReview: {
@@ -523,13 +521,12 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   cancelReview: {
     title: "Cancel review",
-    description: "Cancel a pending review request.",
+    description: `Cancel a review request, decided or not. ${review.rule("cancel")}`,
     destructive: true,
   },
   decideReview: {
     title: "Decide review",
-    description:
-      "Approve, request changes or revoke your decision on a review assigned to you or your discipline. Approval applies to `baseRevisionId`.",
+    description: `Approve, request changes or revoke your decision on a review assigned to you or your discipline. Approval applies to \`baseRevisionId\`. ${review.rule("approve", "requestChanges", "revoke")}`,
     decision: true,
   },
   signOffReadinessCheck: {
@@ -611,12 +608,11 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   startIteration: {
     title: "Start iteration",
-    description: "Start a planned sprint; one iteration per project is active.",
+    description: `Start a planned sprint; one iteration per project is active. ${iteration.rule("start")}`,
   },
   completeIteration: {
     title: "Complete iteration",
-    description:
-      "Complete the active sprint, moving unfinished items to `carryOverTo` (or the backlog when null). The report is frozen.",
+    description: `Complete the active sprint, moving unfinished items to \`carryOverTo\` (or the backlog when null). The report is frozen. ${iteration.rule("complete")}`,
   },
   createType: {
     title: "Create work item type",

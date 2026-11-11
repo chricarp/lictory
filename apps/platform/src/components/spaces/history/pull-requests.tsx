@@ -24,6 +24,7 @@ import { usePageActions } from "@lictory/platform/components/spaces/page-actions
 import { usePageHistory } from "@lictory/platform/components/spaces/store";
 import { usePageWork } from "@lictory/platform/components/spaces/work/page-work";
 import { discussionTotal } from "@lictory/core/spaces/discussion-lifecycle";
+import { pagePullRequest } from "@lictory/core/contracts/state-machines";
 import {
   ActionError,
   ChoosePerson,
@@ -275,7 +276,7 @@ function PullRequestDetail({
       }
     : null;
   const canReview =
-    pr.status === "open" &&
+    pagePullRequest.allows(pr.status, "review") &&
     fresh &&
     preview.resultHash &&
     !preview.conflicts.length &&
@@ -305,7 +306,7 @@ function PullRequestDetail({
             · {memberName(pr.authorId)}
           </p>
         </div>
-        {editable && pr.status !== "merged" && (
+        {editable && pagePullRequest.allows(pr.status, "edit") && (
           <Popover
             width={220}
             trigger={(props) => (
@@ -326,11 +327,11 @@ function PullRequestDetail({
                   void action.run({
                     type: "updatePagePullRequest",
                     pullRequestId: pr.id,
-                    draft: pr.status !== "draft",
+                    draft: pagePullRequest.allows(pr.status, "markDraft"),
                   });
               }}
               onClose={() => setClosing(true)}
-              draft={pr.status === "draft"}
+              draft={pagePullRequest.allows(pr.status, "markReady")}
             />
           </Popover>
         )}
@@ -598,43 +599,50 @@ function PullRequestDetail({
                 }}
               />
             )}
-            {pr.status === "open" && !gate?.contributorIds.includes(userId) && (
-              <div className="flex flex-wrap gap-2">
-                {(["approve", "request_changes", "revoke"] as const)
-                  .filter(
-                    (decision) =>
-                      decision !== "revoke" ||
-                      currentReviews.some((r) => r.reviewerId === userId),
-                  )
-                  .map((decision) => (
-                    <Button
-                      key={decision}
-                      size="sm"
-                      variant={decision === "approve" ? "primary" : "secondary"}
-                      disabled={
-                        action.pending ||
-                        !inspected ||
-                        (decision !== "revoke" && !canReview)
-                      }
-                      onClick={() => {
-                        if (inspected)
-                          void action.run({
-                            type: "decidePagePullRequest",
-                            pullRequestId: pr.id,
-                            decision,
-                            ...inspected,
-                          });
-                      }}
-                    >
-                      {decision === "approve"
-                        ? "Approve"
-                        : decision === "request_changes"
-                          ? "Request changes"
-                          : "Revoke decision"}
-                    </Button>
-                  ))}
-              </div>
-            )}
+            {pagePullRequest.allows(pr.status, "review") &&
+              !gate?.contributorIds.includes(userId) && (
+                <div className="flex flex-wrap gap-2">
+                  {(["approve", "request_changes", "revoke"] as const)
+                    .filter(
+                      (decision) =>
+                        decision !== "revoke" ||
+                        // A decision made stale by a later change is no longer
+                        // current: the server has nothing to revoke.
+                        currentReviews.some(
+                          (r) => r.reviewerId === userId && !r.staleAt,
+                        ),
+                    )
+                    .map((decision) => (
+                      <Button
+                        key={decision}
+                        size="sm"
+                        variant={
+                          decision === "approve" ? "primary" : "secondary"
+                        }
+                        disabled={
+                          action.pending ||
+                          !inspected ||
+                          (decision !== "revoke" && !canReview)
+                        }
+                        onClick={() => {
+                          if (inspected)
+                            void action.run({
+                              type: "decidePagePullRequest",
+                              pullRequestId: pr.id,
+                              decision,
+                              ...inspected,
+                            });
+                        }}
+                      >
+                        {decision === "approve"
+                          ? "Approve"
+                          : decision === "request_changes"
+                            ? "Request changes"
+                            : "Revoke decision"}
+                      </Button>
+                    ))}
+                </div>
+              )}
             {gate?.contributorIds.includes(userId) && (
               <p className="text-xs text-muted-foreground">
                 Contributors cannot approve their own changes.

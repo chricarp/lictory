@@ -85,11 +85,18 @@ test("the server refuses to start a not-ready specification even from an outdate
       .where(eq(s.workflowStatus.id, row!.statusId)),
   );
   expect(status!.category).toBe("backlog");
-  // Now the local view knows the policy: the browser explains before sending.
+  // Once the local view knows the policy, the browser explains before sending.
+  // The refusal can arrive before the synchronized project does; until then
+  // the picker still reads "Specification not ready yet" and a second change
+  // would only be refused by the server again.
   await properties(page)
     .getByRole("button", { name: "Status: Backlog", exact: true })
     .click();
-  await page.getByRole("option", { name: /^In Progress/ }).click();
+  const inProgress = page.getByRole("option", { name: /^In Progress/ });
+  await expect(inProgress).toContainText(
+    "Blocked until the specification is ready",
+  );
+  await inProgress.click();
   await expect(
     page
       .locator('[data-slot="toast"]', { hasText: "Change not applied" })

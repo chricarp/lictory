@@ -13,7 +13,8 @@
   <a href="https://docs.lictory.com">Documentation</a> ·
   <a href="https://docs.lictory.com/self-hosting/install">Install</a> ·
   <a href="https://github.com/chricarp/lictory/releases">Releases</a> ·
-  <a href="CONTRIBUTING.md">Contribute</a>
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="https://github.com/chricarp/lictory/discussions">Discussions</a>
 </p>
 
 Lictory helps Product, Engineering and QA turn rough proposals into specifications
@@ -24,6 +25,13 @@ work in Lictory or hand it off to Jira Cloud.
 Self-hosted. MIT licensed. Core collaboration works without AI or analytics.
 
 ## See how it works
+
+![QA asks a blocking question on one sentence of a specification. Product answers it by saving revision 3, QA resolves the discussion and approves, and Engineering's approval of revision 3 makes every readiness check pass](apps/docs/public/screenshots/review-flow.webp)
+
+A question sits on the sentence it is about and blocks readiness until someone
+resolves it. The answer becomes a new revision of the specification, each
+approval names the revision it approves, and the specification is ready when
+every readiness check passes.
 
 ### Refine the specification together
 
@@ -157,7 +165,7 @@ git clone https://github.com/chricarp/lictory.git
 cd lictory
 cp .env.example .env
 bun install --frozen-lockfile
-docker compose up -d
+docker compose up -d --wait   # waits until zero-cache has finished starting
 bun run dev
 ```
 
@@ -166,8 +174,10 @@ bun run dev
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-The [development runbook](docs/operations/development.md) covers environment
-settings, OAuth callbacks, database migrations, daily commands and the complete
+Ports already taken by another PostgreSQL or Mailpit? Set the
+`LICTORY_DEV_*_PORT` variables in `.env` (listed in `.env.example`). The
+[development runbook](docs/operations/development.md) covers environment
+settings, troubleshooting, OAuth callbacks, database migrations, daily commands and the complete
 required verification sequence.
 
 ### Repository layout
@@ -196,6 +206,13 @@ client also gives that client's agent access to the data your token permits.
 See [privacy and telemetry](https://docs.lictory.com/self-hosting/privacy).
 
 ## Contributing and support
+
+New here? Pick an issue labelled
+[good first issue](https://github.com/chricarp/lictory/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22good%20first%20issue%22):
+each one names the files involved and how to show that the change works.
+[Your first contribution](CONTRIBUTING.md#your-first-contribution) takes you
+from checkout to pull request. Ask questions and float ideas in
+[Discussions](https://github.com/chricarp/lictory/discussions).
 
 Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md) and the
 [Code of conduct](CODE_OF_CONDUCT.md). Use [Support](SUPPORT.md) for setup and

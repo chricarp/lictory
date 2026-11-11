@@ -163,6 +163,10 @@ jobs:
       contents: write
       deployments: write
       packages: write
+      # Keyless signatures and artifact attestations of the release images
+      # (.github/actions/sign-images); no other job can mint an OIDC token.
+      id-token: write
+      attestations: write
       pull-requests: read
       actions: read
     env:
@@ -201,9 +205,36 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Assemble and publish this exact nightly candidate
+      - name: Assemble the multi-platform images
+        id: assemble
         working-directory: control
         env:
+          NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
+        run: bun run release assemble "$RUNNER_TEMP/plan/release-plan.json" ../source
+      # Signed before the release is reserved: no published release has
+      # unsigned images.
+      - uses: ./control/.github/actions/sign-images
+        with:
+          subjects: ${{ steps.assemble.outputs.subjects }}
+      - name: Report the third-party licenses of the release source
+        working-directory: source
+        # Package manifests only: no code from the release source runs in a
+        # job that can sign. --ignore-scripts skips its install scripts, and
+        # the control checkout's bunfig and no .env keep a source bunfig
+        # preload or .env out of the report process. `env -i` leaves only
+        # PATH and HOME, so a registry the source configures can never be
+        # sent GH_TOKEN or the job's OIDC request token.
+        run: |
+          env -i PATH="$PATH" HOME="$HOME" \
+            bun install --frozen-lockfile --ignore-scripts
+          env -i PATH="$PATH" HOME="$HOME" \
+            bun --config=../control/bunfig.toml --no-env-file \
+            ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"
+      - name: Publish this exact nightly candidate
+        working-directory: control
+        env:
+          RELEASE_IMAGES: ${{ steps.assemble.outputs.images }}
+          LICENSE_REPORT_DIRECTORY: ${{ runner.temp }}/licenses
           NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
         # Images and a GitHub Release, not a package registry upload.
         run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]

@@ -66,6 +66,27 @@ still relies on legitimate interest and must be covered by the privacy notice.
 Withdrawing consent opts PostHog out, removes its first-party cookie and storage,
 and reloads the page, which starts again in cookieless mode.
 
+**The public websites share one choice.** `lictory.com` and `docs.lictory.com`
+pass `sharedConsent` (`packages/ui/src/consent/shared-consent.ts`), so one
+choice and one PostHog identity cover both, and a consenting visitor's journey
+from the website to the documentation is one browser in PostHog:
+
+- c15t stores the choice under `lictory_consent` in a `.lictory.com` cookie,
+  which wins over each origin's localStorage.
+- PostHog keeps its identifier (`cross_subdomain_cookie`, with
+  `cookieWinsOnConflict` so a stale origin-local copy never wins) and its
+  opt-in flag (`opt_out_capturing_persistence_type: "cookie"`) in
+  `.lictory.com` cookies. A rejection or withdrawal on one site therefore
+  applies on the other at its next load.
+- The per-website `c15t` record used before is removed on first load, together
+  with PostHog's state, so everyone is asked once for both sites; an earlier
+  choice for one site never extends to the other.
+- Off the `lictory.com` hosts (development, browser tests) the same key is used
+  with host-only cookies. Cookieless visitors are never joined across the
+  sites: PostHog's hash includes the hostname.
+
+Installations never pass `sharedConsent`: their consent stays per origin.
+
 ### First-party relay
 
 The browser never contacts PostHog directly. `api_host` is `/relay` on the

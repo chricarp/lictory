@@ -1188,13 +1188,15 @@ GitHub Actions CI ([the CI workflow](.github/workflows/ci.yml)) runs on every
 pull request behind the required `Verify` check: static checks always, domain
 tests and the `@smoke` browser workflows when the changed paths need them, and
 the laptop trial (`deploy/try.sh` on the newest stable release) when it
-changes. The nightly runs every browser workflow before it publishes a
-candidate, and the laptop trial on the candidate after publishing it. CI splits
-each tier across parallel jobs (lint paths, domain test files, browser shards)
-without narrowing what runs. CI is a safety net, not a substitute: this local
-sequence remains the complete gate. Execute every command in this order with
-the same arguments, running the browser suite unsharded (its test files run in
-parallel workers on your machine):
+changes. A draft pull request runs only the static checks; `Verify` fails until
+it is marked ready for review, which runs the tiers it needs, so a green check
+always means they ran. The nightly runs every browser workflow before it
+publishes a candidate, and the laptop trial on the candidate after publishing
+it. CI splits each tier across parallel jobs (lint paths, domain test files,
+browser shards) without narrowing what runs. CI is a safety net, not a
+substitute: this local sequence remains the complete gate. Execute every command
+in this order with the same arguments, running the browser suite unsharded (its
+test files run in parallel workers on your machine):
 
 Bun installs in Actions deliberately omit the broad download cache: measured
 restore/save overhead exceeded the cost of a fresh frozen-lockfile install.
@@ -1210,7 +1212,17 @@ bunx playwright install --with-deps --only-shell chromium
 bun run test:e2e
 ```
 
-Provide PostgreSQL (with `wal_level=logical`, as in `compose.yaml`: the browser
+`bun run verify` runs exactly these commands, in this order, against the
+current tree, and prepares what they need: a private PostgreSQL and Mailpit
+(CI's images, on ports Docker picks; `--postgres` and `--mailpit` use running
+ones instead), a disposable database with every variable below pointed at it,
+and a free `E2E_PORT_OFFSET`. It removes what it created afterwards, also on
+failure and Ctrl-C, and drops `--with-deps` only when Chromium already
+launches. Its summary lists each step's result and the command that reruns a
+failed one; a run narrowed with `--only` or `--from` is not this final
+verification.
+
+To run the sequence by hand, provide PostgreSQL (with `wal_level=logical`, as in `compose.yaml`: the browser
 suite runs zero-cache against its database) and Mailpit locally and use the test
 authentication and SMTP settings from `docs/operations/development.md`. For the
 migration step, create a new disposable database and point `DATABASE_URL` and
@@ -1230,8 +1242,9 @@ unavailable, report the exact blocker and leave the push/PR step pending. Do not
 alter unrelated user edits just to make verification pass.
 
 Report the commands run and their results in the final response and PR
-description. If the local sequence or the CI workflow changes, update both this
-section and `docs/operations/development.md` in the same change.
+description. If the local sequence or the CI workflow changes, update this
+section, `docs/operations/development.md` and `scripts/verify.ts` in the same
+change; a test fails when the three lists differ.
 
 ## Behavior verification
 
@@ -1555,6 +1568,13 @@ owns authorization, business rules, transactions and external side effects.
 - Schema changes follow Zero's expand/contract order (database, then API, then
   client; reversed for removals). See
   [database migrations](docs/operations/migrations.md).
+- The rule for a status lives in one place
+  ([state machines](docs/internals/state-machines.md)). A status people move
+  is declared in `packages/core/src/contracts/state-machines.ts`: commands
+  refuse with `requireStep`, the browser offers with `allows`, and command
+  descriptions take their state rules from `rule`. Do not compare status
+  literals to decide whether an action is possible, and do not add a status
+  or state column without declaring how it moves.
 
 ## Agent entry points and untrusted input
 

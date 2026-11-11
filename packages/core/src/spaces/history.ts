@@ -10,7 +10,8 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { mergeBase } from "@lictory/core/contracts/merge";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
-import { DomainError } from "@lictory/core/domain/errors";
+import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { pagePullRequest } from "@lictory/core/contracts/state-machines";
 import type { Tx } from "@lictory/core/domain/service";
 import {
   canEditDraft,
@@ -1480,8 +1481,13 @@ export async function applyPageHistoryCommand(
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
       await requirePullRequestManager(tx, actor, pr);
-      if (pr.status === "merged")
-        fail("This pull request is merged.", "conflict");
+      requireStep(pagePullRequest, pr.status, "edit");
+      if (c.draft !== undefined)
+        requireStep(
+          pagePullRequest,
+          pr.status,
+          c.draft ? "markDraft" : "markReady",
+        );
       const status =
         c.draft === undefined ? pr.status : c.draft ? "draft" : "open";
       await tx
@@ -1516,11 +1522,7 @@ export async function applyPageHistoryCommand(
     case "deletePagePullRequest": {
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
-      if (pr.status === "merged")
-        fail(
-          "A merged pull request is history and cannot be deleted.",
-          "conflict",
-        );
+      requireStep(pagePullRequest, pr.status, "close");
       if (pr.authorId !== userId) requireEditor(row);
       const now = new Date();
       await tx
@@ -1565,8 +1567,7 @@ export async function applyPageHistoryCommand(
     case "requestPageReview": {
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
-      if (pr.status === "merged")
-        fail("This pull request is merged.", "conflict");
+      requireStep(pagePullRequest, pr.status, "requestReview");
       if (pr.authorId !== userId) {
         const editor = spaceLevelAtLeast(row.level, "edit");
         if (!editor) await requirePullRequestManager(tx, actor, pr);
@@ -1642,8 +1643,7 @@ export async function applyPageHistoryCommand(
     case "cancelPageReview": {
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
-      if (pr.status === "merged")
-        fail("This pull request is merged.", "conflict");
+      requireStep(pagePullRequest, pr.status, "requestReview");
       // Reviewers may decline; otherwise the people who manage the request.
       if (c.userId !== userId && pr.authorId !== userId) {
         if (!spaceLevelAtLeast(row.level, "edit"))
@@ -1671,13 +1671,7 @@ export async function applyPageHistoryCommand(
     case "decidePagePullRequest": {
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
-      if (pr.status === "merged")
-        fail("This pull request is merged.", "conflict");
-      if (pr.status === "draft")
-        fail(
-          "This pull request is a draft. Mark it ready for review first.",
-          "conflict",
-        );
+      requireStep(pagePullRequest, pr.status, "review");
       if (!(await canReviewPageChange(tx, actor, pr.pageId)))
         fail(
           `You can view ${row.space.name} but not review its changes. Reviewers need comment or edit access.`,
@@ -1763,13 +1757,7 @@ export async function applyPageHistoryCommand(
     case "mergePagePullRequest": {
       const { pr, row } = await readablePullRequest(tx, actor, c.pullRequestId);
       requireActive(row);
-      if (pr.status === "merged")
-        fail("This pull request is already merged.", "conflict");
-      if (pr.status === "draft")
-        fail(
-          "This pull request is a draft. Mark it ready for review first.",
-          "conflict",
-        );
+      requireStep(pagePullRequest, pr.status, "merge");
       const state = await lineState(tx, organizationId, pr.pageId);
       const evaluation = await evaluate(tx, organizationId, state, pr);
       requireInspectedHeads(
