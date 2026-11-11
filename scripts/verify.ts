@@ -533,9 +533,12 @@ async function installBrowser(env: NodeJS.ProcessEnv) {
   return { ...result, ran: shell(playwrightInstall) };
 }
 
+// Up to 2700, zero-cache's ports (4858 + 10 × offset) stay below 32768,
+// where Linux starts handing out ports to outgoing connections, so a busy
+// machine cannot take them from under the run.
 async function e2eOffset(env: NodeJS.ProcessEnv) {
   if (env.E2E_PORT_OFFSET !== undefined) return undefined;
-  for (let offset = 0; offset <= 6000; offset += 100)
+  for (let offset = 0; offset <= 2700; offset += 100)
     if (!(await busyPorts(offset)).length) {
       if (offset)
         console.log(
