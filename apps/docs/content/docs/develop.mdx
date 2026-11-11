@@ -16,8 +16,8 @@ Give Docker at least 8 GB of memory.
 git clone https://github.com/chricarp/lictory.git && cd lictory
 cp .env.example .env
 bun install
-docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
-bun run dev            # the app, API, worker and website
+docker compose up -d --wait   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
+bun run dev                   # the app, API, worker and website
 ```
 
 | What               | Where                                                |
@@ -26,6 +26,13 @@ bun run dev            # the app, API, worker and website
 | The website        | http://localhost:3100                                |
 | Emails (Mailpit)   | http://localhost:8025                                |
 | This documentation | `bun run --cwd apps/docs dev`, http://localhost:3200 |
+
+`--wait` returns once every service is ready, so `bun run dev` finds
+zero-cache running. If another program already uses one of the ports (another
+PostgreSQL or Mailpit, for example), set the `LICTORY_DEV_*_PORT` variables
+listed in `.env.example`; `bun run dev` follows them. It also checks that
+zero-cache can reach the API and explains how to fix it when a firewall is in
+the way.
 
 The development `.env` lets anyone sign up, so you can create an account at
 once. Every optional integration (single sign-on, email providers, OpenAI,

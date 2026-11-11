@@ -64,6 +64,25 @@ void test("writes are only accepted while Zero can reach the server", () => {
   assert.match(connectionProblem("error", "push failed") ?? "", /push failed/);
 });
 
+void test("zero-cache unable to call the API reads as a server problem", () => {
+  const reason = "Fetch from API server threw error: fetch failed";
+  for (const connection of ["error", "connecting"] as const) {
+    const problem = connectionProblem(connection, reason) ?? "";
+    assert.match(problem, /sync service can’t reach the Lictory API/);
+    assert.match(problem, /not your connection/);
+    // The raw error stays visible for whoever diagnoses it.
+    assert.ok(problem.endsWith(reason));
+  }
+  // An API that answered with an error is a different problem.
+  assert.match(
+    connectionProblem(
+      "error",
+      "Fetch from API server returned non-OK status 500",
+    ) ?? "",
+    /^The workspace connection failed: /,
+  );
+});
+
 void test("unchanged rows keep their identity across updates", () => {
   const cache: RowCache = new Map();
   const project = { type: "project", id: "p", name: "Payments" };
