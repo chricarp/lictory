@@ -127,6 +127,7 @@ type Workflow = {
       environment?: string | { name: string; url?: string };
       permissions?: Record<string, string>;
       env?: Record<string, string>;
+      outputs?: Record<string, string>;
       steps?: Step[];
     }
   >;
@@ -525,9 +526,29 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   );
   assert.ok(!runs("domain").some((run) => run.includes("--shard")));
   assert.ok(runs("browser").some((run) => run.includes("--grep @smoke")));
-  // Static checks are never skipped; the gate waits for every job and
-  // accepts only success or a deliberate skip.
+  // Static checks are never skipped, not even on a draft; the gate waits for
+  // every job and accepts only success or a deliberate skip.
+  assert.equal(jobs.changes!.if, undefined);
   assert.equal(jobs.static!.if, undefined);
+  assert.ok(
+    (ci.on.pull_request as { types: string[] }).types.includes(
+      "ready_for_review",
+    ),
+    "marking a draft ready starts the tiers it deferred",
+  );
+  assert.equal(
+    jobs.changes!.outputs?.draft,
+    "${{ github.event.pull_request.draft == true }}",
+  );
+  // Every tier beyond the static checks waits for ready for review.
+  for (const job of Object.keys(jobs).filter(
+    (job) => !["changes", "static", "verify"].includes(job),
+  ))
+    assert.match(
+      jobs[job]!.if ?? "",
+      / && needs\.changes\.outputs\.draft != 'true'$/,
+      job,
+    );
   assert.deepEqual(jobs.verify!.needs, [
     "changes",
     "static",
@@ -557,6 +578,77 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   // CI never holds credentials beyond its read-only token.
   assert.ok(!JSON.stringify(ci).includes("secrets."));
   assert.equal(ci.permissions.contents, "read");
+});
+
+void test("Verify never reports success for a draft whose selected tiers did not run", () => {
+  const verify = workflow("ci").jobs.verify!;
+  const step = verify.steps!.find((step) => step.run)!;
+  // Runs the gate's script as Actions does (bash -eo pipefail).
+  const gate = (
+    results: string,
+    selection: { draft: boolean; unit: boolean; e2e: boolean },
+  ) => {
+    try {
+      const output = execFileSync(
+        "bash",
+        ["--noprofile", "--norc", "-eo", "pipefail", "-c", step.run!],
+        {
+          env: {
+            PATH: process.env.PATH,
+            GITHUB_STEP_SUMMARY: "/dev/null",
+            RESULTS: results,
+            DRAFT: String(selection.draft),
+            UNIT: String(selection.unit),
+            E2E: String(selection.e2e),
+          },
+          encoding: "utf8",
+        },
+      );
+      return { passed: true, output };
+    } catch (error) {
+      return { passed: false, output: (error as { stdout: string }).stdout };
+    }
+  };
+  for (const variable of ["DRAFT", "UNIT", "E2E"])
+    assert.match(step.env![variable]!, /^\$\{\{ needs\.changes\.outputs\./);
+  const staticOnly = "success success skipped skipped";
+
+  // A ready pull request: skips chosen by the changed paths are fine.
+  assert.ok(gate(staticOnly, { draft: false, unit: false, e2e: false }).passed);
+  assert.ok(
+    gate("success success success success", {
+      draft: false,
+      unit: true,
+      e2e: true,
+    }).passed,
+  );
+  assert.ok(
+    !gate("success failure success success", {
+      draft: false,
+      unit: true,
+      e2e: true,
+    }).passed,
+  );
+  // A draft that needs nothing beyond the static checks has run everything.
+  assert.ok(gate(staticOnly, { draft: true, unit: false, e2e: false }).passed);
+  // A draft whose tiers were deferred fails and says which ones and why.
+  const deferred = gate(staticOnly, { draft: true, unit: true, e2e: true });
+  assert.ok(!deferred.passed);
+  assert.match(
+    deferred.output,
+    /::error .*Draft: domain tests and browser smoke workflows have not run\. They run when the pull request is marked ready for review/,
+  );
+  const browserOnly = gate(staticOnly, { draft: true, unit: false, e2e: true });
+  assert.ok(!browserOnly.passed);
+  assert.match(browserOnly.output, /Draft: browser smoke workflows have not/);
+  // A failed static check on a draft still fails.
+  assert.ok(
+    !gate("success failure skipped skipped", {
+      draft: true,
+      unit: false,
+      e2e: false,
+    }).passed,
+  );
 });
 
 void test("pull request suite selection fails open", () => {

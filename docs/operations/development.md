@@ -292,12 +292,12 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command               | Runs on pull requests               | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | --------------------- | ----------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                              | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Unless the change is prose          | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | When applications or tests change   | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full) | Yes, before publishing |
+| Tier              | Proves                                                            | Command               | Runs on pull requests                    | Nightly                |
+| ----------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------- | ---------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                                   | Yes                    |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Ready, unless the change is prose        | Yes                    |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | Ready, when applications or tests change | Yes                    |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full)      | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -312,6 +312,15 @@ generate the route types Next.js derives for the website and documentation
 it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
+
+A draft pull request runs only the static checks. The domain and smoke tiers it
+needs wait until it is marked ready for review, which starts a new run with
+them; re-running the draft's run does not. Until then `Verify` fails and names
+the tiers that have not run, so a green pull request always means everything
+its changes need was tested. Drafts get static feedback on every push, while
+the costly database and browser tiers run once a change is ready. Maintainers
+who want them earlier run `gh workflow run ci.yml --ref <branch>` (add
+`-f suite=full` for every browser workflow).
 
 What earns a test, while the product is young:
 
