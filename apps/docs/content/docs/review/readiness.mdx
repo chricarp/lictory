@@ -70,6 +70,9 @@ grouped by what they look at.
 
 Switch the built-in checks on and off in the same list. **Start from…**
 copies another type's rules, or goes back to **Lictory’s defaults**.
+**Require QA sign-off** adds acceptance criteria and a QA sign-off in one
+step; see [Require QA sign-off on acceptance
+criteria](#require-qa-sign-off-on-acceptance-criteria).
 
 Labels are derived from what a check verifies, so a check never claims more
 than it does: a required section reads _It has a non-empty “Acceptance
@@ -155,6 +158,63 @@ Only ready specifications can be handed off to Jira, whatever the policy; the
 policy setting is unavailable there (_only ready work is handed off to Jira_).
 Handing off an item with its children skips children that are not ready. See
 [Jira](/integrations/jira).
+
+## Require QA sign-off on acceptance criteria
+
+A common Definition of Ready: a Story is ready only when it has acceptance
+criteria and QA has confirmed them. Work then cannot start, or reach Jira, on
+criteria nobody checked for testability.
+
+1. Open **Project settings → Readiness** and choose the type, such as
+   **Story**.
+2. Choose **Require QA sign-off**. The draft gains two checks, marked
+   **New**:
+   - _It has a non-empty “Acceptance criteria” section_
+   - _QA confirms “Acceptance criteria are complete and testable”_: a
+     sign-off only members of the project's QA discipline can give, with
+     guidance shown on the item.
+
+   Checks the type already has are kept; the action adds only what is
+   missing. Rename the sign-off or edit its guidance if your team words it
+   differently.
+
+3. Choose **Review changes…**. The preview lists the items that _will need
+   more work_: every item following the latest version, because nobody has
+   signed off yet. Add a summary and choose **Publish version N**. Nothing
+   changes for any item until you publish.
+4. Decide what happens to work that is not ready:
+   - In a native project, set **When work starts before it’s ready** to
+     **Block**. A Story then cannot be accepted for delivery or started until
+     QA signs off. **Warn** lets it start and records the failing check.
+   - In an external project there is nothing to set: only ready Stories are
+     handed off to Jira.
+
+The action appears when the project has a discipline named _QA_. Without one,
+add the same checks by hand with **Require a section** and **Add a sign-off**,
+and choose who confirms it.
+
+On the item, the sign-off check waits for QA. A member of QA reads the
+criteria and chooses **Sign off**; the check says _Signed off by_ who and
+when, and the item becomes ready once its other checks pass.
+
+### A new revision needs a new sign-off
+
+QA signed off the acceptance criteria they read, not whatever the
+specification says later. A sign-off therefore belongs to the revision it was
+given on. When the specification gets a new revision (a saved change, or a
+merged pull request once main is protected), the check fails again:
+
+> Signed off on revision 3. Sign off again for revision 4.
+
+The item stops being ready until QA confirms the new text, and the earlier
+sign-off stays in the record. This is the same rule as for
+[approvals](/review/approvals): evidence about one revision says nothing about
+the next, so readiness never claims a confirmation nobody gave.
+
+A non-empty section check proves only that the criteria exist. The sign-off
+is the person saying they are complete and testable. If QA must instead agree
+to the whole specification, require **QA approved the current revision**
+(**Require a discipline’s approval**) rather than, or beside, the sign-off.
 
 ## Find ready work
 
