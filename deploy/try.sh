@@ -390,9 +390,10 @@ summary() {
   say "                 user lictory, password $mail_password"
   say "  Admin console  $url/admin"
   say ""
-  say "  Stop           cd '$dir' && docker compose -p lictory-try stop"
+  compose_command="env -u COMPOSE_FILE -u COMPOSE_PROFILES -u COMPOSE_ENV_FILES -u COMPOSE_PATH_SEPARATOR docker compose"
+  say "  Stop           cd '$dir' && $compose_command -p lictory-try stop"
   say "  Start again    run this command again"
-  say "  Remove         cd '$dir' && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf '$dir'"
+  say "  Remove         cd '$dir' && $compose_command -p lictory-try down --volumes --rmi all && cd .. && rm -rf '$dir'"
   say ""
   say "Run Lictory for your team on a server: https://docs.lictory.com/self-hosting/install"
 }

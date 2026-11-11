@@ -58,8 +58,13 @@ install`), laptop-sized PostgreSQL settings and `BACKUP_TARGET=none`.
 - Running it again reuses `.env`, replaces the image digests with the newest
   release's and migrates, waits for the running zero-cache to replicate the
   migration (as `deploy.sh` does), then replaces the services: the trial
-  upgrades in place. `docker compose -p lictory-try down --volumes --rmi all`
-  in the directory removes everything.
+  upgrades in place. To remove it, clear `COMPOSE_FILE`, `COMPOSE_PROFILES`,
+  `COMPOSE_ENV_FILES` and `COMPOSE_PATH_SEPARATOR`, then run
+  `docker compose -p lictory-try down --volumes --rmi all` in the trial directory
+  to remove the Compose resources. Only after that succeeds, leave and remove
+  that same directory (by default `~/lictory-try`) to delete `.env`,
+  `administrator.txt` and the other saved files. The launcher prints the full
+  removal command for the selected directory.
 - On Linux with Docker Engine before 28, hosts on the local network can reach
   ports published on `127.0.0.1`; the script warns (Docker Desktop is not
   affected).

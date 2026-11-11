@@ -86,6 +86,7 @@ writeFileSync(args[args.indexOf("-o") + 1], route);`,
     "docker",
     `if (args[0] === "version") console.log(process.env.FAKE_ENGINE_VERSION ?? "29.0.0");
 else if (args[0] === "compose" && args[1] === "version") console.log(process.env.FAKE_COMPOSE_VERSION ?? "2.30.0");
+else if (args[0] === "compose" && args.includes("down")) process.exit(Number(process.env.FAKE_CLEANUP_STATUS ?? 0));
 else if (args[0] === "compose" && args[1] === "ps") { if (process.env.FAKE_ZERO_RUNNING) console.log("zero-container"); }
 else if (args[0] === "compose" && args.includes("psql")) console.log(args.at(-1).includes("pg_current_wal_lsn") ? "0/1A2B3C4" : "t");
 else if (args[0] === "info" && args.join(" ").includes("MemTotal")) console.log("8000000000");
@@ -121,6 +122,20 @@ else if (admin) {
       >;
       all[url] = body;
       writeFileSync(routes, JSON.stringify(all));
+    },
+    command(command: string, extra: Record<string, string> = {}) {
+      const result = spawnSync("sh", ["-c", command], {
+        env: {
+          ...environment,
+          PATH: `${fake}:${process.env.PATH}`,
+          COMPOSE_FILE: "/other/compose.yaml",
+          COMPOSE_PROJECT_NAME: "other-project",
+          ...extra,
+        },
+        cwd: base,
+        encoding: "utf8",
+      });
+      return { ...result, calls: recorded() };
     },
     // Piped into sh, as the documentation runs it.
     run(extra: Record<string, string> = {}) {
@@ -462,4 +477,73 @@ void test("Docker Engine before 28 on Linux warns that the local network can rea
   });
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /local network/);
+});
+
+void test("printed removal ignores a shell's Compose file and deletes saved credentials only after cleanup", (t) => {
+  const f = fixture(t);
+  f.release(latest, releaseFile("0.24.0"));
+  const trial = f.run();
+  assert.equal(trial.status, 0, trial.stderr);
+  const command = /^  Remove +(.+)$/m.exec(trial.stdout)![1]!;
+  const failed = f.command(command, { FAKE_CLEANUP_STATUS: "1" });
+  assert.equal(failed.status, 1, failed.stderr);
+  assert.ok(existsSync(join(f.dir, "administrator.txt")));
+  assert.ok(existsSync(join(f.dir, ".env")));
+  const removed = f.command(command);
+  assert.equal(removed.status, 0, removed.stderr);
+  const cleanup = removed.calls.find((call) => call.args.includes("down"))!;
+  assert.equal(cleanup.cwd, f.dir);
+  assert.equal(cleanup.shell.COMPOSE_FILE, null);
+  assert.deepEqual(cleanup.args, [
+    "compose",
+    "-p",
+    "lictory-try",
+    "down",
+    "--volumes",
+    "--rmi",
+    "all",
+  ]);
+  assert.ok(!existsSync(f.dir));
+});
+
+void test("the CI trial masks the inbox password before replaying success or failure output", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lictory-trial-action-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  mkdirSync(join(base, "deploy"));
+  const action = readFileSync(
+    join(repository, ".github/actions/trial/action.yml"),
+    "utf8",
+  );
+  const script = action
+    .split("      run: |\n")[1]!
+    .split("    - name:")[0]!
+    .replace(/^        /gm, "");
+  for (const status of [0, 1]) {
+    const dir = join(base, `trial-${status}`);
+    mkdirSync(dir);
+    writeFileSync(
+      join(base, "deploy/try.sh"),
+      `#!/bin/sh
+printf '%s\\n' 'HTTP_PORT=8080' 'LICTORY_TRY_MAIL_PORT=8025' 'LICTORY_TRY_MAIL_PASSWORD=inbox-secret' > "$LICTORY_TRY_DIR/.env"
+echo 'inbox password inbox-secret'
+exit ${status}
+`,
+    );
+    const result = spawnSync("bash", ["-c", script], {
+      cwd: base,
+      env: {
+        ...process.env,
+        REGISTRY: "",
+        RUNNER_TEMP: base,
+        LICTORY_TRY_DIR: dir,
+        GITHUB_OUTPUT: join(base, "outputs"),
+      },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, status, result.stderr);
+    const mask = result.stdout.indexOf("::add-mask::inbox-secret");
+    const output = result.stdout.indexOf("inbox password inbox-secret");
+    assert.ok(mask >= 0 && output > mask, result.stdout);
+    assert.ok(!existsSync(join(base, "lictory-trial-output.log")));
+  }
 });

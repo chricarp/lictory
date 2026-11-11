@@ -81,12 +81,27 @@ prints these commands with it. `-p lictory-try` names the trial's Compose
 project, so the commands never act on another project, even when your shell
 sets `COMPOSE_PROJECT_NAME`.
 
-| What        | Command                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------- |
-| Stop        | `cd ~/lictory-try && docker compose -p lictory-try stop`                                                      |
-| Start again | Run the start command again (with the same `LICTORY_TRY_DIR`, if you set one)                                 |
-| Upgrade     | Run the command again: it moves the trial to the newest release and keeps your data                           |
-| Remove all  | `cd ~/lictory-try && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf ~/lictory-try` |
+First clear Compose overrides in a subshell, so the commands use the trial's
+files and leave your shell settings unchanged:
+
+```sh
+(
+  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
+  cd ~/lictory-try && docker compose -p lictory-try stop
+)
+```
+
+To start again or upgrade, run the start command again (with the same
+`LICTORY_TRY_DIR`, if you set one). It keeps your data.
+
+To remove everything:
+
+```sh
+(
+  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
+  cd ~/lictory-try && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf ~/lictory-try
+)
+```
 
 Removing deletes the database with everything you created, the downloaded
 images and the folder.
@@ -123,8 +138,14 @@ that did not start. Common causes:
 - **A port is taken:** choose others with `LICTORY_TRY_PORT` and
   `LICTORY_TRY_MAIL_PORT`.
 
-`cd ~/lictory-try && docker compose -p lictory-try ps` shows each service's
-state and `docker compose -p lictory-try logs api` its log.
+To see each service's state and the API log, use the same cleared overrides:
+
+```sh
+(
+  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
+  cd ~/lictory-try && docker compose -p lictory-try ps && docker compose -p lictory-try logs api
+)
+```
 
 On Linux, Docker Engine before 28 lets other computers on your local network
 reach ports published on `127.0.0.1`; the command warns about it. Upgrade

@@ -33,11 +33,21 @@ runs:
         password="$(openssl rand -hex 16)"
         echo "::add-mask::$password"
         # Piped, exactly as the documentation tells people to run it.
-        LICTORY_ADMIN_PASSWORD="$password" sh < deploy/try.sh
+        # Register secrets before replaying output, including on failure.
+        umask 077
+        output="$RUNNER_TEMP/lictory-trial-output.log"
+        status=0
+        LICTORY_ADMIN_PASSWORD="$password" sh < deploy/try.sh >"$output" 2>&1 || status=$?
+        mail_password=""
+        if [ -f "$LICTORY_TRY_DIR/.env" ]; then
+          mail_password=$(grep -E '^LICTORY_TRY_MAIL_PASSWORD=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2- || true)
+        fi
+        [ -z "$mail_password" ] || echo "::add-mask::$mail_password"
+        cat "$output"
+        rm -f "$output"
+        [ "$status" -eq 0 ] || exit "$status"
         port=$(grep -E '^HTTP_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
         mail=$(grep -E '^LICTORY_TRY_MAIL_PORT=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
-        mail_password=$(grep -E '^LICTORY_TRY_MAIL_PASSWORD=' "$LICTORY_TRY_DIR/.env" | tail -n 1 | cut -d= -f2-)
-        echo "::add-mask::$mail_password"
         url=http://localhost
         [ "$port" = 80 ] || url="$url:$port"
         {
