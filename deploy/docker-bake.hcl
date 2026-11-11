@@ -23,10 +23,6 @@ variable "SOURCE_URL" { default = "" }
 variable "SITE_URL" { default = "" }
 variable "POSTHOG_PROJECT_TOKEN" { default = "" }
 variable "POSTHOG_HOST" { default = "" }
-variable "LICTORY_LEGAL_NAME" { default = "" }
-variable "LICTORY_LEGAL_ADDRESS" { default = "" }
-variable "LICTORY_LEGAL_EMAIL" { default = "" }
-variable "LICTORY_LEGAL_REGISTRATION" { default = "" }
 variable "PREVIOUS_PROXY_IMAGE" { default = "no-previous-assets" }
 variable "PLATFORMS" { default = "linux/amd64,linux/arm64" }
 # Optional registry namespace for BuildKit caches, e.g. ghcr.io/acme/lictory-cache.
@@ -88,10 +84,6 @@ target "marketing" {
     SITE_URL                          = SITE_URL
     NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN = POSTHOG_PROJECT_TOKEN
     NEXT_PUBLIC_POSTHOG_HOST          = POSTHOG_HOST
-    LICTORY_LEGAL_NAME                = LICTORY_LEGAL_NAME
-    LICTORY_LEGAL_ADDRESS             = LICTORY_LEGAL_ADDRESS
-    LICTORY_LEGAL_EMAIL               = LICTORY_LEGAL_EMAIL
-    LICTORY_LEGAL_REGISTRATION        = LICTORY_LEGAL_REGISTRATION
   }
   tags     = tags("marketing")
   cache-from = cache_from("marketing")

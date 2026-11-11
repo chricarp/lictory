@@ -6,7 +6,19 @@ import { LegalOperator } from "@lictory/marketing/components/legal/legal-operato
 import { GetStartedTextLink } from "@lictory/marketing/components/marketing/get-started-cta";
 import { legalVersion } from "@lictory/marketing/lib/site";
 
-export type LegalSection = { id: string; title: string; body: string };
+/** A table shown after a section's text; the first column is a name. */
+export type LegalTable = {
+  caption: string;
+  columns: string[];
+  rows: string[][];
+};
+
+export type LegalSection = {
+  id: string;
+  title: string;
+  body: string;
+  table?: LegalTable;
+};
 
 export function LegalDocument({
   title,
@@ -35,7 +47,7 @@ export function LegalDocument({
           </p>
           <h1 className="text-3xl font-medium sm:text-4xl">{title}</h1>
           <p className="mt-4 text-sm text-muted-foreground">
-            Version:{" "}
+            Last updated:{" "}
             <time dateTime={legalVersion.date}>{legalVersion.label}</time>
           </p>
           <p className="mt-6 text-base leading-7 text-muted-foreground">
@@ -68,6 +80,7 @@ export function LegalDocument({
                 <div className="space-y-4 text-sm leading-7 text-muted-foreground [&_a]:rounded [&_a]:text-foreground [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-4 [&_a]:outline-none [&_a:focus-visible]:ring-2 [&_a:focus-visible]:ring-ring [&_a:hover]:decoration-foreground [&_li]:pl-1 [&_strong]:font-medium [&_strong]:text-foreground [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">
                   <ReactMarkdown>{section.body}</ReactMarkdown>
                 </div>
+                {section.table && <LegalTableView table={section.table} />}
               </section>
             ))}
           </article>
@@ -80,12 +93,50 @@ export function LegalDocument({
         >
           <Link href="/">Home</Link>
           <Link href="/privacy">Privacy Notice</Link>
-          <Link href="/terms-of-service">Terms of Service</Link>
+          <Link href="/terms-of-service">Terms of Use</Link>
           <PrivacyPreferencesButton className="rounded outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
             Privacy preferences
           </PrivacyPreferencesButton>
         </nav>
       </footer>
+    </div>
+  );
+}
+
+function LegalTableView({ table }: { table: LegalTable }) {
+  return (
+    <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+      <table className="w-full min-w-[40rem] border-collapse text-left text-sm leading-6">
+        <caption className="sr-only">{table.caption}</caption>
+        <thead>
+          <tr className="border-b border-border">
+            {table.columns.map((column) => (
+              <th key={column} scope="col" className="px-4 py-3 font-medium">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="text-muted-foreground">
+          {table.rows.map(([name, ...cells], row) => (
+            <tr key={row} className="border-b border-border last:border-0">
+              <th
+                scope="row"
+                className="w-48 px-4 py-3 align-top font-normal text-foreground"
+              >
+                <code className="text-[13px] [overflow-wrap:anywhere]">
+                  {name}
+                </code>
+              </th>
+              {cells.map((cell, index) => (
+                <td key={index} className="px-4 py-3 align-top">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -412,11 +412,6 @@ try {
           ...buildEnv,
           NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_e2e_placeholder",
           NEXT_PUBLIC_POSTHOG_HOST: "http://127.0.0.1:9",
-          // A synthetic operator, never a developer's own legal details.
-          LICTORY_LEGAL_NAME: "Example Operator",
-          LICTORY_LEGAL_EMAIL: "privacy@example.org",
-          LICTORY_LEGAL_ADDRESS: "",
-          LICTORY_LEGAL_REGISTRATION: "",
         }),
       async () => {
         if (docsNeeded)

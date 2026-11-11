@@ -64,13 +64,12 @@ custom branch policy, no tags). Add required reviewers to approve each
 website deployment if you want a second gate after the release-manager check.
 It holds:
 
-| Setting                                           | Value                                                          |
-| ------------------------------------------------- | -------------------------------------------------------------- |
-| Secret `CLOUDFLARE_API_TOKEN`                     | The websites token below                                       |
-| Variable `CLOUDFLARE_ACCOUNT_ID`                  | The Cloudflare account ID                                      |
-| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional website analytics; empty disables them                |
-| Variable `ANALYTICS_CONSENT`                      | Optional consent mode for website analytics                    |
-| Variables `LICTORY_LEGAL_*`                       | The operator's legal notice ([public legal notices](legal.md)) |
+| Setting                                           | Value                                           |
+| ------------------------------------------------- | ----------------------------------------------- |
+| Secret `CLOUDFLARE_API_TOKEN`                     | The websites token below                        |
+| Variable `CLOUDFLARE_ACCOUNT_ID`                  | The Cloudflare account ID                       |
+| Variables `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | Optional website analytics; empty disables them |
+| Variable `ANALYTICS_CONSENT`                      | Optional consent mode for website analytics     |
 
 All variables are public build inputs compiled into pages or Worker
 variables; only the token is secret. Nothing else in GitHub holds a

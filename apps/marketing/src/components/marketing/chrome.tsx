@@ -76,7 +76,7 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
               Privacy Notice
             </Link>
             <Link href="/terms-of-service" className={footerLinkClass}>
-              Terms of Service
+              Terms of Use
             </Link>
             <PrivacyPreferencesButton
               className={cn(footerLinkClass, "text-left")}
@@ -85,7 +85,9 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             </PrivacyPreferencesButton>
           </div>
         </nav>
-        <p className="sm:ml-auto">© {new Date().getFullYear()} Lictory</p>
+        <p className="sm:ml-auto">
+          © {new Date().getFullYear()} Christian Carpinelli
+        </p>
       </div>
     </footer>
   );
