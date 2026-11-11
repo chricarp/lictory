@@ -230,16 +230,18 @@ void test("release images are signed and attested before publication, and only t
     );
     // The license report of the exact source, without running its
     // dependencies' install scripts or a source bunfig preload or .env in a
-    // job that can sign.
+    // job that can sign, and without the job's tokens in the environment a
+    // source registry configuration could expand.
     assert.ok(licenses < publish);
-    assert.match(
-      steps[licenses]!.run!,
-      /bun install --frozen-lockfile --ignore-scripts/,
-    );
-    assert.match(
-      steps[licenses]!.run!,
-      /bun --config=\.\.\/control\/bunfig\.toml --no-env-file \\\n\s+\.\.\/control\/scripts\/license-report\.ts /,
-    );
+    // Every command of the step runs with only PATH and HOME.
+    const commands = steps[licenses]!.run!.replaceAll(/\\\n\s+/g, "")
+      .trim()
+      .split("\n");
+    const clean = 'env -i PATH="$PATH" HOME="$HOME" ';
+    assert.deepEqual(commands, [
+      `${clean}bun install --frozen-lockfile --ignore-scripts`,
+      `${clean}bun --config=../control/bunfig.toml --no-env-file ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"`,
+    ]);
     assert.equal(
       (steps[licenses] as { "working-directory"?: string })[
         "working-directory"

@@ -256,10 +256,14 @@ jobs:
         # Package manifests only: no code from the release source runs in a
         # job that can sign. --ignore-scripts skips its install scripts, and
         # the control checkout's bunfig and no .env keep a source bunfig
-        # preload or .env out of the report process.
+        # preload or .env out of the report process. `env -i` leaves only
+        # PATH and HOME, so a registry the source configures can never be
+        # sent GH_TOKEN or the job's OIDC request token.
         run: |
-          bun install --frozen-lockfile --ignore-scripts
-          bun --config=../control/bunfig.toml --no-env-file \
+          env -i PATH="$PATH" HOME="$HOME" \
+            bun install --frozen-lockfile --ignore-scripts
+          env -i PATH="$PATH" HOME="$HOME" \
+            bun --config=../control/bunfig.toml --no-env-file \
             ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"
       - name: Publish the stable images and GitHub Release
         working-directory: control

@@ -446,9 +446,10 @@ version=0.25.0
 workflow=release.yml  # nightly.yml for a nightly
 ref=refs/heads/main   # refs/heads/release/<major>.<minor> for a maintenance nightly
 
+images=
 curl -fsSL -o "lictory-$version.env" \
-  "https://github.com/chricarp/lictory/releases/download/v$version/release.env"
-images=$(sed -nE 's/^(API|PROXY|MIGRATE|OPS)_IMAGE=//p' "lictory-$version.env")
+  "https://github.com/chricarp/lictory/releases/download/v$version/release.env" &&
+  images=$(sed -nE 's/^(API|PROXY|MIGRATE|OPS)_IMAGE=//p' "lictory-$version.env")
 
 # Sigstore signature; needs no GitHub account.
 (set -e; for image in ${images:?release.env lists no images}; do
@@ -468,9 +469,10 @@ done)
 ```
 
 Each block stops at the first image that fails and exits non-zero unless
-every digest was signed by that workflow on that ref, and also when
-`release.env` could not be downloaded (the version-named file keeps an older
-release's digests from being checked instead). The commit the images were
+every digest was signed by that workflow on that ref. Images are read only
+after `curl` completes, so a failed or interrupted download fails the checks
+instead of checking a partial list, and the version-named file keeps an older
+release's digests from being checked instead. The commit the images were
 built from is `LICTORY_GIT_SHA` in `release.env`.
 
 The SBOMs are attached to each GitHub Release
