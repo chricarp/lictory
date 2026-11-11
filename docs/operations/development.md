@@ -136,19 +136,19 @@ Production images and the single-server stack are described in
 
 ## Daily commands
 
-| Command               | Purpose                                                                         |
-| --------------------- | ------------------------------------------------------------------------------- |
-| `bun run dev`         | Applications (after `docker compose up -d`)                                     |
-| `bun run check`       | Types, lint, formatting, unused code, PR assets and the configuration reference |
-| `bun run format`      | Apply Prettier                                                                  |
-| `bun test src/<area>` | Focused domain tests while you work                                             |
-| `bun run test:domain` | Every domain test, files in parallel                                            |
-| `bun run test:sync`   | Synchronization invariants against PostgreSQL                                   |
-| `bun run test:e2e`    | Production build plus browser workflows                                         |
-| `bun run test:smoke`  | Production build plus the `@smoke` workflows only                               |
-| `bun run db:generate` | Committed SQL migration after a schema change                                   |
-| `bun run db:check`    | Fail when the schema has no matching migration                                  |
-| `bun run admin <cmd>` | Instance administration against `.env`'s database                               |
+| Command                         | Purpose                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| `bun run dev`                   | Applications (after `docker compose up -d`)                                     |
+| `bun run check`                 | Types, lint, formatting, unused code, PR assets and the configuration reference |
+| `bun run format`                | Apply Prettier                                                                  |
+| `bun test --isolate src/<area>` | Focused domain tests while you work                                             |
+| `bun run test:domain`           | Every domain test, files in parallel                                            |
+| `bun run test:sync`             | Synchronization invariants against PostgreSQL                                   |
+| `bun run test:e2e`              | Production build plus browser workflows                                         |
+| `bun run test:smoke`            | Production build plus the `@smoke` workflows only                               |
+| `bun run db:generate`           | Committed SQL migration after a schema change                                   |
+| `bun run db:check`              | Fail when the schema has no matching migration                                  |
+| `bun run admin <cmd>`           | Instance administration against `.env`'s database                               |
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and
@@ -172,7 +172,10 @@ that points `DATABASE_URL` at its own database never receives a client another
 file already created. Tests that need PostgreSQL create their own database from
 `SCHEMA_TEST_DATABASE_URL` (the admin `postgres` database), so they never touch
 your development data, and never share one with another file. The tests inside
-a file run in order and may build on each other.
+a file run in order and may build on each other. Run focused tests with
+`--isolate` too: without it, Bun runs every file in one global and applies the
+preloaded setup (`scripts/test-setup.ts`, including the 60 s default timeout)
+to the first file only, so later files fail at Bun's 5 s default.
 `scripts/test-timings/domain.json` records how long each file takes, so the
 slowest start first; refresh it with
 `bun test --parallel --timings=scripts/test-timings/domain.json --update-timings src`
