@@ -67,13 +67,31 @@ jobs:
       audit: ${{ steps.detect.outputs.audit }}
       docs: ${{ steps.detect.outputs.docs }}
       # Drafts defer the domain and browser tiers to ready for review.
-      draft: ${{ github.event.pull_request.draft == true }}
+      draft: ${{ steps.state.outputs.draft == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts
+      # The event carries the pull request as it was when the event was sent.
+      # A push followed within seconds by "Ready for review" can leave only
+      # the push's run (the newer run of a group replaces the older), whose
+      # event still says draft; the state now decides. A re-run reads it again.
+      - id: state
+        name: Read whether the pull request is a draft now
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          EVENT_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          if ! draft=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft) ||
+            { [ "$draft" != true ] && [ "$draft" != false ]; }; then
+            echo "::warning::Could not read the pull request's draft state; using the event's ($EVENT_DRAFT)."
+            draft=$EVENT_DRAFT
+          fi
+          echo "draft=$draft" | tee -a "$GITHUB_OUTPUT"
       - id: detect
         name: Select suites from the changed paths
         env:
@@ -278,7 +296,7 @@ jobs:
           if [ "${#deferred[@]}" -gt 0 ]; then
             tiers=$(printf '%s and ' "${deferred[@]}")
             tiers=${tiers% and }
-            message="Draft: $tiers have not run. They run when the pull request is marked ready for review; re-running this job does not start them."
+            message="Draft: $tiers have not run. They run when the pull request is marked ready for review; re-running only this job does not start them."
             echo "::error title=Tests not run on a draft::$message"
             echo "$message" >> "$GITHUB_STEP_SUMMARY"
             status=1

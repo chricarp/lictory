@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   GitHubFixture,
@@ -106,6 +114,7 @@ void test("manual production intent remains frozen when retries happen after a n
 });
 
 type Step = {
+  if?: string;
   id?: string;
   uses?: string;
   run?: string;
@@ -122,7 +131,6 @@ type Workflow = {
       name?: string;
       if?: string;
       needs?: string[];
-      if?: string;
       uses?: string;
       secrets?: "inherit" | Record<string, string>;
       with?: Record<string, string>;
@@ -631,7 +639,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   );
   assert.equal(
     jobs.changes!.outputs?.draft,
-    "${{ github.event.pull_request.draft == true }}",
+    "${{ steps.state.outputs.draft == 'true' }}",
   );
   // Every tier beyond the static checks waits for ready for review.
   for (const job of Object.keys(jobs).filter(
@@ -671,6 +679,48 @@ void test("pull requests get layered checks behind one required Verify gate", ()
   // CI never holds credentials beyond its read-only token.
   assert.ok(!JSON.stringify(ci).includes("secrets."));
   assert.equal(ci.permissions.contents, "read");
+});
+
+void test("a run reads whether the pull request is a draft when it starts, not from its event", (t) => {
+  const changes = workflow("ci").jobs.changes!;
+  const step = changes.steps!.find((step) => step.id === "state")!;
+  assert.equal(step.if, "github.event_name == 'pull_request'");
+  assert.equal(step.env!.EVENT_DRAFT, "${{ github.event.pull_request.draft }}");
+  // gh answers what GitHub says now, or fails.
+  const bin = mkdtempSync(join(tmpdir(), "ci-draft-"));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  writeFileSync(
+    join(bin, "gh"),
+    '#!/bin/sh\n[ -n "$FAKE_DRAFT" ] || exit 1\nprintf "%s\\n" "$FAKE_DRAFT"\n',
+    { mode: 0o755 },
+  );
+  const state = (now: string, event: string) => {
+    const output = join(bin, "output");
+    writeFileSync(output, "");
+    execFileSync(
+      "bash",
+      ["--noprofile", "--norc", "-eo", "pipefail", "-c", step.run!],
+      {
+        env: {
+          PATH: `${bin}:${process.env.PATH}`,
+          GITHUB_OUTPUT: output,
+          GITHUB_REPOSITORY: "chricarp/lictory",
+          PR: "370",
+          EVENT_DRAFT: event,
+          FAKE_DRAFT: now,
+        },
+        encoding: "utf8",
+      },
+    );
+    return readFileSync(output, "utf8").trim();
+  };
+  // Pushed as a draft, marked ready before the run started: the tiers run.
+  assert.equal(state("false", "true"), "draft=false");
+  assert.equal(state("true", "false"), "draft=true");
+  // When GitHub cannot answer, the event decides, as before.
+  assert.equal(state("", "true"), "draft=true");
+  assert.equal(state("", "false"), "draft=false");
+  assert.equal(state("null", "true"), "draft=true");
 });
 
 void test("Verify never reports success for a draft whose selected tiers did not run", () => {
