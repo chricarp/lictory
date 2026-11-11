@@ -165,7 +165,7 @@ git clone https://github.com/chricarp/lictory.git
 cd lictory
 cp .env.example .env
 bun install --frozen-lockfile
-docker compose up -d
+docker compose up -d --wait   # waits until zero-cache has finished starting
 bun run dev
 ```
 
@@ -174,8 +174,10 @@ bun run dev
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-The [development runbook](docs/operations/development.md) covers environment
-settings, OAuth callbacks, database migrations, daily commands and the complete
+Ports already taken by another PostgreSQL or Mailpit? Set the
+`LICTORY_DEV_*_PORT` variables in `.env` (listed in `.env.example`). The
+[development runbook](docs/operations/development.md) covers environment
+settings, troubleshooting, OAuth callbacks, database migrations, daily commands and the complete
 required verification sequence.
 
 ### Repository layout

@@ -55,9 +55,14 @@ A `NODE_OPTIONS` you export comes after it and wins.
 ```sh
 cp .env.example .env
 bun install
-docker compose up -d   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
-bun run dev            # SPA, API, worker, collaboration and website on the host
+docker compose up -d --wait   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
+bun run dev                   # SPA, API, worker, collaboration and website on the host
 ```
+
+`--wait` returns once every service is healthy: zero-cache needs up to a
+minute after the migrations for its first sync. Without it, `bun run dev`
+waits for a zero-cache that is still starting. `bun run dev` warns when the
+installed Bun differs from `packageManager` (`bun install` does not).
 
 - App: http://localhost:3000 (API 3002, collaboration 3004, zero-cache 4848)
 - Website: http://localhost:3100
@@ -97,8 +102,8 @@ order:
 4. `zero-cache`: starts only after migrations succeed; it calls the API on the
    host (port 3002) with the browser's forwarded session cookie.
 5. `mailpit`: captures every email.
-6. `minio` and `minio-setup`: S3-compatible storage for attachments, with the
-   `lictory-files` bucket created on start. The storage tests in
+6. `minio`: S3-compatible storage for attachments. Its healthcheck creates the
+   `lictory-files` bucket, so the service is healthy once the bucket exists. The storage tests in
    `packages/core/src/storage/minio.test.ts` run against it (and are skipped
    when it is not running); point `S3_TEST_ENDPOINT`,
    `S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_ACCESS_KEY` elsewhere to use
@@ -106,13 +111,33 @@ order:
 
 These services use well-known development credentials (`lictory/lictory`, the
 zero-cache admin password `development`), so `compose.yaml` publishes their
-ports (5432, 4848, 1025 and 8025) on `127.0.0.1` only. Docker writes its own
+ports (5432, 4848, 1025, 8025, 9000 and 9001) on `127.0.0.1` only. Docker writes its own
 firewall rules, so a host firewall such as ufw would not protect a port
 published on every interface. To reach them from another machine during remote development, set
 `LICTORY_DEV_BIND_ADDRESS` (in the shell or `.env`) to the interface to listen
 on, for example a private VPN address, and prefer an SSH tunnel
 (`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
 address. `docker compose config` shows the resulting `host_ip`.
+
+**Ports and a second checkout.** Every published port has a variable, set in
+the shell or `.env` and listed in `.env.example`:
+
+| Variable                         | Default | Service                                     |
+| -------------------------------- | ------- | ------------------------------------------- |
+| `LICTORY_DEV_POSTGRES_PORT`      | 5432    | PostgreSQL (`DATABASE_URL`)                 |
+| `LICTORY_DEV_ZERO_PORT`          | 4848    | zero-cache                                  |
+| `LICTORY_DEV_SMTP_PORT`          | 1025    | Mailpit SMTP (`SMTP_PORT`)                  |
+| `LICTORY_DEV_MAILPIT_PORT`       | 8025    | Mailpit web interface                       |
+| `LICTORY_DEV_MINIO_PORT`         | 9000    | MinIO (`S3_ENDPOINT`)                       |
+| `LICTORY_DEV_MINIO_CONSOLE_PORT` | 9001    | MinIO console                               |
+| `LICTORY_DEV_API_PORT`           | 3002    | The API on the host, which zero-cache calls |
+
+Change the setting in parentheses to the same port: the applications read
+those, not the variables. `bun run dev` follows `LICTORY_DEV_ZERO_PORT` and
+`LICTORY_DEV_API_PORT`, and serves the app on the port of `PLATFORM_URL` (or
+`BETTER_AUTH_URL`), 3000 by default. A second checkout on the same machine
+also needs its own `COMPOSE_PROJECT_NAME` (default `lictory`); otherwise its
+`docker compose up` takes over the first checkout's containers.
 
 The Vite dev server is the one origin in development: it proxies `/api` and
 `/relay` to the API, `/zero` to zero-cache and `/collaboration` (live draft
@@ -124,7 +149,11 @@ in development) and allows one running copy per database: a second
 service exits with `collaboration.owner_busy` while everything else keeps
 running.
 
-`bun run dev` refuses to start until zero-cache answers on port 4848. After
+`bun run dev` refuses to start until zero-cache answers on port 4848 (it
+waits while the container is still starting). Once the API is up it also
+checks, from inside the zero-cache container, that zero-cache can reach the
+API, and explains the fix when it cannot (see
+[troubleshooting](#troubleshooting)). After
 generating a migration, apply it with `bun run db:migrate` (or
 `docker compose run --rm migrate`); zero-cache picks schema changes up through
 its event triggers. An older PostgreSQL container created before logical
@@ -138,7 +167,7 @@ Production images and the single-server stack are described in
 
 | Command               | Purpose                                                                         |
 | --------------------- | ------------------------------------------------------------------------------- |
-| `bun run dev`         | Applications (after `docker compose up -d`)                                     |
+| `bun run dev`         | Applications (after `docker compose up -d --wait`)                              |
 | `bun run check`       | Types, lint, formatting, unused code, PR assets and the configuration reference |
 | `bun run format`      | Apply Prettier                                                                  |
 | `bun test src/<area>` | Focused domain tests while you work                                             |
@@ -163,6 +192,46 @@ reads an undeclared variable.
 `bun run knip` reports unused files and dependencies. Its configuration
 (`knip.jsonc`) lists the few findings that predate it; shrink that list rather
 than grow it.
+
+## Troubleshooting
+
+**`SQLITE_ERROR no such table: _zero.tableMetadata` in zero-cache's log.**
+zero-cache logs this once (`Unable to create full ReplicationStatusEvent`)
+during its first sync, before it has created its replica's tables. It is
+harmless; zero-cache becomes healthy moments later.
+
+**A port is already allocated.** `docker compose up` fails with
+`Bind for 127.0.0.1:5432 failed: port is already allocated` when another
+PostgreSQL, Mailpit or checkout holds the port. Set the matching
+`LICTORY_DEV_*_PORT` variable and the setting that names it (the ports table
+under [first checkout](#first-checkout)) instead of writing an override file.
+
+**Sign-up works, then "The workspace could not be opened … Fetch from API
+server threw error: fetch failed".** zero-cache runs in Docker and calls the
+API on the host (`host.docker.internal:3002`). On Linux, a host firewall (ufw,
+firewalld, nftables rules) that drops traffic from Docker's bridge networks
+to the host blocks that call, while the browser still reaches the API, so
+sign-in succeeds and every synced query fails. `bun run dev` detects this and
+prints the network and port; the app says the sync service cannot reach the
+API. Fix it in one of two ways:
+
+- Let the Docker network reach the API port, for example
+  `sudo ufw allow from 172.18.0.0/16 to any port 3002 proto tcp` with the
+  subnet `bun run dev` prints (`docker network inspect lictory_default`). A
+  network recreated by `docker compose down` may get another subnet.
+- Run zero-cache on the host's network: add
+  `COMPOSE_FILE=compose.yaml:compose.host-network.yaml` to `.env` and run
+  `docker compose up -d --wait` again. zero-cache then reaches PostgreSQL and
+  the API on `127.0.0.1`, and listens on every interface of the host (its port
+  and the next one), so your firewall, not `LICTORY_DEV_BIND_ADDRESS`, decides
+  who reaches it. Linux only; Docker Desktop needs host networking enabled.
+
+An API started with `HOST=127.0.0.1` is unreachable from Docker for the same
+reason; leave `HOST` unset in development.
+
+**`bun run dev` warns about the Bun version.** Install the release in
+`packageManager` with the command it prints; `bun run check` refuses a
+different minor release.
 
 ## Tests
 
@@ -293,12 +362,12 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command               | Runs on pull requests               | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | --------------------- | ----------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                              | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Unless the change is prose          | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | When applications or tests change   | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full) | Yes, before publishing |
+| Tier              | Proves                                                            | Command               | Runs on pull requests                    | Nightly                |
+| ----------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------- | ---------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                                   | Yes                    |
+| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Ready, unless the change is prose        | Yes                    |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | Ready, when applications or tests change | Yes                    |
+| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full)      | Yes, before publishing |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -313,6 +382,15 @@ generate the route types Next.js derives for the website and documentation
 it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
+
+A draft pull request runs only the static checks. The domain and smoke tiers it
+needs wait until it is marked ready for review, which starts a new run with
+them; re-running the draft's run does not. Until then `Verify` fails and names
+the tiers that have not run, so a green pull request always means everything
+its changes need was tested. Drafts get static feedback on every push, while
+the costly database and browser tiers run once a change is ready. Maintainers
+who want them earlier run `gh workflow run ci.yml --ref <branch>` (add
+`-f suite=full` for every browser workflow).
 
 What earns a test, while the product is young:
 
@@ -404,7 +482,7 @@ the complete sequence below before opening or updating a pull request, in order
 and against a disposable database, never your development database:
 
 ```sh
-docker compose up -d postgres mailpit
+docker compose up -d --wait postgres mailpit
 export DB=lictory_verify_$(date +%s)
 docker compose exec -T postgres createdb -U lictory "$DB"
 
