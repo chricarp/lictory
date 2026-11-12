@@ -31,7 +31,11 @@ export function Branches({ pageId }: { pageId: string }) {
   const { canEdit } = usePageActions();
   const { branch, setBranch } = usePageBranchSelection();
   const [name, setName] = useState("");
-  const [from, setFrom] = useState(branch?.headCommitId ?? "");
+  // Main is "Current main version" whether or not its head was already
+  // loaded when this mounted; only another selected line names its head.
+  const [from, setFrom] = useState(
+    branch && !branch.isMain ? branch.headCommitId : "",
+  );
   const [sync, setSync] = useState<string>();
   // The branch being deleted and the counts its confirmation shows.
   const [deleting, setDeleting] = useState<{
