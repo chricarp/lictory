@@ -1024,3 +1024,47 @@
     transform: translateX(0.4px);
   }
 }
+
+/* State illustrations (state-illustration.tsx). Lottie paths carry a paint
+   role as their class; the roles take the theme's tokens, so the artwork
+   follows light, dark and every palette without reloading. The accent is the
+   theme's interactive color (--ring). Without this stylesheet the paths keep
+   the light palette baked into the animation. */
+.state-illustration {
+  --illo-surface: var(--card);
+  --illo-ink: var(--foreground);
+  --illo-accent: var(--ring);
+}
+.state-illustration svg {
+  overflow: visible;
+  filter: drop-shadow(
+    0 10px 12px color-mix(in oklab, var(--shadow-color) 9%, transparent)
+  );
+}
+.state-illustration .illo-face {
+  fill: var(--illo-surface);
+}
+.state-illustration .illo-side {
+  fill: color-mix(in oklab, var(--illo-ink) 5%, var(--illo-surface));
+}
+.state-illustration .illo-accent-face {
+  fill: color-mix(in oklab, var(--illo-accent) 13%, var(--illo-surface));
+}
+.state-illustration .illo-accent-solid {
+  fill: var(--illo-accent);
+}
+.state-illustration .illo-line {
+  stroke: color-mix(in oklab, var(--illo-ink) 24%, var(--illo-surface));
+}
+.state-illustration .illo-faint {
+  stroke: color-mix(in oklab, var(--illo-ink) 11%, var(--illo-surface));
+}
+.state-illustration .illo-ghost {
+  stroke: color-mix(in oklab, var(--illo-ink) 26%, var(--illo-surface));
+}
+.state-illustration .illo-accent {
+  stroke: var(--illo-accent);
+}
+.state-illustration .illo-knockout {
+  stroke: var(--illo-surface);
+}

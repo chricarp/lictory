@@ -123,7 +123,7 @@ export default {
     // Router payloads stay fetchable but never appear in search results as
     // plain-text copies of the pages.
     if (isPagePayload(path)) headers.set("X-Robots-Tag", "noindex");
-    if (/^\/(assets|_next\/static|illustrations)\//.test(path) && asset.ok)
+    if (/^\/(assets|_next\/static)\//.test(path) && asset.ok)
       headers.set("Cache-Control", "public, max-age=31536000, immutable");
     // Static export preserves extensionless route handlers, but object storage
     // cannot infer their media types from a filename.
