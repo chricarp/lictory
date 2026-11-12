@@ -1,6 +1,6 @@
 ---
 title: Security and sign-in
-description: Require two-factor authentication, reset a member's second factor, how single sign-on works, and the organization's name, handle and logos.
+description: Require two-factor authentication, reset a member's second factor, how single sign-on works, and the organization's name, handle and branding.
 ---
 
 Most sign-in settings belong to people and to the installation, not to an
@@ -78,7 +78,7 @@ sessions** from Account settings. Changing a password signs out every other
 session. An instance administrator who deactivates an account signs it out
 everywhere ([instance administration](/organization/instance#people)).
 
-## Name, handle and logos
+## Name, handle and branding
 
 **Organization settings → General** holds what every member sees:
 
@@ -89,8 +89,23 @@ everywhere ([instance administration](/organization/instance#people)).
 - **Logomark**, a square symbol (at least 64×64), shown when the sidebar is
   collapsed and in the list of organizations; and **Full logo**, a wide logo
   that includes the name (about 6:1) and replaces the name in the sidebar.
-  Logos are PNG, JPEG or WebP, at most 512 KB. Without one, the initial is
-  shown.
+  Without one, the initial is shown.
+- **Browser icon**, a square favicon (at least 48×48) for the browser tab
+  while someone works in the organization. Without one, the tab shows the
+  logomark, or Lictory's icon when there is none.
+- **Brand color**, one color (for example `#1d4ed8`) that tints primary
+  buttons and accents for everyone working in the organization. Lictory
+  adjusts the shade where needed so text stays readable in light and dark
+  mode; the preview under the field shows the result before you save.
+  **Reset** returns to Lictory's colors. People who chose their own color
+  theme in Account settings keep it.
+
+Images are PNG, JPEG or WebP, at most 512 KB.
+
+Invitations and notification emails sent for the organization show its full
+logo (or its logomark beside its name) and use the brand color for the button
+and links. Verification and password-reset emails belong to the account, not
+to an organization, so they keep Lictory's look, as do the sign-in pages.
 
 ## Tips
 

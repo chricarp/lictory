@@ -2,6 +2,7 @@ import { Text } from "@react-email/components";
 import {
   AuthEmailLayout,
   emailParagraph,
+  type EmailBrand,
 } from "@lictory/core/emails/components/auth-email-layout";
 
 export type InvitationEmailMessage = {
@@ -11,6 +12,7 @@ export type InvitationEmailMessage = {
   existingUser: boolean;
   actionUrl: string;
   expiresAt: Date;
+  brand?: EmailBrand;
 };
 
 export function createInvitationEmail(message: InvitationEmailMessage) {
@@ -32,6 +34,7 @@ export function createInvitationEmail(message: InvitationEmailMessage) {
         heading={`Join ${organizationName}`}
         actionLabel={actionLabel}
         actionUrl={actionUrl}
+        brand={message.brand}
         footerText="If you were not expecting this invitation, you can ignore it. Joining requires your acceptance."
       >
         <Text style={emailParagraph}>{introduction}</Text>

@@ -168,6 +168,25 @@
     0 0 0 1px rgb(255 255 255 / 0.07), 0 20px 48px -24px rgb(0 0 0 / 0.7);
 }
 
+/* An organization's brand color tints the default theme while people work in
+   that organization: the application sets `data-brand` and the four
+   `--org-brand-*` values, already adjusted for contrast
+   (`@lictory/core/branding/color`). Personal colour themes are not tinted. */
+:root[data-brand]:is([data-theme="lictory"], :not([data-theme])) {
+  --primary: var(--org-brand-light);
+  --primary-foreground: var(--org-brand-light-foreground);
+  --brand: var(--org-brand-light);
+  --sidebar-primary: var(--org-brand-light);
+  --sidebar-primary-foreground: var(--org-brand-light-foreground);
+}
+:root.dark[data-brand]:is([data-theme="lictory"], :not([data-theme])) {
+  --primary: var(--org-brand-dark);
+  --primary-foreground: var(--org-brand-dark-foreground);
+  --brand: var(--org-brand-dark);
+  --sidebar-primary: var(--org-brand-dark);
+  --sidebar-primary-foreground: var(--org-brand-dark-foreground);
+}
+
 /* Personal colour themes (see `~/lib/appearance`). Each overrides colour tokens
    only, once for light and once for dark; structure, radius and shadows stay
    Lictory's. Status colours keep >= 4.5:1 on background and card. */

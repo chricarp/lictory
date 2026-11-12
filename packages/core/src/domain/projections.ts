@@ -146,7 +146,7 @@ async function organizationProfile(
   tx: Tx,
   organizationId: string,
 ): Promise<OrganizationProfile | undefined> {
-  const [[organization], logos] = await Promise.all([
+  const [[organization], logos, [branding]] = await Promise.all([
     tx
       .select({
         id: s.organization.id,
@@ -168,6 +168,10 @@ async function organizationProfile(
       })
       .from(s.organizationLogo)
       .where(eq(s.organizationLogo.organizationId, organizationId)),
+    tx
+      .select({ brandColor: s.organizationBranding.brandColor })
+      .from(s.organizationBranding)
+      .where(eq(s.organizationBranding.organizationId, organizationId)),
   ]);
   if (!organization) return undefined;
   const url = (kind: LogoKind) => {
@@ -178,7 +182,8 @@ async function organizationProfile(
     id: organization.id,
     name: organization.name,
     slug: organization.slug,
-    logos: { mark: url("mark"), full: url("full") },
+    logos: { mark: url("mark"), full: url("full"), icon: url("icon") },
+    brandColor: branding?.brandColor ?? null,
     deletion: organization.deleteAfter
       ? {
           deleteAfter: organization.deleteAfter.toISOString(),

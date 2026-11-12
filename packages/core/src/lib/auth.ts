@@ -10,6 +10,7 @@ import { passkey } from "@better-auth/passkey";
 import { db } from "@lictory/core/db";
 import { eq } from "drizzle-orm";
 import { createInvitationEmail } from "@lictory/core/emails/invitation-email";
+import { emailBrand } from "@lictory/core/branding/server";
 import { sendEmail } from "@lictory/core/lib/mailer";
 import * as schema from "@lictory/core/db/auth-schema";
 import { organizationDeletion } from "@lictory/core/db/configuration-schema";
@@ -497,6 +498,12 @@ export const auth = betterAuth({
         // with it (the person can still change it).
         actionUrl.searchParams.set("email", email);
         const rendered = createInvitationEmail({
+          brand: await emailBrand(
+            db,
+            organization.id,
+            organization.name,
+            platformUrl(),
+          ),
           to: email,
           inviterName: inviter.user.name,
           organizationName: organization.name,

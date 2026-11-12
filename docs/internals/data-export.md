@@ -52,7 +52,8 @@ storing archives in object storage are possible follow-ups.
 Everything that is the organization's record, read by organization id in
 every query:
 
-- the organization (`organization.json`) and its logos (`organization/`);
+- the organization (`organization.json`), its logos (`organization/`) and
+  its brand color;
 - members with their application role, name, email and handle, former
   members by name (so history stays attributed), and invitations;
 - projects, project members, disciplines and their members, teams, labels,

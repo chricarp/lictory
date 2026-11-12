@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -54,8 +55,9 @@ async function loaded(page: Page, selector: string) {
     .toBeGreaterThan(0);
 }
 
-test("an administrator brands the organization switcher with its logos", async ({
+test("an administrator brands the organization with its logos, browser icon and color", async ({
   page,
+  playwright,
 }) => {
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
@@ -83,7 +85,9 @@ test("an administrator brands the organization switcher with its logos", async (
     mimeType: "image/png",
     buffer: png,
   });
-  await expect(page.getByRole("button", { name: "Replace" })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Replace", exact: true }),
+  ).toHaveCount(1);
   await expect(switcher.locator("img")).toHaveCount(1);
   await loaded(page, 'img[src*="/logo/mark"]');
   await expect(switcher).toContainText("Brand Co");
@@ -106,6 +110,52 @@ test("an administrator brands the organization switcher with its logos", async (
   await expect(collapsed.locator('img[src*="/logo/mark"]')).toHaveCount(1);
   await page.getByRole("button", { name: "Expand app sidebar" }).click();
 
+  // The browser tab wears the logomark until a browser icon is uploaded.
+  const tabIcon = page.locator('link[rel="icon"]');
+  await expect(tabIcon).toHaveAttribute("href", /\/logo\/mark\?v=/);
+  await page.getByLabel("Upload browser icon").setInputFiles({
+    name: "icon.png",
+    mimeType: "image/png",
+    buffer: png,
+  });
+  await expect(tabIcon).toHaveAttribute("href", /\/logo\/icon\?v=/);
+
+  // The brand color tints primary actions; a pale one is darkened for
+  // contrast, and resetting returns to Lictory's color.
+  const primary = () =>
+    page.evaluate(() =>
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--primary")
+        .trim(),
+    );
+  const defaultPrimary = await primary();
+  await page.getByLabel("Brand color", { exact: true }).fill("#1D4ED8");
+  await page.getByRole("button", { name: "Save color" }).click();
+  await expect.poll(primary).toBe("#1d4ed8");
+  await page.reload();
+  await expect.poll(primary).toBe("#1d4ed8");
+  await page.getByLabel("Brand color", { exact: true }).fill("not a color");
+  await page.getByRole("button", { name: "Save color" }).click();
+  await expect(
+    page.getByText("Enter the color as six hexadecimal digits"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Reset brand color" }).click();
+  await expect.poll(primary).toBe(defaultPrimary);
+
+  // Email clients load logos without a session, by content hash only.
+  const organizationId = (await tabIcon.getAttribute("href"))!.split("/")[3]!;
+  const anonymous = await playwright.request.newContext({
+    baseURL: new URL(page.url()).origin,
+  });
+  const sha = createHash("sha256").update(png).digest("hex");
+  const logoPath = `/api/organizations/${organizationId}/logo/mark`;
+  expect((await anonymous.get(`${logoPath}/${sha}`)).status()).toBe(200);
+  expect((await anonymous.get(`${logoPath}/${"0".repeat(64)}`)).status()).toBe(
+    404,
+  );
+  expect((await anonymous.get(logoPath)).status()).toBe(401);
+  await anonymous.dispose();
+
   // Unsupported formats are refused with an actionable message.
   await page.getByLabel("Upload logomark").setInputFiles({
     name: "mark.svg",
@@ -118,7 +168,10 @@ test("an administrator brands the organization switcher with its logos", async (
 
   // Removing reverses the upload.
   await page.getByRole("button", { name: "Remove full logo" }).click();
+  await page.getByRole("button", { name: "Remove browser icon" }).click();
+  await expect(tabIcon).toHaveAttribute("href", /\/logo\/mark\?v=/);
   await page.getByRole("button", { name: "Remove logomark" }).click();
+  await expect(tabIcon).toHaveAttribute("href", "/icon.svg");
   await expect(switcher.locator("img")).toHaveCount(0);
   await expect(switcher).toContainText("Brand Co");
 });

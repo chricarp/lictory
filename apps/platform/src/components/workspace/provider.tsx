@@ -451,7 +451,8 @@ export function WorkspaceProvider({
             ...membership,
             name: profile.name,
             slug: profile.slug,
-            logos: profile.logos,
+            logos: { icon: null, ...profile.logos },
+            brandColor: profile.brandColor ?? null,
           }
         : membership,
       view,

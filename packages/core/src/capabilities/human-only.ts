@@ -264,6 +264,8 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Zero sync writes: workspace commands, each also a capability.",
   "GET /api/events": "Realtime event stream for the browser.",
   "GET /api/organizations/:id/logo/:kind": "Serves an organization logo.",
+  "GET /api/organizations/:id/logo/:kind/:sha":
+    "Serves an organization logo to email clients, by its content hash.",
   "GET /api/users/:id/photo": "Serves a profile photo.",
   "ALL /api/*": "Unknown API path fallback.",
 };

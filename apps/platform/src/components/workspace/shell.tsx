@@ -82,6 +82,7 @@ import type { QuickCreateOptions } from "@lictory/platform/components/workspace/
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
+import { OrganizationBrand } from "@lictory/platform/components/workspace/organization-brand";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
@@ -391,6 +392,7 @@ export function Shell({
     <ShellContext.Provider value={shell}>
       <DockProvider>
         <title>{title}</title>
+        <OrganizationBrand organization={organization} />
         <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
           <aside
             id={sidebarId}

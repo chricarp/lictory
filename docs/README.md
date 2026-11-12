@@ -54,6 +54,9 @@ adding domain writes or synchronized entities.
 - [Database model](./internals/database-model.md)
 - [Lictory Intelligence](./internals/ai.md)
 - [Notifications](./internals/notifications.md)
+- [Organization branding](./internals/branding.md): logos, browser icon and
+  brand color, how one color becomes readable tones, what email carries and
+  what stays Lictory's
 - [Account and workspace onboarding](./internals/onboarding.md): including
   sign-in methods and account linking
 - [Account deletion](./internals/account-deletion.md): anonymization, what is
