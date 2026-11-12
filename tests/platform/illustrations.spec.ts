@@ -219,3 +219,49 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     await expect(page).toHaveURL(inApp);
   }
 });
+
+test("artwork that cannot load closes its space and leaves the text and actions", async ({
+  page,
+}) => {
+  // A deploy that replaced the player's chunk, or going offline.
+  await page.route(/\/assets\/lottie_light-[^/]*\.js$/, (route) =>
+    route.abort(),
+  );
+  await page.goto("/auth-error");
+  await expect(
+    page.getByRole("heading", { name: "Sign-in interrupted" }),
+  ).toBeVisible();
+  const art = page.locator("[data-illustration]");
+  await expect(art).toHaveAttribute("data-state", "unavailable");
+  // Closed with an inline style, so it holds on pages that set their own
+  // display and cannot rely on the shared stylesheet.
+  await expect(art).toBeHidden();
+  await expect(art).toHaveCSS("display", "none");
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+});
+
+test("artwork follows the reduced-motion preference while the page stays open", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/auth-error");
+  const art = page.locator("[data-illustration]");
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // Turning reduced motion on: hovering no longer plays the reaction.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await art.hover();
+  await page.waitForTimeout(300);
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // Turning it off again allows reactions without reloading.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.mouse.move(2, 2);
+  await art.hover();
+  await expect(art).toHaveAttribute("data-state", "react");
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // Turning it on while the reaction plays stops it at the resting frame.
+  await page.mouse.move(2, 2);
+  await art.hover();
+  await expect(art).toHaveAttribute("data-state", "react");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(art).toHaveAttribute("data-state", "rest");
+});
