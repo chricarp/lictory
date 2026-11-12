@@ -300,8 +300,9 @@ approve, merge, accept scope or publish. Two exist:
   back. Becoming blocked and clear again notifies again. Each project turns
   it on or off (`mergeReadyNotice`, on by default, in the project's delivery
   settings); people also choose channels with notification preferences.
-  Delivery uses the notification pipeline: the in-app notification commits
-  with the change, and email goes through the `notification_email` outbox
+  Delivery uses the notification pipeline: the notification event commits
+  with the change, the worker writes the in-app notification from it, and
+  email goes through the `notification_email` outbox
   that the worker sends under a lease with a stable idempotency key. The rules are
   `mergeBlockers` in `src/contracts/merge-readiness.ts` and match the merge
   command.

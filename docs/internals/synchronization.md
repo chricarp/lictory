@@ -219,17 +219,19 @@ by `advanceSchedules` in the worker.
 
 ## Background work
 
-Work that must not run inside a request (Lictory Intelligence runs, notification
-email, delivery exports, organization data exports) is queued durably by rows
-written in the domain transaction (`ai_run` queued, `notification_email`
-pending, `delivery_publication` running, `organization_export` queued) plus
-`pg_notify('lictory_work', 'ai' | 'email' | 'delivery' | 'export')` in the same
-transaction, delivered on commit. The worker listens
+Work that must not run inside a request (Lictory Intelligence runs,
+notification fan-out and email, delivery exports, organization data exports)
+is queued durably by rows written in the domain transaction (`ai_run` queued,
+`notification_event`, `delivery_publication` running, `organization_export`
+queued; the fan-out in turn queues `notification_email` pending) plus
+`pg_notify('lictory_work', 'ai' | 'notification' | 'email' | 'delivery' |
+'export')` in the same transaction, delivered on commit. The worker listens
 and also polls, so a lost signal only delays work. The API never runs
 background loops. The jobs are library functions in `packages/core/src/jobs`.
 
 The worker (`apps/worker`) runs one loop per job: AI runs, notification
-email and delivery exports (woken by their signal, polled every 30 seconds),
+fan-out, notification email and delivery exports (woken by their signal,
+polled every 30 seconds),
 organization data exports (woken by their signal, polled every minute),
 delivery status sync (every ten minutes) and automatic cycles (every five
 minutes). Each loop has at most one run in flight, re-runs at once while a
@@ -244,7 +246,9 @@ in its row (AI run `started_at`, `delivery_publication.lease_until`,
 `notification_email.lease_until`) and outcomes are fenced on it, so several
 workers may run, and a worker may be killed at any point: the work is resumed
 by whichever worker finds the lease expired, and a stale worker's late result
-is discarded. On SIGTERM the worker stops scheduling, lets runs in flight
+is discarded. Notification fan-out needs no lease: it calls nothing external,
+so an event is claimed, fanned out and deleted in one transaction
+([notifications](notifications.md#queue)). On SIGTERM the worker stops scheduling, lets runs in flight
 finish (`WORKER_SHUTDOWN_TIMEOUT_MS`, 25 seconds), cancels model calls five
 seconds before that and hands interrupted work back, then flushes analytics
 and exits; anything still running is recovered by its lease.

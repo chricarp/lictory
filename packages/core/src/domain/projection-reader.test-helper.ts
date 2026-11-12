@@ -10,6 +10,7 @@ import {
   type Scope,
 } from "@lictory/core/contracts/protocol";
 import { DomainError } from "@lictory/core/domain/errors";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import { spaceProjectionDrift } from "@lictory/core/spaces/projections";
 import {
   canonicalJson,
@@ -104,8 +105,10 @@ export function projectionService(
     return token;
   };
   return {
-    mutate(userId: string, mutation: Mutation) {
-      return executeMutation(db, { userId }, mutation, {
+    // Queued notification events are fanned out at once, as the worker does
+    // moments after a command commits.
+    async mutate(userId: string, mutation: Mutation) {
+      const result = await executeMutation(db, { userId }, mutation, {
         onCommitted: (o) =>
           options.onMutationCommitted?.(o.userId, o.mutation, {
             before: o.before,
@@ -113,6 +116,8 @@ export function projectionService(
             directory: o.directory,
           }),
       });
+      await drainNotifications(db);
+      return result;
     },
     async read(userId: string, scope: Scope, cursor?: string, limit = 100) {
       await authorize(db, userId, scope.organizationId);

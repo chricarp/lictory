@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import type {
@@ -364,6 +365,7 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
     },
     f.productId,
   );
+  await drainNotifications(db);
   const statusNotices = await db
     .select()
     .from(s.notification)
@@ -861,6 +863,7 @@ void test("a breakdown-only merge carries approvals of the unchanged specificati
   );
   assert.equal((await reviewsApproved(f))?.passed, true);
   // Nobody is told an approval of unchanged text was invalidated.
+  await drainNotifications(db);
   const notified = await db
     .select()
     .from(s.notification)

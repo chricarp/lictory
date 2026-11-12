@@ -46,6 +46,17 @@ SELECT 'ai_run', format('%s queued for more than 15 min', count(*))
 FROM ai_run WHERE status = 'queued' AND created_at < now() - interval '15 minutes'
 HAVING count(*) > 0
 UNION ALL
+-- Notification queue: events the worker could not fan out, or has not
+-- reached (no worker running, or it cannot keep up).
+SELECT 'notification_event', format('%s could not be fanned out in the last 24 h (latest: %s)', count(*), max(last_error))
+FROM notification_event WHERE failed_at > now() - interval '24 hours'
+HAVING count(*) > 0
+UNION ALL
+SELECT 'notification_event', format('%s waiting for more than 15 min (oldest %s)', count(*), min(created_at))
+FROM notification_event
+WHERE failed_at IS NULL AND next_attempt_at < now() - interval '15 minutes'
+HAVING count(*) > 0
+UNION ALL
 -- Notification email outbox.
 SELECT 'notification_email', format('%s failed permanently in the last 24 h (latest: %s)', count(*), max(last_error))
 FROM notification_email WHERE status = 'failed' AND created_at > now() - interval '24 hours'

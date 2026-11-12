@@ -6,6 +6,7 @@ import {
   processDataExports,
   processDeliveryPublications,
   processDueOrganizationDeletions,
+  processNotificationEvents,
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
@@ -70,6 +71,10 @@ export function workerConfig(env: Record<string, string | undefined>) {
   };
 }
 
+// Notification events are woken by their signal; polling only picks up
+// retries and signals lost while the connection was down.
+const NOTIFICATION_INTERVAL_MS = 30_000;
+const NOTIFICATION_BATCH = 50;
 const EMAIL_BATCH = 20;
 const DELIVERY_BATCH = 10;
 // Exports are rare and woken by their signal; polling only recovers leases.
@@ -119,6 +124,18 @@ export function workerJobs(
           more: r.completed + r.failed + r.superseded > 0 && !r.interrupted,
           counts: r,
         };
+      },
+    },
+    {
+      name: "notification",
+      kind: "notification",
+      intervalMs: NOTIFICATION_INTERVAL_MS,
+      // Database work only: a batch commits or rolls back as a whole.
+      async run() {
+        const { claimed, ...counts } = await processNotificationEvents(db, {
+          limit: NOTIFICATION_BATCH,
+        });
+        return { more: claimed === NOTIFICATION_BATCH, counts };
       },
     },
     {

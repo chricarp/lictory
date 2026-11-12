@@ -14,7 +14,7 @@ import { workerConfig, workerJobs } from "@lictory/worker/jobs";
 import { describeError, jsonLog as log } from "@lictory/worker/log";
 import { createSupervisor } from "@lictory/worker/supervisor";
 
-// The Lictory worker: AI runs, notification email, delivery exports and
+// The Lictory worker: AI runs, notification fan-out and email, delivery exports and
 // status sync, and automatic cycles. Work is durable in PostgreSQL; the
 // worker is woken by `lictory_work` signals and also polls, so it can be
 // restarted, run in several copies, or killed at any point. Claimed work is

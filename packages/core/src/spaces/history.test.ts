@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as Y from "yjs";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import * as s from "@lictory/core/db/schema";
 import {
   PROTOCOL,
@@ -1096,6 +1097,7 @@ void test("pull requests: reviews bind to the result, go stale on change, and ga
     userId: f.carol,
     required: true,
   });
+  await drainNotifications(db);
   const requested = await db
     .select()
     .from(s.notification)
@@ -1142,6 +1144,7 @@ void test("pull requests: reviews bind to the result, go stale on change, and ga
     .where(eq(s.pagePullRequestReview.pullRequestId, pullRequestId));
   assert.ok(stale!.staleAt);
   assert.match(stale!.staleReason!, /policy changed/);
+  await drainNotifications(db);
   const invalidated = await db
     .select()
     .from(s.notification)
