@@ -1,10 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { createWorkspace } from "../helpers/onboarding-helpers";
-import { illustrationAssets } from "@lictory/ui/illustration-assets";
 import { appHome, inApp } from "../helpers/app-urls";
 import { useClientAddress } from "../helpers/client-address";
 
@@ -46,24 +45,29 @@ test.beforeAll(async () => {
   }
 });
 
-test("empty states load compact static artwork and remain actionable", async ({
-  page,
-  request,
-}) => {
-  // Each production asset is small and immutable, with no transformation endpoint.
-  for (const url of Object.values(illustrationAssets)) {
-    const response = await request.get(url);
-    expect(response.ok()).toBe(true);
-    expect(response.headers()["content-type"]).toContain("image/webp");
-    expect(response.headers()["cache-control"]).toContain("immutable");
-    expect((await response.body()).byteLength).toBeLessThan(25_000);
-  }
-  const optimizedRequests: string[] = [];
-  page.on("request", (r) => {
-    // Artwork is served as built: never through an image transformation.
-    if (/\/(_next|_vercel|cdn-cgi)\/image/.test(r.url()))
-      optimizedRequests.push(r.url());
+/** The accent stroke's color and the theme's interactive color (--ring). */
+function accentColors(artwork: Locator) {
+  return artwork.evaluate((element) => {
+    const path = element.querySelector(".illo-accent");
+    const probe = document.createElement("span");
+    probe.style.color = "var(--ring)";
+    element.append(probe);
+    const ring = getComputedStyle(probe).color;
+    probe.remove();
+    return { stroke: path && getComputedStyle(path).stroke, ring };
   });
+}
+
+/** One animation per illustration: switching kinds replaces the previous one. */
+async function expectArtwork(artwork: Locator, kind: string) {
+  await expect(artwork).toHaveAttribute("data-illustration", kind);
+  await expect(artwork).toHaveAttribute("aria-hidden", "true");
+  await expect(artwork.locator("svg")).toHaveCount(1);
+}
+
+test("empty states show theme-aware artwork that reacts to the pointer and stays actionable", async ({
+  page,
+}) => {
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -78,27 +82,25 @@ test("empty states load compact static artwork and remain actionable", async ({
   });
   const projectUrl = page.url();
   const workspace = projectUrl.replace(/\/art\/proposals$/, "");
-  const artwork = page.locator('img[src^="/illustrations/"]');
+  const artwork = page.locator("[data-illustration]");
   await expect(
     page.getByRole("heading", { name: "Start with a proposal" }),
   ).toBeVisible();
-  await expect(artwork).toHaveAttribute("src", illustrationAssets.proposal);
-  await expect(artwork).toHaveAttribute("alt", "");
-  await expect
-    .poll(() =>
-      artwork.evaluate(
-        (img: HTMLImageElement) => img.complete && img.naturalWidth,
-      ),
-    )
-    .toBe(384);
+  await expectArtwork(artwork, "proposal");
+  // The scene assembles once and rests; hovering plays its reaction, which
+  // returns to the same resting frame.
+  await expect(artwork).toHaveAttribute("data-state", "rest");
+  await artwork.hover();
+  await expect(artwork).toHaveAttribute("data-state", "react");
+  await expect(artwork).toHaveAttribute("data-state", "rest");
+  // The accent follows the theme's interactive color.
+  const colors = await accentColors(artwork);
+  expect(colors.stroke).toBe(colors.ring);
   await page.getByRole("link", { name: "Reviews", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "No reviews waiting for you" }),
   ).toBeVisible();
-  await expect(artwork).toHaveAttribute(
-    "src",
-    illustrationAssets.personalReview,
-  );
+  await expectArtwork(artwork, "personalReview");
   for (const [view, label, kind] of [
     ["needs-review", "Needs review", "teamReview"],
     ["blocked", "Blocked", "blocked"],
@@ -110,14 +112,7 @@ test("empty states load compact static artwork and remain actionable", async ({
     await expect(
       page.getByRole("heading", { name: `Nothing in “${label}”` }),
     ).toBeVisible();
-    await expect(artwork).toHaveAttribute("src", illustrationAssets[kind]);
-    await expect
-      .poll(() =>
-        artwork.evaluate(
-          (img: HTMLImageElement) => img.complete && img.naturalWidth,
-        ),
-      )
-      .toBe(384);
+    await expectArtwork(artwork, kind);
     const filter = page.getByRole("textbox", {
       name: "Filter by title or identifier",
     });
@@ -125,16 +120,16 @@ test("empty states load compact static artwork and remain actionable", async ({
     await expect(
       page.getByRole("heading", { name: "No matching items" }),
     ).toBeVisible();
-    await expect(artwork).toHaveAttribute("src", illustrationAssets.search);
+    await expectArtwork(artwork, "search");
     await filter.fill("");
-    await expect(artwork).toHaveAttribute("src", illustrationAssets[kind]);
+    await expectArtwork(artwork, kind);
   }
   await page.screenshot({ path: "/tmp/lictory-views-updated.png" });
   await page.getByRole("link", { name: "Board", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /^No active (sprint|cycle|iteration)$/ }),
   ).toBeVisible();
-  await expect(artwork).toHaveAttribute("src", illustrationAssets.planning);
+  await expectArtwork(artwork, "planning");
   await page.getByRole("button", { name: "Plan in the backlog" }).click();
   await expect(
     page.getByRole("heading", { name: "Nothing planned yet" }),
@@ -154,7 +149,7 @@ test("empty states load compact static artwork and remain actionable", async ({
   await expect(
     page.getByRole("heading", { name: "No matching items" }),
   ).toBeVisible();
-  await expect(artwork).toHaveAttribute("src", illustrationAssets.search);
+  await expectArtwork(artwork, "search");
   await page
     .getByRole("textbox", { name: "Filter by title or identifier" })
     .fill("");
@@ -166,13 +161,10 @@ test("empty states load compact static artwork and remain actionable", async ({
   await expect(
     page.getByRole("heading", { name: "First proposal" }),
   ).toBeVisible();
-  await expect(
-    page.locator(`img[src="${illustrationAssets.proposal}"]`),
-  ).toHaveCount(0);
+  await expect(artwork).toHaveCount(0);
   await page.goto(`${workspace}/art/items/ART-999999`);
   await expect(page.getByRole("heading", { name: /not found/i })).toBeVisible();
-  await expect(artwork).toHaveAttribute("src", illustrationAssets.search);
-  expect(optimizedRequests).toEqual([]);
+  await expectArtwork(artwork, "search");
 });
 
 test("missing pages and sign-in recovery stay readable on narrow light and dark screens", async ({
@@ -198,14 +190,15 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     await expect(
       page.getByRole("heading", { name: "This workspace was not found" }),
     ).toBeVisible();
-    const art = page.locator('img[src^="/illustrations/"]');
-    await expect
-      .poll(() =>
-        art.evaluate(
-          (img: HTMLImageElement) => img.complete && img.naturalWidth,
-        ),
-      )
-      .toBe(384);
+    const art = page.locator("[data-illustration]");
+    await expectArtwork(art, "search");
+    // Reduced motion shows the resting frame at once and never reacts.
+    await expect(art).toHaveAttribute("data-state", "rest");
+    await art.hover();
+    await expect(art).toHaveAttribute("data-state", "rest");
+    // The same artwork takes the light or dark palette.
+    const colors = await accentColors(art);
+    expect(colors.stroke).toBe(colors.ring);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
@@ -218,11 +211,72 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     await expect(
       page.getByRole("heading", { name: "Sign-in interrupted" }),
     ).toBeVisible();
-    await expect(art).toHaveAttribute("src", illustrationAssets.recovery);
+    await expectArtwork(art, "recovery");
     await page.getByRole("button", { name: "Try again" }).click();
     // "Try again" opens sign-in, which sends a signed-in person on to their
     // workspace, so /sign-in may already be gone when the address is read.
     await expect(page).not.toHaveURL(/auth-error/);
     await expect(page).toHaveURL(inApp);
   }
+});
+
+test("artwork that cannot load closes its space and leaves the text and actions", async ({
+  page,
+}) => {
+  // A deploy that replaced the player's chunk, or going offline.
+  await page.route(/\/assets\/lottie_light-[^/]*\.js$/, (route) =>
+    route.abort(),
+  );
+  await page.goto("/auth-error");
+  await expect(
+    page.getByRole("heading", { name: "Sign-in interrupted" }),
+  ).toBeVisible();
+  const art = page.locator("[data-illustration]");
+  await expect(art).toHaveAttribute("data-state", "unavailable");
+  // Closed with an inline style, so it holds on pages that set their own
+  // display and cannot rely on the shared stylesheet.
+  await expect(art).toBeHidden();
+  await expect(art).toHaveCSS("display", "none");
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+});
+
+test("artwork follows the reduced-motion preference while the page stays open", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/auth-error");
+  const art = page.locator("[data-illustration]");
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // The drawn scene's extent. A scene seeked outside its frames keeps
+  // data-state "rest" but draws nothing, so the pose is checked as well.
+  const pose = async () => {
+    const box = await art.locator("svg > g").first().boundingBox();
+    return (
+      box && [box.x, box.y, box.width, box.height].map((v) => v.toFixed(1))
+    );
+  };
+  const resting = await pose();
+  expect(resting).not.toBeNull();
+  // Turning reduced motion on: hovering no longer plays the reaction.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await art.hover();
+  await page.waitForTimeout(300);
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // Turning it off again allows reactions without reloading.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.mouse.move(2, 2);
+  await art.hover();
+  await expect(art).toHaveAttribute("data-state", "react");
+  await expect(art).toHaveAttribute("data-state", "rest");
+  // Turning it on after a reaction keeps the scene drawn at its resting pose.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(pose).toEqual(resting);
+  // Turning it on while a reaction plays stops it at the resting pose.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.mouse.move(2, 2);
+  await art.hover();
+  await expect(art).toHaveAttribute("data-state", "react");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(art).toHaveAttribute("data-state", "rest");
+  await expect.poll(pose).toEqual(resting);
 });
