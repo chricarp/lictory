@@ -247,6 +247,16 @@ test("artwork follows the reduced-motion preference while the page stays open", 
   await page.goto("/auth-error");
   const art = page.locator("[data-illustration]");
   await expect(art).toHaveAttribute("data-state", "rest");
+  // The drawn scene's extent. A scene seeked outside its frames keeps
+  // data-state "rest" but draws nothing, so the pose is checked as well.
+  const pose = async () => {
+    const box = await art.locator("svg > g").first().boundingBox();
+    return (
+      box && [box.x, box.y, box.width, box.height].map((v) => v.toFixed(1))
+    );
+  };
+  const resting = await pose();
+  expect(resting).not.toBeNull();
   // Turning reduced motion on: hovering no longer plays the reaction.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await art.hover();
@@ -258,10 +268,15 @@ test("artwork follows the reduced-motion preference while the page stays open", 
   await art.hover();
   await expect(art).toHaveAttribute("data-state", "react");
   await expect(art).toHaveAttribute("data-state", "rest");
-  // Turning it on while the reaction plays stops it at the resting frame.
+  // Turning it on after a reaction keeps the scene drawn at its resting pose.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(pose).toEqual(resting);
+  // Turning it on while a reaction plays stops it at the resting pose.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.mouse.move(2, 2);
   await art.hover();
   await expect(art).toHaveAttribute("data-state", "react");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(art).toHaveAttribute("data-state", "rest");
+  await expect.poll(pose).toEqual(resting);
 });

@@ -68,6 +68,11 @@ export function StateIllustration({
             ? matchMedia("(prefers-reduced-motion: reduce)")
             : undefined;
         const settle = () => {
+          // A reaction leaves the player on its own segment, where frames
+          // count from the reaction's start: seeking `rest` there would draw
+          // frame 2 × rest, past the scene's end. Return to the whole
+          // animation before seeking.
+          animation.resetSegments(true);
           animation.goToAndStop(rest, true);
           setState("rest");
         };
