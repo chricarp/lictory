@@ -71,10 +71,16 @@ The fan-out is database work only. A batch of events is claimed with
 event deleted, in the claiming transaction: an event is delivered exactly
 once, several workers never pick the same one, and a worker that dies leaves
 its batch as it was. It never takes the organization lock, so it never waits
-on, or holds up, a command. Each event has its own savepoint: one that fails
+on, or holds up, a command. The one thing that waits for it is the worker
+carrying out an organization deletion, which removes queued events first and
+so lets a fan-out in flight finish before it removes the notifications. Each
+event has its own savepoint: one that fails
 is retried with exponential backoff (1, 2, 4, 8 minutes) without holding back
 the others, and after five attempts stays with `failed_at` and the error for
-seven days before it is removed.
+seven days before it is removed. An event naming a kind the worker does not
+know (queued by a newer API while an older worker still runs during a rollout)
+fails the same way rather than being dropped, so the updated worker delivers
+it on a retry.
 
 Without a running worker, events queue up and nobody is notified until one
 starts; nothing is lost.
@@ -100,8 +106,9 @@ Always:
 - recipients must be current organization members when the event is fanned
   out, and again at read and email time;
 - one event yields at most one notification per person and item: the most
-  specific wins (a mention beats "new discussion"; a stale approval beats
-  "revised").
+  specific one the person can receive wins (a mention beats "new discussion";
+  a stale approval beats "revised"). A kind they turned off does not take the
+  place of a broader one they kept on.
 
 Mentions are stored in message Markdown as `@[Name](mention:USER_ID)`. The
 label is display text; the server trusts only the ID after checking membership.

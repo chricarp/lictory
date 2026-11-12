@@ -72,12 +72,18 @@ const noticesSchema = z.array(
 type Draft = Omit<QueuedNotice, "userIds" | "kind"> & {
   userId: string;
   kind: NotificationKind;
+  // One event tells a person at most once per slot (item and group).
+  slot: string;
 };
+
+// Rows per insert statement: PostgreSQL binds at most 65,535 values in one.
+const INSERT_CHUNK = 1000;
 
 // Writes one event's notifications. Recipients are current organization
 // members (and, for Spaces notifications, current readers of the space) whose
 // preferences keep the kind on; the actor is never notified of their own
-// action.
+// action. Of several notices naming a person for the same item, the first
+// one they can receive wins.
 async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
   const { organizationId } = event;
   const notices = noticesSchema.parse(event.notices);
@@ -108,11 +114,13 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       .filter((w) => w.workItemId === workItemId && w.watching === watching)
       .map((w) => w.userId);
 
-  const seen = new Set<string>();
   const drafts: Draft[] = [];
   for (const { userIds, kind, ...notice } of notices) {
-    // A kind this version does not know (written by a newer one) is dropped.
-    if (!isNotificationKind(kind)) continue;
+    // A kind this version does not know was queued by a newer one during a
+    // rollout. The event fails and is retried, so the worker that knows the
+    // kind delivers it; dropping the notice would lose it silently.
+    if (!isNotificationKind(kind))
+      throw new Error(`Unknown notification kind: ${kind}`);
     const item = notice.workItemId;
     const unwatched = new Set(
       item && notice.skipUnwatched ? watch(item, false) : [],
@@ -124,10 +132,8 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       ...(item && notice.watchers ? watch(item, true) : []),
     ])) {
       if (userId === notice.actorId || unwatched.has(userId)) continue;
-      const key = `${userId}:${item ?? notice.pageId ?? ""}:${group}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      drafts.push({ ...notice, userId, kind });
+      const slot = `${userId}:${item ?? notice.pageId ?? ""}:${group}`;
+      drafts.push({ ...notice, userId, kind, slot });
     }
   }
   if (!drafts.length) return { notifications: 0, emails: 0 };
@@ -191,7 +197,9 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
   }
   const rows: (typeof s.notification.$inferInsert)[] = [];
   const emailIds = new Set<string>();
+  const told = new Set<string>();
   for (const d of drafts) {
+    if (told.has(d.slot)) continue;
     if (!members.has(d.userId)) continue;
     if (d.spaceId && !readers.has(`${d.spaceId}:${d.userId}`)) continue;
     const channels = resolveChannels(rulesByUser.get(d.userId) ?? [], d.kind, {
@@ -200,6 +208,7 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       teamId: d.teamId,
     });
     if (!channels.inApp) continue;
+    told.add(d.slot);
     const id = crypto.randomUUID();
     const { group, ...detail } = d.detail ?? {};
     void group;
@@ -221,15 +230,19 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
     if (channels.email) emailIds.add(id);
   }
   if (!rows.length) return { notifications: 0, emails: 0 };
-  const inserted = await tx
-    .insert(s.notification)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({ id: s.notification.id, userId: s.notification.userId });
+  const inserted: { id: string; userId: string }[] = [];
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK)
+    inserted.push(
+      ...(await tx
+        .insert(s.notification)
+        .values(rows.slice(i, i + INSERT_CHUNK))
+        .onConflictDoNothing()
+        .returning({ id: s.notification.id, userId: s.notification.userId })),
+    );
   const emails = inserted.filter((r) => emailIds.has(r.id));
-  if (emails.length)
+  for (let i = 0; i < emails.length; i += INSERT_CHUNK)
     await tx.insert(s.notificationEmail).values(
-      emails.map((r) => ({
+      emails.slice(i, i + INSERT_CHUNK).map((r) => ({
         notificationId: r.id,
         organizationId,
         userId: r.userId,

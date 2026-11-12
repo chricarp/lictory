@@ -494,6 +494,94 @@ void test("an email whose runner died is sent once more, with the same idempoten
   assert.equal(keys[0], `lictory-notification-${row!.notificationId}`);
 });
 
+void test("a kind someone turned off does not take the place of a broader one, and a large audience is written in full", async () => {
+  const f = await fixture();
+  const rule = (kind: string, inApp: boolean) => ({
+    userId: f.reviewerId,
+    organizationId: f.organizationId,
+    scope: "organization" as const,
+    scopeId: f.organizationId,
+    kind,
+    inApp,
+    email: false,
+  });
+  await db
+    .insert(s.notificationPreference)
+    .values([
+      rule("approval_invalidated", false),
+      rule("specification_revised", true),
+    ]);
+  // More recipients than one insert statement carries.
+  const crowd = Array.from({ length: 1200 }, () => crypto.randomUUID());
+  await db.insert(s.user).values(
+    crowd.map((id) => ({
+      id,
+      name: "Crowd Member",
+      email: `${id}@example.test`,
+    })),
+  );
+  await db.insert(s.member).values(
+    crowd.map((userId) => ({
+      id: crypto.randomUUID(),
+      organizationId: f.organizationId,
+      userId,
+      role: "member",
+      createdAt: new Date(),
+    })),
+  );
+  // What the Better Auth membership hook does after adding members.
+  await refreshDirectories(db, [f.organizationId]);
+  const base = {
+    actorId: f.ownerId,
+    projectId: f.projectId,
+    workItemId: f.itemId,
+  };
+  await db.transaction((tx) =>
+    queueNotifications(tx, f.organizationId, [
+      {
+        ...base,
+        userIds: [f.reviewerId],
+        kind: "approval_invalidated",
+        detail: { group: "revision" },
+      },
+      {
+        ...base,
+        userIds: [f.reviewerId, ...crowd],
+        kind: "status_changed",
+        detail: { group: "revision" },
+      },
+      {
+        ...base,
+        userIds: [f.reviewerId],
+        kind: "specification_revised",
+        detail: { group: "revision" },
+      },
+    ]),
+  );
+  const { notifications: written } = await processNotificationEvents(db);
+  assert.equal(written, crowd.length + 1);
+  assert.deepEqual(await f.kinds(f.reviewerId), ["status_changed"]);
+});
+
+void test("an event naming a kind this worker does not know waits for one that does", async () => {
+  const f = await fixture();
+  await db.insert(s.notificationEvent).values({
+    organizationId: f.organizationId,
+    notices: [
+      { userIds: [f.reviewerId], kind: "kind_from_the_future", actorId: null },
+    ],
+  });
+  const outcome = await processNotificationEvents(db);
+  assert.equal(outcome.retrying, 1);
+  const [event] = await queuedEvents(f.organizationId);
+  assert.match(event!.lastError!, /Unknown notification kind/);
+  assert.deepEqual(await f.kinds(f.reviewerId), []);
+  // Leave nothing for the other tests' fan-outs to retry.
+  await db
+    .delete(s.notificationEvent)
+    .where(eq(s.notificationEvent.id, event!.id));
+});
+
 const queuedEvents = (organizationId: string) =>
   db
     .select()
