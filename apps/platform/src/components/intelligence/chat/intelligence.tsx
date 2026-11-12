@@ -441,7 +441,7 @@ function AiUnavailable({
       {action && (
         <Link
           href={action.href}
-          className="m-2 inline-flex h-8 items-center rounded-full bg-primary px-3.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/88"
+          className="m-2 inline-flex h-8 items-center rounded-full bg-primary px-3.5 text-[13px] font-medium text-primary-foreground hover:bg-(--primary-hover)"
         >
           {action.label}
         </Link>

@@ -4,6 +4,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import * as s from "@lictory/core/db/schema";
 import { applicationRoleOf } from "@lictory/core/contracts/protocol";
 import { refreshDirectoryProjection } from "@lictory/core/domain/projections";
+import { lock } from "@lictory/core/domain/service";
 import {
   checkLogo,
   imageSize,
@@ -106,6 +107,7 @@ export async function setLogo(
     updatedAt: new Date(),
   };
   await db.transaction(async (tx) => {
+    await lock(tx, organizationId);
     await tx
       .insert(s.organizationLogo)
       .values(values)
@@ -134,6 +136,7 @@ export async function removeLogo(
 ) {
   await requireAdmin(db, organizationId, userId);
   return db.transaction(async (tx) => {
+    await lock(tx, organizationId);
     const removed = await tx
       .delete(s.organizationLogo)
       .where(
@@ -189,6 +192,7 @@ export async function setBrandColor(
       400,
     );
   await db.transaction(async (tx) => {
+    await lock(tx, organizationId);
     await tx
       .insert(s.organizationBranding)
       .values({ organizationId, brandColor, updatedById: userId })

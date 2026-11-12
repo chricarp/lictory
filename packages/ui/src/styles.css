@@ -31,6 +31,10 @@
   --popover-foreground: #111214;
   --primary: #111214;
   --primary-foreground: #ffffff;
+  /* The primary action under the pointer: a touch of the surface shows
+     through. An organization's brand color replaces it with an opaque tone
+     (below), so the label keeps its contrast. */
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, transparent);
   /* Decoration (markers, dots, live highlights), never body text. */
   --brand: #ea6a2f;
   --secondary: #f4f4f6;
@@ -178,6 +182,8 @@
   --brand: var(--org-brand-light);
   --sidebar-primary: var(--org-brand-light);
   --sidebar-primary-foreground: var(--org-brand-light-foreground);
+  /* Away from the label color, so hover only raises its contrast. */
+  --primary-hover: color-mix(in srgb, var(--org-brand-light) 90%, #000000);
 }
 :root.dark[data-brand]:is([data-theme="lictory"], :not([data-theme])) {
   --primary: var(--org-brand-dark);
@@ -185,6 +191,7 @@
   --brand: var(--org-brand-dark);
   --sidebar-primary: var(--org-brand-dark);
   --sidebar-primary-foreground: var(--org-brand-dark-foreground);
+  --primary-hover: color-mix(in srgb, var(--org-brand-dark) 90%, #ffffff);
 }
 
 /* Personal colour themes (see `~/lib/appearance`). Each overrides colour tokens

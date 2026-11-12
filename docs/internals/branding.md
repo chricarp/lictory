@@ -55,8 +55,9 @@ address. It uses a public one that contains the SHA-256 of the image:
 `/api/organizations/:id/logo/:kind/:sha256`. The address is unguessable to
 anyone who was not sent the image, answers only while that exact image is the
 current logo, and is immutable, so it can be cached forever. Replacing or
-removing a logo retires the addresses already sent; old email then shows the
-image's alternative text. Display sizes are read from the image header when
+removing a logo retires the addresses already sent, so no new fetch succeeds;
+old email shows the image's alternative text unless the mail client cached
+the image. Display sizes are read from the image header when
 the email is built, because some mail clients ignore CSS sizes.
 
 ## What is not branded
