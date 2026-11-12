@@ -26,7 +26,10 @@ export type OrganizationProfile = {
   id: string;
   name: string;
   slug: string;
-  logos: { mark: string | null; full: string | null };
+  // `icon` and `brandColor` are optional for rows written before they existed.
+  logos: { mark: string | null; full: string | null; icon?: string | null };
+  // The organization's brand color (#rrggbb), or null for Lictory's.
+  brandColor?: string | null;
   // Set while an owner has scheduled the organization's deletion: it is
   // locked until `deleteAfter` (ISO), when it is permanently deleted.
   // Optional for clients that predate it.

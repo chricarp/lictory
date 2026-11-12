@@ -948,8 +948,14 @@ export const directorySchema = z.object({
       role: z.string(),
       // Same-origin image URLs for the organization's branding, if uploaded.
       logos: z
-        .object({ mark: z.string().nullable(), full: z.string().nullable() })
-        .default({ mark: null, full: null }),
+        .object({
+          mark: z.string().nullable(),
+          full: z.string().nullable(),
+          icon: z.string().nullable().default(null),
+        })
+        .default({ mark: null, full: null, icon: null }),
+      // The organization's brand color (#rrggbb), or null for Lictory's.
+      brandColor: z.string().nullable().default(null),
       // Set while the organization is scheduled for deletion (locked).
       deletion: z
         .object({ deleteAfter: z.string(), requestedBy: z.string().nullable() })

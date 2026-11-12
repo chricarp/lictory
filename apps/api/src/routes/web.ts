@@ -18,7 +18,11 @@ import {
 import { db } from "@lictory/core/db";
 import * as s from "@lictory/core/db/schema";
 import { isLogoKind, MAX_LOGO_SIZE } from "@lictory/core/branding/logo";
-import { LogoError, readLogo } from "@lictory/core/branding/server";
+import {
+  LogoError,
+  readLogo,
+  readPublicLogo,
+} from "@lictory/core/branding/server";
 import { auditLogFilterInput } from "@lictory/core/capabilities/audit";
 import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { auditLogCsv } from "@lictory/core/domain/audit-log";
@@ -772,6 +776,27 @@ export function webRoutes() {
       if (c.req.header("if-none-match") === etag)
         return new Response(null, { status: 304, headers });
       return new Response(new Uint8Array(logo.content), { headers });
+    } catch (error) {
+      return errorResponse(error, "string");
+    }
+  });
+  // The address email uses: no session, found only by the image's exact
+  // hash (branding/logo.ts), so it is public and immutable.
+  app.get("/api/organizations/:id/logo/:kind/:sha", async (c) => {
+    try {
+      const kind = c.req.param("kind");
+      const sha = c.req.param("sha");
+      if (!isLogoKind(kind) || !/^[0-9a-f]{64}$/.test(sha))
+        throw new LogoError("No logo uploaded.", 404);
+      const logo = await readPublicLogo(db, c.req.param("id"), kind, sha);
+      return new Response(new Uint8Array(logo.content), {
+        headers: {
+          "Content-Type": logo.mimeType,
+          "Cache-Control": "public, max-age=31536000, immutable",
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+      });
     } catch (error) {
       return errorResponse(error, "string");
     }

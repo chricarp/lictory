@@ -174,8 +174,8 @@ members (name, email, photo, handle, application role), former members (name
 only, see [account deletion](./account-deletion.md#former-members)), projects, project
 members, disciplines, teams, types, statuses, iterations, delivery connections
 and targets (never credentials), the AI policy and each project's current
-readiness checks. `organizationProfile:{organizationId}` carries name, slug and
-logos. `refreshDirectoryProjection` rewrites them only when they differ; it
+readiness checks. `organizationProfile:{organizationId}` carries name, slug,
+logos and brand color. `refreshDirectoryProjection` rewrites them only when they differ; it
 runs at the end of every mutation and after every Better Auth organization,
 member, invitation and user change (Better Auth commits its own writes, so its
 hooks refresh right after, each under the organization lock).

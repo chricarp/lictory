@@ -25,7 +25,7 @@ export function Button({
         size === "lg" && "h-10 px-5 text-sm",
         size === "icon" && "size-7 text-xs",
         variant === "primary" &&
-          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-primary/88",
+          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover)",
         variant === "secondary" &&
           "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted hover:shadow-(--shadow-border-hover)",
         variant === "outline" &&

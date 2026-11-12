@@ -26,7 +26,11 @@ export function useMemberships() {
                     name: profile.name,
                     slug: profile.slug,
                     role: member.role,
-                    logos: profile.logos ?? { mark: null, full: null },
+                    logos: {
+                      icon: null,
+                      ...(profile.logos ?? { mark: null, full: null }),
+                    },
+                    brandColor: profile.brandColor ?? null,
                     deletion: profile.deletion ?? null,
                   },
                 ]

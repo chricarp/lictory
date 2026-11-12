@@ -1832,7 +1832,7 @@ export const organizationLogo = pgTable(
   "organization_logo",
   {
     organizationId: organizationId(),
-    kind: text("kind", { enum: ["mark", "full"] }).notNull(),
+    kind: text("kind", { enum: ["mark", "full", "icon"] }).notNull(),
     content: bytea("content").notNull(),
     mimeType: text("mime_type").notNull(),
     sha256: text("sha256").notNull(),
@@ -1841,7 +1841,24 @@ export const organizationLogo = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.organizationId, t.kind] }),
-    check("organization_logo_kind", sql`${t.kind} in ('mark', 'full')`),
+    check("organization_logo_kind", sql`${t.kind} in ('mark', 'full', 'icon')`),
+  ],
+);
+// What an organization's administrators chose for its look besides images.
+// A null color means Lictory's own.
+export const organizationBranding = pgTable(
+  "organization_branding",
+  {
+    organizationId: organizationId().primaryKey(),
+    brandColor: text("brand_color"),
+    updatedById: actor("updated_by_id"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "organization_branding_brand_color",
+      sql`${t.brandColor} is null or ${t.brandColor} ~ '^#[0-9a-f]{6}$'`,
+    ),
   ],
 );
 

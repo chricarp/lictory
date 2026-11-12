@@ -8,6 +8,11 @@ import {
   MAX_LOGO_SIZE,
   type LogoKind,
 } from "@lictory/core/branding/logo";
+import {
+  brandPalette,
+  normalizeBrandColor,
+} from "@lictory/core/branding/color";
+import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import {
@@ -30,7 +35,7 @@ export function OrganizationGeneral() {
       id="general"
       icon={<Building2 />}
       title="General"
-      description="The organization's name, handle and logos, as shown to every member."
+      description="The organization's name, handle and branding, as shown to every member."
     >
       <SettingsBody>
         {isAdmin ? (
@@ -159,10 +164,17 @@ const logoFields: {
     hint: "Wide logo including the name, about 6:1. Replaces the name in the sidebar.",
     preview: "h-12 w-48",
   },
+  {
+    kind: "icon",
+    label: "Browser icon",
+    hint: "Square favicon for the browser tab, at least 48×48. Without one, the logomark is used.",
+    preview: "size-12",
+  },
 ];
 
 // Branding is optional; without a logomark the organization's initial is
-// used, and without a full logo the name is shown as text.
+// used, without a full logo the name is shown as text, and without a browser
+// icon the tab shows the logomark or Lictory's icon.
 function Branding() {
   const { organization, isAdmin } = useWorkspace();
   const [error, setError] = useState("");
@@ -270,6 +282,147 @@ function Branding() {
         backgrounds work best in both light and dark themes.
       </p>
       <InlineError>{error}</InlineError>
+      <BrandColor key={organization.brandColor ?? "default"} />
+    </div>
+  );
+}
+
+const DEFAULT_BRAND_DRAFT = "#1d4ed8";
+
+// One color tints the application and the organization's email. The preview
+// shows the shades actually used: a color too pale for light surfaces or too
+// dark for dark ones is adjusted until text stays readable.
+function BrandColor() {
+  const { organization, isAdmin } = useWorkspace();
+  const saved = organization.brandColor ?? null;
+  const [draft, setDraft] = useState(saved ?? "");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const color = normalizeBrandColor(draft);
+  const shown = color ?? saved;
+  const save = async (next: string | null) => {
+    setError("");
+    setPending(true);
+    try {
+      await callCapability("setOrganizationBrandColor", {
+        organizationId: organization.id,
+        color: next,
+      });
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "The brand color was not saved.",
+      );
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="min-w-0 flex-1 basis-56">
+          <p className="text-[13px] font-medium">Brand color</p>
+          <p className="text-xs text-muted-foreground">
+            Tints primary buttons and accents for everyone working in this
+            organization, and the button and links in its emails. People who
+            chose their own color theme keep it.
+          </p>
+        </div>
+        {isAdmin ? (
+          <form
+            className="flex shrink-0 items-center gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (color) void save(color);
+              else
+                setError(
+                  "Enter the color as six hexadecimal digits, for example #1d4ed8.",
+                );
+            }}
+          >
+            <input
+              type="color"
+              aria-label="Pick brand color"
+              value={color ?? saved ?? DEFAULT_BRAND_DRAFT}
+              onChange={(e) => setDraft(e.target.value)}
+              disabled={pending}
+              className="size-8 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+            />
+            <Input
+              aria-label="Brand color"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="#1d4ed8"
+              spellCheck={false}
+              maxLength={7}
+              disabled={pending}
+              className="w-24 font-mono"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              disabled={pending || !draft.trim() || color === saved}
+            >
+              {pending ? "Saving…" : "Save color"}
+            </Button>
+            {saved && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                aria-label="Reset brand color"
+                onClick={() => void save(null)}
+              >
+                Reset
+              </Button>
+            )}
+          </form>
+        ) : (
+          <p className="shrink-0 font-mono text-[13px]">
+            {saved ?? (
+              <span className="font-sans text-muted-foreground">
+                Lictory default
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+      {shown && <BrandPreview color={shown} />}
+      <InlineError>{error}</InlineError>
+    </div>
+  );
+}
+
+function BrandPreview({ color }: { color: string }) {
+  const palette = brandPalette(color);
+  const tones = [
+    { label: "Light", surface: "#ffffff", tone: palette.light },
+    { label: "Dark", surface: "#141518", tone: palette.dark },
+  ];
+  return (
+    <div
+      className="flex flex-wrap gap-2"
+      role="group"
+      aria-label="Brand color preview"
+    >
+      {tones.map(({ label, surface, tone }) => (
+        <div
+          key={label}
+          className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+          style={{ backgroundColor: surface }}
+        >
+          <span
+            className="rounded-full px-3 py-1 text-xs font-medium"
+            style={{ backgroundColor: tone.color, color: tone.foreground }}
+          >
+            Button
+          </span>
+          <span className="text-xs font-medium" style={{ color: tone.color }}>
+            {label} link
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

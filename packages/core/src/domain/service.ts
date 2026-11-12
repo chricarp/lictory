@@ -237,7 +237,11 @@ export async function directory(
   userId: string,
   organizationId?: string,
 ) {
-  const [joined, logos] = await Promise.all([
+  const memberOf = db
+    .select({ id: s.member.organizationId })
+    .from(s.member)
+    .where(eq(s.member.userId, userId));
+  const [joined, logos, colors] = await Promise.all([
     db
       .select({
         id: s.organization.id,
@@ -260,15 +264,14 @@ export async function directory(
         sha256: s.organizationLogo.sha256,
       })
       .from(s.organizationLogo)
-      .where(
-        inArray(
-          s.organizationLogo.organizationId,
-          db
-            .select({ id: s.member.organizationId })
-            .from(s.member)
-            .where(eq(s.member.userId, userId)),
-        ),
-      ),
+      .where(inArray(s.organizationLogo.organizationId, memberOf)),
+    db
+      .select({
+        organizationId: s.organizationBranding.organizationId,
+        brandColor: s.organizationBranding.brandColor,
+      })
+      .from(s.organizationBranding)
+      .where(inArray(s.organizationBranding.organizationId, memberOf)),
   ]);
   const organizations = joined.map((o) => {
     const url = (kind: LogoKind) => {
@@ -277,7 +280,12 @@ export async function directory(
       );
       return logo ? logoUrl(o.id, kind, logo.sha256) : null;
     };
-    return { ...o, logos: { mark: url("mark"), full: url("full") } };
+    return {
+      ...o,
+      logos: { mark: url("mark"), full: url("full"), icon: url("icon") },
+      brandColor:
+        colors.find((c) => c.organizationId === o.id)?.brandColor ?? null,
+    };
   });
   if (!organizationId)
     return {

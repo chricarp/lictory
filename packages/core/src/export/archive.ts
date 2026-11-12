@@ -110,6 +110,7 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.deliveryPublication },
   { table: s.organizationOnboarding },
   { table: s.organizationLogo, omit: ["content"] },
+  { table: s.organizationBranding },
   { table: s.aiRun },
   { table: s.intelligenceContextEntry },
   { table: s.intelligenceContextVersion },

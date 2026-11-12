@@ -31,6 +31,10 @@
   --popover-foreground: #111214;
   --primary: #111214;
   --primary-foreground: #ffffff;
+  /* The primary action under the pointer: a touch of the surface shows
+     through. An organization's brand color replaces it with an opaque tone
+     (below), so the label keeps its contrast. */
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, transparent);
   /* Decoration (markers, dots, live highlights), never body text. */
   --brand: #ea6a2f;
   --secondary: #f4f4f6;
@@ -166,6 +170,28 @@
   --shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.12);
   --shadow-panel:
     0 0 0 1px rgb(255 255 255 / 0.07), 0 20px 48px -24px rgb(0 0 0 / 0.7);
+}
+
+/* An organization's brand color tints the default theme while people work in
+   that organization: the application sets `data-brand` and the four
+   `--org-brand-*` values, already adjusted for contrast
+   (`@lictory/core/branding/color`). Personal colour themes are not tinted. */
+:root[data-brand]:is([data-theme="lictory"], :not([data-theme])) {
+  --primary: var(--org-brand-light);
+  --primary-foreground: var(--org-brand-light-foreground);
+  --brand: var(--org-brand-light);
+  --sidebar-primary: var(--org-brand-light);
+  --sidebar-primary-foreground: var(--org-brand-light-foreground);
+  /* Away from the label color, so hover only raises its contrast. */
+  --primary-hover: color-mix(in srgb, var(--org-brand-light) 90%, #000000);
+}
+:root.dark[data-brand]:is([data-theme="lictory"], :not([data-theme])) {
+  --primary: var(--org-brand-dark);
+  --primary-foreground: var(--org-brand-dark-foreground);
+  --brand: var(--org-brand-dark);
+  --sidebar-primary: var(--org-brand-dark);
+  --sidebar-primary-foreground: var(--org-brand-dark-foreground);
+  --primary-hover: color-mix(in srgb, var(--org-brand-dark) 90%, #ffffff);
 }
 
 /* Personal colour themes (see `~/lib/appearance`). Each overrides colour tokens

@@ -316,6 +316,7 @@ export const deletionOrder: readonly PgTable[] = [
   s.project,
   s.organizationAiPolicy,
   s.organizationLogo,
+  s.organizationBranding,
   s.activity,
   s.syncMutation,
 ];

@@ -2,7 +2,9 @@ import { Link, Text } from "@react-email/components";
 
 import {
   AuthEmailLayout,
+  emailLinkColor,
   emailParagraph,
+  type EmailBrand,
 } from "@lictory/core/emails/components/auth-email-layout";
 
 export type NotificationEmailProps = {
@@ -12,6 +14,7 @@ export type NotificationEmailProps = {
   title: string | null;
   actionUrl: string;
   preferencesUrl: string;
+  brand?: EmailBrand;
 };
 
 export function NotificationEmail({
@@ -21,6 +24,7 @@ export function NotificationEmail({
   title,
   actionUrl,
   preferencesUrl,
+  brand,
 }: NotificationEmailProps) {
   return (
     <AuthEmailLayout
@@ -28,11 +32,12 @@ export function NotificationEmail({
       heading={headline}
       actionLabel="Open in Lictory"
       actionUrl={actionUrl}
+      brand={brand}
       footerText={
         <>
           You receive this because of your notification settings in{" "}
           {organizationName}.{" "}
-          <Link href={preferencesUrl} style={{ color: "#2563eb" }}>
+          <Link href={preferencesUrl} style={{ color: emailLinkColor(brand) }}>
             Change what you are emailed about
           </Link>
           .

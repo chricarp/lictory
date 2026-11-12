@@ -64,7 +64,8 @@ panel for agreeing on what to build.
   screen, so they are kept per browser, not per organization or account.
 
 Personal colour themes override colours only, so structure, type and radius
-stay Lictory's.
+stay Lictory's. An organization's brand color tints the default theme's
+primary actions and accents; see [organization branding](./branding.md).
 
 ## The public website
 

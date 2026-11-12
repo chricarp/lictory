@@ -4,6 +4,8 @@ import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { createElement } from "react";
 import * as s from "@lictory/core/db/schema";
 import { NotificationEmail } from "@lictory/core/emails/notification-email";
+import type { EmailBrand } from "@lictory/core/emails/components/auth-email-layout";
+import { emailBrand } from "@lictory/core/branding/server";
 import { sendEmail, type OutgoingEmail } from "@lictory/core/lib/mailer";
 import type { Database } from "@lictory/core/domain/service";
 import {
@@ -62,6 +64,16 @@ export async function dispatchNotificationEmails(
       eq(s.notificationEmail.notificationId, notificationId),
       eq(s.notificationEmail.leaseUntil, lease),
     );
+  // One lookup per organization in a batch.
+  const brands = new Map<string, Promise<EmailBrand>>();
+  const brandOf = (organizationId: string, name: string) => {
+    let brand = brands.get(organizationId);
+    if (!brand) {
+      brand = emailBrand(db, organizationId, name, baseUrl);
+      brands.set(organizationId, brand);
+    }
+    return brand;
+  };
   for (const [index, row] of claimed.entries()) {
     if (
       options.signal?.aborted ||
@@ -88,6 +100,7 @@ export async function dispatchNotificationEmails(
         notification: s.notification,
         email: s.user.email,
         emailVerified: s.user.emailVerified,
+        orgId: s.organization.id,
         orgName: s.organization.name,
         orgSlug: s.organization.slug,
       })
@@ -138,6 +151,7 @@ export async function dispatchNotificationEmails(
     })}`;
     const preferencesUrl = `${baseUrl}${paths.notificationSettings(n.orgSlug)}`;
     try {
+      const brand = await brandOf(n.orgId, n.orgName);
       await send({
         to: n.email,
         subject: title ? `${headline}: ${title}` : headline,
@@ -159,6 +173,7 @@ export async function dispatchNotificationEmails(
           title,
           actionUrl,
           preferencesUrl,
+          brand,
         }),
         idempotencyKey: `lictory-notification-${row.notificationId}`,
       });
