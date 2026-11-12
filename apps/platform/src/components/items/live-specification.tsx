@@ -59,6 +59,10 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useReferences } from "@lictory/platform/components/references/data";
 import { withNodeViews } from "@lictory/platform/components/editor/node-views";
 import {
+  WordingHintLine,
+  WordingHints,
+} from "@lictory/platform/components/editor/wording-hints";
+import {
   MenuStore,
   SuggestionMenu,
   suggestionExtension,
@@ -728,6 +732,7 @@ function DraftEditor({
           store: menus.pages,
           items: (query) => pageItems(query, data.get().references.pages()),
         }),
+        WordingHints,
         SpecificationEditing.configure({
           submit: () => {
             const submit = data.get().onSubmit;
@@ -1162,6 +1167,7 @@ function DraftEditor({
               />
             </div>
           )}
+          {source === null && <WordingHintLine editor={editor} />}
           {uploading > 0 && (
             <p
               role="status"

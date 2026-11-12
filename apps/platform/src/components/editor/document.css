@@ -411,3 +411,13 @@
 .markdown-document p.is-editor-empty:first-child::before {
   white-space: pre-wrap;
 }
+
+/* Wording hints in acceptance criteria (editor/wording-hints.tsx): quiet
+   advice, so a dotted underline rather than a highlight. */
+.page-document .wording-hint {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--warning) 80%, transparent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
