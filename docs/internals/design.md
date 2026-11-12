@@ -42,7 +42,7 @@ panel for agreeing on what to build.
 - **Structure.** The specification is the primary surface. Workflow state is
   one statement, its evidence as pills, and one next action. Lists name
   their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
-  fills the trays that frame illustrations and the sign-in backdrop.
+  fills the trays that frame website illustrations and the sign-in backdrop.
 
 - **Layout.** On desktop the navigation sits on the gray shell and the work
   sits in one rounded white frame beside it, so pane dividers end at the
@@ -94,13 +94,27 @@ black pill controls, Geist typography and hairline rings. Dark mode uses
 neutral charcoal with the same structure. Compact controls and readable
 specification content take priority over decoration.
 
-Illustrations extend that language with small, tactile 3D objects inspired by
-Airbnb's friendly editorial approach. Use matte porcelain and soft clay, rounded
-bevels, subtle material texture, an orthographic three-quarter view and soft light
-from the upper left. Keep silhouettes legible at 160px. Use off-white, pale
-lavender (`#deddf4`) and cobalt (`#3569eb`), with tiny charcoal details. Avoid
-characters, logos, lettering, dramatic lighting, scenery and background plates.
-The same artwork must work on light and dark surfaces without recoloring.
+Illustrations extend that language as isometric line drawings: hairline
+outlines, light faces and quiet dashed guides on a rounded plate, drawn in the
+same 2:1 projection. Each scene has one accent object, the thing the state is
+about (the retry key, the lens, the next tile), in the theme's interactive
+color (`--ring`); everything else stays neutral. Avoid characters, logos,
+lettering, scenery and decorative color. Keep silhouettes legible at 112px.
+
+The artwork is Lottie, drawn as SVG, so it stays sharp at any density and takes
+the theme without reloading: every fill and stroke carries a paint role as its
+class (face, side, line, faint, ghost, accent and a few more), and
+`styles.css` colors the roles from the current tokens. Light, dark and every
+personal palette therefore recolor the same animation, and an accent always
+matches the theme's own interactive color.
+
+Motion follows one rule set. A scene assembles once when it appears and comes
+to rest on a still frame, so an idle state costs nothing. Hovering it, or
+tapping it on a touch screen, plays a short reaction (the key is pressed, the
+lens sweeps, the barrier drops and lifts) that returns to exactly the resting
+frame; the scene tests check that every animated property agrees at those
+frames. With reduced motion the scene shows the resting frame and never
+moves. Nothing loops.
 
 Use illustrations on spacious empty states, missing resources and recoverable
 page errors. Preserve the adjacent explanation, state icon where applicable,
@@ -113,17 +127,19 @@ Project views have dedicated artwork for personal review, team review, blockers,
 ready work, drafts and recently updated items. Extra search filters use the
 shared search illustration; clearing them restores the view's own artwork.
 
-## Asset delivery
+## Building and delivering the artwork
 
-Ship only the final alpha-preserving 384 × 384 WebP files in
-`packages/ui/public/illustrations/`. They support the 160px display size at more than 2× pixel
-density. Encode with WebP quality 80, alpha quality 100 and effort 6. Keep original
-high-resolution generated files outside the repository.
+The scenes are TypeScript in `packages/ui/src/illustrations/`: a small Lottie
+writer, isometric primitives (plates, cards, keys, guides) and one module per
+scene that composes them and declares two segments, `intro` and `react`, as
+Lottie markers. Writing the animations as code keeps them reviewable in a pull
+request, lets every scene share one projection and stroke weight, and keeps
+the resting-frame rule testable. The output is ordinary Lottie JSON, which any
+Lottie player or editor opens; its built-in colors are the light palette, used
+wherever the stylesheet is missing (the last-resort error pages).
 
-Filenames include the first 12 hexadecimal characters of the file's SHA-256 hash.
-When replacing artwork, generate a new hash and update the asset mapping. These
-URLs receive a one-year immutable cache header; never overwrite different bytes
-at an existing URL. The shared component serves the files as they are (no runtime image
-optimization), uses intrinsic dimensions to reserve space, and loads lazily.
-This avoids transformation work and variants while retaining CDN/browser caching.
-Static delivery still uses bandwidth; these assets do not imply free hosting.
+The SVG player (`lottie-web`'s light build, under 50 kB compressed) and each
+scene load on demand, the first time a page shows an illustration, then come
+from the browser cache with the rest of the application's hashed chunks. If
+they cannot load (offline, a newer release replaced them), the artwork's space
+closes and the state keeps its explanation and actions.

@@ -19,21 +19,6 @@ const nextConfig: NextConfig = {
   // PostHog's SDK posts to paths with a trailing slash (`/relay/e/`). The default
   // redirect would cost every analytics request a round trip through the relay.
   skipTrailingSlashRedirect: true,
-  // Content-addressed, pre-sized artwork is served directly, without image transforms.
-  async headers() {
-    if (staticExport) return [];
-    return [
-      {
-        source: "/illustrations/:asset*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-    ];
-  },
   // The landing page used to be reachable at /home by signed-in people. The
   // website has no session any more, so the alias would only duplicate "/".
   async redirects() {

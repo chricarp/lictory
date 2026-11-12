@@ -7,9 +7,9 @@ import { Button } from "@lictory/ui/button";
 import { StatusPage } from "@lictory/ui/status-page";
 import {
   getStartedLabel,
-  installUrl,
   repositoryLabel,
   repositoryUrl,
+  tryUrl,
 } from "@lictory/marketing/lib/get-started";
 
 export const metadata: Metadata = { title: "Page not found" };
@@ -23,7 +23,7 @@ export default function NotFound() {
       title="This page does not exist"
       actions={
         <>
-          <Link href={installUrl} className="contents">
+          <Link href={tryUrl} className="contents">
             <Button size="lg">{getStartedLabel}</Button>
           </Link>
           <Link href={repositoryUrl} className="contents">

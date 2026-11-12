@@ -210,7 +210,8 @@ stale slot (above) before anything else.
 
 The worker is restarted by Docker (`restart: unless-stopped`). Jobs are rows
 in PostgreSQL with leases (AI runs, the notification email outbox, delivery
-exports) and are retried after a lease expires; external calls are idempotent
+exports) and are retried after a lease expires; queued notification events
+are fanned out in one transaction each batch and simply stay queued; external calls are idempotent
 (email idempotency keys, Jira create attempts recorded before the call). A
 crash therefore delays work but does not lose or duplicate it. The monitor
 reports work stuck past its expected time. Inspect with

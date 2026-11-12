@@ -87,8 +87,8 @@ const server = createServer((req, res) => {
   if (file) {
     res.writeHead(200, {
       "content-type": types[extname(file)] ?? "application/octet-stream",
-      // Build output and illustrations carry content hashes in their names.
-      "cache-control": /^\/(assets|illustrations)\//.test(pathname)
+      // Build output carries content hashes in its names.
+      "cache-control": pathname.startsWith("/assets/")
         ? "public, max-age=31536000, immutable"
         : pathname.startsWith("/brand/")
           ? "public, max-age=86400"

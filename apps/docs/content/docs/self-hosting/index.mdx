@@ -19,7 +19,7 @@ https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security heade
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `proxy`         | The only public entry point: the app, the API, streaming and the sync and live editing sockets                                                                                        |
 | `api`           | API, authentication, file access and the application's pages                                                                                                                          |
-| `worker`        | Background jobs: AI runs, notification email, Jira exports and status sync                                                                                                            |
+| `worker`        | Background jobs: AI runs, notifications and their email, Jira exports and status sync                                                                                                 |
 | `collaboration` | Live editing of [pages](/spaces/editing) and [specification drafts](/specifications/live-drafts) (`/collaboration`); exactly one per installation, it stores every edit in PostgreSQL |
 | `zero-cache`    | Realtime sync engine with a replica that can always be rebuilt                                                                                                                        |
 | `postgres`      | The source of truth: the only data that must be backed up. Optional: any compatible [external database](/self-hosting/database) works instead                                         |
@@ -64,6 +64,7 @@ health and logs, unattended installation and account recovery.
 
 <CliReference />
 
-Start with [installation](/self-hosting/install). When something does not
+Evaluating Lictory? [Try it on your computer](/self-hosting/try) with one
+command first. Then start with [installation](/self-hosting/install). When something does not
 work, [troubleshooting](/self-hosting/troubleshooting) lists the common
 problems and their fixes.

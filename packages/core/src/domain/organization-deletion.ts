@@ -10,7 +10,7 @@ import {
 import { refreshDirectoryProjection } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import { assertTwoFactorSatisfied } from "@lictory/core/domain/two-factor-policy";
-import { deliverNotifications } from "@lictory/core/notifications/server";
+import { queueNotifications } from "@lictory/core/notifications/events";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 
@@ -146,12 +146,10 @@ export async function scheduleOrganizationDeletion(
       targetLabel: owner.name,
       detail: { slug: owner.slug, deleteAfter: deleteAfter.toISOString() },
     });
-    await deliverNotifications(
-      tx,
-      organizationId,
-      (await memberIds(tx, organizationId)).map((memberId) => ({
-        userId: memberId,
-        kind: "organization_deletion_scheduled" as const,
+    await queueNotifications(tx, organizationId, [
+      {
+        userIds: await memberIds(tx, organizationId),
+        kind: "organization_deletion_scheduled",
         actorId: userId,
         detail: {
           organizationName: owner.name,
@@ -159,8 +157,8 @@ export async function scheduleOrganizationDeletion(
           deleteDay: deletionDay(deleteAfter),
         },
         dedupeKey: `organization-deletion:${organizationId}:${now.getTime()}`,
-      })),
-    );
+      },
+    ]);
     // The profile carries the deletion, so every member's app locks now.
     await refreshDirectoryProjection(tx, organizationId);
     return { deletion: view(created!), existing: false };
@@ -213,17 +211,15 @@ export async function cancelOrganizationDeletion(
       targetLabel: owner.name,
       detail: { slug: owner.slug, ...detail },
     });
-    await deliverNotifications(
-      tx,
-      organizationId,
-      (await memberIds(tx, organizationId)).map((memberId) => ({
-        userId: memberId,
-        kind: "organization_deletion_cancelled" as const,
+    await queueNotifications(tx, organizationId, [
+      {
+        userIds: await memberIds(tx, organizationId),
+        kind: "organization_deletion_cancelled",
         actorId: userId,
         detail: { organizationName: owner.name },
         dedupeKey: `organization-deletion-cancelled:${organizationId}:${Date.now()}`,
-      })),
-    );
+      },
+    ]);
     await refreshDirectoryProjection(tx, organizationId);
     return { cancelled: true };
   });
@@ -247,6 +243,9 @@ export const deletionOrder: readonly PgTable[] = [
   s.workItemPageSource,
   s.pageBranchOrigin,
   s.pageContextLink,
+  // Queued events first: the delete waits for a fan-out in flight, so the
+  // notifications it writes are removed by the next statements.
+  s.notificationEvent,
   s.notificationEmail,
   s.notification,
   s.workItemWatcher,

@@ -3,7 +3,7 @@ import { afterEach, test } from "node:test";
 
 import { configureAnalytics } from "@lictory/core/lib/analytics/client";
 import { trackCtaClick } from "@lictory/marketing/lib/cta-analytics";
-import { installUrl } from "@lictory/marketing/lib/get-started";
+import { tryUrl } from "@lictory/marketing/lib/get-started";
 
 const global = globalThis as { window?: unknown };
 
@@ -33,7 +33,7 @@ void test("a call to action click reports which one, where, on which kind of pag
   const captured = fakePostHog();
   trackCtaClick(
     { cta: "get_started", placement: "final", page: "comparison" },
-    installUrl,
+    tryUrl,
   );
   assert.deepEqual(captured, [
     [
@@ -42,7 +42,7 @@ void test("a call to action click reports which one, where, on which kind of pag
         cta: "get_started",
         placement: "final",
         page_type: "comparison",
-        href: installUrl,
+        href: tryUrl,
         analytics_version: 1,
         source: "client",
       },
@@ -55,7 +55,7 @@ void test("without analytics settings a click sends nothing", () => {
   const captured = fakePostHog();
   trackCtaClick(
     { cta: "github", placement: "open_source", page: "home" },
-    installUrl,
+    tryUrl,
   );
   assert.deepEqual(captured, []);
 });

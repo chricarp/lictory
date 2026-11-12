@@ -1,9 +1,27 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import { cn } from "@lictory/core/lib/utils";
-import { illustrationAssets } from "@lictory/ui/illustration-assets";
+import {
+  illustrationScenes,
+  type IllustrationKind,
+} from "@lictory/ui/illustrations/catalog";
 
-export type IllustrationKind = keyof typeof illustrationAssets;
+export type { IllustrationKind };
 
-/** Decorative artwork; the adjacent heading and recovery action carry meaning. */
+type Player = { react(): void };
+
+/**
+ * Decorative, theme-aware Lottie artwork for empty states and recoverable
+ * errors; the adjacent heading and recovery action carry the meaning.
+ *
+ * The player and the scene load on demand. The scene assembles once, then
+ * rests on a still frame (no work while idle) and reacts when hovered or
+ * tapped. With reduced motion it shows the resting frame only. Paths carry
+ * paint roles as classes that `styles.css` colors from the theme tokens, so
+ * the artwork follows light, dark and every palette without reloading.
+ * `data-state` reports loading, intro, rest, react or unavailable.
+ */
 export function StateIllustration({
   kind,
   className,
@@ -11,26 +29,105 @@ export function StateIllustration({
   kind: IllustrationKind;
   className?: string;
 }) {
-  // The artwork rests in a hatched tray, in grayscale, so it belongs to the
-  // product's neutral instrument-panel language rather than standing apart.
+  const host = useRef<HTMLSpanElement>(null);
+  const player = useRef<Player | null>(null);
+
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    let disposed = false;
+    let destroy: (() => void) | undefined;
+    let unwatch: (() => void) | undefined;
+    const setState = (state: string) => {
+      element.dataset.state = state;
+    };
+    setState("loading");
+    // A previous kind may have failed to load and closed the space.
+    element.style.display = "";
+    Promise.all([
+      import("lottie-web/build/player/lottie_light"),
+      import("@lictory/ui/illustrations/lottie"),
+      illustrationScenes[kind](),
+    ])
+      .then(([{ default: lottie }, { compose }, { scene }]) => {
+        if (disposed) return;
+        const animation = lottie.loadAnimation({
+          container: element,
+          renderer: "svg",
+          loop: false,
+          autoplay: false,
+          // The player completes the data in place: each mount gets its own.
+          animationData: compose(scene),
+          rendererSettings: { preserveAspectRatio: "xMidYMid meet" },
+        });
+        destroy = () => animation.destroy();
+        const rest = scene.intro;
+        // Read live: the preference can change while the page stays open.
+        const query =
+          typeof matchMedia === "function"
+            ? matchMedia("(prefers-reduced-motion: reduce)")
+            : undefined;
+        const settle = () => {
+          // A reaction leaves the player on its own segment, where frames
+          // count from the reaction's start: seeking `rest` there would draw
+          // frame 2 × rest, past the scene's end. Return to the whole
+          // animation before seeking.
+          animation.resetSegments(true);
+          animation.goToAndStop(rest, true);
+          setState("rest");
+        };
+        animation.addEventListener("complete", () => setState("rest"));
+        if (query?.matches) settle();
+        else {
+          setState("intro");
+          animation.playSegments([0, rest], true);
+        }
+        // Turning reduced motion on stops what is playing at the resting
+        // frame; turning it off allows reactions again.
+        const onPreference = () => {
+          if (query?.matches) settle();
+        };
+        query?.addEventListener("change", onPreference);
+        unwatch = () => query?.removeEventListener("change", onPreference);
+        player.current = {
+          react() {
+            if (query?.matches || element.dataset.state !== "rest") return;
+            setState("react");
+            animation.playSegments([rest, rest + scene.react], true);
+          },
+        };
+      })
+      // Artwork is decorative: when a chunk cannot load (offline, a deploy
+      // replaced it), the space closes and the text and actions remain. An
+      // inline style closes it even where the page sets its own `display`
+      // and no shared stylesheet applies (the last-resort error pages).
+      .catch(() => {
+        if (disposed) return;
+        setState("unavailable");
+        element.style.display = "none";
+      });
+    return () => {
+      disposed = true;
+      player.current = null;
+      unwatch?.();
+      destroy?.();
+    };
+  }, [kind]);
+
+  // Hover (mouse, pen) or a tap or click replays the reaction.
+  const react = () => player.current?.react();
+
   return (
     <span
+      ref={host}
       aria-hidden="true"
+      data-illustration={kind}
+      onPointerEnter={react}
+      onPointerDown={react}
       className={cn(
-        "mx-auto mb-5 grid size-40 shrink-0 place-items-center rounded-[1.75rem] bg-tray [background-image:var(--hatch)] ring-1 ring-border/70 ring-inset",
+        "state-illustration mx-auto mb-5 block size-40 shrink-0",
         className,
       )}
-    >
-      <img
-        src={illustrationAssets[kind]}
-        alt=""
-        width={384}
-        height={384}
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        className="size-[80%] object-contain opacity-90 contrast-[1.05] grayscale"
-      />
-    </span>
+    />
   );
 }

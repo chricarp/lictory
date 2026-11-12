@@ -40,11 +40,50 @@ kinds, their category and their default channels. Defaults follow one rule:
   started…): in the app only.
 - **Noisy** (every specification revision): off until someone opts in.
 
-Notifications are derived from the domain activity a command logs, inside the
-same transaction (`notifyItemActivity`, `notifyIteration`, `notifyExport`). A
-notification never exists for a change that rolled back and never goes missing
-for one that committed. Messages log no activity; replies and mentions are read
-from the command itself.
+Notifications are derived from the domain activity a command logs
+(`notifyItemActivity`, `notifyIteration`, `notifyExport`). Messages log no
+activity; replies and mentions are read from the command itself.
+
+## Queue
+
+Telling people is never part of the work a command does. A command holds the
+organization's transaction lock, so everything it does delays every other
+write in that organization; deciding who is told and writing a row per
+recipient grows with the audience (a discipline, a project's members, the
+whole organization). So it is split in two:
+
+- **The command queues one event.** In its own transaction it writes a single
+  `notification_event` row (`queueNotifications`): an ordered list of notices,
+  each naming a kind, the people it might concern and the rendering context
+  captured at that moment (item key and title, excerpt, revision…). An event
+  therefore exists exactly when its change committed: a notification never
+  exists for a change that rolled back and never goes missing for one that
+  committed. For a work item command this is one insert and no reads.
+- **The worker fans it out** (`processNotificationEvents`, the
+  `notification` job, woken by the `lictory_work` signal the event commits
+  with and polled every 30 seconds). It decides who is actually told, as
+  described under Recipients and Preferences, writes the `notification` rows
+  and the email outbox rows, and sends the realtime signal. A notification
+  carries the time of its event, not of its fan-out.
+
+The fan-out is database work only. A batch of events is claimed with
+`FOR UPDATE SKIP LOCKED` and each event's notifications are written, and the
+event deleted, in the claiming transaction: an event is delivered exactly
+once, several workers never pick the same one, and a worker that dies leaves
+its batch as it was. It never takes the organization lock, so it never waits
+on, or holds up, a command. The one thing that waits for it is the worker
+carrying out an organization deletion, which removes queued events first and
+so lets a fan-out in flight finish before it removes the notifications. Each
+event has its own savepoint: one that fails
+is retried with exponential backoff (1, 2, 4, 8 minutes) without holding back
+the others, and after five attempts stays with `failed_at` and the error for
+seven days before it is removed. An event naming a kind the worker does not
+know (queued by a newer API while an older worker still runs during a rollout)
+fails the same way rather than being dropped, so the updated worker delivers
+it on a retry.
+
+Without a running worker, events queue up and nobody is notified until one
+starts; nothing is lost.
 
 ## Recipients
 
@@ -55,7 +94,8 @@ review requests reach every member of the discipline, but only people named
 directly count as involved afterwards. Iteration notifications reach the
 project's members.
 
-Explicit watch state lives in `work_item_watcher`. Watching subscribes someone
+Explicit watch state lives in `work_item_watcher` and is read when the event
+is fanned out. Watching subscribes someone
 without involvement; unwatching silences ambient updates despite involvement.
 Neither affects requests addressed to the person (review requests, mentions,
 assignment, stale approvals): those always follow preferences only.
@@ -63,11 +103,12 @@ assignment, stale approvals): those always follow preferences only.
 Always:
 
 - the actor is never notified of their own action;
-- recipients must be current organization members at write time, and again at
-  read and email time;
+- recipients must be current organization members when the event is fanned
+  out, and again at read and email time;
 - one event yields at most one notification per person and item: the most
-  specific wins (a mention beats "new discussion"; a stale approval beats
-  "revised").
+  specific one the person can receive wins (a mention beats "new discussion";
+  a stale approval beats "revised"). A kind they turned off does not take the
+  place of a broader one they kept on.
 
 Mentions are stored in message Markdown as `@[Name](mention:USER_ID)`. The
 label is display text; the server trusts only the ID after checking membership.
@@ -83,8 +124,8 @@ message excerpts, which are space content, so organization membership is not
 enough:
 
 - each notification row names its `space_id` and `page_id`, and is written
-  only for people who hold effective access to the space (`space_reader`) at
-  that moment;
+  only for people who hold effective access to the space (`space_reader`)
+  when the event is fanned out;
 - the inbox, the unread counts and the email worker check that access again
   on every read (`spaceNotificationReadable`): someone who loses access no
   longer sees the notification, its title or its excerpt, and its pending
@@ -107,8 +148,8 @@ notification is either off, on, or on with email.
 
 ## Email
 
-Notifications that resolve to email get a `notification_email` outbox row in the
-same transaction. Delivery is at-least-once to the provider with a stable
+Notifications that resolve to email get a `notification_email` outbox row in
+the transaction that writes them (the fan-out). Delivery is at-least-once to the provider with a stable
 idempotency key per notification:
 
 - the outbox row commits with a `lictory_work` signal, so the worker sends
@@ -125,6 +166,6 @@ idempotency key per notification:
 - recipients who left the organization, or archived the notification, are
   `skipped`.
 
-Realtime is an invalidation only: `pg_notify('lictory_notification')` carries
-organization and user IDs, the SSE stream forwards a content-free signal to the
+Realtime is an invalidation only: the fan-out's
+`pg_notify('lictory_notification')` carries organization and user IDs, the SSE stream forwards a content-free signal to the
 matching user, and the client refetches.

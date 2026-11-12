@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("missing pages stay readable, serve shared artwork and lead back", async ({
+test("missing pages stay readable, show the shared artwork and lead back", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 740 });
@@ -11,21 +11,17 @@ test("missing pages stay readable, serve shared artwork and lead back", async ({
     await expect(
       page.getByRole("heading", { name: "This page does not exist" }),
     ).toBeVisible();
-    // Artwork comes from packages/ui/public, copied into this website.
-    const art = page.locator('img[src^="/illustrations/"]');
-    await expect
-      .poll(() =>
-        art.evaluate(
-          (img: HTMLImageElement) => img.complete && img.naturalWidth,
-        ),
-      )
-      .toBe(384);
+    // The website shows the application's animated artwork, at rest under
+    // reduced motion.
+    const art = page.locator('[data-illustration="search"]');
+    await expect(art).toHaveAttribute("data-state", "rest");
+    await expect(art.locator("svg")).toHaveCount(1);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
     await expect(
       page.getByRole("link", { name: "Get started" }),
-    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/install");
+    ).toHaveAttribute("href", "https://docs.lictory.com/self-hosting/try");
     await expect(page.getByRole("link", { name: "GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/chricarp/lictory",

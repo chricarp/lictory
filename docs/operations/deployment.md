@@ -101,7 +101,7 @@ The proxy:
 - streams `/api/*` and `/relay/*` without buffering (server-sent events,
   AI chat streams) and without a response timeout; request bodies are capped
   per route slightly above the application limits;
-- serves `/assets/*` as immutable, `/brand/*` and `/illustrations/*` for a day
+- serves `/assets/*` as immutable, `/brand/*` for a day
   and other static files for an hour, and keeps the previous release's
   `/assets/*` so open tabs can still load their code-split chunks;
 - sends every other path to the API, which returns `index.html` with
@@ -461,7 +461,7 @@ runs every five minutes and alerts on public route failures (the app's
 `/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
-overdue notification email, partial, failed or stuck delivery exports,
+overdue notification events and email, partial, failed or stuck delivery exports,
 automatic cycles overdue by two hours, and a backup older than 30 hours
 (not checked with `BACKUP_TARGET=none`). It checks only what is configured
 and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
@@ -486,6 +486,7 @@ or external recurring job is needed.
 | Activity                  | Trigger / fallback interval                    |
 | ------------------------- | ---------------------------------------------- |
 | AI runs                   | PostgreSQL notification; poll every 30 seconds |
+| Notification fan-out      | PostgreSQL notification; poll every 30 seconds |
 | Notification email outbox | PostgreSQL notification; poll every 30 seconds |
 | Delivery publishing       | PostgreSQL notification; poll every 30 seconds |
 | Delivery status refresh   | Every 10 minutes                               |

@@ -326,6 +326,30 @@ void test("nightlies are scheduled, fully verified before publication and built 
   );
   assert.equal(verify.with?.suite, "full");
   assert.deepEqual(nightly.jobs.publish!.needs, ["plan", "verify", "build"]);
+  // The published candidate runs the laptop trial; its failure fails the
+  // run, which keeps the nightly from being promoted.
+  const trial = nightly.jobs.trial!;
+  assert.deepEqual(trial.needs, ["plan", "publish"]);
+  assert.equal(trial.if, undefined);
+  assert.deepEqual(trial.permissions, { contents: "read" });
+  // Default-branch context: only the workflow's own commit runs, and no cached
+  // Bun binary is restored (CodeQL cache poisoning).
+  const checkout = trial.steps!.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  )!;
+  assert.equal(checkout.with?.ref, undefined);
+  assert.equal(
+    trial.steps!.find((step) => step.uses === "./.github/actions/setup")!
+      .with?.["bun-cache"],
+    "false",
+  );
+  assert.ok(
+    trial.steps!.some(
+      (step) =>
+        step.uses === "./.github/actions/trial" &&
+        step.with?.version === "${{ needs.plan.outputs.version }}",
+    ),
+  );
   // Days without merges publish nothing.
   for (const job of ["verify", "build"])
     assert.equal(
@@ -575,6 +599,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "static",
     "domain",
     "browser",
+    "trial",
     "verify",
   ]);
   const runs = (job: string) =>
@@ -655,6 +680,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "static",
     "domain",
     "browser",
+    "trial",
   ]);
   assert.equal(jobs.verify!.if, "always()");
   assert.equal(
@@ -729,7 +755,12 @@ void test("Verify never reports success for a draft whose selected tiers did not
   // Runs the gate's script as Actions does (bash -eo pipefail).
   const gate = (
     results: string,
-    selection: { draft: boolean; unit: boolean; e2e: boolean },
+    selection: {
+      draft: boolean;
+      unit: boolean;
+      e2e: boolean;
+      trial?: boolean;
+    },
   ) => {
     try {
       const output = execFileSync(
@@ -743,6 +774,7 @@ void test("Verify never reports success for a draft whose selected tiers did not
             DRAFT: String(selection.draft),
             UNIT: String(selection.unit),
             E2E: String(selection.e2e),
+            TRIAL: String(selection.trial ?? false),
           },
           encoding: "utf8",
         },
@@ -752,21 +784,21 @@ void test("Verify never reports success for a draft whose selected tiers did not
       return { passed: false, output: (error as { stdout: string }).stdout };
     }
   };
-  for (const variable of ["DRAFT", "UNIT", "E2E"])
+  for (const variable of ["DRAFT", "UNIT", "E2E", "TRIAL"])
     assert.match(step.env![variable]!, /^\$\{\{ needs\.changes\.outputs\./);
-  const staticOnly = "success success skipped skipped";
+  const staticOnly = "success success skipped skipped skipped";
 
   // A ready pull request: skips chosen by the changed paths are fine.
   assert.ok(gate(staticOnly, { draft: false, unit: false, e2e: false }).passed);
   assert.ok(
-    gate("success success success success", {
+    gate("success success success success success", {
       draft: false,
       unit: true,
       e2e: true,
     }).passed,
   );
   assert.ok(
-    !gate("success failure success success", {
+    !gate("success failure success success skipped", {
       draft: false,
       unit: true,
       e2e: true,
@@ -784,9 +816,18 @@ void test("Verify never reports success for a draft whose selected tiers did not
   const browserOnly = gate(staticOnly, { draft: true, unit: false, e2e: true });
   assert.ok(!browserOnly.passed);
   assert.match(browserOnly.output, /Draft: browser smoke workflows have not/);
+  // The laptop trial waits for ready for review like the other tiers.
+  const trialOnly = gate(staticOnly, {
+    draft: true,
+    unit: false,
+    e2e: false,
+    trial: true,
+  });
+  assert.ok(!trialOnly.passed);
+  assert.match(trialOnly.output, /Draft: the laptop trial has not run/);
   // A failed static check on a draft still fails.
   assert.ok(
-    !gate("success failure skipped skipped", {
+    !gate("success failure skipped skipped skipped", {
       draft: true,
       unit: false,
       e2e: false,
@@ -806,7 +847,13 @@ void test("pull request suite selection fails open", () => {
         .split("\n")
         .map((line) => line.split("=")),
     ) as Record<string, string>;
-  const none = { unit: "false", e2e: "false", audit: "false", docs: "false" };
+  const none = {
+    unit: "false",
+    e2e: "false",
+    audit: "false",
+    docs: "false",
+    trial: "false",
+  };
   assert.deepEqual(select("README.md", "docs/operations/releases.md"), none);
   // Documentation pages need their site built, not the application suites.
   assert.deepEqual(select("apps/docs/content/docs/index.mdx"), {
@@ -830,6 +877,16 @@ void test("pull request suite selection fails open", () => {
     );
   assert.equal(select("bun.lock").audit, "true");
   assert.equal(select("packages/ui/src/theme.css").docs, "true");
+  // The laptop trial runs when what it consists of changes; the release's
+  // compose file reaches it through the nightly candidate instead.
+  assert.deepEqual(select("deploy/try.sh"), {
+    ...none,
+    unit: "true",
+    trial: "true",
+  });
+  assert.equal(select("tests/try/trial.spec.ts").trial, "true");
+  assert.equal(select(".github/actions/trial/action.yml").trial, "true");
+  assert.equal(select("deploy/compose.production.yaml").trial, "false");
 });
 
 void test("the released version display is preserved", async () => {

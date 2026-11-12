@@ -29,6 +29,9 @@ export default function NotFound() {
             <Link href="/getting-started">Getting started</Link>
           </li>
           <li>
+            <Link href="/self-hosting/try">Try Lictory in 5 minutes</Link>
+          </li>
+          <li>
             <Link href="/self-hosting/install">Install a server</Link>
           </li>
         </ul>

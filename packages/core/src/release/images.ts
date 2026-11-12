@@ -106,6 +106,8 @@ export function releaseFile(manifest: Manifest, images: Images): string {
     `LICTORY_GIT_SHA=${manifest.sha}`,
     `LICTORY_CHANNEL=${manifest.channel}`,
     `API_IMAGE=${images.api}`,
+    // No marketing image is built (the website runs on Cloudflare); installed
+    // deploy.sh versions still require the key, so it repeats the API image.
     `MARKETING_IMAGE=${images.marketing ?? images.api}`,
     `PROXY_IMAGE=${images.proxy}`,
     `MIGRATE_IMAGE=${images.migrate}`,

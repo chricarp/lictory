@@ -5,6 +5,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import * as s from "@lictory/core/db/schema";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { organizationProfileKey } from "@lictory/core/contracts/projection";
@@ -375,6 +376,7 @@ void test("only an owner schedules a deletion, confirmed with the handle; it loc
     inApp: false,
     email: false,
   });
+  await drainNotifications(db);
   const notices = await db
     .select({
       userId: s.notification.userId,
@@ -435,6 +437,7 @@ void test("only an owner schedules a deletion, confirmed with the handle; it loc
   );
   const roster = await directory(db, w.reviewer, w.organizationId);
   assert.ok(roster.projects.length > 0);
+  await drainNotifications(db);
   const cancelled = await db
     .select({ userId: s.notification.userId })
     .from(s.notification)

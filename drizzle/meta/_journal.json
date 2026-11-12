@@ -320,8 +320,15 @@
     {
       "idx": 45,
       "version": "7",
-      "when": 1794437879756,
-      "tag": "0045_organization_branding",
+      "when": 1794437732474,
+      "tag": "0045_notification_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794474396561,
+      "tag": "0046_organization_branding",
       "breakpoints": true
     }
   ]

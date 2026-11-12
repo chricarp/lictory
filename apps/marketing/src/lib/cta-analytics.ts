@@ -10,7 +10,7 @@ export type CtaPageType =
   "home" | "guide" | "comparison" | "alternatives" | "roundup" | "legal";
 
 export type CtaTracking = {
-  cta: "get_started" | "github";
+  cta: "get_started" | "install_server" | "github";
   placement: "header" | "hero" | "final" | "open_source";
   page: CtaPageType;
 };
