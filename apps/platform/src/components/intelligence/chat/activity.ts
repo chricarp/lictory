@@ -455,6 +455,12 @@ export function describeStep(
   const outcome = outcomeOf(output, errorText, lookup);
   const fields = record(input);
   const { subject, used } = subjectOf(fields, outcome, output, lookup);
+  // An approval shows everything that would run: a field stays in it unless
+  // the subject already shows its value whole.
+  const shownWhole = used.filter((key) => {
+    const value = fields?.[key];
+    return typeof value !== "string" || clip(value, 60) === value;
+  });
   return {
     kind,
     action: actionOf(name, fields),
@@ -462,7 +468,7 @@ export function describeStep(
     done,
     subject,
     fields: describeInput(input, lookup, used),
-    detail: describeInput(input, lookup, used, true),
+    detail: describeInput(input, lookup, shownWhole, true),
     outcome,
   };
 }

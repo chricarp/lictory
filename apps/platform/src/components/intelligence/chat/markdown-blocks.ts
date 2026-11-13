@@ -1,6 +1,23 @@
 // Markdown split into blocks that render on their own, so a streaming reply
 // only parses again the block that is still growing.
 
+// The fence open after a line, given the one open before it (CommonMark):
+// a closing fence uses the opener's character, is at least as long and has
+// nothing after it but spaces; anything else inside the code is code.
+function fenceAfter(open: string | null, line: string): string | null {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+  if (!match) return open;
+  const marker = match[1]!;
+  const rest = match[2]!;
+  if (!open)
+    return marker.startsWith("`") && rest.includes("`") ? null : marker;
+  const closes =
+    marker.startsWith(open.slice(0, 1)) &&
+    marker.length >= open.length &&
+    rest.trim() === "";
+  return closes ? null : open;
+}
+
 // Blocks end at a blank line outside a fenced code block, unless the next
 // line is indented (it continues a list item or a paragraph).
 export function splitBlocks(source: string): string[] {
@@ -13,11 +30,7 @@ export function splitBlocks(source: string): string[] {
   let fence: string | null = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    const marker = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-    if (marker) {
-      if (!fence) fence = marker[0]!.repeat(marker.length);
-      else if (marker.startsWith(fence)) fence = null;
-    }
+    fence = fenceAfter(fence, line);
     current.push(line);
     if (fence || line.trim() !== "") continue;
     const next = lines.slice(i + 1).find((l) => l.trim() !== "");
@@ -39,9 +52,8 @@ export function splitBlocks(source: string): string[] {
 // is closed, and a link whose target has not arrived yet is held back, so
 // `**Issuer` never shows its asterisks. Finished text renders as written.
 export function closeUnfinished(block: string): string {
-  const fences = block.match(/^ {0,3}(`{3,}|~{3,})/gm)?.length ?? 0;
-  if (fences % 2 === 1)
-    return `${block}\n${/^ {0,3}~{3,}/m.test(block) ? "~~~" : "```"}`;
+  const fence = block.split("\n").reduce(fenceAfter, null);
+  if (fence) return `${block}\n${fence}`;
   // A link or image still being written: `[text` or `[text](http…`.
   let text = block.replace(/!?\[[^\]\n]*(\]\([^)\s]*)?$/, "");
   const open: string[] = [];

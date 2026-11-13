@@ -100,3 +100,19 @@ void test("a list item with its own paragraph keeps the list whole", () => {
   const list = "1. First\n\n   Why it matters.\n\n2. Second";
   assert.deepEqual(splitBlocks(`${list}\n\nAfter`), [`${list}\n`, "After"]);
 });
+
+void test("only a matching bare fence closes a code block", () => {
+  // Trailing text, a shorter run or the other marker stay code.
+  const code = "````md\n```not-a-close\n\n```\n\n~~~\n\nstill code\n````";
+  assert.deepEqual(splitBlocks(`${code}\n\nAfter`), [`${code}\n`, "After"]);
+  const tagged = "```\n```not-a-close\n\nstill code\n```";
+  assert.deepEqual(splitBlocks(`${tagged}\n\nAfter`), [`${tagged}\n`, "After"]);
+});
+
+void test("an unfinished fence is closed with its own marker", () => {
+  assert.equal(
+    closeUnfinished("````md\n```ts\nx\n```"),
+    "````md\n```ts\nx\n```\n````",
+  );
+  assert.equal(closeUnfinished("~~~\na"), "~~~\na\n~~~");
+});

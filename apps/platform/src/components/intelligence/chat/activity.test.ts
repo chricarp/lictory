@@ -289,3 +289,20 @@ void test("an approval finds what an earlier step read about its target", () => 
   });
   assert.equal(findKnown(outputs, "missing"), undefined);
 });
+
+void test("an approval keeps a long title whole, not only the clipped subject", () => {
+  const title =
+    "Retry card payments with the original idempotency key after a timeout";
+  const step = describeStep(
+    "createWorkItem",
+    { organizationId: "org", projectId: "p1", title },
+    undefined,
+    undefined,
+    lookup,
+  );
+  assert.ok(subjectText(step.subject!).endsWith("…"));
+  assert.deepEqual(
+    step.detail.find(([label]) => label === "Title"),
+    ["Title", title],
+  );
+});

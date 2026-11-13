@@ -208,6 +208,10 @@ export const Composer = forwardRef<
       });
     },
   }));
+  // While Litto waits for an answer above, the field gives its room to a
+  // compact bar: where the request is, and how to end the turn instead. The
+  // draft is kept and measured again when the field comes back.
+  const waiting = !!(disabled && onCancelWaiting && !dictating);
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;
@@ -217,7 +221,7 @@ export const Composer = forwardRef<
       el.setSelectionRange(...caret.current);
       caret.current = null;
     }
-  }, [value]);
+  }, [value, waiting]);
   // Re-measure when the width changes (an opening panel, a resized window):
   // the same text wraps differently.
   useEffect(() => {
@@ -232,7 +236,7 @@ export const Composer = forwardRef<
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [waiting]);
 
   const canSend = value.trim().length > 0 && !disabled && !busy && !dictating;
   const send = () => {
@@ -241,9 +245,7 @@ export const Composer = forwardRef<
     setValue("");
   };
 
-  // While Litto waits for an answer above, the field gives its room to a
-  // compact bar: where the request is, and how to end the turn instead.
-  if (disabled && onCancelWaiting && !dictating)
+  if (waiting)
     return (
       <div
         role="status"
