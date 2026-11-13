@@ -35,6 +35,15 @@ void test("other organizations, hosts and routes are left alone", () => {
     undefined,
   );
   assert.equal(parseAppLink("//evil.test/acme/items/PAY-1", "acme"), undefined);
+  // A backslash reads as a slash: this is another host too.
+  assert.equal(
+    parseAppLink("/\\evil.test/acme/items/PAY-142", "acme", origin),
+    undefined,
+  );
+  assert.equal(
+    parseAppLink("/\\evil.test/acme/items/PAY-1", "acme"),
+    undefined,
+  );
   assert.equal(parseAppLink("/acme/pay/board", "acme"), undefined);
   assert.equal(parseAppLink("/acme/items/not-a-key", "acme"), undefined);
   // The project segment must be the key's project.
@@ -75,7 +84,21 @@ void test("a chip replaces link text only when the text names the target", () =>
     labelNamesTarget("track a story through an iteration", item),
     true,
   );
+  assert.equal(
+    labelNamesTarget("LICT-6: Track a story through an iteration", item),
+    true,
+  );
+  assert.equal(
+    labelNamesTarget("Track a story through an iteration (LICT-6)", item),
+    true,
+  );
   assert.equal(labelNamesTarget("LICT-60", item), false);
+  // More words than the target's name stay words.
+  assert.equal(labelNamesTarget("LICT-6 retry section", item), false);
+  assert.equal(
+    labelNamesTarget("Track a story through an iteration notes", item),
+    false,
+  );
   assert.equal(labelNamesTarget("blocking discussion", item), false);
   assert.equal(labelNamesTarget("Failure behavior", item), false);
   assert.equal(
@@ -86,6 +109,8 @@ void test("a chip replaces link text only when the text names the target", () =>
   const page = { title: "Test" };
   assert.equal(labelNamesTarget("Test", page), true);
   assert.equal(labelNamesTarget("Test (version 3)", page), true);
+  assert.equal(labelNamesTarget("Test, v3", page), true);
   assert.equal(labelNamesTarget("Testing notes", page), false);
+  assert.equal(labelNamesTarget("Test failure handling", page), false);
   assert.equal(labelNamesTarget("the test plan", page), false);
 });

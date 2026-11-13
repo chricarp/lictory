@@ -99,10 +99,11 @@ page") and no card.
 Litto's answers link work and pages by their addresses in the organization
 (`/acme/items/PAY-142`, `/acme/spaces/SPACE/pages/ID?commit=COMMIT`), which
 stay useful when an answer is copied elsewhere. The answer reader shows such a
-link as the same chip when its words name the target (the key, the title, the
-address itself) and the address is the target itself; words that say
-something else ("blocking discussion", "Failure behavior") stay words and
-carry the target's card. Targets the reader cannot read, other organizations'
+link as the same chip when its words name the target and nothing more (the
+key, the title, both, a cited page's version, the address itself) and the
+address is the target itself; words that say something else or more
+("blocking discussion", "Test failure handling") stay words and carry the
+target's card. Targets the reader cannot read, other organizations'
 addresses and every other link stay ordinary links
 (`packages/core/src/lib/app-links.ts`).
 

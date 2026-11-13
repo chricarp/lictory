@@ -31,9 +31,9 @@ export function parseAppLink(
   } catch {
     return undefined;
   }
-  // Relative addresses resolve on `base`; an absolute one must be ours.
-  const relative = href.startsWith("/") && !href.startsWith("//");
-  if (!relative && url.origin !== new URL(base).origin) return undefined;
+  // Whatever the address looks like ("//host", "/\\host"), it must resolve
+  // to our own origin.
+  if (url.origin !== new URL(base).origin) return undefined;
   const parts = url.pathname.replace(/\/+$/, "").split("/").slice(1);
   let decoded: string[];
   try {
@@ -90,12 +90,27 @@ export function parseAppLink(
 const normalize = (text: string) =>
   text.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Separators and quotes around what a label says ("PAY-1: Title", “Title”).
+const edges = /^[\s,:;·–—"'“”‘’-]+|[\s,:;·–—"'“”‘’-]+$/g;
+// The version annotation of a cited page: "(version 3)", ", v3".
+const versionNote = /^\(?(?:version|v)\s*\d+\)?$/;
+
+// Whether `text` is the title, alone or with a version annotation.
+function namesTitle(text: string, title: string) {
+  if (!title) return false;
+  if (text === title) return true;
+  if (!text.startsWith(title)) return false;
+  const note = text.slice(title.length).replace(edges, "");
+  return versionNote.test(note);
+}
 
 /**
- * Whether a link's text names its target, so a chip can stand in for it:
- * it is the address itself, contains the item's key, or begins with the
- * target's title ("Checkout (version 3)"). Text that says something else
- * ("blocking discussion", "Failure behavior") keeps its words.
+ * Whether a link's text names its target, so a chip can stand in for it
+ * without losing words: the address itself, the item's key, the title
+ * (with the version annotation of a cited page), or the key with the title
+ * ("PAY-142, Retry payments", "Retry payments (PAY-142)"). Text that says
+ * anything more ("blocking discussion", "Test failure handling") keeps its
+ * words.
  */
 export function labelNamesTarget(
   label: string,
@@ -105,17 +120,18 @@ export function labelNamesTarget(
   const text = normalize(label);
   if (!text) return true;
   if (href && text === normalize(href)) return true;
-  if (
-    target.key &&
-    new RegExp(
-      `(^|[^a-z0-9-])${escape(normalize(target.key))}(?![a-z0-9-])`,
-    ).test(text)
-  )
-    return true;
   const title = normalize(target.title);
-  if (!title) return false;
-  return (
-    text === title ||
-    (text.startsWith(title) && !/[\p{L}\p{N}]/u.test(text[title.length]!))
+  if (namesTitle(text, title)) return true;
+  if (!target.key) return false;
+  const key = new RegExp(
+    `(^|[^a-z0-9-])${escape(normalize(target.key))}(?![a-z0-9-])`,
   );
+  if (!key.test(text)) return false;
+  const rest = text
+    .replace(key, "$1")
+    .replace(/\(\s*\)|\[\s*\]/g, "")
+    .replace(edges, "")
+    .replace(/^\((.*)\)$/, "$1")
+    .replace(edges, "");
+  return rest === "" || namesTitle(rest, title);
 }
