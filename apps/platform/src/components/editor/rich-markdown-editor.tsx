@@ -200,6 +200,7 @@ const RichMarkdownEditor = forwardRef<
     disabled = false,
     autoFocus = false,
     compact = false,
+    toolbar: showToolbar = true,
     minHeight,
     maxHeight,
     className,
@@ -525,7 +526,9 @@ const RichMarkdownEditor = forwardRef<
           <Loader className="size-3.5 animate-spin" aria-hidden /> Uploading…
         </p>
       )}
-      {compact && <div className="border-t px-0.5">{toolbar}</div>}
+      {compact && showToolbar && (
+        <div className="border-t px-0.5">{toolbar}</div>
+      )}
       {hasFiles && (
         <input
           ref={fileInput}
