@@ -91,10 +91,12 @@
   --shadow-xl:
     0 2px 4px 0 rgb(17 18 20 / 0.05), 0 24px 48px -18px rgb(17 18 20 / 0.2);
   --shadow-2xl: 0 32px 64px -24px rgb(17 18 20 / 0.28);
+  /* Keep the border inside the surface: navigation and tree rows can sit
+     flush against a scroll container that clips anything painted outside. */
   --shadow-border:
-    0 0 0 1px rgb(17 18 20 / 0.07), 0 1px 2px -1px rgb(17 18 20 / 0.06);
+    inset 0 0 0 1px rgb(17 18 20 / 0.07), 0 1px 2px -1px rgb(17 18 20 / 0.06);
   --shadow-border-hover:
-    0 0 0 1px rgb(17 18 20 / 0.12), 0 2px 4px -1px rgb(17 18 20 / 0.08);
+    inset 0 0 0 1px rgb(17 18 20 / 0.12), 0 2px 4px -1px rgb(17 18 20 / 0.08);
   --shadow-panel:
     0 0 0 1px rgb(17 18 20 / 0.06), 0 1px 2px rgb(17 18 20 / 0.04),
     0 20px 48px -24px rgb(17 18 20 / 0.18);
@@ -166,8 +168,8 @@
   --shadow-xl:
     0 2px 4px 0 rgb(0 0 0 / 0.3), 0 24px 48px -18px rgb(0 0 0 / 0.65);
   --shadow-2xl: 0 32px 64px -24px rgb(0 0 0 / 0.75);
-  --shadow-border: 0 0 0 1px rgb(255 255 255 / 0.07);
-  --shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-border: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-border-hover: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --shadow-panel:
     0 0 0 1px rgb(255 255 255 / 0.07), 0 20px 48px -24px rgb(0 0 0 / 0.7);
 }
