@@ -1002,19 +1002,21 @@ export function ThreadComposer({
       }}
     >
       {draft?.quote && (
-        <div className="flex items-start gap-2 px-3 pt-2.5">
+        <div className="flex items-start gap-1 pt-2.5 pr-1.5 pl-3">
           <div className="min-w-0 flex-1">
             <QuoteBlock quote={draft.quote} />
           </div>
           <button
             type="button"
-            className="shrink-0 rounded px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-label="Remove quote"
+            title="Remove quote"
+            className={iconAction}
             onClick={() => {
               onDraftChange(null);
               setAnchorDraft("");
             }}
           >
-            Remove quote
+            <X className="size-3.5" aria-hidden />
           </button>
         </div>
       )}
