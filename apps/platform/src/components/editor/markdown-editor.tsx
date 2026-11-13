@@ -44,6 +44,9 @@ export type MarkdownEditorProps = {
   autoFocus?: boolean;
   // Comment composers: smaller text, the toolbar below the text.
   compact?: boolean;
+  // Compact composers at rest (a one-line "Reply…" or "Start a
+  // discussion" field) hide their toolbar until someone writes.
+  toolbar?: boolean;
   // CSS lengths for the writing area; it grows up to `maxHeight`.
   minHeight?: string;
   maxHeight?: string;
@@ -152,6 +155,7 @@ const PlainMarkdownField = forwardRef<
     disabled,
     autoFocus,
     compact,
+    toolbar = true,
     minHeight,
     maxHeight,
     containerClassName,
@@ -187,6 +191,8 @@ const PlainMarkdownField = forwardRef<
         onPointerEnter={onActivate}
         disabled={disabled}
         autoFocus={autoFocus}
+        // Height comes from minHeight (one line for a composer at rest).
+        rows={1}
         placeholder={placeholder}
         aria-label={props["aria-label"]}
         aria-labelledby={props["aria-labelledby"]}
@@ -203,7 +209,7 @@ const PlainMarkdownField = forwardRef<
             : "px-4 py-3 text-[15px] leading-7",
         )}
       />
-      {compact && <div aria-hidden className="h-9 border-t" />}
+      {compact && toolbar && <div aria-hidden className="h-9 border-t" />}
     </div>
   );
 });

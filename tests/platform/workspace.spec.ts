@@ -965,7 +965,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // 15-16. Resolve the blocking discussion, keeping its conclusion as a
   // decision, approve again → readiness passes → Ready.
-  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  await page
+    .getByRole("article", { name: /discussion by/i })
+    .getByRole("button", { name: "Discussion actions" })
+    .first()
+    .click();
+  await page.getByRole("menuitem", { name: "Resolve as decision" }).click();
   await expect(
     page.getByRole("textbox", { name: "Decision title" }),
   ).toBeFocused();
@@ -980,7 +985,12 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByText("No open discussions.", { exact: false }),
   ).toBeHidden();
-  await page.getByRole("button", { name: "Resolve as decision" }).click();
+  await page
+    .getByRole("article", { name: /discussion by/i })
+    .getByRole("button", { name: "Discussion actions" })
+    .first()
+    .click();
+  await page.getByRole("menuitem", { name: "Resolve as decision" }).click();
   // The agreed conclusion is recorded and the discussion resolved together,
   // without changing the revision. The second participant sees it through
   // synchronization; history survives archive, restore and reload, and search

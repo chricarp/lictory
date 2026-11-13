@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { occurrenceIn } from "@lictory/core/editor/markdown-text";
@@ -241,6 +248,24 @@ function Reader({
     (id): id is string => Boolean(id),
   );
   const setHovered = discussions?.setHovered;
+  // The selection actions stay inside the text's column (a discussions
+  // column or the window edge would cut them off), also while it resizes.
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const selectionX = selection?.x;
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    const column = toolbar?.parentElement;
+    if (!toolbar || !column || selectionX === undefined) return;
+    const place = () => {
+      const half = toolbar.offsetWidth / 2;
+      const max = column.clientWidth - half;
+      toolbar.style.left = `${Math.max(half, Math.min(selectionX, max))}px`;
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, [selectionX]);
   return (
     <div className="relative">
       {isEmpty ? (
@@ -292,6 +317,7 @@ function Reader({
           <Markdown source={content} marks={marks} />
           {selection && (canComment || canAsk || onSuggest) && (
             <div
+              ref={toolbarRef}
               role="toolbar"
               aria-label="Selection actions"
               style={{ left: selection.x, top: selection.y - 40 }}
