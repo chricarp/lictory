@@ -9,7 +9,7 @@ import {
   type Seeded,
 } from "../helpers/seed";
 import { clientAddress } from "../helpers/client-address";
-import { discussionsToggle } from "../helpers/discussions";
+import { discussionsToggle, openDiscussions } from "../helpers/discussions";
 
 // Reviewing a specification borrows the page's reading tools: discussions
 // beside the text in document order with their passages marked, threads
@@ -349,6 +349,84 @@ test("changes between revisions mark only the words that changed, and any two re
     .getByRole("button", { name: "Versions" })
     .click();
   await expect(versions).toBeVisible();
+});
+
+test("a discussion draft outlives the panel and a reload, never picks up an abandoned passage, and leaves with its author on sign-out", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { path } = await open(page);
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  const panel = panelOf(page);
+  const composer = panel.locator("form").first();
+  const text = "Do partial captures retry too?";
+  await fillMarkdown(page, "Start a discussion", text);
+  // Closing the panel keeps the draft.
+  await discussionsToggle(page).click();
+  await openDiscussions(page);
+  await expect(composer).toContainText(text);
+  // So does a reload.
+  await page.reload();
+  await openDiscussions(page);
+  await expect(composer).toContainText(text);
+  await composer.getByRole("button", { name: "Discard", exact: true }).click();
+
+  // A passage selected without writing anything is forgotten: after a
+  // reload, a new comment on the whole text does not pick it up.
+  await selectInSpecification(page, "original transaction ID");
+  await page.getByRole("button", { name: /Comment on\s+selection/ }).click();
+  await expect(composer).toContainText("original transaction ID");
+  await page.reload();
+  await openDiscussions(page);
+  await fillMarkdown(page, "Start a discussion", "On the whole text");
+  await expect(composer).not.toContainText("original transaction ID");
+  await composer.getByRole("button", { name: "Discard", exact: true }).click();
+
+  // A draft stays with its author: signing out forgets it, and the next
+  // person in this tab does not see it.
+  await fillMarkdown(page, "Start a discussion", text);
+  const drafts = () =>
+    page.evaluate(() =>
+      Object.keys(sessionStorage).filter((key) =>
+        key.startsWith("lictory:discussion-draft:"),
+      ),
+    );
+  await expect.poll(drafts).toHaveLength(1);
+  expect((await drafts())[0]).toContain(seeded.owner.id);
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  expect(await drafts()).toEqual([]);
+  await signIn(page, seeded.users[1]!.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  await expect(composer).not.toContainText(text);
+});
+
+test("a wide discussions column chosen earlier gives way so the text keeps its readable width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { path } = await open(page);
+  await signIn(page, seeded.owner.email);
+  // Someone once dragged the column very wide (on a larger screen).
+  await page.evaluate(() =>
+    localStorage.setItem("lictory:pane-width:discussions", "640"),
+  );
+  await page.goto(path);
+  await openDiscussions(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const width = (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().width);
+  await expect
+    .poll(() => width("[data-pane-document]"))
+    .toBeGreaterThanOrEqual(420);
+  expect(await width("aside[data-discussions]")).toBeGreaterThanOrEqual(304);
 });
 
 test("on a phone the discussions open as a sheet that closes with Escape", async ({

@@ -8,6 +8,7 @@ import {
 import { createPortal } from "react-dom";
 import { cn } from "@lictory/core/lib/utils";
 import { keepTabInside } from "@lictory/platform/components/spaces/dialog";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 
 // Presentation shared by the discussions beside pages and beside
 // specifications: the quoted passage, the sheet that holds the panel on
@@ -120,7 +121,9 @@ export function announce(message: string) {
 
 // A comment being written, kept until it is sent or discarded: it outlives
 // the field (closing a panel or sheet unmounts it) and, in this tab, a
-// reload. Keys name the item and what the text answers.
+// reload. Keys name the person writing (so signing out, which forgets
+// session entries naming the account, forgets their drafts and nobody else
+// in the tab sees them), the item and what the text answers.
 const drafts = new Map<string, string>();
 const draftStorage = "lictory:discussion-draft:";
 function readDraft(key: string) {
@@ -142,7 +145,9 @@ function writeDraft(key: string, value: string) {
     // Private windows: the draft lasts while the page is open.
   }
 }
-export function useStoredDraft(key: string) {
+export function useStoredDraft(draft: string) {
+  const { userId } = useWorkspace();
+  const key = `${userId}:${draft}`;
   const [value, setValue] = useState(() => readDraft(key));
   const [shownKey, setShownKey] = useState(key);
   // Another item (or thread) in the same field: show its draft.

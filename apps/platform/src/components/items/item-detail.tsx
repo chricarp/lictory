@@ -5,8 +5,16 @@ import {
   useRouter,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal, flushSync } from "react-dom";
+import { usePaneWidth } from "@lictory/platform/lib/pane-width";
 import {
   Archive,
   ArchiveRestore,
@@ -346,6 +354,21 @@ export function ItemDetail({
           COMFORTABLE,
       ),
     );
+  // A width someone dragged the column to, never more than the room the
+  // text leaves at its readable minimum (a smaller window, the rail or the
+  // list beside it): the text keeps READABLE whatever was chosen earlier.
+  const [chosenDiscussionsWidth] = usePaneWidth("discussions");
+  const discussionsRoom =
+    room(listAside ? 0 : listWidth, railHidden ? 0 : railWidth) +
+    DISCUSSIONS_WIDTH -
+    READABLE;
+  const shownDiscussionsWidth =
+    chosenDiscussionsWidth === null
+      ? discussionsWidth
+      : Math.max(
+          DISCUSSIONS_WIDTH,
+          Math.min(chosenDiscussionsWidth, discussionsRoom),
+        );
   const setListAside = list?.setAside;
   useEffect(() => {
     setListAside?.(listAside);
@@ -1191,9 +1214,13 @@ export function ItemDetail({
                   id="item-discussions"
                   data-discussions
                   aria-label="Discussions"
+                  // While dragging, the resizer writes --pane-w itself; this
+                  // value is where the drag starts and what it settles to.
                   style={
                     discussionsPane.pane.sized
-                      ? discussionsPane.pane.style
+                      ? ({
+                          "--pane-w": `${shownDiscussionsWidth}px`,
+                        } as CSSProperties)
                       : { width: discussionsWidth }
                   }
                   className={cn(

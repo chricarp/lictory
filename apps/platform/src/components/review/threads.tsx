@@ -116,6 +116,7 @@ export function ResolvedToggle({
     <button
       type="button"
       aria-expanded={shown}
+      data-resolved-toggle
       onClick={onToggle}
       className={cn(
         "inline-flex h-7 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-11",
@@ -254,18 +255,27 @@ export function Thread({
     const at = card ? cards.indexOf(card) : -1;
     const hadFocus = Boolean(card?.contains(document.activeElement));
     const next = cards.slice(at + 1).find((c) => c !== card) ?? cards[at - 1];
+    // The last open discussion: "Show resolved" (in the panel's list or in
+    // a task's section header), which appears once the resolution renders.
+    const section = card?.closest("section");
     void setState(
       { resolved: true },
       "Discussion resolved. Show resolved discussions to reopen it.",
     );
-    if (hadFocus)
-      requestAnimationFrame(() => {
-        const target =
-          next?.isConnected && next !== card
-            ? next
-            : list?.querySelector<HTMLElement>("button[aria-expanded]");
-        target?.focus();
-      });
+    if (!hadFocus) return;
+    if (next?.isConnected && next !== card) {
+      requestAnimationFrame(() => next.focus());
+      return;
+    }
+    let tries = 0;
+    const focusToggle = () => {
+      const toggle = section?.querySelector<HTMLElement>(
+        "[data-resolved-toggle]",
+      );
+      if (toggle) toggle.focus();
+      else if (tries++ < 10) window.setTimeout(focusToggle, 50);
+    };
+    requestAnimationFrame(focusToggle);
   };
   const linked = where === "here" && isOpen && onHover;
   // Plain work has no revisions worth naming; a specification's
@@ -863,10 +873,19 @@ export function ThreadComposer({
   useEffect(() => {
     if (anchor) setAnchorDraft(anchor);
   }, [anchor, setAnchorDraft]);
+  // Decided once, from what was stored when the composer opened: a stored
+  // passage comes back only with the text written about it. A passage
+  // selected and left without text is forgotten, so it never attaches
+  // itself to a later, unrelated comment.
   const restoredAnchor = useRef(false);
   useEffect(() => {
-    if (restoredAnchor.current || draft || !anchorDraft || !body.trim()) return;
+    if (restoredAnchor.current) return;
     restoredAnchor.current = true;
+    if (draft || !anchorDraft) return;
+    if (!body.trim()) {
+      setAnchorDraft("");
+      return;
+    }
     try {
       onDraftChange(JSON.parse(anchorDraft) as Draft);
     } catch {
