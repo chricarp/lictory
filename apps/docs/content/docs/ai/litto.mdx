@@ -123,23 +123,49 @@ disciplines and access in each project. For example, it can:
 Some actions need your approval in the conversation before they run: those
 that record a human decision (approve, merge, resolve, publish to a delivery
 tool) and those that cannot easily be undone. Litto shows a card with the
-action, what it applies to and its details:
+action, what it applies to and everything it would send, in full:
 
 > _This is a decision or cannot be undone easily. It runs as you, only if you
 > approve._
 
-Choose **Approve** to run it as you, or **Decline**. Litto does not approve,
+Choose the action's button (for example **Record decision**) to run it as
+you, or **Decline**. If a step fails, the answer leads with it under **Steps that did not
+complete**; **Ask Litto what to do instead** adds a follow-up with the error to
+your draft. Litto's reply text is not corrected after a failure, so trust the
+steps over the reply. When a step that changes something fails, the reply is
+also marked _Written by Litto after a step failed_. Litto does not approve,
 merge, resolve discussions or publish unless you asked it to, and even then
 it waits for you.
 
 ### Questions and recommendations
 
-- When something is ambiguous, Litto asks instead of guessing, with choices
-  where it can. Answer and choose **Submit answers**, or dismiss the
-  questions and answer in the chat.
+- When something is ambiguous, Litto asks instead of guessing, one question
+  at a time, with choices where it can. Press a choice's letter to pick it
+  and `Enter` to continue; optional questions can be skipped. Answer and
+  choose **Submit answers**, or dismiss the questions and answer in the chat.
+  While a question, recommendation or approval waits, the composer becomes a
+  bar with **View request** (back to it) and **Cancel this turn**.
 - When it notices a change you did not ask for (split a story, add a missing
   criterion), it shows a **Recommendation** with its evidence and waits.
   Choose **Accept** or **Not now**.
+
+### Follow and steer an answer
+
+- **Its work stays visible.** While Litto works, each step appears as a line
+  (for example **Searching product knowledge**, then **Searched product knowledge**), and **Thinking** shows
+  while it decides what to do next. Open a line to see what the step found,
+  and its raw request and response. An answer you watched keeps its steps
+  open, so nothing moves while you read; in a saved conversation they are one
+  line, such as **Worked for 14s · 6 steps · 2 changes**. What it changed, and
+  any step that did not complete, is listed under the answer.
+- **Your place is kept.** Your question settles near the top and the answer
+  grows below it. Scroll up and the conversation stops moving; **Jump to
+  latest** brings you back and follows the answer again. A saved
+  conversation reopens at your last question.
+- **Act on a message.** **Copy** an answer or your own message, **Retry**
+  the latest answer, or **Edit in the composer** to send a question again
+  with changes. **Stop generating** (or `Esc` in the composer) ends an answer early.
+  Code in an answer has its own **Copy code**.
 
 ### What stays with you
 

@@ -125,7 +125,9 @@ findings and corrective pull requests open in the item.
 A conversation is private to its owner in one organization. Its execution is
 stored in PostgreSQL, outside Zero's publication. API instances accept messages,
 answers, approvals, retries and cancellations; workers execute the saved turns.
-The browser reads saved snapshots every few seconds and when it reconnects.
+The browser reads saved snapshots every second while a turn produces output,
+every two seconds otherwise, and when it reconnects; it reveals new text at a
+steady reading pace between reads.
 Neither a browser connection nor an API process owns an answer. Snapshots carry
 a monotonically increasing chat version; delayed reads cannot overwrite newer
 accepted input or progress.

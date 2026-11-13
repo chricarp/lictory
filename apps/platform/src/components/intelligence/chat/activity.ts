@@ -63,6 +63,9 @@ export type Step = {
   done: string;
   subject: Subject | null;
   fields: [string, string][];
+  // The same fields in full, for approvals: what a person authorizes is
+  // never shortened.
+  detail: [string, string][];
   outcome: Outcome;
 };
 
@@ -130,6 +133,23 @@ const phrases: Record<
   getInsights: ["Gathering insights", "Gathered insights", "read"],
   draftProposals: ["Drafting proposals", "Drafted proposals", "read"],
 };
+
+// What a person approves, in their words, where the tool name says it badly.
+const actions: Record<string, string> = {
+  updateSpecification: "Revise specification",
+  revertSpecification: "Restore revision",
+  createThread: "Start discussion",
+  replyToThread: "Reply to discussion",
+  setThreadState: "Update discussion",
+  requestAiReview: "Request Intelligence review",
+  publishDelivery: "Export to delivery tool",
+};
+
+function actionOf(name: string, input: Record<string, unknown> | undefined) {
+  if (name === "setThreadState" && typeof input?.resolved === "boolean")
+    return input.resolved ? "Resolve discussion" : "Reopen discussion";
+  return actions[name] ?? humanize(name);
+}
 
 // "createWorkItem" -> "Create work item".
 export function humanize(name: string) {
@@ -226,14 +246,15 @@ function resolve(
   return one(value);
 }
 
-function display(value: unknown): string {
+function display(value: unknown, full = false): string {
+  const fit = full ? (text: string) => text.trim() : clip;
   if (value === null) return "None";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "string") return clip(value);
+  if (typeof value === "string") return fit(value);
   if (typeof value === "number") return String(value);
   if (Array.isArray(value) && value.every((v) => typeof v !== "object"))
-    return value.length ? clip(value.join(", ")) : "None";
-  return clip(JSON.stringify(value));
+    return value.length ? fit(value.join(", ")) : "None";
+  return full ? JSON.stringify(value, null, 2) : clip(JSON.stringify(value));
 }
 
 // The parts of a tool input a person cares about, with ids replaced by names.
@@ -243,24 +264,28 @@ export function describeInput(
   input: unknown,
   lookup: Lookup,
   skip: string[] = [],
+  full = false,
 ): [string, string][] {
   const fields = record(input);
   if (!fields) return [];
+  // In full (an approval), clearing a value, turning something off and an
+  // id that names nothing readable are all part of what would run.
   return Object.entries(fields)
     .filter(
       ([k, v]) =>
         v !== undefined &&
-        v !== "" &&
-        v !== false &&
+        (full || (v !== "" && v !== false)) &&
         !hidden.has(k) &&
         !skip.includes(k),
     )
     .flatMap(([k, v]): [string, string][] => {
-      const value = resolve(k, v, lookup) ?? display(v);
-      if (uuid.test(value)) return [];
+      const value =
+        resolve(k, v, lookup) ??
+        (full && v === "" ? "(empty)" : display(v, full));
+      if (uuid.test(value) && !full) return [];
       return [[fieldLabels[k] ?? humanize(k.replace(/Ids?$/, "")), value]];
     })
-    .slice(0, 8);
+    .slice(0, full ? undefined : 8);
 }
 
 function asItem(value: unknown, lookup: Lookup): ItemRef | undefined {
@@ -430,13 +455,20 @@ export function describeStep(
   const outcome = outcomeOf(output, errorText, lookup);
   const fields = record(input);
   const { subject, used } = subjectOf(fields, outcome, output, lookup);
+  // An approval shows everything that would run: a field stays in it unless
+  // the subject already shows its value whole.
+  const shownWhole = used.filter((key) => {
+    const value = fields?.[key];
+    return typeof value !== "string" || clip(value, 60) === value;
+  });
   return {
     kind,
-    action: humanize(name),
+    action: actionOf(name, fields),
     running,
     done,
     subject,
     fields: describeInput(input, lookup, used),
+    detail: describeInput(input, lookup, shownWhole, true),
     outcome,
   };
 }
@@ -498,4 +530,62 @@ export function summarizeChanges(changes: Change[]) {
     .sort((a, b) => b[1] - a[1])
     .map(([verb, n]) => `${n} ${verb.toLowerCase()}`)
     .join(" · ");
+}
+
+// What an earlier step of the same answer read about an id: the recorded
+// tool results are searched for an object with that id, so an approval can
+// quote the discussion it acts on and show what it changes.
+export type KnownEntity = {
+  excerpt: string | null;
+  status: string | null;
+  blocking: boolean | null;
+};
+
+const excerptKeys = ["quote", "title", "body", "text", "excerpt", "name"];
+
+function excerptOf(value: Record<string, unknown>): string | null {
+  for (const key of excerptKeys) {
+    const v = value[key];
+    if (typeof v === "string" && v.trim()) return clip(v, 220);
+  }
+  const anchor = record(value.anchor);
+  if (typeof anchor?.quote === "string") return clip(anchor.quote, 220);
+  const first = Array.isArray(value.messages)
+    ? record(value.messages[0])
+    : undefined;
+  return first ? excerptOf(first) : null;
+}
+
+export function findKnown(
+  outputs: unknown[],
+  id: string,
+): KnownEntity | undefined {
+  let budget = 5_000;
+  const visit = (value: unknown): KnownEntity | undefined => {
+    if (--budget < 0 || !value || typeof value !== "object") return undefined;
+    if (Array.isArray(value)) {
+      for (const v of value) {
+        const hit = visit(v);
+        if (hit) return hit;
+      }
+      return undefined;
+    }
+    const r = value as Record<string, unknown>;
+    if (r.id === id)
+      return {
+        excerpt: excerptOf(r),
+        status: typeof r.status === "string" ? r.status : null,
+        blocking: typeof r.blocking === "boolean" ? r.blocking : null,
+      };
+    for (const v of Object.values(r)) {
+      const hit = visit(v);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+  for (const output of outputs) {
+    const hit = visit(output);
+    if (hit) return hit;
+  }
+  return undefined;
 }
