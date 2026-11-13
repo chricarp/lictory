@@ -288,7 +288,10 @@ export async function processNotificationEvents(
       .where(
         and(
           isNull(s.notificationEvent.failedAt),
-          lte(s.notificationEvent.nextAttemptAt, at),
+          // Due by the database's clock, which stamped the event: a
+          // millisecond Date would miss an event queued earlier in the same
+          // millisecond (now() has microseconds). Tests pass their own clock.
+          lte(s.notificationEvent.nextAttemptAt, options.now ? at : sql`now()`),
         ),
       )
       .orderBy(asc(s.notificationEvent.nextAttemptAt))
