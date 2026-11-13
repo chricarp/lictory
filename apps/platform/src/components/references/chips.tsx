@@ -383,6 +383,19 @@ type Version = {
   commitId: string;
 };
 
+function usePinnedVersion(page: PageReference, commitId: string): Version {
+  const history = usePageHistory(page.id);
+  return {
+    pinned: versionOf(history.commits, commitId),
+    latest: versionOf(
+      history.commits,
+      history.head?.id ?? page.publishedCommitId,
+    ),
+    newer: page.publishedCommitId !== commitId,
+    commitId,
+  };
+}
+
 function PinnedPageChip({
   page,
   commitId,
@@ -394,16 +407,7 @@ function PinnedPageChip({
   mode: ChipMode;
   selected?: boolean;
 }) {
-  const history = usePageHistory(page.id);
-  const version: Version = {
-    pinned: versionOf(history.commits, commitId),
-    latest: versionOf(
-      history.commits,
-      history.head?.id ?? page.publishedCommitId,
-    ),
-    newer: page.publishedCommitId !== commitId,
-    commitId,
-  };
+  const version = usePinnedVersion(page, commitId);
   return (
     <PageChipView
       page={page}
@@ -697,6 +701,75 @@ function DecisionCard({
         </div>
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------------ text links
+
+function PinnedPageCard({
+  page,
+  commitId,
+  href,
+}: {
+  page: PageReference;
+  commitId: string;
+  href: string;
+}) {
+  const version = usePinnedVersion(page, commitId);
+  return <PageCard page={page} mode="link" version={version} href={href} />;
+}
+
+/**
+ * Words that link to a work item or page without naming it ("blocking
+ * discussion", "Failure behavior"): the words and their address stay, and
+ * the target's card comes with them, as on a chip. A target I cannot read
+ * is an ordinary link.
+ */
+export function ReferenceTextLink({
+  target,
+  href,
+  className,
+  children,
+}: {
+  target: Exclude<ReferenceTarget, { kind: "decision" }>;
+  href: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const references = useReferences();
+  const item = target.kind === "item" ? references.item(target.id) : undefined;
+  const page = target.kind === "page" ? references.page(target.id) : undefined;
+  if (!item && !page)
+    return (
+      <Link href={href} className={className}>
+        {children}
+      </Link>
+    );
+  const commitId = target.kind === "page" ? target.commitId : undefined;
+  return (
+    <HoverCard
+      content={() =>
+        item ? (
+          <ItemCard item={item} mode="link" />
+        ) : commitId ? (
+          <PinnedPageCard page={page!} commitId={commitId} href={href} />
+        ) : (
+          <PageCard page={page!} mode="link" version={null} href={href} />
+        )
+      }
+    >
+      {({ ref, onClick: _click, ...handlers }) => (
+        <Link
+          ref={ref}
+          href={href}
+          className={className}
+          data-reference-link={target.kind}
+          {...handlers}
+        >
+          {children}
+        </Link>
+      )}
+    </HoverCard>
   );
 }
 

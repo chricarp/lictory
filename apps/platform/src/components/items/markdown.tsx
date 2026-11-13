@@ -16,6 +16,7 @@ import type { Link, Root, Text } from "mdast";
 import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { cn } from "@lictory/core/lib/utils";
 import { ReferenceChip } from "@lictory/platform/components/references/chips";
+import { AppLink } from "@lictory/platform/components/references/app-link";
 
 function textContent(value: ReactNode): string {
   return Children.toArray(value)
@@ -50,6 +51,48 @@ const diffChip = {
   removed:
     "rounded-md [&>[data-reference]]:!bg-destructive/14 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--destructive)_40%,transparent)] [&_span]:line-through [&_span]:decoration-destructive",
 };
+
+const linkClass =
+  "text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary";
+
+function MarkdownLink({
+  children,
+  href,
+}: {
+  children?: ReactNode;
+  href?: string;
+}) {
+  // Work items, pages and decisions as live chips (contracts/references).
+  const target = parseReferenceTarget(href);
+  if (target) {
+    const chip = (
+      <ReferenceChip target={target} label={textContent(children)} />
+    );
+    const diff = diffOf(children);
+    if (diff === "added")
+      return (
+        <ins className={diffChip.added} data-diff="added">
+          {chip}
+        </ins>
+      );
+    if (diff === "removed")
+      return (
+        <del className={diffChip.removed} data-diff="removed">
+          {chip}
+        </del>
+      );
+    return chip;
+  }
+  return href?.startsWith("mention:") ? (
+    <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
+      {children}
+    </span>
+  ) : (
+    <a href={href} rel="noreferrer noopener" className={linkClass}>
+      {children}
+    </a>
+  );
+}
 
 const components: Components = {
   h1: ({ children }) => (
@@ -101,42 +144,9 @@ const components: Components = {
     </h6>
   ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
-  a: ({ children, href }) => {
-    // Work items, pages and decisions as live chips (contracts/references).
-    const target = parseReferenceTarget(href);
-    if (target) {
-      const chip = (
-        <ReferenceChip target={target} label={textContent(children)} />
-      );
-      const diff = diffOf(children);
-      if (diff === "added")
-        return (
-          <ins className={diffChip.added} data-diff="added">
-            {chip}
-          </ins>
-        );
-      if (diff === "removed")
-        return (
-          <del className={diffChip.removed} data-diff="removed">
-            {chip}
-          </del>
-        );
-      return chip;
-    }
-    return href?.startsWith("mention:") ? (
-      <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
-        {children}
-      </span>
-    ) : (
-      <a
-        href={href}
-        rel="noreferrer noopener"
-        className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-      >
-        {children}
-      </a>
-    );
-  },
+  a: ({ children, href }) => (
+    <MarkdownLink href={href}>{children}</MarkdownLink>
+  ),
   ul: ({ children, className }) => (
     <ul
       className={cn(
@@ -267,9 +277,26 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   );
 }
 
-const chatComponents: Components = {
+const answerComponents: Components = {
   ...components,
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  // Answers link work and pages by address (/acme/items/PAY-142); those
+  // read as the same live references as in documents.
+  a: ({ href, children }) => {
+    const fallback = <MarkdownLink href={href}>{children}</MarkdownLink>;
+    if (!href?.startsWith("/") && !/^https?:/i.test(href ?? ""))
+      return fallback;
+    return (
+      <AppLink
+        href={href!}
+        label={textContent(children)}
+        className={linkClass}
+        fallback={fallback}
+      >
+        {children}
+      </AppLink>
+    );
+  },
 };
 
 // Mentions (`@[Name](mention:ID)`) and references (`item:`, `page:`,
@@ -330,13 +357,14 @@ export const Markdown = memo(function Markdown({
   source,
   className,
   marks,
-  codeBlocks,
+  answer,
 }: {
   source: string;
   className?: string;
   marks?: Plugins;
-  // Code blocks with a language label and a copy button (answers).
-  codeBlocks?: boolean;
+  // Litto's answers: code blocks with a language label and a copy button,
+  // and links to this organization's work items and pages as references.
+  answer?: boolean;
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
@@ -346,7 +374,7 @@ export const Markdown = memo(function Markdown({
             ? [remarkGfm, ...marks, remarkLegacyPageLinks]
             : remarkPlugins
         }
-        components={codeBlocks ? chatComponents : components}
+        components={answer ? answerComponents : components}
         urlTransform={urlTransform}
       >
         {source}

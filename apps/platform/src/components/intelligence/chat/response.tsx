@@ -85,7 +85,7 @@ const Block = memo(function Block({
   return (
     <Markdown
       source={source}
-      codeBlocks
+      answer
       className={cn(
         // Reading rhythm for answers: comfortable, not airy; lists keep their
         // items close and bold leads read as labels.
