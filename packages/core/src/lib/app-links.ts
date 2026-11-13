@@ -95,11 +95,12 @@ const edges = /^[\s,:;·–—"'“”‘’-]+|[\s,:;·–—"'“”‘’-]+$
 // The version annotation of a cited page: "(version 3)", ", v3".
 const versionNote = /^\(?(?:version|v)\s*\d+\)?$/;
 
-// Whether `text` is the title, alone or with a version annotation.
-function namesTitle(text: string, title: string) {
+// Whether `text` is the title, alone or (a page's) with a version
+// annotation.
+function namesTitle(text: string, title: string, versioned: boolean) {
   if (!title) return false;
   if (text === title) return true;
-  if (!text.startsWith(title)) return false;
+  if (!versioned || !text.startsWith(title)) return false;
   const note = text.slice(title.length).replace(edges, "");
   return versionNote.test(note);
 }
@@ -121,7 +122,8 @@ export function labelNamesTarget(
   if (!text) return true;
   if (href && text === normalize(href)) return true;
   const title = normalize(target.title);
-  if (namesTitle(text, title)) return true;
+  // Only pages have versions; items are the targets with a key.
+  if (namesTitle(text, title, !target.key)) return true;
   if (!target.key) return false;
   const key = new RegExp(
     `(^|[^a-z0-9-])${escape(normalize(target.key))}(?![a-z0-9-])`,
@@ -133,5 +135,5 @@ export function labelNamesTarget(
     .replace(edges, "")
     .replace(/^\((.*)\)$/, "$1")
     .replace(edges, "");
-  return rest === "" || namesTitle(rest, title);
+  return rest === "" || namesTitle(rest, title, false);
 }

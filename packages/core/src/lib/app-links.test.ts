@@ -93,6 +93,11 @@ void test("a chip replaces link text only when the text names the target", () =>
     true,
   );
   assert.equal(labelNamesTarget("LICT-60", item), false);
+  // Versions belong to pages: on an item they are more words.
+  assert.equal(
+    labelNamesTarget("Release v2", { key: "REL-1", title: "Release" }),
+    false,
+  );
   // More words than the target's name stay words.
   assert.equal(labelNamesTarget("LICT-6 retry section", item), false);
   assert.equal(
