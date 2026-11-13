@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUp, Loader2, Mic, Square, ShieldCheck } from "lucide-react";
 import {
   forwardRef,
+  type ReactNode,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -12,6 +13,12 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { useOptionalWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Kbd } from "@lictory/ui/primitives";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@lictory/ui/ai/input-group";
 import {
   applyEdit,
   begin,
@@ -36,9 +43,11 @@ const isMac = () =>
 export type ComposerHandle = {
   focus: () => void;
   fill: (text: string) => void;
+  // Adds text after the current draft instead of replacing it.
+  append: (text: string) => void;
 };
 
-// Prompt box: grows with its content, Enter sends, Shift+Enter breaks the
+// Prompt Input (AI Elements): grows with its content, Enter sends, Shift+Enter breaks the
 // line, and the send button turns into Stop while an answer streams. With an
 // `organizationId`, the mic button dictates: words stream in live at the caret
 // where dictation started, and the person can keep editing while they talk.
@@ -53,6 +62,10 @@ export const Composer = forwardRef<
     context?: string;
     autoFocus?: boolean;
     organizationId?: string;
+    // What the next message carries (Prompt Input's attachments row).
+    attachments?: ReactNode;
+    // Litto waits for an answer above: the field pauses and offers to cancel.
+    onCancelWaiting?: () => void;
   }
 >(function Composer(
   {
@@ -64,6 +77,8 @@ export const Composer = forwardRef<
     context,
     autoFocus,
     organizationId,
+    attachments,
+    onCancelWaiting,
   },
   ref,
 ) {
@@ -166,8 +181,22 @@ export const Composer = forwardRef<
     if (disabled && dictating) stopDictation();
   }, [disabled, dictating, stopDictation]);
 
+  const put = (text: string) => {
+    if (dictating) voice.cancel();
+    setValue(text);
+    requestAnimationFrame(() => {
+      const el = area.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(text.length, text.length);
+    });
+  };
   useImperativeHandle(ref, () => ({
     focus: () => area.current?.focus(),
+    append: (text) => {
+      const draft = current.current.trimEnd();
+      put(draft ? `${draft}\n\n${text}` : text);
+    },
     fill: (text) => {
       if (dictating) voice.cancel();
       setValue(text);
@@ -212,177 +241,228 @@ export const Composer = forwardRef<
     setValue("");
   };
 
+  // While Litto waits for an answer above, the field gives its room to a
+  // compact bar: where the request is, and how to end the turn instead.
+  if (disabled && onCancelWaiting && !dictating)
+    return (
+      <div
+        role="status"
+        className="flex min-h-12 items-center gap-2 rounded-[1.25rem] bg-card py-1.5 pr-1.5 pl-4 text-[13px] shadow-(--shadow-border)"
+      >
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full bg-warning motion-safe:animate-pulse"
+        />
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          <span className="max-sm:hidden">
+            Litto is waiting for your answer
+          </span>
+          <span className="sm:hidden">Waiting for you</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            const request = document.querySelector<HTMLElement>(
+              "[data-litto-waiting]",
+            );
+            request?.scrollIntoView({ block: "center", behavior: "smooth" });
+            request?.focus({ preventScroll: true });
+          }}
+          className="h-8 shrink-0 rounded-full px-3 font-medium transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none touch:h-11"
+        >
+          View request
+        </button>
+        <button
+          type="button"
+          onClick={onCancelWaiting}
+          className="h-8 shrink-0 rounded-full px-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none touch:h-11"
+        >
+          Cancel this turn
+        </button>
+      </div>
+    );
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         send();
       }}
-      className={cn(
-        // A hairline card at rest; focus adds one quiet ring, never a
-        // heavy frame.
-        "group/composer relative rounded-[1.25rem] bg-card shadow-(--shadow-border) transition-shadow duration-200",
-        "focus-within:shadow-[0_0_0_1px_color-mix(in_srgb,var(--foreground)_22%,transparent),0_0_0_4px_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
-        disabled && "opacity-70",
-      )}
     >
-      <textarea
-        ref={area}
-        value={value}
-        rows={1}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (dictation.current)
-            dictation.current = applyEdit(
-              dictation.current,
-              diff(current.current, next),
-            );
-          if (voice.error) voice.clearError();
-          setValue(next);
-        }}
-        onKeyDown={(e) => {
-          if (
-            e.code === "Space" &&
-            e.shiftKey &&
-            (e.metaKey || e.ctrlKey) &&
-            canDictate
-          ) {
-            e.preventDefault();
-            toggleDictation();
-            return;
-          }
-          if (e.key === "Escape" && dictating) {
-            e.preventDefault();
-            voice.cancel();
-            return;
-          }
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            send();
-          }
-        }}
-        placeholder={placeholder ?? "Ask Litto or describe what to do…"}
-        aria-label="Message Litto"
-        className="block max-h-60 min-h-[52px] w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed touch:text-base"
-      />
-      <div className="flex items-center gap-2 px-2.5 pb-2.5">
-        {voice.error ? (
-          <span
-            role="alert"
-            className="min-w-0 truncate text-[11px] text-destructive"
-            title={voice.error}
-          >
-            {voice.error}
-          </span>
-        ) : dictating ? (
-          <span
-            aria-live="polite"
-            className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-red-500/10 px-2 text-[11px] text-red-700 dark:text-red-300"
-          >
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 rounded-full bg-current motion-safe:animate-pulse"
-            />
-            <span className="truncate">
-              {voice.state === "connecting"
-                ? "Starting microphone…"
-                : voice.state === "finishing"
-                  ? "Finishing transcript…"
-                  : "Listening · Esc to cancel"}
-            </span>
-          </span>
-        ) : (
-          context && (
-            <span
-              title="Litto uses your permissions and asks before decisions such as approvals and merges."
-              className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
-            >
-              <ShieldCheck className="size-3 shrink-0" aria-hidden />
-              <span className="truncate">{context}</span>
-            </span>
-          )
+      <InputGroup>
+        {attachments && (
+          <InputGroupAddon align="block-start" className="flex-wrap gap-1.5">
+            {attachments}
+          </InputGroupAddon>
         )}
-        <span className="ml-auto hidden shrink-0 items-center gap-3 text-[11px] text-muted-foreground sm:inline-flex">
-          <span className="inline-flex items-center gap-1">
-            <Kbd>↵</Kbd> to send
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Kbd>⇧↵</Kbd> new line
-          </span>
-        </span>
-        {canDictate && (
-          <button
-            type="button"
-            onClick={toggleDictation}
-            disabled={disabled && !dictating}
-            aria-pressed={dictating}
-            aria-label={dictating ? "Stop dictation" : `Dictate (${shortcut})`}
-            title={
-              dictating
-                ? `Stop dictation (${shortcut})`
-                : `Dictate (${shortcut})`
+        <InputGroupTextarea
+          ref={area}
+          value={value}
+          rows={1}
+          autoFocus={autoFocus}
+          disabled={disabled}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (dictation.current)
+              dictation.current = applyEdit(
+                dictation.current,
+                diff(current.current, next),
+              );
+            if (voice.error) voice.clearError();
+            setValue(next);
+          }}
+          onKeyDown={(e) => {
+            if (
+              e.code === "Space" &&
+              e.shiftKey &&
+              (e.metaKey || e.ctrlKey) &&
+              canDictate
+            ) {
+              e.preventDefault();
+              toggleDictation();
+              return;
             }
-            className={cn(
-              "relative grid size-8 shrink-0 place-items-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
-              dictating
-                ? "bg-red-500/12 text-red-600 dark:text-red-400"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {voice.state === "listening" && (
+            if (e.key === "Escape" && dictating) {
+              e.preventDefault();
+              voice.cancel();
+              return;
+            }
+            // Esc stops an answer in progress, as the Stop button does.
+            if (e.key === "Escape" && busy && onStop) {
+              e.preventDefault();
+              onStop();
+              return;
+            }
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder={placeholder ?? "Ask Litto or describe what to do…"}
+          aria-label="Message Litto"
+        />
+        <InputGroupAddon align="block-end">
+          {voice.error ? (
+            <span
+              role="alert"
+              className="min-w-0 truncate text-[11px] text-destructive"
+              title={voice.error}
+            >
+              {voice.error}
+            </span>
+          ) : dictating ? (
+            <span
+              aria-live="polite"
+              className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-red-500/10 px-2 text-[11px] text-red-700 dark:text-red-300"
+            >
               <span
                 aria-hidden
-                className="absolute inset-0 rounded-full ring-2 ring-red-500/30 motion-safe:animate-ping"
+                className="size-1.5 shrink-0 rounded-full bg-current motion-safe:animate-pulse"
               />
-            )}
-            {voice.state === "connecting" || voice.state === "finishing" ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <Mic className="size-4" aria-hidden />
-            )}
-          </button>
-        )}
-        <button
-          type={busy ? "button" : "submit"}
-          onClick={busy ? onStop : undefined}
-          disabled={!busy && !canSend}
-          aria-label={busy ? "Stop generating" : "Send message"}
-          title={busy ? "Stop generating" : "Send"}
-          className={cn(
-            "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full transition-[background-color,transform,opacity] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-95",
-            busy || canSend
-              ? "bg-foreground text-background"
-              : "bg-muted text-muted-foreground",
-            !busy && !canSend && "cursor-not-allowed",
+              <span className="truncate">
+                {voice.state === "connecting"
+                  ? "Starting microphone…"
+                  : voice.state === "finishing"
+                    ? "Finishing transcript…"
+                    : "Listening · Esc to cancel"}
+              </span>
+            </span>
+          ) : (
+            context && (
+              <span
+                title="Litto uses your permissions and asks before decisions such as approvals and merges."
+                className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground max-sm:hidden"
+              >
+                <ShieldCheck className="size-3 shrink-0" aria-hidden />
+                <span className="truncate">{context}</span>
+              </span>
+            )
           )}
-        >
-          <AnimatePresence mode="popLayout" initial={false}>
-            {busy ? (
-              <motion.span
-                key="stop"
-                initial={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
-                animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-                exit={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
-                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              >
-                <Square className="size-3 fill-current" aria-hidden />
-              </motion.span>
-            ) : (
-              <motion.span
-                key="send"
-                initial={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
-                animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-                exit={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
-                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              >
-                <ArrowUp className="size-4" strokeWidth={2.25} aria-hidden />
-              </motion.span>
+          <span
+            className={cn(
+              "ml-auto hidden shrink-0 items-center gap-3 text-[11px] text-muted-foreground transition-opacity duration-150 sm:inline-flex",
+              value.trim() && !busy ? "opacity-100" : "opacity-0",
             )}
-          </AnimatePresence>
-        </button>
-      </div>
+            aria-hidden
+          >
+            <span className="inline-flex items-center gap-1">
+              <Kbd>↵</Kbd> send
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Kbd>⇧↵</Kbd> new line
+            </span>
+          </span>
+          {canDictate && (
+            <InputGroupButton
+              onClick={toggleDictation}
+              disabled={disabled && !dictating}
+              aria-pressed={dictating}
+              aria-label={
+                dictating ? "Stop dictation" : `Dictate (${shortcut})`
+              }
+              title={
+                dictating
+                  ? `Stop dictation (${shortcut})`
+                  : `Dictate (${shortcut})`
+              }
+              className={cn(
+                "ml-auto sm:ml-0",
+                dictating &&
+                  "bg-red-500/12 text-red-600 hover:bg-red-500/15 hover:text-red-600 dark:text-red-400",
+              )}
+            >
+              {voice.state === "listening" && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-full ring-2 ring-red-500/30 motion-safe:animate-ping"
+                />
+              )}
+              {voice.state === "connecting" || voice.state === "finishing" ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Mic className="size-4" aria-hidden />
+              )}
+            </InputGroupButton>
+          )}
+          <InputGroupButton
+            type={busy ? "button" : "submit"}
+            onClick={busy ? onStop : undefined}
+            disabled={!busy && !canSend}
+            aria-label={busy ? "Stop generating" : "Send message"}
+            title={busy ? "Stop generating (Esc)" : "Send"}
+            variant={busy || canSend ? "primary" : "muted"}
+            className={cn(!canDictate && "ml-auto sm:ml-0")}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              {busy ? (
+                <motion.span
+                  key="stop"
+                  initial={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
+                  animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+                  exit={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                >
+                  <Square className="size-3 fill-current" aria-hidden />
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="send"
+                  initial={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
+                  animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
+                  exit={{ scale: 0.4, opacity: 0, filter: "blur(2px)" }}
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                >
+                  <ArrowUp className="size-4" strokeWidth={2.25} aria-hidden />
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   );
 });

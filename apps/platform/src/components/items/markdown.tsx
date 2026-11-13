@@ -1,4 +1,11 @@
-import { Children, isValidElement, memo, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  memo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Check, Copy } from "lucide-react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
@@ -220,6 +227,51 @@ const components: Components = {
   ),
 };
 
+// A fenced code block with its language and a copy button (Code Block, AI
+// Elements), for answers people copy code and payloads from.
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const code = Children.toArray(children).find((c) => isValidElement(c));
+  const language =
+    (isValidElement<{ className?: string }>(code)
+      ? /language-([\w+-]+)/.exec(code.props.className ?? "")?.[1]
+      : undefined) ?? null;
+  const text = textContent(children).replace(/\n$/, "");
+  return (
+    <div className="group/code my-3 overflow-hidden rounded-xl border bg-muted/40">
+      <div className="flex h-8 items-center justify-between border-b bg-muted/50 pr-1 pl-3 font-mono text-[11px] text-muted-foreground">
+        <span>{language ?? "text"}</span>
+        <button
+          type="button"
+          aria-label={copied ? "Copied" : "Copy code"}
+          onClick={() => {
+            void navigator.clipboard.writeText(text).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 font-sans transition-colors hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+        >
+          {copied ? (
+            <Check className="size-3" aria-hidden />
+          ) : (
+            <Copy className="size-3" aria-hidden />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 font-mono text-[12.5px] leading-6">
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+const chatComponents: Components = {
+  ...components,
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+};
+
 // Mentions (`@[Name](mention:ID)`) and references (`item:`, `page:`,
 // `decision:`) survive URL sanitising and render as chips; every other URL
 // goes through react-markdown's safe default.
@@ -278,10 +330,13 @@ export const Markdown = memo(function Markdown({
   source,
   className,
   marks,
+  codeBlocks,
 }: {
   source: string;
   className?: string;
   marks?: Plugins;
+  // Code blocks with a language label and a copy button (answers).
+  codeBlocks?: boolean;
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
@@ -291,7 +346,7 @@ export const Markdown = memo(function Markdown({
             ? [remarkGfm, ...marks, remarkLegacyPageLinks]
             : remarkPlugins
         }
-        components={components}
+        components={codeBlocks ? chatComponents : components}
         urlTransform={urlTransform}
       >
         {source}
