@@ -8,7 +8,7 @@
     "@c15t/react": "2.2.1",
     "@c15t/scripts": "2.2.0",
     "@shadcn/react": "0.3.1",
-    "loading-dev": "^0.3.5",
+    "loading-dev": "^0.3.7",
     "lottie-web": "5.13.0",
     "lucide-react": "^1.47.0",
     "radix-ui": "^1.8.1",
