@@ -128,6 +128,9 @@ export function HoverCard({
     opened();
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // Escape closes the topmost layer only: the panel or dialog the
+      // reference sits in (Litto's dock) stays open.
+      event.preventDefault();
       setDismissed(true);
       setHovered(false);
     };
