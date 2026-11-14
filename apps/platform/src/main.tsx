@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
+import "@ui-sdk/core/web.css";
 import "@lictory/platform/app.css";
 import { configureAnalytics } from "@lictory/core/lib/analytics/client";
 import { setWorkspacePathMatcher } from "@lictory/core/lib/analytics/events";
