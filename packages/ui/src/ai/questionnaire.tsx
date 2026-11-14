@@ -13,7 +13,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type ComponentProps,
   type FormEvent,
   type KeyboardEvent,
@@ -569,14 +568,12 @@ export function QuestionnaireInput({
   className,
   multiline,
   value,
-  onChange,
+  onValueChange,
   ...props
 }: {
   multiline?: boolean;
   value: string;
-  onChange: (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => void;
+  onValueChange: (text: string) => void;
   className?: string;
   placeholder?: string;
   "aria-label"?: string;
@@ -585,8 +582,10 @@ export function QuestionnaireInput({
   const { name, multiple, invalid } = useItem();
   const field = {
     value,
-    onChange,
+    // One handler for the host's text and the answer's state: a second
+    // render between them would put the old text back in the field.
     onValueChange: (text: string) => {
+      onValueChange(text);
       const filled = text.trim().length > 0;
       change(name, (answer) =>
         filled

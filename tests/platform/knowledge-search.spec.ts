@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appStatus } from "../helpers/live-regions";
 import { clientAddress } from "../helpers/client-address";
 import {
   currentRevision,
@@ -375,7 +376,7 @@ test("results that could not be checked again say so, and Retry reads them again
   await signIn(page, seeded.owner.email);
   await page.goto(`/${seeded.slug}/search?q=quince`);
   const results = page.getByRole("list", { name: "Results for “quince”" });
-  const status = page.getByRole("status");
+  const status = appStatus(page);
   await expect(status).toContainText("4 results");
   const decision = results
     .getByRole("listitem")

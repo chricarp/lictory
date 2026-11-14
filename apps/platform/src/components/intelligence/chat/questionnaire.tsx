@@ -181,8 +181,8 @@ export function Questionnaire({
                 <QuestionnaireInput
                   multiline={q.kind === "text"}
                   value={texts[q.id] ?? ""}
-                  onChange={(e) =>
-                    setTexts((all) => ({ ...all, [q.id]: e.target.value }))
+                  onValueChange={(text) =>
+                    setTexts((all) => ({ ...all, [q.id]: text }))
                   }
                   aria-label={
                     q.kind === "text"

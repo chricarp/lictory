@@ -27,7 +27,7 @@ export function Input({
       className={cn(inputClass, className)}
       value={text(value)}
       defaultValue={text(defaultValue)}
-      {...(props as Primitive)}
+      {...props}
     />
   );
 }

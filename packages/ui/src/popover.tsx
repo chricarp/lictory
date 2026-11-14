@@ -34,6 +34,7 @@ import {
   dropdownItemClass,
   DropdownItem,
 } from "@lictory/ui/dropdown";
+import { ownName } from "@lictory/ui/named";
 import { popupContainer } from "@lictory/ui/popup";
 import { Check, Loader2, Search } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
@@ -276,6 +277,7 @@ function SearchList<T extends string>({
       <CommandList
         id={title ? undefined : popover?.labelId}
         aria-label={title ?? placeholder}
+        render={ownName}
         className={listClass}
       >
         <CommandEmpty className="text-center text-xs text-muted-foreground data-empty:px-2 data-empty:py-3">

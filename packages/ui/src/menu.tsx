@@ -16,6 +16,7 @@ import {
 } from "@ui-sdk/react/menu";
 import { Check } from "lucide-react";
 import { dropdownContentClass, dropdownItemClass } from "@lictory/ui/dropdown";
+import { ownName } from "@lictory/ui/named";
 import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
 
@@ -42,12 +43,16 @@ export function MenuContent({
   align = "start",
   width,
   style,
+  render,
   ...props
 }: Styled<ComponentProps<typeof MenuContentPrimitive>> & {
   width?: number | "trigger";
 }) {
+  const label = props["aria-label"];
   return (
     <MenuContentPrimitive
+      // A menu is named by its trigger unless it is given a name of its own.
+      render={render ?? (label ? ownName : undefined)}
       data-popover
       align={align}
       sideOffset={4}
@@ -102,15 +107,21 @@ export function MenuCheckboxItem({
   );
 }
 
+// Choosing one closes the menu, as picking any other row does.
 export function MenuRadioItem({
   className,
   children,
+  closeOnSelect = true,
   ...props
 }: Styled<ComponentProps<typeof MenuRadioItemPrimitive>> & {
   children?: ReactNode;
 }) {
   return (
-    <MenuRadioItemPrimitive className={cn(itemClass, className)} {...props}>
+    <MenuRadioItemPrimitive
+      className={cn(itemClass, className)}
+      closeOnSelect={closeOnSelect}
+      {...props}
+    >
       {children}
       <Checked />
     </MenuRadioItemPrimitive>

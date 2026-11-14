@@ -270,14 +270,10 @@ export function PageTree({
       if (!canEdit) return;
       event.preventDefault();
       setMenuFor(page.id);
-      void menu.open({
-        payload: page,
-        anchor:
-          event.currentTarget.querySelector<HTMLElement>(
-            "[data-page-actions]",
-          ) ?? event.currentTarget,
-        focus: "first",
-      });
+      // The row's own button opens the menu for its page, anchored to it.
+      event.currentTarget
+        .querySelector<HTMLElement>("[data-page-actions]")
+        ?.click();
     }
   };
 

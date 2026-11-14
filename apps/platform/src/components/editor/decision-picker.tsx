@@ -8,6 +8,7 @@ import {
 } from "@ui-sdk/react/command";
 import { Popover, PopoverContent } from "@ui-sdk/react/popover";
 import type { Editor } from "@tiptap/core";
+import { ownName } from "@lictory/ui/named";
 import { Scale } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
@@ -180,6 +181,7 @@ export function DecisionPicker({
           />
           <CommandList
             aria-label="Decisions"
+            render={ownName}
             className="max-h-64 min-h-0 flex-1 overflow-y-auto p-1 outline-none"
           >
             {options.map((option) => (

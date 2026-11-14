@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appAlert } from "../helpers/live-regions";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
@@ -119,7 +120,7 @@ test("an instance administrator manages accounts and organizations from the admi
   });
   const person = await other.newPage();
   await signIn(person, newcomer.email, newcomer.password);
-  await expect(person.getByRole("alert")).toContainText("deactivated");
+  await expect(appAlert(person)).toContainText("deactivated");
 
   await row.getByRole("button", { name: "Reactivate" }).click();
   await expect(row.getByText("Deactivated", { exact: true })).toBeHidden();

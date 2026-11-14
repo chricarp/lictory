@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { appAlert } from "../helpers/live-regions";
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
@@ -98,9 +99,7 @@ test("two-factor enrollment, sign-in with a code or a backup code, and turning i
   await expect(second.page).toHaveURL(/\/sign-in/);
   await code.fill("000000" === totp(secret) ? "111111" : "000000");
   await second.page.getByRole("button", { name: "Verify" }).click();
-  await expect(second.page.getByRole("alert")).toContainText(
-    "That code is not valid",
-  );
+  await expect(appAlert(second.page)).toContainText("That code is not valid");
   await code.fill(totp(secret));
   await second.page.getByRole("button", { name: "Verify" }).click();
   await expect(second.page).toHaveURL(inApp);
