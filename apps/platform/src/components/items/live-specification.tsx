@@ -659,7 +659,7 @@ function DraftEditor({
       setUploading((n) => n + files.length);
       void insertFiles(editor, files, context, at)
         .catch((e: unknown) =>
-          toast.add({
+          toast({
             title: "The file was not added",
             description:
               e instanceof Error ? e.message : "The upload failed. Try again.",
@@ -1275,9 +1275,9 @@ function RecoveredText({
                 variant="secondary"
                 onClick={() => {
                   void navigator.clipboard?.writeText(text).then(
-                    () => toast.add({ title: "Text copied", type: "success" }),
+                    () => toast({ title: "Text copied", type: "success" }),
                     () =>
-                      toast.add({
+                      toast({
                         title: "The text could not be copied",
                         description:
                           "Select it in the notice and copy it by hand.",

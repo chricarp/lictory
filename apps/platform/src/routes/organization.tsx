@@ -107,12 +107,12 @@ export function OrganizationLayout() {
   useEffect(() => {
     if (!lost || notified.current) return;
     notified.current = true;
-    toast.add({
+    toast({
       title: ACCESS_REMOVED,
       type: "error",
       description:
         "An administrator removed you, or the organization was deleted.",
-      timeout: 10000,
+      duration: 10000,
     });
     router.replace("/");
   }, [lost, router]);

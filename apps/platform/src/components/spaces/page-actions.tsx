@@ -123,15 +123,15 @@ export function PageActionsProvider({
           ? `Archived “${page.title}” and ${subpages === 1 ? "1 subpage" : `${subpages} subpages`}`
           : `Archived “${page.title}”`;
       setAnnouncement(`${title}.`);
-      const id = toast.add({
+      const id = toast({
         title,
         description:
           "Archived pages stay in the space. Show archived pages to restore them later.",
-        timeout: 8000,
-        actionProps: {
-          children: "Undo",
-          onClick: () => {
-            toast.close(id);
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onAction: () => {
+            toast.dismiss(id);
             restorePage(page);
           },
         },

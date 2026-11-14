@@ -120,9 +120,9 @@ async function reportPlacement(invitationId: string) {
     } | null;
   };
   if (!outcome || outcome.status === "applied") return;
-  toast.add({
+  toast({
     type: "warning",
-    timeout: 15000,
+    duration: 15000,
     title:
       outcome.status === "partial"
         ? `You joined, but ${outcome.missing.join(" and ")} access could not be added`

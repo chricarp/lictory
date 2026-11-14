@@ -220,21 +220,21 @@ export function ItemKnowledge({
         attachmentId: attachment.attachmentId,
       });
     } catch (e) {
-      toast.add({
+      toast({
         title: "Page not detached",
         type: "error",
         description: errorText(e),
-        timeout: 8000,
+        duration: 8000,
       });
       return;
     }
-    const id = toast.add({
+    const id = toast({
       title: `Detached “${entry.page.title}”`,
-      timeout: 8000,
-      actionProps: {
-        children: "Undo",
-        onClick: () => {
-          toast.close(id);
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onAction: () => {
+          toast.dismiss(id);
           mutateConfirmed({
             type: "attachPage",
             workItemId: item.id,
@@ -243,11 +243,11 @@ export function ItemKnowledge({
             purpose: attachment.purpose,
             commitId: attachment.commitId,
           }).catch((e: unknown) =>
-            toast.add({
+            toast({
               title: "Page not attached again",
               type: "error",
               description: errorText(e),
-              timeout: 8000,
+              duration: 8000,
             }),
           );
         },

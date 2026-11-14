@@ -147,12 +147,12 @@ export function useProposeBreakdown(
       onNavigate({ kind: "branch", id });
     } catch (error) {
       // Say why, then offer the branch list to start one by hand.
-      toast.add({
+      toast({
         title: "Could not start a breakdown branch",
         type: "error",
         description:
           error instanceof Error ? error.message : "The server refused it.",
-        timeout: 8000,
+        duration: 8000,
       });
       onNavigate({ kind: "branches" });
     }
@@ -181,12 +181,12 @@ export function useSuggestChange(onNavigate: (screen: BranchScreen) => void) {
       suggestionFocus = { branchId: id, quote };
       onNavigate({ kind: "branch", id });
     } catch (error) {
-      toast.add({
+      toast({
         title: "Could not start a suggestion",
         type: "error",
         description:
           error instanceof Error ? error.message : "The server refused it.",
-        timeout: 8000,
+        duration: 8000,
       });
     }
   };

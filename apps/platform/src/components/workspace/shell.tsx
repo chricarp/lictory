@@ -217,18 +217,13 @@ export function Shell({
   }, [sidebarCollapsed]);
   const toast = useCallback(
     (text: string, action?: Toast["action"]) => {
-      const id = toastManager.add({
+      toastManager({
         title: text,
-        timeout: 6000,
-        actionProps: action
-          ? {
-              children: action.label,
-              onClick: () => {
-                router.push(action.href);
-                toastManager.close(id);
-              },
-            }
-          : undefined,
+        duration: 6000,
+        action: action && {
+          label: action.label,
+          onAction: () => router.push(action.href),
+        },
       });
     },
     [router],

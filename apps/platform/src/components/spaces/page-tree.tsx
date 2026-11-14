@@ -599,7 +599,7 @@ function PageMenu({
           title="Page actions (Shift+F10)"
           onClick={(event) => {
             event.stopPropagation();
-            props.onClick();
+            props.onClick?.(event);
           }}
           className={cn(
             "grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground max-sm:size-11 max-sm:text-muted-foreground/70 touch:size-11 touch:text-muted-foreground/70",

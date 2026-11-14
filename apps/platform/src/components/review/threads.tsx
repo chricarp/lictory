@@ -235,11 +235,11 @@ export function Thread({
       announce(done);
     } catch (failure) {
       const reason = failure instanceof Error ? ` ${failure.message}` : "";
-      toast.add({
+      toast({
         title: `The discussion by ${author} was not changed`,
         type: "error",
         description: reason.trim() || "Try again.",
-        timeout: 8000,
+        duration: 8000,
       });
       announce(`The discussion was not changed.${reason}`);
     }

@@ -1,6 +1,10 @@
-import { Collapsible } from "@base-ui/react/collapsible";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { ChevronRight } from "lucide-react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@lictory/core/lib/utils";
 
@@ -83,9 +87,9 @@ export function TraceDescription({
 }
 
 type CollapsibleRootProps = Omit<
-  ComponentProps<typeof Collapsible.Root>,
-  "open" | "onOpenChange"
-> &
+  ComponentProps<typeof Collapsible>,
+  "open" | "onOpenChange" | "className"
+> & { className?: string } & 
   (
     | { open?: undefined; onOpenChange?: undefined }
     | { open: boolean; onOpenChange: (open: boolean) => void }
@@ -98,8 +102,8 @@ export function TraceCollapsible({
   ...props
 }: CollapsibleRootProps) {
   return (
-    <Collapsible.Root
-      data-slot="trace-collapsible"
+    <Collapsible
+      data-trace="collapsible"
       className={cn("flex w-full min-w-0 flex-col", className)}
       {...(open === undefined
         ? {}
@@ -113,10 +117,13 @@ export function TraceCollapsibleTrigger({
   className,
   children,
   ...props
-}: ComponentProps<typeof Collapsible.Trigger>) {
+}: Omit<ComponentProps<typeof CollapsibleTrigger>, "className" | "children"> & {
+  className?: string;
+  children?: ReactNode;
+}) {
   return (
-    <Collapsible.Trigger
-      data-slot="trace-collapsible-trigger"
+    <CollapsibleTrigger
+      data-trace="collapsible-trigger"
       className={cn(
         // The hit area reaches past the compact line (28 px tall) without
         // spacing the lines further apart.
@@ -129,7 +136,7 @@ export function TraceCollapsibleTrigger({
       <TraceIcon className="opacity-60 transition-[transform,opacity] duration-200 group-hover/trace-trigger:opacity-100 group-aria-expanded/trace-trigger:rotate-90">
         <ChevronRight />
       </TraceIcon>
-    </Collapsible.Trigger>
+    </CollapsibleTrigger>
   );
 }
 
@@ -137,10 +144,13 @@ export function TraceCollapsibleContent({
   className,
   children,
   ...props
-}: ComponentProps<typeof Collapsible.Panel>) {
+}: Omit<ComponentProps<typeof CollapsiblePanel>, "className" | "children"> & {
+  className?: string;
+  children?: ReactNode;
+}) {
   return (
-    <Collapsible.Panel
-      data-slot="trace-collapsible-content"
+    <CollapsiblePanel
+      data-trace="collapsible-content"
       className="h-(--collapsible-panel-height) min-w-0 overflow-hidden transition-[height] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none"
       {...props}
     >
@@ -153,6 +163,6 @@ export function TraceCollapsibleContent({
       >
         {children}
       </div>
-    </Collapsible.Panel>
+    </CollapsiblePanel>
   );
 }
