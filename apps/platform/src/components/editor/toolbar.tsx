@@ -164,7 +164,8 @@ export function Toolbar({
       kind: "menu",
       id: "block",
       label: `Text style: ${current?.label ?? "Text"}`,
-      text: current?.label ?? "Text",
+      // Comment composers are narrow: their menus show only an icon.
+      text: compact ? "" : (current?.label ?? "Text"),
       icon: current?.icon ?? blockStyles[0]!.icon,
       separatorBefore: true,
       width: 220,
@@ -245,7 +246,7 @@ export function Toolbar({
       kind: "menu",
       id: "insert",
       label: "Insert",
-      text: "Insert",
+      text: compact ? "" : "Insert",
       icon: <Plus className={icon} />,
       separatorBefore: true,
       width: 220,

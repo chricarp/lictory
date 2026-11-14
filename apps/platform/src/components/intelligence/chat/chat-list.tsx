@@ -2,7 +2,6 @@ import { DropdownItem } from "@lictory/ui/dropdown";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
-  Check,
   MessageSquare,
   MoreHorizontal,
   PenLine,
@@ -241,7 +240,7 @@ function ChatRow({
           aria-current={active ? "page" : undefined}
           onDoubleClick={() => setEditing(true)}
           className={cn(
-            "relative flex h-8 items-center gap-2 rounded-md pr-8 pl-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+            "relative flex h-8 items-center gap-2 rounded-md pr-8 pl-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-11 touch:pr-20",
             active
               ? "font-medium text-foreground"
               : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
@@ -287,7 +286,8 @@ function ChatRow({
               <button
                 {...props}
                 aria-label={`Actions for ${label}`}
-                className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100"
+                // Touch has no hover: the actions stay visible there.
+                className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 touch:size-10 touch:opacity-100"
               >
                 <MoreHorizontal className="size-3.5" />
               </button>
@@ -346,7 +346,11 @@ function RowActivity({
   seenRun: { id: string; status: string } | null;
 }) {
   const activity = sidebarActivity({ chat, open, unread, seenRun });
-  return activity ? <ActivityIndicator activity={activity} /> : null;
+  // The list marks what needs the person (working, waiting, failed, unread);
+  // a finished, already-seen answer is the normal state and needs no mark.
+  return activity && activity !== "completed" ? (
+    <ActivityIndicator activity={activity} />
+  ) : null;
 }
 
 const activityLabel: Record<SidebarActivity, string> = {
@@ -363,7 +367,7 @@ function ActivityIndicator({ activity }: { activity: SidebarActivity }) {
   return (
     <span
       role="status"
-      className="pointer-events-none absolute inset-y-0 right-1 grid w-6 place-items-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-state=open]]:opacity-0"
+      className="pointer-events-none absolute inset-y-0 right-1 grid w-6 place-items-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-state=open]]:opacity-0 touch:right-11 touch:opacity-100"
     >
       <span className="sr-only">{activityLabel[activity]}</span>
       {activity === "working" ? (
@@ -371,8 +375,6 @@ function ActivityIndicator({ activity }: { activity: SidebarActivity }) {
           aria-hidden
           className="size-3 animate-spin rounded-full border-[1.5px] border-primary/25 border-t-primary [animation-duration:0.9s] motion-reduce:animate-none"
         />
-      ) : activity === "completed" ? (
-        <Check className="size-3.5 text-muted-foreground" aria-hidden />
       ) : (
         <span
           aria-hidden

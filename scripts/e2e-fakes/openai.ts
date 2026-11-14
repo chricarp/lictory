@@ -14,7 +14,8 @@
 //
 // Scripts:
 // - "Which work items does this page mention?" reads the page in the context
-//   with getPage and lists the work items its Markdown references.
+//   with getPage and lists the work items its Markdown references, linking
+//   the page version and the items by their app addresses.
 // - A question quoting a phrase ("…" or "...") searches with
 //   searchProductKnowledge, reads the first page found with getPage, and
 //   quotes the sentence holding the phrase, or says nothing readable matched.
@@ -140,6 +141,21 @@ function chatStep(body: Body): Step | null {
         ].map((m) => m[1]!),
       ),
     ];
+    // Links as the assistant's instructions ask: the page version and each
+    // item by their addresses in the organization the context names.
+    const where = /\((\/[^/\s)]+)\/spaces\/([^/\s)?]+)\/pages\//.exec(context);
+    const pageRef = record(page.page);
+    if (where && pageRef) {
+      const [, org, space] = where;
+      const href = `${org}/spaces/${space}/pages/${String(pageRef.id)}?commit=${String(page.commitId)}`;
+      const items = keys.map((k) => `[${k}](${org}/items/${k})`).join(", ");
+      return {
+        kind: "text",
+        text: keys.length
+          ? `Version ${String(page.version)} of [${String(page.title)}](${href}) mentions ${items} (see [the paragraph that cites it](${href})).`
+          : `Version ${String(page.version)} of [${String(page.title)}](${href}) mentions no work items.`,
+      };
+    }
     return {
       kind: "text",
       text: keys.length

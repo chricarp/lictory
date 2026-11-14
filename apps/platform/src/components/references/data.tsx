@@ -67,6 +67,8 @@ export type DecisionReference = {
 
 type Resolver = {
   item: (id: string) => ItemReference | undefined;
+  // The item a key such as PAY-142 names now (keys follow moves).
+  itemByKey: (key: string) => ItemReference | undefined;
   page: (id: string) => PageReference | undefined;
   // Items I can see, for the "#" picker.
   items: () => readonly {
@@ -90,6 +92,7 @@ type Resolver = {
 
 const empty: Resolver = {
   item: () => undefined,
+  itemByKey: () => undefined,
   page: () => undefined,
   items: () => [],
   pages: () => [],
@@ -208,8 +211,14 @@ function useResolverValue(enabled = true): Resolver {
     };
     let itemList: ReturnType<Resolver["items"]> | undefined;
     let pageList: ReturnType<Resolver["pages"]> | undefined;
+    let idByKey: Map<string, string> | undefined;
     return {
       item,
+      itemByKey: (key) => {
+        idByKey ??= new Map(items.map((i) => [keyOf(i).toUpperCase(), i.id]));
+        const id = idByKey.get(key.toUpperCase());
+        return id ? item(id) : undefined;
+      },
       page,
       items: () =>
         (itemList ??= items.map((i) => ({

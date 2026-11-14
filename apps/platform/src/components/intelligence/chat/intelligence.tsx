@@ -5,7 +5,6 @@ import {
   useReducedMotion,
 } from "motion/react";
 import {
-  ArrowDown,
   CircleAlert,
   FileText,
   ListChecks,
@@ -17,14 +16,7 @@ import {
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Link } from "@lictory/platform/lib/navigation";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";
@@ -43,9 +35,14 @@ import {
   useChats,
 } from "@lictory/platform/components/intelligence/chat/provider";
 import {
-  ThreadMessages,
+  Transcript,
   useThread,
 } from "@lictory/platform/components/intelligence/chat/thread";
+import {
+  Suggestion,
+  Suggestions,
+} from "@lictory/platform/components/intelligence/chat/suggestions";
+import { MessageScrollerProvider } from "@lictory/ui/ai/message-scroller";
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
@@ -166,7 +163,7 @@ function ListToggles({
   onOpenMobile: () => void;
 }) {
   const cls =
-    "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none";
+    "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none touch:size-11";
   return (
     <>
       <button
@@ -300,6 +297,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             icon: <CircleAlert className="size-4" />,
             title: `What's blocking ${blockedKey}?`,
             prompt: `What is blocking ${blockedKey} from being ready, and what should we do next?`,
+            send: true,
           },
         ]
       : []),
@@ -309,11 +307,13 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
       prompt: project
         ? `Draft a new story in ${project.key} for `
         : "Draft a new story for ",
+      send: false,
     },
     {
       icon: <ListChecks className="size-4" />,
       title: "What needs my review?",
       prompt: "What is waiting for my review, and what is blocking it?",
+      send: true,
     },
     {
       icon: <Zap className="size-4" />,
@@ -321,11 +321,13 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
       prompt: team
         ? `Summarize the active iteration for ${team.name}: progress, risks and blocked items.`
         : "Summarize the active iteration: progress, risks and blocked items.",
+      send: true,
     },
     {
       icon: <Search className="size-4" />,
       title: "Find gaps in a spec",
       prompt: "Find missing acceptance criteria and failure behavior in ",
+      send: false,
     },
   ].slice(0, 4);
   const stagger = (i: number) =>
@@ -390,28 +392,24 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           {ai.ok && (
-            <div className="mt-5">
-              <p className="mb-2 px-1 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-                Start with
-              </p>
-              <div className="grid gap-1.5 rounded-[1.25rem] bg-tray p-1.5 ring-1 ring-border/70 ring-inset sm:grid-cols-2">
-                {suggestions.map((s, i) => (
-                  <motion.button
+            <motion.div {...stagger(1)} className="mt-4">
+              <Suggestions wrap className="justify-center">
+                {suggestions.map((s) => (
+                  <Suggestion
                     key={s.title}
-                    type="button"
-                    {...stagger(i + 1)}
-                    whileTap={reduce ? undefined : { scale: 0.98 }}
-                    onClick={() => composer.current?.fill(s.prompt)}
-                    className="group flex items-center gap-3 rounded-2xl bg-card px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) transition-shadow hover:shadow-(--shadow-border-hover)"
+                    icon={s.icon}
+                    title={s.send ? s.prompt : `${s.prompt}…`}
+                    onClick={() =>
+                      s.send
+                        ? start(s.prompt)
+                        : composer.current?.fill(s.prompt)
+                    }
                   >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
-                      {s.icon}
-                    </span>
-                    <span className="font-medium">{s.title}</span>
-                  </motion.button>
+                    {s.title}
+                  </Suggestion>
                 ))}
-              </div>
-            </div>
+              </Suggestions>
+            </motion.div>
           )}
         </div>
       </div>
@@ -507,55 +505,25 @@ function ChatThread({ chat }: { chat: LittoChat }) {
   const { organization } = useWorkspace();
   const ai = useAiState();
   const thread = useThread(chat);
-  const { messages, status, sendMessage, stop, busy, pendingQuestion } = thread;
-  const scroller = useRef<HTMLDivElement>(null);
-  const [pinned, setPinned] = useState(true);
-
-  // Follow the answer while the reader is at the bottom; stop following once
-  // they scroll up.
-  const onScroll = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-  }, []);
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el && pinned) el.scrollTop = el.scrollHeight;
-  }, [messages, pinned, status]);
-  const toBottom = () =>
-    scroller.current?.scrollTo({
-      top: scroller.current.scrollHeight,
-      behavior: "smooth",
-    });
+  const { sendMessage, stop, busy, pendingQuestion } = thread;
+  const composer = useRef<ComposerHandle>(null);
 
   return (
-    <>
-      <div
-        ref={scroller}
-        onScroll={onScroll}
-        className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto"
-      >
-        <div className="mx-auto w-full max-w-3xl space-y-7 px-4 pt-8 pb-10">
-          <ThreadMessages thread={thread} />
-        </div>
+    <MessageScrollerProvider
+      autoScroll
+      defaultScrollPosition="last-anchor"
+      scrollPreviousItemPeek={56}
+    >
+      <div className="relative min-h-0 flex-1">
+        <Transcript
+          thread={thread}
+          cancelInTranscript={!ai.ok}
+          onPromptAnswered={() => composer.current?.focus()}
+          onEdit={(text) => composer.current?.fill(text)}
+          onFollowUp={(text) => composer.current?.append(text)}
+        />
       </div>
-      <div className="relative shrink-0 px-4 pb-4">
-        <AnimatePresence>
-          {!pinned && (
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 8, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.9 }}
-              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              onClick={toBottom}
-              aria-label="Scroll to latest"
-              className="absolute -top-11 left-1/2 grid size-8 -translate-x-1/2 place-items-center rounded-full border bg-card shadow-md hover:bg-muted"
-            >
-              <ArrowDown className="size-4" />
-            </motion.button>
-          )}
-        </AnimatePresence>
+      <div className="relative shrink-0 px-4 pb-3">
         <motion.div
           layoutId="intelligence-composer"
           transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
@@ -563,16 +531,24 @@ function ChatThread({ chat }: { chat: LittoChat }) {
         >
           {ai.ok ? (
             <Composer
+              ref={composer}
               autoFocus
               busy={busy}
               disabled={pendingQuestion}
               placeholder={
-                pendingQuestion ? "Answer above to continue" : "Reply to Litto…"
+                pendingQuestion
+                  ? "Respond to Litto above to continue"
+                  : "Reply to Litto…"
               }
               onSend={(text) => void sendMessage({ text })}
               onStop={() => {
                 void stop().catch(() => undefined);
               }}
+              onCancelWaiting={
+                pendingQuestion && !busy
+                  ? () => void stop().catch(() => undefined)
+                  : undefined
+              }
               organizationId={organization.id}
               context={`${organization.name} permissions · you decide`}
             />
@@ -580,11 +556,16 @@ function ChatThread({ chat }: { chat: LittoChat }) {
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
-            Litto can be wrong. Decisions, approvals and publishing always stay
-            with people.
+            <span className="max-sm:hidden">
+              Litto can be wrong. Decisions, approvals and publishing always
+              stay with people.
+            </span>
+            <span className="sm:hidden">
+              Litto can be wrong; people decide.
+            </span>
           </p>
         </motion.div>
       </div>
-    </>
+    </MessageScrollerProvider>
   );
 }

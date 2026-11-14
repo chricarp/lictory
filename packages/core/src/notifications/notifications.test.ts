@@ -575,6 +575,10 @@ void test("an event naming a kind this worker does not know waits for one that d
   assert.equal(outcome.retrying, 1);
   const [event] = await queuedEvents(f.organizationId);
   assert.match(event!.lastError!, /Unknown notification kind/);
+  // Retried a minute later by the clock that stamped it (the database's).
+  const wait = event!.nextAttemptAt.getTime() - event!.createdAt.getTime();
+  assert.ok(wait >= 60_000 && wait < 70_000, `retried after ${wait} ms`);
+  assert.equal((await processNotificationEvents(db)).claimed, 0);
   assert.deepEqual(await f.kinds(f.reviewerId), []);
   // Leave nothing for the other tests' fan-outs to retry.
   await db

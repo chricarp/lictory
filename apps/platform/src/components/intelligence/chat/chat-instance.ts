@@ -17,6 +17,9 @@ import {
 // that same submission, and for a new message it is also the run id.
 
 export const CHAT_POLL_MS = 2_000;
+// While a turn produces output the server saves progress about once a
+// second; reading at that pace keeps the reply live.
+export const CHAT_POLL_ACTIVE_MS = 1_000;
 const CHAT_POLL_MAX_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -56,6 +59,8 @@ export async function responseError(response: Response) {
 }
 
 type PollEnv = {
+  // The pause after a successful read (CHAT_POLL_MS by default).
+  interval?: () => number;
   visible?: () => boolean;
   schedule?: (fn: () => void, ms: number) => () => void;
   listen?: (events: { kick: () => void; pause: () => void }) => () => void;
@@ -99,6 +104,7 @@ export function startVisiblePolling(
   const visible = env.visible ?? defaultVisible;
   const schedule = env.schedule ?? defaultSchedule;
   const listen = env.listen ?? defaultListen;
+  const interval = env.interval ?? (() => CHAT_POLL_MS);
   let stopped = false;
   let running = false;
   let rerun = false;
@@ -129,7 +135,7 @@ export function startVisiblePolling(
     let reschedule = true;
     try {
       await load(ctrl.signal);
-      delay = CHAT_POLL_MS;
+      delay = interval();
     } catch (error) {
       if (stopped || ctrl.signal.aborted || isAbortError(error))
         reschedule = false;
@@ -416,10 +422,13 @@ export class LittoChat {
     this.listeners.add(listener);
     this.subscribers += 1;
     if (this.subscribers === 1 && this.polling !== false)
-      this.stopPolling = startVisiblePolling(
-        (signal) => this.refresh(signal),
-        this.polling,
-      );
+      this.stopPolling = startVisiblePolling((signal) => this.refresh(signal), {
+        interval: () =>
+          this.serverRun && PRODUCING.has(this.serverRun.status)
+            ? CHAT_POLL_ACTIVE_MS
+            : CHAT_POLL_MS,
+        ...this.polling,
+      });
     return () => {
       this.listeners.delete(listener);
       this.subscribers -= 1;
@@ -920,10 +929,54 @@ export class LittoChat {
     );
   }
 
+  // Messages that did not change keep their identity, so the transcript
+  // re-renders only the turn that is streaming.
+  private serialized = new WeakMap<ChatMessage, string>();
+  // share() gives equal messages one object, so an object's token stands for
+  // its content and the view's signature stays small however long the
+  // conversation grows.
+  private tokens = new WeakMap<ChatMessage, number>();
+  private nextToken = 0;
+  private token(message: ChatMessage) {
+    let token = this.tokens.get(message);
+    if (token === undefined) {
+      token = ++this.nextToken;
+      this.tokens.set(message, token);
+    }
+    return token;
+  }
+  private serialize(message: ChatMessage) {
+    let text = this.serialized.get(message);
+    if (text === undefined) {
+      text = JSON.stringify(message);
+      this.serialized.set(message, text);
+    }
+    return text;
+  }
+
+  // Settled turns change only by moving a part to a new state (an answer,
+  // an approval, a result), so they are compared by a small fingerprint; the
+  // latest turns, where text streams, by their content. A refresh therefore
+  // never walks the whole conversation's text.
+  private share(view: ChatView): ChatView {
+    const previous = new Map(this.view.messages.map((m) => [m.id, m]));
+    const recent = view.messages.length - 2;
+    const messages = view.messages.map((message, i) => {
+      const before = previous.get(message.id);
+      if (!before) return message;
+      const same =
+        i < recent
+          ? fingerprint(before) === fingerprint(message)
+          : this.serialize(before) === this.serialize(message);
+      return same ? before : message;
+    });
+    return { ...view, messages };
+  }
+
   private sign(view: ChatView) {
     const run = this.localRun ?? this.serverRun;
     return JSON.stringify({
-      messages: view.messages,
+      messages: view.messages.map((message) => this.token(message)),
       status: view.status,
       error: view.error?.message ?? null,
       canRetry: view.canRetry,
@@ -933,7 +986,7 @@ export class LittoChat {
   }
 
   private publish() {
-    const view = this.derive();
+    const view = this.share(this.derive());
     const signature = this.sign(view);
     if (signature === this.signature) return;
     this.signature = signature;
@@ -966,6 +1019,21 @@ function queued(id: string): ChatRunSummary {
 function userMessage(input: SendInput): ChatMessage {
   const parts = input.parts ?? [{ type: "text", text: input.text ?? "" }];
   return { id: crypto.randomUUID(), role: "user", parts };
+}
+
+// Each part's kind, state and size: enough to see that a settled turn moved.
+function fingerprint(message: ChatMessage) {
+  return message.parts
+    .map((part) => {
+      const p = part as {
+        type: string;
+        state?: string;
+        text?: string;
+        toolCallId?: string;
+      };
+      return `${p.type}:${p.state ?? ""}:${p.text?.length ?? ""}:${p.toolCallId ?? ""}`;
+    })
+    .join("|");
 }
 
 export function createChat(options: {

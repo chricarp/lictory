@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from "react";
-import { ChevronDown, ChevronRight, MessageSquare, X } from "lucide-react";
+import { MessageSquare, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
@@ -7,6 +7,7 @@ import { Tooltip } from "@lictory/ui/tooltip";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { DiscussionCounts } from "@lictory/platform/components/discussions/presentation";
 import {
+  ResolvedToggle,
   Thread,
   ThreadComposer,
 } from "@lictory/platform/components/review/threads";
@@ -50,7 +51,7 @@ export function DiscussionsToggle({ controls }: { controls?: string }) {
         }
         onClick={() => setPanelOpen(!panelOpen)}
         className={cn(
-          "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96]",
+          "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] touch:h-11 touch:px-3",
           panelOpen
             ? "bg-foreground/8 text-foreground"
             : "bg-card text-foreground/80 shadow-(--shadow-border) hover:bg-muted hover:text-foreground",
@@ -71,6 +72,42 @@ export function DiscussionsToggle({ controls }: { controls?: string }) {
         )}
       </button>
     </Tooltip>
+  );
+}
+
+// Plain work keeps its discussions under the description; the header
+// says how many are open and goes there.
+export function CommentsJump() {
+  const { threads, reviewable } = useItem();
+  if (reviewable) return null;
+  const open = threads.filter((t) => t.status === "open").length;
+  const label = open ? plural(open, "open discussion") : "Discussions";
+  return (
+    <button
+      type="button"
+      aria-label={`Go to discussions${open ? ` (${label})` : ""}`}
+      title="Go to discussions"
+      onClick={() => {
+        const section = document.getElementById("item-comments");
+        section?.scrollIntoView({ block: "start", behavior: "smooth" });
+        section
+          ?.querySelector<HTMLElement>(
+            "[data-thread-id], textarea, [contenteditable=true]",
+          )
+          ?.focus({ preventScroll: true });
+      }}
+      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-card px-2.5 text-xs font-medium text-foreground/80 shadow-(--shadow-border) transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-11 touch:px-3"
+    >
+      <MessageSquare className="size-3.5" aria-hidden />
+      <span className="tabular-nums max-sm:sr-only">
+        {open ? plural(open, "discussion") : "Discussions"}
+      </span>
+      {open > 0 && (
+        <span aria-hidden className="tabular-nums sm:hidden">
+          {open}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -133,13 +170,42 @@ export function SpecDiscussionPanel({
   const anchored = openThreads.filter((l) => l.placement !== "general");
   const general = openThreads.filter((l) => l.placement === "general");
   const resolved = located.filter((l) => l.thread.status === "resolved");
-  // Selecting a thread marks its passage and brings it into view.
+  // Selecting a thread marks its passage and brings it into view. In the
+  // sheet the passage is under it: the sheet steps aside first (the marked
+  // passage opens the discussion again).
   const showInText = (id: string) => {
     setActive(id);
-    const mark = document.querySelector<HTMLElement>(
-      `[data-spec-root] mark[data-threads~="${CSS.escape(id)}"]`,
+    // The passage takes focus too, so keyboard and screen reader users
+    // land on it (the toggle or the marked passage opens the discussion
+    // again).
+    const reveal = () => {
+      const mark = document.querySelector<HTMLElement>(
+        `[data-spec-root] mark[data-threads~="${CSS.escape(id)}"]`,
+      );
+      if (!mark) return;
+      mark.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (!mark.hasAttribute("tabindex")) mark.tabIndex = -1;
+      mark.focus({ preventScroll: true });
+    };
+    if (onLeave) {
+      onLeave();
+      // After the sheet has closed and handed focus back to its opener.
+      window.setTimeout(reveal, 0);
+    } else reveal();
+  };
+  // The blocking count goes to the next blocking discussion, in order.
+  const nextBlocking = () => {
+    const ids = openThreads
+      .filter((l) => l.thread.blocking)
+      .map((l) => l.thread.id);
+    if (!ids.length) return;
+    const next = ids[(ids.indexOf(active ?? "") + 1) % ids.length]!;
+    setActive(next);
+    const card = document.querySelector<HTMLElement>(
+      `[data-discussions] [data-thread-id="${CSS.escape(next)}"]`,
     );
-    mark?.scrollIntoView({ block: "center", behavior: "smooth" });
+    card?.scrollIntoView({ block: "start", behavior: "smooth" });
+    card?.focus({ preventScroll: true });
   };
   const card = (view: (typeof located)[number]) => (
     <Thread
@@ -161,11 +227,15 @@ export function SpecDiscussionPanel({
         <h2
           id={headingId}
           tabIndex={-1}
-          className="min-w-0 truncate text-sm font-semibold outline-none"
+          className="shrink-0 text-sm font-semibold outline-none"
         >
           Discussions
         </h2>
-        <DiscussionCounts open={open} blocking={blocking} />
+        <DiscussionCounts
+          open={open}
+          blocking={blocking}
+          onBlocking={nextBlocking}
+        />
         <Button
           variant="ghost"
           size="icon"
@@ -181,7 +251,9 @@ export function SpecDiscussionPanel({
           Blocking discussions hold readiness back until they are resolved.
         </p>
       )}
-      {pending && !readOnly && (
+      {/* One composer, on top: a comment on selected text fills it with
+        the passage; otherwise it starts a discussion of the whole text. */}
+      {!readOnly && (
         <ThreadComposer
           draft={pending}
           onDraftChange={setPending}
@@ -197,7 +269,7 @@ export function SpecDiscussionPanel({
           <p className="text-[13px] text-muted-foreground">
             {readOnly
               ? "No open discussions."
-              : "No open discussions. Select text in the specification to comment on it, or start a discussion below."}
+              : "No open discussions. Select text in the specification to comment on it, or start a discussion of the whole text above."}
           </p>
         )}
         {anchored.map(card)}
@@ -208,34 +280,17 @@ export function SpecDiscussionPanel({
         )}
         {general.map(card)}
         {resolved.length > 0 && (
-          <button
-            type="button"
-            aria-expanded={showResolved}
-            onClick={() => setShowResolved((v) => !v)}
-            className="inline-flex items-center gap-1 self-start rounded-full px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
-            {showResolved ? (
-              <ChevronDown className="size-3.5" aria-hidden />
-            ) : (
-              <ChevronRight className="size-3.5" aria-hidden />
-            )}
-            {showResolved ? "Hide" : "Show"} {resolved.length} resolved
-          </button>
+          <ResolvedToggle
+            count={resolved.length}
+            shown={showResolved}
+            onToggle={() => setShowResolved((v) => !v)}
+            className="-ml-2 self-start"
+          />
         )}
         {showResolved && resolved.map(card)}
       </div>
-      {!readOnly && (
-        <div className="mt-1">
-          <ThreadComposer
-            draft={null}
-            onDraftChange={() => undefined}
-            onCreated={setActive}
-          />
-        </div>
-      )}
-      <p className="text-[11px] leading-4 text-muted-foreground">
-        Alt+↑ and Alt+↓ move between discussions; {mod} comments on the text
-        selected in the specification.
+      <p className="mt-1 text-[11px] leading-4 text-muted-foreground touch:hidden">
+        Alt+↑ / Alt+↓ move between discussions · {mod} comments on selected text
       </p>
     </section>
   );

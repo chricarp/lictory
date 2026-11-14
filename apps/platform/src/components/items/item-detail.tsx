@@ -5,8 +5,16 @@ import {
   useRouter,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal, flushSync } from "react-dom";
+import { usePaneWidth } from "@lictory/platform/lib/pane-width";
 import {
   Archive,
   ArchiveRestore,
@@ -120,6 +128,7 @@ import {
   useSpecDiscussionsState,
 } from "@lictory/platform/components/review/spec-discussions";
 import {
+  CommentsJump,
   DiscussionsToggle,
   SpecDiscussionPanel,
 } from "@lictory/platform/components/review/discussion-panel";
@@ -333,6 +342,33 @@ export function ItemDetail({
   const listAside = discussionsColumn && room(listWidth, railWidth) < READABLE;
   const railHidden =
     listAside && railWidth > 0 && room(0, railWidth) < READABLE;
+  // The column takes room the text does not need: wider (easier to
+  // write in) when the text keeps a comfortable measure beside it.
+  const discussionsWidth =
+    DISCUSSIONS_WIDTH +
+    Math.max(
+      0,
+      Math.min(
+        DISCUSSIONS_EXTRA,
+        room(listAside ? 0 : listWidth, railHidden ? 0 : railWidth) -
+          COMFORTABLE,
+      ),
+    );
+  // A width someone dragged the column to, never more than the room the
+  // text leaves at its readable minimum (a smaller window, the rail or the
+  // list beside it): the text keeps READABLE whatever was chosen earlier.
+  const [chosenDiscussionsWidth] = usePaneWidth("discussions");
+  const discussionsRoom =
+    room(listAside ? 0 : listWidth, railHidden ? 0 : railWidth) +
+    DISCUSSIONS_WIDTH -
+    READABLE;
+  const shownDiscussionsWidth =
+    chosenDiscussionsWidth === null
+      ? discussionsWidth
+      : Math.max(
+          DISCUSSIONS_WIDTH,
+          Math.min(chosenDiscussionsWidth, discussionsRoom),
+        );
   const setListAside = list?.setAside;
   useEffect(() => {
     setListAside?.(listAside);
@@ -343,6 +379,16 @@ export function ItemDetail({
   );
   const [panelOpen, setPanelOpen] = useState(false);
   const rail = usePaneResize<HTMLElement>(railPane);
+  // The discussions column can be dragged wider for long conversations.
+  const discussionsPane = usePaneResize<HTMLElement>(discussionsPaneSpec);
+  const attachDiscussions = discussionsPane.pane.attach;
+  const discussionsRef = useCallback(
+    (element: HTMLElement | null) => {
+      setDiscussionsSlot(element);
+      attachDiscussions(element);
+    },
+    [attachDiscussions],
+  );
   const { attach: attachRail } = rail.pane;
   const attachMeasuredRail = useCallback(
     (element: HTMLElement | null) => {
@@ -699,6 +745,9 @@ export function ItemDetail({
               )}
               {discussionsShown && (
                 <DiscussionsToggle controls="item-discussions" />
+              )}
+              {!ctx.reviewable && !pendingCreate && !focusScreen && (
+                <CommentsJump />
               )}
               {mode.kind === "history" ? (
                 <Button
@@ -1075,7 +1124,19 @@ export function ItemDetail({
                   <BranchEntry onNavigate={setMode} />
                 )}
                 {!focusScreen && (
-                  <>
+                  <DecisionComposerScope>
+                    {/* Plain work talks right under its description, before
+                      the item's links; specifications discuss in the panel
+                      beside the text. */}
+                    {!ctx.reviewable && (
+                      <section
+                        id="item-comments"
+                        aria-label="Discussions"
+                        className="mt-10 scroll-mt-4"
+                      >
+                        <Discussions draft={draft} onDraftChange={setDraft} />
+                      </section>
+                    )}
                     <section
                       data-item-breakdown
                       aria-label="Breakdown"
@@ -1097,11 +1158,8 @@ export function ItemDetail({
                     <section className="mt-10">
                       <Relations item={item} canChange={canChange} />
                     </section>
-                    <DecisionComposerScope>
-                      {/* Specifications discuss in the panel beside the text;
-                        plain work keeps its comments under the
-                        description. */}
-                      {ctx.reviewable ? (
+                    <>
+                      {ctx.reviewable &&
                         discussionsShown &&
                         discussions.panelOpen &&
                         (wide ? (
@@ -1124,17 +1182,12 @@ export function ItemDetail({
                               />
                             </div>
                           </DiscussionSheet>
-                        ))
-                      ) : (
-                        <section className="mt-10">
-                          <Discussions draft={draft} onDraftChange={setDraft} />
-                        </section>
-                      )}
+                        ))}
                       <section className="mt-10">
                         <Decisions />
                       </section>
-                    </DecisionComposerScope>
-                  </>
+                    </>
+                  </DecisionComposerScope>
                 )}
                 {!pendingCreate && (
                   <Attachments
@@ -1152,14 +1205,30 @@ export function ItemDetail({
               </div>
             </div>
             {discussionsColumn && (
-              <aside
-                ref={setDiscussionsSlot}
-                id="item-discussions"
-                data-discussions
-                aria-label="Discussions"
-                style={{ width: DISCUSSIONS_WIDTH }}
-                className="flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l px-4 pb-6"
-              />
+              <>
+                <PaneResizer
+                  resize={{ ...discussionsPane.handle, id: "item-discussions" }}
+                />
+                <aside
+                  ref={discussionsRef}
+                  id="item-discussions"
+                  data-discussions
+                  aria-label="Discussions"
+                  // While dragging, the resizer writes --pane-w itself; this
+                  // value is where the drag starts and what it settles to.
+                  style={
+                    discussionsPane.pane.sized
+                      ? ({
+                          "--pane-w": `${shownDiscussionsWidth}px`,
+                        } as CSSProperties)
+                      : { width: discussionsWidth }
+                  }
+                  className={cn(
+                    "flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l px-4 pb-6",
+                    discussionsPane.pane.sized && "w-(--pane-w)",
+                  )}
+                />
+              </>
             )}
             {!branchScreen && !railHidden && (
               <>
@@ -1227,8 +1296,26 @@ export function ItemDetail({
 // The discussions column, the document's readable minimum beside it and
 // the room from which discussions open by default.
 const DISCUSSIONS_WIDTH = 304;
+// Up to this much wider when the text keeps COMFORTABLE beside it.
+const DISCUSSIONS_EXTRA = 88;
+const COMFORTABLE = 560;
 const READABLE = 420;
 const ROOMY = 640;
+
+// Discussions beside the specification: 304px to 392px by the room the
+// text leaves (see discussionsWidth), or the width someone dragged it to;
+// the text keeps its readable minimum.
+const discussionsPaneSpec: PaneSpec = {
+  pane: "discussions",
+  label: "discussions",
+  edge: "start",
+  min: DISCUSSIONS_WIDTH,
+  max: 640,
+  share: { fraction: 0.45, floor: DISCUSSIONS_WIDTH, of: "frame" },
+  preferred: () => DISCUSSIONS_WIDTH + DISCUSSIONS_EXTRA,
+  neighbour: () => document.querySelector("[data-pane-document]"),
+  keep: READABLE,
+};
 
 // Review & details beside the document: 18rem, 20rem on large frames.
 const railPane: PaneSpec = {

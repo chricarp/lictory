@@ -131,12 +131,36 @@ test("Litto lists the work items of the page version on screen and cites that ex
     .fill("Which work items does this page mention?");
   await dock(page).getByRole("button", { name: "Send message" }).click();
 
-  // The answer rests on getPage of that version, run with Ada's access.
-  await expect(dock(page)).toContainText(
-    "Version 1 of “Refund runbook” mentions LTM-1.",
-    { timeout: 45_000 },
+  // The answer rests on getPage of that version, run with Ada's access. It
+  // links the page version and the item by address; both read as the same
+  // live chips as in documents.
+  const answer = dock(page).locator('[data-slot="response"]').last();
+  const item = answer.locator('[data-reference="item"]');
+  await expect(item).toContainText("Refund approvals", { timeout: 45_000 });
+  await expect(item).toHaveAttribute("data-key", "LTM-1");
+  await expect(item).toHaveAttribute("href", /\/items\/LTM-1$/);
+  const version = answer.locator('[data-reference="page"][data-pinned]');
+  await expect(version).toContainText("Refund runbook");
+  await expect(version).toContainText("v1");
+  await expect(version).toHaveAttribute(
+    "href",
+    new RegExp(`/pages/${runbook.pageId}\\?commit=${runbook.commitId}$`),
   );
   await expect(dock(page)).not.toContainText("LTM-2");
+  // Words that do not name their target stay words, with its card.
+  const words = answer.getByRole("link", {
+    name: "the paragraph that cites it",
+  });
+  await expect(words).toHaveAttribute("data-reference-link", "page");
+  await words.focus();
+  await expect(page.getByRole("tooltip")).toContainText("version 1");
+  // Escape closes the card, not the dock around it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toBeHidden();
+  await expect(dock(page)).toBeVisible();
+  await item.focus();
+  await expect(page.getByRole("tooltip")).toContainText("Open LTM-1");
+  await page.keyboard.press("Escape");
   // Every citation (the step that read it, and the pages the answer rests
   // on) opens exactly version 1.
   const cited = dock(page)
@@ -152,6 +176,9 @@ test("Litto lists the work items of the page version on screen and cites that ex
     expect(href).toMatch(
       new RegExp(`/pages/${runbook.pageId}\\?commit=${runbook.commitId}$`),
     );
+  // The item chip opens the item.
+  await item.click();
+  await expect(page).toHaveURL(/\/items\/LTM-1$/);
 });
 
 test("drafted proposals from a page selection are chosen by the person and remember the page", async ({
@@ -328,7 +355,7 @@ test("a page whose access is withdrawn mid-conversation stays out of the next an
     await composer.fill(question);
     await litto.getByRole("button", { name: "Send message" }).click();
     await expect(litto).toContainText(
-      "Version 1 of “Compensation bands” mentions LTR-1.",
+      /Version 1 of[\s\S]*Compensation bands[\s\S]*mentions[\s\S]*LTR-1/,
       { timeout: 45_000 },
     );
     // How often the dock shows anything of the page.

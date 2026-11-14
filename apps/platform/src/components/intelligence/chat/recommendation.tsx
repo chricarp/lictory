@@ -1,25 +1,33 @@
-import { motion, useReducedMotion } from "motion/react";
-import { Check, Lightbulb, X } from "lucide-react";
+import { Check, ChevronDown, Lightbulb, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@lictory/ui/button";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemMedia,
+  ItemTitle,
+} from "@lictory/ui/ai/item";
+import { TraceIcon, TraceLine, TraceTitle } from "@lictory/ui/ai/trace";
 import type {
   RecommendActionInput,
   RecommendActionOutput,
 } from "@lictory/core/intelligence/chat/shared";
 import { cn } from "@lictory/core/lib/utils";
 
-// A change the assistant proposes on its own initiative. Nothing happens
-// until the person accepts it or picks an alternative. Adapted from
-// Beautiful UI's Recommendation Card (MIT, beautifului.dev).
+// A change Litto proposes on its own initiative. Nothing happens until the
+// person accepts it or picks an alternative.
 
 type Confidence = RecommendActionInput["confidence"];
 const confidence: Record<
   Confidence,
   { bars: number; tone: string; label: string }
 > = {
-  high: { bars: 3, tone: "bg-success", label: "High confidence" },
-  medium: { bars: 2, tone: "bg-warning", label: "Medium confidence" },
-  low: { bars: 1, tone: "bg-muted-foreground", label: "Low confidence" },
+  high: { bars: 3, tone: "bg-foreground/70", label: "Litto is fairly sure" },
+  medium: { bars: 2, tone: "bg-foreground/50", label: "Litto is unsure" },
+  low: { bars: 1, tone: "bg-foreground/35", label: "Litto is guessing" },
 };
 
 function Meter({ level }: { level: Confidence }) {
@@ -45,9 +53,8 @@ export function RecommendationCard({
   onDecide,
 }: {
   input: RecommendActionInput;
-  onDecide: (output: RecommendActionOutput) => void;
+  onDecide: (output: RecommendActionOutput) => Promise<void>;
 }) {
-  const reduce = useReducedMotion();
   // -1 is the recommendation itself; otherwise an alternative's index.
   const [selected, setSelected] = useState(-1);
   const [open, setOpen] = useState(false);
@@ -57,93 +64,105 @@ export function RecommendationCard({
   const level = chosen?.confidence ?? input.confidence;
   const decide = (output: RecommendActionOutput) => {
     setDecided(true);
-    onDecide(output);
+    // Still on screen once sent: it was not applied and can be answered again.
+    void onDecide(output).then(() => setDecided(false));
   };
+  const options = [
+    { label: input.action, confidence: input.confidence, i: -1 },
+    ...alternatives.map((a, i) => ({ ...a, i })),
+  ];
   return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 8, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: "spring", duration: 0.45, bounce: 0.12 }}
+    <Item
+      data-litto-waiting
+      tabIndex={-1}
+      variant="attention"
       role="group"
       aria-label="Recommendation"
-      className="max-w-lg overflow-hidden rounded-xl bg-card shadow-[0_0_0_1px_var(--border),0_8px_24px_-14px_oklch(0_0_0/0.25)]"
+      className="activity-enter items-start"
     >
-      <div className="px-4 pt-3.5 pb-3">
-        <p className="flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-          <Lightbulb className="size-3.5 text-warning" aria-hidden />
-          Recommendation
-        </p>
-        <p className="mt-1.5 text-[14px] font-medium">{input.question}</p>
+      <ItemMedia
+        variant="icon"
+        className="bg-warning/12 text-warning"
+        aria-hidden
+      >
+        <Lightbulb />
+      </ItemMedia>
+      <ItemContent className="gap-1">
+        <ItemTitle className="flex-wrap">{input.question}</ItemTitle>
         <p
           key={selected}
-          className="activity-enter mt-1.5 min-h-10 text-[13px] leading-5 text-foreground/85"
+          className="activity-enter text-[13px] leading-5 text-foreground/85"
         >
           {chosen ? chosen.label : input.action}
         </p>
-        {!chosen && (
-          <p className="mt-2 text-[12px] leading-5 text-muted-foreground">
-            {input.reason}
-          </p>
-        )}
-      </div>
-      {alternatives.length > 0 && (
-        <div
-          className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
-          style={{
-            gridTemplateRows: open ? "1fr" : "0fr",
-            opacity: open ? 1 : 0,
-          }}
-          inert={!open}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <div className="border-t px-2 py-2">
-              <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
-                Other options
-              </p>
-              {[
-                { label: input.action, confidence: input.confidence, i: -1 },
-                ...alternatives.map((a, i) => ({ ...a, i })),
-              ]
-                .filter((o) => o.i !== selected)
-                .map((o) => (
-                  <button
-                    key={o.i}
-                    type="button"
-                    onClick={() => {
-                      setSelected(o.i);
-                      setOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors duration-100 hover:bg-muted"
-                  >
-                    <Meter level={o.confidence} />
-                    <span className="min-w-0 flex-1 truncate text-[12.5px]">
-                      {o.i === -1 ? `Recommended: ${o.label}` : o.label}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {confidence[o.confidence].label}
-                    </span>
-                  </button>
-                ))}
-            </div>
-          </div>
-        </div>
+        {!chosen && <ItemDescription>{input.reason}</ItemDescription>}
+      </ItemContent>
+      {alternatives.length > 0 && open && (
+        <fieldset className="activity-enter -mx-1 grid min-w-0 basis-full gap-0.5">
+          <legend className="sr-only">Options</legend>
+          {options.map((o) => (
+            <label
+              key={o.i}
+              className={cn(
+                "flex w-full min-w-0 cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors duration-100 hover:bg-muted has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50",
+                o.i === selected && "bg-muted",
+              )}
+            >
+              <input
+                type="radio"
+                name={`${input.question}-option`}
+                checked={o.i === selected}
+                // Arrow keys move through the options: the list stays open
+                // until the person accepts or closes it.
+                onChange={() => setSelected(o.i)}
+                className="sr-only"
+              />
+              <span className="mt-1">
+                <Meter level={o.confidence} />
+              </span>
+              <span className="min-w-0 flex-1 text-[12.5px] leading-5 break-words">
+                {o.i === -1 && (
+                  <span className="font-medium">Recommended: </span>
+                )}
+                {o.label}
+                <span className="block text-[11.5px] text-muted-foreground">
+                  {confidence[o.confidence].label}
+                </span>
+              </span>
+              {o.i === selected && (
+                <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              )}
+            </label>
+          ))}
+        </fieldset>
       )}
-      <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-2.5">
-        <span className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground">
+      <ItemFooter className="flex-wrap">
+        <span
+          className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground"
+          title="Litto's own estimate from what it read. It is not a check: nothing has run yet."
+        >
           <Meter level={level} />
           {confidence[level].label}
+          <span className="font-normal">· an estimate, nothing has run</span>
         </span>
-        <span className="flex items-center gap-1.5">
+        <ItemActions className="ml-auto">
           {alternatives.length > 0 && (
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               aria-expanded={open}
               disabled={decided}
               onClick={() => setOpen((o) => !o)}
-              className="rounded-full px-3 active:scale-[0.97]"
+              className="touch:h-11 touch:px-4"
             >
               Alternatives
+              <ChevronDown
+                className={cn(
+                  "size-3.5 transition-transform duration-200",
+                  open && "rotate-180",
+                )}
+                aria-hidden
+              />
             </Button>
           )}
           <Button
@@ -151,13 +170,14 @@ export function RecommendationCard({
             size="sm"
             disabled={decided}
             onClick={() => decide({ decision: "declined", choice: null })}
-            className="rounded-full px-3 active:scale-[0.97]"
+            className="touch:h-11 touch:px-4"
           >
             Not now
           </Button>
           <Button
             size="sm"
             disabled={decided}
+            className="touch:h-11 touch:px-4"
             onClick={() =>
               decide(
                 chosen
@@ -165,17 +185,16 @@ export function RecommendationCard({
                   : { decision: "accepted", choice: null },
               )
             }
-            className="rounded-full px-3 active:scale-[0.97]"
           >
             {chosen ? "Use this" : "Accept"}
           </Button>
-        </span>
-      </div>
-    </motion.div>
+        </ItemActions>
+      </ItemFooter>
+    </Item>
   );
 }
 
-// What the person decided, kept in the transcript.
+// What the person decided, kept in the transcript as a line.
 export function DecidedRecommendation({
   input,
   output,
@@ -185,25 +204,16 @@ export function DecidedRecommendation({
 }) {
   const declined = output.decision === "declined";
   return (
-    <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-      <span
-        className={cn(
-          "grid size-4.5 shrink-0 place-items-center rounded-full",
-          declined ? "bg-muted" : "bg-success/15 text-success",
-        )}
-      >
-        {declined ? (
-          <X className="size-3" aria-hidden />
-        ) : (
-          <Check className="size-3" strokeWidth={3} aria-hidden />
-        )}
-      </span>
-      <span className="min-w-0 truncate">
-        {declined ? "Not now" : "Accepted"}: {input.question}
+    <TraceLine className="max-w-full">
+      <TraceIcon className={declined ? undefined : "text-success"}>
+        {declined ? <X /> : <Check strokeWidth={3} />}
+      </TraceIcon>
+      <TraceTitle>
+        {declined ? "Not now" : "You accepted"}: {input.question}
         {output.decision === "alternative" && output.choice && (
           <span className="text-foreground"> — {output.choice}</span>
         )}
-      </span>
-    </p>
+      </TraceTitle>
+    </TraceLine>
   );
 }

@@ -1,4 +1,11 @@
-import { Children, isValidElement, memo, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  memo,
+  useState,
+  type ReactNode,
+} from "react";
+import { Check, Copy } from "lucide-react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
@@ -9,6 +16,7 @@ import type { Link, Root, Text } from "mdast";
 import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { cn } from "@lictory/core/lib/utils";
 import { ReferenceChip } from "@lictory/platform/components/references/chips";
+import { AppLink } from "@lictory/platform/components/references/app-link";
 
 function textContent(value: ReactNode): string {
   return Children.toArray(value)
@@ -43,6 +51,48 @@ const diffChip = {
   removed:
     "rounded-md [&>[data-reference]]:!bg-destructive/14 [&>[data-reference]]:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--destructive)_40%,transparent)] [&_span]:line-through [&_span]:decoration-destructive",
 };
+
+const linkClass =
+  "text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary";
+
+function MarkdownLink({
+  children,
+  href,
+}: {
+  children?: ReactNode;
+  href?: string;
+}) {
+  // Work items, pages and decisions as live chips (contracts/references).
+  const target = parseReferenceTarget(href);
+  if (target) {
+    const chip = (
+      <ReferenceChip target={target} label={textContent(children)} />
+    );
+    const diff = diffOf(children);
+    if (diff === "added")
+      return (
+        <ins className={diffChip.added} data-diff="added">
+          {chip}
+        </ins>
+      );
+    if (diff === "removed")
+      return (
+        <del className={diffChip.removed} data-diff="removed">
+          {chip}
+        </del>
+      );
+    return chip;
+  }
+  return href?.startsWith("mention:") ? (
+    <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
+      {children}
+    </span>
+  ) : (
+    <a href={href} rel="noreferrer noopener" className={linkClass}>
+      {children}
+    </a>
+  );
+}
 
 const components: Components = {
   h1: ({ children }) => (
@@ -94,42 +144,9 @@ const components: Components = {
     </h6>
   ),
   p: ({ children }) => <p className="my-3 first:mt-0 last:mb-0">{children}</p>,
-  a: ({ children, href }) => {
-    // Work items, pages and decisions as live chips (contracts/references).
-    const target = parseReferenceTarget(href);
-    if (target) {
-      const chip = (
-        <ReferenceChip target={target} label={textContent(children)} />
-      );
-      const diff = diffOf(children);
-      if (diff === "added")
-        return (
-          <ins className={diffChip.added} data-diff="added">
-            {chip}
-          </ins>
-        );
-      if (diff === "removed")
-        return (
-          <del className={diffChip.removed} data-diff="removed">
-            {chip}
-          </del>
-        );
-      return chip;
-    }
-    return href?.startsWith("mention:") ? (
-      <span className="rounded bg-primary/10 px-0.5 font-medium text-primary">
-        {children}
-      </span>
-    ) : (
-      <a
-        href={href}
-        rel="noreferrer noopener"
-        className="text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-      >
-        {children}
-      </a>
-    );
-  },
+  a: ({ children, href }) => (
+    <MarkdownLink href={href}>{children}</MarkdownLink>
+  ),
   ul: ({ children, className }) => (
     <ul
       className={cn(
@@ -220,6 +237,68 @@ const components: Components = {
   ),
 };
 
+// A fenced code block with its language and a copy button (Code Block, AI
+// Elements), for answers people copy code and payloads from.
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const code = Children.toArray(children).find((c) => isValidElement(c));
+  const language =
+    (isValidElement<{ className?: string }>(code)
+      ? /language-([\w+-]+)/.exec(code.props.className ?? "")?.[1]
+      : undefined) ?? null;
+  const text = textContent(children).replace(/\n$/, "");
+  return (
+    <div className="group/code my-3 overflow-hidden rounded-xl border bg-muted/40">
+      <div className="flex h-8 items-center justify-between border-b bg-muted/50 pr-1 pl-3 font-mono text-[11px] text-muted-foreground">
+        <span>{language ?? "text"}</span>
+        <button
+          type="button"
+          aria-label={copied ? "Copied" : "Copy code"}
+          onClick={() => {
+            void navigator.clipboard.writeText(text).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 font-sans transition-colors hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+        >
+          {copied ? (
+            <Check className="size-3" aria-hidden />
+          ) : (
+            <Copy className="size-3" aria-hidden />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 font-mono text-[12.5px] leading-6">
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+const answerComponents: Components = {
+  ...components,
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  // Answers link work and pages by address (/acme/items/PAY-142); those
+  // read as the same live references as in documents.
+  a: ({ href, children }) => {
+    const fallback = <MarkdownLink href={href}>{children}</MarkdownLink>;
+    if (!href?.startsWith("/") && !/^https?:/i.test(href ?? ""))
+      return fallback;
+    return (
+      <AppLink
+        href={href!}
+        label={textContent(children)}
+        className={linkClass}
+        fallback={fallback}
+      >
+        {children}
+      </AppLink>
+    );
+  },
+};
+
 // Mentions (`@[Name](mention:ID)`) and references (`item:`, `page:`,
 // `decision:`) survive URL sanitising and render as chips; every other URL
 // goes through react-markdown's safe default.
@@ -278,10 +357,14 @@ export const Markdown = memo(function Markdown({
   source,
   className,
   marks,
+  answer,
 }: {
   source: string;
   className?: string;
   marks?: Plugins;
+  // Litto's answers: code blocks with a language label and a copy button,
+  // and links to this organization's work items and pages as references.
+  answer?: boolean;
 }) {
   return (
     <div className={cn("spec-prose text-[15px] leading-7", className)}>
@@ -291,7 +374,7 @@ export const Markdown = memo(function Markdown({
             ? [remarkGfm, ...marks, remarkLegacyPageLinks]
             : remarkPlugins
         }
-        components={components}
+        components={answer ? answerComponents : components}
         urlTransform={urlTransform}
       >
         {source}

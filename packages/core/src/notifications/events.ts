@@ -288,7 +288,12 @@ export async function processNotificationEvents(
       .where(
         and(
           isNull(s.notificationEvent.failedAt),
-          lte(s.notificationEvent.nextAttemptAt, at),
+          // Due by the database's clock, which stamps every due time (the
+          // default and the retries below): a millisecond Date would miss an
+          // event queued earlier in the same millisecond (now() has
+          // microseconds), and one clock keeps skew and the session's time
+          // zone out of the comparison. Tests pass their own clock.
+          lte(s.notificationEvent.nextAttemptAt, options.now ? at : sql`now()`),
         ),
       )
       .orderBy(asc(s.notificationEvent.nextAttemptAt))
@@ -313,9 +318,9 @@ export async function processNotificationEvents(
           .set({
             attempts,
             lastError: message.slice(0, 1000),
-            nextAttemptAt: new Date(
-              at.getTime() + 60_000 * 2 ** (attempts - 1),
-            ),
+            nextAttemptAt: options.now
+              ? new Date(at.getTime() + 60_000 * 2 ** (attempts - 1))
+              : sql`now() + make_interval(secs => ${60 * 2 ** (attempts - 1)}::double precision)`,
             failedAt: final ? at : null,
           })
           .where(one);

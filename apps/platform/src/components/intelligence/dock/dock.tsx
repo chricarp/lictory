@@ -1,6 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
-  ArrowDown,
   ArrowUpRight,
   Loader2,
   LocateFixed,
@@ -19,7 +18,6 @@ import {
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -29,6 +27,7 @@ import {
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { Button } from "@lictory/ui/button";
 import { Badge } from "@lictory/ui/primitives";
+import { Popover } from "@lictory/ui/popover";
 import {
   counts,
   severityMeta,
@@ -48,11 +47,16 @@ import {
   type ComposerHandle,
 } from "@lictory/platform/components/intelligence/chat/composer";
 import {
-  ThreadMessages,
+  Transcript,
   useThread,
   useThreadMood,
   type Thread,
 } from "@lictory/platform/components/intelligence/chat/thread";
+import {
+  Suggestion as SuggestionButton,
+  Suggestions,
+} from "@lictory/platform/components/intelligence/chat/suggestions";
+import { MessageScrollerProvider } from "@lictory/ui/ai/message-scroller";
 import {
   pageOf,
   pageSelectionSuggestions,
@@ -606,7 +610,8 @@ function Panel({
         "flex flex-col overflow-hidden bg-background",
         // Small screens: a sheet over the page, anchored to the bottom.
         "fixed inset-x-2 bottom-2 z-40 max-h-[min(640px,calc(100dvh-4rem))] rounded-[1.25rem] shadow-(--shadow-panel)",
-        chat && "h-[min(640px,calc(100dvh-4rem))]",
+        // A conversation takes the phone's height: the page behind is inert.
+        chat && "h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)]",
         // Wide screens: a second framed surface beside the page, as wide as
         // the person dragged it or the default for the window. The default
         // tiers use `min-[…]` alone: Tailwind orders those by value, but
@@ -646,7 +651,12 @@ function Panel({
         </HeaderButton>
       </header>
       {chat ? (
-        <Conversation chat={chat} top={review}>
+        <Conversation
+          chat={chat}
+          top={review}
+          onPromptAnswered={() => composer.current?.focus()}
+          onFollowUp={(text) => composer.current?.append(text)}
+        >
           {(thread) => (
             <Footer
               thread={thread}
@@ -672,25 +682,18 @@ function Panel({
                     ? `About ${item.key}`
                     : `On ${pageLabel}`}
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {suggestions.map((s, i) => (
-                  <motion.button
+              <Suggestions wrap>
+                {suggestions.map((s) => (
+                  <SuggestionButton
                     key={s.label}
-                    type="button"
-                    initial={reduce ? false : { opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{
-                      duration: 0.2,
-                      ease,
-                      delay: 0.06 + i * 0.03,
-                    }}
+                    title={s.prompt}
                     onClick={() => onSend(s.prompt)}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-[12.5px] transition-[background-color,border-color,transform] duration-150 hover:border-foreground/15 hover:bg-muted active:scale-[0.97]"
+                    className="activity-enter"
                   >
                     {s.label}
-                  </motion.button>
+                  </SuggestionButton>
                 ))}
-              </div>
+              </Suggestions>
             </div>
           </div>
           <Footer
@@ -762,7 +765,7 @@ function HeaderButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 touch:size-11"
     >
       {children}
     </button>
@@ -792,60 +795,32 @@ function ChatActions({
 function Conversation({
   chat,
   top,
+  onPromptAnswered,
+  onFollowUp,
   children,
 }: {
   chat: LittoChat;
   top: ReactNode;
+  onPromptAnswered: () => void;
+  onFollowUp: (text: string) => void;
   children: (thread: Thread) => ReactNode;
 }) {
   const thread = useThread(chat);
-  const scroller = useRef<HTMLDivElement>(null);
-  const [pinned, setPinned] = useState(true);
-  const onScroll = () => {
-    const el = scroller.current;
-    if (el) setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 60);
-  };
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (el && pinned) el.scrollTop = el.scrollHeight;
-  }, [thread.messages, pinned, thread.status]);
   return (
-    <>
+    <MessageScrollerProvider autoScroll scrollPreviousItemPeek={40}>
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div
-          ref={scroller}
-          onScroll={onScroll}
-          className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto"
-        >
-          <div className="space-y-6 px-4 pt-4 pb-6 [&_.chat-prose]:text-[13.5px] [&_.chat-prose]:leading-6">
-            {top}
-            <ThreadMessages thread={thread} />
-          </div>
-        </div>
-        <AnimatePresence>
-          {!pinned && (
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 8, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.9 }}
-              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              onClick={() =>
-                scroller.current?.scrollTo({
-                  top: scroller.current.scrollHeight,
-                  behavior: "smooth",
-                })
-              }
-              aria-label="Scroll to latest"
-              className="absolute bottom-2 left-1/2 grid size-7 -translate-x-1/2 place-items-center rounded-full border bg-card shadow-md hover:bg-muted"
-            >
-              <ArrowDown className="size-3.5" />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        <Transcript
+          thread={thread}
+          top={top}
+          onPromptAnswered={onPromptAnswered}
+          onFollowUp={onFollowUp}
+          // The narrow sheet gives replies the full width; Litto's face in
+          // the sheet's header shows what it is doing.
+          contentClassName="max-w-none gap-5 px-4 pt-4 pb-6 [&_.chat-prose]:text-[13.5px] [&_.chat-prose]:leading-6 [&_[data-slot=message-avatar]]:hidden [&_[role=alert]]:ml-0"
+        />
       </div>
       {children(thread)}
-    </>
+    </MessageScrollerProvider>
   );
 }
 
@@ -870,48 +845,73 @@ function Footer({
   organizationId: string;
 }) {
   return (
-    <div className="shrink-0 space-y-2 border-t bg-popover p-2.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5 px-0.5">
-        <span
-          className="inline-flex h-6 max-w-[60%] min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
-          title="Sent with your next message"
-        >
-          <LocateFixed className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">
-            {item ? `${item.key} · ${item.title}` : pageLabel}
-          </span>
-        </span>
-        <AnimatePresence initial={false}>
-          {attached && (
-            <motion.span
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-              className="inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-full bg-primary/10 pr-0.5 pl-2 text-[11px] text-primary"
-            >
-              <Quote className="size-3 shrink-0" aria-hidden />
-              <span className="max-w-[260px] truncate">{attached.quote}</span>
-              <button
-                type="button"
-                onClick={onDetach}
-                aria-label="Remove the selection from the message"
-                className="grid size-5 place-items-center rounded-full hover:bg-primary/15"
-              >
-                <X className="size-3" />
-              </button>
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </div>
+    <div className="shrink-0 p-2.5 pt-1">
       <Composer
         ref={composer}
         autoFocus
         busy={thread?.busy}
         disabled={thread?.pendingQuestion}
+        attachments={
+          <>
+            <span
+              className="inline-flex h-6 max-w-[60%] min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
+              title="Sent with your next message"
+            >
+              <LocateFixed className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">
+                {item ? `${item.key} · ${item.title}` : pageLabel}
+              </span>
+            </span>
+            <AnimatePresence initial={false}>
+              {attached && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                  className="inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-full bg-primary/10 pr-0.5 pl-2 text-[11px] text-primary"
+                >
+                  <Popover
+                    side="top"
+                    width={320}
+                    trigger={(props) => (
+                      <button
+                        type="button"
+                        {...props}
+                        aria-label="Show the selected text"
+                        className="inline-flex min-w-0 items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      >
+                        <Quote className="size-3 shrink-0" aria-hidden />
+                        <span className="max-w-[240px] truncate">
+                          {attached.quote}
+                        </span>
+                      </button>
+                    )}
+                  >
+                    <div className="max-h-64 overflow-y-auto p-3 text-[12.5px] leading-5 whitespace-pre-wrap select-text">
+                      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                        Sent with your next message
+                        {attached.section ? ` · ${attached.section}` : ""}
+                      </p>
+                      {attached.quote}
+                    </div>
+                  </Popover>
+                  <button
+                    type="button"
+                    onClick={onDetach}
+                    aria-label="Remove the selection from the message"
+                    className="relative grid size-5 place-items-center rounded-full after:absolute after:-inset-2.5 after:content-[''] hover:bg-primary/15"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </>
+        }
         placeholder={
           thread?.pendingQuestion
-            ? "Answer above to continue"
+            ? "Respond to Litto above to continue"
             : attached
               ? "Ask about the selection…"
               : item
@@ -922,6 +922,11 @@ function Footer({
         onStop={() => {
           void thread?.stop().catch(() => undefined);
         }}
+        onCancelWaiting={
+          thread?.pendingQuestion && !thread.busy
+            ? () => void thread.stop().catch(() => undefined)
+            : undefined
+        }
         organizationId={organizationId}
       />
     </div>

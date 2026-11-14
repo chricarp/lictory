@@ -7,6 +7,7 @@ import {
   summarizeChanges,
   summarizeSteps,
   type Lookup,
+  findKnown,
 } from "@lictory/platform/components/intelligence/chat/activity";
 
 const names: Record<string, string> = {
@@ -259,5 +260,49 @@ void test("page evidence names the exact version and links to it", () => {
   assert.deepEqual(
     found.outcome.pages?.map((p) => [p.version, p.publishing, p.href]),
     [[4, "reviewed", "/acme/spaces/ops/pages/page-1?commit=c4"]],
+  );
+});
+
+void test("an approval finds what an earlier step read about its target", () => {
+  const thread = "3f9a1c2e-0000-4000-8000-000000000001";
+  const outputs = [
+    {
+      ok: true,
+      result: {
+        key: "PAY-4",
+        threads: [
+          { id: "other", status: "open", blocking: false },
+          {
+            id: thread,
+            status: "open",
+            blocking: true,
+            messages: [{ body: "What happens when the webhook arrives late?" }],
+          },
+        ],
+      },
+    },
+  ];
+  assert.deepEqual(findKnown(outputs, thread), {
+    excerpt: "What happens when the webhook arrives late?",
+    status: "open",
+    blocking: true,
+  });
+  assert.equal(findKnown(outputs, "missing"), undefined);
+});
+
+void test("an approval keeps a long title whole, not only the clipped subject", () => {
+  const title =
+    "Retry card payments with the original idempotency key after a timeout";
+  const step = describeStep(
+    "createWorkItem",
+    { organizationId: "org", projectId: "p1", title },
+    undefined,
+    undefined,
+    lookup,
+  );
+  assert.ok(subjectText(step.subject!).endsWith("…"));
+  assert.deepEqual(
+    step.detail.find(([label]) => label === "Title"),
+    ["Title", title],
   );
 });

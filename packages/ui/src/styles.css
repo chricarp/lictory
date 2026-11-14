@@ -91,10 +91,12 @@
   --shadow-xl:
     0 2px 4px 0 rgb(17 18 20 / 0.05), 0 24px 48px -18px rgb(17 18 20 / 0.2);
   --shadow-2xl: 0 32px 64px -24px rgb(17 18 20 / 0.28);
+  /* Keep the border inside the surface: navigation and tree rows can sit
+     flush against a scroll container that clips anything painted outside. */
   --shadow-border:
-    0 0 0 1px rgb(17 18 20 / 0.07), 0 1px 2px -1px rgb(17 18 20 / 0.06);
+    inset 0 0 0 1px rgb(17 18 20 / 0.07), 0 1px 2px -1px rgb(17 18 20 / 0.06);
   --shadow-border-hover:
-    0 0 0 1px rgb(17 18 20 / 0.12), 0 2px 4px -1px rgb(17 18 20 / 0.08);
+    inset 0 0 0 1px rgb(17 18 20 / 0.12), 0 2px 4px -1px rgb(17 18 20 / 0.08);
   --shadow-panel:
     0 0 0 1px rgb(17 18 20 / 0.06), 0 1px 2px rgb(17 18 20 / 0.04),
     0 20px 48px -24px rgb(17 18 20 / 0.18);
@@ -166,8 +168,8 @@
   --shadow-xl:
     0 2px 4px 0 rgb(0 0 0 / 0.3), 0 24px 48px -18px rgb(0 0 0 / 0.65);
   --shadow-2xl: 0 32px 64px -24px rgb(0 0 0 / 0.75);
-  --shadow-border: 0 0 0 1px rgb(255 255 255 / 0.07);
-  --shadow-border-hover: 0 0 0 1px rgb(255 255 255 / 0.12);
+  --shadow-border: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-border-hover: inset 0 0 0 1px rgb(255 255 255 / 0.12);
   --shadow-panel:
     0 0 0 1px rgb(255 255 255 / 0.07), 0 20px 48px -24px rgb(0 0 0 / 0.7);
 }
@@ -808,6 +810,141 @@
   background: currentColor;
   opacity: 0.55;
 }
+/* A question of Litto's questionnaire slides in as it becomes active. */
+@keyframes questionnaire-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+/* shimmer and scroll-fade from shadcn/ui's utilities (MIT): text in progress
+   carries a sweep derived from its own colour, and a scroller fades the edge
+   that has more to show. */
+@property --shimmer-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 20deg;
+}
+@keyframes tw-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@utility shimmer {
+  --_spread: var(--shimmer-spread, calc(3ch + 40px));
+  --_base: currentColor;
+  --_highlight: var(
+    --shimmer-color,
+    oklch(from currentColor l c h / calc(alpha* 0.2))
+  );
+  background-image: linear-gradient(
+    calc(90deg + var(--shimmer-angle)),
+    var(--_base) calc(50% - var(--_spread)),
+    color-mix(in oklch, var(--_highlight), var(--_base) 50%)
+      calc(50% - var(--_spread) * 0.5),
+    var(--_highlight) 50%,
+    color-mix(in oklch, var(--_highlight), var(--_base) 50%)
+      calc(50% + var(--_spread) * 0.5),
+    var(--_base) calc(50% + var(--_spread))
+  );
+  background-repeat: no-repeat;
+  background-size: calc(200% + var(--_spread) * 2) 100%;
+  background-position: 0 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: tw-shimmer var(--shimmer-duration, 2s) linear infinite;
+  &:where(.dark, .dark *) {
+    --_highlight: var(
+      --shimmer-color,
+      oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+    );
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+@property --scroll-fade-b {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-s {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-e {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes scroll-fade-reveal-b {
+  from {
+    --scroll-fade-b: var(--scroll-fade-size, 2.5rem);
+  }
+  to {
+    --scroll-fade-b: 0px;
+  }
+}
+@keyframes scroll-fade-reveal-s {
+  from {
+    --scroll-fade-s: 0px;
+  }
+  to {
+    --scroll-fade-s: var(--scroll-fade-size, 2.5rem);
+  }
+}
+@keyframes scroll-fade-reveal-e {
+  from {
+    --scroll-fade-e: var(--scroll-fade-size, 2.5rem);
+  }
+  to {
+    --scroll-fade-e: 0px;
+  }
+}
+@utility scroll-fade-b {
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  mask-repeat: no-repeat;
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y);
+    animation-range: calc(100% - 6rem) 100%;
+    animation-fill-mode: both;
+  }
+}
+@utility scroll-fade-x {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  mask-repeat: no-repeat;
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-s 1ms ease-in-out,
+      scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self inline), scroll(self inline);
+    animation-range:
+      0 6rem,
+      calc(100% - 6rem) 100%;
+    animation-fill-mode: both;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shimmer-text {
     animation: none;
