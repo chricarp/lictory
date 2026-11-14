@@ -97,10 +97,11 @@ test("the server refuses to start a not-ready specification even from an outdate
     "Blocked until the specification is ready",
   );
   await inProgress.click();
+  // The stack lists the newest notification first.
   await expect(
     page
       .locator('[data-slot="toast"]', { hasText: "Change not applied" })
-      .last(),
+      .first(),
   ).toContainText("Complete the required reviews and readiness checks first.");
 });
 
