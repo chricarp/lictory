@@ -1,8 +1,8 @@
 import { useId, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { cn } from "@lictory/core/lib/utils";
 import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -178,28 +178,21 @@ export function AddDecisionToPage({
           onChange={(e) => setQuery(e.target.value)}
         />
         {pages.length ? (
-          <div
+          <RadioGroup<string>
             id={listId}
-            role="radiogroup"
+            value={pageId ?? null}
+            onValueChange={(next) => {
+              if (next !== null) setPageId(next);
+            }}
             aria-label="Pages"
-            className="max-h-72 space-y-0.5 overflow-y-auto"
+            className="block max-h-72 space-y-0.5 overflow-y-auto"
           >
             {pages.map(({ page, space }) => (
-              <label
+              <Radio
                 key={page.id}
-                className={cn(
-                  "flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] has-focus-visible:ring-2 has-focus-visible:ring-ring/60",
-                  page.id === pageId ? "bg-muted" : "hover:bg-muted/60",
-                )}
+                value={page.id}
+                className="flex h-auto w-full cursor-pointer items-center gap-2.5 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-foreground outline-none not-data-checked:hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-muted"
               >
-                <input
-                  type="radio"
-                  name="decision-page"
-                  value={page.id}
-                  checked={page.id === pageId}
-                  onChange={() => setPageId(page.id)}
-                  className="sr-only"
-                />
                 <FileText
                   className="size-3.5 shrink-0 text-muted-foreground"
                   aria-hidden
@@ -210,9 +203,9 @@ export function AddDecisionToPage({
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {space.name}
                 </span>
-              </label>
+              </Radio>
             ))}
-          </div>
+          </RadioGroup>
         ) : (
           <p className="px-1 py-3 text-[13px] text-muted-foreground">
             {query.trim()

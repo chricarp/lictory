@@ -643,9 +643,18 @@
     [data-slot$="-close"],
     [data-slot="input"],
     [data-slot="textarea"],
-    [data-slot$="-input"]
+    [data-slot$="-input"],
+    [data-slot="radio"],
+    [data-slot="checkbox"],
+    [data-slot="switch"],
+    [data-slot$="-tab"],
+    [data-slot$="-item"],
+    [data-slot$="-button"],
+    [data-slot$="-control"],
+    [data-slot$="-toggle"]
   ) {
     display: revert;
+    flex-shrink: revert;
     align-items: revert;
     justify-content: revert;
     gap: revert;
@@ -657,6 +666,12 @@
     cursor: revert;
     user-select: revert;
     resize: revert;
+  }
+  /* Panels read like the text around them. */
+  [data-slot$="-panel"] {
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
   }
   :is(label, [data-slot="label"]):has(
     > :is([data-slot="checkbox"], [data-slot="radio"], [data-slot="switch"])

@@ -89,8 +89,7 @@ export function TraceDescription({
 type CollapsibleRootProps = Omit<
   ComponentProps<typeof Collapsible>,
   "open" | "onOpenChange" | "className"
-> & { className?: string } & 
-  (
+> & { className?: string } & (
     | { open?: undefined; onOpenChange?: undefined }
     | { open: boolean; onOpenChange: (open: boolean) => void }
   );

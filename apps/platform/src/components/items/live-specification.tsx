@@ -1,3 +1,5 @@
+import { Input } from "@ui-sdk/react/input";
+import { Textarea } from "@ui-sdk/react/textarea";
 import {
   useCallback,
   useEffect,
@@ -1005,13 +1007,13 @@ function DraftEditor({
       {titleLabel && (
         <label className="block space-y-1 text-xs font-medium">
           {titleLabel}
-          <input
+          <Input
             aria-label={titleLabel}
             className="h-10 w-full rounded-md border border-input bg-card px-3 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             value={title}
             disabled={!editable}
             maxLength={240}
-            onChange={(e) => setTitle(e.target.value)}
+            onValueChange={setTitle}
           />
         </label>
       )}
@@ -1139,10 +1141,9 @@ function DraftEditor({
             />
           )}
           {source !== null ? (
-            <textarea
+            <Textarea
               value={source.text}
-              onChange={(e) => {
-                const text = e.target.value;
+              onValueChange={(text) => {
                 setSource((edit) => (edit ? { ...edit, text } : edit));
               }}
               aria-label={`${label} (Markdown)`}

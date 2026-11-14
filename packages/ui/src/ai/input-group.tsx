@@ -1,4 +1,6 @@
-import { forwardRef, type ComponentProps } from "react";
+import { Textarea } from "@ui-sdk/react/textarea";
+import { Toggle } from "@ui-sdk/react/toggle";
+import type { ComponentProps } from "react";
 
 import { cn } from "@lictory/core/lib/utils";
 
@@ -12,8 +14,8 @@ export function InputGroup({ className, ...props }: ComponentProps<"div">) {
       role="group"
       className={cn(
         "group/input-group relative flex w-full min-w-0 flex-col rounded-[1.25rem] bg-card shadow-(--shadow-border) transition-shadow duration-200",
-        "has-[[data-slot=input-group-control]:focus-visible]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--foreground)_22%,transparent),0_0_0_4px_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
-        "has-[[data-slot=input-group-control]:disabled]:bg-muted/40",
+        "has-[[data-slot=textarea]:focus-visible]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--foreground)_22%,transparent),0_0_0_4px_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
+        "has-[[data-slot=textarea]:disabled]:bg-muted/40",
         className,
       )}
       {...props}
@@ -42,14 +44,16 @@ export function InputGroupAddon({
   );
 }
 
-export const InputGroupTextarea = forwardRef<
-  HTMLTextAreaElement,
-  ComponentProps<"textarea">
->(function InputGroupTextarea({ className, ...props }, ref) {
+// Grows with its text up to its maximum height, then scrolls.
+export function InputGroupTextarea({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Textarea>, "className" | "autoResize"> & {
+  className?: string;
+}) {
   return (
-    <textarea
-      ref={ref}
-      data-slot="input-group-control"
+    <Textarea
+      autoResize
       className={cn(
         "block max-h-60 min-h-11 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed sm:min-h-[52px] touch:text-base",
         className,
@@ -57,7 +61,12 @@ export const InputGroupTextarea = forwardRef<
       {...props}
     />
   );
-});
+}
+
+const buttonClass =
+  "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full transition-[background-color,color,transform,opacity] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-not-allowed touch:size-11";
+const ghostClass =
+  "text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50";
 
 export function InputGroupButton({
   className,
@@ -70,11 +79,28 @@ export function InputGroupButton({
       type={type}
       data-slot="input-group-button"
       className={cn(
-        "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full transition-[background-color,color,transform,opacity] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-not-allowed touch:size-11",
-        variant === "ghost" &&
-          "text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50",
+        buttonClass,
+        variant === "ghost" && ghostClass,
         variant === "primary" && "bg-foreground text-background",
         variant === "muted" && "bg-muted text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+// A ghost button that stays on while its mode is active, such as dictation.
+export function InputGroupToggle({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Toggle>, "className"> & { className?: string }) {
+  return (
+    <Toggle
+      className={cn(
+        buttonClass,
+        ghostClass,
+        "data-pressed:bg-muted data-pressed:text-foreground",
         className,
       )}
       {...props}

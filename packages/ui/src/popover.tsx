@@ -261,6 +261,9 @@ function SearchList<T extends string>({
       onQueryChange={onQueryChange && ((query) => onQueryChange(query))}
       onLoadMore={hasMore ? onEndReached : undefined}
       onAction={(chosen) => choose(unkey<T>(chosen))}
+      // The result count would be spoken from a status region that outlives
+      // the popover; the visible list is the feedback here.
+      announcement={() => null}
     >
       <div className="flex items-center gap-2 border-b px-3">
         <Search className="size-3.5 text-muted-foreground" aria-hidden />

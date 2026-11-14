@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { cn } from "@lictory/core/lib/utils";
 import type { Command } from "@lictory/core/contracts/protocol";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -51,29 +52,23 @@ export function Choice<T extends string>({
   label: string;
 }) {
   return (
-    <div
-      role="radiogroup"
+    <RadioGroup<T>
       aria-label={label}
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => {
+        if (next !== null && next !== value) onChange(next);
+      }}
       className={cn(
         "grid gap-2",
         columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2",
       )}
     >
       {options.map((o) => (
-        <button
+        <Radio
           key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          disabled={disabled}
-          onClick={() => value !== o.value && onChange(o.value)}
-          className={cn(
-            "rounded-lg px-3 py-2 text-left text-[13px] shadow-(--shadow-border) disabled:cursor-default",
-            value === o.value
-              ? "bg-primary/6 ring-1 ring-primary/40"
-              : "enabled:hover:bg-muted/60",
-            disabled && value !== o.value && "opacity-60",
-          )}
+          value={o.value}
+          className="block h-auto w-auto cursor-default rounded-lg px-3 py-2 text-left text-[13px] shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
         >
           <span className="font-medium">{o.label}</span>
           {o.description && (
@@ -81,9 +76,9 @@ export function Choice<T extends string>({
               {o.description}
             </span>
           )}
-        </button>
+        </Radio>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 

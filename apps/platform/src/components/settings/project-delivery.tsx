@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { Radio, RadioGroup, RadioIndicator } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Check, GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import type { DeliveryMode } from "@lictory/core/contracts/protocol";
@@ -104,56 +104,43 @@ function DeliveryModeSection({
       description="One system owns delivery for all of this project's work. Refinement, reviews and approvals work the same either way."
     >
       <SettingsBody className="space-y-3">
-        <div
-          role="radiogroup"
+        <RadioGroup<DeliveryMode>
           aria-label="Delivery mode"
+          value={project.deliveryMode}
+          disabled={!canEdit}
+          onValueChange={(mode) => {
+            if (mode === null || mode === project.deliveryMode) return;
+            if (mode === "external") setConfirming("external");
+            else void switchTo("native");
+          }}
           className="grid gap-3 sm:grid-cols-2"
         >
-          {modes.map((m) => {
-            const selected = project.deliveryMode === m.value;
-            return (
-              <button
-                key={m.value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={!canEdit}
-                onClick={() =>
-                  !selected &&
-                  (m.value === "external"
-                    ? setConfirming("external")
-                    : void switchTo("native"))
-                }
-                className={cn(
-                  "rounded-xl p-4 text-left shadow-(--shadow-border) disabled:cursor-default",
-                  selected
-                    ? "bg-primary/6 ring-1 ring-primary/40"
-                    : "enabled:hover:bg-muted/60",
-                )}
-              >
-                <span className="flex items-center gap-2 text-sm font-semibold">
-                  {m.title}
-                  {selected && (
-                    <span className="ml-auto grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="size-3" />
-                    </span>
-                  )}
-                </span>
-                <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                  {m.summary}
-                </span>
-                <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  {m.points.map((p) => (
-                    <li key={p} className="flex gap-1.5">
-                      <span aria-hidden>·</span>
-                      {p}
-                    </li>
-                  ))}
-                </ul>
-              </button>
-            );
-          })}
-        </div>
+          {modes.map((m) => (
+            <Radio
+              key={m.value}
+              value={m.value}
+              className="block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                {m.title}
+                <RadioIndicator className="ml-auto grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="size-3" />
+                </RadioIndicator>
+              </span>
+              <span className="mt-0.5 block text-[13px] text-muted-foreground">
+                {m.summary}
+              </span>
+              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                {m.points.map((p) => (
+                  <li key={p} className="flex gap-1.5">
+                    <span aria-hidden>·</span>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </Radio>
+          ))}
+        </RadioGroup>
         {confirming === "external" && (
           <div className="space-y-2 rounded-lg bg-muted px-4 py-3 text-[13px]">
             {activeIteration ? (

@@ -4,6 +4,8 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { useState } from "react";
 import { ListTree, Plus, Trash2 } from "lucide-react";
+import { Input } from "@ui-sdk/react/input";
+import { Textarea } from "@ui-sdk/react/textarea";
 import {
   isChildChange,
   isNewChild,
@@ -162,24 +164,24 @@ export function BreakdownProposal({
           </label>
           <label className="block space-y-1 text-xs font-medium">
             Title
-            <input
+            <Input
               aria-label="Proposed child title"
               className={field}
               value={title}
               maxLength={240}
-              onChange={(event) => setTitle(event.target.value)}
+              onValueChange={(value) => setTitle(value)}
               placeholder="A concrete piece of implementation work"
             />
           </label>
           <label className="block space-y-1 text-xs font-medium">
             Description
-            <textarea
+            <Textarea
               aria-label="Proposed child description"
               className={field}
               value={description}
               maxLength={200_000}
               rows={3}
-              onChange={(event) => setDescription(event.target.value)}
+              onValueChange={(value) => setDescription(value)}
               placeholder="Behavior, scope and acceptance criteria…"
             />
           </label>
@@ -398,12 +400,12 @@ function ChangeExisting({
       {kind === "rename" && (
         <label className="block space-y-1 text-xs font-medium">
           New title
-          <input
+          <Input
             aria-label="New child title"
             className={field}
             value={title}
             maxLength={240}
-            onChange={(event) => setTitle(event.target.value)}
+            onValueChange={(value) => setTitle(value)}
           />
         </label>
       )}

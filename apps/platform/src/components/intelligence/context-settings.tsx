@@ -10,6 +10,12 @@ import {
   RotateCcw,
   Upload,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { directoryName } from "@lictory/core/contracts/protocol";
@@ -515,7 +521,6 @@ function EntryRow({
   send: (fields: Record<string, string | File | undefined>) => Promise<void>;
   history: (entryId: string) => Promise<ContextVersionSummary[]>;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   const [mode, setMode] = useState<"view" | "edit" | "history">("view");
   const [versions, setVersions] = useState<ContextVersionSummary[]>();
   const [viewing, setViewing] = useState<ContextVersionSummary>();
@@ -538,13 +543,11 @@ function EntryRow({
   const replaceId = `context-replace-${e.id}`;
   const shown = viewing ?? v;
   return (
-    <div className={cn(e.archivedAt && "opacity-70")}>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] hover:bg-muted/40"
-      >
+    <Collapsible
+      defaultOpen={defaultOpen}
+      className={cn(e.archivedAt && "opacity-70")}
+    >
+      <CollapsibleTrigger className="flex w-full items-center gap-3 px-5 py-2.5 text-left text-[13px] font-normal text-inherit hover:bg-muted/40">
         <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{v.title}</span>
@@ -555,168 +558,167 @@ function EntryRow({
           </span>
         </span>
         {e.archivedAt && <Badge>Archived</Badge>}
-      </button>
-      {open && (
-        <div className="space-y-3 px-5 pb-4">
-          {mode === "edit" ? (
-            <ContextForm
-              kind="note"
-              initial={{ title: v.title, content: v.content }}
-              onCancel={() => setMode("view")}
-              onSubmit={async (fields) => {
-                await send({ action: "revise", entryId: e.id, ...fields });
-                setVersions(undefined);
-                setMode("view");
-              }}
-            />
-          ) : (
-            <>
-              {mode === "history" && (
-                <ol className="space-y-0.5 rounded-md border p-1.5">
-                  {!versions && (
-                    <li className="px-2 py-1 text-xs text-muted-foreground">
-                      Loading history…
-                    </li>
-                  )}
-                  {versions?.map((x) => (
-                    <li key={x.id}>
-                      <button
-                        type="button"
-                        aria-pressed={shown.id === x.id}
-                        onClick={() =>
-                          setViewing(x.id === v.id ? undefined : x)
-                        }
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted",
-                          shown.id === x.id && "bg-muted",
-                        )}
-                      >
-                        <span className="w-8 font-medium tabular-nums">
-                          v{x.number}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">
-                          {x.title}
-                          {x.source && ` · ${x.source.filename}`}
-                        </span>
-                        <span className="shrink-0 text-muted-foreground">
-                          {nameOf(x.authorId)} · {relativeTime(x.createdAt)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {viewing && (
-                <p className="text-xs text-warning">
-                  Viewing version {viewing.number}. Lictory Intelligence uses
-                  version {v.number}.
-                </p>
-              )}
-              <div className="max-h-80 overflow-y-auto rounded-md border bg-background px-4 py-3">
-                <Markdown
-                  source={shown.content}
-                  className="text-[13px] leading-6"
-                />
-              </div>
-            </>
-          )}
-          <InlineError>{error}</InlineError>
-          {mode !== "edit" && (
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  if (mode === "history") {
-                    setMode("view");
-                    setViewing(undefined);
-                    return;
-                  }
-                  setMode("history");
-                  if (!versions)
-                    history(e.id)
-                      .then(setVersions)
-                      .catch((err: unknown) =>
-                        setError(
-                          err instanceof Error ? err.message : "Not loaded.",
-                        ),
-                      );
-                }}
+      </CollapsibleTrigger>
+      <CollapsiblePanel className="space-y-3 px-5 pb-4">
+        {mode === "edit" ? (
+          <ContextForm
+            kind="note"
+            initial={{ title: v.title, content: v.content }}
+            onCancel={() => setMode("view")}
+            onSubmit={async (fields) => {
+              await send({ action: "revise", entryId: e.id, ...fields });
+              setVersions(undefined);
+              setMode("view");
+            }}
+          />
+        ) : (
+          <>
+            {mode === "history" && !versions && (
+              <p className="rounded-md border px-3.5 py-2.5 text-xs text-muted-foreground">
+                Loading history…
+              </p>
+            )}
+            {mode === "history" && versions && (
+              <ToggleGroup
+                aria-label="Versions"
+                orientation="vertical"
+                deselectable={false}
+                value={[shown.id]}
+                onValueChange={([id]) =>
+                  setViewing(
+                    id === v.id ? undefined : versions.find((x) => x.id === id),
+                  )
+                }
+                className="flex flex-col gap-0.5 rounded-md border p-1.5"
               >
-                <History className="size-3.5" />
-                {mode === "history"
-                  ? "Hide history"
-                  : `History (${e.versions})`}
-              </Button>
-              {canManage && !e.archivedAt && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => {
-                      setViewing(undefined);
-                      setMode("edit");
-                    }}
+                {versions.map((x) => (
+                  <Toggle
+                    key={x.id}
+                    value={x.id}
+                    className="m-0 flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted data-pressed:bg-muted"
                   >
-                    <NotebookPen className="size-3.5" /> Edit
-                  </Button>
-                  {e.kind === "document" && (
-                    <>
-                      <input
-                        id={replaceId}
-                        type="file"
-                        accept={ACCEPT_CONTEXT_DOCUMENTS}
-                        className="sr-only"
-                        aria-label={`Replace ${v.title} with a new file`}
-                        onChange={(ev) => {
-                          const file = ev.target.files?.[0];
-                          ev.target.value = "";
-                          if (file)
-                            void act({
-                              action: "revise",
-                              title: v.title,
-                              file,
-                            });
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pending}
-                        onClick={() =>
-                          document.getElementById(replaceId)?.click()
-                        }
-                      >
-                        <Upload className="size-3.5" />
-                        {pending ? "Converting…" : "Replace file"}
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => void act({ action: "archive" })}
-                  >
-                    <Archive className="size-3.5" /> Archive
-                  </Button>
-                </>
-              )}
-              {canManage && e.archivedAt && (
+                    <span className="w-8 font-medium tabular-nums">
+                      v{x.number}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {x.title}
+                      {x.source && ` · ${x.source.filename}`}
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {nameOf(x.authorId)} · {relativeTime(x.createdAt)}
+                    </span>
+                  </Toggle>
+                ))}
+              </ToggleGroup>
+            )}
+            {viewing && (
+              <p className="text-xs text-warning">
+                Viewing version {viewing.number}. Lictory Intelligence uses
+                version {v.number}.
+              </p>
+            )}
+            <div className="max-h-80 overflow-y-auto rounded-md border bg-background px-4 py-3">
+              <Markdown
+                source={shown.content}
+                className="text-[13px] leading-6"
+              />
+            </div>
+          </>
+        )}
+        <InlineError>{error}</InlineError>
+        {mode !== "edit" && (
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                if (mode === "history") {
+                  setMode("view");
+                  setViewing(undefined);
+                  return;
+                }
+                setMode("history");
+                if (!versions)
+                  history(e.id)
+                    .then(setVersions)
+                    .catch((err: unknown) =>
+                      setError(
+                        err instanceof Error ? err.message : "Not loaded.",
+                      ),
+                    );
+              }}
+            >
+              <History className="size-3.5" />
+              {mode === "history" ? "Hide history" : `History (${e.versions})`}
+            </Button>
+            {canManage && !e.archivedAt && (
+              <>
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={pending}
-                  onClick={() => void act({ action: "restore" })}
+                  onClick={() => {
+                    setViewing(undefined);
+                    setMode("edit");
+                  }}
                 >
-                  <RotateCcw className="size-3.5" /> Restore
+                  <NotebookPen className="size-3.5" /> Edit
                 </Button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                {e.kind === "document" && (
+                  <>
+                    <input
+                      id={replaceId}
+                      type="file"
+                      accept={ACCEPT_CONTEXT_DOCUMENTS}
+                      className="sr-only"
+                      aria-label={`Replace ${v.title} with a new file`}
+                      onChange={(ev) => {
+                        const file = ev.target.files?.[0];
+                        ev.target.value = "";
+                        if (file)
+                          void act({
+                            action: "revise",
+                            title: v.title,
+                            file,
+                          });
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() =>
+                        document.getElementById(replaceId)?.click()
+                      }
+                    >
+                      <Upload className="size-3.5" />
+                      {pending ? "Converting…" : "Replace file"}
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={() => void act({ action: "archive" })}
+                >
+                  <Archive className="size-3.5" /> Archive
+                </Button>
+              </>
+            )}
+            {canManage && e.archivedAt && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => void act({ action: "restore" })}
+              >
+                <RotateCcw className="size-3.5" /> Restore
+              </Button>
+            )}
+          </div>
+        )}
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }

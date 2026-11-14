@@ -10,11 +10,17 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
+import { Checkbox } from "@ui-sdk/react/checkbox";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
-import { Popover } from "@lictory/ui/popover";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { toast } from "@lictory/ui/toast";
 import {
   MarkdownEditor,
@@ -30,7 +36,6 @@ import {
   QuoteBlock,
   useStoredDraft,
 } from "@lictory/platform/components/discussions/presentation";
-import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
 import type {
   Draft,
   Placement,
@@ -67,19 +72,14 @@ export function Discussions({
   const open = threads.filter((t) => t.status === "open");
   const resolved = threads.filter((t) => t.status === "resolved");
   return (
-    <div>
+    <Collapsible open={showResolved} onOpenChange={setShowResolved}>
       <div className="mb-3 flex items-center gap-2">
         <SectionLabel>Discussions</SectionLabel>
         <span className="text-xs text-muted-foreground tabular-nums">
           {open.length} open
         </span>
         {resolved.length > 0 && (
-          <ResolvedToggle
-            count={resolved.length}
-            shown={showResolved}
-            onToggle={() => setShowResolved((v) => !v)}
-            className="ml-auto"
-          />
+          <ResolvedToggle count={resolved.length} className="ml-auto" />
         )}
       </div>
       <div className="space-y-3">
@@ -91,50 +91,64 @@ export function Discussions({
         {open.map((t) => (
           <Thread key={t.id} thread={t} />
         ))}
-        {showResolved && resolved.map((t) => <Thread key={t.id} thread={t} />)}
+        {resolved.length > 0 && (
+          <ResolvedPanel className="space-y-3">
+            {resolved.map((t) => (
+              <Thread key={t.id} thread={t} />
+            ))}
+          </ResolvedPanel>
+        )}
         {!readOnly && (
           <ThreadComposer draft={draft} onDraftChange={onDraftChange} />
         )}
       </div>
-    </div>
+    </Collapsible>
   );
 }
 
-// "Show 2 resolved" / "Hide 2 resolved".
+// "Show 2 resolved" / "Hide 2 resolved": opens the `ResolvedPanel` of the
+// `Collapsible` both stand in.
 export function ResolvedToggle({
   count,
-  shown,
-  onToggle,
   className,
 }: {
   count: number;
-  shown: boolean;
-  onToggle: () => void;
   className?: string;
 }) {
   return (
-    <button
-      type="button"
-      aria-expanded={shown}
+    <CollapsibleTrigger
       data-resolved-toggle
-      onClick={onToggle}
       className={cn(
         "inline-flex h-7 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-11",
         className,
       )}
     >
-      {shown ? (
-        <ChevronDown className="size-3.5" aria-hidden />
-      ) : (
-        <ChevronRight className="size-3.5" aria-hidden />
+      {({ open }) => (
+        <>
+          {open ? (
+            <ChevronDown className="size-3.5" aria-hidden />
+          ) : (
+            <ChevronRight className="size-3.5" aria-hidden />
+          )}
+          {open ? "Hide" : "Show"} {count} resolved
+        </>
       )}
-      {shown ? "Hide" : "Show"} {count} resolved
-    </button>
+    </CollapsibleTrigger>
   );
 }
 
+export function ResolvedPanel({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return <CollapsiblePanel className={className}>{children}</CollapsiblePanel>;
+}
+
 const iconAction =
-  "grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground touch:size-11";
+  "grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-open:bg-foreground/8 data-open:text-foreground touch:size-11";
 const textAction =
   "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-xs font-medium text-foreground/80 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-11 touch:px-3";
 
@@ -250,7 +264,7 @@ export function Thread({
     const card = ref.current;
     const list = card?.parentElement;
     const cards = list
-      ? [...list.querySelectorAll<HTMLElement>(":scope > [data-thread-id]")]
+      ? [...list.querySelectorAll<HTMLElement>("[data-thread-id]")]
       : [];
     const at = card ? cards.indexOf(card) : -1;
     const hadFocus = Boolean(card?.contains(document.activeElement));
@@ -306,7 +320,7 @@ export function Thread({
   const menuItems: ReactNode[] = [];
   if (!readOnly && isOpen && decisionSource)
     menuItems.push(
-      <MenuItem
+      <ActionItem
         key="decision"
         icon={<BookOpen />}
         onSelect={() =>
@@ -314,21 +328,21 @@ export function Thread({
         }
       >
         Resolve as decision
-      </MenuItem>,
+      </ActionItem>,
     );
   if (!readOnly && !isOpen && decisionSource && !recorded)
     menuItems.push(
-      <MenuItem
+      <ActionItem
         key="record"
         icon={<BookOpen />}
         onSelect={() => decisionSource(thread.id, conclusion)}
       >
         Record decision
-      </MenuItem>,
+      </ActionItem>,
     );
   if (!readOnly && isOpen && reviewable)
     menuItems.push(
-      <MenuItem
+      <ActionItem
         key="blocking"
         icon={thread.blocking ? <CircleDashed /> : <CircleAlert />}
         onSelect={() =>
@@ -341,16 +355,26 @@ export function Thread({
         }
       >
         {thread.blocking ? "Mark non-blocking" : "Mark blocking"}
-      </MenuItem>,
+      </ActionItem>,
     );
   const blockingTitle =
     thread.pullRequestId || thread.suggestionId
       ? "Must be resolved before this change can merge."
       : "Must be resolved before the specification is ready.";
   const foldable = own.length >= FOLD_FROM;
-  const folded = foldable && !unfolded;
-  const shown = folded ? [own[0]!, ...own.slice(-KEEP_LATEST)] : own;
-  const middle = own.length - 1 - KEEP_LATEST;
+  const opening = own[0];
+  const earlier = foldable ? own.slice(1, -KEEP_LATEST) : [];
+  const latest = foldable ? own.slice(-KEEP_LATEST) : own.slice(1);
+  const reply = (m: (typeof own)[number]) => (
+    <li key={m.id}>
+      <Message
+        authorId={m.authorId}
+        name={memberName(m.authorId)}
+        createdAt={m.createdAt}
+        body={m.body}
+      />
+    </li>
+  );
   const section = thread.anchor?.section;
   // What the discussion is about (state, section) heads the card with its
   // actions; a plain comment puts them beside its opening message.
@@ -358,12 +382,7 @@ export function Thread({
   const statusBadges = (
     <>
       {!isOpen ? (
-        <button
-          type="button"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-          className="inline-flex shrink-0 items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
+        <CollapsibleTrigger className="inline-flex shrink-0 items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <Badge tone="good">
             <CircleCheck className="size-3" aria-hidden /> Resolved
           </Badge>
@@ -375,7 +394,7 @@ export function Thread({
           <span className="sr-only">
             {expanded ? "Collapse" : "Expand"} resolved discussion
           </span>
-        </button>
+        </CollapsibleTrigger>
       ) : thread.blocking ? (
         <span title={blockingTitle} className="shrink-0">
           <Badge tone="danger">
@@ -424,30 +443,27 @@ export function Thread({
           </button>
         ))}
       {menuItems.length > 0 && (
-        <Popover
-          align="end"
-          width={220}
-          trigger={(props) => (
-            <button
-              {...props}
-              type="button"
-              aria-label="Discussion actions"
-              title="Discussion actions"
-              className={iconAction}
-            >
-              <MoreHorizontal className="size-4" aria-hidden />
-            </button>
-          )}
-        >
-          {(close) => (
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Choosing an item (by click or Enter) closes the menu; the items handle the keys.
-            <div onClick={close}>
-              <Menu label={`Actions for the discussion by ${author}`}>
-                {menuItems}
-              </Menu>
-            </div>
-          )}
-        </Popover>
+        <Menu>
+          <MenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Discussion actions"
+                title="Discussion actions"
+                className={iconAction}
+              />
+            }
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </MenuTrigger>
+          <MenuContent
+            align="end"
+            width={220}
+            aria-label={`Actions for the discussion by ${author}`}
+          >
+            {menuItems}
+          </MenuContent>
+        </Menu>
       )}
     </span>
   );
@@ -466,100 +482,129 @@ export function Thread({
         active && "ring-2 ring-ring/55",
       )}
     >
-      {context && (
-        <header className="flex min-h-10 items-center gap-1.5 py-1.5 pr-1.5 pl-3 text-xs text-muted-foreground">
-          {statusBadges}
-          {actions}
-        </header>
-      )}
-      {(where === "changed" || where === "removed") && (
-        <p className="px-3 pb-1.5 text-xs font-medium text-warning">
-          {where === "removed"
-            ? "Original text removed"
-            : "The quoted text changed"}
-          {revision !== undefined &&
-            !thread.commitId &&
-            revision !== current?.number && <> since revision {revision}</>}
-        </p>
-      )}
-      {quote && (
-        <div className="px-3">
-          <QuoteBlock
-            quote={quote}
-            muted={where !== "here"}
-            blocking={isOpen && thread.blocking}
-            title="Show in the specification"
-            onClick={
-              where === "here" && onShowInText
-                ? () => onShowInText(thread.id)
-                : undefined
-            }
-          />
-        </div>
-      )}
-      {showMessages ? (
-        <ol
-          className={cn(
-            "space-y-3 px-3 pb-3",
-            quote ? "pt-3" : context ? "pt-0.5" : "pt-2",
-          )}
-        >
-          {shown.map((m, index) => [
-            <li key={m.id}>
-              <Message
-                authorId={m.authorId}
-                name={memberName(m.authorId)}
-                createdAt={m.createdAt}
-                body={m.body}
-                meta={index === 0 ? revisionLink : undefined}
-                actions={index === 0 && !context ? actions : undefined}
-              />
-            </li>,
-            // One toggle in its own place after the opening message: it
-            // stays the same element (and keeps focus) as the middle of the
-            // conversation folds and unfolds beneath it.
-            index === 0 && foldable && (
-              <li key="fold">
-                <button
-                  type="button"
-                  aria-expanded={!folded}
-                  onClick={() => setUnfolded((v) => !v)}
-                  className="flex min-h-6 w-full items-center gap-2 rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:min-h-11"
-                >
-                  <span aria-hidden className="h-px flex-1 bg-border" />
-                  {folded ? "Show" : "Hide"} {middle} earlier{" "}
-                  {middle === 1 ? "reply" : "replies"}
-                  <span aria-hidden className="h-px flex-1 bg-border" />
-                </button>
+      <Collapsible open={showMessages} onOpenChange={setExpanded}>
+        {context && (
+          <header className="flex min-h-10 items-center gap-1.5 py-1.5 pr-1.5 pl-3 text-xs text-muted-foreground">
+            {statusBadges}
+            {actions}
+          </header>
+        )}
+        {(where === "changed" || where === "removed") && (
+          <p className="px-3 pb-1.5 text-xs font-medium text-warning">
+            {where === "removed"
+              ? "Original text removed"
+              : "The quoted text changed"}
+            {revision !== undefined &&
+              !thread.commitId &&
+              revision !== current?.number && <> since revision {revision}</>}
+          </p>
+        )}
+        {quote && (
+          <div className="px-3">
+            <QuoteBlock
+              quote={quote}
+              muted={where !== "here"}
+              blocking={isOpen && thread.blocking}
+              title="Show in the specification"
+              onClick={
+                where === "here" && onShowInText
+                  ? () => onShowInText(thread.id)
+                  : undefined
+              }
+            />
+          </div>
+        )}
+        <CollapsiblePanel>
+          <Collapsible
+            open={unfolded}
+            onOpenChange={setUnfolded}
+            render={<ol />}
+            className={cn(
+              "space-y-3 px-3 pb-3",
+              quote ? "pt-3" : context ? "pt-0.5" : "pt-2",
+            )}
+          >
+            {opening && (
+              <li>
+                <Message
+                  authorId={opening.authorId}
+                  name={memberName(opening.authorId)}
+                  createdAt={opening.createdAt}
+                  body={opening.body}
+                  meta={revisionLink}
+                  actions={context ? undefined : actions}
+                />
               </li>
-            ),
-          ])}
-        </ol>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="flex w-full min-w-0 items-baseline gap-1.5 px-3 pb-2.5 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          <span className="shrink-0 font-medium text-foreground/80">
-            {author}:
-          </span>
-          <span className="min-w-0 truncate">
-            {plainText(own[0]?.body ?? "")}
-          </span>
-          <span className="ml-auto shrink-0 tabular-nums">
-            {own.length === 1 ? "1 message" : `${own.length} messages`}
-          </span>
-        </button>
-      )}
-      {!readOnly && showMessages && (
-        <ReplyField
-          thread={thread}
-          // A conversation between several people is answered as a whole.
-          to={new Set(own.map((m) => m.authorId)).size > 1 ? "" : author}
-        />
-      )}
+            )}
+            {/* One toggle in its own place after the opening message: it
+              stays the same element (and keeps focus) as the middle of the
+              conversation folds and unfolds beneath it. */}
+            {foldable && (
+              <li>
+                <CollapsibleTrigger className="flex min-h-6 w-full items-center gap-2 rounded-md text-xs text-muted-foreground outline-none after:content-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:min-h-11">
+                  <span aria-hidden className="h-px flex-1 bg-border" />
+                  {unfolded ? "Hide" : "Show"} {earlier.length} earlier{" "}
+                  {earlier.length === 1 ? "reply" : "replies"}
+                  <span aria-hidden className="h-px flex-1 bg-border" />
+                </CollapsibleTrigger>
+              </li>
+            )}
+            {foldable && (
+              <CollapsiblePanel render={<li />}>
+                <ol className="space-y-3">{earlier.map(reply)}</ol>
+              </CollapsiblePanel>
+            )}
+            {latest.map(reply)}
+          </Collapsible>
+          {!readOnly && (
+            <ReplyField
+              thread={thread}
+              // A conversation between several people is answered as a whole.
+              to={new Set(own.map((m) => m.authorId)).size > 1 ? "" : author}
+            />
+          )}
+        </CollapsiblePanel>
+        {!showMessages && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="flex w-full min-w-0 items-baseline gap-1.5 px-3 pb-2.5 text-left text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            <span className="shrink-0 font-medium text-foreground/80">
+              {author}:
+            </span>
+            <span className="min-w-0 truncate">
+              {plainText(own[0]?.body ?? "")}
+            </span>
+            <span className="ml-auto shrink-0 tabular-nums">
+              {own.length === 1 ? "1 message" : `${own.length} messages`}
+            </span>
+          </button>
+        )}
+      </Collapsible>
     </article>
+  );
+}
+
+function ActionItem({
+  icon,
+  onSelect,
+  children,
+}: {
+  icon: ReactNode;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <MenuItem onSelect={onSelect}>
+      <span
+        aria-hidden
+        className="grid size-4 shrink-0 place-items-center text-muted-foreground [&>svg]:size-3.5"
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+    </MenuItem>
   );
 }
 
@@ -1051,28 +1096,19 @@ export function ThreadComposer({
       {active && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-2 py-1.5">
           {(reviewable || change) && (
-            <label
+            <Checkbox
+              checked={blocking}
+              onCheckedChange={(checked) => setBlocking(checked === true)}
               title={
                 change
                   ? "The change cannot merge until this discussion is resolved."
                   : "The specification cannot become ready until this discussion is resolved."
               }
-              className={cn(
-                "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs ring-1 transition-colors select-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/60 touch:h-11 touch:px-3",
-                blocking
-                  ? "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/25"
-                  : "text-muted-foreground ring-foreground/10 hover:text-foreground",
-              )}
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground ring-1 ring-foreground/10 transition-colors outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-destructive/8 data-checked:text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] data-checked:ring-destructive/25 data-checked:focus-visible:ring-ring/60 touch:h-11 touch:px-3"
             >
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={blocking}
-                onChange={(e) => setBlocking(e.target.checked)}
-              />
               <CircleAlert className="size-3.5" aria-hidden />
               {change ? "Blocks merging" : "Blocks readiness"}
-            </label>
+            </Checkbox>
           )}
           {reviewable && current && !change && (
             <span

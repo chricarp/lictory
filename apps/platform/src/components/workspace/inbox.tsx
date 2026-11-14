@@ -1,6 +1,7 @@
 import { Link } from "@lictory/platform/lib/navigation";
 import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { Button } from "@lictory/ui/button";
 import {
   CircleAlert,
@@ -12,7 +13,6 @@ import {
 } from "lucide-react";
 import { useUnreadNotifications } from "@lictory/platform/components/notifications/client";
 import { NotificationFeed } from "@lictory/platform/components/notifications/notifications";
-import { cn } from "@lictory/core/lib/utils";
 import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { paths } from "@lictory/core/lib/paths";
 import {
@@ -391,32 +391,26 @@ export function Inbox() {
     { id: "todo", label: "To do", count: entries.length + pages.length },
   ];
   return (
-    <div className="flex h-full flex-col">
+    <Tabs
+      value={view}
+      onValueChange={(next) => {
+        if (next === null || next === view) return;
+        router.replace(
+          next === "todo"
+            ? `${paths.inbox(organization.slug)}?view=todo`
+            : paths.inbox(organization.slug),
+        );
+      }}
+      className="flex h-full flex-col"
+    >
       <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
         <h1 className="text-sm font-semibold">Inbox</h1>
-        <div
-          role="tablist"
-          aria-label="Inbox view"
-          className="flex items-center gap-0.5"
-        >
+        <TabsList aria-label="Inbox view" className="flex items-center gap-0.5">
           {tabs.map((t) => (
-            <button
+            <TabsTab
               key={t.id}
-              role="tab"
-              aria-selected={view === t.id}
-              onClick={() =>
-                router.replace(
-                  t.id === "todo"
-                    ? `${paths.inbox(organization.slug)}?view=todo`
-                    : paths.inbox(organization.slug),
-                )
-              }
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px]",
-                view === t.id
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              value={t.id}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground hover:text-foreground data-selected:bg-muted data-selected:font-medium data-selected:text-foreground"
             >
               {t.label}
               {t.count > 0 && (
@@ -424,9 +418,9 @@ export function Inbox() {
                   {t.count}
                 </span>
               )}
-            </button>
+            </TabsTab>
           ))}
-        </div>
+        </TabsList>
         <Link
           href={paths.notificationSettings(organization.slug)}
           className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -435,13 +429,12 @@ export function Inbox() {
         </Link>
         <LittoLauncher />
       </header>
-      <div className="min-h-0 flex-1">
-        {view === "todo" ? (
-          <AttentionList entries={entries} pages={pages} />
-        ) : (
-          <NotificationFeed />
-        )}
-      </div>
-    </div>
+      <TabsPanel value="updates" className="min-h-0 flex-1">
+        <NotificationFeed />
+      </TabsPanel>
+      <TabsPanel value="todo" className="min-h-0 flex-1">
+        <AttentionList entries={entries} pages={pages} />
+      </TabsPanel>
+    </Tabs>
   );
 }

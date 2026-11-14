@@ -1,18 +1,26 @@
-import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
-import { useContext, useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useContext, useEffect, useRef, useState } from "react";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@ui-sdk/react/command";
+import { Popover, PopoverContent } from "@ui-sdk/react/popover";
 import type { Editor } from "@tiptap/core";
 import { Scale } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
+import { dropdownContentClass, dropdownItemClass } from "@lictory/ui/dropdown";
+import { popupContainer } from "@lictory/ui/popup";
 import { ItemContext } from "@lictory/platform/components/items/item-context";
 import { useReferences } from "@lictory/platform/components/references/data";
 import { insertDecision } from "@lictory/platform/components/editor/commands";
 
 // Finds a recorded decision to cite ("/" → Decision, or Insert → Decision):
-// a search field at the caret (WAI-ARIA combobox), the open item's
-// decisions first, then what the server finds among the decisions I may
-// read. Enter inserts `[title](decision:ID)`; Escape returns to the text.
+// a search field with its list at the caret, the open item's decisions
+// first, then what the server finds among the decisions I may read. Enter
+// inserts `[title](decision:ID)`; Escape returns to the text.
 
 type Option = { id: string; title: string; detail: string };
 
@@ -31,7 +39,6 @@ export function DecisionPicker({
   editor: Editor;
   onClose: () => void;
 }) {
-  const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const item = useContext(ItemContext);
   const { organizationId, item: itemOf } = useReferences();
@@ -39,14 +46,16 @@ export function DecisionPicker({
   const [remote, setRemote] = useState<Option[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [index, setIndex] = useState(0);
-  const [rect] = useState(() => {
+  const [caret] = useState(() => {
+    let rect = new DOMRect(16, 100, 0, 20);
     try {
       const { from } = editor.state.selection;
-      return editor.view.coordsAtPos(from);
+      const at = editor.view.coordsAtPos(from);
+      rect = new DOMRect(at.left, at.top, 0, at.bottom - at.top);
     } catch {
-      return { left: 16, bottom: 120, top: 100, right: 16 };
+      // An editor without a view yet: the picker opens near the top.
     }
+    return { getBoundingClientRect: () => rect };
   });
 
   const local: Option[] = (item?.entities ?? [])
@@ -106,8 +115,13 @@ export function DecisionPicker({
     };
   }, [organizationId, query]);
 
+  // The picker is open while it is rendered, which moves no focus by
+  // itself; the second try covers a panel shown a frame after it mounts.
   useEffect(() => {
-    input.current?.focus();
+    const focus = () => input.current?.focus();
+    focus();
+    const frame = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const close = () => {
@@ -120,94 +134,82 @@ export function DecisionPicker({
     insertDecision(editor, null, option);
   };
 
-  const top = Math.min(rect.bottom + 6, window.innerHeight - 320);
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - 328));
-  const active = Math.min(index, Math.max(0, options.length - 1));
-  return createPortal(
-    <DropdownSurface style={{ top, left }} className="fixed w-80">
-      <label htmlFor={`${id}-input`} className="sr-only">
-        Find a decision
-      </label>
-      <input
-        ref={input}
-        id={`${id}-input`}
-        role="combobox"
-        aria-expanded
-        aria-controls={`${id}-list`}
-        aria-autocomplete="list"
-        aria-activedescendant={options.length ? `${id}-${active}` : undefined}
-        placeholder="Find a decision…"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIndex(0);
-        }}
-        onBlur={(e) => {
-          if (!e.currentTarget.parentElement?.contains(e.relatedTarget))
-            onClose();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            const step = e.key === "ArrowDown" ? 1 : -1;
-            if (options.length)
-              setIndex((active + step + options.length) % options.length);
-          } else if (e.key === "Enter") {
-            e.preventDefault();
-            choose(options[active]);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            close();
-          }
-        }}
-        className="h-10 w-full border-b bg-transparent px-3 text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
-      />
-      <ul
-        id={`${id}-list`}
-        role="listbox"
-        aria-label="Decisions"
-        className="max-h-64 overflow-y-auto p-1"
+  return (
+    <Popover
+      open
+      container={popupContainer()}
+      onOpenChange={(open, details) => {
+        if (open) return;
+        if (details.reason === "escape-key") close();
+        else onClose();
+      }}
+    >
+      <PopoverContent
+        data-popover
+        aria-label="Find a decision"
+        anchor={caret}
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        collisionPadding={8}
+        initialFocus="none"
+        finalFocus="none"
+        style={{ maxHeight: "var(--available-height)" }}
+        className={cn(dropdownContentClass, "flex w-80 flex-col gap-0")}
       >
-        {options.map((option, i) => (
-          // Keys stay in the field (aria-activedescendant); pointers pick here.
-          <DropdownItem asChild key={option.id}>
-            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
-            <li
-              id={`${id}-${i}`}
-              role="option"
-              aria-selected={i === active}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(option)}
-              className={cn(
-                "items-start",
-                i === active && "bg-accent text-accent-foreground",
-              )}
-            >
-              <Scale
-                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                aria-hidden
-              />
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2">{option.title}</span>
-                <span className="block font-mono text-[11px] text-muted-foreground">
-                  {option.detail}
-                </span>
-              </span>
-            </li>
-          </DropdownItem>
-        ))}
-      </ul>
-      {!options.length && (
-        <p
-          role="status"
-          className="px-3 pb-2.5 text-[13px] text-muted-foreground"
+        <Command
+          className="flex min-h-0 flex-col"
+          // Local decisions are narrowed here and the server's arrive ranked.
+          filter={false}
+          status={error ? "error" : loading ? "loading" : "idle"}
+          onQueryChange={(next) => setQuery(next)}
+          onAction={(id) => choose(options.find((o) => o.id === id))}
         >
-          {error ||
-            (loading ? "Searching decisions…" : "No recorded decisions match.")}
-        </p>
-      )}
-    </DropdownSurface>,
-    document.body,
+          <CommandInput
+            ref={input}
+            aria-label="Find a decision"
+            placeholder="Find a decision…"
+            onKeyDown={(e) => {
+              // Escape leaves the picker at once, even with text typed.
+              if (e.key !== "Escape") return;
+              e.preventDefault();
+              e.stopPropagation();
+              close();
+            }}
+            className="h-10 w-full shrink-0 border-b bg-transparent px-3 text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
+          />
+          <CommandList
+            aria-label="Decisions"
+            className="max-h-64 min-h-0 flex-1 overflow-y-auto p-1 outline-none"
+          >
+            {options.map((option) => (
+              <CommandItem
+                key={option.id}
+                value={option.id}
+                label={option.title}
+                className={cn(dropdownItemClass, "items-start")}
+              >
+                <Scale
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2">{option.title}</span>
+                  <span className="block font-mono text-[11px] text-muted-foreground">
+                    {option.detail}
+                  </span>
+                </span>
+              </CommandItem>
+            ))}
+          </CommandList>
+          <CommandEmpty className="text-[13px] text-muted-foreground data-empty:px-3 data-empty:pb-2.5">
+            {error ||
+              (loading
+                ? "Searching decisions…"
+                : "No recorded decisions match.")}
+          </CommandEmpty>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

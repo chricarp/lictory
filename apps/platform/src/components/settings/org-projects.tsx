@@ -1,5 +1,10 @@
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { useState } from "react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   Archive,
@@ -42,7 +47,6 @@ export function OrganizationProjects() {
   const active = all.filter((p) => !p.archivedAt);
   const archived = all.filter((p) => p.archivedAt);
   const [creating, setCreating] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string>();
   return (
     <>
@@ -69,29 +73,18 @@ export function OrganizationProjects() {
           ))}
         </SettingsList>
         {archived.length > 0 && (
-          <div className="border-t border-border">
-            <button
-              onClick={() => setShowArchived((v) => !v)}
-              aria-expanded={showArchived}
-              className="inline-flex items-center gap-1 px-5 py-3 text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground"
-            >
-              <ChevronDown
-                className={cn(
-                  "size-3 transition-transform duration-150",
-                  showArchived && "rotate-180",
-                )}
-              />
+          <Collapsible className="border-t border-border">
+            <CollapsibleTrigger className="group inline-flex items-center gap-1 px-5 py-3 text-xs text-muted-foreground transition-colors duration-100 hover:text-foreground">
+              <ChevronDown className="size-3 transition-transform duration-150 group-data-open:rotate-180" />
               {archived.length} archived project
               {archived.length === 1 ? "" : "s"}
-            </button>
-            {showArchived && (
-              <div className="divide-y divide-border border-t border-border">
-                {archived.map((p) => (
-                  <ProjectRow key={p.id} project={p} onError={setError} />
-                ))}
-              </div>
-            )}
-          </div>
+            </CollapsibleTrigger>
+            <CollapsiblePanel className="divide-y divide-border border-t border-border text-[length:inherit] leading-[inherit] text-inherit">
+              {archived.map((p) => (
+                <ProjectRow key={p.id} project={p} onError={setError} />
+              ))}
+            </CollapsiblePanel>
+          </Collapsible>
         )}
         {error && (
           <div className="border-t border-border px-5 py-3">

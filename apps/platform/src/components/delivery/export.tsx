@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogDescription,
+} from "@ui-sdk/react/dialog";
+import { Input } from "@ui-sdk/react/input";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -20,6 +26,9 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import type { Project } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
+import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
+import { popupContainer } from "@lictory/ui/popup";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
@@ -266,34 +275,30 @@ export function ExportDialog({
         ["failed", "conflict"].includes(publication.results[id]?.outcome ?? ""),
       )
     : [];
-  return createPortal(
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape bubbles from the dialog's controls; the backdrop is not a control.
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[10vh] pb-4"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
+  useReturnFocus();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
+      container={popupContainer()}
     >
-      <button
-        aria-label="Close"
-        className="absolute inset-0"
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
-        aria-modal
+      <DialogBackdrop className={dialogBackdropClass} />
+      <DialogContent
+        // Named here, not by its heading, which changes once results arrive.
         aria-label={`Export to ${tool.name}`}
-        className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
+        className={cn(dialogPanelClass, "max-w-2xl gap-0 text-base")}
       >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
             {publication ? "Export results" : `Export to ${tool.name}`}
           </h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
+          <DialogDescription className="mt-0.5 mb-0 text-[13px] text-muted-foreground">
             {publication
               ? summary(publication)
               : `Only ready items are exported. Summary, description (latest revision with acceptance criteria) and labels are written to ${tool.name}; status, assignee and sprint stay owned by ${tool.name}.`}
-          </p>
+          </DialogDescription>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {!plan && !error && (
@@ -344,13 +349,12 @@ export function ExportDialog({
                       {(!publication && entry.conflict?.length) ||
                       result?.outcome === "conflict" ? (
                         <label className="mt-1 flex items-center gap-2 text-xs text-warning">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={overwrite.has(entry.workItemId)}
-                            onChange={(e) =>
+                            onCheckedChange={(checked) =>
                               setOverwrite((current) => {
                                 const next = new Set(current);
-                                if (e.target.checked)
+                                if (checked === true)
                                   next.add(entry.workItemId);
                                 else next.delete(entry.workItemId);
                                 return next;
@@ -435,9 +439,20 @@ export function ExportDialog({
             )}
           </div>
         </div>
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// The caller unmounts the dialog to close it, before it can hand focus back.
+function useReturnFocus() {
+  const [opener] = useState(() => document.activeElement);
+  useEffect(
+    () => () => {
+      if (opener instanceof HTMLElement && opener.isConnected)
+        opener.focus({ preventScroll: true });
+    },
+    [opener],
   );
 }
 
@@ -671,10 +686,10 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             });
           }}
         >
-          <input
+          <Input
             autoFocus
             value={key}
-            onChange={(e) => setKey(e.target.value)}
+            onValueChange={setKey}
             placeholder="Issue key, e.g. PAY-12"
             aria-label={`${tool.Name} issue key`}
             className="h-7 min-w-0 flex-1 rounded-md border bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"

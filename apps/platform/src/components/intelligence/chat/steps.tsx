@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Brain,
   Check,
+  ChevronRight,
   CircleCheck,
   FileText,
   PenLine,
@@ -13,6 +14,11 @@ import {
 } from "lucide-react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { Button } from "@lictory/ui/button";
 import {
   Item,
@@ -338,7 +344,6 @@ function ItemLink({ item }: { item: ItemRef }) {
 // What the step asked for and what came back, in words; the raw request and
 // response stay one click away for anyone who needs to verify them.
 function StepDetail({ activity }: { activity: Activity }) {
-  const [raw, setRaw] = useState(false);
   const { part, step } = activity;
   const subjectItem =
     step.subject?.kind === "item" ? step.subject.item : undefined;
@@ -359,16 +364,11 @@ function StepDetail({ activity }: { activity: Activity }) {
       )}
       {step.outcome.pages && <PageCitations pages={step.outcome.pages} />}
       {step.fields.length > 0 && <Fields fields={step.fields} />}
-      <button
-        type="button"
-        onClick={() => setRaw((r) => !r)}
-        aria-expanded={raw}
-        className="text-[11.5px] text-muted-foreground/80 underline decoration-transparent underline-offset-2 transition-colors hover:text-foreground hover:decoration-current"
-      >
-        {raw ? "Hide raw data" : "Show raw data"}
-      </button>
-      {raw && (
-        <div className="grid gap-2 text-[11px]">
+      <Collapsible>
+        <CollapsibleTrigger className="text-[11.5px] font-normal text-muted-foreground/80 underline decoration-transparent underline-offset-2 transition-colors after:content-none hover:text-foreground hover:decoration-current">
+          {({ open }) => (open ? "Hide raw data" : "Show raw data")}
+        </CollapsibleTrigger>
+        <CollapsiblePanel className="mt-2 grid gap-2 text-[11px]">
           <Raw label="Request" value={part.input} />
           {part.state === "output-available" && (
             <Raw label="Response" value={part.output} />
@@ -376,8 +376,8 @@ function StepDetail({ activity }: { activity: Activity }) {
           {part.state === "output-error" && (
             <Raw label="Error" value={part.errorText} />
           )}
-        </div>
-      )}
+        </CollapsiblePanel>
+      </Collapsible>
     </div>
   );
 }
@@ -606,21 +606,27 @@ export function Confirmation({
       )}
       {ids.length > 0 && (
         // References with no readable name stay exact, one click away.
-        <details className="basis-full text-[12px] text-muted-foreground">
-          <summary className="cursor-pointer rounded-sm outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+        <Collapsible className="basis-full text-[12px] text-muted-foreground">
+          <CollapsibleTrigger className="group/details flex w-full cursor-pointer items-center gap-1 rounded-sm text-left text-[12px] font-normal text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+            <ChevronRight
+              className="size-3 transition-transform duration-150 group-data-open/details:rotate-90"
+              aria-hidden
+            />
             Technical details
-          </summary>
-          <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-            {ids.map(([label, value]) => (
-              <div key={label} className="contents">
-                <dt>{label}</dt>
-                <dd className="min-w-0 font-mono text-[11.5px] break-all select-all">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </details>
+          </CollapsibleTrigger>
+          <CollapsiblePanel>
+            <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+              {ids.map(([label, value]) => (
+                <div key={label} className="contents">
+                  <dt>{label}</dt>
+                  <dd className="min-w-0 font-mono text-[11.5px] break-all select-all">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </CollapsiblePanel>
+        </Collapsible>
       )}
       <ItemFooter className="justify-end">
         <ItemActions>

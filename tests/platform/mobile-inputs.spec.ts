@@ -113,7 +113,7 @@ test.describe("touch devices", () => {
       await page.getByRole("button", { name: "Search", exact: true }).tap();
       const search = page
         .getByRole("dialog", { name: "Command palette" })
-        .getByRole("textbox", { name: "Search", exact: true });
+        .getByRole("combobox", { name: "Search", exact: true });
       await expect(search).toBeFocused();
       await expect(search).toHaveCSS("font-size", "16px");
       await search.fill("Readable mobile requirements");

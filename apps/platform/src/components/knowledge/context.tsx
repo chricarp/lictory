@@ -3,6 +3,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { useId, useMemo, useRef, useState } from "react";
+import { Input } from "@ui-sdk/react/input";
 import {
   ArrowDown,
   ArrowUp,
@@ -517,12 +518,12 @@ export function IterationNotesForm({
           <label htmlFor={titleField} className="text-xs font-medium">
             Title
           </label>
-          <input
+          <Input
             id={titleField}
             autoFocus
             value={title}
             maxLength={200}
-            onChange={(e) => setTitle(e.target.value)}
+            onValueChange={setTitle}
             className="h-8 rounded-md border bg-background px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
           />
         </>

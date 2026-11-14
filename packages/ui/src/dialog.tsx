@@ -17,7 +17,7 @@ export const dialogBackdropClass =
   "fixed inset-0 z-50 bg-black/20 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0";
 
 export const dialogPanelClass =
-  "fixed inset-x-0 top-[10vh] z-50 mx-auto my-0 flex max-h-[calc(100dvh-10vh-1rem)] w-[calc(100%-2rem)] flex-col overflow-hidden rounded-xl border bg-popover p-0 text-popover-foreground shadow-(--shadow-panel) outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-98 data-ending-style:opacity-0 data-starting-style:scale-98 data-starting-style:opacity-0";
+  "fixed inset-x-0 top-[10vh] z-50 mx-auto my-0 flex max-h-[calc(100dvh-10vh-1rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-xl border bg-popover p-0 text-popover-foreground shadow-(--shadow-panel) outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-98 data-ending-style:opacity-0 data-starting-style:scale-98 data-starting-style:opacity-0";
 
 // A modal dialog: focus moves in on open (to `[data-autofocus]`, or the first
 // control), Tab stays inside, Escape and a press outside close it, and focus
@@ -58,7 +58,9 @@ export function Dialog({
     <>
       <div className="flex shrink-0 items-start gap-3 px-5 pt-5 pb-3">
         <div className="min-w-0 flex-1">
-          <DialogTitle className="m-0 text-sm font-semibold">{title}</DialogTitle>
+          <DialogTitle className="m-0 text-sm font-semibold">
+            {title}
+          </DialogTitle>
           {description && (
             <DialogDescription className="mt-1 mb-0 text-[13px] leading-5 text-muted-foreground">
               {description}

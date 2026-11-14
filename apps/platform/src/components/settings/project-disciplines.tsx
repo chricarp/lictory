@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Archive, ArchiveRestore, Plus, ShieldCheck } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
@@ -11,6 +12,7 @@ import {
   type Discipline,
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -174,13 +176,14 @@ function CapabilityToggles({
             disabled && "cursor-default",
           )}
         >
-          <input
-            type="checkbox"
+          <Checkbox
             className="mt-0.5"
             disabled={disabled}
             checked={value[key]}
             aria-label={`${name}: ${capabilityMeta[key].label}`}
-            onChange={(e) => onChange({ ...value, [key]: e.target.checked })}
+            onCheckedChange={(checked) =>
+              onChange({ ...value, [key]: checked === true })
+            }
           />
           <span>
             {capabilityMeta[key].label}
@@ -214,7 +217,7 @@ function DisciplineRow({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <input
+            <InputPrimitive
               key={d.name}
               defaultValue={d.name}
               disabled={!editable}
@@ -233,7 +236,7 @@ function DisciplineRow({
               {plural(d.userIds.length, "member")}
             </span>
           </div>
-          <input
+          <InputPrimitive
             key={d.description ?? ""}
             defaultValue={d.description ?? ""}
             disabled={!editable}

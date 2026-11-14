@@ -1,4 +1,6 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+import { dropdownItemClass } from "@lictory/ui/dropdown";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -70,6 +72,10 @@ const laneLabel: Record<Lane, string> = {
   parent: "Parent",
   priority: "Priority",
 };
+const choiceRowClass = cn(
+  dropdownItemClass,
+  "data-checked:font-medium data-checked:text-primary",
+);
 // Closed work drops off the board after two weeks; history stays in lists.
 const DONE_WINDOW = 14 * 86_400_000;
 
@@ -504,23 +510,28 @@ function ProjectBoard({ project }: { project: Project }) {
               <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
                 Swimlanes
               </p>
-              {(Object.keys(laneLabel) as Lane[]).map((key) => (
-                <DropdownItem
-                  key={key}
-                  onClick={() =>
-                    setParam("lanes", key === "none" ? undefined : key)
-                  }
-                  className={cn(lane === key && "font-medium text-primary")}
-                >
-                  {laneLabel[key]}
-                </DropdownItem>
-              ))}
+              <RadioGroup<Lane>
+                aria-label="Swimlanes"
+                value={lane}
+                onValueChange={(next) => {
+                  if (next)
+                    setParam("lanes", next === "none" ? undefined : next);
+                }}
+                className="flex flex-col gap-0"
+              >
+                {(Object.keys(laneLabel) as Lane[]).map((key) => (
+                  <Radio key={key} value={key} className={choiceRowClass}>
+                    {laneLabel[key]}
+                  </Radio>
+                ))}
+              </RadioGroup>
               <div className="my-1 border-t" />
               <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={showCanceled}
-                  onChange={(e) => setShowCanceled(e.target.checked)}
+                  onCheckedChange={(checked) =>
+                    setShowCanceled(checked === true)
+                  }
                 />
                 Show canceled column
               </label>

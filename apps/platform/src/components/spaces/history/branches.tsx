@@ -4,6 +4,7 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { useState } from "react";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
+import { Input } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
@@ -220,7 +221,7 @@ export function Branches({ pageId }: { pageId: string }) {
           <h3 className="font-medium">New branch</h3>
           <label className="block text-sm">
             Branch name
-            <input
+            <Input
               className={`${field} mt-1`}
               maxLength={80}
               value={name}

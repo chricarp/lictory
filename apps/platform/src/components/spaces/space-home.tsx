@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
 import { Avatar, Badge, EmptyState } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -323,7 +324,7 @@ function PageFinder({
         className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
-      <input
+      <InputPrimitive
         type="search"
         aria-label="Find a page"
         placeholder="Find a page"

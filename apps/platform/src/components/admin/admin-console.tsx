@@ -1,5 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
   Activity,
   ArrowLeft,
   Building2,
@@ -18,6 +23,7 @@ import {
   suggestOrganizationHandle,
 } from "@lictory/core/lib/organization-handles";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -691,10 +697,9 @@ function CreateAccount({
         />
       </div>
       <label className="flex items-start gap-2 text-[13px]">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={instanceAdmin}
-          onChange={(e) => setInstanceAdmin(e.target.checked)}
+          onCheckedChange={(checked) => setInstanceAdmin(checked === true)}
           className="mt-0.5"
         />
         <span>
@@ -728,9 +733,8 @@ function PersonRow({
   organizations: AdminOrganization[];
   onChanged: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div data-testid="admin-person" className="text-[13px]">
+    <Collapsible data-testid="admin-person" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
         <Avatar name={user.name || user.email} image={user.image} size="sm" />
         <div className="min-w-0 flex-1">
@@ -773,28 +777,32 @@ function PersonRow({
             : `Created ${date(user.createdAt)}`}
         </p>
         {!user.deletedAt && (
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-expanded={open}
-            aria-label={`Manage ${user.name || user.email}`}
-            onClick={() => setOpen((o) => !o)}
+          <CollapsibleTrigger
+            render={
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label={`Manage ${user.name || user.email}`}
+              />
+            }
           >
             Manage
-          </Button>
+          </CollapsibleTrigger>
         )}
       </div>
-      {open && !user.deletedAt && (
-        <ManagePerson
-          user={user}
-          self={self}
-          organizations={organizations.filter(
-            (o) => !user.organizations.some((m) => m.id === o.id),
-          )}
-          onChanged={onChanged}
-        />
+      {!user.deletedAt && (
+        <CollapsiblePanel>
+          <ManagePerson
+            user={user}
+            self={self}
+            organizations={organizations.filter(
+              (o) => !user.organizations.some((m) => m.id === o.id),
+            )}
+            onChanged={onChanged}
+          />
+        </CollapsiblePanel>
       )}
-    </div>
+    </Collapsible>
   );
 }
 
@@ -1173,7 +1181,6 @@ function OrganizationRow({
   organization: AdminOrganization;
   onChanged: () => void;
 }) {
-  const [adding, setAdding] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [error, setError] = useState<string>();
@@ -1199,7 +1206,7 @@ function OrganizationRow({
     }
   };
   return (
-    <div data-testid="admin-organization" className="text-[13px]">
+    <Collapsible data-testid="admin-organization" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
         <span
           aria-hidden
@@ -1237,16 +1244,11 @@ function OrganizationRow({
         <p className="hidden text-xs text-muted-foreground sm:block">
           Created {date(organization.createdAt)}
         </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={adding}
-          onClick={() => setAdding((a) => !a)}
-        >
+        <CollapsibleTrigger render={<Button size="sm" variant="secondary" />}>
           Add member
-        </Button>
+        </CollapsibleTrigger>
       </div>
-      {adding && (
+      <CollapsiblePanel>
         <form
           onSubmit={(e) => void submit(e)}
           aria-label={`Add a member to ${organization.name}`}
@@ -1289,8 +1291,8 @@ function OrganizationRow({
             )}
           </div>
         </form>
-      )}
-    </div>
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }
 

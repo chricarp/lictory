@@ -2,6 +2,12 @@ import { useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { ChevronRight } from "lucide-react";
 import { diffDocuments } from "@lictory/core/spaces/document/diff";
 import {
   canonicalizeDocument,
@@ -132,16 +138,22 @@ export function RenderedDocumentDiff({
       {groups.map((group, index) => {
         if (group.kind === "unchanged")
           return (
-            <details
+            <Collapsible
               key={index}
               className="rounded-lg border border-dashed text-sm"
             >
-              <summary className="min-h-9 cursor-pointer rounded-lg px-4 py-2 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring">
+              <CollapsibleTrigger className="flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-lg px-4 py-2 text-left text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <ChevronRight
+                  aria-hidden
+                  className="size-3.5 shrink-0 in-data-open:rotate-90"
+                />
                 {group.after.length} unchanged{" "}
                 {group.after.length === 1 ? "block" : "blocks"}
-              </summary>
-              <Block nodes={group.after} kind="context" />
-            </details>
+              </CollapsibleTrigger>
+              <CollapsiblePanel>
+                <Block nodes={group.after} kind="context" />
+              </CollapsiblePanel>
+            </Collapsible>
           );
         const movedOnly =
           group.kind === "moved" &&

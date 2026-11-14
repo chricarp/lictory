@@ -24,26 +24,17 @@ type Styled<Tag extends "button" | "div"> = Omit<
 export function DropdownItem({
   className,
   render,
-  asChild,
-  children,
   ...props
-}: Styled<"button"> & {
-  // The row's chrome on the element given as the only child.
-  asChild?: boolean;
-}) {
-  const element = asChild
-    ? (children as ReactElement<Record<string, unknown>>)
-    : render;
+}: Styled<"button">) {
   return renderElement(
     "button",
     {
-      type: element ? undefined : "button",
+      type: render ? undefined : "button",
       "data-dropdown-item": "",
       ...props,
-      children: asChild ? undefined : children,
       className: cn(dropdownItemClass, className),
     },
-    element,
+    render,
   );
 }
 

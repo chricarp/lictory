@@ -12,7 +12,13 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import type { PageThreadAnchor } from "@lictory/core/contracts/protocol";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Markdown } from "@lictory/platform/components/items/markdown";
@@ -216,35 +222,38 @@ export function CommentsPanel({
       ))}
       {otherLines.length > 0 && <OtherLines lines={otherLines} />}
       {resolved.length > 0 && (
-        <button
-          type="button"
-          aria-expanded={showResolved}
-          onClick={() => setShowResolved((v) => !v)}
-          className="inline-flex items-center gap-1 self-start rounded-full px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+        // The button and the threads it reveals stay rows of the panel.
+        <Collapsible
+          open={showResolved}
+          onOpenChange={setShowResolved}
+          className="contents"
         >
-          {showResolved ? (
-            <ChevronDown className="size-3.5" aria-hidden />
-          ) : (
-            <ChevronRight className="size-3.5" aria-hidden />
-          )}
-          {showResolved ? "Hide" : "Show"} {resolved.length} resolved
-        </button>
+          <CollapsibleTrigger className="inline-flex items-center gap-1 self-start rounded-full px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+            {showResolved ? (
+              <ChevronDown className="size-3.5" aria-hidden />
+            ) : (
+              <ChevronRight className="size-3.5" aria-hidden />
+            )}
+            {showResolved ? "Hide" : "Show"} {resolved.length} resolved
+          </CollapsibleTrigger>
+          <CollapsiblePanel className="flex flex-col gap-3">
+            {resolved.map((view) => (
+              <ThreadCard
+                key={view.thread.id}
+                view={view}
+                active={view.thread.id === activeId}
+                hovered={view.thread.id === hoveredId}
+                onHover={onHover}
+                onActivate={onActivate}
+                canComment={canComment}
+                actions={actions}
+                fileContext={fileContext}
+                versionHref={versionHref}
+              />
+            ))}
+          </CollapsiblePanel>
+        </Collapsible>
       )}
-      {showResolved &&
-        resolved.map((view) => (
-          <ThreadCard
-            key={view.thread.id}
-            view={view}
-            active={view.thread.id === activeId}
-            hovered={view.thread.id === hoveredId}
-            onHover={onHover}
-            onActivate={onActivate}
-            canComment={canComment}
-            actions={actions}
-            fileContext={fileContext}
-            versionHref={versionHref}
-          />
-        ))}
       {canComment && (
         <PageComment
           onSubmit={(body, isBlocking) =>
@@ -368,12 +377,18 @@ function ThreadCard({
   const author = memberName(thread.authorId);
   const linked = placement === "here" && isOpen;
   return (
-    <article
-      ref={ref}
-      data-thread-id={thread.id}
-      aria-label={`${thread.blocking && isOpen ? "Blocking comment" : "Comment"} by ${author}`}
-      onMouseEnter={linked ? () => onHover(thread.id) : undefined}
-      onMouseLeave={linked ? () => onHover(null) : undefined}
+    <Collapsible
+      open={isOpen || expanded}
+      onOpenChange={setExpanded}
+      render={
+        <article
+          ref={ref}
+          data-thread-id={thread.id}
+          aria-label={`${thread.blocking && isOpen ? "Blocking comment" : "Comment"} by ${author}`}
+          onMouseEnter={linked ? () => onHover(thread.id) : undefined}
+          onMouseLeave={linked ? () => onHover(null) : undefined}
+        />
+      }
       className={cn(
         "rounded-xl bg-card text-[13px] ring-1 ring-foreground/10 transition-[box-shadow] duration-150 ease-out",
         isOpen && thread.blocking && "ring-destructive/25",
@@ -383,19 +398,14 @@ function ThreadCard({
     >
       <header className="flex flex-wrap items-center gap-2 px-3 pt-2.5 text-xs text-muted-foreground">
         {!isOpen ? (
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
+          <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-full outline-none after:content-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <Badge tone="good">
               <CircleCheck className="size-3" aria-hidden /> Resolved
             </Badge>
             <span className="sr-only">
               {expanded ? "Collapse" : "Expand"} resolved comment
             </span>
-          </button>
+          </CollapsibleTrigger>
         ) : thread.blocking ? (
           <span title="Must be resolved before this page's changes can merge.">
             <Badge tone="danger">
@@ -439,7 +449,7 @@ function ThreadCard({
           />
         </div>
       )}
-      {(isOpen || expanded) && (
+      <CollapsiblePanel>
         <ol className="mt-1">
           {messages.map((m) => (
             <li key={m.id} className="px-3 py-2">
@@ -463,7 +473,7 @@ function ThreadCard({
             </li>
           ))}
         </ol>
-      )}
+      </CollapsiblePanel>
       {error && (
         <p role="alert" className="px-3 pb-1 text-xs text-destructive">
           {error}
@@ -574,7 +584,7 @@ function ThreadCard({
           )}
         </footer>
       )}
-    </article>
+    </Collapsible>
   );
 }
 
@@ -649,11 +659,10 @@ function Composer({
           htmlFor={blockingId}
           className="flex items-center gap-1.5 text-xs text-muted-foreground"
         >
-          <input
+          <Checkbox
             id={blockingId}
-            type="checkbox"
             checked={blocking}
-            onChange={(e) => setBlocking(e.target.checked)}
+            onCheckedChange={(checked) => setBlocking(checked === true)}
           />
           Blocking
         </label>

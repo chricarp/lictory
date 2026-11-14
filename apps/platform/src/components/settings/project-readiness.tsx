@@ -1,4 +1,6 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import { Input } from "@ui-sdk/react/input";
+import { Switch, SwitchThumb } from "@ui-sdk/react/switch";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -31,6 +33,7 @@ import {
   type ReadinessRules,
 } from "@lictory/core/contracts/readiness";
 import { Button } from "@lictory/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
@@ -206,62 +209,65 @@ function DefinitionOfReady({
         />
       ) : (
         <>
-          <div
-            role="tablist"
-            aria-label="Work item types"
-            className="flex flex-wrap gap-1 px-5 pt-3"
+          <Tabs
+            value={type!.id}
+            onValueChange={(id) => {
+              if (id) setSelected(id);
+            }}
+            className="block"
           >
-            {types.map((t) => {
-              const changed = changes.some((c) => c.type.id === t.id);
-              return (
-                <button
+            <TabsList
+              aria-label="Work item types"
+              className="flex flex-wrap gap-1 px-5 pt-3"
+            >
+              {types.map((t) => (
+                <TabsTab
                   key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={t.id === type!.id}
-                  onClick={() => setSelected(t.id)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-[13px] font-medium",
-                    t.id === type!.id
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
+                  value={t.id}
+                  className="inline-block h-auto cursor-default rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground not-data-selected:hover:bg-muted not-data-selected:hover:text-foreground data-selected:bg-primary/10 data-selected:text-primary"
                 >
                   {t.name}
-                  {changed && (
+                  {changes.some((c) => c.type.id === t.id) && (
                     <span
                       role="img"
                       aria-label="changed"
                       className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
                     />
                   )}
-                </button>
-              );
-            })}
-          </div>
-          <TypeRules
-            key={type!.id}
-            project={project}
-            type={type!}
-            types={types}
-            canEdit={canEdit}
-            base={checksFor(base.rules, type!.id)}
-            checks={checksFor(rules, type!.id)}
-            usesDefaults={!rules[type!.id]}
-            onChange={(update) => edit(type!.id, update)}
-            onCopy={(from) =>
-              edit(type!.id, () =>
-                structuredClone(checksFor(rules, from)).map((c) =>
-                  isBuiltInKind(c.kind) ? c : { ...c, id: crypto.randomUUID() },
-                ),
-              )
-            }
-            onReset={() => {
-              const next = { ...rules };
-              delete next[type!.id];
-              setDraft({ base, rules: next });
-            }}
-          />
+                </TabsTab>
+              ))}
+            </TabsList>
+            <TabsPanel
+              value={type!.id}
+              className="text-[length:inherit] leading-[inherit]"
+            >
+              <TypeRules
+                key={type!.id}
+                project={project}
+                type={type!}
+                types={types}
+                canEdit={canEdit}
+                base={checksFor(base.rules, type!.id)}
+                checks={checksFor(rules, type!.id)}
+                usesDefaults={!rules[type!.id]}
+                onChange={(update) => edit(type!.id, update)}
+                onCopy={(from) =>
+                  edit(type!.id, () =>
+                    structuredClone(checksFor(rules, from)).map((c) =>
+                      isBuiltInKind(c.kind)
+                        ? c
+                        : { ...c, id: crypto.randomUUID() },
+                    ),
+                  )
+                }
+                onReset={() => {
+                  const next = { ...rules };
+                  delete next[type!.id];
+                  setDraft({ base, rules: next });
+                }}
+              />
+            </TabsPanel>
+          </Tabs>
           <StartingPolicy project={project} canEdit={canEdit} />
           {dirty && (
             <div className="space-y-2 border-t px-5 py-3">
@@ -346,41 +352,21 @@ function TypeRules({
           )}
         </p>
         {canEdit && (others.length > 0 || !usesDefaults) && (
-          <Popover
-            width={240}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} size="sm" variant="ghost">
-                Start from… <ChevronDown className="size-3" />
-              </Button>
-            )}
-          >
-            {(close) => (
-              <div role="menu" className="p-1 text-[13px]">
-                {others.map((t) => (
-                  <MenuItem
-                    key={t.id}
-                    onClick={() => {
-                      onCopy(t.id);
-                      close();
-                    }}
-                  >
-                    The {t.name} rules
-                  </MenuItem>
-                ))}
-                {!usesDefaults && (
-                  <MenuItem
-                    onClick={() => {
-                      onReset();
-                      close();
-                    }}
-                  >
-                    Lictory’s defaults
-                  </MenuItem>
-                )}
-              </div>
-            )}
-          </Popover>
+          <Menu>
+            <MenuTrigger render={<Button size="sm" variant="ghost" />}>
+              Start from… <ChevronDown className="size-3" />
+            </MenuTrigger>
+            <MenuContent align="end" width={240}>
+              {others.map((t) => (
+                <MenuItem key={t.id} onSelect={() => onCopy(t.id)}>
+                  The {t.name} rules
+                </MenuItem>
+              ))}
+              {!usesDefaults && (
+                <MenuItem onSelect={onReset}>Lictory’s defaults</MenuItem>
+              )}
+            </MenuContent>
+          </Menu>
         )}
       </div>
       {readinessGroups.map((group) => {
@@ -498,21 +484,8 @@ const sortedKinds = (
   groupKinds: ReadinessCheckKind[],
 ) => [...kinds].sort((a, b) => groupKinds.indexOf(a) - groupKinds.indexOf(b));
 
-function MenuItem({
-  children,
-  onClick,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <DropdownItem type="button" role="menuitem" onClick={onClick}>
-      {children}
-    </DropdownItem>
-  );
-}
-
-function Switch({
+// The compact switch of a rule row; the shared Switch is one size larger.
+function RuleSwitch({
   on,
   label,
   disabled,
@@ -524,26 +497,15 @@ function Switch({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
+    <Switch
       aria-label={label}
+      checked={on}
       disabled={disabled}
-      onClick={onToggle}
-      className={cn(
-        "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-default disabled:opacity-60",
-        on ? "bg-primary" : "bg-muted-foreground/25",
-      )}
+      onCheckedChange={() => onToggle()}
+      className="relative m-0 inline-flex h-4 w-7 shrink-0 cursor-default items-center rounded-full border-0 bg-muted-foreground/25 p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-primary data-disabled:opacity-60"
     >
-      <span
-        aria-hidden
-        className={cn(
-          "inline-block size-3 rounded-full bg-white shadow-sm transition-transform duration-150",
-          on ? "translate-x-3.5" : "translate-x-0.5",
-        )}
-      />
-    </button>
+      <SwitchThumb className="inline-block size-3 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 data-checked:translate-x-3.5" />
+    </Switch>
   );
 }
 
@@ -591,7 +553,12 @@ function Rule({
         change === "removed" && "bg-red-500/6",
       )}
     >
-      <Switch on={on} label={label} disabled={!canEdit} onToggle={onToggle} />
+      <RuleSwitch
+        on={on}
+        label={label}
+        disabled={!canEdit}
+        onToggle={onToggle}
+      />
       <div className="min-w-0 flex-1">{children}</div>
       {change && <ChangeTag change={change} />}
     </div>
@@ -646,7 +613,7 @@ function ChipInput({
 }) {
   if (!canEdit) return <span className={chip}>{value}</span>;
   return (
-    <input
+    <Input
       value={value}
       aria-label={label}
       placeholder={placeholder}
@@ -759,7 +726,7 @@ function CustomSentence({
             onChange={(label) => onChange({ ...check, label })}
           />
           {canEdit ? (
-            <input
+            <Input
               value={check.description ?? ""}
               aria-label={`Guidance for ${check.label}`}
               placeholder="Guidance shown on the item (optional)"
@@ -1095,7 +1062,7 @@ function Review({
           </p>
         )}
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             maxLength={500}

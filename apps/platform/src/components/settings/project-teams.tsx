@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   Archive,
@@ -144,7 +145,7 @@ function TeamRow({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <input
+            <InputPrimitive
               key={t.name}
               defaultValue={t.name}
               disabled={!editable}
@@ -160,7 +161,7 @@ function TeamRow({
             />
             {t.archivedAt && <Badge>Archived</Badge>}
           </div>
-          <input
+          <InputPrimitive
             key={t.description ?? ""}
             defaultValue={t.description ?? ""}
             disabled={!editable}

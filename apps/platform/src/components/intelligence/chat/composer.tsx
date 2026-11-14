@@ -18,6 +18,7 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
+  InputGroupToggle,
 } from "@lictory/ui/ai/input-group";
 import {
   applyEdit,
@@ -210,33 +211,13 @@ export const Composer = forwardRef<
   }));
   // While Litto waits for an answer above, the field gives its room to a
   // compact bar: where the request is, and how to end the turn instead. The
-  // draft is kept and measured again when the field comes back.
+  // draft is kept for when the field comes back.
   const waiting = !!(disabled && onCancelWaiting && !dictating);
   useLayoutEffect(() => {
-    const el = area.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-    if (caret.current) {
-      el.setSelectionRange(...caret.current);
-      caret.current = null;
-    }
-  }, [value, waiting]);
-  // Re-measure when the width changes (an opening panel, a resized window):
-  // the same text wraps differently.
-  useEffect(() => {
-    const el = area.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    let width = el.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (el.clientWidth === width) return;
-      width = el.clientWidth;
-      el.style.height = "0px";
-      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [waiting]);
+    if (!caret.current) return;
+    area.current?.setSelectionRange(...caret.current);
+    caret.current = null;
+  }, [value]);
 
   const canSend = value.trim().length > 0 && !disabled && !busy && !dictating;
   const send = () => {
@@ -303,8 +284,7 @@ export const Composer = forwardRef<
           rows={1}
           autoFocus={autoFocus}
           disabled={disabled}
-          onChange={(e) => {
-            const next = e.target.value;
+          onValueChange={(next) => {
             if (dictation.current)
               dictation.current = applyEdit(
                 dictation.current,
@@ -333,17 +313,10 @@ export const Composer = forwardRef<
             if (e.key === "Escape" && busy && onStop) {
               e.preventDefault();
               onStop();
-              return;
-            }
-            if (
-              e.key === "Enter" &&
-              !e.shiftKey &&
-              !e.nativeEvent.isComposing
-            ) {
-              e.preventDefault();
-              send();
             }
           }}
+          submitShortcut="enter"
+          onSubmit={send}
           placeholder={placeholder ?? "Ask Litto or describe what to do…"}
           aria-label="Message Litto"
         />
@@ -399,10 +372,10 @@ export const Composer = forwardRef<
             </span>
           </span>
           {canDictate && (
-            <InputGroupButton
-              onClick={toggleDictation}
+            <InputGroupToggle
+              pressed={dictating}
+              onPressedChange={toggleDictation}
               disabled={disabled && !dictating}
-              aria-pressed={dictating}
               aria-label={
                 dictating ? "Stop dictation" : `Dictate (${shortcut})`
               }
@@ -411,11 +384,7 @@ export const Composer = forwardRef<
                   ? `Stop dictation (${shortcut})`
                   : `Dictate (${shortcut})`
               }
-              className={cn(
-                "ml-auto sm:ml-0",
-                dictating &&
-                  "bg-red-500/12 text-red-600 hover:bg-red-500/15 hover:text-red-600 dark:text-red-400",
-              )}
+              className="ml-auto data-pressed:bg-red-500/12 data-pressed:text-red-600 data-pressed:hover:bg-red-500/15 data-pressed:hover:text-red-600 sm:ml-0 dark:data-pressed:text-red-400"
             >
               {voice.state === "listening" && (
                 <span
@@ -428,7 +397,7 @@ export const Composer = forwardRef<
               ) : (
                 <Mic className="size-4" aria-hidden />
               )}
-            </InputGroupButton>
+            </InputGroupToggle>
           )}
           <InputGroupButton
             type={busy ? "button" : "submit"}

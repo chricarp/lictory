@@ -6,6 +6,13 @@ import type {
 } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
+import { Textarea as TextareaPrimitive } from "@ui-sdk/react/textarea";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { useRouter } from "@lictory/platform/lib/navigation";
@@ -47,7 +54,6 @@ export function CreateSpaceDialog({
     slug: useId(),
     description: useId(),
     access: useId(),
-    accessBody: useId(),
   };
   const [showAccess, setShowAccess] = useState(false);
   const [showAddress, setShowAddress] = useState(false);
@@ -161,7 +167,7 @@ export function CreateSpaceDialog({
                 >
                   /{organization.slug}/spaces/
                 </span>
-                <input
+                <InputPrimitive
                   id={ids.slug}
                   autoFocus
                   value={handle}
@@ -213,7 +219,7 @@ export function CreateSpaceDialog({
           )}
         </div>
         <Field label="Description" htmlFor={ids.description} optional>
-          <textarea
+          <TextareaPrimitive
             id={ids.description}
             value={description}
             maxLength={2000}
@@ -223,17 +229,13 @@ export function CreateSpaceDialog({
             className="w-full resize-y rounded-xl border border-foreground/15 bg-card px-3.5 py-2 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
           />
         </Field>
-        <section
-          aria-labelledby={ids.access}
+        <Collapsible
+          open={showAccess}
+          onOpenChange={setShowAccess}
+          render={<section aria-labelledby={ids.access} />}
           className="overflow-hidden rounded-xl ring-1 ring-foreground/10 ring-inset"
         >
-          <button
-            type="button"
-            aria-expanded={showAccess}
-            aria-controls={ids.accessBody}
-            onClick={() => setShowAccess((v) => !v)}
-            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
-          >
+          <CollapsibleTrigger className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left outline-none after:content-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset">
             <span className="min-w-0 flex-1">
               <span
                 id={ids.access}
@@ -249,17 +251,13 @@ export function CreateSpaceDialog({
               {showAccess ? "Hide" : "Configure"}
               <ChevronDown
                 aria-hidden
-                className={cn(
-                  "size-3.5 text-muted-foreground motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out",
-                  showAccess && "rotate-180",
-                )}
+                className="size-3.5 text-muted-foreground in-data-open:rotate-180 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out"
               />
             </span>
-          </button>
-          <div
-            id={ids.accessBody}
-            hidden={!showAccess}
-            className="space-y-4 border-t bg-muted/30 px-3.5 py-3.5"
+          </CollapsibleTrigger>
+          <CollapsiblePanel
+            keepMounted
+            className="space-y-4 border-t bg-muted/30 px-3.5 py-3.5 text-[length:inherit] leading-[inherit] text-inherit"
           >
             <HomeFields
               value={home}
@@ -303,8 +301,8 @@ export function CreateSpaceDialog({
                 },
               ]}
             />
-          </div>
-        </section>
+          </CollapsiblePanel>
+        </Collapsible>
         {error && (
           <p role="alert" className="text-xs text-destructive">
             {error}

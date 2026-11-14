@@ -1,4 +1,4 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import { Input } from "@ui-sdk/react/input";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -12,8 +12,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
-import { Popover } from "@lictory/ui/popover";
+import { useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "@lictory/ui/menu";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { ChatSummary } from "@lictory/core/intelligence/chat/shared";
@@ -98,9 +104,9 @@ export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
       <div className="px-3 pb-2">
         <label className="flex h-8 items-center gap-2 rounded-md bg-muted/60 px-2 text-[13px] focus-within:ring-2 focus-within:ring-ring/40">
           <Search className="size-3.5 text-muted-foreground" aria-hidden />
-          <input
+          <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             placeholder="Search conversations"
             aria-label="Search conversations"
             className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground touch:text-base"
@@ -190,6 +196,7 @@ function ChatRow({
   const reduce = useReducedMotion();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const renaming = useRef(false);
   const label = chatLabel(chat);
   const fail = (error: unknown) =>
     toast(error instanceof Error ? error.message : "That did not work.");
@@ -220,7 +227,7 @@ function ChatRow({
       )}
       {editing ? (
         <form onSubmit={submit} className="relative px-1 py-0.5">
-          <input
+          <Input
             name="title"
             defaultValue={label}
             autoFocus
@@ -278,56 +285,58 @@ function ChatRow({
       )}
       {!editing && (
         <div className="absolute inset-y-0 right-1 flex items-center">
-          <Popover
-            width={180}
-            align="end"
+          <Menu
             onOpenChange={(open) => !open && setConfirming(false)}
-            trigger={(props) => (
-              <button
-                {...props}
-                aria-label={`Actions for ${label}`}
-                // Touch has no hover: the actions stay visible there.
-                className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 touch:size-10 touch:opacity-100"
-              >
-                <MoreHorizontal className="size-3.5" />
-              </button>
-            )}
+            // The title field saves when it loses focus: it takes the row
+            // only once the menu has closed and returned focus.
+            onOpenChangeComplete={(open) => {
+              if (open || !renaming.current) return;
+              renaming.current = false;
+              setEditing(true);
+            }}
           >
-            {(close) => (
-              <div className="p-1 text-[13px]">
-                <MenuItem
-                  icon={<PenLine />}
-                  onClick={() => {
-                    close();
-                    setEditing(true);
-                  }}
-                >
-                  Rename
-                </MenuItem>
-                <MenuItem
-                  icon={chat.pinned ? <PinOff /> : <Pin />}
-                  onClick={() => {
-                    close();
-                    setPinned(chat.id, !chat.pinned).catch(fail);
-                  }}
-                >
-                  {chat.pinned ? "Unpin" : "Pin"}
-                </MenuItem>
-                <div className="my-1 border-t" />
-                <MenuItem
-                  icon={<Trash2 />}
-                  danger
-                  onClick={() => {
-                    if (!confirming) return setConfirming(true);
-                    close();
-                    remove(chat.id).catch(fail);
-                  }}
-                >
-                  {confirming ? "Click again to delete" : "Delete"}
-                </MenuItem>
-              </div>
-            )}
-          </Popover>
+            <MenuTrigger
+              aria-label={`Actions for ${label}`}
+              // Touch has no hover: the actions stay visible there.
+              className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-background hover:text-foreground focus-visible:opacity-100 data-open:opacity-100 touch:size-10 touch:opacity-100"
+            >
+              <MoreHorizontal className="size-3.5" />
+            </MenuTrigger>
+            <MenuContent align="end" width={180}>
+              <MenuItem
+                onSelect={() => {
+                  renaming.current = true;
+                }}
+              >
+                <PenLine className="size-3.5" />
+                Rename
+              </MenuItem>
+              <MenuItem
+                onSelect={() => {
+                  setPinned(chat.id, !chat.pinned).catch(fail);
+                }}
+              >
+                {chat.pinned ? (
+                  <PinOff className="size-3.5" />
+                ) : (
+                  <Pin className="size-3.5" />
+                )}
+                {chat.pinned ? "Unpin" : "Pin"}
+              </MenuItem>
+              <MenuSeparator className="mx-0" />
+              <MenuItem
+                destructive
+                onSelect={(event) => {
+                  if (confirming) return void remove(chat.id).catch(fail);
+                  event.preventDefault();
+                  setConfirming(true);
+                }}
+              >
+                <Trash2 className="size-3.5" />
+                {confirming ? "Click again to delete" : "Delete"}
+              </MenuItem>
+            </MenuContent>
+          </Menu>
         </div>
       )}
     </motion.li>
@@ -367,7 +376,7 @@ function ActivityIndicator({ activity }: { activity: SidebarActivity }) {
   return (
     <span
       role="status"
-      className="pointer-events-none absolute inset-y-0 right-1 grid w-6 place-items-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-state=open]]:opacity-0 touch:right-11 touch:opacity-100"
+      className="pointer-events-none absolute inset-y-0 right-1 grid w-6 place-items-center transition-opacity group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-slot=menu-trigger][data-open]]:opacity-0 touch:right-11 touch:opacity-100"
     >
       <span className="sr-only">{activityLabel[activity]}</span>
       {activity === "working" ? (
@@ -391,31 +400,5 @@ function ActivityIndicator({ activity }: { activity: SidebarActivity }) {
         />
       )}
     </span>
-  );
-}
-
-function MenuItem({
-  icon,
-  children,
-  onClick,
-  danger,
-}: {
-  icon: React.ReactElement;
-  children: React.ReactNode;
-  onClick: () => void;
-  danger?: boolean;
-}) {
-  return (
-    <DropdownItem
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "[&_svg]:size-3.5",
-        danger ? "text-destructive" : "[&_svg]:text-muted-foreground",
-      )}
-    >
-      {icon}
-      {children}
-    </DropdownItem>
   );
 }

@@ -5,9 +5,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
+import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
+import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
-import { keepTabInside } from "@lictory/platform/components/spaces/dialog";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 
 // Presentation shared by the discussions beside pages and beside
@@ -166,8 +166,9 @@ export function useStoredDraft(draft: string) {
 }
 
 // The panel on narrow frames: a modal sheet from the bottom. It takes focus
-// when it opens, keeps Tab inside, closes with Escape and returns focus to
-// what opened it.
+// when it opens, keeps Tab inside, closes with Escape (unless a control inside
+// handled the key and prevented its default) and returns focus to what opened
+// it.
 export function DiscussionSheet({
   label,
   onClose,
@@ -177,53 +178,38 @@ export function DiscussionSheet({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  // The caller passes a new function each render; the sheet must not move
-  // focus on re-renders (a remote reply would pull focus out of a composer).
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
-    // Escape that a control inside the sheet already handled (a picker
-    // closing, a composer cancelling) is not also a request to close the
-    // sheet, which would discard what the person typed.
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        event.stopPropagation();
-        onCloseRef.current();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, []);
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-black/30"
-        onClick={onClose}
-      />
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Tab bubbles from the sheet's controls; keeping it inside is the modal dialog pattern. */}
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
+  const panel = useRef<HTMLDivElement>(null);
+  // The caller unmounts the sheet to close it, before it can hand focus back.
+  const [opener] = useState(() => document.activeElement);
+  useEffect(
+    () => () => {
+      if (opener instanceof HTMLElement && opener.isConnected)
+        opener.focus({ preventScroll: true });
+    },
+    [opener],
+  );
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      container={popupContainer()}
+    >
+      <DialogBackdrop className="fixed inset-0 z-50 bg-black/30" />
+      <DialogContent
+        ref={panel}
         aria-label={label}
-        tabIndex={-1}
-        onKeyDown={(event) => {
-          if (ref.current) keepTabInside(event, ref.current);
-        }}
-        className="relative max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl bg-background px-4 pb-4 shadow-(--shadow-panel) outline-none"
+        // A composer that took focus while the sheet opened keeps it.
+        initialFocus={() =>
+          panel.current?.contains(document.activeElement)
+            ? (document.activeElement as HTMLElement)
+            : panel.current
+        }
+        className="fixed inset-x-0 top-auto bottom-0 z-50 mx-auto my-0 block max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl rounded-b-none border-0 bg-background px-4 pt-0 pb-4 text-base text-foreground shadow-(--shadow-panel) outline-none"
       >
         {children}
-      </div>
-    </div>,
-    document.body,
+      </DialogContent>
+    </Dialog>
   );
 }

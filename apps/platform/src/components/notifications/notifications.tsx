@@ -24,6 +24,7 @@ import {
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -203,28 +204,18 @@ export function NotificationFeed() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-        <div
-          role="tablist"
+        <Segmented
           aria-label="Show notifications"
-          className="flex items-center rounded-md bg-muted p-0.5"
+          className="gap-0"
+          value={filters.status}
+          onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
         >
           {(["unread", "all", "archived"] as const).map((s) => (
-            <button
-              key={s}
-              role="tab"
-              aria-selected={filters.status === s}
-              onClick={() => setFilters((f) => ({ ...f, status: s }))}
-              className={cn(
-                "h-6 rounded-lg px-2.5 text-xs font-medium capitalize",
-                filters.status === s
-                  ? "bg-card text-foreground shadow-(--shadow-border)"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
+            <SegmentedItem key={s} value={s} className="flex-none capitalize">
               {s}
-            </button>
+            </SegmentedItem>
           ))}
-        </div>
+        </Segmented>
         <FilterMenu
           label={filters.everywhere ? "All organizations" : organization.name}
           active={filters.everywhere}

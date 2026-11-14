@@ -361,7 +361,7 @@ test("sync overlapping changes explicitly before merging the remaining proposal"
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Retry twice.", { exact: true })).toBeVisible();
-  await dialog.getByLabel("Use theirs", { exact: true }).check();
+  await dialog.getByRole("radio", { name: "Use theirs", exact: true }).check();
   await expectNoAccessibilityViolations(page, "page conflict resolution");
   await dialog
     .getByRole("button", { name: "Sync branch", exact: true })

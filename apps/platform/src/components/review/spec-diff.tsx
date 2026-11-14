@@ -1,4 +1,11 @@
 import { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
 import { cn } from "@lictory/core/lib/utils";
 import {
   diffMarkdown,
@@ -85,9 +92,13 @@ export function DiffViewToggle({
   onChange: (view: DiffView) => void;
 }) {
   return (
-    <div
-      role="group"
+    <ToggleGroup<DiffView>
       aria-label="Changes or full text"
+      value={[view]}
+      onValueChange={([next]) => {
+        if (next) onChange(next);
+      }}
+      deselectable={false}
       className="flex rounded-full bg-muted p-0.5 text-xs"
     >
       {(
@@ -96,21 +107,15 @@ export function DiffViewToggle({
           ["full", "Show full text"],
         ] as const
       ).map(([id, label]) => (
-        <button
+        <Toggle
           key={id}
-          type="button"
-          aria-pressed={view === id}
-          onClick={() => onChange(id)}
-          className={cn(
-            "rounded-full px-2.5 py-0.5 text-muted-foreground transition-[background-color,color] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-            view === id &&
-              "bg-card font-medium text-foreground shadow-(--shadow-border)",
-          )}
+          value={id}
+          className="rounded-full px-2.5 py-0.5 text-muted-foreground transition-[background-color,color] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-pressed:bg-card data-pressed:font-medium data-pressed:text-foreground data-pressed:shadow-(--shadow-border)"
         >
           {label}
-        </button>
+        </Toggle>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 
@@ -146,18 +151,26 @@ function Change({
         {head.map((block, i) => (
           <Context key={`h${i}`} block={block} />
         ))}
-        <details className="group rounded-lg border border-dashed text-sm">
-          <summary className="min-h-9 cursor-pointer rounded-lg px-4 py-2 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+        <Collapsible className="rounded-lg border border-dashed text-sm">
+          <CollapsibleTrigger className="group/fold flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-lg px-4 py-2 text-left text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            <ChevronRight
+              aria-hidden
+              className="size-3.5 transition-transform group-data-open/fold:rotate-90"
+            />
             {folded === 1 ? "1 unchanged block" : `${folded} unchanged blocks`}
-          </summary>
-          <div className="px-4 pb-3">
-            {change.blocks
-              .slice(head.length, change.blocks.length - tail.length)
-              .map((block, i) => (
-                <Markdown key={i} source={block.source} />
-              ))}
-          </div>
-        </details>
+          </CollapsibleTrigger>
+          {/* The padding sits inside: a panel kept for find-in-page still
+            takes the space of its own padding while it is closed. */}
+          <CollapsiblePanel hiddenUntilFound>
+            <div className="px-4 pb-3">
+              {change.blocks
+                .slice(head.length, change.blocks.length - tail.length)
+                .map((block, i) => (
+                  <Markdown key={i} source={block.source} />
+                ))}
+            </div>
+          </CollapsiblePanel>
+        </Collapsible>
         {tail.map((block, i) => (
           <Context key={`t${i}`} block={block} />
         ))}

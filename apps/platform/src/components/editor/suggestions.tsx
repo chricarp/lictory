@@ -276,76 +276,79 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
             return (
               // Keys are handled by the editor, which keeps focus and points
               // aria-activedescendant at the chosen option.
-              <DropdownItem asChild key={item.id}>
-                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events */}
-                <li
-                  id={`${store.id}-${index}`}
-                  role="option"
-                  aria-selected={current}
-                  // The active option says how to take its alternative.
-                  aria-describedby={
-                    current && item.alternate ? alternateId : undefined
-                  }
-                  title={
-                    item.detail ? `${item.label}\n${item.detail}` : undefined
-                  }
-                  // The editor keeps focus; pointer users pick without blurring it.
-                  onMouseDown={(e) => e.preventDefault()}
-                  onMouseMove={() => store.point(index)}
-                  onClick={() => store.choose(index)}
-                  className={cn(
-                    item.detail ? "items-start" : "items-center",
-                    current && "bg-accent text-accent-foreground",
-                  )}
-                >
-                  {item.icon && (
-                    <span
-                      className={cn(
-                        "text-muted-foreground",
-                        item.detail && "mt-0.5",
-                      )}
-                      aria-hidden
-                    >
-                      {item.icon}
+              <DropdownItem
+                key={item.id}
+                className={cn(
+                  item.detail ? "items-start" : "items-center",
+                  current && "bg-accent text-accent-foreground",
+                )}
+                render={
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <li
+                    id={`${store.id}-${index}`}
+                    role="option"
+                    aria-selected={current}
+                    // The active option says how to take its alternative.
+                    aria-describedby={
+                      current && item.alternate ? alternateId : undefined
+                    }
+                    title={
+                      item.detail ? `${item.label}\n${item.detail}` : undefined
+                    }
+                    // The editor keeps focus; pointer users pick without blurring it.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseMove={() => store.point(index)}
+                    onClick={() => store.choose(index)}
+                  />
+                }
+              >
+                {item.icon && (
+                  <span
+                    className={cn(
+                      "text-muted-foreground",
+                      item.detail && "mt-0.5",
+                    )}
+                    aria-hidden
+                  >
+                    {item.icon}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="line-clamp-2 min-w-0 flex-1 break-words">
+                      {item.label}
                     </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <span className="line-clamp-2 min-w-0 flex-1 break-words">
-                        {item.label}
-                      </span>
-                      {item.hint && (
-                        <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                          {item.hint}
-                        </span>
-                      )}
-                    </span>
-                    {item.detail && (
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {item.detail}
+                    {item.hint && (
+                      <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                        {item.hint}
                       </span>
                     )}
                   </span>
-                  {current && item.alternate && (
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      // Pointer path to the alternative; keyboard: Shift+Enter
-                      // (the option's description).
-                      aria-hidden
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        store.choose(index, true);
-                      }}
-                      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
-                    >
-                      <Pin className="size-3" aria-hidden />
-                      Pin
-                      <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
-                    </button>
+                  {item.detail && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.detail}
+                    </span>
                   )}
-                </li>
+                </span>
+                {current && item.alternate && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    // Pointer path to the alternative; keyboard: Shift+Enter
+                    // (the option's description).
+                    aria-hidden
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      store.choose(index, true);
+                    }}
+                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
+                  >
+                    <Pin className="size-3" aria-hidden />
+                    Pin
+                    <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
+                  </button>
+                )}
               </DropdownItem>
             );
           })}
@@ -361,6 +364,19 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
         </span>
       )}
     </DropdownSurface>,
-    document.body,
+    layerOf(store.editor),
   );
+}
+
+// Dialogs and popovers show in the browser's top layer, above anything
+// mounted under the body: a menu for an editor inside one mounts in it.
+function layerOf(editor: Editor | null) {
+  try {
+    const layer = editor?.isDestroyed
+      ? null
+      : editor?.view.dom.closest<HTMLElement>("[popover], dialog");
+    return layer ?? document.body;
+  } catch {
+    return document.body;
+  }
 }

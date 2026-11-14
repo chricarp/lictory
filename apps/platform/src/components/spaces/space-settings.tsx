@@ -12,6 +12,7 @@ import {
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
+import { Textarea as TextareaPrimitive } from "@ui-sdk/react/textarea";
 import { Input } from "@lictory/ui/input";
 import { Popover } from "@lictory/ui/popover";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -361,7 +362,7 @@ function DetailsSection({
             status={descriptionSave.state}
             error={descriptionSave.error}
           >
-            <textarea
+            <TextareaPrimitive
               id={ids.description}
               value={description}
               maxLength={2000}

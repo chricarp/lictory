@@ -156,10 +156,10 @@ export function Attachments({
                   {Math.ceil(file.size / 1024)} KB
                 </span>
                 {file.createdById === userId && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     aria-label={`Remove ${file.filename}`}
-                    className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={async () => {
                       try {
                         await removeFile(file.id, context.organizationId);
@@ -176,7 +176,7 @@ export function Attachments({
                     }}
                   >
                     <Trash2 className="size-3.5" />
-                  </button>
+                  </Button>
                 )}
               </li>
             );

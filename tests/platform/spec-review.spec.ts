@@ -396,7 +396,7 @@ test("a discussion draft outlives the panel and a reload, never picks up an aban
   await expect.poll(drafts).toHaveLength(1);
   expect((await drafts())[0]).toContain(seeded.owner.id);
   await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   expect(await drafts()).toEqual([]);
   await signIn(page, seeded.users[1]!.email);

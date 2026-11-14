@@ -2,13 +2,15 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { Input as PlainInput } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Mail, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { paths } from "@lictory/core/lib/paths";
 import type { Capabilities } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Input } from "@lictory/ui/input";
 import { Avatar, Badge } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -342,6 +344,7 @@ function Invite({
   const [disciplineIds, setDisciplineIds] = useState<string[]>([]);
   const [recipient, setRecipient] = useState("");
   const [url, setUrl] = useState<string>();
+  const linkField = useId();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   return (
@@ -439,12 +442,11 @@ function Invite({
             .filter((d) => d.projectId === projectId && !d.archivedAt)
             .map((d) => (
               <label key={d.id} className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={disciplineIds.includes(d.id)}
-                  onChange={(e) => {
+                  onCheckedChange={(checked) => {
                     setDisciplineIds((ids) =>
-                      e.target.checked
+                      checked === true
                         ? [...ids, d.id]
                         : ids.filter((id) => id !== d.id),
                     );
@@ -461,9 +463,13 @@ function Invite({
       </p>
       <InlineError>{error}</InlineError>
       {url && (
-        <label className="block text-xs text-muted-foreground">
+        <label
+          htmlFor={linkField}
+          className="block text-xs text-muted-foreground"
+        >
           Invitation email sent. You can also share this link.
-          <input
+          <PlainInput
+            id={linkField}
             className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs touch:text-base"
             readOnly
             value={url}

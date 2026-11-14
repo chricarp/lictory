@@ -493,7 +493,7 @@ test("signing out removes the workspace from the browser before someone else sig
     expect((await databases()).some((name) => name.includes(owner))).toBe(true);
 
     await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
     expect((await databases()).some((name) => name.includes(owner))).toBe(
       false,

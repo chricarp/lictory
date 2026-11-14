@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronRight,
   CircleAlert,
   GitMerge,
   GitPullRequestDraft,
@@ -11,6 +12,11 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import {
@@ -308,7 +314,11 @@ function SuggestionBody({
 
       <Reviewers suggestion={suggestion} onError={setError} />
 
-      <section>
+      <Collapsible
+        render={<section />}
+        open={showResolved}
+        onOpenChange={setShowResolved}
+      >
         <div className="mb-2 flex items-center gap-2">
           <SectionLabel>Discussion</SectionLabel>
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -318,12 +328,9 @@ function SuggestionBody({
               : ""}
           </span>
           {resolvedThreads.length > 0 && (
-            <button
-              onClick={() => setShowResolved((v) => !v)}
-              className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-            >
+            <CollapsibleTrigger className="ml-auto text-xs text-muted-foreground after:content-none hover:text-foreground">
               {showResolved ? "Hide" : "Show"} {resolvedThreads.length} resolved
-            </button>
+            </CollapsibleTrigger>
           )}
         </div>
         <div className="space-y-3">
@@ -336,8 +343,13 @@ function SuggestionBody({
           {openThreads.map((t) => (
             <Thread key={t.id} thread={t} />
           ))}
-          {showResolved &&
-            resolvedThreads.map((t) => <Thread key={t.id} thread={t} />)}
+          {resolvedThreads.length > 0 && (
+            <CollapsiblePanel className="space-y-3">
+              {resolvedThreads.map((t) => (
+                <Thread key={t.id} thread={t} />
+              ))}
+            </CollapsiblePanel>
+          )}
         </div>
         {!readOnly && !state.settled && (
           <div className="mt-4">
@@ -348,7 +360,7 @@ function SuggestionBody({
             />
           </div>
         )}
-      </section>
+      </Collapsible>
     </div>
   );
 }
@@ -375,7 +387,6 @@ function Reviewers({
   const { userId, memberName, mutate, item, readOnly, suggestionDecisions } =
     useItem();
   const state = useSuggestionState(suggestion);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const isAuthor = suggestion.authorId === userId;
   const isReviewer = state.reviewers.some((r) => r.userId === userId);
   const history = suggestionDecisions
@@ -567,36 +578,29 @@ function Reviewers({
         </div>
       )}
       {history.length > 0 && (
-        <div className="mt-2">
-          <button
-            onClick={() => setHistoryOpen((v) => !v)}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "size-3 transition-transform",
-                historyOpen && "rotate-180",
-              )}
-            />
+        <Collapsible className="mt-2">
+          <CollapsibleTrigger className="group/history inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <ChevronDown className="size-3 transition-transform group-data-open/history:rotate-180" />
             {history.length} earlier decision{history.length > 1 ? "s" : ""}
-          </button>
-          {historyOpen && (
-            <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-              {history.map((d) => (
-                <li key={d.id}>
-                  {memberName(d.reviewerId)}{" "}
-                  {d.decision === "approved"
-                    ? "approved"
-                    : "requested changes on"}{" "}
-                  v{d.version} ·{" "}
-                  <span className="text-warning">
-                    {d.supersededReason?.toLowerCase()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          </CollapsibleTrigger>
+          <CollapsiblePanel
+            render={<ul />}
+            className="mt-1 space-y-1 text-xs text-muted-foreground"
+          >
+            {history.map((d) => (
+              <li key={d.id}>
+                {memberName(d.reviewerId)}{" "}
+                {d.decision === "approved"
+                  ? "approved"
+                  : "requested changes on"}{" "}
+                v{d.version} ·{" "}
+                <span className="text-warning">
+                  {d.supersededReason?.toLowerCase()}
+                </span>
+              </li>
+            ))}
+          </CollapsiblePanel>
+        </Collapsible>
       )}
     </section>
   );
@@ -653,16 +657,22 @@ function SuggestionEditor({
   return (
     <div className="space-y-3">
       {outdated && target && current && (
-        <details className="rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
-          <summary className="cursor-pointer">
-            What changed in the specification since revision {target.number}{" "}
-            (now revision {current.number}) — fold these changes into your
-            proposal.
-          </summary>
-          <div className="mt-2">
+        <Collapsible className="rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
+          <CollapsibleTrigger className="group/since flex w-full cursor-pointer items-start gap-1.5 text-left">
+            <ChevronRight
+              aria-hidden
+              className="mt-0.5 size-3.5 shrink-0 transition-transform group-data-open/since:rotate-90"
+            />
+            <span>
+              What changed in the specification since revision {target.number}{" "}
+              (now revision {current.number}) — fold these changes into your
+              proposal.
+            </span>
+          </CollapsibleTrigger>
+          <CollapsiblePanel className="mt-2">
             <RevisionDiff before={target.content} after={current.content} />
-          </div>
-        </details>
+          </CollapsiblePanel>
+        </Collapsible>
       )}
       <SuggestionDetailsFields
         title={title}

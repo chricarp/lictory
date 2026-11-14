@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Textarea } from "@ui-sdk/react/textarea";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import { ArrowRight } from "lucide-react";
 import {
@@ -274,7 +275,7 @@ export function CreateProject({
         <label className="block text-sm font-medium">
           Description{" "}
           <span className="font-normal text-muted-foreground">(optional)</span>
-          <textarea
+          <Textarea
             name="description"
             className="mt-2 block min-h-20 w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-[15px] shadow-[0_1px_2px_oklch(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
             value={description}

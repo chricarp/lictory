@@ -54,7 +54,17 @@ export default defineConfig([
       // together with an action button, one level deeper than the default.
       "jsx-a11y/label-has-associated-control": [
         "error",
-        { controlComponents: ["Input", "DropdownSelect"], depth: 3 },
+        {
+          controlComponents: [
+            "Input",
+            "Textarea",
+            "DropdownSelect",
+            "Checkbox",
+            "Switch",
+            "Radio",
+          ],
+          depth: 3,
+        },
       ],
       // autoFocus is used only to move focus into what a person just opened
       // (dialogs, popovers, inline editors) or to the single field of a
