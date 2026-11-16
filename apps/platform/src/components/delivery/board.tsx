@@ -165,12 +165,12 @@ export function ExternalProjectNotice({
       icon={Send}
       title={`${project.name} delivers in ${tool.name}`}
       action={
-        <Link
-          href={paths.handoff(organization.slug, project.key)}
-          className="contents"
+        <Button
+          variant="secondary"
+          render={<Link href={paths.handoff(organization.slug, project.key)} />}
         >
-          <Button variant="secondary">Open hand-off</Button>
-        </Link>
+          Open hand-off
+        </Button>
       }
     >
       Statuses, sprints and estimates for this project are owned by {tool.name},
@@ -538,23 +538,23 @@ function ProjectBoard({ project }: { project: Project }) {
             </div>
           </Popover>
           {canManage(project.id) && (
-            <Link
-              href={paths.projectSettings(
-                organization.slug,
-                project.key,
-                "workflow",
-              )}
-              className="contents"
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Workflow settings"
+              title="Workflow settings"
+              render={
+                <Link
+                  href={paths.projectSettings(
+                    organization.slug,
+                    project.key,
+                    "workflow",
+                  )}
+                />
+              }
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Workflow settings"
-                title="Workflow settings"
-              >
-                <Settings2 className="size-3.5" />
-              </Button>
-            </Link>
+              <Settings2 className="size-3.5" />
+            </Button>
           )}
           <span aria-hidden className="mx-1 h-4 w-px bg-border max-lg:hidden" />
           <LittoLauncher />
@@ -565,16 +565,20 @@ function ProjectBoard({ project }: { project: Project }) {
           illustration="planning"
           title={`No active ${project.iterationMode === "automatic" ? "cycle" : "sprint"}`}
           action={
-            <Link
-              href={paths.backlog(
-                organization.slug,
-                project.key,
-                teamFilter.value,
-              )}
-              className="contents"
+            <Button
+              variant="secondary"
+              render={
+                <Link
+                  href={paths.backlog(
+                    organization.slug,
+                    project.key,
+                    teamFilter.value,
+                  )}
+                />
+              }
             >
-              <Button variant="secondary">Plan in the backlog</Button>
-            </Link>
+              Plan in the backlog
+            </Button>
           }
         >
           {project.iterationMode === "automatic"

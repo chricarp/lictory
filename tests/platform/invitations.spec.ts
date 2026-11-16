@@ -187,7 +187,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
         .toBe(true);
       await teammate.goto(verification!);
       await teammate
-        .getByRole("button", { name: "Continue to your invitation" })
+        .getByRole("link", { name: "Continue to your invitation" })
         .click();
       await expect(
         teammate.getByRole("heading", { name: "Choose your handle" }),

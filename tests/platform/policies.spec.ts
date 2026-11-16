@@ -134,7 +134,7 @@ test("an externally delivered project hands off instead of offering a board or b
       }),
     ).toBeVisible();
   }
-  await page.getByRole("button", { name: "Open hand-off" }).click();
+  await page.getByRole("link", { name: "Open hand-off" }).click();
   await expect(page).toHaveURL(
     new RegExp(`${seeded.projectPath("/handoff")}$`),
   );

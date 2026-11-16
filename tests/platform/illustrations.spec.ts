@@ -130,7 +130,7 @@ test("empty states show theme-aware artwork that reacts to the pointer and stays
     page.getByRole("heading", { name: /^No active (sprint|cycle|iteration)$/ }),
   ).toBeVisible();
   await expectArtwork(artwork, "planning");
-  await page.getByRole("button", { name: "Plan in the backlog" }).click();
+  await page.getByRole("link", { name: "Plan in the backlog" }).click();
   await expect(
     page.getByRole("heading", { name: "Nothing planned yet" }),
   ).toBeVisible();
@@ -202,7 +202,7 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(320);
-    await page.getByRole("button", { name: "Go to your workspace" }).click();
+    await page.getByRole("link", { name: "Go to your workspace" }).click();
     // "/" forwards straight into the person's workspace, so the root may
     // already be gone when the address is read.
     await expect(page).not.toHaveURL(/missing-illustration-page/);
@@ -212,7 +212,7 @@ test("missing pages and sign-in recovery stay readable on narrow light and dark 
       page.getByRole("heading", { name: "Sign-in interrupted" }),
     ).toBeVisible();
     await expectArtwork(art, "recovery");
-    await page.getByRole("button", { name: "Try again" }).click();
+    await page.getByRole("link", { name: "Try again" }).click();
     // "Try again" opens sign-in, which sends a signed-in person on to their
     // workspace, so /sign-in may already be gone when the address is read.
     await expect(page).not.toHaveURL(/auth-error/);
@@ -237,7 +237,7 @@ test("artwork that cannot load closes its space and leaves the text and actions"
   // display and cannot rely on the shared stylesheet.
   await expect(art).toBeHidden();
   await expect(art).toHaveCSS("display", "none");
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Try again" })).toBeVisible();
 });
 
 test("artwork follows the reduced-motion preference while the page stays open", async ({

@@ -16,12 +16,12 @@ export function UnknownView() {
       icon={Search}
       title="This view was not found"
       action={
-        <Link
-          href={paths.project(organization.slug, project.key)}
-          className="contents"
+        <Button
+          variant="secondary"
+          render={<Link href={paths.project(organization.slug, project.key)} />}
         >
-          <Button variant="secondary">Back to {project.name}</Button>
-        </Link>
+          Back to {project.name}
+        </Button>
       }
     >
       {project.name} has no saved view at this address.

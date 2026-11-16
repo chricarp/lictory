@@ -89,11 +89,7 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
         illustration="recovery"
         icon={ShieldUser}
         title="The admin console is for instance administrators"
-        action={
-          <Link href="/">
-            <Button>Back to Lictory</Button>
-          </Link>
-        }
+        action={<Button render={<Link href="/" />}>Back to Lictory</Button>}
       >
         Ask your Lictory administrator if you need to manage accounts or
         organizations on this installation.
@@ -346,11 +342,13 @@ function AiProviderSection({ ai }: { ai: Overview["ai"] }) {
       title="AI providers"
       description="Where Lictory Intelligence sends content when an organization turns it on."
       action={
-        <Link href={paths.admin("ai")}>
-          <Button variant="outline" size="sm">
-            {ai.source === "environment" ? "View" : "Configure"}
-          </Button>
-        </Link>
+        <Button
+          variant="outline"
+          size="sm"
+          render={<Link href={paths.admin("ai")} />}
+        >
+          {ai.source === "environment" ? "View" : "Configure"}
+        </Button>
       }
     >
       <div className="divide-y divide-border">

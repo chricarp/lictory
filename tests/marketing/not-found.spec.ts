@@ -26,7 +26,7 @@ test("missing pages stay readable, show the shared artwork and lead back", async
       "href",
       "https://github.com/chricarp/lictory",
     );
-    await page.getByRole("button", { name: "Go home" }).click();
+    await page.getByRole("link", { name: "Go home" }).click();
     await expect(page).toHaveURL("/");
   }
 });

@@ -45,13 +45,15 @@ export function VerificationStatus({
     return (
       <>
         <AuthHeading title="Email verified" />
-        <Link href={callbackURL} className="contents">
-          <Button size="lg" className="w-full">
-            {callbackURL.startsWith("/invitation")
-              ? "Continue to your invitation"
-              : "Open workspace"}
-          </Button>
-        </Link>
+        <Button
+          size="lg"
+          className="w-full"
+          render={<Link href={callbackURL} />}
+        >
+          {callbackURL.startsWith("/invitation")
+            ? "Continue to your invitation"
+            : "Open workspace"}
+        </Button>
       </>
     );
   }

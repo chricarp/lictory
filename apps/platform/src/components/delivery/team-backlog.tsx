@@ -60,16 +60,20 @@ export function TeamBacklog() {
         icon={ListTodo}
         title="This team was not found"
         action={
-          <Link
-            href={paths.projectSettings(
-              organization.slug,
-              project.key,
-              "teams",
-            )}
-            className="contents"
+          <Button
+            variant="secondary"
+            render={
+              <Link
+                href={paths.projectSettings(
+                  organization.slug,
+                  project.key,
+                  "teams",
+                )}
+              />
+            }
           >
-            <Button variant="secondary">See the project&apos;s teams</Button>
-          </Link>
+            See the project&apos;s teams
+          </Button>
         }
       >
         It may belong to another project, or the link is out of date.
@@ -269,29 +273,28 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
               ]}
             />
             {native && (
-              <Link
-                href={paths.board(org, project.key, team.id)}
-                className="contents"
+              <Button
+                variant="ghost"
+                size="sm"
+                render={<Link href={paths.board(org, project.key, team.id)} />}
               >
-                <Button variant="ghost" size="sm">
-                  <KanbanSquare className="size-3.5" /> Board
-                </Button>
-              </Link>
+                <KanbanSquare className="size-3.5" /> Board
+              </Button>
             )}
             {canManage(project.id) && (
-              <Link
-                href={paths.projectSettings(org, project.key, "teams")}
-                className="contents"
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Team settings"
+                title="Team settings"
+                render={
+                  <Link
+                    href={paths.projectSettings(org, project.key, "teams")}
+                  />
+                }
               >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Team settings"
-                  title="Team settings"
-                >
-                  <Settings2 className="size-3.5" />
-                </Button>
-              </Link>
+                <Settings2 className="size-3.5" />
+              </Button>
             )}
             {canCreate && (
               <Button

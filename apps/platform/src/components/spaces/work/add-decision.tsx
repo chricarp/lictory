@@ -127,9 +127,9 @@ export function AddDecisionToPage({
             <Button variant="ghost" onClick={onClose}>
               Done
             </Button>
-            <Link href={proposed} className="contents">
-              <Button>Open the pull request</Button>
-            </Link>
+            <Button render={<Link href={proposed} />}>
+              Open the pull request
+            </Button>
           </>
         }
       >

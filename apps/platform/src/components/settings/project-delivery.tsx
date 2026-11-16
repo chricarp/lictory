@@ -151,18 +151,21 @@ function DeliveryModeSection({
                   home.
                 </p>
                 <div className="flex gap-2">
-                  <Link
-                    href={paths.iteration(
-                      organization.slug,
-                      project.key,
-                      activeIteration.id,
-                    )}
-                    className="contents"
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    render={
+                      <Link
+                        href={paths.iteration(
+                          organization.slug,
+                          project.key,
+                          activeIteration.id,
+                        )}
+                      />
+                    }
                   >
-                    <Button size="sm" variant="secondary">
-                      Open active iteration
-                    </Button>
-                  </Link>
+                    Open active iteration
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"

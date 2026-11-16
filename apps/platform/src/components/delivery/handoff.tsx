@@ -56,12 +56,12 @@ export function Handoff() {
         icon={KanbanSquare}
         title={`${project.name} delivers in Lictory`}
         action={
-          <Link
-            href={paths.board(organization.slug, project.key)}
-            className="contents"
+          <Button
+            variant="secondary"
+            render={<Link href={paths.board(organization.slug, project.key)} />}
           >
-            <Button variant="secondary">Open board</Button>
-          </Link>
+            Open board
+          </Button>
         }
       >
         Ready work moves across the project&apos;s board and backlog; nothing is
@@ -452,12 +452,16 @@ function ExternalHandoff({ project }: { project: Project }) {
                   illustration="planning"
                   title="No specifications yet"
                   action={
-                    <Link
-                      href={paths.proposals(organization.slug, project.key)}
-                      className="contents"
+                    <Button
+                      variant="secondary"
+                      render={
+                        <Link
+                          href={paths.proposals(organization.slug, project.key)}
+                        />
+                      }
                     >
-                      <Button variant="secondary">Start with a proposal</Button>
-                    </Link>
+                      Start with a proposal
+                    </Button>
                   }
                 >
                   Capture a proposal in {project.name}, refine it with your

@@ -23,19 +23,19 @@ export default function NotFound() {
       title="This page does not exist"
       actions={
         <>
-          <Link href={tryUrl} className="contents">
-            <Button size="lg">{getStartedLabel}</Button>
-          </Link>
-          <Link href={repositoryUrl} className="contents">
-            <Button size="lg" variant="secondary">
-              {repositoryLabel}
-            </Button>
-          </Link>
-          <Link href="/" className="contents">
-            <Button size="lg" variant="ghost">
-              Go home
-            </Button>
-          </Link>
+          <Button size="lg" render={<Link href={tryUrl} />}>
+            {getStartedLabel}
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            render={<Link href={repositoryUrl} />}
+          >
+            {repositoryLabel}
+          </Button>
+          <Button size="lg" variant="ghost" render={<Link href="/" />}>
+            Go home
+          </Button>
         </>
       }
     >

@@ -62,7 +62,7 @@ test("members see where content goes and an instance administrator checks the pr
   await page.goto("/admin");
   const summary = page.locator("#ai-provider");
   await expect(summary.getByText(/^OpenAI · e2e-scripted$/)).toBeVisible();
-  await summary.getByRole("button", { name: "View" }).click();
+  await summary.getByRole("link", { name: "View" }).click();
   await expect(page).toHaveURL(/\/admin\/ai$/);
   const provider = page.locator("#ai-provider");
   await expect(

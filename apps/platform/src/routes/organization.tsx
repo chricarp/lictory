@@ -328,12 +328,12 @@ export function UnknownProjectRoute() {
       icon={Search}
       title="This page does not exist"
       action={
-        <Link
-          href={paths.project(organization.slug, project.key)}
-          className="contents"
+        <Button
+          variant="secondary"
+          render={<Link href={paths.project(organization.slug, project.key)} />}
         >
-          <Button variant="secondary">Back to {project.name}</Button>
-        </Link>
+          Back to {project.name}
+        </Button>
       }
     >
       {project.name} has no page at this address.
@@ -350,9 +350,12 @@ export function OrganizationNotFound() {
       icon={FileQuestion}
       title="This page does not exist"
       action={
-        <Link href={paths.inbox(organization.slug)} className="contents">
-          <Button variant="secondary">Go to Inbox</Button>
-        </Link>
+        <Button
+          variant="secondary"
+          render={<Link href={paths.inbox(organization.slug)} />}
+        >
+          Go to Inbox
+        </Button>
       }
     >
       Check the address, or choose a page from the sidebar.

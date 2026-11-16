@@ -285,12 +285,15 @@ function PeekContent({
       <PeekHeader
         onClose={peek.close}
         actions={
-          <Link href={href} className="contents">
-            <Button variant="ghost" size="sm" title="Open the full item page">
-              Open
-              <ArrowUpRight className="size-3.5" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Open the full item page"
+            render={<Link href={href} />}
+          >
+            Open
+            <ArrowUpRight className="size-3.5" />
+          </Button>
         }
       >
         <TypeIcon type={type} className="size-3.5 rounded-[3px]" />

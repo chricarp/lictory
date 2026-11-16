@@ -206,11 +206,13 @@ export function ResetPasswordPage() {
           title="This reset link no longer works"
           description="Reset links expire after an hour and work once. Request a new one and use the latest email."
         />
-        <Link href="/forgot-password" className="contents">
-          <Button size="lg" className="w-full">
-            Send a new reset link
-          </Button>
-        </Link>
+        <Button
+          size="lg"
+          className="w-full"
+          render={<Link href="/forgot-password" />}
+        >
+          Send a new reset link
+        </Button>
         <AuthFooter>
           <AuthLink href="/sign-in">Back to sign in</AuthLink>
         </AuthFooter>
@@ -271,11 +273,9 @@ export function AuthErrorPage() {
       <PageTitle title="Sign-in interrupted" />
       <StateIllustration kind="recovery" />
       <AuthHeading title="Sign-in interrupted" description={message} />
-      <Link href="/sign-in" className="contents">
-        <Button size="lg" className="w-full">
-          Try again
-        </Button>
-      </Link>
+      <Button size="lg" className="w-full" render={<Link href="/sign-in" />}>
+        Try again
+      </Button>
     </>
   );
 }

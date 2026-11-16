@@ -61,9 +61,12 @@ export function SpaceNotFound() {
       icon={BookX}
       title="This space was not found"
       action={
-        <Link href={paths.spaces(organization.slug)} className="contents">
-          <Button variant="secondary">All spaces</Button>
-        </Link>
+        <Button
+          variant="secondary"
+          render={<Link href={paths.spaces(organization.slug)} />}
+        >
+          All spaces
+        </Button>
       }
     >
       You may not have access to it, or the address is misspelled.
