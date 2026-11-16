@@ -261,7 +261,7 @@ services:
       DATABASE_MONITORING_URL: postgresql://lictory_ops:${LICTORY_OPS_PASSWORD:?}@postgres:5432/${LICTORY_DB_NAME:?}
 
   zero-cache:
-    image: ${ZERO_IMAGE:-rocicorp/zero:1.11.3@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55}
+    image: ${ZERO_IMAGE:-rocicorp/zero:1.11.4@sha256:da55baa417adf670d07dd882ec90b9d9591f274a13347205cd2f71956433c057}
     <<: *hardening
     restart: unless-stopped
     networks: [internal]
