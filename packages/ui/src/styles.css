@@ -1,6 +1,7 @@
 /* ui-sdk adds the few rules its behaviors need, and the application its
    default styles, in this layer. Declared first, it loses to everything
-   below, including Tailwind's reset. */
+   below, including Tailwind's reset. The application's theme for those
+   default styles is ui-sdk.css. */
 @layer ui-sdk;
 
 @import "tailwindcss";
@@ -589,101 +590,9 @@
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
 }
 
-/* ui-sdk's default styles read these tokens. Pointing them at the theme
-   keeps any part without classes of its own in the current palette, light
-   or dark, in every theme. */
-:root,
-.dark,
-[data-theme] {
-  --ui-background: var(--popover);
-  --ui-foreground: var(--foreground);
-  --ui-muted: var(--muted);
-  --ui-muted-foreground: var(--muted-foreground);
-  --ui-border: var(--border);
-  --ui-input: var(--input);
-  --ui-primary: var(--primary);
-  --ui-primary-foreground: var(--primary-foreground);
-  --ui-destructive: var(--destructive);
-  --ui-ring: color-mix(in srgb, var(--ring) 60%, transparent);
-  --ui-ring-border: var(--ring);
-  --ui-overlay: rgb(0 0 0 / 0.2);
-  --ui-shadow: var(--shadow-panel);
-  --ui-radius: 0.5rem;
-  --ui-font-size: 0.8125rem;
-  --ui-font-sans: var(--font-sans);
-  --ui-font-mono: var(--font-mono);
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
-  }
-  /* ui-sdk's default styles restyle these elements everywhere, not only
-     inside its components. Text and rules keep the theme's own look. */
-  code {
-    border-radius: 0;
-    background-color: transparent;
-  }
-  hr {
-    background-color: transparent;
-  }
-  a:focus-visible,
-  summary:focus-visible,
-  [data-slot]:focus-visible {
-    outline: 2px solid var(--ui-ring);
-    outline-offset: 2px;
-  }
-  /* Controls take their size, layout and cursor from their own classes, as
-     they did as plain elements. The default styles would otherwise make
-     every button, trigger and field 32px tall and every field full width. */
-  :is(
-    [data-slot="button"],
-    [data-slot="toggle"],
-    [data-slot$="-trigger"],
-    [data-slot$="-close"],
-    [data-slot="input"],
-    [data-slot="textarea"],
-    [data-slot$="-input"],
-    [data-slot="radio"],
-    [data-slot="checkbox"],
-    [data-slot="switch"],
-    [data-slot$="-tab"],
-    [data-slot$="-item"],
-    [data-slot$="-button"],
-    [data-slot$="-control"],
-    [data-slot$="-toggle"]
-  ) {
-    display: revert;
-    flex-shrink: revert;
-    align-items: revert;
-    justify-content: revert;
-    gap: revert;
-    width: revert;
-    min-width: revert;
-    height: revert;
-    min-height: revert;
-    white-space: revert;
-    cursor: revert;
-    user-select: revert;
-    resize: revert;
-  }
-  /* Panels read like the text around them. */
-  [data-slot$="-panel"] {
-    color: inherit;
-    font-size: inherit;
-    line-height: inherit;
-  }
-  :is(label, [data-slot="label"]):has(
-    > :is([data-slot="checkbox"], [data-slot="radio"], [data-slot="switch"])
-  ) {
-    display: revert;
-    align-items: revert;
-    gap: revert;
-    font-size: inherit;
-    line-height: inherit;
-    & > [data-slot] {
-      margin-block-start: 0;
-    }
   }
   body {
     @apply bg-background text-foreground;

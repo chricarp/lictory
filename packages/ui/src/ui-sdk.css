@@ -1,0 +1,125 @@
+/* How Lictory uses ui-sdk's default stylesheet (@ui-sdk/core/web.css), the
+   way its styling guide asks: the stylesheet stays in its own cascade layer
+   (`ui-sdk`, declared first in styles.css), the theme reaches it through its
+   `--ui-*` tokens, and parts are restyled with ordinary CSS on top. Nothing
+   here needs `!important`. Import it after styles.css in an application that
+   loads the default stylesheet; the website and the documentation do not. */
+
+/* 1. Tokens. Every part without classes of its own takes its colors, corners,
+   spacing and type from the current theme, light or dark, including nested
+   previews that carry a theme of their own. */
+:root,
+.dark,
+[data-theme] {
+  --ui-background: var(--popover);
+  --ui-foreground: var(--foreground);
+  --ui-muted: var(--muted);
+  --ui-muted-foreground: var(--muted-foreground);
+  --ui-border: var(--border);
+  --ui-primary: var(--primary);
+  --ui-primary-foreground: var(--primary-foreground);
+  --ui-destructive: var(--destructive);
+  /* Control edges and focus need 3:1 against the surface (WCAG 1.4.11).
+     The theme's hairline border is decoration and falls short of that, so
+     the edge of an unstyled control is mixed from the text color instead. */
+  --ui-input: color-mix(in oklab, var(--foreground) 50%, var(--popover));
+  --ui-ring: var(--ring);
+  --ui-ring-border: var(--ring);
+  --ui-overlay: rgb(0 0 0 / 0.2);
+  --ui-shadow: var(--shadow-panel);
+  --ui-radius: 0.5rem;
+  --ui-spacing: var(--spacing);
+  --ui-font-size: 0.8125rem;
+  --ui-line-height: 1.5;
+  --ui-font-sans: var(--font-sans);
+  --ui-font-mono: var(--font-mono);
+}
+
+@layer base {
+  /* 2. Sizes. The stylesheet gives every control one height, fields the full
+     width, and a few components a fixed measure; its guide says to reset
+     these where a design sizes things itself. Lictory's controls come in
+     several sizes set by their own classes, and many are parts rendered as
+     the caller's element, so they keep the layout they have as plain
+     elements. */
+  :is(
+    [data-slot="button"],
+    [data-slot="toggle"],
+    [data-slot$="-trigger"],
+    [data-slot$="-close"],
+    [data-slot="input"],
+    [data-slot="textarea"],
+    [data-slot$="-input"],
+    [data-slot="radio"],
+    [data-slot="checkbox"],
+    [data-slot="switch"],
+    [data-slot$="-tab"],
+    [data-slot$="-item"],
+    [data-slot$="-button"],
+    [data-slot$="-control"],
+    [data-slot$="-toggle"]
+  ) {
+    display: revert;
+    flex-shrink: revert;
+    align-items: revert;
+    justify-content: revert;
+    gap: revert;
+    width: revert;
+    min-width: revert;
+    height: revert;
+    min-height: revert;
+    white-space: revert;
+    cursor: revert;
+    user-select: revert;
+    resize: revert;
+  }
+  :is([data-slot="slider"], [data-slot="progress"], [data-slot="meter"]) {
+    min-width: 0;
+  }
+  :is(
+    [data-slot="accordion"],
+    [data-slot="carousel"],
+    [data-slot="image-cropper"]
+  ) {
+    max-width: none;
+  }
+  /* A label around a checkbox, radio or switch lays itself out. */
+  :is(label, [data-slot="label"]):has(
+    > :is([data-slot="checkbox"], [data-slot="radio"], [data-slot="switch"])
+  ) {
+    display: revert;
+    align-items: revert;
+    gap: revert;
+    font-size: inherit;
+    line-height: inherit;
+    & > [data-slot] {
+      margin-block-start: 0;
+    }
+  }
+  /* Panels read like the text around them. */
+  [data-slot$="-panel"] {
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  /* 3. Page elements. The stylesheet also dresses plain `code`, `kbd` and
+     `hr`; the application's typography owns those. */
+  code,
+  kbd {
+    border-radius: 0;
+    background-color: transparent;
+  }
+  hr {
+    background-color: transparent;
+  }
+
+  /* 4. Focus. One ring for links and for every part that does not draw its
+     own, in the theme's focus color. */
+  a:focus-visible,
+  summary:focus-visible,
+  [data-slot]:focus-visible {
+    outline: 2px solid var(--ui-ring);
+    outline-offset: 2px;
+  }
+}

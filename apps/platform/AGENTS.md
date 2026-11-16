@@ -28,10 +28,14 @@ toolbar or disclosure: use the component.
 - Popups mount under the body: pass `container={popupContainer()}` from
   `@lictory/ui/popup` to a popover, menu, select, combobox, dialog, tooltip or
   hover card root you compose yourself.
-- ui-sdk's default stylesheet sits in the lowest cascade layer. Parts that
-  render `div`, `span` or `li` take any visible property their classes leave
-  out from it, so give them their background, border, radius and shadow
-  explicitly. `packages/ui/src/styles.css` neutralizes its sizing of controls.
+- ui-sdk's default stylesheet is themed, not fought: `packages/ui/src/ui-sdk.css`
+  (imported by `src/app.css`) points its `--ui-*` tokens at the theme and
+  resets the sizes it sets, as its styling guide asks. Parts that render
+  `div`, `span` or `li` take any visible property their classes leave out from
+  that themed default, so give them their background, border, radius and
+  shadow explicitly when the design differs. No `!important`.
+- A link that looks like a button is `<Button render={<Link href="…" />}>`,
+  never a button inside a link.
 - A plain native `<button>` with a click handler stays a native button.
 
 Left hand-rolled on purpose: the Tiptap suggestion list at the caret (the

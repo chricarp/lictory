@@ -328,9 +328,9 @@ export function NotificationSettings() {
                                 {def.description}
                               </p>
                               {effective.inApp && (
-                                <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <label className="mt-1 flex min-h-5.5 w-fit items-start gap-1.5 text-xs text-muted-foreground">
                                   <Checkbox
-                                    className="size-3.5"
+                                    className="mt-px size-3.5"
                                     checked={effective.email}
                                     onCheckedChange={(checked) =>
                                       set(true, checked === true)
