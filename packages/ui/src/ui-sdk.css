@@ -83,6 +83,28 @@
   ) {
     max-width: none;
   }
+  /* Roots that only hold their parts. The stylesheet gives a command list, a
+     listbox and a scroll area a surface (background, corners) and a fixed
+     width; here they are whatever surface they sit in, as wide as it is. */
+  :is(
+    [data-slot="command"],
+    [data-slot="listbox"],
+    [data-slot="scroll-area"],
+    [data-slot="field-set"]
+  ) {
+    width: revert;
+    max-width: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  /* A group of toggles is spaced and shaped by its own classes: the stylesheet
+     overlaps neighbours by a pixel to draw one joined bar. */
+  [data-slot="toggle-group"] {
+    padding-inline-start: 0;
+  }
+  [data-slot="toggle-group"] [data-slot="toggle"] {
+    margin-inline-start: 0;
+  }
   /* A label around a checkbox, radio or switch lays itself out. */
   :is(label, [data-slot="label"]):has(
     > :is([data-slot="checkbox"], [data-slot="radio"], [data-slot="switch"])

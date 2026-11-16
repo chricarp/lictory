@@ -10,6 +10,7 @@ import {
   type ComponentProps,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from "react";
 import {
   Command,
@@ -235,6 +236,41 @@ export function Picker<T extends string>(props: PickerProps<T>) {
   );
 }
 
+// Asks for the next page once the end of a list is in view. The marker at its
+// end is watched instead of the highlighted option, so a new search starts
+// paging afresh and a page whose people were all filtered out, which leaves no
+// option to reach, still continues.
+function useEndReached(
+  list: RefObject<HTMLElement | null>,
+  end: RefObject<HTMLElement | null>,
+  {
+    hasMore,
+    loading,
+    onEndReached,
+    count,
+  }: {
+    hasMore: boolean;
+    loading: boolean;
+    onEndReached?: () => void;
+    count: number;
+  },
+) {
+  useEffect(() => {
+    if (!onEndReached || !hasMore || loading) return;
+    const root = list.current;
+    const marker = end.current;
+    if (!root || !marker) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onEndReached();
+      },
+      { root, rootMargin: "64px" },
+    );
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [list, end, onEndReached, hasMore, loading, count]);
+}
+
 type ListProps<T extends string> = PickerProps<T> & {
   selected: Set<T>;
   choose: (value: T) => void;
@@ -253,6 +289,14 @@ function SearchList<T extends string>({
   choose,
 }: ListProps<T>) {
   const popover = usePopover();
+  const listRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  useEndReached(listRef, endRef, {
+    hasMore,
+    loading,
+    onEndReached,
+    count: options.length,
+  });
   return (
     <Command
       className="flex min-h-0 flex-col"
@@ -260,7 +304,6 @@ function SearchList<T extends string>({
       filter={onQueryChange ? false : "contains"}
       status={loading ? "loading" : "idle"}
       onQueryChange={onQueryChange && ((query) => onQueryChange(query))}
-      onLoadMore={hasMore ? onEndReached : undefined}
       onAction={(chosen) => choose(unkey<T>(chosen))}
       // The result count would be spoken from a status region that outlives
       // the popover; the visible list is the feedback here.
@@ -275,6 +318,7 @@ function SearchList<T extends string>({
         />
       </div>
       <CommandList
+        ref={listRef}
         id={title ? undefined : popover?.labelId}
         aria-label={title ?? placeholder}
         render={ownName}
@@ -301,7 +345,11 @@ function SearchList<T extends string>({
           </CommandItem>
         ))}
         {hasMore && (
-          <div className="flex h-8 items-center justify-center">
+          <div
+            ref={endRef}
+            role="presentation"
+            className="flex h-8 items-center justify-center"
+          >
             {loading && (
               <Loader2
                 className="size-3.5 animate-spin text-muted-foreground"
@@ -330,20 +378,12 @@ function PlainList<T extends string>({
   const popover = usePopover();
   const listRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!onEndReached || !hasMore || loading) return;
-    const root = listRef.current;
-    const sentinel = sentinelRef.current;
-    if (!root || !sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onEndReached();
-      },
-      { root, rootMargin: "64px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [onEndReached, hasMore, options.length, loading]);
+  useEndReached(listRef, sentinelRef, {
+    hasMore,
+    loading,
+    onEndReached,
+    count: options.length,
+  });
   const current = [...selected].map(key);
   return (
     <>
@@ -364,10 +404,15 @@ function PlainList<T extends string>({
         value={multiple ? current : (current[0] ?? null)}
         onValueChange={(next: string | string[] | null) => {
           if (Array.isArray(next)) {
-            const changed =
-              next.find((item) => !current.includes(item)) ??
-              current.find((item) => !next.includes(item));
-            if (changed) choose(unkey<T>(changed));
+            // Select all and Shift ranges change several options in one go.
+            // Choosing here is one option at a time, and what a choice does
+            // is the caller's (a command, a toggle over its own list), so a
+            // bulk change is left alone rather than half applied.
+            const changed = [
+              ...next.filter((item) => !current.includes(item)),
+              ...current.filter((item) => !next.includes(item)),
+            ];
+            if (changed.length === 1) choose(unkey<T>(changed[0]!));
           } else {
             const chosen = next ?? current[0];
             if (chosen) choose(unkey<T>(chosen));

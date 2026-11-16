@@ -8,6 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  textOf,
 } from "@lictory/ui/select";
 
 type DropdownSelectProps = Pick<
@@ -34,12 +35,6 @@ type DropdownSelectProps = Pick<
 // domain choices such as “main” and “Not exported” can still use an empty ID.
 const encodeValue = (value: string | number) => `value:${value}`;
 
-function textOf(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(textOf).join("");
-  return "";
-}
-
 export function DropdownSelect({
   value,
   defaultValue,
@@ -63,6 +58,7 @@ export function DropdownSelect({
       value: encodeValue(option.value),
       label: option.label ?? textOf(option.children),
       node: option.children,
+      disabled: option.disabled,
     };
   });
   return (

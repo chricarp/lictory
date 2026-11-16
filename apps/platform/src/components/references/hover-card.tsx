@@ -11,6 +11,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
 import {
   HoverCard as HoverCardRoot,
   HoverCardContent,
@@ -128,10 +129,14 @@ export function HoverCard({
   const hide = useCallback(() => setShown(false), []);
   // A card closed with Escape stays closed until the pointer comes back.
   const escaped = useRef(false);
+  // Moving on from another reference opens this card without the pause. It
+  // is still the SDK that opens it, on the pointer's arrival, so it closes
+  // again when the pointer leaves; the delay is set before the SDK reads it.
+  const [instant, setInstant] = useState(false);
   const enter = useCallback(() => {
     escaped.current = false;
-    if (isWarm()) show();
-  }, [show]);
+    flushSync(() => setInstant(isWarm()));
+  }, []);
   // Escape dismisses a card the editor's selection holds open until the
   // selection moves off the reference.
   const [heldOpen, setHeldOpen] = useState(forceOpen);
@@ -189,7 +194,7 @@ export function HoverCard({
             setDismissed(true);
           }
         }}
-        delay={OPEN_DELAY}
+        delay={instant ? 0 : OPEN_DELAY}
         closeDelay={CLOSE_DELAY}
         container={popupContainer()}
       >
@@ -233,8 +238,12 @@ export function HoverCardAnchor({
   press?: boolean;
 }) {
   const card = use(CardContext);
-  // A click focuses the anchor too, and navigates: no card for that.
+  // A click focuses the anchor too, and navigates: no card for that. The
+  // press ends with the pointer lifting or the browser taking the gesture
+  // (a touch that became a scroll never lifts).
   const pressing = useRef(false);
+  const release = useRef<AbortController | null>(null);
+  useEffect(() => () => release.current?.abort(), []);
   if (!card) throw new Error("HoverCardAnchor needs a HoverCard around it.");
   const { id, open, show, hide, enter, setAnchor, panel } = card;
   return (
@@ -244,14 +253,16 @@ export function HoverCardAnchor({
       aria-describedby={open ? id : undefined}
       onPointerEnter={enter}
       onPointerDown={() => {
+        release.current?.abort();
+        const press = new AbortController();
+        release.current = press;
         pressing.current = true;
-        window.addEventListener(
-          "pointerup",
-          () => {
-            pressing.current = false;
-          },
-          { once: true },
-        );
+        const end = () => {
+          pressing.current = false;
+          press.abort();
+        };
+        window.addEventListener("pointerup", end, { signal: press.signal });
+        window.addEventListener("pointercancel", end, { signal: press.signal });
       }}
       onFocus={() => {
         if (!pressing.current) show();

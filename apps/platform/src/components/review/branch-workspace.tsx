@@ -2062,6 +2062,11 @@ function SyncBranch({
             Update {source.name} from {target?.name ?? "another branch"}
           </DialogTitle>
           <div className="mx-auto max-w-5xl">
+            {/* The page behind is inert while this is open: a refused update
+                explains itself here, where the person is working. */}
+            <div className="mb-3 empty:mb-0">
+              <ErrorMessage message={error} />
+            </div>
             {ours && theirs && (
               <ConflictResolver
                 key={`${ours.id}:${theirs.id}`}

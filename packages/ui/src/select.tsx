@@ -27,9 +27,15 @@ import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
 import { lastInFlow } from "@lictory/ui/last-in-flow";
 
-export type SelectOption = { value: string; label: string; node: ReactNode };
+export type SelectOption = {
+  value: string;
+  label: string;
+  node: ReactNode;
+  disabled?: boolean;
+};
 
-function textOf(node: ReactNode): string {
+// The text of what an option shows, however it is wrapped.
+export function textOf(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textOf).join("");
   if (isValidElement<{ children?: ReactNode }>(node))
@@ -88,11 +94,17 @@ function Select({
         value: item.value,
         label: item.label ?? textOf(item.children),
         node: item.children,
+        disabled: item.disabled,
       };
     });
-  const key = found.map((o) => `${o.value}\u0000${o.label}`).join("\u0001");
+  const key = found
+    .map((o) => `${o.value}\u0000${o.label}\u0000${o.disabled ? 1 : 0}`)
+    .join("\u0001");
+  // The select finds options by typing from this data, not from what is
+  // rendered, so a disabled option has to be marked here too.
   const items = useMemo(
-    () => found.map(({ value, label }) => ({ value, label })),
+    () =>
+      found.map(({ value, label, disabled }) => ({ value, label, disabled })),
     // The labels, not the array's identity, decide what the trigger shows.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key],

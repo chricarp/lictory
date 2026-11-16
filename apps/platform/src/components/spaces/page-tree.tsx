@@ -205,6 +205,17 @@ export function PageTree({
     const index = indexOf.get(id);
     if (index !== undefined) scrollToRow(index);
   };
+  // Revealing the open page includes bringing it into view: in a windowed
+  // tree a page far down has no row in the document until the list scrolls
+  // to it, and the tree's tab stop is that row.
+  useEffect(() => {
+    if (!activePageId) return;
+    const index = indexOf.get(activePageId);
+    if (index !== undefined) scrollToRow(index);
+    // Only when the open page, or where it sits, changes: not whenever the
+    // rows around it do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
   useEffect(() => {
     const id = pendingFocus.current;
     if (!id) return;

@@ -125,6 +125,7 @@ export function Questionnaire({
   items,
   item,
   onItemChange,
+  onSkip,
   shortcuts,
   onSubmit,
   onKeyDown,
@@ -137,6 +138,8 @@ export function Questionnaire({
   // The question shown. Pass it with `onItemChange` to control it.
   item?: string;
   onItemChange?: (item: string) => void;
+  // A question was skipped: what the host kept for it (typed text) goes too.
+  onSkip?: (item: string) => void;
   shortcuts?: "letters";
   // Runs once every question is answered or skipped.
   onSubmit?: (event: FormEvent<HTMLFormElement>) => void;
@@ -196,14 +199,16 @@ export function Questionnaire({
   const skip = () => {
     if (!current || current.required) return;
     // Committed first: the form reads the cleared answer when it submits.
-    flushSync(() =>
+    flushSync(() => {
       change(current.name, (answer) => ({
         ...answer,
         values: [],
+        filled: false,
         skipped: true,
         touched: false,
-      })),
-    );
+      }));
+      onSkip?.(current.name);
+    });
     const after = items[index + 1];
     if (after) go(after.name);
     else form.current?.requestSubmit();

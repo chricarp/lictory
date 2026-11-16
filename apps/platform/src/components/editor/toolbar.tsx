@@ -295,11 +295,10 @@ export function Toolbar({
           </MenuItem>
           {onDecision && (
             <MenuItem
-              onSelect={() => {
-                // The picker opens at the caret, from the text.
-                editor.commands.focus();
-                onDecision();
-              }}
+              // The picker opens at the caret and takes focus itself. Focusing
+              // the editor first would land a frame after the picker's own
+              // focus and close it: leaving the picker is how it closes.
+              onSelect={() => onDecision()}
             >
               <Row icon={<Scale />}>Decision</Row>
             </MenuItem>

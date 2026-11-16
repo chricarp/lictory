@@ -124,6 +124,7 @@ function usePeopleOptions({
       ...extraOptions,
       ...(pinned as DirectoryMember[])
         .concat(members)
+        .filter((member) => !excluded.has(member.id))
         .filter((member) => matchesMember(member, query))
         .map((member) => memberOption(member, memberValue, userId)),
     ];
@@ -481,6 +482,12 @@ function useMemberSearch(
     },
     [directory.members, excluded, organizationId, userId],
   );
+  // A search waiting out its pause runs the loader of the moment it fires:
+  // the people to leave out may have changed meanwhile.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
   useEffect(() => {
     if (manual) return;
     void load(true);
@@ -493,17 +500,14 @@ function useMemberSearch(
     },
     [],
   );
-  const search = useCallback(
-    (value: string) => {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(() => {
-        if (!liveRef.current) return;
-        queryRef.current = value;
-        void load(true);
-      }, 150);
-    },
-    [load],
-  );
+  const search = useCallback((value: string) => {
+    window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      if (!liveRef.current) return;
+      queryRef.current = value;
+      void loadRef.current(true);
+    }, 150);
+  }, []);
   const loadMore = useCallback(() => {
     void load(false);
   }, [load]);

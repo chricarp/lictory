@@ -328,7 +328,10 @@ function SuggestionBody({
               : ""}
           </span>
           {resolvedThreads.length > 0 && (
-            <CollapsibleTrigger className="ml-auto text-xs text-muted-foreground after:content-none hover:text-foreground">
+            <CollapsibleTrigger
+              data-resolved-toggle
+              className="ml-auto text-xs text-muted-foreground after:content-none hover:text-foreground"
+            >
               {showResolved ? "Hide" : "Show"} {resolvedThreads.length} resolved
             </CollapsibleTrigger>
           )}

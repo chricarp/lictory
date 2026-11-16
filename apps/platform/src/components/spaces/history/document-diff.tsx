@@ -150,7 +150,7 @@ export function RenderedDocumentDiff({
                 {group.after.length} unchanged{" "}
                 {group.after.length === 1 ? "block" : "blocks"}
               </CollapsibleTrigger>
-              <CollapsiblePanel>
+              <CollapsiblePanel hiddenUntilFound>
                 <Block nodes={group.after} kind="context" />
               </CollapsiblePanel>
             </Collapsible>

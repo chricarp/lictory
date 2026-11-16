@@ -102,6 +102,7 @@ export function Questionnaire({
           clearTimeout(advance.current);
           setActive(next);
         }}
+        onSkip={(id) => setTexts((all) => ({ ...all, [id]: "" }))}
         shortcuts="letters"
         onSubmit={submit}
         className="gap-0"
