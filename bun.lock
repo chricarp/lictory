@@ -222,7 +222,7 @@
         "@c15t/scripts": "2.2.0",
         "@ui-sdk/core": "0.1.0-beta.1",
         "@ui-sdk/react": "0.1.0-beta.1",
-        "loading-dev": "^0.3.5",
+        "loading-dev": "^0.3.8",
         "lottie-web": "5.13.0",
         "lucide-react": "^1.47.0",
         "react": "19.3.1",
@@ -2213,7 +2213,7 @@
 
     "linkifyjs": ["linkifyjs@4.4.0", "", {}, "sha512-InTexvtbai+2c+dEVGcc6O6P2DMVIiwD9a/i4zFroazOIYLOS6FSVmAJ7kFeumnCMx6/gQqNAkbUvgMubV4+MA=="],
 
-    "loading-dev": ["loading-dev@0.3.5", "", { "peerDependencies": { "react": ">=19.0.0", "react-dom": ">=19.0.0" } }, "sha512-N1cykO1KN4aC3hJnZd2EPLVWd3d92YgmAxOsZvC+YBIeujHQcALbaJZNSaMxakFH8g+D+sb68+kWX3kigO5guA=="],
+    "loading-dev": ["loading-dev@0.3.8", "", { "peerDependencies": { "react": ">=19.0.0", "react-dom": ">=19.0.0" } }, "sha512-E4ZUsEnX0NXSFwtNO/I6K7JeZp6p7T6/zgOHVy/rX32hBsK/q4Ys4++HQWfxhCdPbBiMt7NJeC0hrS9qPStxgw=="],
 
     "locate-path": ["locate-path@6.0.0", "", { "dependencies": { "p-locate": "^5.0.0" } }, "sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw=="],
 
