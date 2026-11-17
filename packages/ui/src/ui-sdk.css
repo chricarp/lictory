@@ -152,25 +152,26 @@
     transition-delay: 0s;
   }
 
-  /* 5. Icons. The stylesheet draws a chevron, check, plus or cross in the
-     `::before` or `::after` of a part that holds no icon as its direct child.
-     Icons here are always elements, often wrapped, and those pseudo-elements
-     serve other purposes (a larger hit area), so nothing is drawn in them. */
+  /* 5. Icons. The stylesheet draws a chevron in a trigger's `::after`, and a
+     check, plus or cross in the `::before` of an indicator or icon button,
+     when the part holds no icon element. Icons here are always elements, and
+     often wrapped, so those drawings are removed. The other pseudo-element of
+     each part is left alone: on touch screens the stylesheet uses it for a
+     44px hit area (a trigger's `::before`, a button's `::after`). */
   :is(
     [data-slot="select-trigger"],
     [data-slot="combobox-trigger"],
     [data-slot="navigation-menu-trigger"],
     [data-slot="accordion-trigger"],
     [data-slot="collapsible-trigger"],
-    [data-slot="menu-trigger"],
-    [data-slot="date-picker-trigger"],
-    [data-slot="date-picker-clear"],
+    [data-slot="menu-content"] [data-slot="menu-trigger"]
+  )::after,
+  :is(
     [data-slot="checkbox-indicator"],
     [data-slot="select-item-indicator"],
     [data-slot="combobox-item-indicator"],
     [data-slot="listbox-item-indicator"],
     [data-slot="menu-item-indicator"],
-    [data-slot="tree-indicator"],
     [data-slot="number-input-decrement"],
     [data-slot="number-input-increment"],
     [data-slot="calendar-previous"],
@@ -179,22 +180,22 @@
     [data-slot="carousel-next"],
     [data-slot="pagination-previous"],
     [data-slot="pagination-next"],
+    [data-slot="tree-indicator"],
     [data-slot="password-input-toggle"],
+    [data-slot="date-picker-trigger"],
+    [data-slot="date-picker-clear"],
     [data-slot="color-picker-eye-dropper"],
     [data-slot="file-input-item-remove"],
     [data-slot="token-input-token-remove"],
     [data-slot="toast-close"],
     [data-slot="otp-input-separator"]
-  ) {
-    &::before,
-    &::after {
-      content: none;
-      width: auto;
-      height: auto;
-      background: none;
-      mask: none;
-      rotate: none;
-    }
+  )::before {
+    content: none;
+    width: auto;
+    height: auto;
+    background: none;
+    mask: none;
+    rotate: none;
   }
 
   /* 6. Focus. One ring for links and for every part that does not draw its
