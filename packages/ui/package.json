@@ -8,7 +8,7 @@
     "@c15t/scripts": "2.2.0",
     "@ui-sdk/core": "0.1.0-beta.1",
     "@ui-sdk/react": "0.1.0-beta.1",
-    "loading-dev": "^0.3.5",
+    "loading-dev": "^0.3.8",
     "lottie-web": "5.13.0",
     "lucide-react": "^1.47.0",
     "react": "19.3.1",
