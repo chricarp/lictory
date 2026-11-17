@@ -61,7 +61,7 @@ test("signup verification and password reset deliver usable email links @smoke",
   await expect(
     page.getByRole("heading", { name: "Email verified" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Open workspace" }).click();
+  await page.getByRole("link", { name: "Open workspace" }).click();
   await expect(page).toHaveURL(/\/welcome\?next=/);
 
   await context.clearCookies();
@@ -89,7 +89,7 @@ test("signup verification and password reset deliver usable email links @smoke",
     page.getByRole("heading", { name: "This reset link no longer works" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Send a new reset link" }),
+    page.getByRole("link", { name: "Send a new reset link" }),
   ).toBeVisible();
 
   await page.goto("/sign-in");

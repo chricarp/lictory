@@ -618,11 +618,13 @@ function IterationHeader({
             ]}
           />
           {iteration.state === "active" && (
-            <Link href={reportHref} className="contents">
-              <Button variant="ghost" size="sm">
-                <BarChart3 className="size-3.5" /> Report
-              </Button>
-            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              render={<Link href={reportHref} />}
+            >
+              <BarChart3 className="size-3.5" /> Report
+            </Button>
           )}
           {canPlan && !editing && (
             <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>

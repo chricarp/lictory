@@ -14,6 +14,12 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Toggle } from "@ui-sdk/react/toggle";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -30,7 +36,8 @@ import {
   type AiSeverity,
 } from "@lictory/core/contracts/ai";
 import type { Command, EntityOf } from "@lictory/core/contracts/protocol";
-import { Button } from "@lictory/ui/button";
+import { Button, buttonClass } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { StateIllustration } from "@lictory/ui/state-illustration";
 import { RevisionDiff } from "@lictory/ui/diff";
@@ -48,6 +55,12 @@ import {
 } from "@lictory/platform/components/intelligence/citations";
 
 type Run = EntityOf<"aiRun">;
+
+// A finding filter: a quiet pill that reads as chosen while pressed.
+const filterClass = cn(
+  buttonClass({ variant: "ghost", size: "sm" }),
+  "data-pressed:bg-card data-pressed:text-foreground data-pressed:shadow-(--shadow-border) data-pressed:hover:bg-muted data-pressed:hover:shadow-(--shadow-border-hover)",
+);
 
 export function useAiRuns(kind: Run["kind"], pullRequestId?: string) {
   const { entities } = useItem();
@@ -431,23 +444,26 @@ export function AiReviewView({
       )}
       {run.strengths.length > 0 && (
         // Reassurance on demand; the concerns come first.
-        <details className="group/works">
-          <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+        <Collapsible>
+          <CollapsibleTrigger className="group/works flex w-full cursor-pointer items-center gap-1.5 text-left font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
             <ChevronRight
               aria-hidden
-              className="size-3 transition-transform group-open/works:rotate-90"
+              className="size-3 transition-transform group-data-open/works:rotate-90"
             />
             What works · {run.strengths.length}
-          </summary>
-          <ul className="mt-2 space-y-1 text-[13px]">
+          </CollapsibleTrigger>
+          <CollapsiblePanel
+            render={<ul />}
+            className="mt-2 space-y-1 text-[13px]"
+          >
             {run.strengths.map((s) => (
               <li key={s} className="flex gap-2">
                 <Check className="mt-0.5 size-3.5 shrink-0 text-success" />
                 {s}
               </li>
             ))}
-          </ul>
-        </details>
+          </CollapsiblePanel>
+        </Collapsible>
       )}
       <nav aria-label="Filter findings" className="flex flex-wrap gap-1.5">
         {(
@@ -457,16 +473,15 @@ export function AiReviewView({
             ...kinds.filter(([, n]) => n > 0),
           ] as const
         ).map(([k, n]) => (
-          <Button
+          <Toggle
             key={k}
-            size="sm"
-            variant={filter === k ? "secondary" : "ghost"}
-            aria-pressed={filter === k}
-            onClick={() => setFilter(k)}
+            pressed={filter === k}
+            onPressedChange={() => setFilter(k)}
+            className={filterClass}
           >
             {k === "all" ? "All" : kindMeta[k].label + "s"}
             <span className="text-muted-foreground tabular-nums">{n}</span>
-          </Button>
+          </Toggle>
         ))}
       </nav>
       {groups.length === 0 && (
@@ -633,12 +648,11 @@ export function FindingCard({
     >
       <div className="flex items-start gap-2.5">
         {selectable && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onToggle}
+          <Checkbox
+            checked={Boolean(selected)}
+            onCheckedChange={onToggle}
             aria-label={`Include “${f.title}” in a corrective pull request`}
-            className="mt-1 size-4 shrink-0 accent-primary"
+            className="mt-1"
           />
         )}
         <div className="min-w-0 flex-1 space-y-2.5">
@@ -668,16 +682,16 @@ export function FindingCard({
           {!compact && f.evidence.length > 0 && (
             // What the finding is grounded in, on demand: quoted text from
             // the item.
-            <details className="group/evidence rounded-xl bg-muted/70 px-3 py-2">
-              <summary className="flex cursor-pointer items-center gap-1.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
+            <Collapsible className="rounded-xl bg-muted/70 px-3 py-2">
+              <CollapsibleTrigger className="group/evidence flex w-full cursor-pointer items-center gap-1.5 text-left font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase select-none hover:text-foreground">
                 <ChevronRight
                   aria-hidden
-                  className="size-3 transition-transform group-open/evidence:rotate-90"
+                  className="size-3 transition-transform group-data-open/evidence:rotate-90"
                 />
                 Evidence · {f.evidence.length} quote
                 {f.evidence.length === 1 ? "" : "s"} from the item
-              </summary>
-              <div className="mt-2 space-y-1.5">
+              </CollapsibleTrigger>
+              <CollapsiblePanel className="mt-2 space-y-1.5">
                 {f.evidence.map((e) => (
                   <blockquote
                     key={e}
@@ -686,8 +700,8 @@ export function FindingCard({
                     {e}
                   </blockquote>
                 ))}
-              </div>
-            </details>
+              </CollapsiblePanel>
+            </Collapsible>
           )}
           <ContextCitations context={f.context} />
           {f.edit && (

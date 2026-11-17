@@ -7,8 +7,32 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ReactElement,
   type ReactNode,
 } from "react";
+import {
+  AlertDialog,
+  AlertDialogBackdrop,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@ui-sdk/react/alert-dialog";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@ui-sdk/react/dialog";
+import { Input } from "@ui-sdk/react/input";
+import { Textarea } from "@ui-sdk/react/textarea";
+import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
 import { toast } from "@lictory/ui/toast";
 import {
   GitBranch,
@@ -52,7 +76,9 @@ import {
   type Snapshot,
   type MergeChunk,
 } from "@lictory/core/contracts/merge";
-import { Button } from "@lictory/ui/button";
+import { Button, buttonClass } from "@lictory/ui/button";
+import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
+import { popupContainer } from "@lictory/ui/popup";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
@@ -82,6 +108,7 @@ import {
   NextStep,
   PrStatusIcon,
   PrStatusPill,
+  TabPanel,
   Tabs,
   plural,
   prStatusMeta,
@@ -147,12 +174,12 @@ export function useProposeBreakdown(
       onNavigate({ kind: "branch", id });
     } catch (error) {
       // Say why, then offer the branch list to start one by hand.
-      toast.add({
+      toast({
         title: "Could not start a breakdown branch",
         type: "error",
         description:
           error instanceof Error ? error.message : "The server refused it.",
-        timeout: 8000,
+        duration: 8000,
       });
       onNavigate({ kind: "branches" });
     }
@@ -181,12 +208,12 @@ export function useSuggestChange(onNavigate: (screen: BranchScreen) => void) {
       suggestionFocus = { branchId: id, quote };
       onNavigate({ kind: "branch", id });
     } catch (error) {
-      toast.add({
+      toast({
         title: "Could not start a suggestion",
         type: "error",
         description:
           error instanceof Error ? error.message : "The server refused it.",
-        timeout: 8000,
+        duration: 8000,
       });
     }
   };
@@ -490,12 +517,12 @@ function BranchOverview({
           <div className="flex flex-wrap items-start gap-2">
             <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium">
               New branch name
-              <input
+              <Input
                 aria-label="New branch name"
                 className={`${field} h-8`}
                 value={name}
-                onChange={(e) =>
-                  setName(sanitizeBranchNameInput(e.target.value))
+                onValueChange={(value) =>
+                  setName(sanitizeBranchNameInput(value))
                 }
                 onBlur={() => setName((n) => finalizeBranchName(n))}
                 placeholder="e.g. clarify-timeout"
@@ -549,9 +576,13 @@ function BranchOverview({
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <SectionLabel>Pull requests</SectionLabel>
-          <div
-            role="group"
+          <ToggleGroup<"active" | "merged">
             aria-label="Pull request filter"
+            value={[filter]}
+            onValueChange={([next]) => {
+              if (next) setFilter(next);
+            }}
+            deselectable={false}
             className="flex rounded-md bg-muted p-0.5 text-xs"
           >
             {(
@@ -560,21 +591,15 @@ function BranchOverview({
                 ["merged", "Merged", prs.filter((p) => p.status === "merged")],
               ] as const
             ).map(([id, label, list]) => (
-              <button
+              <Toggle
                 key={id}
-                type="button"
-                aria-pressed={filter === id}
-                onClick={() => setFilter(id)}
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-muted-foreground",
-                  filter === id &&
-                    "bg-card font-medium text-foreground shadow-(--shadow-border)",
-                )}
+                value={id}
+                className="rounded-md px-2 py-0.5 text-muted-foreground data-pressed:bg-card data-pressed:font-medium data-pressed:text-foreground data-pressed:shadow-(--shadow-border)"
               >
                 {label} {list.length}
-              </button>
+              </Toggle>
             ))}
-          </div>
+          </ToggleGroup>
         </div>
         <div className="divide-y rounded-lg border">
           {listed.length ? (
@@ -834,7 +859,9 @@ function BranchEditorBody({
       requestAnimationFrame(() => {
         section.scrollIntoView({ block: "center" });
         section
-          .querySelector<HTMLInputElement>("input:not([type=hidden])")
+          .querySelector<HTMLInputElement>(
+            "input:not([type=hidden], [aria-hidden=true])",
+          )
           ?.focus({ preventScroll: true });
       });
     },
@@ -859,7 +886,6 @@ function BranchEditorBody({
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const liveDraft = useSpecificationDraft(branch.id);
   const [opening, setOpening] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [committed, setCommitted] = useState<string | null>(null);
   const [tab, setTab] = useState<"document" | "changes" | "commits">(
     "document",
@@ -1050,43 +1076,44 @@ function BranchEditorBody({
         <div className="flex items-center gap-1.5">
           {pr ? viewPrButton : stage !== 2 && openPrButton}
           {canDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label="Delete branch"
-              title="Delete branch"
-              onClick={() => setDeleting(true)}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+            <DeletePrompt
+              name={`branch ${branch.name}`}
+              detail={
+                pr
+                  ? "It has an active pull request; delete or merge that first."
+                  : changed
+                    ? "Your uncommitted edits will be lost."
+                    : undefined
+              }
+              onDelete={() =>
+                run(
+                  {
+                    type: "deleteBranch",
+                    workItemId: itemId,
+                    branchId: branch.id,
+                  },
+                  () => {
+                    localStorage.removeItem(key);
+                    onNavigate({ kind: "branches" });
+                  },
+                )
+              }
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label="Delete branch"
+                  title="Delete branch"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              }
+            />
           )}
         </div>
       </div>
       <ErrorMessage message={error || sealError} />
-      {deleting && (
-        <DeletePrompt
-          name={`branch ${branch.name}`}
-          detail={
-            pr
-              ? "It has an active pull request; delete or merge that first."
-              : changed
-                ? "Your uncommitted edits will be lost."
-                : undefined
-          }
-          pending={pending}
-          onCancel={() => setDeleting(false)}
-          onDelete={() =>
-            void run(
-              { type: "deleteBranch", workItemId: itemId, branchId: branch.id },
-              () => {
-                localStorage.removeItem(key);
-                onNavigate({ kind: "branches" });
-              },
-            )
-          }
-        />
-      )}
       {opening ? (
         <CreatePR
           source={branch}
@@ -1097,21 +1124,26 @@ function BranchEditorBody({
         <>
           {guidance}
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <div className="min-w-0 space-y-4">
-              <Tabs
-                label="Branch views"
-                value={tab}
-                onChange={setTab}
-                tabs={[
-                  { id: "document", label: "Document" },
-                  { id: "changes", label: "Uncommitted", dot: changed },
-                  { id: "commits", label: "Commits", count: history.length },
-                ]}
-              />
-              {canEdit && (
-                // Kept mounted on every tab, so switching tabs keeps the
-                // live session (and the carets) open.
-                <div hidden={tab === "commits"} className="space-y-4">
+            <Tabs
+              className="min-w-0 space-y-4"
+              label="Branch views"
+              value={tab}
+              onChange={setTab}
+              tabs={[
+                { id: "document", label: "Document" },
+                { id: "changes", label: "Uncommitted", dot: changed },
+                { id: "commits", label: "Commits", count: history.length },
+              ]}
+            >
+              {canEdit ? (
+                // One panel serves both views of the editor and stays
+                // mounted on every tab, so switching tabs keeps the live
+                // session (and the carets) open.
+                <TabPanel
+                  keepMounted
+                  value={tab === "changes" ? "changes" : "document"}
+                  className="space-y-4"
+                >
                   <SpecificationDraftEditor
                     branchId={branch.id}
                     line={{
@@ -1214,29 +1246,29 @@ function BranchEditorBody({
                       </>
                     )}
                   />
-                </div>
-              )}
-              {tab === "commits" ? (
-                <CommitHistory commits={history} memberName={memberName} />
+                </TabPanel>
               ) : (
-                !canEdit &&
-                (tab === "changes" ? (
-                  <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                    No uncommitted edits. Everything on this branch is
-                    committed.
-                  </p>
-                ) : (
-                  <>
+                <>
+                  <TabPanel value="document" className="space-y-4">
                     <h2 className="text-xl font-semibold">{head.title}</h2>
                     <Markdown source={head.content} />
                     <BreakdownProposal
                       proposals={head.proposedChildren}
                       accepted={mainHead?.proposedChildren}
                     />
-                  </>
-                ))
+                  </TabPanel>
+                  <TabPanel value="changes">
+                    <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                      No uncommitted edits. Everything on this branch is
+                      committed.
+                    </p>
+                  </TabPanel>
+                </>
               )}
-            </div>
+              <TabPanel value="commits">
+                <CommitHistory commits={history} memberName={memberName} />
+              </TabPanel>
+            </Tabs>
             <aside className="space-y-5 text-sm">
               <section className="space-y-2">
                 <SectionLabel>Latest commit</SectionLabel>
@@ -1389,11 +1421,11 @@ function CommitBox({
           )}
         </span>
       </div>
-      <input
+      <Input
         aria-label="Commit message"
         className={`${field} h-8`}
         value={message}
-        onChange={(e) => onMessage(e.target.value)}
+        onValueChange={(value) => onMessage(value)}
         placeholder="Summarize what changed and why"
         maxLength={500}
       />
@@ -1588,11 +1620,11 @@ function CreatePR({
             <ErrorMessage message={error} />
             <label className="block space-y-1 text-xs font-medium">
               Title
-              <input
+              <Input
                 aria-label="Pull request title"
                 className={`${field} h-9 text-sm`}
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onValueChange={(value) => setTitle(value)}
                 placeholder="What does this change do?"
                 maxLength={120}
                 autoFocus
@@ -1603,13 +1635,13 @@ function CreatePR({
               <span className="font-normal text-muted-foreground">
                 (required)
               </span>
-              <textarea
+              <Textarea
                 aria-label="Pull request description"
                 required
                 className={`${field} py-2`}
                 rows={5}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onValueChange={(value) => setDescription(value)}
                 maxLength={10000}
                 placeholder="Why is this change needed? What should reviewers focus on?"
               />
@@ -1632,11 +1664,15 @@ function CreatePR({
               </Button>
             </div>
             {preview && theirs && (
-              <details className="rounded-lg border">
-                <summary className="cursor-pointer px-3 py-2 text-[13px] font-medium">
+              <Collapsible className="rounded-lg border">
+                <CollapsibleTrigger className="group/preview flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium">
+                  <ChevronRight
+                    aria-hidden
+                    className="size-3.5 text-muted-foreground transition-transform group-data-open/preview:rotate-90"
+                  />
                   Preview the change
-                </summary>
-                <div className="space-y-2 border-t p-3">
+                </CollapsibleTrigger>
+                <CollapsiblePanel className="space-y-2 border-t p-3">
                   {preview.title !== theirs.title && (
                     <p className="text-sm">
                       Title: {theirs.title} → {preview.title}
@@ -1655,8 +1691,8 @@ function CreatePR({
                       theirs.proposedChildren,
                     )}
                   />
-                </div>
-              </details>
+                </CollapsiblePanel>
+              </Collapsible>
             )}
           </div>
           <aside className="space-y-2">
@@ -1671,37 +1707,49 @@ function CreatePR({
   );
 }
 
+// Asks before deleting. Confirming keeps the question open until the server
+// has answered; a refusal is reported by the screen behind it.
 function DeletePrompt({
   name,
   detail,
-  pending,
-  onCancel,
   onDelete,
+  trigger,
 }: {
   name: string;
   detail?: string;
-  pending: boolean;
-  onCancel: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<void>;
+  // The button that asks.
+  trigger: ReactElement<Record<string, unknown>>;
 }) {
   return (
-    <div
-      role="alertdialog"
-      aria-label={`Delete ${name}`}
-      className="flex flex-wrap items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"
-    >
-      <p className="flex-1">
-        Delete {name}? It will disappear from the workspace. Commits and
-        activity remain in history.
-        {detail && <span className="text-muted-foreground"> {detail}</span>}
-      </p>
-      <Button variant="ghost" onClick={onCancel}>
-        Cancel
-      </Button>
-      <Button variant="danger" disabled={pending} onClick={onDelete}>
-        Delete
-      </Button>
-    </div>
+    <AlertDialog container={popupContainer()}>
+      <AlertDialogTrigger render={trigger} />
+      <AlertDialogBackdrop className={dialogBackdropClass} />
+      <AlertDialogContent
+        className={cn(dialogPanelClass, "max-w-md gap-0 p-5")}
+      >
+        <AlertDialogTitle className="m-0 text-sm font-semibold">
+          Delete {name}
+          <span aria-hidden>?</span>
+        </AlertDialogTitle>
+        <AlertDialogDescription className="mt-1 mb-0 text-[13px] leading-5 text-muted-foreground">
+          It will disappear from the workspace. Commits and activity remain in
+          history.{detail && ` ${detail}`}
+        </AlertDialogDescription>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <AlertDialogClose className={buttonClass({ variant: "ghost" })}>
+            Cancel
+          </AlertDialogClose>
+          <AlertDialogClose
+            value="confirm"
+            action={onDelete}
+            className={buttonClass({ variant: "danger" })}
+          >
+            Delete
+          </AlertDialogClose>
+        </div>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -1760,11 +1808,11 @@ export function ConflictResolver({
               Use their title
             </Button>
           </div>
-          <input
+          <Input
             aria-label="Resolved title"
             className={`${field} h-8`}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onValueChange={(value) => setTitle(value)}
           />
         </div>
       ) : (
@@ -1932,14 +1980,12 @@ function ConflictChunk({
         </Button>
       </div>
       {value !== undefined && (
-        <textarea
+        <Textarea
           aria-label={`Resolved conflict ${number}`}
           className={`${field} font-mono`}
           rows={4}
           value={value.join("\n")}
-          onChange={(e) =>
-            onChange(e.target.value ? e.target.value.split("\n") : [])
-          }
+          onValueChange={(text) => onChange(text ? text.split("\n") : [])}
         />
       )}
     </div>
@@ -1998,41 +2044,46 @@ function SyncBranch({
           </DropdownSelectOption>
         ))}
       </DropdownSelect>
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={
-          disabled || pending || !target || target.headId === source.headId
-        }
-        onClick={() => setResolving(true)}
+      <Dialog
+        open={resolving && Boolean(ours && theirs)}
+        onOpenChange={setResolving}
+        container={popupContainer()}
       >
-        Compare & update branch
-      </Button>
-      {resolving && ours && theirs && (
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape bubbles from the dialog's controls to close it.
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Update ${source.name} from ${target?.name ?? "another branch"}`}
-          onKeyDown={(e) => e.key === "Escape" && setResolving(false)}
-          className="fixed inset-0 z-50 overflow-y-auto bg-background/95 p-4 md:p-12"
+        <DialogTrigger
+          disabled={
+            disabled || pending || !target || target.headId === source.headId
+          }
+          render={<Button size="sm" variant="secondary" />}
         >
+          Compare & update branch
+        </DialogTrigger>
+        <DialogContent className="fixed inset-0 z-50 block h-auto max-h-none w-auto overflow-y-auto rounded-none bg-background/95 p-4 text-sm text-foreground shadow-none outline-none md:p-12">
+          <DialogTitle className="sr-only">
+            Update {source.name} from {target?.name ?? "another branch"}
+          </DialogTitle>
           <div className="mx-auto max-w-5xl">
-            <ConflictResolver
-              key={`${ours.id}:${theirs.id}`}
-              base={base ?? { title: "", content: "" }}
-              ours={ours}
-              theirs={theirs}
-              pending={pending}
-              action="Commit branch update"
-              oursLabel={source.name}
-              theirsLabel={target?.name ?? "Other branch"}
-              onCancel={() => setResolving(false)}
-              onResolve={sync}
-            />
+            {/* The page behind is inert while this is open: a refused update
+                explains itself here, where the person is working. */}
+            <div className="mb-3 empty:mb-0">
+              <ErrorMessage message={error} />
+            </div>
+            {ours && theirs && (
+              <ConflictResolver
+                key={`${ours.id}:${theirs.id}`}
+                base={base ?? { title: "", content: "" }}
+                ours={ours}
+                theirs={theirs}
+                pending={pending}
+                action="Commit branch update"
+                oursLabel={source.name}
+                theirsLabel={target?.name ?? "Other branch"}
+                onCancel={() => setResolving(false)}
+                onResolve={sync}
+              />
+            )}
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2097,7 +2148,6 @@ function PullRequestView({
   const [tab, setTab] = useState<
     "conversation" | "commits" | "checks" | "changes"
   >("conversation");
-  const [deleting, setDeleting] = useState(false);
   const [roleId, setRoleId] = useState("");
   const [draft, setDraft] = useState<{
     quote?: string;
@@ -2391,29 +2441,8 @@ function PullRequestView({
         </div>
       </header>
       <ErrorMessage message={error} />
-      {deleting && (
-        <DeletePrompt
-          name={`pull request “${p.title}”`}
-          detail={
-            p.status === "merged"
-              ? "The merged content stays in the specification."
-              : "The branch is kept."
-          }
-          pending={pending}
-          onCancel={() => setDeleting(false)}
-          onDelete={() =>
-            void run(
-              {
-                type: "deletePullRequest",
-                workItemId: item.id,
-                pullRequestId: p.id,
-              },
-              () => onNavigate({ kind: "branches" }),
-            )
-          }
-        />
-      )}
       <Tabs
+        className="space-y-6"
         label="Pull request views"
         value={tab}
         onChange={setTab}
@@ -2441,210 +2470,213 @@ function PullRequestView({
           },
           { id: "changes", label: "Changes" },
         ]}
-      />
-      {tab === "checks" ? (
-        <ActionChecksPanel
-          pullRequest={p}
-          sourceHeadId={source?.headId}
-          sourceName={sourceName}
-          canCommit={Boolean(source?.collaboratorIds.includes(userId))}
-        />
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="min-w-0 space-y-4">
-            {/* What blocks the merge comes first, before the conversation. */}
-            {p.status !== "merged" ? (
-              <section
-                aria-label="Merge status"
-                className={cn(
-                  "overflow-hidden rounded-lg border",
-                  !blockers.length && "border-success/40",
-                )}
-              >
-                <div className="flex items-start gap-3 border-b px-4 py-3">
-                  <span
-                    className={cn(
-                      "grid size-8 shrink-0 place-items-center rounded-full",
-                      blockers.length
-                        ? "bg-muted text-muted-foreground"
-                        : "bg-success text-white",
-                    )}
-                  >
+      >
+        <TabPanel value="checks">
+          <ActionChecksPanel
+            pullRequest={p}
+            sourceHeadId={source?.headId}
+            sourceName={sourceName}
+            canCommit={Boolean(source?.collaboratorIds.includes(userId))}
+          />
+        </TabPanel>
+        {/* The other views share the merge status and the reviewers. */}
+        {tab !== "checks" && (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="min-w-0 space-y-4">
+              {/* What blocks the merge comes first, before the conversation. */}
+              {p.status !== "merged" ? (
+                <section
+                  aria-label="Merge status"
+                  className={cn(
+                    "overflow-hidden rounded-lg border",
+                    !blockers.length && "border-success/40",
+                  )}
+                >
+                  <div className="flex items-start gap-3 border-b px-4 py-3">
+                    <span
+                      className={cn(
+                        "grid size-8 shrink-0 place-items-center rounded-full",
+                        blockers.length
+                          ? "bg-muted text-muted-foreground"
+                          : "bg-success text-white",
+                      )}
+                    >
+                      <GitMerge className="size-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-semibold">
+                        {blockers.length
+                          ? "Merging is blocked"
+                          : "Ready to merge"}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {blockers.length
+                          ? `${plural(blockers.length, "requirement")} into ${targetName} not met yet.`
+                          : "Required reviews approve this merge result. No conflicts or blocking discussions remain."}
+                      </p>
+                    </div>
+                  </div>
+                  {actionRuns.length > 0 && !actionGate && (
+                    <div className="border-b px-4 py-2.5">
+                      <ActionCheckRow
+                        pullRequestId={p.id}
+                        sourceHeadId={source?.headId}
+                        onDetails={() => setTab("checks")}
+                      />
+                    </div>
+                  )}
+                  <ul className="divide-y">
+                    {rows.map((r) => (
+                      <li
+                        key={r.key}
+                        className="flex items-start gap-2.5 px-4 py-2.5 text-[13px]"
+                      >
+                        <CheckIcon state={r.state} className="mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p>{r.text}</p>
+                          {r.detail && (
+                            <p className="text-xs text-muted-foreground">
+                              {r.detail}
+                            </p>
+                          )}
+                        </div>
+                        {r.action}
+                      </li>
+                    ))}
+                  </ul>
+                  {resolving && ours && theirs && source && target && (
+                    <div className="border-t p-4">
+                      <ConflictResolver
+                        key={`${ours.id}:${theirs.id}`}
+                        base={common ?? { title: "", content: "" }}
+                        ours={ours}
+                        theirs={theirs}
+                        pending={pending}
+                        action={`Commit resolution to ${sourceName}`}
+                        oursLabel={`${sourceName} (this pull request)`}
+                        theirsLabel={targetName}
+                        onCancel={() => setResolving(false)}
+                        onResolve={(snapshot) =>
+                          void run(
+                            {
+                              type: "syncBranch",
+                              workItemId: item.id,
+                              branchId: source.id,
+                              targetId: target.id,
+                              sourceHeadId: source.headId,
+                              targetHeadId: target.headId,
+                              ...snapshot,
+                            },
+                            () => setResolving(false),
+                          )
+                        }
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-3">
+                    <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                      {canMerge
+                        ? mergeEffect
+                        : `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`}
+                    </p>
+                    <Button
+                      disabled={
+                        pending || !canMerge || blockers.length > 0 || !heads
+                      }
+                      onClick={() =>
+                        heads &&
+                        void run({
+                          type: "mergePullRequest",
+                          workItemId: item.id,
+                          pullRequestId: p.id,
+                          ...heads,
+                        })
+                      }
+                    >
+                      <GitMerge className="size-3.5" />
+                      Merge pull request
+                    </Button>
+                  </div>
+                </section>
+              ) : (
+                <section className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
                     <GitMerge className="size-4" />
                   </span>
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-semibold">
-                      {blockers.length
-                        ? "Merging is blocked"
-                        : "Ready to merge"}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {blockers.length
-                        ? `${plural(blockers.length, "requirement")} into ${targetName} not met yet.`
-                        : "Required reviews approve this merge result. No conflicts or blocking discussions remain."}
-                    </p>
-                  </div>
-                </div>
-                {actionRuns.length > 0 && !actionGate && (
-                  <div className="border-b px-4 py-2.5">
-                    <ActionCheckRow
-                      pullRequestId={p.id}
-                      sourceHeadId={source?.headId}
-                      onDetails={() => setTab("checks")}
-                    />
-                  </div>
-                )}
-                <ul className="divide-y">
-                  {rows.map((r) => (
-                    <li
-                      key={r.key}
-                      className="flex items-start gap-2.5 px-4 py-2.5 text-[13px]"
-                    >
-                      <CheckIcon state={r.state} className="mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <p>{r.text}</p>
-                        {r.detail && (
-                          <p className="text-xs text-muted-foreground">
-                            {r.detail}
-                          </p>
+                  <p className="text-sm">
+                    Merged. The reviewed content is recorded in the target
+                    branch history.
+                    {automaticallyDeleted && (
+                      <> Lictory automatically deleted branch {sourceName}.</>
+                    )}
+                    {source && isMain(target) && !willDeleteSource && (
+                      <>
+                        {" "}
+                        The source branch is retained because another active
+                        pull request uses it.
+                      </>
+                    )}
+                  </p>
+                </section>
+              )}
+              <TabPanel value="commits">
+                <CommitHistory commits={shownHistory} memberName={memberName} />
+              </TabPanel>
+              <TabPanel value="changes" className="space-y-4">
+                {display && before ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="min-w-0 flex-1 text-sm">
+                        <span className="text-muted-foreground">
+                          Resulting work item title:
+                        </span>{" "}
+                        <span className="font-medium">{display.title}</span>
+                        {display.title !== before.title && (
+                          <span className="block text-xs text-muted-foreground">
+                            Previous title: {before.title}
+                          </span>
                         )}
-                      </div>
-                      {r.action}
-                    </li>
-                  ))}
-                </ul>
-                {resolving && ours && theirs && source && target && (
-                  <div className="border-t p-4">
-                    <ConflictResolver
-                      key={`${ours.id}:${theirs.id}`}
-                      base={common ?? { title: "", content: "" }}
-                      ours={ours}
-                      theirs={theirs}
-                      pending={pending}
-                      action={`Commit resolution to ${sourceName}`}
-                      oursLabel={`${sourceName} (this pull request)`}
-                      theirsLabel={targetName}
-                      onCancel={() => setResolving(false)}
-                      onResolve={(snapshot) =>
-                        void run(
-                          {
-                            type: "syncBranch",
-                            workItemId: item.id,
-                            branchId: source.id,
-                            targetId: target.id,
-                            sourceHeadId: source.headId,
-                            targetHeadId: target.headId,
-                            ...snapshot,
-                          },
-                          () => setResolving(false),
-                        )
+                      </p>
+                      {!readOnly && p.status !== "merged" && ours && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setDraft({ section: "Merge result" });
+                            setTab("conversation");
+                          }}
+                        >
+                          <MessageSquare className="size-3.5" />
+                          Discuss this change
+                        </Button>
+                      )}
+                    </div>
+                    {/* Changed words in context; "Show full text" reads the
+                      complete merge result. */}
+                    <SpecDiff
+                      before={before.content}
+                      after={display.content}
+                      beforeLabel={targetName}
+                      afterLabel={
+                        p.status === "merged" ? "Merged" : "This change"
                       }
                     />
-                  </div>
-                )}
-                <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-3">
-                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                    {canMerge
-                      ? mergeEffect
-                      : `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`}
-                  </p>
-                  <Button
-                    disabled={
-                      pending || !canMerge || blockers.length > 0 || !heads
-                    }
-                    onClick={() =>
-                      heads &&
-                      void run({
-                        type: "mergePullRequest",
-                        workItemId: item.id,
-                        pullRequestId: p.id,
-                        ...heads,
-                      })
-                    }
-                  >
-                    <GitMerge className="size-3.5" />
-                    Merge pull request
-                  </Button>
-                </div>
-              </section>
-            ) : (
-              <section className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
-                  <GitMerge className="size-4" />
-                </span>
-                <p className="text-sm">
-                  Merged. The reviewed content is recorded in the target branch
-                  history.
-                  {automaticallyDeleted && (
-                    <> Lictory automatically deleted branch {sourceName}.</>
-                  )}
-                  {source && isMain(target) && !willDeleteSource && (
-                    <>
-                      {" "}
-                      The source branch is retained because another active pull
-                      request uses it.
-                    </>
-                  )}
-                </p>
-              </section>
-            )}
-            {tab === "commits" ? (
-              <CommitHistory commits={shownHistory} memberName={memberName} />
-            ) : tab === "changes" ? (
-              display && before ? (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="min-w-0 flex-1 text-sm">
-                      <span className="text-muted-foreground">
-                        Resulting work item title:
-                      </span>{" "}
-                      <span className="font-medium">{display.title}</span>
-                      {display.title !== before.title && (
-                        <span className="block text-xs text-muted-foreground">
-                          Previous title: {before.title}
-                        </span>
+                    <BreakdownProposal
+                      includeApplied
+                      proposals={pendingEntries(
+                        display.proposedChildren,
+                        before.proposedChildren,
                       )}
-                    </p>
-                    {!readOnly && p.status !== "merged" && ours && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setDraft({ section: "Merge result" });
-                          setTab("conversation");
-                        }}
-                      >
-                        <MessageSquare className="size-3.5" />
-                        Discuss this change
-                      </Button>
-                    )}
-                  </div>
-                  {/* Changed words in context; "Show full text" reads the
-                      complete merge result. */}
-                  <SpecDiff
-                    before={before.content}
-                    after={display.content}
-                    beforeLabel={targetName}
-                    afterLabel={
-                      p.status === "merged" ? "Merged" : "This change"
-                    }
-                  />
-                  <BreakdownProposal
-                    includeApplied
-                    proposals={pendingEntries(
-                      display.proposedChildren,
-                      before.proposedChildren,
-                    )}
-                  />
-                </>
-              ) : (
-                <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  The merge result is unavailable until the conflicts are
-                  resolved.
-                </p>
-              )
-            ) : (
-              <>
+                    />
+                  </>
+                ) : (
+                  <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                    The merge result is unavailable until the conflicts are
+                    resolved.
+                  </p>
+                )}
+              </TabPanel>
+              <TabPanel value="conversation" className="space-y-4">
                 <article className="overflow-hidden rounded-lg border">
                   <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
                     <Avatar userId={p.authorId} name={memberName(p.authorId)} />
@@ -2685,243 +2717,263 @@ function PullRequestView({
                     />
                   )}
                 </section>
-              </>
-            )}
-          </div>
-          <aside className="space-y-5 text-sm">
-            <section className="space-y-2">
-              <SectionLabel>Reviewers</SectionLabel>
-              {!reviews.length && (
-                <p className="text-xs text-muted-foreground">
-                  No reviewers yet. Request the responsibilities that must
-                  approve this change.
-                </p>
-              )}
-              <ul className="space-y-3">
-                {reviews.map((r) => {
-                  const role = disciplines.find(
-                      (role) => role.id === r.disciplineId,
-                    ),
-                    assigned =
-                      role &&
-                      !role.archivedAt &&
-                      role.capabilities.review &&
-                      role.userIds.includes(userId) &&
-                      (!r.userId || r.userId === userId);
-                  const stale = Boolean(
-                    r.decision &&
-                    p.status !== "merged" &&
-                    (conflicted || (Boolean(hash) && r.resultHash !== hash)),
-                  );
-                  const state: CheckState = valid(r)
-                    ? "success"
-                    : stale
-                      ? "pending"
-                      : r.decision === "changes_requested"
-                        ? "failure"
-                        : "neutral";
-                  return (
-                    <li key={r.id} className="space-y-1.5">
-                      <div className="flex items-start gap-2">
-                        <CheckIcon state={state} className="mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {role?.name ?? "Reviewer"}{" "}
-                            <span className="text-xs font-normal text-muted-foreground">
-                              {r.required ? "Required" : "Optional"}
-                            </span>
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {r.userId
-                              ? memberName(r.userId)
-                              : `Any ${role?.name ?? "role"} member`}
-                          </p>
-                        </div>
-                        <Badge
-                          tone={
-                            valid(r)
-                              ? "good"
-                              : stale
-                                ? "warning"
-                                : r.decision === "changes_requested"
-                                  ? "danger"
-                                  : undefined
-                          }
-                        >
-                          {stale
-                            ? "Review required again"
-                            : r.decision
-                              ? decisionLabel[r.decision]
-                              : "Pending"}
-                        </Badge>
-                      </div>
-                      {r.reviewerId && (
-                        <p className="pl-6 text-xs text-muted-foreground">
-                          Decision by {memberName(r.reviewerId)}
-                        </p>
-                      )}
-                      {assigned &&
-                        !readOnly &&
-                        specificationPullRequest.allows(p.status, "review") &&
-                        heads && (
-                          <div className="flex flex-wrap gap-1 pl-6">
-                            {(
-                              [
-                                ["approve", "Approve"],
-                                ["changes_requested", "Request changes"],
-                                ...(r.decision
-                                  ? ([["revoke", "Revoke"]] as const)
-                                  : []),
-                              ] as const
-                            ).map(([decision, label]) => (
-                              <Button
-                                key={decision}
-                                size="sm"
-                                variant={
-                                  decision === "approve"
-                                    ? "primary"
-                                    : decision === "revoke"
-                                      ? "ghost"
-                                      : "secondary"
-                                }
-                                disabled={
-                                  pending ||
-                                  conflicted ||
-                                  (contributed && decision === "approve")
-                                }
-                                title={
-                                  contributed && decision === "approve"
-                                    ? "Contributors cannot approve their own changes."
-                                    : undefined
-                                }
-                                onClick={() =>
-                                  void run({
-                                    type: "decidePullRequest",
-                                    workItemId: item.id,
-                                    pullRequestId: p.id,
-                                    reviewId: r.id,
-                                    ...heads,
-                                    decision,
-                                  })
-                                }
-                              >
-                                {label}
-                              </Button>
-                            ))}
+              </TabPanel>
+            </div>
+            <aside className="space-y-5 text-sm">
+              <section className="space-y-2">
+                <SectionLabel>Reviewers</SectionLabel>
+                {!reviews.length && (
+                  <p className="text-xs text-muted-foreground">
+                    No reviewers yet. Request the responsibilities that must
+                    approve this change.
+                  </p>
+                )}
+                <ul className="space-y-3">
+                  {reviews.map((r) => {
+                    const role = disciplines.find(
+                        (role) => role.id === r.disciplineId,
+                      ),
+                      assigned =
+                        role &&
+                        !role.archivedAt &&
+                        role.capabilities.review &&
+                        role.userIds.includes(userId) &&
+                        (!r.userId || r.userId === userId);
+                    const stale = Boolean(
+                      r.decision &&
+                      p.status !== "merged" &&
+                      (conflicted || (Boolean(hash) && r.resultHash !== hash)),
+                    );
+                    const state: CheckState = valid(r)
+                      ? "success"
+                      : stale
+                        ? "pending"
+                        : r.decision === "changes_requested"
+                          ? "failure"
+                          : "neutral";
+                    return (
+                      <li key={r.id} className="space-y-1.5">
+                        <div className="flex items-start gap-2">
+                          <CheckIcon state={state} className="mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium">
+                              {role?.name ?? "Reviewer"}{" "}
+                              <span className="text-xs font-normal text-muted-foreground">
+                                {r.required ? "Required" : "Optional"}
+                              </span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {r.userId
+                                ? memberName(r.userId)
+                                : `Any ${role?.name ?? "role"} member`}
+                            </p>
                           </div>
-                        )}
-                      {assigned &&
-                        !readOnly &&
-                        specificationPullRequest.allows(p.status, "review") &&
-                        heads &&
-                        contributed &&
-                        !r.decision && (
+                          <Badge
+                            tone={
+                              valid(r)
+                                ? "good"
+                                : stale
+                                  ? "warning"
+                                  : r.decision === "changes_requested"
+                                    ? "danger"
+                                    : undefined
+                            }
+                          >
+                            {stale
+                              ? "Review required again"
+                              : r.decision
+                                ? decisionLabel[r.decision]
+                                : "Pending"}
+                          </Badge>
+                        </div>
+                        {r.reviewerId && (
                           <p className="pl-6 text-xs text-muted-foreground">
-                            You contributed to this change, so another{" "}
-                            {role?.name ?? "reviewing"} member approves it.
+                            Decision by {memberName(r.reviewerId)}
                           </p>
                         )}
-                    </li>
-                  );
-                })}
-              </ul>
-              {manage &&
-                capabilities.requestReviews &&
-                specificationPullRequest.allows(p.status, "requestReview") &&
-                roleOptions.length > 0 && (
-                  <div className="flex gap-1.5">
-                    <DropdownSelect
-                      placeholder="Add a reviewing discipline…"
-                      aria-label="PR reviewing discipline"
-                      className="min-w-0 flex-1"
-                      value={roleId}
-                      onValueChange={(value) => setRoleId(value)}
-                    >
-                      {roleOptions.map((r) => (
-                        <DropdownSelectOption key={r.id} value={r.id}>
-                          {r.name}
-                        </DropdownSelectOption>
-                      ))}
-                    </DropdownSelect>
+                        {assigned &&
+                          !readOnly &&
+                          specificationPullRequest.allows(p.status, "review") &&
+                          heads && (
+                            <div className="flex flex-wrap gap-1 pl-6">
+                              {(
+                                [
+                                  ["approve", "Approve"],
+                                  ["changes_requested", "Request changes"],
+                                  ...(r.decision
+                                    ? ([["revoke", "Revoke"]] as const)
+                                    : []),
+                                ] as const
+                              ).map(([decision, label]) => (
+                                <Button
+                                  key={decision}
+                                  size="sm"
+                                  variant={
+                                    decision === "approve"
+                                      ? "primary"
+                                      : decision === "revoke"
+                                        ? "ghost"
+                                        : "secondary"
+                                  }
+                                  disabled={
+                                    pending ||
+                                    conflicted ||
+                                    (contributed && decision === "approve")
+                                  }
+                                  title={
+                                    contributed && decision === "approve"
+                                      ? "Contributors cannot approve their own changes."
+                                      : undefined
+                                  }
+                                  onClick={() =>
+                                    void run({
+                                      type: "decidePullRequest",
+                                      workItemId: item.id,
+                                      pullRequestId: p.id,
+                                      reviewId: r.id,
+                                      ...heads,
+                                      decision,
+                                    })
+                                  }
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+                        {assigned &&
+                          !readOnly &&
+                          specificationPullRequest.allows(p.status, "review") &&
+                          heads &&
+                          contributed &&
+                          !r.decision && (
+                            <p className="pl-6 text-xs text-muted-foreground">
+                              You contributed to this change, so another{" "}
+                              {role?.name ?? "reviewing"} member approves it.
+                            </p>
+                          )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {manage &&
+                  capabilities.requestReviews &&
+                  specificationPullRequest.allows(p.status, "requestReview") &&
+                  roleOptions.length > 0 && (
+                    <div className="flex gap-1.5">
+                      <DropdownSelect
+                        placeholder="Add a reviewing discipline…"
+                        aria-label="PR reviewing discipline"
+                        className="min-w-0 flex-1"
+                        value={roleId}
+                        onValueChange={(value) => setRoleId(value)}
+                      >
+                        {roleOptions.map((r) => (
+                          <DropdownSelectOption key={r.id} value={r.id}>
+                            {r.name}
+                          </DropdownSelectOption>
+                        ))}
+                      </DropdownSelect>
+                      <Button
+                        size="md"
+                        variant="secondary"
+                        disabled={pending || !roleId}
+                        aria-label="Request required review"
+                        title="Request required review"
+                        onClick={() =>
+                          void run(
+                            {
+                              type: "requestPullRequestReview",
+                              workItemId: item.id,
+                              pullRequestId: p.id,
+                              disciplineId: roleId,
+                              userId: null,
+                              required: true,
+                            },
+                            () => setRoleId(""),
+                          )
+                        }
+                      >
+                        Request
+                      </Button>
+                    </div>
+                  )}
+                {p.status === "open" && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Approvals apply to the exact merge result. Any new commit on
+                    either branch asks reviewers again.
+                  </p>
+                )}
+              </section>
+              <section className="space-y-2">
+                <SectionLabel>Lictory Actions</SectionLabel>
+                {actionRuns.length || policy !== "off" ? (
+                  <ActionCheckRow
+                    pullRequestId={p.id}
+                    sourceHeadId={source?.headId}
+                    onDetails={() => setTab("checks")}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => setTab("checks")}
+                  >
+                    No Lictory Actions have run on this pull request.
+                  </button>
+                )}
+              </section>
+              <section className="space-y-2 border-t pt-4">
+                {manage &&
+                  specificationPullRequest.allows(p.status, "markDraft") && (
                     <Button
-                      size="md"
-                      variant="secondary"
-                      disabled={pending || !roleId}
-                      aria-label="Request required review"
-                      title="Request required review"
-                      onClick={() =>
-                        void run(
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      disabled={pending}
+                      onClick={() => setDraftState(true)}
+                    >
+                      <GitPullRequest className="size-3.5" />
+                      Convert to draft
+                    </Button>
+                  )}
+                {!readOnly &&
+                  (p.authorId === userId ||
+                    capabilities.editSpecifications) && (
+                    <DeletePrompt
+                      name={`pull request “${p.title}”`}
+                      detail={
+                        p.status === "merged"
+                          ? "The merged content stays in the specification."
+                          : "The branch is kept."
+                      }
+                      onDelete={() =>
+                        run(
                           {
-                            type: "requestPullRequestReview",
+                            type: "deletePullRequest",
                             workItemId: item.id,
                             pullRequestId: p.id,
-                            disciplineId: roleId,
-                            userId: null,
-                            required: true,
                           },
-                          () => setRoleId(""),
+                          () => onNavigate({ kind: "branches" }),
                         )
                       }
-                    >
-                      Request
-                    </Button>
-                  </div>
-                )}
-              {p.status === "open" && (
-                <p className="text-[11px] text-muted-foreground">
-                  Approvals apply to the exact merge result. Any new commit on
-                  either branch asks reviewers again.
-                </p>
-              )}
-            </section>
-            <section className="space-y-2">
-              <SectionLabel>Lictory Actions</SectionLabel>
-              {actionRuns.length || policy !== "off" ? (
-                <ActionCheckRow
-                  pullRequestId={p.id}
-                  sourceHeadId={source?.headId}
-                  onDetails={() => setTab("checks")}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  onClick={() => setTab("checks")}
-                >
-                  No Lictory Actions have run on this pull request.
-                </button>
-              )}
-            </section>
-            <section className="space-y-2 border-t pt-4">
-              {manage &&
-                specificationPullRequest.allows(p.status, "markDraft") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start"
-                    disabled={pending}
-                    onClick={() => setDraftState(true)}
-                  >
-                    <GitPullRequest className="size-3.5" />
-                    Convert to draft
-                  </Button>
-                )}
-              {!readOnly &&
-                (p.authorId === userId || capabilities.editSpecifications) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start hover:text-destructive"
-                    onClick={() => setDeleting(true)}
-                  >
-                    <Trash2 className="size-3.5" />
-                    Delete pull request
-                  </Button>
-                )}
-            </section>
-          </aside>
-        </div>
-      )}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full justify-start hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                          Delete pull request
+                        </Button>
+                      }
+                    />
+                  )}
+              </section>
+            </aside>
+          </div>
+        )}
+      </Tabs>
     </>
   );
 }

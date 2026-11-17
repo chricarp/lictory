@@ -165,7 +165,7 @@ function WorkListDialog({
         })
         .run();
       if (!changed)
-        toast.add({
+        toast({
           title: "The work list was not changed",
           description:
             "Someone removed it from the draft while you were changing it.",

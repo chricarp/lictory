@@ -457,12 +457,12 @@ function PageNotFound() {
       icon={FileQuestion}
       title="This page was not found"
       action={
-        <Link
-          href={paths.space(organization.slug, space.slug)}
-          className="contents"
+        <Button
+          variant="secondary"
+          render={<Link href={paths.space(organization.slug, space.slug)} />}
         >
-          <Button variant="secondary">Back to {space.name}</Button>
-        </Link>
+          Back to {space.name}
+        </Button>
       }
     >
       Check the address, or choose a page from {space.name}.

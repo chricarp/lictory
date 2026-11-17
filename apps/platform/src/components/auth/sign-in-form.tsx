@@ -9,6 +9,7 @@ import {
 import { PasswordInput } from "@lictory/platform/components/auth/password-field";
 import { SecondFactorForm } from "@lictory/platform/components/auth/second-factor-form";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { authClient } from "@lictory/platform/lib/auth-client";
 import { refreshSession } from "@lictory/platform/lib/session";
 import { formValue } from "@lictory/core/lib/utils";
@@ -115,12 +116,7 @@ export function SignInForm({
         }
       />
       <label className="flex min-h-5 cursor-pointer items-center gap-2 text-[13px] text-muted-foreground select-none">
-        <input
-          type="checkbox"
-          name="rememberMe"
-          defaultChecked
-          className="size-4 rounded border-input accent-primary"
-        />
+        <Checkbox name="rememberMe" defaultChecked />
         Keep me signed in
       </label>
       <FormMessage>{error}</FormMessage>

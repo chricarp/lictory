@@ -34,7 +34,7 @@ import {
 } from "@lictory/platform/components/references/data";
 import {
   HoverCard,
-  type HoverCardAnchor,
+  HoverCardAnchor,
 } from "@lictory/platform/components/references/hover-card";
 
 // Live references to work items, pages and decisions, the same in page
@@ -73,57 +73,48 @@ const keyClass =
 function Anchor({
   mode,
   href,
-  anchor,
   spoken,
   children,
   data,
 }: {
   mode: ChipMode;
   href: string | undefined;
-  anchor: HoverCardAnchor;
   // Read after the visible text (status, version), never instead of it.
   spoken: string;
   children: ReactNode;
   data: Record<string, string>;
 }) {
-  const { ref, onClick, ...handlers } = anchor;
+  const content = (
+    <>
+      {children}
+      {spoken && <span className="sr-only">{spoken}</span>}
+    </>
+  );
   if (mode === "link" && href)
     return (
-      <Link ref={ref} href={href} className={chip} {...handlers} {...data}>
-        {children}
-        {spoken && <span className="sr-only">{spoken}</span>}
-      </Link>
+      <HoverCardAnchor render={<Link href={href} />} className={chip} {...data}>
+        {content}
+      </HoverCardAnchor>
     );
   if (mode === "link")
     // A reader's reference without an address of its own (a decision
     // recorded elsewhere): a button that shows its card.
     return (
-      <button
-        ref={ref}
-        type="button"
+      <HoverCardAnchor
+        press
+        render={<button type="button" />}
         className={cn(chip, "cursor-default")}
-        onClick={onClick}
-        {...handlers}
         {...data}
       >
-        {children}
-        {spoken && <span className="sr-only">{spoken}</span>}
-      </button>
+        {content}
+      </HoverCardAnchor>
     );
   return (
-    <span
-      ref={ref}
-      // Inside an editor the reference is part of the text: the card is
-      // reached by pointing at it or moving the selection onto it.
-      className={chip}
-      onPointerEnter={handlers.onPointerEnter}
-      onPointerLeave={handlers.onPointerLeave}
-      aria-describedby={handlers["aria-describedby"]}
-      {...data}
-    >
-      {children}
-      {spoken && <span className="sr-only">{spoken}</span>}
-    </span>
+    // Inside an editor the reference is part of the text: the card is
+    // reached by pointing at it or moving the selection onto it.
+    <HoverCardAnchor render={<span />} className={chip} {...data}>
+      {content}
+    </HoverCardAnchor>
   );
 }
 
@@ -186,22 +177,16 @@ export function ItemChip({
       forceOpen={selected}
       content={() => <ItemCard item={item} mode={mode} />}
     >
-      {(anchor) => (
-        <Anchor
-          mode={mode}
-          href={item.href}
-          anchor={anchor}
-          spoken={spoken}
-          data={{ "data-reference": "item", "data-key": item.key }}
-        >
-          <StatusIcon
-            category={item.status.category}
-            color={item.status.color}
-          />
-          <span className={keyClass}>{item.key}</span>
-          <span className={titleClass}>{item.title}</span>
-        </Anchor>
-      )}
+      <Anchor
+        mode={mode}
+        href={item.href}
+        spoken={spoken}
+        data={{ "data-reference": "item", "data-key": item.key }}
+      >
+        <StatusIcon category={item.status.category} color={item.status.color} />
+        <span className={keyClass}>{item.key}</span>
+        <span className={titleClass}>{item.title}</span>
+      </Anchor>
     </HoverCard>
   );
 }
@@ -450,32 +435,29 @@ function PageChipView({
         <PageCard page={page} mode={mode} version={version} href={href} />
       )}
     >
-      {(anchor) => (
-        <Anchor
-          mode={mode}
-          href={href}
-          anchor={anchor}
-          spoken={spoken}
-          data={{
-            "data-reference": "page",
-            ...(version ? { "data-pinned": "true" } : {}),
-          }}
-        >
-          <SpaceIcon space={page.space} className="size-3.5 text-[12px]" />
-          <span className={titleClass}>{page.title}</span>
-          {version && (
-            <span className={keyClass}>
-              {version.pinned ? `v${version.pinned}` : "pinned"}
-            </span>
-          )}
-          {version?.newer && (
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 rounded-full bg-warning"
-            />
-          )}
-        </Anchor>
-      )}
+      <Anchor
+        mode={mode}
+        href={href}
+        spoken={spoken}
+        data={{
+          "data-reference": "page",
+          ...(version ? { "data-pinned": "true" } : {}),
+        }}
+      >
+        <SpaceIcon space={page.space} className="size-3.5 text-[12px]" />
+        <span className={titleClass}>{page.title}</span>
+        {version && (
+          <span className={keyClass}>
+            {version.pinned ? `v${version.pinned}` : "pinned"}
+          </span>
+        )}
+        {version?.newer && (
+          <span
+            aria-hidden
+            className="size-1.5 shrink-0 rounded-full bg-warning"
+          />
+        )}
+      </Anchor>
     </HoverCard>
   );
 }
@@ -626,22 +608,19 @@ export function DecisionChip({
         />
       )}
     >
-      {(anchor) => (
-        <Anchor
-          mode={mode}
-          href={local?.itemHref ?? undefined}
-          anchor={anchor}
-          spoken=""
-          data={{ "data-reference": "decision" }}
-        >
-          <Scale
-            className="size-3.5 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          <span className="sr-only">Decision: </span>
-          <span className={titleClass}>{title}</span>
-        </Anchor>
-      )}
+      <Anchor
+        mode={mode}
+        href={local?.itemHref ?? undefined}
+        spoken=""
+        data={{ "data-reference": "decision" }}
+      >
+        <Scale
+          className="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        <span className="sr-only">Decision: </span>
+        <span className={titleClass}>{title}</span>
+      </Anchor>
     </HoverCard>
   );
 }
@@ -758,17 +737,13 @@ export function ReferenceTextLink({
         )
       }
     >
-      {({ ref, onClick: _click, ...handlers }) => (
-        <Link
-          ref={ref}
-          href={href}
-          className={className}
-          data-reference-link={target.kind}
-          {...handlers}
-        >
-          {children}
-        </Link>
-      )}
+      <HoverCardAnchor
+        render={<Link href={href} />}
+        className={className}
+        data-reference-link={target.kind}
+      >
+        {children}
+      </HoverCardAnchor>
     </HoverCard>
   );
 }

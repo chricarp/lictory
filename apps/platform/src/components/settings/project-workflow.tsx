@@ -22,6 +22,7 @@ import {
   type WorkflowStatus,
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Input } from "@lictory/ui/input";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -413,16 +414,15 @@ function TypesSection({
             key={t.id}
             className="flex items-center gap-3 px-5 py-2.5 text-[13px]"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               disabled={!canEdit}
               checked={enabled.has(t.id)}
-              onChange={(e) =>
+              onCheckedChange={(checked) =>
                 void run({
                   type: "setProjectType",
                   projectId: project.id,
                   typeId: t.id,
-                  enabled: e.target.checked,
+                  enabled: checked === true,
                 })
               }
             />

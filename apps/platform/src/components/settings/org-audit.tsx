@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download, ScrollText } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { ChevronRight, Download, ScrollText } from "lucide-react";
 import type { AuditCategory, AuditEntry } from "@lictory/core/contracts/audit";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
@@ -263,14 +268,17 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
         <Badge>{categoryLabel[entry.category]}</Badge>
         {entry.actor?.email && <span>{entry.actor.email}</span>}
         {hasDetail && (
-          <details className="w-full">
-            <summary className="w-fit cursor-pointer select-none hover:text-foreground">
+          <Collapsible className="w-full">
+            <CollapsibleTrigger className="group inline-flex w-fit cursor-pointer items-center gap-1 select-none hover:text-foreground">
+              <ChevronRight className="size-3 transition-transform duration-150 group-data-open:rotate-90" />
               Details
-            </summary>
-            <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-4 whitespace-pre-wrap text-foreground">
-              {JSON.stringify(entry.detail, null, 2)}
-            </pre>
-          </details>
+            </CollapsibleTrigger>
+            <CollapsiblePanel className="text-[length:inherit] leading-[inherit] text-inherit">
+              <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-[11px] leading-4 whitespace-pre-wrap text-foreground">
+                {JSON.stringify(entry.detail, null, 2)}
+              </pre>
+            </CollapsiblePanel>
+          </Collapsible>
         )}
       </div>
     </div>

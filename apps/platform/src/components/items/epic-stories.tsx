@@ -1,3 +1,4 @@
+import { Input } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { GripVertical, Plus } from "lucide-react";
@@ -358,10 +359,10 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
                 />
               </Popover>
             )}
-            <input
+            <Input
               autoFocus
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onValueChange={setTitle}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   setComposing(false);

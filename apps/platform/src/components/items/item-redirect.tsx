@@ -53,9 +53,12 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
       icon={FileSearch}
       title={`${raw} was not found`}
       action={
-        <Link href={paths.inbox(organization.slug)} className="contents">
-          <Button variant="secondary">Go to Inbox</Button>
-        </Link>
+        <Button
+          variant="secondary"
+          render={<Link href={paths.inbox(organization.slug)} />}
+        >
+          Go to Inbox
+        </Button>
       }
     >
       {parsed && !project

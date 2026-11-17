@@ -1,4 +1,9 @@
 import { Link } from "@lictory/platform/lib/navigation";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { BookOpen, FileText } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import type { PageEvidence } from "@lictory/platform/components/intelligence/chat/activity";
@@ -115,28 +120,30 @@ export function GroundedIn({ context }: { context: IntelligenceContextUse[] }) {
   const href = useContextHref();
   if (!context.length) return null;
   return (
-    <details className="group rounded-md border bg-muted/20 px-3 py-2 text-[13px]">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-muted-foreground select-none [&::-webkit-details-marker]:hidden">
+    <Collapsible className="rounded-md border bg-muted/20 px-3 py-2 text-[13px]">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 text-left text-[13px] font-normal text-muted-foreground select-none">
         <BookOpen aria-hidden className="size-3.5" />
         Grounded in {context.length} Lictory Intelligence Context{" "}
         {context.length === 1 ? "entry" : "entries"}
-      </summary>
-      <ul className="mt-2 space-y-1">
-        {context.map((c) => (
-          <li key={c.entryId} className="flex items-baseline gap-2">
-            <span className="w-20 shrink-0 text-xs text-muted-foreground">
-              {scopeLabel[c.scope]}
-            </span>
-            <Link href={href(c)} className="min-w-0 truncate hover:underline">
-              {label(c)}
-            </Link>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
-              v{c.version}
-              {c.truncated && " · partly included"}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </details>
+      </CollapsibleTrigger>
+      <CollapsiblePanel>
+        <ul className="mt-2 space-y-1">
+          {context.map((c) => (
+            <li key={c.entryId} className="flex items-baseline gap-2">
+              <span className="w-20 shrink-0 text-xs text-muted-foreground">
+                {scopeLabel[c.scope]}
+              </span>
+              <Link href={href(c)} className="min-w-0 truncate hover:underline">
+                {label(c)}
+              </Link>
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
+                v{c.version}
+                {c.truncated && " · partly included"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }

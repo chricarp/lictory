@@ -19,8 +19,12 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import {
   Menu,
+  MenuContent,
   MenuItem,
+  MenuRadioGroup,
+  MenuRadioItem,
   MenuSeparator,
+  MenuTrigger,
 } from "@lictory/platform/components/spaces/menu";
 import {
   versionOf,
@@ -258,106 +262,87 @@ export function LineSwitcher({
   const historyHref = `${paths.spacePage(organization.slug, space.slug, page.id)}/history`;
   const openPulls = history.pullRequests.filter((p) => p.status !== "merged");
   return (
-    <Popover
-      width={300}
-      align="end"
-      trigger={(props) => (
-        <Button
-          {...props}
-          variant="secondary"
-          size="sm"
-          aria-label={`Branch: ${branch.name}`}
-          className={cn("max-w-44 pr-2.5", touchTarget)}
-        >
-          <GitBranch className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{branch.name}</span>
-          <ChevronDown
-            className="size-3.5 shrink-0 text-muted-foreground"
-            aria-hidden
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label={`Branch: ${branch.name}`}
+            className={cn("max-w-44 pr-2.5", touchTarget)}
           />
-        </Button>
-      )}
-    >
-      {(close) => (
-        <>
-          <SrTitle>Switch branch</SrTitle>
-          <Menu label="Branches of this page">
-            {branches.map((b) => {
-              const open = openPulls.some((p) => p.sourceBranchId === b.id);
-              const discussed =
-                b.id === branchId
-                  ? discussions.open
-                  : (discussions.others.find((o) => o.branch.id === b.id)
-                      ?.open ?? 0);
-              const talk = discussed ? openDiscussionsLabel(discussed) : null;
-              const facts = b.isMain
-                ? [
-                    "Published",
-                    space.publishing === "reviewed"
-                      ? "changes by review"
-                      : b.draft?.uncommittedChanges
-                        ? "draft has unpublished changes"
-                        : null,
-                    talk,
-                  ]
-                : [
-                    `by ${memberName(b.authorId)}`,
-                    b.draft?.uncommittedChanges ? "uncommitted changes" : null,
-                    open ? "pull request" : null,
-                    talk,
-                  ];
-              return (
-                <MenuItem
-                  key={b.id}
-                  checked={b.id === branchId}
-                  icon={
-                    b.id === branchId ? (
-                      <span className="size-2 rounded-full bg-foreground" />
-                    ) : (
-                      <GitBranch />
-                    )
-                  }
-                  onSelect={() => {
-                    close();
-                    setBranch(b.id);
-                  }}
-                >
-                  <span className="block truncate font-medium">{b.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {facts.filter(Boolean).join(" · ")}
-                  </span>
-                </MenuItem>
-              );
-            })}
-            <MenuSeparator />
-            <MenuItem
-              icon={<GitBranch />}
-              href={`${historyHref}?view=branches`}
-              onSelect={close}
-            >
-              All branches
-            </MenuItem>
-            <MenuItem
-              icon={<GitPullRequest />}
-              href={`${historyHref}?view=pulls`}
-              hint={openPulls.length || undefined}
-              onSelect={close}
-            >
-              Pull requests
-            </MenuItem>
-          </Menu>
-        </>
-      )}
-    </Popover>
-  );
-}
-
-function SrTitle({ children }: { children: ReactNode }) {
-  const labelId = usePopover()?.labelId;
-  return (
-    <h2 id={labelId} className="sr-only">
-      {children}
-    </h2>
+        }
+      >
+        <GitBranch className="size-3.5 shrink-0" aria-hidden />
+        <span className="truncate">{branch.name}</span>
+        <ChevronDown
+          className="size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      </MenuTrigger>
+      <MenuContent align="end" width={300} aria-label="Branches of this page">
+        <MenuRadioGroup<string>
+          value={branchId ?? null}
+          onValueChange={(id) => setBranch(id)}
+        >
+          {branches.map((b) => {
+            const open = openPulls.some((p) => p.sourceBranchId === b.id);
+            const discussed =
+              b.id === branchId
+                ? discussions.open
+                : (discussions.others.find((o) => o.branch.id === b.id)?.open ??
+                  0);
+            const talk = discussed ? openDiscussionsLabel(discussed) : null;
+            const facts = b.isMain
+              ? [
+                  "Published",
+                  space.publishing === "reviewed"
+                    ? "changes by review"
+                    : b.draft?.uncommittedChanges
+                      ? "draft has unpublished changes"
+                      : null,
+                  talk,
+                ]
+              : [
+                  `by ${memberName(b.authorId)}`,
+                  b.draft?.uncommittedChanges ? "uncommitted changes" : null,
+                  open ? "pull request" : null,
+                  talk,
+                ];
+            return (
+              <MenuRadioItem
+                key={b.id}
+                value={b.id}
+                label={b.name}
+                icon={
+                  b.id === branchId ? (
+                    <span className="size-2 rounded-full bg-foreground" />
+                  ) : (
+                    <GitBranch />
+                  )
+                }
+              >
+                <span className="block truncate font-medium">{b.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {facts.filter(Boolean).join(" · ")}
+                </span>
+              </MenuRadioItem>
+            );
+          })}
+        </MenuRadioGroup>
+        <MenuSeparator />
+        <MenuItem icon={<GitBranch />} href={`${historyHref}?view=branches`}>
+          All branches
+        </MenuItem>
+        <MenuItem
+          icon={<GitPullRequest />}
+          href={`${historyHref}?view=pulls`}
+          hint={openPulls.length || undefined}
+        >
+          Pull requests
+        </MenuItem>
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -381,90 +366,66 @@ export function PageMoreMenu({
   const versions = history.commits.length;
   const editable = canEdit && !page.archivedAt;
   return (
-    <Popover
-      width={248}
-      align="end"
-      trigger={(props) => (
-        <Button
-          {...props}
-          variant="ghost"
-          size="icon"
-          aria-label="More page actions"
-          title="More page actions"
-          className={touchIcon}
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="More page actions"
+            title="More page actions"
+            className={touchIcon}
+          />
+        }
+      >
+        <MoreHorizontal className="size-4" aria-hidden />
+      </MenuTrigger>
+      <MenuContent align="end" width={248} aria-label="Page actions">
+        {editable && (
+          <>
+            <MenuItem
+              icon={<CornerDownRight />}
+              onSelect={() => createPage(page.id)}
+            >
+              New subpage
+            </MenuItem>
+            <MenuItem icon={<MoveRight />} onSelect={() => movePage(page)}>
+              Move…
+            </MenuItem>
+            <MenuItem icon={<Archive />} onSelect={() => archivePage(page)}>
+              Archive
+            </MenuItem>
+            <MenuSeparator />
+          </>
+        )}
+        <MenuItem icon={<History />} href={href}>
+          Version history
+        </MenuItem>
+        <MenuItem
+          icon={<GitBranch />}
+          href={`${href}?view=branches`}
+          hint={branches || undefined}
         >
-          <MoreHorizontal className="size-4" aria-hidden />
-        </Button>
-      )}
-    >
-      {(close) => (
-        <>
-          <SrTitle>Page actions</SrTitle>
-          <Menu label="Page actions">
-            {editable && (
-              <>
-                <MenuItem
-                  icon={<CornerDownRight />}
-                  onSelect={() => {
-                    close();
-                    createPage(page.id);
-                  }}
-                >
-                  New subpage
-                </MenuItem>
-                <MenuItem
-                  icon={<MoveRight />}
-                  onSelect={() => {
-                    close();
-                    movePage(page);
-                  }}
-                >
-                  Move…
-                </MenuItem>
-                <MenuItem
-                  icon={<Archive />}
-                  onSelect={() => {
-                    close();
-                    archivePage(page);
-                  }}
-                >
-                  Archive
-                </MenuItem>
-                <MenuSeparator />
-              </>
-            )}
-            <MenuItem icon={<History />} href={href} onSelect={close}>
-              Version history
-            </MenuItem>
-            <MenuItem
-              icon={<GitBranch />}
-              href={`${href}?view=branches`}
-              hint={branches || undefined}
-              onSelect={close}
-            >
-              Branches
-            </MenuItem>
-            <MenuItem
-              icon={<GitPullRequest />}
-              href={`${href}?view=pulls`}
-              hint={openPulls || undefined}
-              onSelect={close}
-            >
-              Pull requests
-            </MenuItem>
-          </Menu>
-          <p className="border-t px-3 py-2 text-xs leading-5 text-muted-foreground">
-            Created by {memberName(page.createdById)},{" "}
-            <When at={page.createdAt} />
-            {history.loaded || versions ? (
-              <>
-                <br />
-                {versions === 1 ? "1 version" : `${versions} versions`}
-              </>
-            ) : null}
-          </p>
-        </>
-      )}
-    </Popover>
+          Branches
+        </MenuItem>
+        <MenuItem
+          icon={<GitPullRequest />}
+          href={`${href}?view=pulls`}
+          hint={openPulls || undefined}
+        >
+          Pull requests
+        </MenuItem>
+        <p className="-mx-1 mt-1 -mb-1 border-t px-3 py-2 text-xs leading-5 text-muted-foreground">
+          Created by {memberName(page.createdById)},{" "}
+          <When at={page.createdAt} />
+          {history.loaded || versions ? (
+            <>
+              <br />
+              {versions === 1 ? "1 version" : `${versions} versions`}
+            </>
+          ) : null}
+        </p>
+      </MenuContent>
+    </Menu>
   );
 }

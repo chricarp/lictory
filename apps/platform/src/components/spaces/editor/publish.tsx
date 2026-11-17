@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { GitCommitHorizontal, Send } from "lucide-react";
 import type { PageDraftSummary } from "@lictory/core/contracts/protocol";
+import { Textarea as TextareaPrimitive } from "@ui-sdk/react/textarea";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { MutationRejected } from "@lictory/platform/data/mutations";
@@ -196,17 +197,14 @@ function PublishForm({
       <label htmlFor={messageId} className="text-xs font-medium">
         Message <span className="text-muted-foreground">(optional)</span>
       </label>
-      <textarea
+      <TextareaPrimitive
         id={messageId}
         autoFocus
         rows={2}
         value={message}
         maxLength={500}
         onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-            e.currentTarget.form?.requestSubmit();
-        }}
+        submitShortcut="mod+enter"
         placeholder="What changed?"
         className="w-full resize-none rounded-md border bg-background px-2 py-1.5 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       />

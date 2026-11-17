@@ -15,6 +15,7 @@ import {
   isTopLevel,
 } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Input } from "@lictory/ui/input";
 import {
   Select,
@@ -32,6 +33,7 @@ import {
   Dialog,
   Field,
   SegmentedChoice,
+  choiceCardClass,
 } from "@lictory/platform/components/spaces/dialog";
 import type { DraftAnchor } from "@lictory/platform/components/spaces/work/draft-insert";
 
@@ -543,27 +545,18 @@ export function CreateFromPageDialog({
                 </p>
                 {drafted.drafts.length ? (
                   drafted.drafts.map((d, index) => (
-                    <label
-                      key={index}
-                      className={cn(
-                        "flex cursor-pointer gap-2.5 rounded-lg px-3 py-2 text-[13px] shadow-(--shadow-border) has-focus-visible:ring-2 has-focus-visible:ring-ring/60",
-                        chosen.has(index)
-                          ? "bg-primary/6 ring-1 ring-primary/40"
-                          : "hover:bg-muted/60",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
+                    <label key={index} className={choiceCardClass}>
+                      <Checkbox
                         checked={chosen.has(index)}
-                        onChange={(e) =>
+                        onCheckedChange={(checked) =>
                           setChosen((current) => {
                             const next = new Set(current);
-                            if (e.target.checked) next.add(index);
+                            if (checked === true) next.add(index);
                             else next.delete(index);
                             return next;
                           })
                         }
-                        className="mt-0.5 accent-primary"
+                        className="mt-0.5"
                       />
                       <span className="min-w-0">
                         <span className="block font-medium">{d.title}</span>

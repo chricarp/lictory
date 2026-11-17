@@ -9,6 +9,15 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
+import { createMenuController } from "@ui-sdk/react/menu";
+import { Toggle } from "@ui-sdk/react/toggle";
+import {
+  Tree,
+  TreeItem,
+  TreeItemIndicator,
+  TreeItemLabel,
+  type TreeItemData,
+} from "@ui-sdk/react/tree";
 import {
   Archive,
   ArchiveRestore,
@@ -21,7 +30,6 @@ import {
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { Popover } from "@lictory/ui/popover";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import {
   ancestorsOf,
@@ -38,7 +46,12 @@ import {
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSpacePages } from "@lictory/platform/components/spaces/store";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
-import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@lictory/platform/components/spaces/menu";
 import {
   touchRow,
   useTouchSizing,
@@ -120,13 +133,22 @@ export function PageTree({
     () => new Map(rows.map((r, i) => [r.page.id, i])),
     [rows],
   );
-  const [focusedId, setFocusedId] = useState<string>();
-  const tabStop =
-    focusedId && indexOf.has(focusedId)
-      ? focusedId
-      : activePageId && indexOf.has(activePageId)
-        ? activePageId
-        : rows[0]?.page.id;
+  // The whole hierarchy, so the tree knows levels and positions of rows
+  // that are collapsed or outside the window.
+  const items = useMemo(() => {
+    const build = (parentId: string | null): TreeItemData[] =>
+      (tree.children.get(parentId) ?? []).map((page) => {
+        const children = tree.children.get(page.id);
+        return children?.length
+          ? { value: page.id, label: page.title, children: build(page.id) }
+          : { value: page.id, label: page.title };
+      });
+    return build(null);
+  }, [tree]);
+  const expandedIds = useMemo(() => [...expanded], [expanded]);
+  // One actions menu for the tree: each row's button opens it for its page,
+  // and so does Shift+F10 on the row.
+  const [menu] = useState(() => createMenuController<SpacePage>());
   const [menuFor, setMenuFor] = useState<string>();
   const [drag, setDrag] = useState<{
     pageId: string;
@@ -163,28 +185,41 @@ export function PageTree({
       )
     : rows.length;
 
-  const focusRow = useCallback(
-    (id: string | undefined) => {
-      if (!id) return;
-      setFocusedId(id);
-      pendingFocus.current = id;
-      const index = indexOf.get(id);
-      const node = listRef.current;
-      if (node && index !== undefined && windowed) {
-        const top = index * rowHeight;
-        if (top < node.scrollTop) node.scrollTop = top;
-        else if (top + rowHeight > node.scrollTop + node.clientHeight)
-          node.scrollTop = top + rowHeight - node.clientHeight;
-      }
-    },
-    [indexOf, windowed, rowHeight],
-  );
+  const rowNode = (id: string | undefined) =>
+    id
+      ? listRef.current?.querySelector<HTMLElement>(
+          `[data-page-row="${CSS.escape(id)}"]`,
+        )
+      : undefined;
+  const scrollToRow = (index: number) => {
+    const node = listRef.current;
+    if (!node || !windowed) return;
+    const top = index * rowHeight;
+    if (top < node.scrollTop) node.scrollTop = top;
+    else if (top + rowHeight > node.scrollTop + node.clientHeight)
+      node.scrollTop = top + rowHeight - node.clientHeight;
+  };
+  // A page moved with the keyboard keeps focus where it lands.
+  const focusRow = (id: string) => {
+    pendingFocus.current = id;
+    const index = indexOf.get(id);
+    if (index !== undefined) scrollToRow(index);
+  };
+  // Revealing the open page includes bringing it into view: in a windowed
+  // tree a page far down has no row in the document until the list scrolls
+  // to it, and the tree's tab stop is that row.
+  useEffect(() => {
+    if (!activePageId) return;
+    const index = indexOf.get(activePageId);
+    if (index !== undefined) scrollToRow(index);
+    // Only when the open page, or where it sits, changes: not whenever the
+    // rows around it do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
   useEffect(() => {
     const id = pendingFocus.current;
     if (!id) return;
-    const node = listRef.current?.querySelector<HTMLElement>(
-      `[data-page-row="${CSS.escape(id)}"]`,
-    );
+    const node = rowNode(id);
     if (node) {
       pendingFocus.current = undefined;
       node.focus({ preventScroll: !windowed });
@@ -224,60 +259,32 @@ export function PageTree({
     [moveTo, describeMove, toggle],
   );
 
+  // The tree moves focus, expands and opens; these keys are the page tree's
+  // own.
   const onRowKeyDown = (event: KeyboardEvent<HTMLElement>, row: TreeRow) => {
-    // Keys pressed in the actions menu button belong to it.
     if (event.target !== event.currentTarget) return;
-    const index = indexOf.get(row.page.id) ?? 0;
     const page = row.page;
     if (
       event.altKey &&
       (event.key === "ArrowUp" || event.key === "ArrowDown")
     ) {
-      if (!canEdit || page.archivedAt) return;
       event.preventDefault();
+      if (!canEdit || page.archivedAt) return;
       apply(page, siblingStep(tree, page.id, event.key === "ArrowUp" ? -1 : 1));
       focusRow(page.id);
       return;
     }
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        focusRow(rows[index + 1]?.page.id);
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        focusRow(rows[index - 1]?.page.id);
-        break;
-      case "Home":
-        event.preventDefault();
-        focusRow(rows[0]?.page.id);
-        break;
-      case "End":
-        event.preventDefault();
-        focusRow(rows.at(-1)?.page.id);
-        break;
-      case "ArrowRight":
-        event.preventDefault();
-        if (row.hasChildren && !row.expanded) toggle(page.id, true);
-        else if (row.expanded) focusRow(rows[index + 1]?.page.id);
-        break;
-      case "ArrowLeft":
-        event.preventDefault();
-        if (row.expanded) toggle(page.id, false);
-        else if (page.parentId && indexOf.has(page.parentId))
-          focusRow(page.parentId);
-        break;
-      case "Enter":
-        event.preventDefault();
-        open(page);
-        break;
-      case "ContextMenu":
-      case "F10":
-        if (event.key === "F10" && !event.shiftKey) return;
-        if (!canEdit) return;
-        event.preventDefault();
-        setMenuFor(page.id);
-        break;
+    if (
+      event.key === "ContextMenu" ||
+      (event.key === "F10" && event.shiftKey)
+    ) {
+      if (!canEdit) return;
+      event.preventDefault();
+      setMenuFor(page.id);
+      // The row's own button opens the menu for its page, anchored to it.
+      event.currentTarget
+        .querySelector<HTMLElement>("[data-page-actions]")
+        ?.click();
     }
   };
 
@@ -357,10 +364,6 @@ export function PageTree({
       ) : (
         <div
           ref={listRef}
-          role="tree"
-          tabIndex={-1}
-          aria-label={label}
-          aria-describedby={hintId}
           onDragOver={onListDragOver}
           onDrop={onListDrop}
           className={cn(
@@ -368,19 +371,30 @@ export function PageTree({
             variant === "pane" ? "flex-1 px-2 pb-4" : "max-h-[70vh] pb-1",
           )}
         >
-          <div
-            role="none"
+          <Tree
+            mode="none"
+            items={items}
+            current={activePageId ?? null}
+            expanded={expandedIds}
+            onExpandedChange={(next) => setExpanded(new Set(next))}
+            expandOnPress={false}
+            onAction={(value) => {
+              const page = tree.byId.get(value);
+              if (page) open(page);
+            }}
+            onHighlight={(_value, { index }) => scrollToRow(index)}
+            aria-label={label}
+            aria-describedby={hintId}
             style={windowed ? { height: rows.length * rowHeight } : undefined}
-            className="relative"
+            className="relative block max-w-none gap-0"
           >
             {rows.slice(start, end).map((row, offset) => (
-              <TreeItem
+              <PageRow
                 key={row.page.id}
                 row={row}
                 top={windowed ? (start + offset) * rowHeight : undefined}
-                active={row.page.id === activePageId}
-                tabbable={row.page.id === tabStop}
                 canEdit={canEdit}
+                menu={menu}
                 menuOpen={menuFor === row.page.id}
                 dragging={drag?.pageId === row.page.id}
                 dropPosition={
@@ -388,13 +402,6 @@ export function PageTree({
                     ? drag.over.position
                     : undefined
                 }
-                onMenu={(openMenu) => {
-                  setMenuFor(openMenu ? row.page.id : undefined);
-                  if (!openMenu) focusRow(row.page.id);
-                }}
-                onFocus={() => setFocusedId(row.page.id)}
-                onOpen={() => open(row.page)}
-                onToggle={() => toggle(row.page.id)}
                 onKeyDown={(event) => onRowKeyDown(event, row)}
                 onDragStart={(event) => {
                   event.dataTransfer.setData(DRAG_TYPE, row.page.id);
@@ -406,22 +413,49 @@ export function PageTree({
                 onDrop={(event) => onDrop(event, row)}
               />
             ))}
-          </div>
+          </Tree>
         </div>
+      )}
+      {canEdit && (
+        <Menu
+          controller={menu}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setMenuFor(undefined);
+          }}
+        >
+          <MenuContent
+            align="end"
+            width={200}
+            // Focus returns to the page's row, not to its hidden button.
+            finalFocus={() => rowNode(menu.getPayload()?.id)}
+            render={(props, state) => (
+              <div
+                {...props}
+                aria-label={`Actions for ${(state.payload as SpacePage | undefined)?.title ?? "the page"}`}
+              />
+            )}
+          >
+            {(state) => {
+              const page = state.payload as SpacePage | undefined;
+              return page ? (
+                <PageMenuItems page={page} onOpen={() => open(page)} />
+              ) : null;
+            }}
+          </MenuContent>
+        </Menu>
       )}
       {archivedCount > 0 && (
         <div className={cn("pt-2", variant === "pane" ? "px-4 pb-3" : "")}>
-          <button
-            type="button"
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived((v) => !v)}
+          <Toggle
+            pressed={showArchived}
+            onPressedChange={setShowArchived}
             className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
           >
             <Archive className="size-3.5" aria-hidden />
             {showArchived
               ? "Hide archived pages"
               : `Show archived pages (${archivedCount})`}
-          </button>
+          </Toggle>
         </div>
       )}
       <p role="status" className="sr-only">
@@ -431,19 +465,14 @@ export function PageTree({
   );
 }
 
-function TreeItem({
+function PageRow({
   row,
   top,
-  active,
-  tabbable,
   canEdit,
+  menu,
   menuOpen,
   dragging,
   dropPosition,
-  onMenu,
-  onFocus,
-  onOpen,
-  onToggle,
   onKeyDown,
   onDragStart,
   onDragEnd,
@@ -452,45 +481,33 @@ function TreeItem({
 }: {
   row: TreeRow;
   top?: number;
-  active: boolean;
-  tabbable: boolean;
   canEdit: boolean;
+  menu: ReturnType<typeof createMenuController<SpacePage>>;
   menuOpen: boolean;
   dragging: boolean;
   dropPosition?: DropPosition;
-  onMenu: (open: boolean) => void;
-  onFocus: () => void;
-  onOpen: () => void;
-  onToggle: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   onDragStart: (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
   onDragOver: (event: DragEvent<HTMLElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
 }) {
-  const { page, depth, hasChildren, expanded } = row;
+  const { page, depth, hasChildren } = row;
   const archived = Boolean(page.archivedAt);
   const movable = canEdit && !archived;
+  const archivedNameId = useId();
   return (
-    <div
-      role="treeitem"
-      aria-label={archived ? `${page.title}, archived` : page.title}
-      aria-level={depth}
-      aria-setsize={row.siblings}
-      aria-posinset={row.position}
-      aria-expanded={hasChildren ? expanded : undefined}
-      aria-selected={active}
-      aria-current={active ? "page" : undefined}
-      tabIndex={tabbable ? 0 : -1}
+    <TreeItem
+      value={page.id}
+      // The row is named by its label, the page's title; an archived page
+      // says so in words.
+      aria-labelledby={archived ? archivedNameId : undefined}
       data-page-row={page.id}
       draggable={movable}
       onClick={(event) => {
-        // Clicks in the actions menu (portaled, but a React child) are not
-        // clicks on the page.
-        if (event.currentTarget.contains(event.target as Node)) onOpen();
-      }}
-      onFocus={(event) => {
-        if (event.target === event.currentTarget) onFocus();
+        // A press on the actions button is not a press on the page.
+        if ((event.target as Element).closest("[data-page-actions]"))
+          event.preventDefault();
       }}
       onKeyDown={onKeyDown}
       onDragStart={onDragStart}
@@ -504,12 +521,9 @@ function TreeItem({
           : {}),
       }}
       className={cn(
-        "group relative flex h-[30px] cursor-pointer items-center gap-1 rounded-md pr-1 text-[13px] outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset max-sm:text-sm touch:text-sm",
+        "group relative flex h-[30px] cursor-pointer items-center gap-1 rounded-md pr-1 text-[13px] text-foreground/85 outline-none select-none not-data-current:hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset data-current:bg-sidebar-accent data-current:font-medium data-current:text-foreground data-current:shadow-(--shadow-border) max-sm:text-sm touch:text-sm",
         touchRow,
-        active
-          ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
-          : "text-foreground/85 hover:bg-muted/70",
-        archived && "text-muted-foreground",
+        archived && "text-muted-foreground data-current:text-muted-foreground",
         dragging && "opacity-50",
         dropPosition === "inside" && "bg-primary/8 ring-1 ring-primary/40",
       )}
@@ -526,144 +540,104 @@ function TreeItem({
           className="absolute right-1 -bottom-px left-2 h-0.5 rounded-full bg-primary"
         />
       )}
-      {hasChildren ? (
-        // Pointer shortcut; keyboards use Right and Left on the tree item.
-        <span
-          aria-hidden
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggle();
-          }}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground max-sm:-mr-1.5 max-sm:size-11 touch:-mr-1.5 touch:size-11"
-        >
-          <ChevronRight
-            className={cn(
-              "size-3.5 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out",
-              expanded && "rotate-90",
-            )}
+      <TreeItemLabel className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-none bg-transparent p-0 outline-none">
+        {hasChildren ? (
+          // Pointer shortcut; keyboards use Right and Left on the tree item.
+          <TreeItemIndicator className="grid size-6 shrink-0 rotate-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground max-sm:-mr-1.5 max-sm:size-11 touch:-mr-1.5 touch:size-11">
+            <ChevronRight className="size-3.5 in-data-expanded:rotate-90 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out" />
+          </TreeItemIndicator>
+        ) : (
+          <span
+            aria-hidden
+            className="size-6 shrink-0 max-sm:-mr-1.5 max-sm:w-11 touch:-mr-1.5 touch:w-11"
           />
-        </span>
-      ) : (
-        <span
+        )}
+        <FileText
           aria-hidden
-          className="size-6 shrink-0 max-sm:-mr-1.5 max-sm:w-11 touch:-mr-1.5 touch:w-11"
+          className="size-3.5 shrink-0 text-muted-foreground"
         />
-      )}
-      <FileText
-        aria-hidden
-        className="size-3.5 shrink-0 text-muted-foreground"
-      />
-      <span className="ml-0.5 min-w-0 flex-1 truncate">{page.title}</span>
+        <span className="ml-0.5 min-w-0 flex-1 truncate">{page.title}</span>
+        {archived && (
+          <span className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-muted-foreground uppercase">
+            Archived
+          </span>
+        )}
+      </TreeItemLabel>
       {archived && (
-        <span className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-muted-foreground uppercase">
-          Archived
+        <span id={archivedNameId} hidden>
+          {page.title}, archived
         </span>
       )}
       {canEdit && (
-        <PageMenu
-          page={page}
-          open={menuOpen}
-          onOpenChange={onMenu}
-          onOpen={onOpen}
-        />
+        <MenuTrigger
+          controller={menu}
+          payload={page}
+          data-page-actions=""
+          aria-label={`Actions for ${page.title}`}
+          title="Page actions (Shift+F10)"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          render={<button type="button" tabIndex={-1} />}
+          className={cn(
+            "grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground max-sm:size-11 max-sm:text-muted-foreground/70 touch:size-11 touch:text-muted-foreground/70",
+            // Touch has no hover to reveal it.
+            menuOpen
+              ? "opacity-100"
+              : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 data-open:opacity-100 max-sm:opacity-100 touch:opacity-100",
+          )}
+        >
+          <MoreHorizontal className="size-3.5" aria-hidden />
+        </MenuTrigger>
       )}
-    </div>
+    </TreeItem>
   );
 }
 
-function PageMenu({
+function PageMenuItems({
   page,
-  open,
-  onOpenChange,
   onOpen,
 }: {
   page: SpacePage;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   onOpen: () => void;
 }) {
   const { createPage, movePage, archivePage, restorePage } = usePageActions();
   const archived = Boolean(page.archivedAt);
   return (
-    <Popover
-      width={200}
-      align="end"
-      open={open}
-      onOpenChange={onOpenChange}
-      trigger={(props) => (
-        <button
-          {...props}
-          type="button"
-          tabIndex={-1}
-          aria-label={`Actions for ${page.title}`}
-          title="Page actions (Shift+F10)"
-          onClick={(event) => {
-            event.stopPropagation();
-            props.onClick();
-          }}
-          className={cn(
-            "grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground max-sm:size-11 max-sm:text-muted-foreground/70 touch:size-11 touch:text-muted-foreground/70",
-            // Touch has no hover to reveal it.
-            open
-              ? "opacity-100"
-              : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100 touch:opacity-100",
-          )}
-        >
-          <MoreHorizontal className="size-3.5" aria-hidden />
-        </button>
-      )}
-    >
-      {(close) => (
-        <Menu label={`Actions for ${page.title}`}>
+    <>
+      <MenuItem onSelect={onOpen} icon={<ExternalLink className="size-3.5" />}>
+        Open
+      </MenuItem>
+      {!archived && (
+        <>
           <MenuItem
-            onSelect={() => {
-              close();
-              onOpen();
-            }}
-            icon={<ExternalLink className="size-3.5" />}
+            onSelect={() => createPage(page.id)}
+            icon={<CornerDownRight className="size-3.5" />}
           >
-            Open
+            New subpage
           </MenuItem>
-          {!archived && (
-            <>
-              <MenuItem
-                onSelect={() => {
-                  close();
-                  createPage(page.id);
-                }}
-                icon={<CornerDownRight className="size-3.5" />}
-              >
-                New subpage
-              </MenuItem>
-              <MenuItem
-                onSelect={() => {
-                  close();
-                  movePage(page);
-                }}
-                icon={<MoveRight className="size-3.5" />}
-              >
-                Move…
-              </MenuItem>
-            </>
-          )}
           <MenuItem
-            onSelect={() => {
-              close();
-              if (archived) restorePage(page);
-              else archivePage(page);
-            }}
-            icon={
-              archived ? (
-                <ArchiveRestore className="size-3.5" />
-              ) : (
-                <Archive className="size-3.5" />
-              )
-            }
+            onSelect={() => movePage(page)}
+            icon={<MoveRight className="size-3.5" />}
           >
-            {archived ? "Restore" : "Archive"}
+            Move…
           </MenuItem>
-        </Menu>
+        </>
       )}
-    </Popover>
+      <MenuItem
+        onSelect={() => {
+          if (archived) restorePage(page);
+          else archivePage(page);
+        }}
+        icon={
+          archived ? (
+            <ArchiveRestore className="size-3.5" />
+          ) : (
+            <Archive className="size-3.5" />
+          )
+        }
+      >
+        {archived ? "Restore" : "Archive"}
+      </MenuItem>
+    </>
   );
 }

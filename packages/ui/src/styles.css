@@ -1,3 +1,9 @@
+/* ui-sdk adds the few rules its behaviors need, and the application its
+   default styles, in this layer. Declared first, it loses to everything
+   below, including Tailwind's reset. The application's theme for those
+   default styles is ui-sdk.css. */
+@layer ui-sdk;
+
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -1230,4 +1236,85 @@
 }
 .state-illustration .illo-knockout {
   stroke: var(--illo-surface);
+}
+
+/* Notification stack (ui-sdk Toast): the newest toast in front, older ones
+   peeking behind it until the pointer or focus opens the stack. */
+.toast-region {
+  position: fixed;
+  inset: auto 1rem 1rem auto;
+  z-index: 50;
+  margin: 0;
+  padding: 0;
+  width: min(24rem, calc(100vw - 2rem));
+  height: var(--toast-front-height);
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  list-style: none;
+  outline: none;
+}
+.toast-region[data-expanded] {
+  height: calc(var(--toast-stack-height) + (var(--toast-count) - 1) * 12px);
+}
+.toast {
+  --y: calc(var(--toast-index) * -12px);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: calc(100 - var(--toast-index));
+  display: block;
+  overflow: hidden;
+  height: var(--toast-height);
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--shadow-lg);
+  translate: var(--toast-swipe-x, 0px)
+    calc(var(--y) + var(--toast-swipe-y, 0px));
+  scale: calc(1 - var(--toast-index) * 0.05);
+  transition-property: translate, scale, opacity, height;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  user-select: none;
+  outline: none;
+}
+.toast:focus-visible {
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.toast:not([data-front], [data-expanded]) {
+  height: var(--toast-front-height);
+}
+.toast:not([data-front], [data-expanded]) > .toast-content {
+  opacity: 0;
+}
+.toast[data-expanded] {
+  --y: calc(-1 * (var(--toast-offset) + var(--toast-index) * 12px));
+  scale: 1;
+}
+.toast[data-starting-style] {
+  transition: none;
+}
+.toast[data-starting-style][data-front] {
+  --y: 150%;
+}
+.toast:is([data-starting-style]:not([data-front]), [data-ending-style]) {
+  opacity: 0;
+}
+.toast[data-swiping] {
+  transition: none;
+}
+.toast > .toast-content {
+  transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (max-width: 40rem) {
+  .toast-region {
+    inset-inline: 1rem;
+    width: auto;
+  }
 }

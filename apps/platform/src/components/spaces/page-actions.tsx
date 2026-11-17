@@ -11,10 +11,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { toast } from "@lictory/ui/toast";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
   iterationLabel,
@@ -42,6 +42,8 @@ import {
   Dialog,
   Field,
   RadioCards,
+  RadioDot,
+  radioClass,
 } from "@lictory/platform/components/spaces/dialog";
 import {
   pageTemplateKinds,
@@ -123,15 +125,15 @@ export function PageActionsProvider({
           ? `Archived “${page.title}” and ${subpages === 1 ? "1 subpage" : `${subpages} subpages`}`
           : `Archived “${page.title}”`;
       setAnnouncement(`${title}.`);
-      const id = toast.add({
+      const id = toast({
         title,
         description:
           "Archived pages stay in the space. Show archived pages to restore them later.",
-        timeout: 8000,
-        actionProps: {
-          children: "Undo",
-          onClick: () => {
-            toast.close(id);
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onAction: () => {
+            toast.dismiss(id);
             restorePage(page);
           },
         },
@@ -345,6 +347,8 @@ function NewPageDialog({
 }
 
 const MAX_DESTINATIONS = 200;
+// The top level as a radio's value; page ids are never empty.
+const TOP_LEVEL = "top-level";
 
 // The keyboard and touch alternative to dragging: choose a new parent (or
 // the top level) and whether the page goes first or last there.
@@ -375,6 +379,7 @@ function MovePageDialog({
   const [where, setWhere] = useState<"first" | "last">("last");
   const [query, setQuery] = useState("");
   const filterId = useId();
+  const parentLabelId = useId();
   const name = useId();
   const q = query.trim().toLowerCase();
   const matches = q
@@ -389,20 +394,13 @@ function MovePageDialog({
     hint?: string,
   ) => (
     <label
-      key={value ?? "top"}
-      className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-[13px] has-focus-visible:ring-2 has-focus-visible:ring-ring/60",
-        parentId === value ? "bg-primary/8" : "hover:bg-muted",
-      )}
+      key={value ?? TOP_LEVEL}
+      className="flex cursor-pointer items-center gap-2 rounded-md py-1.5 pr-2 text-[13px] not-has-[[data-checked]]:hover:bg-muted has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-[[data-checked]]:bg-primary/8"
       style={{ paddingLeft: 8 + depth * 16 }}
     >
-      <input
-        type="radio"
-        name={name}
-        checked={parentId === value}
-        onChange={() => setParentId(value)}
-        className="accent-primary"
-      />
+      <Radio value={value ?? TOP_LEVEL} className={radioClass}>
+        <RadioDot />
+      </Radio>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint && (
         <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -445,9 +443,18 @@ function MovePageDialog({
             className="h-9 text-[13px]"
           />
         </Field>
-        <fieldset>
-          <legend className="mb-1.5 text-xs font-medium">New parent</legend>
-          <div className="max-h-64 overflow-y-auto rounded-lg p-1 shadow-(--shadow-border)">
+        <div>
+          <div id={parentLabelId} className="mb-1.5 text-xs font-medium">
+            New parent
+          </div>
+          <RadioGroup<string>
+            value={parentId ?? TOP_LEVEL}
+            onValueChange={(next) => {
+              if (next !== null) setParentId(next === TOP_LEVEL ? null : next);
+            }}
+            aria-labelledby={parentLabelId}
+            className="block max-h-64 overflow-y-auto rounded-lg p-1 shadow-(--shadow-border)"
+          >
             {!q &&
               option(
                 null,
@@ -473,8 +480,8 @@ function MovePageDialog({
                 No pages match.
               </p>
             )}
-          </div>
-        </fieldset>
+          </RadioGroup>
+        </div>
         <RadioCards
           legend="Position"
           name={`${name}-position`}

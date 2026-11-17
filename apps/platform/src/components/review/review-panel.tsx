@@ -7,11 +7,17 @@ import {
   ShieldX,
   X,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -38,7 +44,6 @@ export function ReviewPanel() {
     canRequestReviews,
     revisionNumber,
   } = useItem();
-  const [historyOpen, setHistoryOpen] = useState(false);
   const active = reviews.filter(
     (r) => r.status !== "cancelled" && r.revisionId === current?.id,
   );
@@ -209,45 +214,38 @@ export function ReviewPanel() {
         </ul>
       )}
       {history.length > 0 && (
-        <div className="mt-2">
-          <button
-            onClick={() => setHistoryOpen((v) => !v)}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ChevronDown
-              className={cn(
-                "size-3 transition-transform",
-                historyOpen && "rotate-180",
-              )}
-            />
+        <Collapsible className="mt-2">
+          <CollapsibleTrigger className="group/history inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <ChevronDown className="size-3 transition-transform group-data-open/history:rotate-180" />
             {history.length} earlier approval{history.length > 1 ? "s" : ""}
-          </button>
-          {historyOpen && (
-            <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-              {history.map((a) => {
-                const review = reviews.find((r) => r.id === a.reviewId);
-                return (
-                  <li key={a.id}>
-                    {review?.responsibility ?? "Review"} ·{" "}
-                    {memberName(a.reviewerId)} approved revision{" "}
-                    {revisionNumber(a.revisionId)} ·{" "}
-                    {isCarriedApproval(a.endReason) ? (
-                      <span>{a.endReason!.toLowerCase()}</span>
-                    ) : (
-                      <span
-                        className={a.status === "stale" ? "text-warning" : ""}
-                      >
-                        {a.status === "stale"
-                          ? `outdated (${a.endReason ?? "specification revised"})`
-                          : "revoked"}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+          </CollapsibleTrigger>
+          <CollapsiblePanel
+            render={<ul />}
+            className="mt-1 space-y-1 text-xs text-muted-foreground"
+          >
+            {history.map((a) => {
+              const review = reviews.find((r) => r.id === a.reviewId);
+              return (
+                <li key={a.id}>
+                  {review?.responsibility ?? "Review"} ·{" "}
+                  {memberName(a.reviewerId)} approved revision{" "}
+                  {revisionNumber(a.revisionId)} ·{" "}
+                  {isCarriedApproval(a.endReason) ? (
+                    <span>{a.endReason!.toLowerCase()}</span>
+                  ) : (
+                    <span
+                      className={a.status === "stale" ? "text-warning" : ""}
+                    >
+                      {a.status === "stale"
+                        ? `outdated (${a.endReason ?? "specification revised"})`
+                        : "revoked"}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </CollapsiblePanel>
+        </Collapsible>
       )}
       {current && (
         <p className="mt-2 text-[11px] text-muted-foreground">
@@ -499,11 +497,10 @@ export function RequestReview({
             </>
           )}
           <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={required}
-              onChange={(e) => setRequired(e.target.checked)}
-            />{" "}
+              onCheckedChange={(checked) => setRequired(checked === true)}
+            />
             Required for readiness
           </label>
           {error && (

@@ -6,7 +6,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
+import {
+  Command,
+  CommandGroup,
+  CommandGroupLabel,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@ui-sdk/react/command";
+import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
@@ -24,7 +32,9 @@ import {
   Settings2,
   UserRound,
 } from "lucide-react";
+import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
+import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
 import { track } from "@lictory/core/lib/analytics/client";
 import { paths } from "@lictory/core/lib/paths";
@@ -117,9 +127,9 @@ export function CommandPalette({
     : dockStore;
   const aiOn = directory.ai.available && directory.ai.enabled;
   const [query, setQuery] = useState(initialQuery);
-  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  // Opened by a tap, the dialog would keep focus on itself to hold back the
+  // on-screen keyboard; search is ready to type on a phone too.
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -555,16 +565,18 @@ export function CommandPalette({
     onClose,
     spaceIndex,
   ]);
+  // The highlight follows the first result, also as content results arrive
+  // above it, until the person moves it. Typing starts over.
+  const [moved, setMoved] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState(q);
   if (lastQuery !== q) {
     setLastQuery(q);
-    setActive(0);
+    setMoved(null);
   }
-  useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>("[data-active]")
-      ?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  const highlighted =
+    (moved !== null && results.some((r) => r.id === moved)
+      ? moved
+      : results[0]?.id) ?? null;
   const groups = [...new Set(results.map((r) => r.group))];
   const run = (entry?: Item) => {
     if (!entry) return;
@@ -576,80 +588,81 @@ export function CommandPalette({
     });
     entry.run();
   };
-  let index = -1;
-  return createPortal(
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape and arrow keys bubble from the search field; the backdrop is not a control.
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[14vh] pb-4"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setActive((a) => Math.min(results.length - 1, a + 1));
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setActive((a) => Math.max(0, a - 1));
-        }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          run(results[active]);
-        }
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
+      container={popupContainer()}
     >
-      <button
-        aria-label="Close"
-        className="absolute inset-0"
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
+      <DialogBackdrop className={dialogBackdropClass} />
+      <DialogContent
         aria-label="Command palette"
-        className="relative flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
+        initialFocus={() => inputRef.current}
+        className={cn(
+          dialogPanelClass,
+          "top-[14vh] max-h-[calc(100dvh-14vh-1rem)] max-w-lg gap-0",
+        )}
       >
-        <div className="flex shrink-0 items-center gap-2 border-b px-3">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search items, pages or commands…"
-            aria-label="Search"
-            className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
-          />
-          <Kbd>esc</Kbd>
-        </div>
-        <div
-          ref={listRef}
-          role="listbox"
-          className="min-h-0 overflow-y-auto p-1.5"
+        <Command
+          // Results are matched and ordered here, and by the server.
+          filter={false}
+          loop={false}
+          status={content.status === "loading" ? "loading" : "idle"}
+          // The footer below is the palette's one live region.
+          announcement={() => null}
+          value={highlighted}
+          onValueChange={(id, details) => {
+            if (
+              details.reason === "list-navigation" ||
+              details.reason === "item-hover"
+            )
+              setMoved(id);
+          }}
+          query={query}
+          onQueryChange={(next) => setQuery(next)}
+          onAction={(id) => run(results.find((r) => r.id === id))}
+          className="flex min-h-0 w-full flex-1 flex-col rounded-none bg-transparent"
         >
+          <div className="flex shrink-0 items-center gap-2 border-b px-3">
+            <CommandInput
+              ref={inputRef}
+              placeholder="Search items, pages or commands…"
+              aria-label="Search"
+              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              onKeyDown={(event) => {
+                // Escape closes the palette at once; left to the list, the
+                // first press would only clear what was typed.
+                if (event.key !== "Escape" || event.nativeEvent.isComposing)
+                  return;
+                event.preventDefault();
+                onClose();
+              }}
+            />
+            <Kbd>esc</Kbd>
+          </div>
           {results.length === 0 && content.status !== "loading" && (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
               No results.
             </p>
           )}
-          {groups.map((group) => (
-            <div key={group}>
-              <p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
-                {group}
-              </p>
-              {results
-                .filter((r) => r.group === group)
-                .map((r) => {
-                  index++;
-                  const i = index;
-                  return (
-                    <button
+          <CommandList className="max-h-none min-h-0 overflow-y-auto p-1.5">
+            {groups.map((group) => (
+              <CommandGroup key={group}>
+                <CommandGroupLabel className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
+                  {group}
+                </CommandGroupLabel>
+                {results
+                  .filter((r) => r.group === group)
+                  .map((r) => (
+                    <CommandItem
                       key={r.id}
-                      role="option"
-                      aria-selected={i === active}
-                      data-active={i === active || undefined}
-                      onMouseEnter={() => setActive(i)}
-                      onClick={() => run(r)}
+                      value={r.id}
+                      label={r.label}
                       className={cn(
-                        "flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px]",
+                        "group flex w-full cursor-default gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] select-none data-highlighted:bg-muted",
                         r.excerpt ? "items-start" : "items-center",
-                        i === active && "bg-muted",
                       )}
                     >
                       <span
@@ -688,60 +701,58 @@ export function CommandPalette({
                           )}
                         </>
                       )}
-                      {i === active && (
-                        <ArrowRight
-                          className={cn(
-                            "size-3.5 shrink-0 text-muted-foreground",
-                            r.excerpt && "mt-0.5",
-                          )}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
-        {/* Content results arrive after the instant title matches. */}
-        <div
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "flex shrink-0 flex-wrap items-center gap-x-1.5 border-t px-3 py-1.5 text-[11.5px] text-muted-foreground",
-            content.status !== "loading" &&
-              content.status !== "error" &&
-              !(content.status === "done" && content.stale) &&
-              "sr-only",
-          )}
-        >
-          <span
+                      <ArrowRight
+                        aria-hidden
+                        className={cn(
+                          "hidden size-3.5 shrink-0 text-muted-foreground group-data-highlighted:block",
+                          r.excerpt && "mt-0.5",
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+          {/* Content results arrive after the instant title matches. */}
+          <div
+            role="status"
+            aria-live="polite"
             className={cn(
-              content.status === "done" && content.stale && "sr-only",
+              "flex shrink-0 flex-wrap items-center gap-x-1.5 border-t px-3 py-1.5 text-[11.5px] text-muted-foreground",
+              content.status !== "loading" &&
+                content.status !== "error" &&
+                !(content.status === "done" && content.stale) &&
+                "sr-only",
             )}
           >
-            {content.status === "loading"
-              ? "Searching pages, specifications and decisions…"
-              : content.status === "error"
-                ? `Could not search content: ${content.error}`
-                : content.status === "done"
-                  ? content.results.length
-                    ? `${content.results.length} content ${content.results.length === 1 ? "match" : "matches"}`
-                    : "No matches in pages, specifications or decisions"
-                  : ""}
-          </span>
-          {content.status === "done" && content.stale && (
-            <StaleNotice
-              checkedAt={content.stale.checkedAt}
-              onRetry={() => {
-                content.stale?.retry();
-                // Typing and the arrow keys keep working.
-                inputRef.current?.focus();
-              }}
-            />
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
+            <span
+              className={cn(
+                content.status === "done" && content.stale && "sr-only",
+              )}
+            >
+              {content.status === "loading"
+                ? "Searching pages, specifications and decisions…"
+                : content.status === "error"
+                  ? `Could not search content: ${content.error}`
+                  : content.status === "done"
+                    ? content.results.length
+                      ? `${content.results.length} content ${content.results.length === 1 ? "match" : "matches"}`
+                      : "No matches in pages, specifications or decisions"
+                    : ""}
+            </span>
+            {content.status === "done" && content.stale && (
+              <StaleNotice
+                checkedAt={content.stale.checkedAt}
+                onRetry={() => {
+                  content.stale?.retry();
+                  // Typing and the arrow keys keep working.
+                  inputRef.current?.focus();
+                }}
+              />
+            )}
+          </div>
+        </Command>
+      </DialogContent>
+    </Dialog>
   );
 }

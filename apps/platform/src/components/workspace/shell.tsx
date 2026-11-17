@@ -1,9 +1,13 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { Link, useLinkStatus } from "@lictory/platform/lib/navigation";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { toast as toastManager } from "@lictory/ui/toast";
-import { track } from "@lictory/core/lib/analytics/client";
+import { analyticsConfigured, track } from "@lictory/core/lib/analytics/client";
 import {
   useParams,
   usePathname,
@@ -35,7 +39,7 @@ import {
   Inbox,
   Lightbulb,
   LogOut,
-  Menu,
+  Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
   MessageSquareMore,
@@ -74,6 +78,15 @@ import {
 } from "@lictory/core/lib/work-items";
 import type { Directory, WorkItem } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import {
+  Menu,
+  MenuContent,
+  MenuGroup,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuTrigger,
+} from "@lictory/ui/menu";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Avatar, Kbd } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -179,6 +192,21 @@ export function Shell({
     query: "",
   });
   const [create, setCreate] = useState<QuickCreateOptions | null>(null);
+  // The overlays unmount to close, before their dialog can hand focus back.
+  const overlayOpener = useRef<Element | null>(null);
+  const overlayOpen = palette.open || create !== null;
+  useEffect(() => {
+    if (overlayOpen) return;
+    const opener = overlayOpener.current;
+    overlayOpener.current = null;
+    if (
+      opener instanceof HTMLElement &&
+      opener.isConnected &&
+      // Whatever closing moved on to (the next overlay, Litto) keeps focus.
+      (!document.activeElement || document.activeElement === document.body)
+    )
+      opener.focus({ preventScroll: true });
+  }, [overlayOpen]);
   const [currentItem, setCurrentItem] = useState<WorkItem>();
   const [drawer, setDrawer] = useState(false);
   const [sidebarCollapsed, toggleSidebarPreference] = usePanelCollapsed(
@@ -217,18 +245,13 @@ export function Shell({
   }, [sidebarCollapsed]);
   const toast = useCallback(
     (text: string, action?: Toast["action"]) => {
-      const id = toastManager.add({
+      toastManager({
         title: text,
-        timeout: 6000,
-        actionProps: action
-          ? {
-              children: action.label,
-              onClick: () => {
-                router.push(action.href);
-                toastManager.close(id);
-              },
-            }
-          : undefined,
+        duration: 6000,
+        action: action && {
+          label: action.label,
+          onAction: () => router.push(action.href),
+        },
       });
     },
     [router],
@@ -289,6 +312,7 @@ export function Shell({
         /\/(board|backlog)$/.test(window.location.pathname)
           ? new URLSearchParams(window.location.search).get("team")
           : null;
+      overlayOpener.current ??= document.activeElement;
       setCreate({
         kind: "story",
         intent:
@@ -319,6 +343,7 @@ export function Shell({
   const openPalette = useCallback(
     (query = "") => {
       track("command_palette_opened", { organization_id: organization.id });
+      overlayOpener.current ??= document.activeElement;
       setPalette({ open: true, query });
     },
     [organization.id],
@@ -432,7 +457,7 @@ export function Shell({
                   aria-label="Open navigation"
                   onClick={() => setDrawer(true)}
                 >
-                  <Menu className="size-4" />
+                  <MenuIcon className="size-4" />
                 </Button>
                 {/* Name where the person is: a space's pages belong to the
                     space, not to the project the sidebar remembers. */}
@@ -533,13 +558,14 @@ function Sidebar({
   };
   onCreate?: () => void;
   onSearch: () => void;
-  onSignOut: () => void;
+  onSignOut: () => Promise<void>;
   onCollapse: () => void;
   sidebarId: string;
 }) {
   const router = useRouter();
   // Instance policy for the menus (the server enforces it either way).
   const sessionUser = useSessionState().session?.user;
+  const privacyItem = useRef<HTMLDivElement>(null);
   const org = organization.slug;
   const active = (href: string, exact = false) =>
     exact
@@ -553,88 +579,87 @@ function Sidebar({
           collapsed ? "flex-col py-2" : "h-11",
         )}
       >
-        <Popover
-          width={240}
-          side={collapsed ? "right" : "bottom"}
-          trigger={(props) => (
-            <button
-              {...props}
-              aria-label={
-                collapsed
-                  ? `Switch organization: ${organization.name}`
-                  : undefined
-              }
-              title={collapsed ? organization.name : undefined}
-              className={cn(
-                "flex h-8 min-w-0 items-center gap-2 rounded-md text-left text-[13px] font-semibold hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                collapsed ? "size-8 justify-center" : "flex-1 px-2",
-              )}
-            >
-              {collapsed || !organization.logos.full ? (
-                <OrganizationMark organization={organization} />
-              ) : (
-                // The full logo already contains the name; keep it for
-                // assistive technology.
-                <>
-                  {}
-                  <img
-                    src={organization.logos.full}
-                    alt=""
-                    aria-hidden
-                    className="h-5 max-w-[150px] min-w-0 shrink object-contain object-left"
-                  />
-                  <span className="sr-only">{organization.name}</span>
-                </>
-              )}
-              {!collapsed && (
-                <>
-                  {!organization.logos.full && (
-                    <span className="truncate">{organization.name}</span>
-                  )}
-                  <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-                </>
-              )}
-            </button>
-          )}
-        >
-          {(close) => (
-            <div className="p-1">
-              <p className="px-2 py-1.5 text-[11px] font-medium text-muted-foreground uppercase">
+        <Menu>
+          <MenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label={
+                  collapsed
+                    ? `Switch organization: ${organization.name}`
+                    : undefined
+                }
+                title={collapsed ? organization.name : undefined}
+                className={cn(
+                  "flex h-8 min-w-0 items-center gap-2 rounded-md text-left text-[13px] font-semibold hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                  collapsed ? "size-8 justify-center" : "flex-1 px-2",
+                )}
+              />
+            }
+          >
+            {collapsed || !organization.logos.full ? (
+              <OrganizationMark organization={organization} />
+            ) : (
+              // The full logo already contains the name; keep it for
+              // assistive technology.
+              <>
+                <img
+                  src={organization.logos.full}
+                  alt=""
+                  aria-hidden
+                  className="h-5 max-w-[150px] min-w-0 shrink object-contain object-left"
+                />
+                <span className="sr-only">{organization.name}</span>
+              </>
+            )}
+            {!collapsed && (
+              <>
+                {!organization.logos.full && (
+                  <span className="truncate">{organization.name}</span>
+                )}
+                <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+              </>
+            )}
+          </MenuTrigger>
+          <MenuContent width={240} side={collapsed ? "right" : "bottom"}>
+            <MenuGroup>
+              <MenuLabel className="text-[11px] font-medium uppercase">
                 Organizations
-              </p>
+              </MenuLabel>
               {organizations.map((o) => (
-                <DropdownItem
+                <MenuItem
                   key={o.id}
-                  onClick={() => {
-                    close();
+                  label={o.name}
+                  onSelect={() => {
                     router.push(paths.org(o.slug));
                   }}
                 >
                   <OrganizationMark organization={o} className="size-4" />
                   <span className="truncate">{o.name}</span>
                   {o.id === organization.id && (
-                    <Check className="ml-auto size-3.5 text-primary" />
+                    <Check
+                      className="ml-auto size-3.5 text-primary"
+                      aria-hidden
+                    />
                   )}
-                </DropdownItem>
+                </MenuItem>
               ))}
-              <div className="my-1 border-t" />
-              <DropdownItem asChild>
-                <Link href={paths.settings(organization.slug)} onClick={close}>
-                  <Settings className="size-3.5" aria-hidden />
-                  Organization settings
-                </Link>
-              </DropdownItem>
-              {sessionUser?.canCreateOrganization && (
-                <DropdownItem asChild>
-                  <Link href={paths.newOrganization} onClick={close}>
-                    <Plus className="size-3.5" aria-hidden />
-                    Create organization
-                  </Link>
-                </DropdownItem>
-              )}
-            </div>
-          )}
-        </Popover>
+            </MenuGroup>
+            <MenuSeparator className="mx-0" />
+            <MenuItem
+              render={<Link href={paths.settings(organization.slug)} />}
+            >
+              <Settings className="size-3.5" aria-hidden />
+              Organization settings
+            </MenuItem>
+            {sessionUser?.canCreateOrganization && (
+              <MenuItem render={<Link href={paths.newOrganization} />}>
+                <Plus className="size-3.5" aria-hidden />
+                Create organization
+              </MenuItem>
+            )}
+          </MenuContent>
+        </Menu>
         <Button
           variant="ghost"
           size="icon"
@@ -742,84 +767,96 @@ function Sidebar({
           collapsed ? "flex-col px-2" : "px-3",
         )}
       >
-        <Popover
-          width={240}
-          side="top"
-          trigger={(props) => (
-            <button
-              {...props}
-              aria-label={`Account menu: ${user.name || user.email}`}
-              title={
-                collapsed ? `Account: ${user.name || user.email}` : undefined
-              }
-              className={cn(
-                "flex min-w-0 items-center gap-2 rounded-md p-1 text-left hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-                collapsed ? "size-8 justify-center" : "-ml-1 flex-1",
-              )}
-            >
-              {/* The name already says whose account this is. */}
-              <span aria-hidden className="inline-flex shrink-0">
-                <Avatar
-                  image={user.image}
-                  name={user.name || user.email}
-                  size="sm"
-                />
-              </span>
-              {!collapsed && (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                    {user.name}
-                  </span>
-                  <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
-                </>
-              )}
-            </button>
-          )}
-        >
-          {(close) => (
-            <div className="p-1">
-              <div className="px-2 py-1.5">
-                <p className="truncate text-[13px] font-medium">{user.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
+        <Menu>
+          <MenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Account menu: ${user.name || user.email}`}
+                title={
+                  collapsed ? `Account: ${user.name || user.email}` : undefined
+                }
+                className={cn(
+                  "flex min-w-0 items-center gap-2 rounded-md p-1 text-left hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+                  collapsed ? "size-8 justify-center" : "-ml-1 flex-1",
+                )}
+              />
+            }
+          >
+            {/* The name already says whose account this is. */}
+            <span aria-hidden className="inline-flex shrink-0">
+              <Avatar
+                image={user.image}
+                name={user.name || user.email}
+                size="sm"
+              />
+            </span>
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                  {user.name}
+                </span>
+                <ChevronsUpDown className="size-3 shrink-0 text-muted-foreground" />
+              </>
+            )}
+          </MenuTrigger>
+          <MenuContent width={240} side="top">
+            <MenuGroup>
+              <MenuLabel>
+                <span className="block truncate text-[13px] font-medium text-popover-foreground">
+                  {user.name}
+                </span>
+                <span className="block truncate">
                   {user.handle ? `@${user.handle} · ${user.email}` : user.email}
-                </p>
-              </div>
-              <div className="my-1 border-t" />
-              <DropdownItem asChild>
-                <Link href={paths.account(pathname)}>
-                  <UserRound className="size-3.5 text-muted-foreground" />{" "}
-                  Account settings
-                </Link>
-              </DropdownItem>
-              {sessionUser?.instanceAdmin && (
-                <DropdownItem asChild>
-                  <Link href={paths.admin()}>
-                    <ShieldUser className="size-3.5 text-muted-foreground" />{" "}
-                    Admin console
-                  </Link>
-                </DropdownItem>
-              )}
-              <PrivacyPreferencesButton
-                onClick={close}
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-muted"
+                </span>
+              </MenuLabel>
+              <MenuSeparator className="mx-0" />
+              {/* Leaving the workspace: the menu stays until the page it
+                  links to has loaded. */}
+              <MenuItem
+                closeOnSelect={false}
+                render={<Link href={paths.account(pathname)} />}
               >
-                <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
-                Privacy preferences
-              </PrivacyPreferencesButton>
-              <DropdownItem onClick={onSignOut}>
-                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
-              </DropdownItem>
-              <div className="mt-1 border-t px-2 pt-2 pb-1">
-                <p
-                  className="text-xs text-muted-foreground"
-                  title="Major version · feature release · fixes"
+                <UserRound className="size-3.5 text-muted-foreground" /> Account
+                settings
+              </MenuItem>
+              {sessionUser?.instanceAdmin && (
+                <MenuItem
+                  closeOnSelect={false}
+                  render={<Link href={paths.admin()} />}
                 >
-                  Lictory <span className="tabular-nums">v{APP_VERSION}</span>
-                </p>
-              </div>
+                  <ShieldUser className="size-3.5 text-muted-foreground" />{" "}
+                  Admin console
+                </MenuItem>
+              )}
+              {analyticsConfigured() && (
+                <MenuItem
+                  ref={privacyItem}
+                  render={<PrivacyPreferencesButton />}
+                  // The button opens the preferences from its click, and a
+                  // key press chooses an item without one.
+                  onSelect={(event) => {
+                    if (event.type === "click") return;
+                    event.preventDefault();
+                    privacyItem.current?.click();
+                  }}
+                >
+                  <ShieldCheck className="size-3.5 text-muted-foreground" />{" "}
+                  Privacy preferences
+                </MenuItem>
+              )}
+              <MenuItem onSelect={onSignOut}>
+                <LogOut className="size-3.5 text-muted-foreground" /> Sign out
+              </MenuItem>
+            </MenuGroup>
+            <div
+              className="mt-1 border-t px-2 pt-2 pb-1 text-xs text-muted-foreground"
+              title="Major version · feature release · fixes"
+            >
+              Lictory <span className="tabular-nums">v{APP_VERSION}</span>
             </div>
-          )}
-        </Popover>
+          </MenuContent>
+        </Menu>
         <SyncStatus />
       </div>
     </CollapsedSidebarContext.Provider>
@@ -895,29 +932,20 @@ function SpacesNav({
   );
   const org = organization.slug;
   const all = paths.spaces(org);
-  const listId = useId();
   return (
-    <div>
+    // The rail has no caption to fold the list under: it shows every space.
+    <Collapsible open={!collapsed || collapsedSidebar} onOpenChange={toggle}>
       {collapsedSidebar ? (
         <div className="mx-1 mb-2 border-t" />
       ) : (
         <div className="mb-1 flex h-6 items-center gap-1">
-          <button
-            type="button"
-            aria-expanded={!collapsed}
-            aria-controls={listId}
-            onClick={toggle}
-            className="flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
+          <CollapsibleTrigger className="group flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
             Spaces
             <ChevronRight
               aria-hidden
-              className={cn(
-                "size-3 transition-transform duration-150",
-                !collapsed && "rotate-90",
-              )}
+              className="size-3 transition-transform duration-150 group-data-open:rotate-90"
             />
-          </button>
+          </CollapsibleTrigger>
           <button
             type="button"
             aria-label="New space"
@@ -929,31 +957,29 @@ function SpacesNav({
           </button>
         </div>
       )}
-      {(!collapsed || collapsedSidebar) && (
-        <div id={listId} className="space-y-0.5">
-          <NavLink
-            href={all}
-            active={active(all, true)}
-            icon={<Library className="size-4" />}
-          >
-            All spaces
-          </NavLink>
-          {sidebar.map((space) => {
-            const href = paths.space(org, space.slug);
-            return (
-              <NavLink
-                key={space.id}
-                href={href}
-                active={active(href)}
-                icon={<SpaceIcon space={space} />}
-              >
-                {space.name}
-              </NavLink>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      <CollapsiblePanel className="space-y-0.5">
+        <NavLink
+          href={all}
+          active={active(all, true)}
+          icon={<Library className="size-4" />}
+        >
+          All spaces
+        </NavLink>
+        {sidebar.map((space) => {
+          const href = paths.space(org, space.slug);
+          return (
+            <NavLink
+              key={space.id}
+              href={href}
+              active={active(href)}
+              icon={<SpaceIcon space={space} />}
+            >
+              {space.name}
+            </NavLink>
+          );
+        })}
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }
 
@@ -1058,34 +1084,33 @@ function NavGroup({
   toggle?: { open: boolean; onToggle: () => void };
 }) {
   const collapsed = useContext(CollapsedSidebarContext);
+  if (toggle && !collapsed)
+    return (
+      <Collapsible
+        open={toggle.open}
+        onOpenChange={toggle.onToggle}
+        className="mt-4"
+      >
+        <CollapsibleTrigger className="group mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase hover:text-foreground">
+          {label}
+          <ChevronRight
+            aria-hidden
+            className="size-3 transition-transform duration-150 group-data-open:rotate-90"
+          />
+        </CollapsibleTrigger>
+        <CollapsiblePanel className="space-y-0.5">{children}</CollapsiblePanel>
+      </Collapsible>
+    );
   return (
     <div className={collapsed ? "mt-2" : "mt-4"}>
       {collapsed ? (
         <div className="mx-1 mb-2 border-t" />
-      ) : toggle ? (
-        <button
-          type="button"
-          aria-expanded={toggle.open}
-          onClick={toggle.onToggle}
-          className="mb-1 flex h-6 w-full items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase hover:text-foreground"
-        >
-          {label}
-          <ChevronRight
-            aria-hidden
-            className={cn(
-              "size-3 transition-transform duration-150",
-              toggle.open && "rotate-90",
-            )}
-          />
-        </button>
       ) : (
         <p className="mb-1 px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
           {label}
         </p>
       )}
-      {(!toggle || toggle.open || collapsed) && (
-        <div className="space-y-0.5">{children}</div>
-      )}
+      <div className="space-y-0.5">{children}</div>
     </div>
   );
 }

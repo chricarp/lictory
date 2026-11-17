@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
 import { Avatar, Badge, EmptyState } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -146,31 +147,35 @@ export function SpaceHome() {
           </p>
           <div className="col-span-2 mt-4 flex items-center gap-1.5 sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:mt-0">
             {space.publishing === "reviewed" && (
-              <Link
-                href={`${paths.space(organization.slug, space.slug)}/pull-requests`}
-                className="contents"
+              <Button
+                variant="secondary"
+                size="sm"
+                className={touchTarget}
+                render={
+                  <Link
+                    href={`${paths.space(organization.slug, space.slug)}/pull-requests`}
+                  />
+                }
               >
-                <Button variant="secondary" size="sm" className={touchTarget}>
-                  <GitPullRequest className="size-3.5" aria-hidden /> Pull
-                  requests
-                </Button>
-              </Link>
+                <GitPullRequest className="size-3.5" aria-hidden /> Pull
+                requests
+              </Button>
             )}
             {(manage || level === "edit") && (
-              <Link
-                href={paths.spaceSettings(organization.slug, space.slug)}
-                className="contents"
+              <Button
+                variant="secondary"
+                size="icon"
+                aria-label="Space settings"
+                title="Space settings"
+                className={touchIcon}
+                render={
+                  <Link
+                    href={paths.spaceSettings(organization.slug, space.slug)}
+                  />
+                }
               >
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  aria-label="Space settings"
-                  title="Space settings"
-                  className={touchIcon}
-                >
-                  <Settings2 className="size-3.5" aria-hidden />
-                </Button>
-              </Link>
+                <Settings2 className="size-3.5" aria-hidden />
+              </Button>
             )}
             {canEdit && (
               <Button
@@ -323,7 +328,7 @@ function PageFinder({
         className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
-      <input
+      <InputPrimitive
         type="search"
         aria-label="Find a page"
         placeholder="Find a page"

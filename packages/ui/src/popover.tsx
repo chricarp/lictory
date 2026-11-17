@@ -7,17 +7,55 @@ import {
   useId,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
+  type Ref,
+  type RefObject,
 } from "react";
-import { Popover as PopoverPrimitive } from "radix-ui";
-import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@ui-sdk/react/command";
+import {
+  Listbox,
+  ListboxItem,
+  ListboxItemIndicator,
+} from "@ui-sdk/react/listbox";
+import {
+  createPopoverController,
+  Popover as PopoverPrimitive,
+  PopoverContent,
+  PopoverTrigger,
+} from "@ui-sdk/react/popover";
+import {
+  dropdownContentClass,
+  dropdownItemClass,
+  DropdownItem,
+} from "@lictory/ui/dropdown";
+import { ownName } from "@lictory/ui/named";
+import { popupContainer } from "@lictory/ui/popup";
 import { Check, Loader2, Search } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 
-// Shared shadcn/Radix surface for searchable dropdowns and contextual panels.
+// Shared surface for searchable dropdowns and contextual panels.
 type PopoverContextValue = { close: () => void; labelId: string };
 const PopoverContext = createContext<PopoverContextValue | null>(null);
 export const usePopover = () => useContext(PopoverContext);
+
+// What a trigger element receives: spread it on a button, or take only `ref`
+// to anchor the panel to something that is not a button.
+export type PopoverTriggerProps = Omit<ComponentProps<"button">, "ref"> & {
+  "data-state": "open" | "closed";
+  ref: (node: HTMLElement | null) => void;
+};
+
+function assign(ref: Ref<HTMLElement> | undefined, node: HTMLElement | null) {
+  if (typeof ref === "function") return ref(node);
+  if (ref) ref.current = node;
+}
 
 export function Popover({
   trigger,
@@ -25,19 +63,12 @@ export function Popover({
   align = "start",
   side = "bottom",
   width = 240,
-  open: controlled,
+  open,
   onOpenChange,
   disabled,
   className,
 }: {
-  trigger: (props: {
-    "data-state": "open" | "closed";
-    onClick: () => void;
-    ref: (node: HTMLElement | null) => void;
-    "aria-expanded": boolean;
-    "aria-haspopup": "dialog";
-    disabled?: boolean;
-  }) => ReactNode;
+  trigger: (props: PopoverTriggerProps) => ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
   align?: "start" | "end";
   side?: "bottom" | "top" | "right";
@@ -47,82 +78,60 @@ export function Popover({
   disabled?: boolean;
   className?: string;
 }) {
-  const [internal, setInternal] = useState(false);
-  const open = controlled ?? internal;
-  const setOpen = useCallback(
-    (value: boolean) => {
-      setInternal(value);
-      onOpenChange?.(value);
-    },
-    [onOpenChange],
-  );
-  const triggerRef = useRef<HTMLElement | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const setTriggerNode = useCallback((node: HTMLElement | null) => {
-    triggerRef.current = node;
-  }, []);
+  const [controller] = useState(() => createPopoverController());
   const labelId = useId();
-  const close = useCallback(() => setOpen(false), [setOpen]);
+  const close = useCallback(() => {
+    controller.close();
+  }, [controller]);
+  // One callback for the trigger's life, so callers can compose it with
+  // their own ref without detaching the trigger on every render.
+  const partRef = useRef<Ref<HTMLElement>>(undefined);
+  const detach = useRef<(() => void) | void>(undefined);
+  const triggerRef = useCallback((node: HTMLElement | null) => {
+    if (detach.current) detach.current();
+    else if (!node) assign(partRef.current, null);
+    detach.current = node ? assign(partRef.current, node) : undefined;
+  }, []);
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      {/* Editable pickers anchor to an input container, rather than a button.
-          Keep their semantics and let Radix position and dismiss the panel. */}
-      <PopoverPrimitive.Anchor asChild>
-        {/* The render prop receives a callback ref; it never reads current. */}
-        {/* eslint-disable-next-line react-hooks/refs */}
-        {trigger({
-          "data-state": open ? "open" : "closed",
-          onClick: () => {
-            if (!disabled) setOpen(!open);
-          },
-          ref: setTriggerNode,
-          "aria-expanded": open,
-          "aria-haspopup": "dialog",
-          disabled,
-        })}
-      </PopoverPrimitive.Anchor>
-      <PopoverPrimitive.Portal>
-        <DropdownSurface asChild>
-          <PopoverPrimitive.Content
-            ref={panelRef}
-            data-popover
-            aria-labelledby={labelId}
-            align={align}
-            side={side}
-            sideOffset={4}
-            collisionPadding={8}
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              // An editor action may deliberately focus its document before
-              // closing the menu. Restore only focus left in the panel.
-              const active = document.activeElement;
-              if (
-                !active ||
-                active === document.body ||
-                panelRef.current?.contains(active)
-              )
-                triggerRef.current?.focus({ preventScroll: true });
-            }}
-            onInteractOutside={(event) => {
-              if (triggerRef.current?.contains(event.target as Node))
-                event.preventDefault();
-            }}
-            style={{
-              width:
-                width === "trigger"
-                  ? "var(--radix-popover-trigger-width)"
-                  : width,
-              maxHeight: "var(--radix-popover-content-available-height)",
-            }}
-            className={cn("flex flex-col", className)}
-          >
-            <PopoverContext.Provider value={{ close, labelId }}>
-              {typeof children === "function" ? children(close) : children}
-            </PopoverContext.Provider>
-          </PopoverPrimitive.Content>
-        </DropdownSurface>
-      </PopoverPrimitive.Portal>
-    </PopoverPrimitive.Root>
+    <PopoverPrimitive
+      open={open}
+      onOpenChange={onOpenChange && ((next) => onOpenChange(next))}
+      controller={controller}
+      container={popupContainer()}
+    >
+      <PopoverTrigger
+        disabled={disabled}
+        render={({ ref, ...props }, state) => {
+          partRef.current = ref as Ref<HTMLElement>;
+          return (
+            <>
+              {trigger({
+                ...props,
+                ref: triggerRef,
+                "data-state": state.open ? "open" : "closed",
+              })}
+            </>
+          );
+        }}
+      />
+      <PopoverContent
+        data-popover
+        aria-labelledby={labelId}
+        align={align}
+        side={side}
+        sideOffset={4}
+        collisionPadding={8}
+        style={{
+          width: width === "trigger" ? "var(--anchor-width)" : width,
+          maxHeight: "var(--available-height)",
+        }}
+        className={cn(dropdownContentClass, "flex flex-col", className)}
+      >
+        <PopoverContext value={{ close, labelId }}>
+          {typeof children === "function" ? children(close) : children}
+        </PopoverContext>
+      </PopoverContent>
+    </PopoverPrimitive>
   );
 }
 
@@ -134,27 +143,7 @@ export type PickerOption<T extends string> = {
   keywords?: string;
 };
 
-// Searchable list with roving keyboard focus. Selecting an option closes the
-// popover unless `multiple` is set.
-export function Picker<T extends string>({
-  options,
-  value,
-  onSelect,
-  placeholder = "Filter…",
-  emptyText = "No matches.",
-  multiple = false,
-  title,
-  footer,
-  searchable,
-  hideSearch = false,
-  loading = false,
-  hasMore = false,
-  onQueryChange,
-  onEndReached,
-  activeIndex,
-  onActiveIndexChange,
-  listboxId,
-}: {
+type PickerProps<T extends string> = {
   options: PickerOption<T>[];
   value?: T | T[] | null;
   onSelect: (value: T) => void;
@@ -169,66 +158,53 @@ export function Picker<T extends string>({
   hasMore?: boolean;
   onQueryChange?: (query: string) => void;
   onEndReached?: () => void;
-  activeIndex?: number;
-  onActiveIndexChange?: (index: number) => void;
-  listboxId?: string;
-}) {
+};
+
+const titleClass =
+  "px-3 pt-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase";
+const listClass = "max-h-72 min-h-0 flex-1 overflow-y-auto p-1 outline-none";
+
+function OptionRow<T extends string>({ option }: { option: PickerOption<T> }) {
+  return (
+    <>
+      {option.icon && (
+        <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
+          {option.icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+      {option.hint && (
+        <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
+          {option.hint}
+        </span>
+      )}
+    </>
+  );
+}
+
+// An option's value may be an empty string, which a list cannot key on.
+const key = (value: string) => `value:${value}`;
+const unkey = <T extends string>(value: string) =>
+  value.slice("value:".length) as T;
+
+// A list of choices inside a popover, searchable once it is long or loads its
+// options from the server. Choosing one closes the popover unless `multiple`.
+export function Picker<T extends string>(props: PickerProps<T>) {
+  const {
+    options,
+    value,
+    onSelect,
+    multiple = false,
+    title,
+    footer,
+    searchable,
+    hideSearch = false,
+    onQueryChange,
+  } = props;
   const popover = usePopover();
-  const [query, setQuery] = useState("");
-  const [uncontrolledActive, setUncontrolledActive] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const showSearch =
     !hideSearch &&
     (searchable ?? (options.length > 6 || Boolean(onQueryChange)));
-  const active = activeIndex ?? uncontrolledActive;
-  const setActive = (index: number | ((current: number) => number)) => {
-    const next = typeof index === "function" ? index(active) : index;
-    if (onActiveIndexChange) onActiveIndexChange(next);
-    else setUncontrolledActive(next);
-  };
-  useEffect(() => {
-    if (showSearch) inputRef.current?.focus();
-    else listRef.current?.focus();
-  }, [showSearch]);
-  const q = query.trim().toLowerCase();
-  const [lastQuery, setLastQuery] = useState(q);
-  if (activeIndex === undefined && lastQuery !== q) {
-    setLastQuery(q);
-    setUncontrolledActive(0);
-  } else if (lastQuery !== q) {
-    setLastQuery(q);
-  }
-  const optionId = listboxId ?? (title ? undefined : popover?.labelId);
-  const filtered = onQueryChange
-    ? options
-    : options.filter(
-        (o) =>
-          !q ||
-          o.label.toLowerCase().includes(q) ||
-          (o.keywords?.toLowerCase().includes(q) ?? false) ||
-          (o.hint?.toLowerCase().includes(q) ?? false),
-      );
-  useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>("[data-active]")
-      ?.scrollIntoView({ block: "nearest" });
-  }, [active]);
-  useEffect(() => {
-    if (!onEndReached || !hasMore || loading) return;
-    const root = listRef.current;
-    const sentinel = sentinelRef.current;
-    if (!root || !sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onEndReached();
-      },
-      { root, rootMargin: "64px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [onEndReached, hasMore, filtered.length, loading]);
   const selected = new Set(
     Array.isArray(value)
       ? value
@@ -236,119 +212,244 @@ export function Picker<T extends string>({
         ? [value]
         : [],
   );
-  const choose = (option: PickerOption<T>) => {
-    onSelect(option.value);
+  const choose = (chosen: T) => {
+    onSelect(chosen);
     if (!multiple) popover?.close();
   };
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- arrow keys and Enter bubble from the search field (combobox pattern); the list wrapper is not a control.
-    <div
-      className="flex min-h-0 flex-col"
-      onKeyDown={(event) => {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          setActive((a) => Math.min(filtered.length - 1, a + 1));
-        } else if (event.key === "ArrowUp") {
-          event.preventDefault();
-          setActive((a) => Math.max(0, a - 1));
-        } else if (event.key === "Enter") {
-          event.preventDefault();
-          const option = filtered[active];
-          if (option) choose(option);
-        }
-      }}
-    >
+    <div className="flex min-h-0 flex-col">
       {title && (
         <div
           id={hideSearch ? undefined : popover?.labelId}
-          className="px-3 pt-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase"
+          className={titleClass}
         >
           {title}
         </div>
       )}
       {showSearch ? (
-        <div className="flex items-center gap-2 border-b px-3">
-          <Search className="size-3.5 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              onQueryChange?.(e.target.value);
-            }}
-            placeholder={placeholder}
-            autoFocus
-            aria-label={title ?? placeholder}
-            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 touch:text-base"
-          />
-        </div>
+        <SearchList {...props} selected={selected} choose={choose} />
       ) : (
-        <input
-          ref={inputRef}
-          aria-hidden
-          tabIndex={-1}
-          className="sr-only"
-          readOnly
-        />
+        <PlainList {...props} selected={selected} choose={choose} />
       )}
-      <div
-        ref={listRef}
-        id={optionId}
-        role="listbox"
-        tabIndex={showSearch ? -1 : 0}
-        aria-label={title ?? placeholder}
-        aria-multiselectable={multiple || undefined}
-        className="max-h-72 min-h-0 flex-1 overflow-y-auto p-1"
-      >
-        {filtered.length === 0 && (
-          <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-            {loading ? "Searching…" : emptyText}
-          </p>
-        )}
-        {filtered.map((option, index) => (
-          <DropdownItem
-            id={optionId ? `${optionId}-option-${option.value}` : undefined}
-            key={option.value}
-            type="button"
-            role="option"
-            aria-selected={selected.has(option.value)}
-            data-active={index === active || undefined}
-            tabIndex={-1}
-            onMouseDown={(event) => event.preventDefault()}
-            onMouseEnter={() => setActive(index)}
-            onClick={() => choose(option)}
-            className={cn(
-              index === active && "bg-accent text-accent-foreground",
-            )}
-          >
-            {option.icon && (
-              <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
-                {option.icon}
-              </span>
-            )}
-            <span className="min-w-0 flex-1 truncate">{option.label}</span>
-            {option.hint && (
-              <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
-                {option.hint}
-              </span>
-            )}
-            {selected.has(option.value) && (
-              <Check className="size-3.5 shrink-0 text-primary" />
-            )}
-          </DropdownItem>
-        ))}
-        {hasMore && (
-          <div
-            ref={sentinelRef}
-            className="flex h-8 items-center justify-center"
-          >
-            {loading && (
-              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-            )}
-          </div>
-        )}
-      </div>
       {footer && <div className="border-t p-1">{footer}</div>}
     </div>
   );
 }
+
+// Asks for the next page once the end of a list is in view. The marker at its
+// end is watched instead of the highlighted option, so a new search starts
+// paging afresh and a page whose people were all filtered out, which leaves no
+// option to reach, still continues.
+function useEndReached(
+  list: RefObject<HTMLElement | null>,
+  end: RefObject<HTMLElement | null>,
+  {
+    hasMore,
+    loading,
+    onEndReached,
+    count,
+  }: {
+    hasMore: boolean;
+    loading: boolean;
+    onEndReached?: () => void;
+    count: number;
+  },
+) {
+  useEffect(() => {
+    if (!onEndReached || !hasMore || loading) return;
+    const root = list.current;
+    const marker = end.current;
+    if (!root || !marker) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onEndReached();
+      },
+      { root, rootMargin: "64px" },
+    );
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [list, end, onEndReached, hasMore, loading, count]);
+}
+
+type ListProps<T extends string> = PickerProps<T> & {
+  selected: Set<T>;
+  choose: (value: T) => void;
+};
+
+function SearchList<T extends string>({
+  options,
+  placeholder = "Filter…",
+  emptyText = "No matches.",
+  title,
+  loading = false,
+  hasMore = false,
+  onQueryChange,
+  onEndReached,
+  selected,
+  choose,
+}: ListProps<T>) {
+  const popover = usePopover();
+  const listRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  useEndReached(listRef, endRef, {
+    hasMore,
+    loading,
+    onEndReached,
+    count: options.length,
+  });
+  return (
+    <Command
+      className="flex min-h-0 flex-col"
+      // Server-side searches arrive already filtered and ranked.
+      filter={onQueryChange ? false : "contains"}
+      status={loading ? "loading" : "idle"}
+      onQueryChange={onQueryChange && ((query) => onQueryChange(query))}
+      onAction={(chosen) => choose(unkey<T>(chosen))}
+      // The result count would be spoken from a status region that outlives
+      // the popover; the visible list is the feedback here.
+      announcement={() => null}
+    >
+      <div className="flex items-center gap-2 border-b px-3">
+        <Search className="size-3.5 text-muted-foreground" aria-hidden />
+        <CommandInput
+          placeholder={placeholder}
+          aria-label={title ?? placeholder}
+          className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 touch:text-base"
+        />
+      </div>
+      <CommandList
+        ref={listRef}
+        id={title ? undefined : popover?.labelId}
+        aria-label={title ?? placeholder}
+        render={ownName}
+        className={listClass}
+      >
+        <CommandEmpty className="text-center text-xs text-muted-foreground data-empty:px-2 data-empty:py-3">
+          {loading ? "Searching…" : emptyText}
+        </CommandEmpty>
+        {options.map((option) => (
+          <CommandItem
+            key={option.value}
+            value={key(option.value)}
+            label={option.label}
+            keywords={[option.keywords, option.hint].filter(
+              (word): word is string => Boolean(word),
+            )}
+            aria-checked={selected.has(option.value)}
+            className={dropdownItemClass}
+          >
+            <OptionRow option={option} />
+            {selected.has(option.value) && (
+              <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+            )}
+          </CommandItem>
+        ))}
+        {hasMore && (
+          <div
+            ref={endRef}
+            role="presentation"
+            className="flex h-8 items-center justify-center"
+          >
+            {loading && (
+              <Loader2
+                className="size-3.5 animate-spin text-muted-foreground"
+                aria-hidden
+              />
+            )}
+          </div>
+        )}
+      </CommandList>
+    </Command>
+  );
+}
+
+function PlainList<T extends string>({
+  options,
+  placeholder = "Filter…",
+  emptyText = "No matches.",
+  multiple = false,
+  title,
+  loading = false,
+  hasMore = false,
+  onEndReached,
+  selected,
+  choose,
+}: ListProps<T>) {
+  const popover = usePopover();
+  const listRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEndReached(listRef, sentinelRef, {
+    hasMore,
+    loading,
+    onEndReached,
+    count: options.length,
+  });
+  const current = [...selected].map(key);
+  return (
+    <>
+      {options.length === 0 && (
+        <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+          {loading ? "Searching…" : emptyText}
+        </p>
+      )}
+      <Listbox<string, boolean>
+        ref={listRef}
+        id={title ? undefined : popover?.labelId}
+        aria-label={title ?? placeholder}
+        multiple={multiple}
+        activation="manual"
+        // Pressing the chosen option again still reports it, so a single
+        // choice can be confirmed and the popover closed.
+        deselectable
+        value={multiple ? current : (current[0] ?? null)}
+        onValueChange={(next: string | string[] | null) => {
+          if (Array.isArray(next)) {
+            // Select all and Shift ranges change several options in one go.
+            // Choosing here is one option at a time, and what a choice does
+            // is the caller's (a command, a toggle over its own list), so a
+            // bulk change is left alone rather than half applied.
+            const changed = [
+              ...next.filter((item) => !current.includes(item)),
+              ...current.filter((item) => !next.includes(item)),
+            ];
+            if (changed.length === 1) choose(unkey<T>(changed[0]!));
+          } else {
+            const chosen = next ?? current[0];
+            if (chosen) choose(unkey<T>(chosen));
+          }
+        }}
+        className={cn(listClass, options.length === 0 && "hidden")}
+      >
+        {options.map((option) => (
+          <ListboxItem
+            key={option.value}
+            value={key(option.value)}
+            label={option.label}
+            className={dropdownItemClass}
+          >
+            <OptionRow option={option} />
+            <ListboxItemIndicator>
+              <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+            </ListboxItemIndicator>
+          </ListboxItem>
+        ))}
+        {hasMore && (
+          <div
+            ref={sentinelRef}
+            role="presentation"
+            className="flex h-8 items-center justify-center"
+          >
+            {loading && (
+              <Loader2
+                className="size-3.5 animate-spin text-muted-foreground"
+                aria-hidden
+              />
+            )}
+          </div>
+        )}
+      </Listbox>
+    </>
+  );
+}
+
+export { DropdownItem };

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appStatus } from "../helpers/live-regions";
 import { clientAddress } from "../helpers/client-address";
 import {
   currentRevision,
@@ -96,7 +97,7 @@ test("a phrase only in a page body is found from the palette and opens the page 
 
   const palette = await openPalette(page);
   await palette
-    .getByRole("textbox", { name: "Search" })
+    .getByRole("combobox", { name: "Search" })
     .fill("second approver");
   // The title does not match: the result comes from the page's content,
   // with the version it was found in and the matched words marked.
@@ -119,7 +120,7 @@ test("a phrase only in a page body is found from the palette and opens the page 
 
   // Nothing matches: the palette says so for the content as well.
   const again = await openPalette(page);
-  await again.getByRole("textbox", { name: "Search" }).fill("zebra crossing");
+  await again.getByRole("combobox", { name: "Search" }).fill("zebra crossing");
   await expect(again.getByRole("status")).toContainText(
     "No matches in pages, specifications or decisions",
   );
@@ -129,7 +130,7 @@ test("a phrase only in a page body is found from the palette and opens the page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const phone = page.getByRole("dialog", { name: "Command palette" });
-  await phone.getByRole("textbox", { name: "Search" }).fill("second approver");
+  await phone.getByRole("combobox", { name: "Search" }).fill("second approver");
   await expect(
     phone.getByRole("option", { name: /Refund handling/ }),
   ).toBeVisible();
@@ -198,7 +199,7 @@ test("See all results lists every match a batch at a time, by kind, and forgets 
     page.getByRole("link", { name: /Handbook/ }).first(),
   ).toBeVisible();
   const palette = await openPalette(page);
-  await palette.getByRole("textbox", { name: "Search" }).fill("kumquat");
+  await palette.getByRole("combobox", { name: "Search" }).fill("kumquat");
   await palette
     .getByRole("option", { name: /See all results for “kumquat”/ })
     .click();
@@ -231,7 +232,7 @@ test("See all results lists every match a batch at a time, by kind, and forgets 
   await page.getByRole("button", { name: "Show more results" }).click();
   await expect(results.getByRole("listitem")).toHaveCount(24);
   const open = await openPalette(page);
-  await open.getByRole("textbox", { name: "Search" }).fill("kumquat");
+  await open.getByRole("combobox", { name: "Search" }).fill("kumquat");
   const secretOption = open.getByRole("option", { name: /Secret kumquat/ });
   await expect(secretOption).toBeVisible();
 
@@ -245,7 +246,7 @@ test("See all results lists every match a batch at a time, by kind, and forgets 
     level: null,
   });
   await expect(secretOption).toHaveCount(0);
-  await expect(open.getByRole("textbox", { name: "Search" })).toHaveValue(
+  await expect(open.getByRole("combobox", { name: "Search" })).toHaveValue(
     "kumquat",
   );
   await page.keyboard.press("Escape");
@@ -375,7 +376,7 @@ test("results that could not be checked again say so, and Retry reads them again
   await signIn(page, seeded.owner.email);
   await page.goto(`/${seeded.slug}/search?q=quince`);
   const results = page.getByRole("list", { name: "Results for “quince”" });
-  const status = page.getByRole("status");
+  const status = appStatus(page);
   await expect(status).toContainText("4 results");
   const decision = results
     .getByRole("listitem")
@@ -407,7 +408,7 @@ test("results that could not be checked again say so, and Retry reads them again
   // The palette's answer does the same.
   await archive(false);
   const palette = await openPalette(page);
-  await palette.getByRole("textbox", { name: "Search" }).fill("quince");
+  await palette.getByRole("combobox", { name: "Search" }).fill("quince");
   const option = palette.getByRole("option", {
     name: /Quince refunds reuse the original payment/,
   });
@@ -425,7 +426,7 @@ test("results that could not be checked again say so, and Retry reads them again
   await footer.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(option).toHaveCount(0);
   await expect(footer).not.toContainText("Couldn’t refresh");
-  await expect(palette.getByRole("textbox", { name: "Search" })).toBeFocused();
+  await expect(palette.getByRole("combobox", { name: "Search" })).toBeFocused();
   await page.keyboard.press("Escape");
 
   // On a phone, long names that differ only at the end wrap instead of

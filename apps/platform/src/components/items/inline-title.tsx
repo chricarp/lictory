@@ -1,3 +1,4 @@
+import { Textarea } from "@ui-sdk/react/textarea";
 import { useEffect, useRef, useState } from "react";
 import { useItem } from "@lictory/platform/components/items/item-context";
 
@@ -36,12 +37,13 @@ export function InlineTitle() {
   };
   if (editing)
     return (
-      <textarea
+      <Textarea
         ref={ref}
         value={value}
         rows={1}
+        autoResize
         aria-label="Title"
-        onChange={(e) => setValue(e.target.value)}
+        onValueChange={setValue}
         onBlur={() => void save()}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -55,7 +57,6 @@ export function InlineTitle() {
           }
         }}
         className="w-full resize-none bg-transparent text-[1.75rem] leading-[1.2] font-semibold tracking-[-0.03em] outline-none"
-        style={{ fieldSizing: "content" }}
       />
     );
   // The heading keeps its role and name; people who may rename it get a

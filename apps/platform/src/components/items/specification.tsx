@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { Input } from "@ui-sdk/react/input";
+import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { occurrenceIn } from "@lictory/core/editor/markdown-text";
@@ -13,7 +15,7 @@ import { CONTEXT_QUOTE_LIMIT } from "@lictory/core/intelligence/chat/shared";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { Button } from "@lictory/ui/button";
+import { Button, buttonClass } from "@lictory/ui/button";
 import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
@@ -145,6 +147,8 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
 type QuoteDraft = { quote: string; section: string; occurrence: number };
 
 // The thread under a pointer event, from the marks of discussed passages.
+const selectionAction = buttonClass({ variant: "ghost", size: "sm" });
+
 const threadAt = (target: EventTarget | null) =>
   (target as HTMLElement | null)
     ?.closest?.("mark[data-threads]")
@@ -316,17 +320,15 @@ function Reader({
           )}
           <Markdown source={content} marks={marks} />
           {selection && (canComment || canAsk || onSuggest) && (
-            <div
+            <Toolbar
               ref={toolbarRef}
-              role="toolbar"
               aria-label="Selection actions"
               style={{ left: selection.x, top: selection.y - 40 }}
-              className="absolute z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
+              className="absolute z-10 flex max-w-none -translate-x-1/2 flex-nowrap items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
               {canComment && (
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <ToolbarButton
+                  className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     const { quote, section, occurrence } = selection;
@@ -337,12 +339,11 @@ function Reader({
                 >
                   <MessageSquarePlus className="size-3.5" /> Comment on
                   selection
-                </Button>
+                </ToolbarButton>
               )}
               {onSuggest && (
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <ToolbarButton
+                  className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     onSuggest(selection.quote);
@@ -351,20 +352,19 @@ function Reader({
                   }}
                 >
                   <PenLine className="size-3.5" /> Suggest a change
-                </Button>
+                </ToolbarButton>
               )}
               {canAsk && (
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <ToolbarButton
+                  className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => dock.open()}
                 >
                   <IntelligenceMark className="size-3.5 text-primary" /> Ask
                   Litto
-                </Button>
+                </ToolbarButton>
               )}
-            </div>
+            </Toolbar>
           )}
         </div>
       )}
@@ -475,9 +475,9 @@ function SaveRevision({
   });
   return (
     <div className="space-y-3">
-      <input
+      <Input
         value={summary}
-        onChange={(e) => setSummary(e.target.value)}
+        onValueChange={setSummary}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void save();
         }}
@@ -634,9 +634,9 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
         minHeight="20rem"
       />
       {mode === "edit" && (
-        <input
+        <Input
           value={summary}
-          onChange={(e) => setSummary(e.target.value)}
+          onValueChange={setSummary}
           placeholder="What changed? (optional)"
           aria-label="Change summary"
           className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"

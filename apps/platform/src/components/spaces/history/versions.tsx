@@ -5,8 +5,10 @@ import {
   SelectItem,
 } from "@lictory/ui/select";
 import { useState } from "react";
+import { Toggle } from "@ui-sdk/react/toggle";
 import { relativeTime } from "@lictory/core/lib/work-items";
-import { Button } from "@lictory/ui/button";
+import { Button, buttonClass } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { DocumentDiff, RenderedDocumentDiff } from "./document-diff";
 import { PageReader } from "@lictory/platform/components/spaces/editor/document";
 import { Avatar } from "@lictory/ui/avatar";
@@ -75,14 +77,14 @@ export function Versions({
         <ol className="space-y-1">
           {[...commits].reverse().map((c) => (
             <li key={c.id}>
-              <button
-                type="button"
-                aria-pressed={c.id === commit?.id}
-                className={`w-full rounded-xl border p-3 text-left text-sm transition-[background-color,border-color] duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${c.id === commit?.id ? "border-border bg-muted" : "border-transparent"}`}
-                onClick={() => {
+              <Toggle
+                pressed={c.id === commit?.id}
+                // Pressing the version on screen keeps it on screen.
+                onPressedChange={() => {
                   setSelected(c.id);
                   setCompare("");
                 }}
+                className="block h-auto w-full rounded-xl border border-transparent p-3 text-left text-sm transition-[background-color,border-color] duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-pressed:border-border data-pressed:bg-muted"
               >
                 <span className="mb-2 flex items-start gap-2">
                   <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">
@@ -130,7 +132,7 @@ export function Versions({
                     {reviewOf(c.approverIds)?.badge}
                   </span>
                 )}
-              </button>
+              </Toggle>
             </li>
           ))}
         </ol>
@@ -193,14 +195,13 @@ export function Versions({
                   Restore this version
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="secondary"
-                aria-pressed={showDocument}
-                onClick={() => setShowDocument(!showDocument)}
+              <Toggle
+                pressed={showDocument}
+                onPressedChange={setShowDocument}
+                className={buttonClass({ variant: "secondary", size: "sm" })}
               >
                 {showDocument ? "View changes" : "Preview this version"}
-              </Button>
+              </Toggle>
             </div>
           </div>
           {commit.approverIds.length > 0 && (
@@ -260,11 +261,10 @@ export function Versions({
             >
               <p className="text-sm">Restore to {branch.name}.</p>
               {branch.draft?.uncommittedChanges && (
-                <label className="mt-3 flex gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                <label className="mt-3 flex items-center gap-2 text-sm">
+                  <Checkbox
                     checked={discard}
-                    onChange={(e) => setDiscard(e.target.checked)}
+                    onCheckedChange={(checked) => setDiscard(checked === true)}
                   />
                   Discard live changes on this branch
                 </label>

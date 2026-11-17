@@ -3,6 +3,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { useId, useMemo, useRef, useState } from "react";
+import { Input } from "@ui-sdk/react/input";
 import {
   ArrowDown,
   ArrowUp,
@@ -164,11 +165,11 @@ export function ContextSection({
   const { organization, mutateConfirmed } = useWorkspace();
   const headingId = useId();
   const fail = (title: string) => (e: unknown) =>
-    toast.add({
+    toast({
       title,
       type: "error",
       description: errorText(e),
-      timeout: 8000,
+      duration: 8000,
     });
   const move = (link: ContextLink, direction: -1 | 1) => {
     const step = contextStep(links, link.id, direction);
@@ -187,13 +188,13 @@ export function ContextSection({
       linkId: link.id,
     })
       .then(() => {
-        const id = toast.add({
+        const id = toast({
           title: `Removed “${link.page.title}” from ${list.label}`,
-          timeout: 8000,
-          actionProps: {
-            children: "Undo",
-            onClick: () => {
-              toast.close(id);
+          duration: 8000,
+          action: {
+            label: "Undo",
+            onAction: () => {
+              toast.dismiss(id);
               // Back where it was, between its former neighbours.
               mutateConfirmed({
                 type: "linkContextPage",
@@ -356,11 +357,11 @@ export function AddContextPage({
           teamId: list.teamId ?? null,
           iterationId: list.iterationId ?? null,
         }).catch((e: unknown) =>
-          toast.add({
+          toast({
             title: "Page not added",
             type: "error",
             description: errorText(e),
-            timeout: 8000,
+            duration: 8000,
           }),
         );
       }}
@@ -517,12 +518,12 @@ export function IterationNotesForm({
           <label htmlFor={titleField} className="text-xs font-medium">
             Title
           </label>
-          <input
+          <Input
             id={titleField}
             autoFocus
             value={title}
             maxLength={200}
-            onChange={(e) => setTitle(e.target.value)}
+            onValueChange={setTitle}
             className="h-8 rounded-md border bg-background px-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
           />
         </>

@@ -818,24 +818,21 @@ export function ItemDetail({
                   <div className="p-1">
                     {/* Phones: what the header has no room for. */}
                     {parent && (
-                      <DropdownItem asChild>
-                        <Link
-                          href={parentHref!}
-                          onClick={close}
-                          className="sm:hidden"
-                        >
-                          <CornerLeftUp
-                            className="size-3.5 shrink-0 text-muted-foreground"
-                            aria-hidden
-                          />
-                          <span className="min-w-0 truncate">
-                            Parent ·{" "}
-                            <span className="font-mono text-xs">
-                              {identifier(project, parent.number)}
-                            </span>{" "}
-                            {parent.title}
-                          </span>
-                        </Link>
+                      <DropdownItem
+                        render={<Link href={parentHref!} onClick={close} />}
+                        className="sm:hidden"
+                      >
+                        <CornerLeftUp
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <span className="min-w-0 truncate">
+                          Parent ·{" "}
+                          <span className="font-mono text-xs">
+                            {identifier(project, parent.number)}
+                          </span>{" "}
+                          {parent.title}
+                        </span>
                       </DropdownItem>
                     )}
                     {mode.kind !== "history" && compareRevisions && (

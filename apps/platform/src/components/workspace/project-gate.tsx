@@ -35,9 +35,12 @@ export function ProjectGate({ children }: { children: ReactNode }) {
         icon={FolderSearch}
         title={key ? `Project ${key} was not found` : "Project was not found"}
         action={
-          <Link href={paths.inbox(organization.slug)} className="contents">
-            <Button variant="secondary">Go to Inbox</Button>
-          </Link>
+          <Button
+            variant="secondary"
+            render={<Link href={paths.inbox(organization.slug)} />}
+          >
+            Go to Inbox
+          </Button>
         }
       >
         It may have been archived, or the key is misspelled. Choose another

@@ -1,3 +1,5 @@
+import { Input } from "@ui-sdk/react/input";
+import { Textarea } from "@ui-sdk/react/textarea";
 import {
   useCallback,
   useEffect,
@@ -659,7 +661,7 @@ function DraftEditor({
       setUploading((n) => n + files.length);
       void insertFiles(editor, files, context, at)
         .catch((e: unknown) =>
-          toast.add({
+          toast({
             title: "The file was not added",
             description:
               e instanceof Error ? e.message : "The upload failed. Try again.",
@@ -1005,13 +1007,13 @@ function DraftEditor({
       {titleLabel && (
         <label className="block space-y-1 text-xs font-medium">
           {titleLabel}
-          <input
+          <Input
             aria-label={titleLabel}
             className="h-10 w-full rounded-md border border-input bg-card px-3 text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             value={title}
             disabled={!editable}
             maxLength={240}
-            onChange={(e) => setTitle(e.target.value)}
+            onValueChange={setTitle}
           />
         </label>
       )}
@@ -1139,10 +1141,9 @@ function DraftEditor({
             />
           )}
           {source !== null ? (
-            <textarea
+            <Textarea
               value={source.text}
-              onChange={(e) => {
-                const text = e.target.value;
+              onValueChange={(text) => {
                 setSource((edit) => (edit ? { ...edit, text } : edit));
               }}
               aria-label={`${label} (Markdown)`}
@@ -1275,9 +1276,9 @@ function RecoveredText({
                 variant="secondary"
                 onClick={() => {
                   void navigator.clipboard?.writeText(text).then(
-                    () => toast.add({ title: "Text copied", type: "success" }),
+                    () => toast({ title: "Text copied", type: "success" }),
                     () =>
-                      toast.add({
+                      toast({
                         title: "The text could not be copied",
                         description:
                           "Select it in the notice and copy it by hand.",

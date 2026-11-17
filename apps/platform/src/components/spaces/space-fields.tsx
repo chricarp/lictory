@@ -1,5 +1,6 @@
 import { useId, useRef, type ReactNode } from "react";
 import { BookOpen } from "lucide-react";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { cn } from "@lictory/core/lib/utils";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import {
@@ -132,6 +133,9 @@ export function HomeFields({
   );
 }
 
+// "No icon" as a radio's value; the icons themselves are emoji.
+const NO_ICON = "none";
+
 export function IconField({
   value,
   onChange,
@@ -143,38 +147,40 @@ export function IconField({
   disabled?: boolean;
   legend?: string;
 }) {
-  const name = useId();
+  const legendId = useId();
   const choices: { value: string | null; label: string }[] = [
     { value: null, label: "None" },
     ...spaceIcons.map((icon) => ({ value: icon, label: icon })),
   ];
   return (
-    <fieldset disabled={disabled}>
-      <legend className="mb-1.5 text-xs font-medium">{legend}</legend>
-      <div className="flex flex-wrap gap-1.5">
+    <div>
+      <div id={legendId} className="mb-1.5 text-xs font-medium">
+        {legend}
+      </div>
+      <RadioGroup<string>
+        value={value ?? NO_ICON}
+        onValueChange={(next) => {
+          if (next !== null) onChange(next === NO_ICON ? null : next);
+        }}
+        disabled={disabled}
+        aria-labelledby={legendId}
+        className="flex flex-row flex-wrap gap-1.5"
+      >
         {choices.map((choice) => (
-          <label
+          <Radio
             key={choice.label}
+            value={choice.value ?? NO_ICON}
             className={cn(
-              "relative grid h-9 min-w-9 cursor-pointer place-items-center rounded-full border border-transparent px-2 text-[17px] transition-[background-color,box-shadow] duration-150 ease-out has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-disabled:cursor-default",
-              choice.value === null && "px-3 text-xs text-muted-foreground",
-              value === choice.value
-                ? "bg-card text-foreground shadow-[0_0_0_2px_var(--foreground)]"
-                : "shadow-(--shadow-border) hover:bg-muted",
+              "grid h-9 min-w-9 cursor-pointer place-items-center rounded-full border border-transparent bg-transparent px-2 text-[17px] text-foreground shadow-(--shadow-border) transition-[background-color,box-shadow] duration-150 ease-out outline-none not-data-checked:hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-card data-checked:shadow-[0_0_0_2px_var(--foreground)] data-disabled:cursor-default",
+              choice.value === null &&
+                "px-3 text-xs text-muted-foreground data-checked:text-foreground",
             )}
           >
-            <input
-              type="radio"
-              name={name}
-              className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-full opacity-0"
-              checked={value === choice.value}
-              onChange={() => onChange(choice.value)}
-            />
             {choice.label}
-          </label>
+          </Radio>
         ))}
-      </div>
-    </fieldset>
+      </RadioGroup>
+    </div>
   );
 }
 

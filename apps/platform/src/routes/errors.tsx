@@ -83,11 +83,9 @@ export function WorkspaceError({ error, reset }: ErrorComponentProps) {
           <Button size="lg" onClick={reset}>
             Try again
           </Button>
-          <Link href="/" className="contents">
-            <Button size="lg" variant="secondary">
-              Go to your workspace
-            </Button>
-          </Link>
+          <Button size="lg" variant="secondary" render={<Link href="/" />}>
+            Go to your workspace
+          </Button>
         </>
       }
     >
@@ -106,9 +104,9 @@ export function WorkspaceNotFound() {
         icon={Search}
         title="This workspace was not found"
         actions={
-          <Link href="/" className="contents">
-            <Button size="lg">Go to your workspace</Button>
-          </Link>
+          <Button size="lg" render={<Link href="/" />}>
+            Go to your workspace
+          </Button>
         }
       >
         You may not have access, or the address is misspelled.

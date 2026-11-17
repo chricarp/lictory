@@ -1,5 +1,6 @@
 import { useId, useState, type KeyboardEvent } from "react";
 import { MessageSquare, X } from "lucide-react";
+import { Collapsible } from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
@@ -7,6 +8,7 @@ import { Tooltip } from "@lictory/ui/tooltip";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { DiscussionCounts } from "@lictory/platform/components/discussions/presentation";
 import {
+  ResolvedPanel,
   ResolvedToggle,
   Thread,
   ThreadComposer,
@@ -280,14 +282,20 @@ export function SpecDiscussionPanel({
         )}
         {general.map(card)}
         {resolved.length > 0 && (
-          <ResolvedToggle
-            count={resolved.length}
-            shown={showResolved}
-            onToggle={() => setShowResolved((v) => !v)}
-            className="-ml-2 self-start"
-          />
+          <Collapsible
+            open={showResolved}
+            onOpenChange={setShowResolved}
+            className="flex flex-col gap-3"
+          >
+            <ResolvedToggle
+              count={resolved.length}
+              className="-ml-2 self-start"
+            />
+            <ResolvedPanel className="flex flex-col gap-3">
+              {resolved.map(card)}
+            </ResolvedPanel>
+          </Collapsible>
         )}
-        {showResolved && resolved.map(card)}
       </div>
       <p className="mt-1 text-[11px] leading-4 text-muted-foreground touch:hidden">
         Alt+↑ / Alt+↓ move between discussions · {mod} comments on selected text

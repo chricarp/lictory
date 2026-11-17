@@ -45,6 +45,16 @@ test.beforeAll(async () => {
     description: specification,
   });
   callbackItem = await seedItem(seeded, { title: "Late callbacks" });
+  // A decision is recorded on a work item's revision; the late callbacks item
+  // carries it, so the retry ledger's revisions stay the ones its tests count.
+  await seeded.command({
+    type: "recordDecision",
+    workItemId: callbackItem,
+    baseRevisionId: (await currentRevision(callbackItem)).id,
+    decisionId: crypto.randomUUID(),
+    title: "Retries reuse the original payment",
+    body: "A retry reuses the original transaction ID.",
+  });
   const spaceId = crypto.randomUUID();
   await seeded.command({
     type: "createSpace",
@@ -229,4 +239,37 @@ test("discussions and new items write in the same editor", async ({ page }) => {
   await expect(description.locator("li")).toHaveText(
     "Duplicate callbacks are ignored",
   );
+});
+
+test("the toolbar's Insert menu opens the decision picker and keeps it open for the keyboard", async ({
+  page,
+}) => {
+  const editor = await openSpecification(page);
+  await editor.getByText("Retries reuse the original transaction ID.").click();
+  await page.keyboard.press(lineEnd);
+  const toolbar = page.getByRole("toolbar", {
+    name: "Specification formatting",
+  });
+  await toolbar.getByRole("button", { name: "Insert" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  // Arrow keys reach "Decision"; the editor holds no focus meanwhile.
+  const decision = page.getByRole("menuitem", { name: /Decision/ });
+  while (!(await decision.evaluate((n) => n === document.activeElement)))
+    await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  // The picker takes focus and stays: the editor does not pull it back.
+  const picker = page.getByRole("combobox", { name: "Find a decision" });
+  await expect(picker).toBeFocused();
+  await page.waitForTimeout(500);
+  await expect(picker).toBeFocused();
+  await picker.fill("retries");
+  await page
+    .getByRole("listbox", { name: "Decisions" })
+    .getByRole("option", { name: /Retries reuse the original payment/ })
+    .click();
+  await expect(
+    editor.locator('[data-type="decisionRef"]').first(),
+  ).toBeVisible();
+  await expect(editor).toBeFocused();
 });
