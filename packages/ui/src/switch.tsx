@@ -18,7 +18,7 @@ export function Switch({
   return (
     <SwitchPrimitive
       className={cn(
-        "relative m-0 inline-flex shrink-0 cursor-default items-center rounded-full border-0 bg-muted-foreground/25 p-0 transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-40",
+        "relative m-0 inline-flex shrink-0 cursor-default items-center rounded-full border-0 bg-muted-foreground/25 p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-40",
         size === "md" ? "h-5 w-9" : "h-4 w-7",
         lastInFlow,
         className,
