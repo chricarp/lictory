@@ -261,18 +261,18 @@ export function WorkspaceProvider({
       if (notified.has(rejection.mutationId)) return;
       notified.add(rejection.mutationId);
       const text = rejection.recoverable ? recoveryText(rejection.command) : "";
-      toast.add({
+      toast({
         title: "Change not applied",
         type: "error",
         id: rejection.mutationId,
         description: rejection.recoverable
           ? `${rejection.message} Your text is kept on this device.`
           : rejection.message,
-        timeout: 8000,
-        actionProps: text
+        duration: 8000,
+        action: text
           ? {
-              children: "Copy text",
-              onClick: () => void navigator.clipboard?.writeText(text),
+              label: "Copy text",
+              onAction: () => void navigator.clipboard?.writeText(text),
             }
           : undefined,
       });
@@ -323,11 +323,11 @@ export function WorkspaceProvider({
             )
           : undefined;
       if (blocker) {
-        toast.add({
+        toast({
           title: "Change not applied",
           type: "error",
           description: blocker,
-          timeout: 8000,
+          duration: 8000,
         });
         return;
       }

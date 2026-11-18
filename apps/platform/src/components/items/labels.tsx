@@ -1,5 +1,7 @@
 import { DropdownItem } from "@lictory/ui/dropdown";
 import { useState } from "react";
+import { Input } from "@ui-sdk/react/input";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Flag, Plus, Tag } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import {
@@ -147,36 +149,33 @@ export function LabelPicker({
               void create();
             }}
           >
-            <input
+            <Input
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onValueChange={setName}
               placeholder="Label name"
               aria-label="Label name"
               className="h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
             />
-            <div
-              className="flex flex-wrap gap-1"
-              role="radiogroup"
+            <RadioGroup<LabelColor>
+              className="flex flex-row flex-wrap gap-1"
               aria-label="Color"
+              value={color}
+              onValueChange={(next) => {
+                if (next) setColor(next);
+              }}
             >
               {labelColors.map((c) => (
-                <button
+                <Radio
                   key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={color === c}
+                  value={c}
                   aria-label={c}
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    "grid size-6 place-items-center rounded-md hover:bg-muted",
-                    color === c && "ring-2 ring-ring/60",
-                  )}
+                  className="grid size-6 place-items-center rounded-md hover:bg-muted data-checked:ring-2 data-checked:ring-ring/60"
                 >
                   <ColorDot color={c} />
-                </button>
+                </Radio>
               ))}
-            </div>
+            </RadioGroup>
             <div className="flex justify-end gap-1">
               <Button
                 type="button"
@@ -288,10 +287,10 @@ export function MilestonePicker({
             void create();
           }}
         >
-          <input
+          <Input
             autoFocus
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onValueChange={setName}
             placeholder="Milestone name"
             aria-label="Milestone name"
             className="h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"

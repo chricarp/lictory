@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Archive, ArchiveRestore, Plus, Shapes } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { labelColorClasses } from "@lictory/core/lib/work-items";
@@ -13,6 +14,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Input } from "@lictory/ui/input";
 import { Popover } from "@lictory/ui/popover";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -116,16 +118,19 @@ export function OrganizationTypes() {
                 <span className="w-24 text-xs text-muted-foreground">
                   {levelLabel[t.level]}
                 </span>
-                <label className="flex items-center gap-1.5 text-xs">
-                  <input
-                    type="checkbox"
+                <label
+                  htmlFor={`type-specification-${t.id}`}
+                  className="flex items-center gap-1.5 text-xs"
+                >
+                  <Checkbox
+                    id={`type-specification-${t.id}`}
                     disabled={!isAdmin}
                     checked={t.hasSpecification}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       void run({
                         type: "updateType",
                         typeId: t.id,
-                        hasSpecification: e.target.checked,
+                        hasSpecification: checked === true,
                       })
                     }
                   />
@@ -190,40 +195,52 @@ export function OrganizationTypes() {
                 </button>
               )}
             >
-              <div className="grid grid-cols-7 gap-1 p-2">
-                {icons.map((icon) => (
-                  <button
-                    key={icon}
-                    type="button"
-                    aria-label={icon}
-                    onClick={() => setDraft({ ...draft, icon })}
-                    className={cn(
-                      "grid size-7 place-items-center rounded hover:bg-muted",
-                      draft.icon === icon && "bg-muted",
-                    )}
-                  >
-                    <TypeIcon type={{ icon, color: draft.color, name: icon }} />
-                  </button>
-                ))}
-                {labelColors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    aria-label={color}
-                    onClick={() => setDraft({ ...draft, color })}
-                    className={cn(
-                      "grid size-7 place-items-center rounded hover:bg-muted",
-                      draft.color === color && "bg-muted",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "size-3 rounded-full",
-                        labelColorClasses[color].dot,
-                      )}
-                    />
-                  </button>
-                ))}
+              <div className="space-y-1 p-2">
+                <RadioGroup<WorkItemType["icon"]>
+                  aria-label="Icon"
+                  value={draft.icon}
+                  onValueChange={(icon) => {
+                    if (icon) setDraft({ ...draft, icon });
+                  }}
+                  className="grid grid-cols-7 gap-1"
+                >
+                  {icons.map((icon) => (
+                    <Radio
+                      key={icon}
+                      value={icon}
+                      aria-label={icon}
+                      className="grid size-7 cursor-default place-items-center rounded hover:bg-muted data-checked:bg-muted"
+                    >
+                      <TypeIcon
+                        type={{ icon, color: draft.color, name: icon }}
+                      />
+                    </Radio>
+                  ))}
+                </RadioGroup>
+                <RadioGroup<LabelColor>
+                  aria-label="Color"
+                  value={draft.color}
+                  onValueChange={(color) => {
+                    if (color) setDraft({ ...draft, color });
+                  }}
+                  className="grid grid-cols-7 gap-1"
+                >
+                  {labelColors.map((color) => (
+                    <Radio
+                      key={color}
+                      value={color}
+                      aria-label={color}
+                      className="grid size-7 cursor-default place-items-center rounded hover:bg-muted data-checked:bg-muted"
+                    >
+                      <span
+                        className={cn(
+                          "size-3 rounded-full",
+                          labelColorClasses[color].dot,
+                        )}
+                      />
+                    </Radio>
+                  ))}
+                </RadioGroup>
               </div>
             </Popover>
             <Input
@@ -248,12 +265,15 @@ export function OrganizationTypes() {
                 </DropdownSelectOption>
               ))}
             </DropdownSelect>
-            <label className="flex items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
+            <label
+              htmlFor="new-type-specification"
+              className="flex items-center gap-1.5 text-xs"
+            >
+              <Checkbox
+                id="new-type-specification"
                 checked={draft.hasSpecification}
-                onChange={(e) =>
-                  setDraft({ ...draft, hasSpecification: e.target.checked })
+                onCheckedChange={(checked) =>
+                  setDraft({ ...draft, hasSpecification: checked === true })
                 }
               />
               Specification

@@ -18,13 +18,14 @@ import {
   ScrollText,
   Search,
 } from "lucide-react";
+import { Input } from "@ui-sdk/react/input";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
   KnowledgeKind,
   KnowledgeResult,
 } from "@lictory/core/capabilities/product-knowledge";
 import { paths } from "@lictory/core/lib/paths";
-import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
 import {
@@ -372,7 +373,7 @@ export function SearchResults() {
               className="size-4 shrink-0 text-muted-foreground"
               aria-hidden
             />
-            <input
+            <Input
               type="search"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -382,29 +383,24 @@ export function SearchResults() {
             />
           </form>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <div
-              role="radiogroup"
+            <RadioGroup
               aria-label="Kind"
-              className="flex flex-wrap items-center gap-1"
+              value={filter}
+              onValueChange={(kind) => {
+                if (kind !== null && kind !== filter) navigate({ kind });
+              }}
+              className="flex flex-row flex-wrap items-center gap-1"
             >
               {filters.map((f) => (
-                <button
+                <Radio
                   key={f.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={filter === f.id}
-                  onClick={() => navigate({ kind: f.id })}
-                  className={cn(
-                    "inline-flex h-7 items-center rounded-full px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                    filter === f.id
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground ring-1 ring-foreground/10 hover:text-foreground",
-                  )}
+                  value={f.id}
+                  className="inline-flex h-7 items-center rounded-full px-3 text-[13px] text-muted-foreground ring-1 ring-foreground/10 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-foreground data-checked:text-background data-checked:ring-0 data-checked:hover:text-background data-checked:focus-visible:ring-2"
                 >
                   {f.label}
-                </button>
+                </Radio>
               ))}
-            </div>
+            </RadioGroup>
             {visibleProjects.length > 1 && (
               <label
                 htmlFor={projectField}

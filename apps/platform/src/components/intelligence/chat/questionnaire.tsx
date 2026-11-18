@@ -32,8 +32,8 @@ import type {
 } from "@lictory/core/intelligence/chat/shared";
 import { cn } from "@lictory/core/lib/utils";
 
-// Clarifying questions Litto asks before it acts (Questionnaire, shadcn/ui):
-// one question at a time, letters pick an answer, Enter continues, optional
+// Clarifying questions Litto asks before it acts (Questionnaire): one
+// question at a time, letters pick an answer, Enter continues, optional
 // questions can be skipped, and "Answer in the chat instead" dismisses the
 // whole set. Nothing is sent until the last question is submitted.
 export function Questionnaire({
@@ -102,6 +102,7 @@ export function Questionnaire({
           clearTimeout(advance.current);
           setActive(next);
         }}
+        onSkip={(id) => setTexts((all) => ({ ...all, [id]: "" }))}
         shortcuts="letters"
         onSubmit={submit}
         className="gap-0"
@@ -152,21 +153,18 @@ export function Questionnaire({
                 </QuestionnaireDescription>
               )}
               {q.kind !== "text" && q.options.length > 0 && (
-                <QuestionnaireChoices>
+                <QuestionnaireChoices
+                  onValueChange={() => {
+                    const next = questions[index + 1];
+                    if (q.kind !== "single" || q.allowOther || !next) return;
+                    clearTimeout(advance.current);
+                    advance.current = setTimeout(() => setActive(next.id), 320);
+                  }}
+                >
                   {q.options.map((option) => (
                     <QuestionnaireChoice
                       key={option.value}
                       value={option.value}
-                      onChange={() => {
-                        const next = questions[index + 1];
-                        if (q.kind !== "single" || q.allowOther || !next)
-                          return;
-                        clearTimeout(advance.current);
-                        advance.current = setTimeout(
-                          () => setActive(next.id),
-                          320,
-                        );
-                      }}
                     >
                       <QuestionnaireChoiceTitle>
                         {option.label}
@@ -184,8 +182,8 @@ export function Questionnaire({
                 <QuestionnaireInput
                   multiline={q.kind === "text"}
                   value={texts[q.id] ?? ""}
-                  onChange={(e) =>
-                    setTexts((all) => ({ ...all, [q.id]: e.target.value }))
+                  onValueChange={(text) =>
+                    setTexts((all) => ({ ...all, [q.id]: text }))
                   }
                   aria-label={
                     q.kind === "text"

@@ -1,7 +1,9 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
 import { useCallback, useEffect, useState } from "react";
+import { Toggle } from "@ui-sdk/react/toggle";
 import { Bell, BellOff } from "lucide-react";
-import { Button } from "@lictory/ui/button";
+import { buttonClass } from "@lictory/ui/button";
+import { DropdownItem } from "@lictory/ui/dropdown";
+import { cn } from "@lictory/core/lib/utils";
 import { notificationRequest } from "@lictory/platform/components/notifications/client";
 
 // Last known explicit choice per item, so revisiting an item shows its button
@@ -71,11 +73,10 @@ export function WatchButton({
   };
   if (appearance === "menuitem")
     return (
-      <DropdownItem
-        type="button"
-        aria-pressed={watching}
-        className={className}
-        onClick={() => void toggle()}
+      <Toggle
+        pressed={watching}
+        onPressedChange={() => void toggle()}
+        render={<DropdownItem className={className} />}
       >
         {watching ? (
           <Bell className="size-3.5 text-muted-foreground" aria-hidden />
@@ -83,20 +84,18 @@ export function WatchButton({
           <BellOff className="size-3.5 text-muted-foreground" aria-hidden />
         )}
         {watching ? "Watching" : "Watch"}
-      </DropdownItem>
+      </Toggle>
     );
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={className}
-      aria-pressed={watching}
+    <Toggle
+      pressed={watching}
+      onPressedChange={() => void toggle()}
+      className={cn(buttonClass({ variant: "ghost", size: "sm" }), className)}
       title={
         watching
           ? "You get notifications about changes to this item. Click to stop."
           : "Get notified about changes to this item."
       }
-      onClick={() => void toggle()}
     >
       {watching ? (
         <Bell className="size-3.5" />
@@ -106,6 +105,6 @@ export function WatchButton({
       <span className="max-sm:sr-only @max-[62rem]/frame:sr-only">
         {watching ? "Watching" : "Watch"}
       </span>
-    </Button>
+    </Toggle>
   );
 }

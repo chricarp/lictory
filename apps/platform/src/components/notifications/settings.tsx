@@ -3,9 +3,10 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Popover, Picker } from "@lictory/ui/popover";
+import { Switch } from "@lictory/ui/switch";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
   categoryLabels,
@@ -327,23 +328,24 @@ export function NotificationSettings() {
                                 {def.description}
                               </p>
                               {effective.inApp && (
-                                <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                                  <input
-                                    type="checkbox"
-                                    className="size-3.5 accent-primary"
+                                <label className="mt-1 flex min-h-5.5 w-fit items-start gap-1.5 text-xs text-muted-foreground">
+                                  <Checkbox
+                                    className="mt-px size-3.5"
                                     checked={effective.email}
-                                    onChange={(e) =>
-                                      set(true, e.target.checked)
+                                    onCheckedChange={(checked) =>
+                                      set(true, checked === true)
                                     }
                                   />
                                   Also send an email
                                 </label>
                               )}
                             </div>
-                            <Toggle
-                              label={def.label}
+                            <Switch
+                              aria-label={def.label}
                               checked={effective.inApp}
-                              onChange={(v) => set(v, v && effective.email)}
+                              onCheckedChange={(on) =>
+                                set(on, on && effective.email)
+                              }
                             />
                           </li>
                         );
@@ -355,41 +357,5 @@ export function NotificationSettings() {
         </div>
       </div>
     </div>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <span className="flex shrink-0 justify-center">
-      <button
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40",
-          checked ? "bg-primary" : "bg-muted-foreground/25",
-        )}
-      >
-        <span
-          aria-hidden
-          className={cn(
-            "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
-            checked ? "translate-x-4.5" : "translate-x-0.5",
-          )}
-        />
-      </button>
-    </span>
   );
 }

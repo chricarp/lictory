@@ -14,6 +14,12 @@ import {
   GitPullRequestDraft,
   Loader2,
 } from "lucide-react";
+import {
+  Tabs as TabsRoot,
+  TabsList,
+  TabsPanel,
+  TabsTab,
+} from "@ui-sdk/react/tabs";
 import { cn } from "@lictory/core/lib/utils";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 
@@ -158,54 +164,40 @@ export type TabSpec<T extends string> = {
   dot?: boolean;
 };
 
-// Underlined, keyboard-accessible tabs (arrow keys move between them).
+// Underlined tabs over the views of one screen: arrow keys move between
+// them. A view's content goes in a `TabPanel` with the tab's id.
 export function Tabs<T extends string>({
   label,
   value,
   onChange,
   tabs,
+  className,
+  children,
 }: {
   label: string;
   value: T;
   onChange: (value: T) => void;
   tabs: TabSpec<T>[];
+  className?: string;
+  children?: ReactNode;
 }) {
   return (
-    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the tabs (roving tabindex); the WAI-ARIA tab list itself is not a tab stop.
-    <div
-      role="tablist"
-      aria-label={label}
-      className="flex gap-1 overflow-x-auto border-b"
-      onKeyDown={(e) => {
-        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-        const i = tabs.findIndex((t) => t.id === value);
-        const next =
-          tabs[
-            (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length
-          ]!;
-        onChange(next.id);
-        e.currentTarget
-          .querySelector<HTMLButtonElement>(`[data-tab="${next.id}"]`)
-          ?.focus();
+    <TabsRoot
+      value={value}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
       }}
+      className={cn("block", className)}
     >
-      {tabs.map((t) => {
-        const selected = t.id === value;
-        return (
-          <button
+      <TabsList
+        aria-label={label}
+        className="flex gap-1 overflow-x-auto border-b"
+      >
+        {tabs.map((t) => (
+          <TabsTab
             key={t.id}
-            type="button"
-            role="tab"
-            data-tab={t.id}
-            aria-selected={selected}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => onChange(t.id)}
-            className={cn(
-              "relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 px-2.5 text-[13px] whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-              selected
-                ? "border-foreground font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
+            value={t.id}
+            className="relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-selected:border-foreground data-selected:font-medium data-selected:text-foreground"
           >
             {t.icon}
             {t.label}
@@ -221,10 +213,31 @@ export function Tabs<T extends string>({
                 className="size-1.5 rounded-full bg-warning"
               />
             )}
-          </button>
-        );
-      })}
-    </div>
+          </TabsTab>
+        ))}
+      </TabsList>
+      {children}
+    </TabsRoot>
+  );
+}
+
+// The content of one tab. `keepMounted` keeps it in the page, hidden, while
+// another tab shows.
+export function TabPanel({
+  value,
+  keepMounted,
+  className,
+  children,
+}: {
+  value: string;
+  keepMounted?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <TabsPanel value={value} keepMounted={keepMounted} className={className}>
+      {children}
+    </TabsPanel>
   );
 }
 

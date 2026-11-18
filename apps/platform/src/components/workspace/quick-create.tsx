@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+} from "@ui-sdk/react/dialog";
+import { Input } from "@ui-sdk/react/input";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import { X } from "lucide-react";
 import { EpicPicker } from "@lictory/platform/components/items/epic-picker";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Button } from "@lictory/ui/button";
+import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
+import { popupContainer } from "@lictory/ui/popup";
 import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Kbd } from "@lictory/ui/primitives";
 import { Popover, Picker } from "@lictory/ui/popover";
@@ -90,6 +98,8 @@ export function QuickCreate({
   const [pending, setPending] = useState(false);
   const [created, setCreated] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Opened by a tap, the dialog would keep focus on itself to hold back the
+  // on-screen keyboard; the title is ready to type on a phone too.
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -165,280 +175,245 @@ export function QuickCreate({
     setDescription("");
     inputRef.current?.focus();
   };
-  return createPortal(
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape bubbles from the dialog's controls; the backdrop is not a control.
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 px-4 pt-[12vh] pb-4"
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
+      container={popupContainer()}
     >
-      <button
-        aria-label="Close"
-        className="absolute inset-0"
-        onClick={onClose}
-      />
-      <form
-        role="dialog"
-        aria-modal="true"
+      <DialogBackdrop className={dialogBackdropClass} />
+      <DialogContent
         aria-label={`Create ${name.toLowerCase()}`}
-        className="relative flex max-h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border bg-popover shadow-(--shadow-panel)"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit(true);
-        }}
+        initialFocus={() => inputRef.current}
+        className={cn(
+          dialogPanelClass,
+          "top-[12vh] max-h-[calc(100dvh-12vh-1rem)] max-w-xl gap-0",
+        )}
       >
-        <div className="flex shrink-0 items-start gap-3 px-4 pt-4 pb-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold">
-              {options.intent === "proposal" ? "New proposal" : "New work item"}
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {options.intent === "proposal"
-                ? "Capture the idea. Refine and review it with your team next."
-                : "Start with a title. Add the details as you go."}
-            </p>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit(true);
+          }}
+        >
+          <div className="flex shrink-0 items-start gap-3 px-4 pt-4 pb-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold">
+                {options.intent === "proposal"
+                  ? "New proposal"
+                  : "New work item"}
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {options.intent === "proposal"
+                  ? "Capture the idea. Refine and review it with your team next."
+                  : "Start with a title. Add the details as you go."}
+              </p>
+            </div>
+            <DialogClose
+              aria-label="Close"
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+            >
+              <X className="size-4" />
+            </DialogClose>
           </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 pb-3">
-          {type && (
-            <Popover
-              width={220}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  type="button"
-                  aria-label={`Type: ${type.name}`}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium hover:bg-muted/70"
-                >
-                  <TypeIcon type={type} />
-                  {type.name}
-                </button>
-              )}
-            >
-              <Picker
-                title="Type"
-                options={types.map((t) => ({
-                  value: t.id,
-                  label: t.name,
-                  icon: <TypeIcon type={t} />,
-                  hint: t.hasSpecification ? "Specification" : undefined,
-                }))}
-                value={type.id}
-                onSelect={(id) => {
-                  setTypeId(id);
-                  setParentId(null);
-                }}
-              />
-            </Popover>
-          )}
-          {projects.length > 1 && (
-            <Popover
-              width={220}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  type="button"
-                  aria-label={`Project: ${project?.name ?? "Choose project"}`}
-                  className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
-                >
-                  {project?.name ?? "Project"}
-                </button>
-              )}
-            >
-              <Picker
-                title="Project"
-                options={projects.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  hint: p.key,
-                }))}
-                value={projectId}
-                onSelect={(id) => {
-                  setProjectId(id);
-                  setTeamId(null);
-                  setTypeId(undefined);
-                  setParentId(null);
-                }}
-              />
-            </Popover>
-          )}
-          {activeTeams.length > 0 && (
-            <Popover
-              width={220}
-              trigger={(props) => (
-                <button
-                  {...props}
-                  type="button"
-                  aria-label={`Team: ${team?.name ?? "No team"}`}
-                  className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
-                >
-                  {team?.name ?? "No team"}
-                </button>
-              )}
-            >
-              <Picker
-                title="Team"
-                options={[
-                  { value: "none", label: "No team" },
-                  ...activeTeams.map((t) => ({ value: t.id, label: t.name })),
-                ]}
-                value={team?.id ?? "none"}
-                onSelect={(v) => setTeamId(v === "none" ? null : v)}
-              />
-            </Popover>
-          )}
-        </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          <input
-            ref={inputRef}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={`${name} title`}
-            aria-label="Title"
-            className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
-          />
-          {type && hasParentTypes && projectId && (
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 pb-3">
+            {type && (
+              <Popover
+                width={220}
+                trigger={(props) => (
+                  <button
+                    {...props}
+                    type="button"
+                    aria-label={`Type: ${type.name}`}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium hover:bg-muted/70"
+                  >
+                    <TypeIcon type={type} />
+                    {type.name}
+                  </button>
+                )}
+              >
+                <Picker
+                  title="Type"
+                  options={types.map((t) => ({
+                    value: t.id,
+                    label: t.name,
+                    icon: <TypeIcon type={t} />,
+                    hint: t.hasSpecification ? "Specification" : undefined,
+                  }))}
+                  value={type.id}
+                  onSelect={(id) => {
+                    setTypeId(id);
+                    setParentId(null);
+                  }}
+                />
+              </Popover>
+            )}
+            {projects.length > 1 && (
+              <Popover
+                width={220}
+                trigger={(props) => (
+                  <button
+                    {...props}
+                    type="button"
+                    aria-label={`Project: ${project?.name ?? "Choose project"}`}
+                    className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+                  >
+                    {project?.name ?? "Project"}
+                  </button>
+                )}
+              >
+                <Picker
+                  title="Project"
+                  options={projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    hint: p.key,
+                  }))}
+                  value={projectId}
+                  onSelect={(id) => {
+                    setProjectId(id);
+                    setTeamId(null);
+                    setTypeId(undefined);
+                    setParentId(null);
+                  }}
+                />
+              </Popover>
+            )}
+            {activeTeams.length > 0 && (
+              <Popover
+                width={220}
+                trigger={(props) => (
+                  <button
+                    {...props}
+                    type="button"
+                    aria-label={`Team: ${team?.name ?? "No team"}`}
+                    className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted"
+                  >
+                    {team?.name ?? "No team"}
+                  </button>
+                )}
+              >
+                <Picker
+                  title="Team"
+                  options={[
+                    { value: "none", label: "No team" },
+                    ...activeTeams.map((t) => ({ value: t.id, label: t.name })),
+                  ]}
+                  value={team?.id ?? "none"}
+                  onSelect={(v) => setTeamId(v === "none" ? null : v)}
+                />
+              </Popover>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <Input
+              ref={inputRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={`${name} title`}
+              aria-label="Title"
+              className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
+            />
+            {type && hasParentTypes && projectId && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-xs font-medium">
+                  Parent{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </p>
+                <EpicPicker
+                  key={`${projectId}:${type.id}`}
+                  parentId={parentId}
+                  projectId={projectId}
+                  childTypeId={type.id}
+                  projectKey={project?.key}
+                  selected={
+                    parent
+                      ? {
+                          id: parent.id,
+                          projectId: parent.projectId,
+                          typeId: parent.typeId,
+                          number: parent.number,
+                          title: parent.title,
+                        }
+                      : undefined
+                  }
+                  onChange={setParentId}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Link this {name.toLowerCase()} to the larger piece of work it
+                  contributes to.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5 pt-1">
               <p className="text-xs font-medium">
-                Parent{" "}
+                Description{" "}
                 <span className="font-normal text-muted-foreground">
                   (optional)
                 </span>
               </p>
-              <EpicPicker
-                key={`${projectId}:${type.id}`}
-                parentId={parentId}
-                projectId={projectId}
-                childTypeId={type.id}
-                projectKey={project?.key}
-                selected={
-                  parent
-                    ? {
-                        id: parent.id,
-                        projectId: parent.projectId,
-                        typeId: parent.typeId,
-                        number: parent.number,
-                        title: parent.title,
-                      }
-                    : undefined
+              <MarkdownEditor
+                value={description}
+                onValueChange={setDescription}
+                placeholder={
+                  type?.hasSpecification
+                    ? "What problem should this solve? Describe expected behavior, acceptance criteria and important failure cases… (Markdown)"
+                    : "What needs to be done… (Markdown)"
                 }
-                onChange={setParentId}
+                aria-label="Description"
+                compact
+                minHeight="6rem"
+                maxHeight="20rem"
               />
-              <p className="text-[11px] text-muted-foreground">
-                Link this {name.toLowerCase()} to the larger piece of work it
-                contributes to.
-              </p>
             </div>
-          )}
-          <div className="space-y-1.5 pt-1">
-            <p className="text-xs font-medium">
-              Description{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </p>
-            <MarkdownEditor
-              value={description}
-              onValueChange={setDescription}
-              placeholder={
-                type?.hasSpecification
-                  ? "What problem should this solve? Describe expected behavior, acceptance criteria and important failure cases… (Markdown)"
-                  : "What needs to be done… (Markdown)"
-              }
-              aria-label="Description"
-              compact
-              minHeight="6rem"
-              maxHeight="20rem"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {type?.hasSpecification
-              ? "Capture a proposal now and refine it with the team. Creating it does not commit it to delivery."
-              : "This item goes to delivery. If it has a parent specification, that specification’s readiness still applies."}
-          </p>
-          {!type && project && (
             <p className="text-xs text-muted-foreground">
-              {options.intent === "proposal" && availableTypes.length
-                ? "No specification types are enabled for your disciplines in this project. Choose a project with a specification type to create a proposal."
-                : `Your disciplines in ${project.name} cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.`}
+              {type?.hasSpecification
+                ? "Capture a proposal now and refine it with the team. Creating it does not commit it to delivery."
+                : "This item goes to delivery. If it has a parent specification, that specification’s readiness still applies."}
             </p>
-          )}
-          {error && (
-            <p role="alert" className="text-xs text-destructive">
-              {error}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
-          {created > 0 && <span>{created} created</span>}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            disabled={!title.trim() || !type || pending}
-            onClick={() => void submit(false)}
-          >
-            Create another
-          </Button>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!title.trim() || !type || pending}
-          >
-            {pending ? "Creating…" : "Create & open"}{" "}
-            <span aria-hidden="true">
-              <Kbd>↵</Kbd>
-            </span>
-          </Button>
-        </div>
-      </form>
-    </div>,
-    document.body,
-  );
-}
-
-export function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (value: T) => void;
-  options: { value: T; label: string; icon?: React.ReactNode }[];
-}) {
-  return (
-    <div
-      role="radiogroup"
-      className="inline-flex h-7 items-center rounded-md bg-muted p-0.5"
-    >
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-medium",
-            value === o.value
-              ? "bg-card text-foreground shadow-(--shadow-border)"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.icon}
-          {o.label}
-        </button>
-      ))}
-    </div>
+            {!type && project && (
+              <p className="text-xs text-muted-foreground">
+                {options.intent === "proposal" && availableTypes.length
+                  ? "No specification types are enabled for your disciplines in this project. Choose a project with a specification type to create a proposal."
+                  : `Your disciplines in ${project.name} cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.`}
+              </p>
+            )}
+            {error && (
+              <p role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+            {created > 0 && <span>{created} created</span>}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              disabled={!title.trim() || !type || pending}
+              onClick={() => void submit(false)}
+            >
+              Create another
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!title.trim() || !type || pending}
+            >
+              {pending ? "Creating…" : "Create & open"}{" "}
+              <span aria-hidden="true">
+                <Kbd>↵</Kbd>
+              </span>
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

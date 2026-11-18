@@ -2,12 +2,13 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import {
+  collectOptions,
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  textOf,
 } from "@lictory/ui/select";
 
 type DropdownSelectProps = Pick<
@@ -30,7 +31,7 @@ type DropdownSelectProps = Pick<
   children: ReactNode;
 };
 
-// Radix reserves an empty string for placeholders. Encode option values so
+// An empty string is "nothing chosen" to the select. Encode option values so
 // domain choices such as “main” and “Not exported” can still use an empty ID.
 const encodeValue = (value: string | number) => `value:${value}`;
 
@@ -50,6 +51,16 @@ export function DropdownSelect({
       : selection === "" && placeholder
         ? ""
         : encodeValue(selection);
+  const options = collectOptions(children, (element) => {
+    if (element.type !== DropdownSelectOption) return;
+    const option = element.props as ComponentProps<typeof DropdownSelectOption>;
+    return {
+      value: encodeValue(option.value),
+      label: option.label ?? textOf(option.children),
+      node: option.children,
+      disabled: option.disabled,
+    };
+  });
   return (
     <Select
       value={encodeSelection(value)}
@@ -57,15 +68,14 @@ export function DropdownSelect({
       onValueChange={(selection) =>
         onValueChange(selection.slice("value:".length))
       }
+      options={options}
       disabled={disabled}
       required={required}
     >
       <SelectTrigger {...triggerProps}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>{children}</SelectGroup>
-      </SelectContent>
+      <SelectContent>{children}</SelectContent>
     </Select>
   );
 }

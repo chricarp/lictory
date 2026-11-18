@@ -4,6 +4,12 @@ import type { SpaceAccessLevel } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
 import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -121,32 +127,25 @@ export function SpacesIndex() {
               </div>
             ) : null}
             {archived.length > 0 && (
-              <div>
-                <button
-                  type="button"
-                  aria-expanded={showArchived}
-                  onClick={() => setShowArchived((v) => !v)}
-                  className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-                >
+              <Collapsible open={showArchived} onOpenChange={setShowArchived}>
+                <CollapsibleTrigger className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
                   <Archive className="size-3.5" aria-hidden />
                   {showArchived
                     ? "Hide archived spaces"
                     : `Show archived spaces (${archived.length})`}
-                </button>
-                {showArchived && (
-                  <div className="mt-3">
-                    <SpaceList
-                      groups={[
-                        {
-                          key: "archived",
-                          title: "Archived",
-                          spaces: archived,
-                        },
-                      ]}
-                    />
-                  </div>
-                )}
-              </div>
+                </CollapsibleTrigger>
+                <CollapsiblePanel className="mt-3">
+                  <SpaceList
+                    groups={[
+                      {
+                        key: "archived",
+                        title: "Archived",
+                        spaces: archived,
+                      },
+                    ]}
+                  />
+                </CollapsiblePanel>
+              </Collapsible>
             )}
           </div>
         )}
@@ -174,7 +173,7 @@ function SpaceFilter({
         className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
         aria-hidden
       />
-      <input
+      <InputPrimitive
         type="search"
         aria-label="Filter spaces"
         placeholder="Filter spaces"

@@ -347,13 +347,15 @@ test("removing a member takes the organization away from their open workspace an
     zero.restore();
 
     await expect(
-      ben.page.getByRole("dialog", {
-        name: "Organization access has been removed.",
+      ben.page.locator('[data-slot="toast"]', {
+        hasText: "Organization access has been removed.",
       }),
     ).toBeVisible({ timeout: 30_000 });
     // The change made from the outdated view was refused, not applied.
     await expect(
-      ben.page.getByRole("dialog", { name: "Change not applied" }),
+      ben.page.locator('[data-slot="toast"]', {
+        hasText: "Change not applied",
+      }),
     ).toContainText("You are not a member of this organization.");
     await expect(ben.page).toHaveURL(appHome);
     await expect(ben.page.getByText("Dispute evidence")).toHaveCount(0);
@@ -493,7 +495,7 @@ test("signing out removes the workspace from the browser before someone else sig
     expect((await databases()).some((name) => name.includes(owner))).toBe(true);
 
     await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
     expect((await databases()).some((name) => name.includes(owner))).toBe(
       false,

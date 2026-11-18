@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { IntelligenceMark, useAfterglow } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
+import { Switch } from "@lictory/ui/switch";
 import {
   textProviders,
   transcriptionProviderOf,
@@ -83,32 +84,20 @@ function AiPolicySection() {
       title="Lictory Intelligence"
       description="Litto and AI reviews of work items and pull requests. Findings and changes are proposals; people decide."
       action={
-        <button
-          role="switch"
-          aria-checked={enabled}
+        <Switch
           aria-label="Allow Lictory Intelligence"
+          checked={enabled}
           disabled={!isAdmin || (!available && !enabled)}
-          onClick={async () => {
+          onCheckedChange={async (next) => {
             setError("");
             try {
-              await mutate({ type: "setAiPolicy", enabled: !enabled });
+              await mutate({ type: "setAiPolicy", enabled: next });
             } catch (e) {
               setError(e instanceof Error ? e.message : "Not saved.");
             }
           }}
-          className={cn(
-            "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40",
-            enabled ? "bg-foreground" : "bg-muted-foreground/25",
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
-              enabled ? "translate-x-4.5" : "translate-x-0.5",
-            )}
-          />
-        </button>
+          className="data-checked:bg-foreground"
+        />
       }
       footer={
         available

@@ -21,7 +21,14 @@ import {
   Plus,
   Search,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Input } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { MarkdownEditor } from "@lictory/platform/components/editor/markdown-editor";
 import { Markdown } from "@lictory/platform/components/items/markdown";
@@ -283,11 +290,10 @@ export function Decisions() {
       )}
       {decisions.some((d) => d.archivedAt) && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-          />{" "}
+            onCheckedChange={(checked) => setShowArchived(checked === true)}
+          />
           Show archived decisions
         </label>
       )}
@@ -343,11 +349,11 @@ export function Decisions() {
         >
           <label className="block space-y-1 text-xs font-medium">
             Conclusion
-            <input
+            <Input
               ref={titleRef}
               aria-label="Decision title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onValueChange={(value) => setTitle(value)}
               maxLength={240}
               required
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
@@ -426,96 +432,87 @@ export function Decisions() {
 
 function RelatedKnowledge() {
   const { item } = useItem();
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<KnowledgeResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   return (
-    <div className="space-y-2">
-      <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>
+    <Collapsible className="space-y-2">
+      <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
         <Search className="size-3.5" /> Find related agreements
-      </Button>
-      {open && (
-        <>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setLoading(true);
-              setError(undefined);
-              void callCapability<{ results: KnowledgeResult[] }>(
-                "searchProductKnowledge",
-                {
-                  organizationId: item.organizationId,
-                  projectId: item.projectId,
-                  query,
-                  limit: 5,
-                  kinds: ["decision", "approved", "delivered"],
-                },
+      </CollapsibleTrigger>
+      <CollapsiblePanel className="space-y-2">
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setLoading(true);
+            setError(undefined);
+            void callCapability<{ results: KnowledgeResult[] }>(
+              "searchProductKnowledge",
+              {
+                organizationId: item.organizationId,
+                projectId: item.projectId,
+                query,
+                limit: 5,
+                kinds: ["decision", "approved", "delivered"],
+              },
+            )
+              .then((r) => setResults(r.results))
+              .catch((e: unknown) =>
+                setError(
+                  e instanceof Error ? e.message : "Could not find agreements.",
+                ),
               )
-                .then((r) => setResults(r.results))
-                .catch((e: unknown) =>
-                  setError(
-                    e instanceof Error
-                      ? e.message
-                      : "Could not find agreements.",
-                  ),
-                )
-                .finally(() => setLoading(false));
-            }}
+              .finally(() => setLoading(false));
+          }}
+        >
+          <Input
+            aria-label="Search product agreements"
+            value={query}
+            onValueChange={(value) => setQuery(value)}
+            maxLength={200}
+            placeholder="Search decisions and specifications…"
+            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            disabled={loading}
           >
-            <input
-              aria-label="Search product agreements"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              maxLength={200}
-              placeholder="Search decisions and specifications…"
-              className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
-            />
-            <Button
-              type="submit"
-              size="sm"
-              variant="secondary"
-              disabled={loading}
-            >
-              Search
-            </Button>
-          </form>
-          {results?.length === 0 && (
+            Search
+          </Button>
+        </form>
+        {results?.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No recorded decisions or approved or delivered specifications match.
+          </p>
+        )}
+        {results?.map((r) => (
+          <div key={`${r.kind}:${r.id}`} className="rounded-md border p-3">
+            <Link href={r.href} className="text-sm font-medium hover:underline">
+              {r.title}
+            </Link>
             <p className="text-xs text-muted-foreground">
-              No recorded decisions or approved or delivered specifications
-              match.
+              {r.key} · revision {r.revisionNumber} ·{" "}
+              {r.kind === "decision"
+                ? "Recorded conclusion"
+                : r.kind === "delivered"
+                  ? "Recorded delivered scope"
+                  : "Approved intent"}
             </p>
-          )}
-          {results?.map((r) => (
-            <div key={`${r.kind}:${r.id}`} className="rounded-md border p-3">
-              <Link
-                href={r.href}
-                className="text-sm font-medium hover:underline"
-              >
-                {r.title}
-              </Link>
-              <p className="text-xs text-muted-foreground">
-                {r.key} · revision {r.revisionNumber} ·{" "}
-                {r.kind === "decision"
-                  ? "Recorded conclusion"
-                  : r.kind === "delivered"
-                    ? "Recorded delivered scope"
-                    : "Approved intent"}
-              </p>
-              <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
-                {r.excerpt}
-              </p>
-            </div>
-          ))}
-          {error && (
-            <p role="alert" className="text-xs text-destructive">
-              {error}
+            <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
+              {r.excerpt}
             </p>
-          )}
-        </>
-      )}
-    </div>
+          </div>
+        ))}
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }

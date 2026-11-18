@@ -103,12 +103,12 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
         icon={FileSearch}
         title={`${raw} was not found in ${project.name}`}
         action={
-          <Link
-            href={paths.items(organization.slug, project.key)}
-            className="contents"
+          <Button
+            variant="secondary"
+            render={<Link href={paths.items(organization.slug, project.key)} />}
           >
-            <Button variant="secondary">Back to all items</Button>
-          </Link>
+            Back to all items
+          </Button>
         }
       >
         It may belong to another project, or the identifier is misspelled.

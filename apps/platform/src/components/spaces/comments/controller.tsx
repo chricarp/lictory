@@ -339,11 +339,11 @@ export function PageComments({
         range.to,
       );
       if (!anchor) {
-        toast.add({
+        toast({
           title: "Select text to comment on",
           description:
             "Comments attach to text in a paragraph, heading, list item or table cell.",
-          timeout: 5000,
+          duration: 5000,
         });
         return;
       }

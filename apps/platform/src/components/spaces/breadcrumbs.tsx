@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { Popover, usePopover } from "@lictory/ui/popover";
 import { Link } from "@lictory/platform/lib/navigation";
 import type { Space, SpacePage } from "@lictory/platform/data/spaces";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@lictory/platform/components/spaces/menu";
 
 // Spaces › space › ancestors › page. Every page of a space shares its
 // access, so ancestors never reveal anything the reader cannot open. A page
@@ -142,54 +146,25 @@ function FoldedAncestors({
   href: (pageId: string) => string;
 }) {
   return (
-    <Popover
-      width={240}
-      trigger={(props) => (
-        <button
-          {...props}
-          type="button"
-          aria-label={`${ancestors.length} more ${ancestors.length === 1 ? "page" : "pages"} in the path`}
-          title={ancestors.map((a) => a.title).join(" › ")}
-          className="grid h-6 min-w-6 place-items-center rounded-sm px-1 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          …
-        </button>
-      )}
-    >
-      {(close) => (
-        <FoldedMenu ancestors={ancestors} href={href} close={close} />
-      )}
-    </Popover>
-  );
-}
-
-function FoldedMenu({
-  ancestors,
-  href,
-  close,
-}: {
-  ancestors: SpacePage[];
-  href: (pageId: string) => string;
-  close: () => void;
-}) {
-  const labelId = usePopover()?.labelId;
-  return (
-    <>
-      <h2 id={labelId} className="sr-only">
-        Pages in the path
-      </h2>
-      <Menu label="Pages in the path">
+    <Menu>
+      <MenuTrigger
+        aria-label={`${ancestors.length} more ${ancestors.length === 1 ? "page" : "pages"} in the path`}
+        title={ancestors.map((a) => a.title).join(" › ")}
+        className="grid h-6 min-w-6 place-items-center rounded-sm px-1 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        …
+      </MenuTrigger>
+      <MenuContent width={240} aria-label="Pages in the path">
         {ancestors.map((ancestor) => (
           <MenuItem
             key={ancestor.id}
             icon={<FileText />}
             href={href(ancestor.id)}
-            onSelect={close}
           >
             {ancestor.title}
           </MenuItem>
         ))}
-      </Menu>
-    </>
+      </MenuContent>
+    </Menu>
   );
 }

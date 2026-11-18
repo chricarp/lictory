@@ -1,6 +1,11 @@
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
   AlertTriangle,
   ArrowUpRight,
   ChevronRight,
@@ -21,6 +26,7 @@ import {
 } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { MissingState } from "@lictory/ui/status-page";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -50,12 +56,12 @@ export function Handoff() {
         icon={KanbanSquare}
         title={`${project.name} delivers in Lictory`}
         action={
-          <Link
-            href={paths.board(organization.slug, project.key)}
-            className="contents"
+          <Button
+            variant="secondary"
+            render={<Link href={paths.board(organization.slug, project.key)} />}
           >
-            <Button variant="secondary">Open board</Button>
-          </Link>
+            Open board
+          </Button>
         }
       >
         Ready work moves across the project&apos;s board and backlog; nothing is
@@ -409,15 +415,15 @@ function ExternalHandoff({ project }: { project: Project }) {
               )}
             </Group>
             {groups.refining.length > 0 && (
-              <details className="group rounded-xl bg-card shadow-(--shadow-border)">
-                <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold">
-                  <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-open:rotate-90" />
+              <Collapsible className="group rounded-xl bg-card shadow-(--shadow-border)">
+                <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left text-sm font-semibold">
+                  <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-data-open:rotate-90" />
                   Still in refinement
                   <span className="text-xs font-normal text-muted-foreground tabular-nums">
                     {groups.refining.length}
                   </span>
-                </summary>
-                <ul className="border-t">
+                </CollapsibleTrigger>
+                <CollapsiblePanel render={<ul />} className="border-t">
                   {groups.refining.map((item) => (
                     <li key={item.id}>
                       <ItemRow
@@ -435,8 +441,8 @@ function ExternalHandoff({ project }: { project: Project }) {
                       />
                     </li>
                   ))}
-                </ul>
-              </details>
+                </CollapsiblePanel>
+              </Collapsible>
             )}
             {!groups.ready.length &&
               !groups.delivered.length &&
@@ -446,12 +452,16 @@ function ExternalHandoff({ project }: { project: Project }) {
                   illustration="planning"
                   title="No specifications yet"
                   action={
-                    <Link
-                      href={paths.proposals(organization.slug, project.key)}
-                      className="contents"
+                    <Button
+                      variant="secondary"
+                      render={
+                        <Link
+                          href={paths.proposals(organization.slug, project.key)}
+                        />
+                      }
                     >
-                      <Button variant="secondary">Start with a proposal</Button>
-                    </Link>
+                      Start with a proposal
+                    </Button>
                   }
                 >
                   Capture a proposal in {project.name}, refine it with your
@@ -580,11 +590,10 @@ function ItemRow({
   return (
     <div className="relative flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-muted/50">
       {select && (
-        <input
-          type="checkbox"
+        <Checkbox
           aria-label={`Select ${label}`}
           checked={select.checked}
-          onChange={(e) => select.onChange(e.target.checked)}
+          onCheckedChange={(checked) => select.onChange(checked === true)}
           className="relative z-10"
         />
       )}

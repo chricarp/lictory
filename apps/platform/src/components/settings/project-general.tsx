@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Textarea } from "@ui-sdk/react/textarea";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import { Archive, ArchiveRestore, FolderKanban } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
@@ -51,9 +52,13 @@ export function ProjectGeneral({
               onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
             />
           </label>
-          <label className="flex flex-col gap-1 text-[13px]">
+          <label
+            htmlFor="project-description"
+            className="flex flex-col gap-1 text-[13px]"
+          >
             <span className="font-medium">Description</span>
-            <textarea
+            <Textarea
+              id="project-description"
               key={project.description ?? ""}
               aria-label="Project description"
               rows={3}

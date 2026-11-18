@@ -4,14 +4,21 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
-import { Popover, usePopover } from "@lictory/ui/popover";
-import { Menu, MenuItem } from "@lictory/platform/components/spaces/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@lictory/platform/components/spaces/menu";
 import { useMemo, useState } from "react";
 import type {
   PageMergeBlocker,
   SpaceEntityOf,
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
+import { Input } from "@ui-sdk/react/input";
+import { Textarea } from "@ui-sdk/react/textarea";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { mergeDocuments } from "@lictory/core/spaces/document/merge";
 import { canonicalizeDocument } from "@lictory/core/spaces/document/canonical";
 import { documentToMarkdown } from "@lictory/core/spaces/document/markdown";
@@ -181,7 +188,7 @@ export function PullRequests({
           </label>
           <label className="block text-sm">
             Title
-            <input
+            <Input
               required
               maxLength={200}
               className={`${field} mt-1`}
@@ -191,18 +198,17 @@ export function PullRequests({
           </label>
           <label className="block text-sm">
             Description
-            <textarea
+            <Textarea
               maxLength={20000}
               className={`${field} mt-1`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
               checked={draft}
-              onChange={(e) => setDraft(e.target.checked)}
+              onCheckedChange={(checked) => setDraft(checked === true)}
             />
             Start as draft
           </label>
@@ -307,33 +313,42 @@ function PullRequestDetail({
           </p>
         </div>
         {editable && pagePullRequest.allows(pr.status, "edit") && (
-          <Popover
-            width={220}
-            trigger={(props) => (
-              <Button
-                {...props}
-                variant="ghost"
-                size="icon"
-                aria-label="Pull request actions"
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Pull request actions"
+                />
+              }
+            >
+              <MoreHorizontal className="size-4" />
+            </MenuTrigger>
+            <MenuContent width={220} aria-label="Pull request actions">
+              <MenuItem icon={<Pencil />} onSelect={() => setEditing(!editing)}>
+                Edit details
+              </MenuItem>
+              <MenuItem
+                icon={<FileEdit />}
+                onSelect={() => {
+                  if (!action.pending)
+                    void action.run({
+                      type: "updatePagePullRequest",
+                      pullRequestId: pr.id,
+                      draft: pagePullRequest.allows(pr.status, "markDraft"),
+                    });
+                }}
               >
-                <MoreHorizontal className="size-4" />
-              </Button>
-            )}
-          >
-            <PullRequestMenu
-              onEdit={() => setEditing(!editing)}
-              onDraft={() => {
-                if (!action.pending)
-                  void action.run({
-                    type: "updatePagePullRequest",
-                    pullRequestId: pr.id,
-                    draft: pagePullRequest.allows(pr.status, "markDraft"),
-                  });
-              }}
-              onClose={() => setClosing(true)}
-              draft={pagePullRequest.allows(pr.status, "markReady")}
-            />
-          </Popover>
+                {pagePullRequest.allows(pr.status, "markReady")
+                  ? "Ready for review"
+                  : "Mark as draft"}
+              </MenuItem>
+              <MenuItem icon={<X />} onSelect={() => setClosing(true)}>
+                Close pull request…
+              </MenuItem>
+            </MenuContent>
+          </Menu>
         )}
       </header>
       <Markdown source={pr.description ?? "No description provided."} />
@@ -361,7 +376,7 @@ function PullRequestDetail({
         >
           <label className="block text-sm">
             Title
-            <input
+            <Input
               className={field}
               value={title}
               required
@@ -371,7 +386,7 @@ function PullRequestDetail({
           </label>
           <label className="block text-sm">
             Description
-            <textarea
+            <Textarea
               className={field}
               value={description}
               maxLength={20000}
@@ -830,36 +845,5 @@ function MergeConfirmation({
         </Button>
       </div>
     </Confirmation>
-  );
-}
-
-function PullRequestMenu({
-  onEdit,
-  onDraft,
-  onClose,
-  draft,
-}: {
-  onEdit: () => void;
-  onDraft: () => void;
-  onClose: () => void;
-  draft: boolean;
-}) {
-  const popover = usePopover();
-  const select = (action: () => void) => () => {
-    popover?.close();
-    action();
-  };
-  return (
-    <Menu label="Pull request actions">
-      <MenuItem icon={<Pencil />} onSelect={select(onEdit)}>
-        Edit details
-      </MenuItem>
-      <MenuItem icon={<FileEdit />} onSelect={select(onDraft)}>
-        {draft ? "Ready for review" : "Mark as draft"}
-      </MenuItem>
-      <MenuItem icon={<X />} onSelect={select(onClose)}>
-        Close pull request…
-      </MenuItem>
-    </Menu>
   );
 }

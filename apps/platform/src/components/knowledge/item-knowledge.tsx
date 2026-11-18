@@ -1,6 +1,15 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import { Input } from "@ui-sdk/react/input";
+import { Radio, RadioGroup, RadioDot, radioClass } from "@lictory/ui/radio";
+import { cn } from "@lictory/core/lib/utils";
+import {
   BookOpen,
+  ChevronRight,
   FilePen,
   FileText,
   GitBranch,
@@ -10,7 +19,6 @@ import {
   X,
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { cn } from "@lictory/core/lib/utils";
 import {
   identifier,
   relativeTime,
@@ -27,6 +35,7 @@ import {
   sanitizeBranchNameInput,
 } from "@lictory/core/lib/branch-name";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
@@ -220,21 +229,21 @@ export function ItemKnowledge({
         attachmentId: attachment.attachmentId,
       });
     } catch (e) {
-      toast.add({
+      toast({
         title: "Page not detached",
         type: "error",
         description: errorText(e),
-        timeout: 8000,
+        duration: 8000,
       });
       return;
     }
-    const id = toast.add({
+    const id = toast({
       title: `Detached “${entry.page.title}”`,
-      timeout: 8000,
-      actionProps: {
-        children: "Undo",
-        onClick: () => {
-          toast.close(id);
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onAction: () => {
+          toast.dismiss(id);
           mutateConfirmed({
             type: "attachPage",
             workItemId: item.id,
@@ -243,11 +252,11 @@ export function ItemKnowledge({
             purpose: attachment.purpose,
             commitId: attachment.commitId,
           }).catch((e: unknown) =>
-            toast.add({
+            toast({
               title: "Page not attached again",
               type: "error",
               description: errorText(e),
-              timeout: 8000,
+              duration: 8000,
             }),
           );
         },
@@ -711,7 +720,7 @@ function AttachForm({
   const [pin, setPin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const name = useId();
+  const purposeId = useId();
   return (
     <form
       aria-labelledby={labelId}
@@ -739,40 +748,48 @@ function AttachForm({
       <h2 id={labelId} className="text-sm font-semibold">
         Attach “{choice.page.title}” to {itemKey}
       </h2>
-      <fieldset className="space-y-1">
-        <legend className="mb-1 text-xs text-muted-foreground">Purpose</legend>
-        {pageAttachmentPurposes.map((p) => (
-          <label
-            key={p}
-            className={cn(
-              "flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted",
-              purpose === p && "bg-muted",
-            )}
-          >
-            <input
-              type="radio"
-              name={name}
-              value={p}
-              checked={purpose === p}
-              onChange={() => setPurpose(p)}
-              className="mt-0.5"
-              // Focus lands on the chosen purpose when the step opens.
-              autoFocus={purpose === p}
-            />
-            <span>
-              <span className="block font-medium">{purposeLabels[p]}</span>
-              <span className="block text-xs text-muted-foreground">
-                {purposeHints[p]}
+      <div>
+        <p id={purposeId} className="mb-1 text-xs text-muted-foreground">
+          Purpose
+        </p>
+        <RadioGroup<PageAttachmentPurpose>
+          aria-labelledby={purposeId}
+          value={purpose}
+          onValueChange={(next) => {
+            if (next) setPurpose(next);
+          }}
+          className="flex flex-col gap-1"
+        >
+          {pageAttachmentPurposes.map((p) => (
+            <label
+              key={p}
+              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted has-[[data-checked]]:bg-muted"
+            >
+              <Radio
+                value={p}
+                className={cn(
+                  radioClass,
+                  "mt-0.5 focus-visible:ring-2 focus-visible:ring-ring/60",
+                )}
+                // Focus lands on the chosen purpose when the step opens.
+                autoFocus={purpose === p}
+              >
+                <RadioDot />
+              </Radio>
+              <span>
+                <span className="block font-medium">{purposeLabels[p]}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {purposeHints[p]}
+                </span>
               </span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
       <label className="flex items-start gap-2 px-2 text-xs">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={pin}
-          onChange={(e) => setPin(e.target.checked)}
+          onCheckedChange={(checked) => setPin(checked === true)}
           className="mt-0.5"
         />
         <span>
@@ -974,51 +991,53 @@ function ProposeForm({
       <label htmlFor={titleId} className="text-xs font-medium">
         What changes
       </label>
-      <input
+      <Input
         id={titleId}
         autoFocus
         value={title}
         maxLength={200}
         placeholder="Document the finance approval time"
-        onChange={(e) => {
-          setTitle(e.target.value);
+        onValueChange={(value) => {
+          setTitle(value);
           if (error?.field === "title") setError(undefined);
         }}
         aria-invalid={error?.field === "title" || undefined}
         aria-describedby={describedBy("title", `${titleId}-hint`)}
         className="h-8 w-full rounded-md border bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
       />
-      <details
+      <Collapsible
         open={advanced}
-        onToggle={(e) => setAdvanced(e.currentTarget.open)}
-        className="group text-xs"
+        onOpenChange={(open) => setAdvanced(open)}
+        className="text-xs"
       >
-        <summary className="w-fit cursor-pointer rounded-sm text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+        <CollapsibleTrigger className="flex w-fit cursor-pointer items-center rounded-sm text-xs font-normal text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+          <ChevronRight
+            className="mr-1 size-3 transition-transform duration-150 in-data-open:rotate-90"
+            aria-hidden
+          />
           Advanced
-          {!advanced && (
-            <span className="ml-1.5 font-mono text-[11px]">
-              · branch {name}
-            </span>
-          )}
-        </summary>
-        <div className="mt-2 flex flex-col gap-1.5">
+          <span className="ml-1.5 font-mono text-[11px] in-data-open:hidden">
+            · branch {name}
+          </span>
+        </CollapsibleTrigger>
+        <CollapsiblePanel className="mt-2 flex flex-col gap-1.5">
           <label htmlFor={nameId} className="font-medium">
             Branch name
           </label>
-          <input
+          <Input
             id={nameId}
             value={name}
             maxLength={80}
-            onChange={(e) => {
-              setCustomName(sanitizeBranchNameInput(e.target.value));
+            onValueChange={(value) => {
+              setCustomName(sanitizeBranchNameInput(value));
               if (error?.field === "name") setError(undefined);
             }}
             aria-invalid={error?.field === "name" || undefined}
             aria-describedby={describedBy("name")}
             className="h-8 w-full rounded-md border bg-background px-2 font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
           />
-        </div>
-      </details>
+        </CollapsiblePanel>
+      </Collapsible>
       {error && (
         <p
           id={`${titleId}-error`}

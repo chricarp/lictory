@@ -1,9 +1,9 @@
 import { useId, type ReactNode } from "react";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@lictory/ui/logo";
-import { cn } from "@lictory/core/lib/utils";
 
 // One easing for the whole flow: a quick start that settles softly.
 export const ease = [0.23, 1, 0.32, 1] as const;
@@ -201,53 +201,40 @@ export function CardOptions<T extends string>({
 }) {
   const group = useId();
   return (
-    <div
-      role="radiogroup"
+    <RadioGroup
       aria-label={label}
+      value={value || null}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
       className="grid gap-3 sm:grid-cols-2"
     >
-      {options.map((o) => {
-        const selected = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={o.title}
-            onClick={() => onChange(o.value)}
-            className={cn(
-              "relative flex flex-col items-start gap-3 rounded-xl border bg-card p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]",
-              !selected && "hover:border-foreground/20",
-            )}
-          >
-            {selected && (
-              <motion.span
-                layoutId={`${group}-selected`}
-                aria-hidden
-                className="absolute -inset-px rounded-xl border-2 border-foreground"
-              />
-            )}
-            <span
-              className={cn(
-                "grid size-9 place-items-center rounded-lg transition-colors duration-200 [&_svg]:size-4",
-                selected
-                  ? "bg-foreground text-background"
-                  : "bg-muted text-foreground",
-              )}
-            >
-              {o.icon}
+      {options.map((o) => (
+        <Radio
+          key={o.value}
+          value={o.value}
+          aria-label={o.title}
+          className="group relative flex flex-col items-start gap-3 rounded-xl border bg-card p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99] data-unchecked:hover:border-foreground/20"
+        >
+          {value === o.value && (
+            <motion.span
+              layoutId={`${group}-selected`}
+              aria-hidden
+              className="absolute -inset-px rounded-xl border-2 border-foreground"
+            />
+          )}
+          <span className="grid size-9 place-items-center rounded-lg bg-muted text-foreground transition-colors duration-200 group-data-checked:bg-foreground group-data-checked:text-background [&_svg]:size-4">
+            {o.icon}
+          </span>
+          <span>
+            <span className="block text-sm font-medium">{o.title}</span>
+            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+              {o.description}
             </span>
-            <span>
-              <span className="block text-sm font-medium">{o.title}</span>
-              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
-                {o.description}
-              </span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
+          </span>
+        </Radio>
+      ))}
+    </RadioGroup>
   );
 }
 
@@ -271,39 +258,31 @@ export function Segmented<T extends string>({
       <p id={`${group}-label`} className="mb-2 text-sm font-medium">
         {label}
       </p>
-      <div
-        role="radiogroup"
+      <RadioGroup
         aria-labelledby={`${group}-label`}
-        className="flex rounded-lg bg-muted p-1"
+        value={value || null}
+        onValueChange={(next) => {
+          if (next !== null) onChange(next);
+        }}
+        className="flex flex-row gap-0 rounded-lg bg-muted p-1"
       >
-        {options.map((o) => {
-          const selected = value === o.value;
-          return (
-            <button
-              key={o.value}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => onChange(o.value)}
-              className={cn(
-                "relative h-8 flex-1 rounded-md px-2 text-[13px] whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                selected
-                  ? "font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {selected && (
-                <motion.span
-                  layoutId={`${group}-pill`}
-                  aria-hidden
-                  className="absolute inset-0 rounded-md bg-background shadow-[0_1px_2px_oklch(0_0_0/0.08),0_0_0_1px_oklch(0_0_0/0.04)]"
-                />
-              )}
-              <span className="relative">{o.label}</span>
-            </button>
-          );
-        })}
-      </div>
+        {options.map((o) => (
+          <Radio
+            key={o.value}
+            value={o.value}
+            className="relative h-8 flex-1 rounded-md px-2 text-[13px] whitespace-nowrap text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-checked:font-medium data-checked:text-foreground"
+          >
+            {value === o.value && (
+              <motion.span
+                layoutId={`${group}-pill`}
+                aria-hidden
+                className="absolute inset-0 rounded-md bg-background shadow-[0_1px_2px_oklch(0_0_0/0.08),0_0_0_1px_oklch(0_0_0/0.04)]"
+              />
+            )}
+            <span className="relative">{o.label}</span>
+          </Radio>
+        ))}
+      </RadioGroup>
       {hint && (
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.p

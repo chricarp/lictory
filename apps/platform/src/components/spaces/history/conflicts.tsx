@@ -1,13 +1,20 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { PageNode } from "@lictory/core/spaces/document/canonical";
 import {
   pageMergeResolutionSchema,
   type Command,
 } from "@lictory/core/contracts/protocol";
 import { markdownToDocument } from "@lictory/core/spaces/document/from-markdown";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+import { Textarea } from "@ui-sdk/react/textarea";
+import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { PageReader } from "@lictory/platform/components/spaces/editor/document";
-import { Dialog } from "@lictory/platform/components/spaces/dialog";
+import {
+  Dialog,
+  RadioDot,
+  radioClass,
+} from "@lictory/platform/components/spaces/dialog";
 import { useMergePreview } from "./preview";
 import { ActionError, field, useHistoryAction } from "./shared";
 
@@ -26,6 +33,7 @@ export function ConflictResolution({
     fromBranchId,
   });
   const action = useHistoryAction();
+  const legendId = useId();
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [manual, setManual] = useState<Record<string, string>>({});
   const [parseError, setParseError] = useState("");
@@ -120,7 +128,7 @@ export function ConflictResolution({
             key={c.id}
             className="min-w-0 space-y-3 rounded-xl border p-3"
           >
-            <legend className="px-1 font-medium">
+            <legend id={`${legendId}-${index}`} className="px-1 font-medium">
               {c.kind === "title"
                 ? "Title conflict"
                 : `Content conflict ${index + 1}`}
@@ -145,32 +153,44 @@ export function ConflictResolution({
                 </section>
               ))}
             </div>
-            <div className="flex flex-wrap gap-3">
+            <RadioGroup<string>
+              value={choices[c.id] ?? null}
+              onValueChange={(choice) => {
+                if (choice !== null)
+                  setChoices((v) => ({ ...v, [c.id]: choice }));
+              }}
+              aria-labelledby={`${legendId}-${index}`}
+              className="flex flex-row flex-wrap gap-3"
+            >
               {[
                 "ours",
                 "theirs",
                 ...(c.kind === "title" ? [] : ["both"]),
                 "manual",
               ].map((choice) => (
-                <label key={choice} className="flex items-center gap-1 text-sm">
-                  <input
-                    type="radio"
-                    name={c.id}
-                    checked={choices[c.id] === choice}
-                    onChange={() =>
-                      setChoices((v) => ({ ...v, [c.id]: choice }))
-                    }
-                  />
+                <label
+                  key={choice}
+                  className="flex items-center gap-1.5 text-sm"
+                >
+                  <Radio
+                    value={choice}
+                    className={cn(
+                      radioClass,
+                      "focus-visible:ring-2 focus-visible:ring-ring/60",
+                    )}
+                  >
+                    <RadioDot />
+                  </Radio>
                   {choice === "manual" ? "Edit manually" : `Use ${choice}`}
                 </label>
               ))}
-            </div>
+            </RadioGroup>
             {choices[c.id] === "manual" && (
               <label className="block text-sm">
                 {c.kind === "title"
                   ? "Resolved title"
                   : "Resolved content (Markdown converted to page blocks)"}
-                <textarea
+                <Textarea
                   className={`${field} mt-1 min-h-24`}
                   value={manual[c.id] ?? ""}
                   onChange={(e) =>

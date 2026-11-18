@@ -30,9 +30,11 @@ import {
   socialProviders,
   type SocialProvider,
 } from "@lictory/platform/components/auth/provider-icons";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
+import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import {
   InlineError,
   SettingsBody,
@@ -700,24 +702,6 @@ const appearanceOptions: {
   { value: "dark", label: "Dark", icon: Moon },
 ];
 
-// Roving selection for a radiogroup: arrow keys pick and focus the
-// neighbouring option, wrapping at either end.
-function arrowStep(event: React.KeyboardEvent<HTMLElement>, current: number) {
-  const step =
-    event.key === "ArrowRight" || event.key === "ArrowDown"
-      ? 1
-      : event.key === "ArrowLeft" || event.key === "ArrowUp"
-        ? -1
-        : 0;
-  if (!step) return null;
-  event.preventDefault();
-  const buttons =
-    event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]");
-  const next = (current + step + buttons.length) % buttons.length;
-  buttons[next]?.focus();
-  return next;
-}
-
 function AppearanceSection() {
   const { appearance, setAppearance, theme, setTheme } = useAppearance();
   const [error, setError] = useState<string | null>(null);
@@ -771,98 +755,61 @@ function AppearanceSection() {
           <p id="appearance-mode-label" className="text-[13px] font-medium">
             Mode
           </p>
-          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
-          <div
-            role="radiogroup"
+          <Segmented
             aria-labelledby="appearance-mode-label"
-            className="inline-flex rounded-lg bg-muted p-0.5"
-            onKeyDown={(event) => {
-              const index = arrowStep(
-                event,
-                appearanceOptions.findIndex((o) => o.value === appearance),
-              );
-              const next = index === null ? null : appearanceOptions[index];
-              if (next) chooseMode(next.value);
-            }}
+            className="gap-0 rounded-lg"
+            value={appearance}
+            onValueChange={chooseMode}
           >
-            {appearanceOptions.map(({ value, label, icon: Icon }) => {
-              const selected = appearance === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => chooseMode(value)}
-                  className={cn(
-                    "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[13px] transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                    selected
-                      ? "bg-card font-medium text-foreground shadow-(--shadow-border)"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+            {appearanceOptions.map(({ value, label, icon: Icon }) => (
+              <SegmentedItem
+                key={value}
+                value={value}
+                className="h-7 flex-none rounded-md px-3 text-[13px] font-normal transition-colors duration-100 data-checked:font-medium"
+              >
+                <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
+                {label}
+              </SegmentedItem>
+            ))}
+          </Segmented>
         </div>
 
         <div className="space-y-2">
           <p id="appearance-theme-label" className="text-[13px] font-medium">
             Theme
           </p>
-          {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- arrow keys bubble from the radios (roving tabindex); the WAI-ARIA radio group itself is not a tab stop. */}
-          <div
-            role="radiogroup"
+          <RadioGroup
             aria-labelledby="appearance-theme-label"
             className="grid grid-cols-2 gap-3 sm:grid-cols-3"
-            onKeyDown={(event) => {
-              const index = arrowStep(event, THEMES.indexOf(theme));
-              const next = index === null ? null : THEMES[index];
+            value={theme}
+            onValueChange={(next) => {
               if (next) chooseTheme(next);
             }}
           >
-            {THEMES.map((value) => {
-              const selected = theme === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={themeLabels[value]}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => chooseTheme(value)}
-                  className={cn(
-                    "group rounded-xl p-1 text-left transition-shadow duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                    selected
-                      ? "shadow-[0_0_0_2px_var(--primary)]"
-                      : "shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
-                  )}
-                >
-                  <span className="flex overflow-hidden rounded-lg">
-                    <ThemePreview theme={value} />
-                    <ThemePreview theme={value} dark />
+            {THEMES.map((value) => (
+              <Radio
+                key={value}
+                value={value}
+                aria-label={themeLabels[value]}
+                className="block h-auto w-auto cursor-default rounded-xl p-1 text-left transition-shadow duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:shadow-[0_0_0_2px_var(--primary)] data-unchecked:shadow-(--shadow-border) data-unchecked:hover:shadow-(--shadow-border-hover)"
+              >
+                <span className="flex overflow-hidden rounded-lg">
+                  <ThemePreview theme={value} />
+                  <ThemePreview theme={value} dark />
+                </span>
+                <span className="flex items-center justify-between gap-2 px-1.5 pt-2 pb-1 text-[13px]">
+                  <span className="in-data-checked:font-medium">
+                    {themeLabels[value]}
                   </span>
-                  <span className="flex items-center justify-between gap-2 px-1.5 pt-2 pb-1 text-[13px]">
-                    <span className={cn(selected && "font-medium")}>
-                      {themeLabels[value]}
-                    </span>
-                    {selected && (
-                      <Check
-                        aria-hidden
-                        className="size-3.5 text-primary"
-                        strokeWidth={2}
-                      />
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                  <Check
+                    aria-hidden
+                    className="hidden size-3.5 text-primary in-data-checked:block"
+                    strokeWidth={2}
+                  />
+                </span>
+              </Radio>
+            ))}
+          </RadioGroup>
         </div>
         <Status tone="error">{error}</Status>
       </SettingsBody>

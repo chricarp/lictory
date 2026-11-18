@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
-import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
+import { Switch } from "@lictory/ui/switch";
 import { Badge } from "@lictory/ui/primitives";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -115,26 +115,12 @@ export function OrganizationSecurity() {
       title="Require two-factor authentication"
       description="Members without two-factor authentication are asked to turn it on before they can open this organization. It applies to password sign-ins; Google and Microsoft sign-ins use the provider's own checks."
       action={
-        <button
-          type="button"
-          role="switch"
-          aria-checked={required}
+        <Switch
           aria-label="Require two-factor authentication"
+          checked={required}
           disabled={!security || pending !== null || (!required && !canRequire)}
-          onClick={() => setRequired(!required)}
-          className={cn(
-            "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40",
-            required ? "bg-primary" : "bg-muted-foreground/25",
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
-              required ? "translate-x-4.5" : "translate-x-0.5",
-            )}
-          />
-        </button>
+          onCheckedChange={(next) => void setRequired(next)}
+        />
       }
       footer="Changes to this requirement and two-factor resets are recorded in the organization's configuration history."
     >

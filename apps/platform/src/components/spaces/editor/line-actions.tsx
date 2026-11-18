@@ -6,6 +6,7 @@ import {
   branchNameProblem,
 } from "@lictory/core/lib/branch-name";
 import { cn } from "@lictory/core/lib/utils";
+import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -248,7 +249,7 @@ function StartBranchForm({
       <label htmlFor={inputId} className="text-xs font-medium">
         Branch name
       </label>
-      <input
+      <InputPrimitive
         id={inputId}
         autoFocus
         value={name}

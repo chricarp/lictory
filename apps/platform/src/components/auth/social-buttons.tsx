@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Separator } from "@ui-sdk/react/separator";
 
 import { FormMessage } from "@lictory/platform/components/auth/form-field";
 import {
@@ -99,14 +100,12 @@ export function SocialButtons({
 }
 
 function AuthDivider() {
+  const line = "h-px w-auto flex-1 bg-border";
   return (
-    <div
-      role="separator"
-      className="my-6 flex items-center gap-3 text-xs text-muted-foreground"
-    >
-      <span className="h-px flex-1 bg-border" />
+    <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+      <Separator decorative className={line} />
       or
-      <span className="h-px flex-1 bg-border" />
+      <Separator decorative className={line} />
     </div>
   );
 }

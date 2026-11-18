@@ -1,5 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
   Activity,
   ArrowLeft,
   Building2,
@@ -18,6 +23,7 @@ import {
   suggestOrganizationHandle,
 } from "@lictory/core/lib/organization-handles";
 import { Button } from "@lictory/ui/button";
+import { Checkbox } from "@lictory/ui/checkbox";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -83,11 +89,7 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
         illustration="recovery"
         icon={ShieldUser}
         title="The admin console is for instance administrators"
-        action={
-          <Link href="/">
-            <Button>Back to Lictory</Button>
-          </Link>
-        }
+        action={<Button render={<Link href="/" />}>Back to Lictory</Button>}
       >
         Ask your Lictory administrator if you need to manage accounts or
         organizations on this installation.
@@ -340,11 +342,13 @@ function AiProviderSection({ ai }: { ai: Overview["ai"] }) {
       title="AI providers"
       description="Where Lictory Intelligence sends content when an organization turns it on."
       action={
-        <Link href={paths.admin("ai")}>
-          <Button variant="outline" size="sm">
-            {ai.source === "environment" ? "View" : "Configure"}
-          </Button>
-        </Link>
+        <Button
+          variant="outline"
+          size="sm"
+          render={<Link href={paths.admin("ai")} />}
+        >
+          {ai.source === "environment" ? "View" : "Configure"}
+        </Button>
       }
     >
       <div className="divide-y divide-border">
@@ -691,10 +695,9 @@ function CreateAccount({
         />
       </div>
       <label className="flex items-start gap-2 text-[13px]">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={instanceAdmin}
-          onChange={(e) => setInstanceAdmin(e.target.checked)}
+          onCheckedChange={(checked) => setInstanceAdmin(checked === true)}
           className="mt-0.5"
         />
         <span>
@@ -728,9 +731,8 @@ function PersonRow({
   organizations: AdminOrganization[];
   onChanged: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div data-testid="admin-person" className="text-[13px]">
+    <Collapsible data-testid="admin-person" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
         <Avatar name={user.name || user.email} image={user.image} size="sm" />
         <div className="min-w-0 flex-1">
@@ -773,28 +775,32 @@ function PersonRow({
             : `Created ${date(user.createdAt)}`}
         </p>
         {!user.deletedAt && (
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-expanded={open}
-            aria-label={`Manage ${user.name || user.email}`}
-            onClick={() => setOpen((o) => !o)}
+          <CollapsibleTrigger
+            render={
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label={`Manage ${user.name || user.email}`}
+              />
+            }
           >
             Manage
-          </Button>
+          </CollapsibleTrigger>
         )}
       </div>
-      {open && !user.deletedAt && (
-        <ManagePerson
-          user={user}
-          self={self}
-          organizations={organizations.filter(
-            (o) => !user.organizations.some((m) => m.id === o.id),
-          )}
-          onChanged={onChanged}
-        />
+      {!user.deletedAt && (
+        <CollapsiblePanel>
+          <ManagePerson
+            user={user}
+            self={self}
+            organizations={organizations.filter(
+              (o) => !user.organizations.some((m) => m.id === o.id),
+            )}
+            onChanged={onChanged}
+          />
+        </CollapsiblePanel>
       )}
-    </div>
+    </Collapsible>
   );
 }
 
@@ -1173,7 +1179,6 @@ function OrganizationRow({
   organization: AdminOrganization;
   onChanged: () => void;
 }) {
-  const [adding, setAdding] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [error, setError] = useState<string>();
@@ -1199,7 +1204,7 @@ function OrganizationRow({
     }
   };
   return (
-    <div data-testid="admin-organization" className="text-[13px]">
+    <Collapsible data-testid="admin-organization" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
         <span
           aria-hidden
@@ -1237,16 +1242,11 @@ function OrganizationRow({
         <p className="hidden text-xs text-muted-foreground sm:block">
           Created {date(organization.createdAt)}
         </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={adding}
-          onClick={() => setAdding((a) => !a)}
-        >
+        <CollapsibleTrigger render={<Button size="sm" variant="secondary" />}>
           Add member
-        </Button>
+        </CollapsibleTrigger>
       </div>
-      {adding && (
+      <CollapsiblePanel>
         <form
           onSubmit={(e) => void submit(e)}
           aria-label={`Add a member to ${organization.name}`}
@@ -1289,8 +1289,8 @@ function OrganizationRow({
             )}
           </div>
         </form>
-      )}
-    </div>
+      </CollapsiblePanel>
+    </Collapsible>
   );
 }
 

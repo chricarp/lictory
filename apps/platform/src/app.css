@@ -1,4 +1,5 @@
 @import "@lictory/ui/styles.css";
+@import "@lictory/ui/ui-sdk.css";
 @import "./fonts.css";
 
 /* Class names used by the app, its shared UI and shared domain helpers. */

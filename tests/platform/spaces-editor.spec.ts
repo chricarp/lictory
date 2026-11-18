@@ -5,6 +5,7 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import { appAlert } from "../helpers/live-regions";
 import { fillMarkdown } from "../helpers/editor";
 import { consentStatePath } from "../consent-setup";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
@@ -671,9 +672,7 @@ test("the link form refuses an address the page cannot keep and explains why", a
   const address = ada.page.getByLabel("Link address");
   await address.fill("ftp://status.example.com");
   await address.press("Enter");
-  await expect(ada.page.getByRole("alert")).toContainText(
-    "Use a web or mail address",
-  );
+  await expect(appAlert(ada.page)).toContainText("Use a web or mail address");
   await expect(address).toHaveAttribute("aria-invalid", "true");
   await address.fill("status.example.com");
   await address.press("Enter");

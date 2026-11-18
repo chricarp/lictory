@@ -132,7 +132,7 @@ export function PageWorkProvider({
           pending.items.map((i) => ({ workItemId: i.workItemId, key: i.key })),
         );
         const keys = pending.items.map((i) => i.key).join(", ");
-        toast.add({
+        toast({
           title:
             placed === "placed"
               ? `Mentioned ${keys} on the page`
@@ -141,18 +141,18 @@ export function PageWorkProvider({
             placed === "placed"
               ? "The draft now refers to the new work. Publish when you are ready."
               : "The original text is no longer in the draft. Move the mention where it belongs, then publish.",
-          timeout: 8000,
+          duration: 8000,
         });
         setPending(null);
         return;
       }
       if (Date.now() - started > WAIT_FOR_EDITOR_MS) {
-        toast.add({
+        toast({
           title: "The page was not changed",
           description:
             "The editor did not open in time. Mention the new work with # in the editor.",
           type: "error",
-          timeout: 8000,
+          duration: 8000,
         });
         setPending(null);
         return;

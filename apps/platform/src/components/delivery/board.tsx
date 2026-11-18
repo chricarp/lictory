@@ -1,4 +1,6 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+import { dropdownItemClass } from "@lictory/ui/dropdown";
+import { Checkbox } from "@lictory/ui/checkbox";
 import { ContextControl } from "@lictory/platform/components/knowledge/context";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -70,6 +72,10 @@ const laneLabel: Record<Lane, string> = {
   parent: "Parent",
   priority: "Priority",
 };
+const choiceRowClass = cn(
+  dropdownItemClass,
+  "data-checked:font-medium data-checked:text-primary",
+);
 // Closed work drops off the board after two weeks; history stays in lists.
 const DONE_WINDOW = 14 * 86_400_000;
 
@@ -159,12 +165,12 @@ export function ExternalProjectNotice({
       icon={Send}
       title={`${project.name} delivers in ${tool.name}`}
       action={
-        <Link
-          href={paths.handoff(organization.slug, project.key)}
-          className="contents"
+        <Button
+          variant="secondary"
+          render={<Link href={paths.handoff(organization.slug, project.key)} />}
         >
-          <Button variant="secondary">Open hand-off</Button>
-        </Link>
+          Open hand-off
+        </Button>
       }
     >
       Statuses, sprints and estimates for this project are owned by {tool.name},
@@ -504,46 +510,51 @@ function ProjectBoard({ project }: { project: Project }) {
               <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
                 Swimlanes
               </p>
-              {(Object.keys(laneLabel) as Lane[]).map((key) => (
-                <DropdownItem
-                  key={key}
-                  onClick={() =>
-                    setParam("lanes", key === "none" ? undefined : key)
-                  }
-                  className={cn(lane === key && "font-medium text-primary")}
-                >
-                  {laneLabel[key]}
-                </DropdownItem>
-              ))}
+              <RadioGroup<Lane>
+                aria-label="Swimlanes"
+                value={lane}
+                onValueChange={(next) => {
+                  if (next)
+                    setParam("lanes", next === "none" ? undefined : next);
+                }}
+                className="flex flex-col gap-0"
+              >
+                {(Object.keys(laneLabel) as Lane[]).map((key) => (
+                  <Radio key={key} value={key} className={choiceRowClass}>
+                    {laneLabel[key]}
+                  </Radio>
+                ))}
+              </RadioGroup>
               <div className="my-1 border-t" />
               <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={showCanceled}
-                  onChange={(e) => setShowCanceled(e.target.checked)}
+                  onCheckedChange={(checked) =>
+                    setShowCanceled(checked === true)
+                  }
                 />
                 Show canceled column
               </label>
             </div>
           </Popover>
           {canManage(project.id) && (
-            <Link
-              href={paths.projectSettings(
-                organization.slug,
-                project.key,
-                "workflow",
-              )}
-              className="contents"
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Workflow settings"
+              title="Workflow settings"
+              render={
+                <Link
+                  href={paths.projectSettings(
+                    organization.slug,
+                    project.key,
+                    "workflow",
+                  )}
+                />
+              }
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Workflow settings"
-                title="Workflow settings"
-              >
-                <Settings2 className="size-3.5" />
-              </Button>
-            </Link>
+              <Settings2 className="size-3.5" />
+            </Button>
           )}
           <span aria-hidden className="mx-1 h-4 w-px bg-border max-lg:hidden" />
           <LittoLauncher />
@@ -554,16 +565,20 @@ function ProjectBoard({ project }: { project: Project }) {
           illustration="planning"
           title={`No active ${project.iterationMode === "automatic" ? "cycle" : "sprint"}`}
           action={
-            <Link
-              href={paths.backlog(
-                organization.slug,
-                project.key,
-                teamFilter.value,
-              )}
-              className="contents"
+            <Button
+              variant="secondary"
+              render={
+                <Link
+                  href={paths.backlog(
+                    organization.slug,
+                    project.key,
+                    teamFilter.value,
+                  )}
+                />
+              }
             >
-              <Button variant="secondary">Plan in the backlog</Button>
-            </Link>
+              Plan in the backlog
+            </Button>
           }
         >
           {project.iterationMode === "automatic"

@@ -97,10 +97,11 @@ test("the server refuses to start a not-ready specification even from an outdate
     "Blocked until the specification is ready",
   );
   await inProgress.click();
+  // The stack lists the newest notification first.
   await expect(
     page
       .locator('[data-slot="toast"]', { hasText: "Change not applied" })
-      .last(),
+      .first(),
   ).toContainText("Complete the required reviews and readiness checks first.");
 });
 
@@ -133,7 +134,7 @@ test("an externally delivered project hands off instead of offering a board or b
       }),
     ).toBeVisible();
   }
-  await page.getByRole("button", { name: "Open hand-off" }).click();
+  await page.getByRole("link", { name: "Open hand-off" }).click();
   await expect(page).toHaveURL(
     new RegExp(`${seeded.projectPath("/handoff")}$`),
   );

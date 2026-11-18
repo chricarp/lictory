@@ -1,12 +1,11 @@
 "use client";
 
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+  Avatar as AvatarPrimitive,
+  AvatarFallback,
+  AvatarImage,
+} from "@ui-sdk/react/avatar";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
 import { initials } from "@lictory/core/lib/work-items";
@@ -49,10 +48,9 @@ export function Avatar({
   const images = useContext(Images);
   const raw = image === undefined && userId ? images.get(userId) : image;
   const src = preview && raw?.startsWith("blob:") ? raw : safeProfileImage(raw);
-  const [failed, setFailed] = useState<string | null>(null);
   const intelligence = name === AI_ACTOR_NAME;
   return (
-    <span
+    <AvatarPrimitive
       role="img"
       title={name}
       aria-label={name}
@@ -71,25 +69,24 @@ export function Avatar({
       ) : (
         // Drawn, not written: the avatar is named by its label, and initials as
         // text would join the visible label of a control around it (WCAG 2.5.3).
-        <span
+        // They stay underneath the photo while it loads, or if it fails.
+        <AvatarFallback
           aria-hidden
           data-initials={initials(name)}
           className="before:content-[attr(data-initials)]"
         />
       )}
-      {!intelligence && src && failed !== src && (
+      {!intelligence && src && (
         // Provider photos and private authenticated images cannot use the
-        // public Next image optimizer. Keep initials underneath while loading.
-
-        <img
+        // public Next image optimizer.
+        <AvatarImage
           key={src}
           src={src}
           alt=""
           referrerPolicy="no-referrer"
-          onError={() => setFailed(src)}
           className="absolute inset-0 size-full rounded-full object-cover outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
         />
       )}
-    </span>
+    </AvatarPrimitive>
   );
 }

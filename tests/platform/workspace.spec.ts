@@ -250,12 +250,12 @@ test("work item panels collapse independently and persist across routes and relo
     .getByRole("button", { name: "Switch organization: Panel layout" })
     .click();
   await expect(
-    page.getByRole("button", { name: "Panel layout", exact: true }),
+    page.getByRole("menuitem", { name: "Panel layout", exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Account menu" }).click();
   await expect(
-    page.getByRole("link", { name: "Account settings" }),
+    page.getByRole("menuitem", { name: "Account settings" }),
   ).toBeVisible();
   await expect(
     page.getByText(`Lictory v${version}`, { exact: true }),
@@ -369,7 +369,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // Personal settings leave the organization shell without losing the return
   // destination.
   // Hold the account page's code to exercise navigation while the menu's
-  // Link is still pending. Closing the popover eagerly unmounts that Link.
+  // Link is still pending. Closing the menu eagerly unmounts that Link.
   let releaseAccount!: () => void;
   const accountResponse = new Promise<void>((resolve) => {
     releaseAccount = resolve;
@@ -388,7 +388,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     await expect(
       page.getByText(`Lictory v${version}`, { exact: true }),
     ).toBeVisible();
-    const accountLink = page.getByRole("link", { name: "Account settings" });
+    const accountLink = page.getByRole("menuitem", {
+      name: "Account settings",
+    });
     await accountLink.click();
     await accountRequest;
     await expect(accountLink).toBeVisible();
@@ -1105,7 +1107,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page.goto(storyUrl.replace(/\/pay\/items\/PAY-2$/, "/items/PAY-1"));
   await expect(page).toHaveURL(/\/pay\/items\/PAY-1(\?.*)?$/);
   await page.keyboard.press("ControlOrMeta+k");
-  await page.getByRole("textbox", { name: "Search" }).fill("PAY-1");
+  await page.getByRole("combobox", { name: "Search" }).fill("PAY-1");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/items\/PAY-1(\?.*)?$/);
   await expect(page.getByText("1/2 ready")).toBeVisible();

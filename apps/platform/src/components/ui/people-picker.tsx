@@ -1,20 +1,23 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { UserRound } from "lucide-react";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxList,
+} from "@ui-sdk/react/combobox";
+import { Check, Loader2, UserRound } from "lucide-react";
 import { matchesPerson } from "@lictory/core/lib/handles";
 import { cn } from "@lictory/core/lib/utils";
 import { searchMembers } from "@lictory/platform/data/lookups";
 import type { DirectoryMember } from "@lictory/core/contracts/protocol";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Avatar } from "@lictory/ui/primitives";
+import { dropdownContentClass, dropdownItemClass } from "@lictory/ui/dropdown";
 import { Popover, Picker, type PickerOption } from "@lictory/ui/popover";
-import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
+import { popupContainer } from "@lictory/ui/popup";
 
 const PAGE_SIZE = 20;
 
@@ -29,12 +32,6 @@ export function PeoplePicker({
   excludeIds,
   memberValue = memberId,
   multiple = false,
-  query: queryProp,
-  hideSearch = false,
-  activeIndex,
-  onActiveIndexChange,
-  onOptionsChange,
-  listboxId,
 }: {
   value?: string | string[] | null;
   onSelect: (value: string) => void;
@@ -46,22 +43,65 @@ export function PeoplePicker({
   excludeIds?: string[];
   memberValue?: (member: DirectoryMember) => string;
   multiple?: boolean;
-  query?: string;
-  hideSearch?: boolean;
-  activeIndex?: number;
-  onActiveIndexChange?: (index: number) => void;
-  onOptionsChange?: (options: PickerOption<string>[]) => void;
-  listboxId?: string;
 }) {
-  const { organization, directory, userId } = useWorkspace();
-  const [internalQuery, setInternalQuery] = useState("");
-  const query = queryProp ?? internalQuery;
+  const { organization } = useWorkspace();
+  const [query, setQuery] = useState("");
   const { members, loading, hasMore, loadMore, search } = useMemberSearch(
     organization.id,
     excludeIds,
-    queryProp !== undefined,
   );
-  const options = useMemo(() => {
+  const options = usePeopleOptions({
+    members,
+    query,
+    value,
+    none,
+    extras,
+    excludeIds,
+    memberValue,
+  });
+  return (
+    <Picker
+      title={title}
+      options={options}
+      value={value}
+      onSelect={onSelect}
+      placeholder={placeholder}
+      emptyText={emptyText}
+      multiple={multiple}
+      searchable
+      loading={loading}
+      hasMore={hasMore}
+      onQueryChange={(next) => {
+        setQuery(next);
+        search(next);
+      }}
+      onEndReached={loadMore}
+    />
+  );
+}
+
+// What a people list offers for a query: "nobody" and other fixed choices
+// first, then the chosen people the server has not returned yet, then its
+// results.
+function usePeopleOptions({
+  members,
+  query,
+  value,
+  none,
+  extras,
+  excludeIds,
+  memberValue = memberId,
+}: {
+  members: DirectoryMember[];
+  query: string;
+  value?: string | string[] | null;
+  none?: PickerOption<string>;
+  extras?: PickerOption<string>[];
+  excludeIds?: string[];
+  memberValue?: (member: DirectoryMember) => string;
+}) {
+  const { directory, userId } = useWorkspace();
+  return useMemo(() => {
     const q = query.trim().toLowerCase();
     const extraOptions = (extras ?? []).filter((option) =>
       matchesQuery(option, q),
@@ -84,6 +124,7 @@ export function PeoplePicker({
       ...extraOptions,
       ...(pinned as DirectoryMember[])
         .concat(members)
+        .filter((member) => !excluded.has(member.id))
         .filter((member) => matchesMember(member, query))
         .map((member) => memberOption(member, memberValue, userId)),
     ];
@@ -98,36 +139,6 @@ export function PeoplePicker({
     userId,
     value,
   ]);
-  useEffect(() => {
-    onOptionsChange?.(options);
-  }, [onOptionsChange, options]);
-  useEffect(() => {
-    if (queryProp === undefined) return;
-    search(queryProp);
-  }, [queryProp, search]);
-  return (
-    <Picker
-      title={hideSearch ? undefined : title}
-      options={options}
-      value={value}
-      onSelect={onSelect}
-      placeholder={placeholder}
-      emptyText={emptyText}
-      multiple={multiple}
-      searchable
-      hideSearch={hideSearch}
-      loading={loading}
-      hasMore={hasMore}
-      activeIndex={activeIndex}
-      onActiveIndexChange={onActiveIndexChange}
-      listboxId={listboxId}
-      onQueryChange={(next) => {
-        if (queryProp === undefined) setInternalQuery(next);
-        search(next);
-      }}
-      onEndReached={loadMore}
-    />
-  );
 }
 
 export function PersonTrigger({
@@ -224,6 +235,7 @@ const unassignedOption: PickerOption<string> = {
   icon: <UserRound className="size-3.5" />,
 };
 
+// The assignee as a field: typing searches people, the list opens under it.
 function PersonCombobox({
   name,
   value,
@@ -233,120 +245,153 @@ function PersonCombobox({
   value: string;
   onSelect: (value: string) => void;
 }) {
+  const { organization } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
-  const [options, setOptions] = useState<PickerOption<string>[]>([]);
+  const [field, setField] = useState<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listId = useId();
-  const activeOption = options[active];
-  const close = useCallback(() => {
+  const { members, loading, hasMore, loadMore, search, start, reset } =
+    useMemberSearch(organization.id, undefined, true);
+  const options = usePeopleOptions({
+    members,
+    query,
+    value,
+    none: unassignedOption,
+  });
+  const empty = options.length === 0;
+  const show = () => {
+    if (open) return;
+    setQuery("");
+    setOpen(true);
+    start();
+  };
+  const close = () => {
     setOpen(false);
     setQuery("");
-    setActive(0);
-  }, []);
-  const choose = useCallback(
-    (next: string) => {
-      onSelect(next);
-      close();
-    },
-    [close, onSelect],
-  );
-  const onOptionsChange = useCallback((next: PickerOption<string>[]) => {
-    setOptions(next);
-    setActive((current) => Math.min(current, Math.max(0, next.length - 1)));
-  }, []);
+    reset();
+  };
   return (
-    <Popover
-      width={280}
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setOpen(true);
-        else close();
+    <Combobox<string>
+      container={popupContainer()}
+      value={value}
+      onValueChange={(next) => {
+        // Deleting the text asks for no value; only a chosen row changes it.
+        if (next !== null) onSelect(next);
       }}
-      trigger={(props) => (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- pointer convenience that focuses the field's own input, which keyboard users reach directly.
-        <div
-          ref={props.ref}
-          data-state={props["data-state"]}
-          tabIndex={-1}
-          className="flex h-7 w-full min-w-0 cursor-text items-center gap-1.5 rounded-md px-1.5 transition-[background-color,box-shadow] duration-100 ease-out focus-within:bg-muted focus-within:ring-2 focus-within:ring-ring/60 hover:bg-muted"
-          onMouseDown={(event) => {
-            if (event.target === inputRef.current) return;
-            event.preventDefault();
-            inputRef.current?.focus();
-          }}
-        >
-          <PersonTrigger
-            userId={value === "none" ? null : value}
-            name={name}
-            compact
-            unassigned="Unassigned"
-          />
-          <input
-            ref={inputRef}
-            role="combobox"
-            aria-label={`Assignee: ${name ?? "Unassigned"}`}
-            aria-expanded={open}
-            aria-haspopup="listbox"
-            aria-controls={listId}
-            aria-autocomplete="list"
-            aria-activedescendant={
-              open && activeOption
-                ? `${listId}-option-${activeOption.value}`
-                : undefined
-            }
-            value={open ? query : (name ?? "")}
-            placeholder={name ?? "Unassigned"}
-            autoComplete="off"
-            spellCheck={false}
-            className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
-            onFocus={() => {
-              setQuery("");
-              setActive(0);
-              setOpen(true);
-            }}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActive(0);
-              setOpen(true);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setOpen(true);
-                setActive((current) =>
-                  Math.min(options.length - 1, current + (open ? 1 : 0)),
-                );
-              } else if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setActive((current) => Math.max(0, current - 1));
-              } else if (event.key === "Enter") {
-                event.preventDefault();
-                const option = options[active];
-                if (option) choose(option.value);
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                close();
-                inputRef.current?.blur();
-              }
-            }}
-          />
-        </div>
-      )}
+      query={open ? query : (name ?? "")}
+      onQueryChange={(next, details) => {
+        if (details.reason !== "input-change") return;
+        setQuery(next);
+        search(next);
+      }}
+      open={open}
+      onOpenChange={(next, details) => {
+        if (next) {
+          setOpen(true);
+          start();
+          return;
+        }
+        close();
+        if (details.reason === "escape-key") inputRef.current?.blur();
+      }}
+      filter={false}
+      autoHighlight="always"
+      loop={false}
+      status={loading ? "loading" : "idle"}
+      onLoadMore={hasMore ? loadMore : undefined}
     >
-      <PeoplePicker
-        hideSearch
-        query={query}
-        value={value}
-        none={unassignedOption}
-        listboxId={listId}
-        activeIndex={active}
-        onActiveIndexChange={setActive}
-        onOptionsChange={onOptionsChange}
-        onSelect={choose}
-      />
-    </Popover>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- pointer convenience that focuses the field's own input, which keyboard users reach directly. */}
+      <div
+        ref={setField}
+        data-state={open ? "open" : "closed"}
+        className="flex h-7 w-full min-w-0 cursor-text items-center gap-1.5 rounded-md px-1.5 transition-[background-color,box-shadow] duration-100 ease-out focus-within:bg-muted focus-within:ring-2 focus-within:ring-ring/60 hover:bg-muted"
+        onMouseDown={(event) => {
+          if (event.target === inputRef.current) return;
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
+        <PersonTrigger
+          userId={value === "none" ? null : value}
+          name={name}
+          compact
+          unassigned="Unassigned"
+        />
+        <ComboboxInput
+          ref={inputRef}
+          aria-label={`Assignee: ${name ?? "Unassigned"}`}
+          placeholder={name ?? "Unassigned"}
+          autoComplete="off"
+          spellCheck={false}
+          className="h-7 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
+          onFocus={show}
+          onClick={show}
+          onKeyDown={(event) => {
+            // Enter with nothing to choose must not submit a surrounding form.
+            if (event.key === "Enter" && (!open || empty))
+              event.preventDefault();
+            if (event.key === "Escape" && !open) inputRef.current?.blur();
+          }}
+        />
+      </div>
+      <ComboboxContent
+        data-popover
+        anchor={field}
+        align="start"
+        sideOffset={4}
+        collisionPadding={8}
+        style={{ width: 280, maxHeight: "var(--available-height)" }}
+        className={cn(dropdownContentClass, "flex min-w-0 flex-col")}
+      >
+        <ComboboxEmpty className="text-center text-xs text-muted-foreground data-empty:px-2 data-empty:py-3">
+          {loading ? "Searching…" : "No people match."}
+        </ComboboxEmpty>
+        <ComboboxList
+          aria-label="People"
+          className={cn(
+            "max-h-72 min-h-0 flex-1 overflow-y-auto p-1 outline-none",
+            empty && "hidden",
+          )}
+        >
+          {options.map((option) => (
+            <ComboboxItem
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              className={dropdownItemClass}
+            >
+              {option.icon && (
+                <span className="grid size-4 shrink-0 place-items-center text-muted-foreground">
+                  {option.icon}
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              {option.hint && (
+                <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">
+                  {option.hint}
+                </span>
+              )}
+              <ComboboxItemIndicator className="flex shrink-0">
+                <Check className="size-3.5 text-primary" aria-hidden />
+              </ComboboxItemIndicator>
+            </ComboboxItem>
+          ))}
+          {hasMore && (
+            <div
+              role="presentation"
+              className="flex h-8 items-center justify-center"
+            >
+              {loading && (
+                <Loader2
+                  className="size-3.5 animate-spin text-muted-foreground"
+                  aria-hidden
+                />
+              )}
+            </div>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 
@@ -368,10 +413,12 @@ function memberOption(
   };
 }
 
+// Pages of people for a query. A `manual` search loads nothing until
+// `start()` (a list opening) and forgets its results at `reset()`.
 function useMemberSearch(
   organizationId: string,
   excludeIds?: string[],
-  controlled = false,
+  manual = false,
 ) {
   const { userId, directory } = useWorkspace();
   const excluded = useMemo(() => new Set(excludeIds ?? []), [excludeIds]);
@@ -384,6 +431,8 @@ function useMemberSearch(
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const liveRef = useRef(!manual);
+  const timerRef = useRef<number | undefined>(undefined);
   const load = useCallback(
     async (reset: boolean) => {
       if (loadingRef.current && !reset) return;
@@ -433,23 +482,53 @@ function useMemberSearch(
     },
     [directory.members, excluded, organizationId, userId],
   );
+  // A search waiting out its pause runs the loader of the moment it fires:
+  // the people to leave out may have changed meanwhile.
+  const loadRef = useRef(load);
   useEffect(() => {
-    if (controlled) return;
+    loadRef.current = load;
+  }, [load]);
+  useEffect(() => {
+    if (manual) return;
     void load(true);
     return () => abortRef.current?.abort();
-  }, [controlled, load]);
-  const searchNow = useCallback(
-    (value: string) => {
-      queryRef.current = value;
-      void load(true);
+  }, [manual, load]);
+  useEffect(
+    () => () => {
+      window.clearTimeout(timerRef.current);
+      abortRef.current?.abort();
     },
-    [load],
+    [],
   );
-  const search = useDebouncedCallback(searchNow, 150);
+  const search = useCallback((value: string) => {
+    window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      if (!liveRef.current) return;
+      queryRef.current = value;
+      void loadRef.current(true);
+    }, 150);
+  }, []);
   const loadMore = useCallback(() => {
     void load(false);
   }, [load]);
-  return { members, loading, hasMore, loadMore, search };
+  const start = useCallback(() => {
+    if (liveRef.current) return;
+    liveRef.current = true;
+    void load(true);
+  }, [load]);
+  const reset = useCallback(() => {
+    liveRef.current = false;
+    window.clearTimeout(timerRef.current);
+    requestRef.current += 1;
+    abortRef.current?.abort();
+    loadingRef.current = false;
+    hasMoreRef.current = false;
+    queryRef.current = "";
+    setMembers([]);
+    setLoading(true);
+    setHasMore(false);
+  }, []);
+  return { members, loading, hasMore, loadMore, search, start, reset };
 }
 
 function mergeMembers(current: DirectoryMember[], next: DirectoryMember[]) {

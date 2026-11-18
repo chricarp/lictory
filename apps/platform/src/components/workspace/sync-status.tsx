@@ -1,5 +1,16 @@
-import { CloudAlert, CloudCheck, CloudOff, RefreshCw } from "lucide-react";
+import {
+  ChevronRight,
+  CloudAlert,
+  CloudCheck,
+  CloudOff,
+  RefreshCw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
 import { Button } from "@lictory/ui/button";
 import { Popover, usePopover } from "@lictory/ui/popover";
 import { cn } from "@lictory/core/lib/utils";
@@ -190,16 +201,20 @@ function SyncPanel({
       )}
       <RecoveryList entries={recoverable} />
       {errors.length > 0 && (
-        <details className="border-t pt-3 text-xs text-muted-foreground">
-          <summary className="cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+        <Collapsible className="border-t pt-3 text-xs text-muted-foreground">
+          <CollapsibleTrigger className="group flex cursor-pointer items-center gap-1 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+            <ChevronRight
+              aria-hidden
+              className="size-3 transition-transform duration-150 group-data-open:rotate-90"
+            />
             Technical details
-          </summary>
-          <div className="mt-2 flex flex-col gap-2 break-words">
+          </CollapsibleTrigger>
+          <CollapsiblePanel className="mt-2 flex flex-col gap-2 break-words">
             {errors.map((error) => (
               <p key={error}>{error}</p>
             ))}
-          </div>
-        </details>
+          </CollapsiblePanel>
+        </Collapsible>
       )}
     </div>
   );

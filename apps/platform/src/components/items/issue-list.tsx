@@ -1,4 +1,7 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
+import { Input } from "@ui-sdk/react/input";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+import { Checkbox } from "@lictory/ui/checkbox";
+import { DropdownItem, dropdownItemClass } from "@lictory/ui/dropdown";
 import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -394,7 +397,7 @@ export function IssueList({
           target.isContentEditable)
       )
         return;
-      if (document.querySelector('[role="dialog"]')) return;
+      if (document.querySelector('[role="dialog"], [data-popover]')) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       // Enter activates the focused control (search toggle, menus, links),
       // unless j/k moved the cursor while that control kept focus: a row link
@@ -403,7 +406,7 @@ export function IssueList({
         event.key === "Enter" &&
         target !== navigatedFrom.current &&
         target?.closest(
-          "button, a, select, summary, [role='button'], [role='menuitem'], [role='option'], [role='tab']",
+          "button, a, select, summary, [role='button'], [role^='menuitem'], [role='option'], [role='tab']",
         )
       )
         return;
@@ -517,11 +520,11 @@ export function IssueList({
                 aria-hidden
                 className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
               />
-              <input
+              <Input
                 ref={searchInputRef}
                 id={searchInputId}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onValueChange={setSearch}
                 onBlur={(e) => {
                   if (!search && e.relatedTarget !== searchButtonRef.current)
                     setSearchExpanded(false);
@@ -569,9 +572,9 @@ export function IssueList({
               )}
             </button>
           ) : (
-            <input
+            <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onValueChange={setSearch}
               placeholder="Filter…"
               aria-label="Filter by title or identifier"
               className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base"
@@ -638,37 +641,48 @@ export function IssueList({
               <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
                 Sort by
               </p>
-              {(
-                [
-                  "updated",
-                  "created",
-                  "priority",
-                  "status",
-                  "number",
-                ] as SortKey[]
-              ).map((key) => (
-                <DropdownItem
-                  key={key}
-                  onClick={() => setSort(key)}
-                  className={cn(sort === key && "font-medium text-primary")}
-                >
-                  {
+              <RadioGroup<SortKey>
+                aria-label="Sort by"
+                value={sort}
+                onValueChange={(next) => {
+                  if (next) setSort(next);
+                }}
+                className="flex flex-col gap-0"
+              >
+                {(
+                  [
+                    "updated",
+                    "created",
+                    "priority",
+                    "status",
+                    "number",
+                  ] as SortKey[]
+                ).map((key) => (
+                  <Radio
+                    key={key}
+                    value={key}
+                    className={cn(
+                      dropdownItemClass,
+                      "data-checked:font-medium data-checked:text-primary",
+                    )}
+                  >
                     {
-                      updated: "Last updated",
-                      created: "Created",
-                      priority: "Priority",
-                      status: "Status",
-                      number: "Identifier",
-                    }[key]
-                  }
-                </DropdownItem>
-              ))}
+                      {
+                        updated: "Last updated",
+                        created: "Created",
+                        priority: "Priority",
+                        status: "Status",
+                        number: "Identifier",
+                      }[key]
+                    }
+                  </Radio>
+                ))}
+              </RadioGroup>
               <div className="my-1 border-t" />
               <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={group}
-                  onChange={(e) => setGroup(e.target.checked)}
+                  onCheckedChange={(checked) => setGroup(checked === true)}
                 />{" "}
                 Group by{" "}
                 {groupBy === "lifecycle"
@@ -681,10 +695,11 @@ export function IssueList({
               </label>
               {showArchivedToggle && (
                 <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
+                    onCheckedChange={(checked) =>
+                      setShowArchived(checked === true)
+                    }
                   />{" "}
                   Show archived
                 </label>
@@ -1298,21 +1313,19 @@ function FilterPanel({
       ))}
       <div className="my-1 border-t" />
       <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={Boolean(filters.blocked)}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, blocked: e.target.checked }))
+          onCheckedChange={(checked) =>
+            setFilters((f) => ({ ...f, blocked: checked === true }))
           }
         />{" "}
         Blocked
       </label>
       <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={Boolean(filters.needsReview)}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, needsReview: e.target.checked }))
+          onCheckedChange={(checked) =>
+            setFilters((f) => ({ ...f, needsReview: checked === true }))
           }
         />{" "}
         Review outstanding

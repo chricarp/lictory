@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appAlert } from "../helpers/live-regions";
 import { paths } from "@lictory/core/lib/paths";
 import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 import {
@@ -67,7 +68,7 @@ test("account pages meet WCAG 2.2 AA automated checks", async ({ page }) => {
   await page.getByLabel("Email", { exact: true }).fill("nobody@example.test");
   await page.getByLabel("Password", { exact: true }).fill("Not-the-password-1");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(appAlert(page)).toBeVisible();
   await expectNoAccessibilityViolations(page, "sign-in with an error");
 });
 

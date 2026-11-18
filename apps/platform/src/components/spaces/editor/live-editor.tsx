@@ -369,7 +369,7 @@ function DraftEditor({
       const images = files.filter((f) => f.type.startsWith("image/"));
       if (!images.length) return false;
       if (!data.get().attachments) {
-        toast.add({
+        toast({
           title: "Images are unavailable",
           description: "This installation has no file storage configured.",
           type: "error",
@@ -379,12 +379,12 @@ function DraftEditor({
       setUploading((n) => n + images.length);
       void insertImages(editor, images, fileContext, at)
         .catch((e: unknown) =>
-          toast.add({
+          toast({
             title: "The image was not added",
             description:
               e instanceof Error ? e.message : "The upload failed. Try again.",
             type: "error",
-            timeout: 8000,
+            duration: 8000,
           }),
         )
         .finally(() => setUploading((n) => n - images.length));
@@ -655,7 +655,7 @@ function DraftEditor({
                 canPublish={editable}
                 onOutcome={(result) => {
                   if (result.kind === "error")
-                    toast.add({
+                    toast({
                       title: "Not published",
                       description: result.message,
                       type: "error",
@@ -830,9 +830,9 @@ function RecoveredText({
                 variant="secondary"
                 onClick={() => {
                   void navigator.clipboard?.writeText(preview).then(
-                    () => toast.add({ title: "Text copied", type: "success" }),
+                    () => toast({ title: "Text copied", type: "success" }),
                     () =>
-                      toast.add({
+                      toast({
                         title: "The text could not be copied",
                         description:
                           "Select it in the notice and copy it by hand.",

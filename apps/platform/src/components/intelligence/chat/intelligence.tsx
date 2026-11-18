@@ -43,6 +43,8 @@ import {
   Suggestions,
 } from "@lictory/platform/components/intelligence/chat/suggestions";
 import { MessageScrollerProvider } from "@lictory/ui/ai/message-scroller";
+import { popupContainer } from "@lictory/ui/popup";
+import { Drawer, DrawerBackdrop, DrawerContent } from "@ui-sdk/react/drawer";
 
 const ease = [0.23, 1, 0.32, 1] as const;
 
@@ -96,32 +98,20 @@ function IntelligenceShell() {
           </motion.aside>
         )}
       </AnimatePresence>
-      <AnimatePresence>
-        {listOpen && (
-          <motion.div
-            className="fixed inset-0 z-40 md:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <button
-              type="button"
-              aria-label="Close conversations"
-              className="absolute inset-0 bg-black/30"
-              onClick={() => setListOpen(false)}
-            />
-            <motion.div
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: "spring", duration: 0.35, bounce: 0 }}
-              className="absolute inset-y-0 left-0 w-[280px] border-r bg-background shadow-xl"
-            >
-              <ChatList onNavigate={() => setListOpen(false)} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Drawer
+        open={listOpen}
+        onOpenChange={setListOpen}
+        side="left"
+        container={popupContainer()}
+      >
+        <DrawerBackdrop className="fixed inset-0 z-50 bg-black/30" />
+        <DrawerContent
+          aria-label="Conversations"
+          className="h-full max-h-none w-[280px] max-w-[85vw] gap-0 border-0 border-r bg-background p-0 text-foreground shadow-xl"
+        >
+          <ChatList onNavigate={() => setListOpen(false)} />
+        </DrawerContent>
+      </Drawer>
       <section className="relative flex min-w-0 flex-1 flex-col">
         <LayoutGroup>
           {activeId ? (

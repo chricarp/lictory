@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Textarea } from "@ui-sdk/react/textarea";
 import { Extension, InputRule, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
 import { Plugin } from "@tiptap/pm/state";
@@ -480,11 +481,11 @@ const RichMarkdownEditor = forwardRef<
         </div>
       )}
       {source ? (
-        <textarea
+        <Textarea
           value={emitted.current}
-          onChange={(e) => {
-            emitted.current = e.target.value;
-            onValueChange(e.target.value);
+          onValueChange={(next) => {
+            emitted.current = next;
+            onValueChange(next);
           }}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {

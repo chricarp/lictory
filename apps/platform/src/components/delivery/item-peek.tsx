@@ -10,6 +10,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { Progress } from "@ui-sdk/react/progress";
 import { ArrowUpRight, CircleAlert, MessageSquare, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -128,7 +129,11 @@ export function ItemPeek({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       // Open pickers and modal dialogs handle their own Escape; toasts do not
       // count.
-      if (document.querySelector("[role='dialog']:not([data-slot='toast'])"))
+      if (
+        document.querySelector(
+          "[role='dialog']:not([data-slot='toast']),[data-popover]",
+        )
+      )
         return;
       close();
     };
@@ -280,12 +285,15 @@ function PeekContent({
       <PeekHeader
         onClose={peek.close}
         actions={
-          <Link href={href} className="contents">
-            <Button variant="ghost" size="sm" title="Open the full item page">
-              Open
-              <ArrowUpRight className="size-3.5" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Open the full item page"
+            render={<Link href={href} />}
+          >
+            Open
+            <ArrowUpRight className="size-3.5" />
+          </Button>
         }
       >
         <TypeIcon type={type} className="size-3.5 rounded-[3px]" />
@@ -573,13 +581,11 @@ function Meter({
       </div>
       {/* One segment per check or approval: passed green, pending neutral,
           the same rule as the item's readiness meter. */}
-      <div
-        role="progressbar"
+      <Progress
         aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={done}
-        className="flex gap-0.5"
+        max={Math.max(total, 1)}
+        value={done}
+        className="flex min-w-0 gap-0.5"
       >
         {Array.from({ length: Math.max(total, 1) }, (_, index) => (
           <span
@@ -590,7 +596,7 @@ function Meter({
             )}
           />
         ))}
-      </div>
+      </Progress>
     </div>
   );
 }

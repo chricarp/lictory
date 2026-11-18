@@ -1,7 +1,17 @@
-import { useId, useState, type InputHTMLAttributes } from "react";
+import {
+  useId,
+  useState,
+  type ComponentProps,
+  type InputHTMLAttributes,
+} from "react";
+import {
+  PasswordInput as PasswordInputRoot,
+  PasswordInputControl,
+  PasswordInputToggle,
+} from "@ui-sdk/react/password-input";
 import { Check, Eye, EyeOff } from "lucide-react";
 
-import { Input } from "@lictory/ui/input";
+import { inputClass } from "@lictory/ui/input";
 import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -11,15 +21,18 @@ import { cn } from "@lictory/core/lib/utils";
 
 export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH };
 
+type Root = ComponentProps<typeof PasswordInputRoot>;
+
 type PasswordInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
-  "type"
-> & {
-  label: string;
-  hint?: React.ReactNode;
-  /** Decoration rendered over the input, e.g. a strength meter. */
-  overlay?: React.ReactNode;
-};
+  "type" | "value" | "defaultValue" | "onChange" | "children" | "onSelect"
+> &
+  Pick<Root, "value" | "defaultValue" | "onValueChange"> & {
+    label: string;
+    hint?: React.ReactNode;
+    /** Decoration rendered over the input, e.g. a strength meter. */
+    overlay?: React.ReactNode;
+  };
 
 /** Password input with a show/hide toggle. */
 export function PasswordInput({
@@ -28,10 +41,17 @@ export function PasswordInput({
   overlay,
   id,
   className,
+  name,
+  form,
+  value,
+  defaultValue,
+  onValueChange,
+  autoComplete,
+  required,
+  disabled,
+  readOnly,
   ...props
 }: PasswordInputProps) {
-  const [visible, setVisible] = useState(false);
-
   return (
     <div className="grid gap-1.5">
       <div className="flex items-baseline justify-between">
@@ -42,24 +62,43 @@ export function PasswordInput({
           <span className="text-xs text-muted-foreground">{hint}</span>
         ) : null}
       </div>
-      <div className="relative">
-        <Input
+      <PasswordInputRoot
+        className="relative block h-auto bg-transparent outline-none data-disabled:opacity-100"
+        name={name}
+        form={form}
+        value={value}
+        defaultValue={defaultValue}
+        onValueChange={onValueChange}
+        autoComplete={autoComplete}
+        required={required}
+        disabled={disabled}
+        readOnly={readOnly}
+      >
+        <PasswordInputControl
           id={id}
-          type={visible ? "text" : "password"}
-          className={cn("pr-11", className)}
+          className={cn(inputClass, "pr-11", className)}
           {...props}
         />
-        <button
-          type="button"
-          aria-label={visible ? "Hide password" : "Show password"}
-          aria-pressed={visible}
-          onClick={() => setVisible((v) => !v)}
-          className="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground transition-[color,background-color] duration-100 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96]"
-        >
-          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        </button>
+        <PasswordInputToggle
+          className="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 cursor-default place-items-center rounded-lg text-muted-foreground transition-[color,background-color] duration-100 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96]"
+          render={(toggle, { visible }) => (
+            <button
+              {...toggle}
+              // The part points at a generated id, not the id given to the
+              // field.
+              {...(id ? { "aria-controls": id } : null)}
+              aria-label={visible ? "Hide password" : "Show password"}
+            >
+              {visible ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </button>
+          )}
+        />
         {overlay}
-      </div>
+      </PasswordInputRoot>
     </div>
   );
 }
@@ -214,7 +253,7 @@ export function NewPasswordFields({
         required
         autoFocus={autoFocus}
         value={password}
-        onChange={(event) => setPassword(sanitize(event.target.value))}
+        onValueChange={(value) => setPassword(sanitize(value))}
         aria-describedby={feedbackId}
       />
       <span id={feedbackId} aria-live="polite" className="sr-only">
@@ -231,7 +270,7 @@ export function NewPasswordFields({
           maxLength={MAX_PASSWORD_LENGTH}
           required
           value={confirmation}
-          onChange={(event) => setConfirmation(sanitize(event.target.value))}
+          onValueChange={(value) => setConfirmation(sanitize(value))}
           aria-describedby={matchId}
           aria-invalid={showConfirmationState && !matches ? true : undefined}
           hint={

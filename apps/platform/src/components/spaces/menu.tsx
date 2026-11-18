@@ -1,84 +1,32 @@
-import { DropdownItem } from "@lictory/ui/dropdown";
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { MenuRadioItem as MenuRadioItemPrimitive } from "@ui-sdk/react/menu";
+import { cn } from "@lictory/core/lib/utils";
+import { dropdownItemClass } from "@lictory/ui/dropdown";
+import { MenuItem as MenuItemPrimitive } from "@lictory/ui/menu";
 import { Link } from "@lictory/platform/lib/navigation";
 
-// Action menus of Spaces (a page's actions in the tree and in its header),
-// drawn inside a Popover: the first item takes focus once the popover is
-// placed (it starts hidden while it measures itself), the arrow keys move
-// between items (the menu pattern), Tab and Escape leave.
+// The rows of Spaces' action menus (a page's actions in the tree and in its
+// header, the branches of a page): an icon, the action and an optional quiet
+// hint, inside the shared Menu.
 
-export function Menu({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() =>
-      (
-        ref.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
-        ref.current?.querySelector<HTMLElement>(ITEMS)
-      )?.focus(),
-    );
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  return (
-    <div
-      ref={ref}
-      className="max-h-[inherit] overflow-y-auto overscroll-contain p-1"
-      role="menu"
-      aria-label={label}
-    >
-      {children}
-    </div>
-  );
-}
+export {
+  Menu,
+  MenuContent,
+  MenuRadioGroup,
+  MenuSeparator,
+  MenuTrigger,
+} from "@lictory/ui/menu";
 
-const ITEMS = '[role="menuitem"], [role="menuitemradio"]';
-
-function moveFocus(event: KeyboardEvent<HTMLElement>) {
-  const menu = event.currentTarget.closest('[role="menu"]');
-  const items = [...(menu?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
-  const index = items.indexOf(event.currentTarget);
-  const next =
-    event.key === "ArrowDown"
-      ? items[(index + 1) % items.length]
-      : event.key === "ArrowUp"
-        ? items[(index - 1 + items.length) % items.length]
-        : event.key === "Home"
-          ? items[0]
-          : event.key === "End"
-            ? items.at(-1)
-            : undefined;
-  if (next) {
-    event.preventDefault();
-    next.focus();
-  }
-}
-
-export function MenuItem({
-  children,
+function Row({
   icon,
   hint,
-  onSelect,
-  href,
-  checked,
-  className,
+  children,
 }: {
-  children: ReactNode;
   icon: ReactNode;
-  // A choice among several (a radio item); the chosen one shows a check.
-  checked?: boolean;
-  // Quiet text at the end of the row (a count, a shortcut).
   hint?: ReactNode;
-  onSelect?: () => void;
-  // A link item navigates; `onSelect` still runs (to close the menu).
-  href?: string;
-  className?: string;
+  children: ReactNode;
 }) {
-  const content = (
+  return (
     <>
       <span
         aria-hidden
@@ -94,33 +42,65 @@ export function MenuItem({
       )}
     </>
   );
-  if (href)
-    return (
-      <DropdownItem asChild>
-        <Link
-          href={href}
-          role="menuitem"
-          className={className}
-          onClick={onSelect}
-          onKeyDown={moveFocus}
-        >
-          {content}
-        </Link>
-      </DropdownItem>
-    );
+}
+
+export function MenuItem({
+  children,
+  icon,
+  hint,
+  onSelect,
+  href,
+  className,
+}: {
+  children: ReactNode;
+  icon: ReactNode;
+  // Quiet text at the end of the row (a count, a shortcut).
+  hint?: ReactNode;
+  onSelect?: () => void;
+  // A link item navigates.
+  href?: string;
+  className?: string;
+}) {
   return (
-    <DropdownItem
-      role={checked === undefined ? "menuitem" : "menuitemradio"}
-      aria-checked={checked}
+    <MenuItemPrimitive
       className={className}
-      onClick={onSelect}
-      onKeyDown={moveFocus}
+      render={href ? <Link href={href} /> : undefined}
+      onSelect={onSelect && (() => onSelect())}
     >
-      {content}
-    </DropdownItem>
+      <Row icon={icon} hint={hint}>
+        {children}
+      </Row>
+    </MenuItemPrimitive>
   );
 }
 
-export function MenuSeparator() {
-  return <div role="separator" className="-mx-1 my-1 h-px bg-border" />;
+// One choice of a MenuRadioGroup; choosing it closes the menu.
+export function MenuRadioItem({
+  value,
+  label,
+  children,
+  icon,
+  hint,
+  className,
+}: {
+  value: string;
+  // What typing in the menu matches, when the row holds more than its name.
+  label?: string;
+  children: ReactNode;
+  icon: ReactNode;
+  hint?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <MenuRadioItemPrimitive
+      value={value}
+      label={label}
+      closeOnSelect
+      className={cn(dropdownItemClass, className)}
+    >
+      <Row icon={icon} hint={hint}>
+        {children}
+      </Row>
+    </MenuRadioItemPrimitive>
+  );
 }

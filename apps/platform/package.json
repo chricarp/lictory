@@ -24,6 +24,8 @@
     "@tiptap/react": "3.32.0",
     "@tiptap/suggestion": "3.32.0",
     "@tiptap/y-tiptap": "3.0.10",
+    "@ui-sdk/core": "0.1.0-beta.1",
+    "@ui-sdk/react": "0.1.0-beta.1",
     "ai": "^7.0.128",
     "better-auth": "^1.7.7",
     "lucide-react": "^1.47.0",

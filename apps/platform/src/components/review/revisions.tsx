@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { GitCompareArrows, History } from "lucide-react";
+import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
 import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
@@ -275,56 +276,58 @@ export function SpecVersions({
     <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
       <section aria-label="Versions">
         <h2 className="mb-3 text-sm font-semibold">Versions</h2>
-        <ol className="space-y-1">
-          {revisions.map((r) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                aria-pressed={r.id === shown.id}
-                onClick={() => select(r.id)}
-                className={cn(
-                  "w-full rounded-xl border p-3 text-left text-[13px] transition-[background-color,border-color] duration-150 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60",
-                  r.id === shown.id
-                    ? "border-border bg-muted"
-                    : "border-transparent",
-                )}
-              >
-                <span className="flex items-start gap-2">
-                  <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">
-                    r{r.number}
+        {/* Choosing the version on screen again reads it on its own. */}
+        <ToggleGroup
+          aria-label="Versions"
+          orientation="vertical"
+          value={[shown.id]}
+          onValueChange={([next]) => select(next ?? shown.id)}
+          className="block"
+        >
+          <ol className="space-y-1">
+            {revisions.map((r) => (
+              <li key={r.id}>
+                <Toggle
+                  value={r.id}
+                  className="w-full rounded-xl border border-transparent p-3 text-left text-[13px] transition-[background-color,border-color] duration-150 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 data-pressed:border-border data-pressed:bg-muted"
+                >
+                  <span className="flex items-start gap-2">
+                    <span className="mt-0.5 shrink-0 font-mono text-xs font-semibold">
+                      r{r.number}
+                    </span>
+                    <span
+                      className={cn(
+                        "line-clamp-2",
+                        r.changeSummary
+                          ? "font-medium"
+                          : "text-muted-foreground italic",
+                      )}
+                    >
+                      {r.changeSummary ??
+                        (r.number === 1 ? "First revision" : "No summary")}
+                    </span>
                   </span>
-                  <span
-                    className={cn(
-                      "line-clamp-2",
-                      r.changeSummary
-                        ? "font-medium"
-                        : "text-muted-foreground italic",
-                    )}
-                  >
-                    {r.changeSummary ??
-                      (r.number === 1 ? "First revision" : "No summary")}
+                  <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <Avatar
+                      userId={r.authorId}
+                      name={memberName(r.authorId)}
+                      size="xs"
+                    />
+                    {memberName(r.authorId)}
+                    <span aria-hidden>·</span>
+                    <time
+                      dateTime={r.createdAt}
+                      title={absoluteTime(r.createdAt)}
+                    >
+                      {relativeTime(r.createdAt)}
+                    </time>
                   </span>
-                </span>
-                <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  <Avatar
-                    userId={r.authorId}
-                    name={memberName(r.authorId)}
-                    size="xs"
-                  />
-                  {memberName(r.authorId)}
-                  <span aria-hidden>·</span>
-                  <time
-                    dateTime={r.createdAt}
-                    title={absoluteTime(r.createdAt)}
-                  >
-                    {relativeTime(r.createdAt)}
-                  </time>
-                </span>
-                <Markers revision={r} />
-              </button>
-            </li>
-          ))}
-        </ol>
+                  <Markers revision={r} />
+                </Toggle>
+              </li>
+            ))}
+          </ol>
+        </ToggleGroup>
       </section>
       <section aria-label="Selected revision" className="min-w-0 space-y-4">
         <div className="space-y-3 border-b pb-4">

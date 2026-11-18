@@ -1,6 +1,6 @@
+import { Toggle } from "@ui-sdk/react/toggle";
 import { Link } from "@lictory/platform/lib/navigation";
 import { Plus, Users } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import type { ProjectRole } from "@lictory/core/contracts/protocol";
@@ -138,35 +138,28 @@ export function ProjectMembers({
                     {disciplines.map((d) => {
                       const held = d.userIds.includes(m.id);
                       return (
-                        <button
+                        <Toggle
                           key={d.id}
-                          type="button"
-                          aria-pressed={held}
+                          pressed={held}
                           disabled={!canEdit}
                           title={
                             canEdit
                               ? `${held ? "Remove from" : "Add to"} ${d.name}`
                               : undefined
                           }
-                          onClick={() =>
+                          onPressedChange={(member) =>
                             void run({
                               type: "setDisciplineMember",
                               projectId: project.id,
                               disciplineId: d.id,
                               userId: m.id,
-                              member: !held,
+                              member,
                             })
                           }
-                          className={cn(
-                            "h-6 rounded-full px-2 text-xs transition-colors disabled:cursor-default",
-                            held
-                              ? "bg-primary/10 font-medium text-primary"
-                              : "text-muted-foreground shadow-(--shadow-border) enabled:hover:bg-muted",
-                            !canEdit && !held && "hidden",
-                          )}
+                          className="h-6 rounded-full px-2 text-xs text-muted-foreground shadow-(--shadow-border) transition-colors enabled:not-data-pressed:hover:bg-muted disabled:cursor-default disabled:not-data-pressed:hidden data-pressed:bg-primary/10 data-pressed:font-medium data-pressed:text-primary data-pressed:shadow-none"
                         >
                           {d.name}
-                        </button>
+                        </Toggle>
                       );
                     })}
                     {!canEdit &&

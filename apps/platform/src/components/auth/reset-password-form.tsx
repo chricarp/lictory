@@ -54,11 +54,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         <FormMessage tone="success">
           Your password has been updated.
         </FormMessage>
-        <Link href="/sign-in" className="contents">
-          <Button size="lg" className="w-full">
-            Continue to sign in
-          </Button>
-        </Link>
+        <Button size="lg" className="w-full" render={<Link href="/sign-in" />}>
+          Continue to sign in
+        </Button>
       </div>
     );
   }

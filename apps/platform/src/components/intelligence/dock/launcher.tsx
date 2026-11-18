@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
+import { Toggle } from "@ui-sdk/react/toggle";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { cn } from "@lictory/core/lib/utils";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -60,43 +61,34 @@ export function LittoLauncher({
       ? `Ask Litto, the assistant. ${concerns} AI ${concerns === 1 ? "concern" : "concerns"} on this item`
       : "Ask Litto, the assistant";
   return (
-    <button
-      type="button"
+    <Toggle
+      pressed={open}
+      onPressedChange={() => store!.open({ toggle: true })}
       // Keeps the page's text selection, which travels with the question.
       onMouseDown={(e) => e.preventDefault()}
-      onClick={() => store!.open({ toggle: true })}
-      aria-pressed={open}
       aria-keyshortcuts="Meta+J Control+J"
       aria-label={label}
       title={`${open ? "Close" : "Open"} Litto  ${shortcut}`}
       data-litto-launcher
       className={cn(
         pill,
+        "group/launcher bg-card text-foreground shadow-(--shadow-border) hover:bg-muted data-pressed:bg-primary data-pressed:text-primary-foreground data-pressed:shadow-none data-pressed:hover:bg-primary",
         compact
           ? "relative size-9 justify-center"
           : "pr-1.5 pl-2.5 max-lg:hidden",
-        open
-          ? "bg-primary text-primary-foreground"
-          : "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted",
         className,
       )}
     >
       <IntelligenceMark
         mood={reviewing ? "working" : undefined}
-        className={cn(
-          "size-4 shrink-0",
-          open ? "text-primary-foreground" : "text-foreground",
-        )}
+        className="size-4 shrink-0 text-foreground group-data-pressed/launcher:text-primary-foreground"
       />
       <span className={cn(compact && "sr-only")}>Ask Litto</span>
       <kbd
         aria-hidden
         className={cn(
-          "h-5 items-center rounded-full px-1.5 font-mono text-[10.5px] font-medium tracking-[0.04em]",
+          "h-5 items-center rounded-full bg-muted px-1.5 font-mono text-[10.5px] font-medium tracking-[0.04em] text-muted-foreground group-data-pressed/launcher:bg-primary-foreground/15 group-data-pressed/launcher:text-primary-foreground/80",
           compact ? "hidden" : "inline-flex",
-          open
-            ? "bg-primary-foreground/15 text-primary-foreground/80"
-            : "bg-muted text-muted-foreground",
         )}
       >
         {shortcut}
@@ -109,7 +101,7 @@ export function LittoLauncher({
           {concerns}
         </span>
       )}
-    </button>
+    </Toggle>
   );
 }
 

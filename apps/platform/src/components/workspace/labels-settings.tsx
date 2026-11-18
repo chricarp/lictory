@@ -3,6 +3,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { useState } from "react";
+import { Input as InlineInput } from "@ui-sdk/react/input";
 import { Archive, ArchiveRestore, Flag, Tags } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import {
@@ -175,7 +176,7 @@ function LabelRow({
           onSelect={(color) => void update({ color })}
         />
       </Popover>
-      <input
+      <InlineInput
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={() =>
@@ -306,7 +307,7 @@ function MilestoneRow({
       )}
     >
       <Flag className="size-3.5 text-muted-foreground" />
-      <input
+      <InlineInput
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={() =>
