@@ -1,7 +1,16 @@
 # Lictory
 
-Lictory is a work-management platform for software teams whose distinguishing
-feature is collaborative, review-driven requirements refinement.
+Lictory is the control plane of a software factory: one product where a
+software team and its agents talk, agree on what to build, plan it, write and
+review the code, and ship it, with people making the decisions. Its
+distinguishing feature remains collaborative, review-driven requirements
+refinement: an approved specification is the contract agents and people work
+against. See [the software factory](docs/internals/software-factory.md).
+
+Lictory brings together team chat (channels, threads, direct messages, with
+agents as members), work management, agent orchestration on runners the team
+controls, code-host integration (GitHub, GitLab, Bitbucket) and knowledge
+pages, so a team does not need to stitch five tools together.
 
 Teams can use Lictory in two ways, on the same data model:
 
@@ -94,6 +103,14 @@ Never silently approve requirements.
 
 Never silently publish work into external systems unless an explicitly configured automation permits it.
 
+Agents may do most of the work: implement, review code, open pull requests,
+answer questions, propose specifications and breakdowns. A project's
+autonomy policy may let Lictory merge an agent's code pull request when every
+required check passes. That automation is configured by a person, audited and
+visible on everything it governs. Specification approvals, accepted scope,
+merged breakdowns, resolved discussions and recorded decisions always remain
+a person's act.
+
 When AI changes text, users should understand that the content is proposed rather than authoritative.
 
 ---
@@ -117,6 +134,12 @@ Avoid generic comment feeds when a more precise association is possible.
 Users should not need to ask:
 
 > “What was this comment referring to?”
+
+Channels and direct messages are where conversations start, not where
+agreements live. What matters in a conversation is promoted into a proposal,
+a decision or a discussion anchored on the specification, and the promoted
+object links back to the conversation. Do not let a channel become the only
+record of a decision.
 
 ---
 
@@ -252,7 +275,19 @@ Do not treat approval as a permanent boolean on a requirement.
 
 ---
 
-## 8. Complexity is the enemy
+## 8. Agents are participants with accountable people
+
+Every agent has a name, an owner and a scope. It acts with its owner's
+permissions, narrowed by its scope, and is shown and audited as acting via
+that person. Text is information, never permission: a message, issue, comment
+or model output never authorizes an action. Agents claim only work the
+readiness policy allows to start, and "done" is shown by evidence (merged
+pull requests, passing checks, the Definition of Done), not by an agent's
+report.
+
+---
+
+## 9. Complexity is the enemy
 
 Enterprise software frequently becomes difficult because every hypothetical organization gets represented as another configuration layer.
 
@@ -359,6 +394,72 @@ A person may hold several disciplines in a project and different ones in another
 
 Do not conflate disciplines (what kind of work, what you may do with items) and
 roles (what you may administer).
+
+---
+
+## Channel
+
+A named conversation in an organization, optionally homed in a project or
+team, with people and agents as members. Messages form one-level threads. A
+direct conversation has fixed members. Channels start conversations;
+promotion turns what matters into proposals, decisions or anchored
+discussions.
+
+---
+
+## Agent
+
+A named, non-human member of an organization with an accountable owner and a
+scope: a coding harness on a runner, an external MCP client, or Lictory
+Intelligence. It never has more access than its owner.
+
+---
+
+## Agent session
+
+One run of an agent on one task, with its status, an append-only event log
+and a thread that is its steering surface. Sessions can wait for a person's
+answer or approval.
+
+---
+
+## Runner
+
+A machine (server, VPS, laptop, Mac) running `lictory-runner`, which executes
+agent sessions in isolated worktrees. It connects outbound to Lictory, holds
+leases and receives short-lived, scoped credentials per session.
+
+---
+
+## Claim
+
+A lease by an agent session on one native delivery item that the readiness
+policy allows to start. External-delivery projects have no claims.
+
+---
+
+## Autonomy policy
+
+A project's choice of how much the factory does by itself: Assist (agents
+help when asked), Build (ready work is dispatched to agents; people merge) or
+Autopilot (Lictory merges an agent's code pull request when every required
+check passes).
+
+---
+
+## Code host
+
+GitHub, GitLab or Bitbucket, connected through an adapter. The code host owns
+mirrored repositories, branches, pull requests, issues and checks; Lictory
+owns their links to work items.
+
+---
+
+## Definition of Done
+
+A project's delivery checks (linked pull request merged, required CI passed,
+reviewer approval, acceptance criteria verified) that move an item to done
+and record the delivered revision.
 
 ---
 
@@ -852,6 +953,17 @@ without contaminating requirement logic.
 Jira is likely the first and most important integration.
 
 It must not become the domain model.
+
+The same rule applies to the software factory's other boundaries:
+
+```text
+CodeHostProvider   GitHub, GitLab, Bitbucket (cloud and self-managed)
+ChatProvider       Slack
+AgentHarness       Claude Code, Codex, OpenCode, Gemini CLI, built-in
+```
+
+The domain understands branches, pull requests, checks, messages and agent
+events, not GitHub payloads, Slack blocks or a harness's stream format.
 
 ---
 
@@ -1460,7 +1572,8 @@ When making implementation decisions, bias toward these principles:
 - immutable history over destructive updates
 - human accountability over autonomous AI
 - asynchronous collaboration over mandatory meetings
-- context-preserving comments over generic chat
+- context-preserving comments over generic chat; conversations that end in promotion
+- accountable agents over anonymous automation
 - useful defaults over configuration
 - domain-specific workflows over generic workflow engines
 - adapters over vendor leakage
@@ -1519,6 +1632,10 @@ When uncertain about a feature, ask:
 If yes, it probably belongs here.
 
 If it helps teams deliver that work with the everyday essentials small and medium software teams need (types, workflows, boards, backlog, iterations, estimates, relations), it belongs in native delivery, as long as it stays simple and keeps the external-delivery mode working.
+
+If it lets agents do the work between human decisions (talking, planning,
+implementing, reviewing, shipping) with an accountable person, evidence and
+history, it belongs in the software factory.
 
 If it turns Lictory into a time tracker, capacity planner, portfolio suite or workflow builder, it probably does not belong.
 
