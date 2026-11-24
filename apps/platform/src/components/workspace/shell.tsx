@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Bot,
   BookOpenCheck,
   CircleCheckBig,
   Check,
@@ -1218,6 +1219,13 @@ function ProjectNav({
                 : project.iterationMode === "automatic"
                   ? "Backlog & cycles"
                   : "Backlog"}
+            </NavLink>
+            <NavLink
+              href={paths.factoryQueue(org, key)}
+              active={active(paths.factoryQueue(org, key))}
+              icon={<Bot className="size-4" />}
+            >
+              Factory queue
             </NavLink>
           </>
         )}

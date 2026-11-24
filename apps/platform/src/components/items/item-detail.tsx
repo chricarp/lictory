@@ -103,6 +103,10 @@ import {
 } from "@lictory/platform/components/review/branch-workspace";
 import { ReviewPanel } from "@lictory/platform/components/review/review-panel";
 import { Readiness } from "@lictory/platform/components/review/readiness";
+import {
+  ClaimPanel,
+  DefinitionOfDonePanel,
+} from "@lictory/platform/components/claims/item-panels";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
@@ -665,11 +669,17 @@ export function ItemDetail({
         <SectionLabel className="mb-2">Properties</SectionLabel>
         {properties}
       </section>
-      {ctx.reviewable && (
+      {/* Who works on it (an agent's claim) and the evidence that it is
+          done sit beside readiness (docs/internals/claims.md). */}
+      <ClaimPanel />
+      {ctx.reviewable ? (
         <div data-review-panel className="scroll-mt-4 space-y-6">
           <Readiness />
+          <DefinitionOfDonePanel />
           <ReviewPanel />
         </div>
+      ) : (
+        <DefinitionOfDonePanel />
       )}
       <ExternalDelivery item={item} />
       {ctx.reviewable ? (
