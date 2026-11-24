@@ -189,6 +189,14 @@ After adding or changing one, run `bun run config:docs` to regenerate the
 [configuration reference](./configuration.md); a test fails when runtime code
 reads an undeclared variable.
 
+The desktop app (`apps/desktop`) runs against any Lictory server, including
+the one `bun run dev` starts: run `bun run --cwd apps/desktop setup` once (it
+downloads Electron, which installing the repository never does), then
+`bun run --cwd apps/desktop dev` and add `localhost:3001`. Its smoke test needs
+a display: `bun run --cwd apps/desktop build`, then
+`xvfb-run -a bun run --cwd apps/desktop test:smoke` on Linux. See
+[the desktop app](../internals/desktop.md).
+
 `bun run knip` reports unused files and dependencies. Its configuration
 (`knip.jsonc`) lists the few findings that predate it; shrink that list rather
 than grow it.

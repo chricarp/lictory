@@ -76,6 +76,9 @@ adding domain writes or synchronized entities.
 - [Product analytics](./internals/analytics.md)
 - [Identity and illustrations](./internals/design.md): shared artwork, product
   scenes, empty states and asset delivery
+- [The desktop app](./internals/desktop.md): the Electron shell for
+  self-hosted servers, its security model, the bridge with the web app,
+  deep links, updates, packaging and the personal runner
 - [Accessibility](./internals/accessibility.md): the WCAG 2.2 AA target,
   automated lint and browser checks, and known gaps
 

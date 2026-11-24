@@ -1,4 +1,11 @@
 {
   "title": "First steps",
-  "pages": ["navigation", "account", "shortcuts", "phone", "glossary"]
+  "pages": [
+    "navigation",
+    "account",
+    "shortcuts",
+    "phone",
+    "desktop",
+    "glossary"
+  ]
 }

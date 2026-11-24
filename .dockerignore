@@ -26,6 +26,8 @@ docs
 .DS_Store
 deploy/**/*.env
 !deploy/**/*.env.example
-# The documentation site deploys only to Cloudflare; no image builds or ships
-# it, and its dependencies stay out of every image's install.
+# The documentation site deploys only to Cloudflare and the desktop app ships
+# as installers; no image builds or ships them, and their dependencies
+# (Electron, electron-builder) stay out of every image's install.
 apps/docs
+apps/desktop

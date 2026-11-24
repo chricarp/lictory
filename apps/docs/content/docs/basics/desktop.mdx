@@ -1,0 +1,99 @@
+---
+title: The desktop app
+description: Install Lictory for macOS, Windows or Linux, connect it to your team's servers, and get native notifications, a badge and lictory:// links.
+---
+
+The Lictory desktop app keeps your team's Lictory in its own window, next to
+your other tools. It is the same Lictory you use in the browser, with what a
+browser tab does not do well:
+
+- **Notifications** from your computer when something needs you: a review
+  is requested, you are mentioned or assigned, a blocking discussion opens.
+- **A badge** on the Dock, taskbar or tray icon with what is waiting on you.
+- **Several servers** side by side, each with its own sign-in, one click (or
+  ⌘1 to ⌘9) apart.
+- **Lictory links** (`lictory://`) that open straight in the app.
+- **Open at login**, a tray icon and updates that install themselves.
+
+## Install it
+
+Download the app for your system from the
+[Lictory releases page](https://github.com/chricarp/lictory/releases):
+
+- **macOS:** the `.dmg` (one download for Intel and Apple silicon). Open it
+  and drag Lictory to Applications.
+- **Windows:** the `.exe` installer for x64 or arm64. It installs for your
+  account only and needs no administrator rights.
+- **Linux:** the `.AppImage` (make it executable and run it; it needs no
+  installation) or the `.deb` for Debian and Ubuntu.
+
+## Connect to your server
+
+Lictory runs on your team's own server, so the first thing the app asks for
+is its address: the one you open Lictory at in your browser, for example
+`lictory.example.com`. Ask your administrator if you do not know it.
+
+The app checks that the address is a Lictory server, then shows its sign-in
+page. Sign in as you do in the browser, including with your company's single
+sign-on.
+
+To add another server, choose **+** at the bottom of the bar on the left
+(or **File › Add Server…**). Each server keeps its own sign-in. Right-click a
+server to reload it, copy its address, move it up or down, or remove it.
+Removing a server signs you out of it on this computer.
+
+## Notifications and the badge
+
+The app shows a notification for each new notification that asks something
+of you, the ones Lictory also emails by default (see
+[Notifications](/inbox/notifications)). Updates that only inform you stay in
+your Inbox. Click a notification to open what it is about.
+
+While you are looking at a server, its notifications are not repeated: you
+see them in its Inbox. The badge counts what is unread and waiting on you
+across all your servers; each server's button shows its own count.
+
+Turn notifications or their sound off in **Settings** (⌘, or Ctrl+,). Your
+notification preferences in Lictory still decide what reaches you at all.
+
+## Shortcuts
+
+On Windows and Linux, use Ctrl instead of ⌘.
+
+| Shortcut    | Action                                  |
+| ----------- | --------------------------------------- |
+| ⌘K          | Search and commands, as in the browser  |
+| ⌘1 to ⌘9    | Switch to the server at that position   |
+| ⌘\[ and ⌘\] | Back and forward (Alt+arrows elsewhere) |
+| ⌘R          | Reload                                  |
+| ⌘= ⌘- ⌘0    | Zoom in, out and back (per server)      |
+| ⌘,          | Settings                                |
+| ⌘⇧N         | Add a server                            |
+
+## Lictory links
+
+A link such as `lictory://lictory.example.com/acme/items/PAY-142` opens
+PAY-142 in the app. If the link names a server you have not added, the app
+asks before adding it; add only servers you trust.
+
+## Links to other sites
+
+The app shows only your Lictory servers. Links to other sites (a pull
+request, documentation) open in your browser. Signing in with your
+company's identity provider is the exception: it happens in the app, so you
+stay signed in there.
+
+## Updates
+
+The app checks for a new version in the background and installs it the next
+time it starts; **Settings › Updates** shows the state and lets you check
+now. A `.deb` is updated by your package manager instead. If your computer
+is managed, your administrator can turn self-updating off with
+`LICTORY_DESKTOP_UPDATES=off`.
+
+## Privacy
+
+The app keeps the addresses of your servers and its own settings on your
+computer. It stores no password or token: each server's sign-in stays in
+that server's own browser storage, encrypted by your system, and is removed
+with the server.
