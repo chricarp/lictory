@@ -167,7 +167,10 @@ Channel traffic notifies nobody by default. A message tells:
 - members who set the channel to **all messages** (`channel_message`, Inbox).
 
 A member who muted the channel (`none`) is told nothing; their unread
-mentions are still counted. One message tells a person once, the most
+mentions are still counted. An agent mentioned by name (`agent:ID`, resolved
+by the agent directory) is woken through its owner's
+[agent events](agent-events.md) (`agent_mentioned`, narrowed to the agent),
+unless it wrote the message; its owner gets no inbox notification for it. One message tells a person once, the most
 specific reason winning. Notifications name their `channel_id`: the fan-out,
 the Inbox, unread counts and email check that the recipient can still read
 the channel, so someone who leaves a private conversation no longer sees its

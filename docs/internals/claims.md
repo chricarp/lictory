@@ -118,8 +118,12 @@ the claim waits.
 Resolving the discussion is a person's decision (`setThreadState`). The
 `claimQuestionResolved` hook resumes the claim when its last question is
 resolved, renews its lease and tells the session through the
-`SessionResumer` port. Questions never change the specification; the answer
-becomes a revision only when a person saves one.
+`SessionResumer` port. External agents learn it from their
+[agent events](agent-events.md) (`claim.question_resolved`, narrowed to the
+claiming agent), and every end of a claim (`claim.released`: released by a
+person, expired, completed, canceled with its item) the same way, except
+when the agent itself released it. Questions never change the
+specification; the answer becomes a revision only when a person saves one.
 
 ## Autonomy policy
 

@@ -53,7 +53,9 @@ records the token, which names the agent.
 
 Tokens bound to an agent (`access_token.agent_id`) stop working when the
 agent is archived or changes owner, or when the owner's account is
-deactivated. A session-scoped token (`access_token.agent_session_id`) also
+deactivated. Their [agent events](agent-events.md) are the owner's feed seen
+through the agent's scope: the owner's events and the agent's own, never
+another agent's. A session-scoped token (`access_token.agent_session_id`) also
 stops when its session leaves the active states and expires after a day.
 
 Agents never decide for people in the Factory: answering an approval request
