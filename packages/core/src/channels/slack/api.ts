@@ -502,13 +502,9 @@ function channelInfo(
   };
 }
 
-// The transport the API and the worker use. Tests replace it for the
-// process (`setSlackTransport`), the way the browser suite routes slack.com
-// to its stand-in.
-let transport: Fetch | undefined;
-export function setSlackTransport(fetcher: Fetch | undefined) {
-  transport = fetcher;
-}
+// The client the API and the worker use. The browser suite routes
+// slack.com to its stand-in at the transport (route-fake-sites.ts); domain
+// tests pass the fake's `fetch` to `slackClient` instead.
 export function defaultSlackClient(signal?: AbortSignal) {
-  return slackClient({ fetch: transport, signal });
+  return slackClient({ signal });
 }

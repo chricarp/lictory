@@ -13,13 +13,8 @@ import {
 import type { Analyzer } from "@lictory/core/ai/analyzer";
 import { processChatRuns } from "@lictory/core/intelligence/chat/runner";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
-import { defaultSlackClient } from "@lictory/core/channels/slack/api";
-import {
-  processSlackBackfills,
-  processSlackEvents,
-  pruneSlackEvents,
-} from "@lictory/core/channels/slack/inbound";
-import { processChannelMirrors } from "@lictory/core/channels/slack/outbound";
+import { pruneSlackEvents } from "@lictory/core/channels/slack/inbound";
+import { slackChatProvider } from "@lictory/core/channels/slack/provider";
 import type { Job } from "@lictory/worker/supervisor";
 
 export type WorkerConfig = ReturnType<typeof workerConfig>;
@@ -262,31 +257,27 @@ export function workerJobs(
       kind: "slack",
       intervalMs: SLACK_INTERVAL_MS,
       async run({ stopping }) {
-        const client = defaultSlackClient(stopping);
-        const events = await processSlackEvents(db, client, {
+        const inbound = await slackChatProvider.processInbound(db, {
           limit: SLACK_BATCH,
           signal: stopping,
         });
-        const mirrors = await processChannelMirrors(db, client, {
+        const outbound = await slackChatProvider.processOutbound(db, {
           limit: SLACK_BATCH,
-          signal: stopping,
-        });
-        const backfills = await processSlackBackfills(db, client, {
           signal: stopping,
         });
         return {
           more:
-            (events.claimed === SLACK_BATCH ||
-              mirrors.claimed === SLACK_BATCH) &&
+            (inbound.claimed === SLACK_BATCH ||
+              outbound.claimed === SLACK_BATCH) &&
             !stopping.aborted,
           counts: {
-            events: events.processed,
-            eventRetries: events.retried,
-            eventFailures: events.failed,
-            sent: mirrors.sent,
-            sendRetries: mirrors.retried,
-            sendFailures: mirrors.failed,
-            imported: backfills.imported,
+            events: inbound.processed ?? 0,
+            eventRetries: inbound.retried ?? 0,
+            eventFailures: inbound.failed ?? 0,
+            imported: inbound.imported ?? 0,
+            sent: outbound.sent ?? 0,
+            sendRetries: outbound.retried ?? 0,
+            sendFailures: outbound.failed ?? 0,
           },
         };
       },

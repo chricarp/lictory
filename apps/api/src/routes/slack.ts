@@ -10,7 +10,7 @@ import {
   SlackError,
 } from "@lictory/core/channels/slack/api";
 import { completeSlackInstall } from "@lictory/core/channels/slack/installation";
-import { receiveSlackRequest } from "@lictory/core/channels/slack/inbound";
+import { slackChatProvider } from "@lictory/core/channels/slack/provider";
 import { limit, MB, noStore } from "@lictory/api/middleware";
 
 // Slack's side of the Slack integration (docs/internals/channels.md#slack):
@@ -26,7 +26,7 @@ export function slackRoutes() {
     (kind: "events" | "interactivity") =>
     async (c: { req: { raw: Request; param(name: string): string } }) => {
       const body = await c.req.raw.text();
-      const result = await receiveSlackRequest(db, {
+      const result = await slackChatProvider.receive(db, {
         organizationId: c.req.param("organizationId"),
         kind,
         headers: c.req.raw.headers,
