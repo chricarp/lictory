@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   ArrowUpRight,
   FolderGit2,
@@ -57,6 +57,21 @@ import { useFactory } from "@lictory/platform/components/factory/store";
 // work items and the people behind agent-authored changes.
 
 type Tab = "pull-requests" | "issues" | "repositories";
+
+// Phones (under Tailwind's `sm`): the header keeps the title and the tabs
+// take a row of their own, as on the Factory. One tab list, placed by width.
+const phoneQuery = "(max-width: 639px)";
+function usePhone() {
+  return useSyncExternalStore(
+    (change) => {
+      const query = window.matchMedia(phoneQuery);
+      query.addEventListener("change", change);
+      return () => query.removeEventListener("change", change);
+    },
+    () => window.matchMedia(phoneQuery).matches,
+    () => false,
+  );
+}
 type Who = "all" | "mine" | "review" | "agents";
 
 export function CodePage() {
@@ -70,6 +85,7 @@ export function CodePage() {
         ? "repositories"
         : "pull-requests";
   const { connections, complete } = useCodeHosts();
+  const phone = usePhone();
   const header = (tabs?: React.ReactNode) => (
     <PageHeader
       title="Code"
@@ -117,6 +133,16 @@ export function CodePage() {
         </div>
       </div>
     );
+  const tabs = (
+    <PageTabs
+      label="Code view"
+      tabs={[
+        { value: "pull-requests", label: "Pull requests" },
+        { value: "issues", label: "Issues" },
+        { value: "repositories", label: "Repositories" },
+      ]}
+    />
+  );
   return (
     <Tabs
       value={tab}
@@ -126,15 +152,11 @@ export function CodePage() {
       }}
       className="flex h-full flex-col"
     >
-      {header(
-        <PageTabs
-          label="Code view"
-          tabs={[
-            { value: "pull-requests", label: "Pull requests" },
-            { value: "issues", label: "Issues" },
-            { value: "repositories", label: "Repositories" },
-          ]}
-        />,
+      {header(phone ? undefined : tabs)}
+      {phone && (
+        <div className="flex h-10 shrink-0 items-center border-b px-2">
+          {tabs}
+        </div>
       )}
       <TabsPanel value="pull-requests" className="min-h-0 flex-1">
         {tab === "pull-requests" && <PullRequests />}
@@ -343,7 +365,19 @@ function PullRequestRow({
           ) : author ? (
             <Actor userId={author} size={16} className="shrink-0" />
           ) : (
-            <span className="shrink-0">{p.authorLogin ?? "unknown"}</span>
+            // A host login no member has claimed (Code hosts settings).
+            <span
+              title={`${p.authorLogin ?? "Unknown"} on ${providerLabels[p.provider]}, not linked to a member`}
+              className="inline-flex shrink-0"
+            >
+              <Actor
+                person={{
+                  id: `login:${p.authorLogin ?? "unknown"}`,
+                  name: p.authorLogin ?? "Unknown author",
+                }}
+                size={16}
+              />
+            </span>
           )}
           <span aria-hidden>·</span>
           <span className="truncate">

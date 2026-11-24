@@ -543,28 +543,36 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
         void send();
       }}
     >
-      <p id="code-comment-hint" className="text-xs text-muted-foreground">
-        Comment on {providerLabels[pr.provider]}, signed with your name.
-      </p>
-      <MarkdownEditor
-        ref={editor}
-        value={comment}
-        onValueChange={setComment}
-        onSubmit={() => void send()}
-        references={false}
-        compact
-        // At rest the field is one quiet box; the toolbar comes with text.
-        toolbar={comment.trim() !== ""}
-        minHeight="4.5rem"
-        maxHeight="20rem"
-        placeholder="Leave a comment"
-        aria-label="Comment"
-        aria-describedby="code-comment-hint"
-      />
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button type="submit" variant="secondary" disabled={!comment.trim()}>
+      {/* The shared composer's frame: the rich editor with its toolbar,
+          the action at its end (as in channels and sessions). */}
+      <div className="flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
+        <div className="min-w-0 flex-1">
+          <MarkdownEditor
+            ref={editor}
+            value={comment}
+            onValueChange={setComment}
+            onSubmit={() => void send()}
+            references={false}
+            compact
+            minHeight="3rem"
+            maxHeight="20rem"
+            placeholder={`Comment on ${providerLabels[pr.provider]}`}
+            aria-label="Comment"
+            aria-describedby="code-comment-hint"
+            containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={!comment.trim()}>
           Comment
         </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <p
+          id="code-comment-hint"
+          className="mr-auto px-1 text-xs text-muted-foreground"
+        >
+          Posted on {providerLabels[pr.provider]}, signed with your name.
+        </p>
         {codePullRequest.allows(pr.state, "close") && (
           <Button
             variant="ghost"
