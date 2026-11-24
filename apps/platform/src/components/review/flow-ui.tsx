@@ -139,6 +139,15 @@ export function BranchChip({
   );
 }
 
+// A branch name inside a sentence, in mono: an identifier.
+export function BranchName({ children }: { children: ReactNode }) {
+  return (
+    <code className="rounded bg-muted px-1 py-px font-mono text-[0.92em]">
+      {children}
+    </code>
+  );
+}
+
 export type TabSpec<T extends string> = {
   id: T;
   label: string;

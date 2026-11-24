@@ -124,11 +124,13 @@ drawing your own; extend them here when a module needs more.
   `components/review/merge-box`). One pull request page for code and
   specifications: `PullRequestHeader` (`title`, `number`, `state` draft |
   open | merged | closed, `author` as an `Actor` or `AgentActor`,
+  `headingLevel` 2, or 1 where the pull request takes an item's place,
   `commits`, `base`, `head`, `meta`, `tabs` as `PullRequestTabs` inside a
   ui-sdk `Tabs` root) under the page's `PageHeader`, and `MergeBox`
   (`target`, `requirements` with a state and the reason in words,
   `blocked`, `note` saying what merging does or why this person cannot,
-  `action` with the merge button; `MergedNotice` once merged).
+  `action` with the merge button, `children` for a conflict resolver;
+  `MergedNotice` once merged).
 - **Focus.** Interactive elements use `focus-ring` (2px, offset) or
   `focus-ring-inset` for full-bleed rows in a clipping container, with
   `outline-none`. Do not use translucent `ring-ring/60` rings.

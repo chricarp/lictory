@@ -77,11 +77,14 @@ export function PullRequestHeader({
   meta?: ReactNode;
   // `PullRequestTabs`.
   tabs?: ReactNode;
-  // The page's h1 is its `PageHeader`; this heading sits under it.
-  headingLevel?: 2 | 3;
+  // The page's h1 is its `PageHeader`; this heading sits under it. A
+  // specification's pull request takes the item's place under the item's
+  // bar, which has no heading of its own, so it is the page's h1 there
+  // (like `ItemScreenTitle`).
+  headingLevel?: 1 | 2 | 3;
   className?: string;
 }) {
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = ({ 1: "h1", 2: "h2", 3: "h3" } as const)[headingLevel];
   return (
     <header data-pull-request-header className={cn("min-w-0", className)}>
       <Heading className="text-xl leading-7 font-semibold tracking-[-0.01em] wrap-break-word">
