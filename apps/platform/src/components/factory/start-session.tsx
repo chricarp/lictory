@@ -237,8 +237,10 @@ export function StartSessionDialog({
             }
           />
         )}
-        <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
-          <div className="space-y-1.5">
+        {/* A long repository name truncates; it never pushes the base
+            branch past the dialog's edge. */}
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+          <div className="min-w-0 space-y-1.5">
             <label htmlFor={ids.repository} className="text-[13px] font-medium">
               Repository{" "}
               <span className="font-normal text-muted-foreground">
@@ -310,7 +312,7 @@ export function StartSessionDialog({
                   : "Linked repositories, cloned with a short-lived credential."}
             </p>
           </div>
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <label htmlFor={ids.base} className="text-[13px] font-medium">
               Base branch
             </label>
