@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { and, eq, inArray } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { setAutonomyPolicy } from "@lictory/core/claims/service";
+import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
+import { installFactoryLoop } from "@lictory/core/factory/loop";
 import {
   currentRevision,
   seedItem,
@@ -236,4 +240,114 @@ test("a person starts an agent from an item, told what it works from and that th
   await start.getByRole("button", { name: "Start session" }).click();
   await expect(page).toHaveURL(/\/factory\/sessions\//);
   await expect(page.getByText("Sketch the endpoint.").first()).toBeVisible();
+});
+
+// The dispatcher's claim and the item's Definition of Done are written in
+// one transaction: an item opened the moment Build claims it shows both.
+test("an item opened right after the dispatcher claims it shows the claim and its Definition of Done", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({
+    name: "Dispatch Works",
+    key: "DSP",
+    users: ["Ada Dispatch", "Bo Review"],
+    disciplines: { 1: "Engineering" },
+  });
+  const [ada, bo] = seeded.users as [
+    (typeof seeded.users)[number],
+    (typeof seeded.users)[number],
+  ];
+  const forge = await withDb((db) =>
+    createAgent(db, ada.id, seeded.organizationId, {
+      name: "Forge",
+      handle: `forge${crypto.randomUUID().slice(0, 6)}`,
+      kind: "runner",
+      harness: "claude-code",
+      access: "write",
+    }),
+  );
+  const storyId = await seedItem(seeded, {
+    title: "Refund retries",
+    description:
+      "## Behavior\n\nRefunds reuse the original transaction ID.\n\n## Acceptance criteria\n\n- A retry never charges twice.",
+  });
+  const revision = await currentRevision(storyId);
+  const reviewId = crypto.randomUUID();
+  await seeded.command({
+    type: "requestReview",
+    workItemId: storyId,
+    baseRevisionId: revision.id,
+    reviewId,
+    disciplineId: seeded.roster.disciplines.find(
+      (d) => d.projectId === seeded.projectId && d.name === "Engineering",
+    )!.id,
+    userId: bo.id,
+    required: true,
+  });
+  await seeded.command(
+    {
+      type: "decideReview",
+      workItemId: storyId,
+      baseRevisionId: revision.id,
+      reviewId,
+      decision: "approve",
+    },
+    bo.id,
+  );
+  await seeded.command({
+    type: "acceptDeliveryScope",
+    workItemId: storyId,
+    baseRevisionId: revision.id,
+  });
+  await signIn(page, ada.email);
+  // The policy checks its agents through the Factory's directory.
+  await withDb(async (db) => {
+    installFactoryLoop(db);
+    await setAutonomyPolicy(
+      db,
+      { userId: ada.id },
+      {
+        organizationId: seeded.organizationId,
+        projectId: seeded.projectId,
+        policy: {
+          ...defaultAutonomyPolicy,
+          level: "build",
+          implementerAgentIds: [forge.id],
+        },
+      },
+    );
+  });
+  // The worker's dispatcher claims the story for Forge (no runner is
+  // needed: the session waits in the queue).
+  await expect
+    .poll(
+      () =>
+        withDb(
+          async (db) =>
+            (
+              await db
+                .select({ state: s.workItemClaim.state })
+                .from(s.workItemClaim)
+                .where(
+                  and(
+                    eq(s.workItemClaim.workItemId, storyId),
+                    inArray(s.workItemClaim.state, ["starting", "active"]),
+                  ),
+                )
+            ).length,
+        ),
+      { timeout: 60_000 },
+    )
+    .toBe(1);
+  await page.goto(seeded.itemPath(1));
+  const claim = page.getByRole("region", { name: "Agent claim" });
+  await expect(claim.locator("[data-claim-owner]")).toHaveText(
+    /Forge via Ada$/,
+  );
+  const done = page.getByRole("region", { name: "Definition of Done" });
+  await expect(
+    done.getByText(
+      "A linked code pull request is merged and none is still open",
+    ),
+  ).toBeVisible();
 });
