@@ -69,6 +69,9 @@ import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import { useAgents } from "@lictory/platform/components/claims/claims";
+import { startableAgents } from "@lictory/platform/components/factory/start-session";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
@@ -176,6 +179,8 @@ export function CommandPalette({
     ? null
     : dockStore;
   const aiOn = directory.ai.available && directory.ai.enabled;
+  const agents = useAgents();
+  const canStartAgent = startableAgents(agents.values(), userId).length > 0;
   const [query, setQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
   // Opened by a tap, the dialog would keep focus on itself to hold back the
@@ -243,6 +248,21 @@ export function CommandPalette({
             },
           });
     }
+    // The Factory's start dialog, with this item filled in.
+    if (
+      currentItem &&
+      currentProject?.deliveryMode === "native" &&
+      !currentItem.archivedAt &&
+      canStartAgent
+    )
+      list.push({
+        id: "start-agent",
+        label: `Start agent on ${identifier(currentProject, currentItem.number)}`,
+        group: "Current item",
+        icon: <Bot className="size-4" />,
+        keywords: "agent session factory implement run",
+        run: () => go(`${factoryPaths.overview(org)}?start=${currentItem.id}`),
+      });
     // Outside a project the dialog chooses the project and its types.
     if (!currentProject)
       list.push({
@@ -546,6 +566,7 @@ export function CommandPalette({
   }, [
     currentItem,
     currentProject,
+    canStartAgent,
     userId,
     capabilitiesIn,
     mutate,

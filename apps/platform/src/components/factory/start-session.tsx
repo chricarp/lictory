@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, CircleCheck, CircleDashed, FileText } from "lucide-react";
 import {
   Combobox,
   ComboboxContent,
@@ -11,7 +11,12 @@ import {
 } from "@ui-sdk/react/combobox";
 import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
-import type { SessionEntity } from "@lictory/core/factory/entities";
+import type {
+  AgentEntity,
+  SessionEntity,
+} from "@lictory/core/factory/entities";
+import type { WorkItem } from "@lictory/core/contracts/protocol";
+import { refinementMeta } from "@lictory/core/lib/work-items";
 import type { CodeRepositoryEntity } from "@lictory/core/code/entities";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
@@ -29,6 +34,7 @@ import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { useCodeHosts } from "@lictory/platform/components/code/store";
+import { useClaimability } from "@lictory/platform/components/claims/claims";
 
 // Start an agent session: which agent, what to do, and optionally the work
 // item and the repository (one linked to the item's project, picked by
@@ -36,6 +42,20 @@ import { useCodeHosts } from "@lictory/platform/components/code/store";
 
 const DEFAULT = "default";
 const OTHER = "other";
+
+// The agents this person may start: runner agents they own or that are
+// shared, not archived (the server's `assertCanStart` decides).
+export function startableAgents(
+  agents: Iterable<AgentEntity>,
+  userId: string,
+): AgentEntity[] {
+  return [...agents].filter(
+    (a) =>
+      a.kind === "runner" &&
+      !a.archivedAt &&
+      (a.ownerId === userId || a.shared),
+  );
+}
 
 // The repositories offered: those serving the item's project when there is
 // one (its default first), else every linked one; archived ones never.
@@ -66,12 +86,7 @@ export function StartSessionDialog({
   const { organization, userId, items } = useWorkspace();
   const { agents } = useFactory();
   const router = useRouter();
-  const startable = agents.filter(
-    (a) =>
-      a.kind === "runner" &&
-      !a.archivedAt &&
-      (a.ownerId === userId || a.shared),
-  );
+  const startable = startableAgents(agents, userId);
   const [agentId, setAgentId] = useState(
     initialAgent ?? startable[0]?.id ?? "",
   );
@@ -214,6 +229,14 @@ export function StartSessionDialog({
           />
         </div>
         <WorkItemPicker value={workItemId} onChange={setWorkItemId} />
+        {item && (
+          <WorksFrom
+            item={item}
+            agentName={
+              startable.find((a) => a.id === agentId)?.name ?? "The agent"
+            }
+          />
+        )}
         <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
           <div className="space-y-1.5">
             <label htmlFor={ids.repository} className="text-[13px] font-medium">
@@ -314,6 +337,68 @@ export function StartSessionDialog({
 const MAX_RESULTS = 30;
 
 // A work item of the workspace, found by key or title.
+// What the agent will work from, said before it starts: the item it reads
+// with Lictory's tools (its approved specification, or the text as it is
+// now), and whether agents would take it by themselves. The readiness
+// policy governs what agents claim on their own; a person may still start
+// one on any item, knowing what it reads.
+function WorksFrom({ item, agentName }: { item: WorkItem; agentName: string }) {
+  const { projects, directory } = useWorkspace();
+  const verdict = useClaimability()(item);
+  const project =
+    projects.find((p) => p.id === item.projectId) ??
+    directory.projects.find((p) => p.id === item.projectId);
+  const key = project ? `${project.key}-${item.number}` : "the item";
+  const state = item.refinementState;
+  const source =
+    state === null
+      ? `${key} as written`
+      : state === "ready"
+        ? `the approved specification of ${key} (revision ${item.revisionNumber})`
+        : `revision ${item.revisionNumber} of ${key}, still ${refinementMeta[state].label.toLowerCase()}: it may change while the agent works`;
+  // Outside native delivery (or archived) agents claim nothing: no verdict.
+  const own =
+    verdict.stage === "outside"
+      ? null
+      : verdict.claimable
+        ? { ok: true, text: "Agents may also claim it on their own." }
+        : verdict.stage === "claimed"
+          ? { ok: false, text: "An agent already holds its claim." }
+          : {
+              ok: false,
+              text: `Agents would not take it on their own: ${verdict.reasons[0]?.message ?? "it is not ready."} You can still start one yourself.`,
+            };
+  return (
+    <div
+      data-works-from
+      className="space-y-1.5 rounded-lg bg-muted/50 px-3 py-2.5 text-[13px] leading-5"
+    >
+      <p className="flex items-start gap-2">
+        <FileText
+          aria-hidden
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+        />
+        <span>
+          {agentName} works from {source}, read with Lictory&apos;s tools.
+        </span>
+      </p>
+      {own && (
+        <p className="flex items-start gap-2 text-muted-foreground">
+          {own.ok ? (
+            <CircleCheck
+              aria-hidden
+              className="mt-0.5 size-4 shrink-0 text-success"
+            />
+          ) : (
+            <CircleDashed aria-hidden className="mt-0.5 size-4 shrink-0" />
+          )}
+          <span>{own.text}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function WorkItemPicker({
   value,
   onChange,
