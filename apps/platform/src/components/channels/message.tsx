@@ -1,0 +1,537 @@
+import { memo, useState } from "react";
+import {
+  ArrowUpRight,
+  Bot,
+  CircleDot,
+  Link2,
+  Lightbulb,
+  MessageSquareQuote,
+  MessageSquareReply,
+  MoreHorizontal,
+  Pencil,
+  SmilePlus,
+  Sparkles,
+  Trash2,
+  EyeOff,
+} from "lucide-react";
+import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
+import { Avatar } from "@lictory/ui/primitives";
+import { Button } from "@lictory/ui/button";
+import { Tooltip } from "@lictory/ui/tooltip";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "@lictory/ui/menu";
+import { cn } from "@lictory/core/lib/utils";
+import {
+  formatTime,
+  groupReactions,
+  replyAuthorIds,
+  type MessageRow,
+} from "@lictory/platform/components/channels/data";
+import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
+import {
+  EmojiPicker,
+  QUICK_REACTIONS,
+} from "@lictory/platform/components/channels/emoji";
+import {
+  MarkdownEditor,
+  type Mentionable,
+} from "@lictory/platform/components/editor/markdown-editor";
+
+// One message of a conversation, Slack-dense: avatar and name on the first
+// of a group, hover (or focus) actions, reactions, the thread summary and
+// promotion cards. Everything it changes goes through `actions`; it never
+// decides what the server allows, only what to offer.
+
+export type PromotionChoice = "proposal" | "decision" | "discussion";
+
+export type MessageActions = {
+  react: (message: MessageRow, emoji: string, add: boolean) => void;
+  openThread?: (message: MessageRow) => void;
+  edit: (message: MessageRow, body: string) => void;
+  remove: (message: MessageRow) => void;
+  promote: (message: MessageRow, kind: PromotionChoice) => void;
+  copyLink: (message: MessageRow) => void;
+  markUnread?: (message: MessageRow) => void;
+};
+
+type Props = {
+  message: MessageRow;
+  grouped: boolean;
+  userId: string;
+  isAdmin: boolean;
+  // People may post and react here (a member of an active channel).
+  canPost: boolean;
+  canReact: boolean;
+  pending: boolean;
+  highlighted: boolean;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  nameOf: (id: string | null | undefined) => string;
+  mentions: Mentionable[];
+  actions: MessageActions;
+  // Thread view: replies have no thread summary and no "reply" action.
+  inThread?: boolean;
+};
+
+const iconButton =
+  "grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:size-9";
+
+export const ChannelMessage = memo(function ChannelMessage({
+  message,
+  grouped,
+  userId,
+  isAdmin,
+  canPost,
+  canReact,
+  pending,
+  highlighted,
+  editing,
+  onEditingChange,
+  nameOf,
+  mentions,
+  actions,
+  inThread = false,
+}: Props) {
+  const deleted = Boolean(message.deletedAt);
+  const own = message.authorKind === "user" && message.authorUserId === userId;
+  const external = Boolean(message.externalSource);
+  const author = authorName(message, nameOf);
+  const time = formatTime(message.createdAt);
+  const reactions = groupReactions(message.reactions, userId);
+  const isRoot = !message.threadRootId;
+  const system = message.kind === "system";
+  // Phones have no hover: a tap on the message shows its actions.
+  const [touched, setTouched] = useState(false);
+  if (system)
+    return (
+      <div
+        id={`message-${message.id}`}
+        data-message-id={message.id}
+        className="flex items-baseline gap-2 py-1 pr-4 pl-[3.75rem] text-[13px] text-muted-foreground"
+      >
+        <span>
+          <span className="font-medium text-foreground">
+            {nameOf(message.authorUserId)}
+          </span>{" "}
+          <MessageMarkdown
+            source={message.body}
+            userId={userId}
+            className="inline [&>p]:inline"
+          />
+        </span>
+        <time
+          className="shrink-0 text-[11px] tabular-nums"
+          dateTime={new Date(message.createdAt).toISOString()}
+        >
+          {time}
+        </time>
+      </div>
+    );
+  return (
+    <div
+      id={`message-${message.id}`}
+      data-message-id={message.id}
+      data-pending={pending || undefined}
+      data-touched={touched || undefined}
+      onPointerUp={(e) => {
+        if (e.pointerType !== "touch") return;
+        if (
+          (e.target as HTMLElement).closest(
+            "a, button, input, [contenteditable]",
+          )
+        )
+          return;
+        setTouched((t) => !t);
+      }}
+      className={cn(
+        "group/message relative flex gap-2.5 pr-4 pl-4 transition-colors",
+        grouped ? "py-0.5" : "pt-2 pb-0.5",
+        highlighted
+          ? "bg-amber-400/10"
+          : "focus-within:bg-muted/40 hover:bg-muted/40",
+        pending && "opacity-70",
+      )}
+    >
+      <div className="w-9 shrink-0">
+        {grouped ? (
+          <time
+            className="mt-0.5 block text-right text-[10px] leading-6 text-muted-foreground tabular-nums opacity-0 group-focus-within/message:opacity-100 group-hover/message:opacity-100"
+            dateTime={new Date(message.createdAt).toISOString()}
+          >
+            {time}
+          </time>
+        ) : message.authorKind === "agent" ? (
+          <span className="mt-0.5 grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+            <Bot className="size-4.5" aria-hidden />
+          </span>
+        ) : (
+          <Avatar
+            name={author}
+            userId={message.authorUserId}
+            size="md"
+            className="mt-0.5 size-9 rounded-lg text-xs"
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        {!grouped && (
+          <div className="flex flex-wrap items-baseline gap-x-1.5">
+            <span className="text-[14px] font-semibold">{author}</span>
+            {message.authorKind === "agent" && (
+              <span className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary uppercase">
+                agent
+              </span>
+            )}
+            {message.authorKind === "agent" && message.onBehalfOfUserId && (
+              <span className="text-[12px] text-muted-foreground">
+                via {nameOf(message.onBehalfOfUserId)}
+              </span>
+            )}
+            {message.via && (
+              <span
+                className="text-[12px] text-muted-foreground"
+                title="Sent by an agent acting for this person"
+              >
+                via {message.via}
+              </span>
+            )}
+            <time
+              className="text-[11px] text-muted-foreground tabular-nums"
+              dateTime={new Date(message.createdAt).toISOString()}
+              title={new Date(message.createdAt).toLocaleString()}
+            >
+              {time}
+            </time>
+            {external && (
+              <span className="text-[11px] text-muted-foreground">
+                from {message.externalSource}
+              </span>
+            )}
+          </div>
+        )}
+        {deleted ? (
+          <p className="text-[14px] text-muted-foreground italic">
+            This message was deleted.
+          </p>
+        ) : editing ? (
+          <EditMessage
+            message={message}
+            mentions={mentions}
+            onCancel={() => onEditingChange(false)}
+            onSave={(body) => {
+              actions.edit(message, body);
+              onEditingChange(false);
+            }}
+          />
+        ) : message.kind === "card" ? (
+          <PromotionCard message={message} userId={userId} />
+        ) : (
+          <>
+            {message.body && (
+              <MessageMarkdown source={message.body} userId={userId} />
+            )}
+            {message.attachments.length > 0 && (
+              <Attachments message={message} />
+            )}
+            {message.editedAt && (
+              <span className="text-[11px] text-muted-foreground">
+                (edited)
+              </span>
+            )}
+          </>
+        )}
+        {reactions.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {reactions.map((r) => (
+              <Tooltip
+                key={r.emoji}
+                label={`${r.userIds.map((id) => nameOf(id)).join(", ")} reacted with ${r.emoji}`}
+              >
+                <button
+                  type="button"
+                  aria-pressed={r.mine}
+                  disabled={!canReact || deleted}
+                  onClick={() => actions.react(message, r.emoji, !r.mine)}
+                  className={cn(
+                    "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[12px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-8",
+                    r.mine
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "bg-card hover:bg-muted",
+                  )}
+                >
+                  <span aria-hidden>{r.emoji}</span>
+                  {r.count}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+        )}
+        {isRoot &&
+          !inThread &&
+          message.replyCount > 0 &&
+          actions.openThread && (
+            <button
+              type="button"
+              onClick={() => actions.openThread?.(message)}
+              className="mt-1 -ml-1 flex items-center gap-2 rounded-md px-1 py-0.5 text-[12.5px] outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <span className="flex -space-x-1">
+                {replyAuthorIds(message)
+                  .slice(0, 4)
+                  .map((id) => (
+                    <Avatar
+                      key={id}
+                      name={nameOf(id)}
+                      userId={id}
+                      size="sm"
+                      className="rounded-md ring-2 ring-background"
+                    />
+                  ))}
+              </span>
+              <span className="font-medium text-primary">
+                {message.replyCount}{" "}
+                {message.replyCount === 1 ? "reply" : "replies"}
+              </span>
+              {message.lastReplyAt && (
+                <span className="text-muted-foreground">
+                  Last reply {formatTime(message.lastReplyAt)}
+                </span>
+              )}
+            </button>
+          )}
+      </div>
+      {!deleted && !editing && (
+        // One tab stop per message; arrow keys move between its actions.
+        // Shown on hover and focus, and while one of its menus is open.
+        <Toolbar
+          aria-label="Message actions"
+          className="pointer-events-none absolute top-0 right-3 z-10 flex items-center gap-0.5 rounded-lg border bg-popover p-0.5 opacity-0 shadow-(--shadow-panel) group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-data-touched/message:pointer-events-auto group-data-touched/message:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 has-[[data-open]]:pointer-events-auto has-[[data-open]]:opacity-100 has-[[data-state=open]]:pointer-events-auto has-[[data-state=open]]:opacity-100"
+        >
+          {canReact &&
+            QUICK_REACTIONS.slice(0, 3).map((emoji) => (
+              <ToolbarButton
+                key={emoji}
+                aria-label={`React with ${emoji}`}
+                className={iconButton}
+                onClick={() => actions.react(message, emoji, true)}
+              >
+                <span aria-hidden className="text-[15px]">
+                  {emoji}
+                </span>
+              </ToolbarButton>
+            ))}
+          {canReact && (
+            <EmojiPicker
+              onPick={(emoji) => actions.react(message, emoji, true)}
+              trigger={(props) => (
+                <ToolbarButton
+                  {...props}
+                  aria-label="Add reaction"
+                  className={iconButton}
+                >
+                  <SmilePlus className="size-4" aria-hidden />
+                </ToolbarButton>
+              )}
+            />
+          )}
+          {isRoot && !inThread && actions.openThread && (
+            <ToolbarButton
+              aria-label="Reply in thread"
+              title="Reply in thread"
+              className={iconButton}
+              onClick={() => actions.openThread?.(message)}
+            >
+              <MessageSquareReply className="size-4" aria-hidden />
+            </ToolbarButton>
+          )}
+          <Menu>
+            <MenuTrigger
+              render={
+                <ToolbarButton
+                  aria-label="More actions"
+                  className={iconButton}
+                />
+              }
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </MenuTrigger>
+            <MenuContent align="end" width={232}>
+              {message.kind === "message" && (
+                <>
+                  <MenuItem
+                    onSelect={() => actions.promote(message, "proposal")}
+                  >
+                    <Lightbulb className="size-3.5 text-muted-foreground" />{" "}
+                    Promote to proposal
+                  </MenuItem>
+                  <MenuItem
+                    onSelect={() => actions.promote(message, "decision")}
+                  >
+                    <CircleDot className="size-3.5 text-muted-foreground" />{" "}
+                    Record as decision
+                  </MenuItem>
+                  <MenuItem
+                    onSelect={() => actions.promote(message, "discussion")}
+                  >
+                    <MessageSquareQuote className="size-3.5 text-muted-foreground" />{" "}
+                    Discuss on a specification
+                  </MenuItem>
+                  <MenuSeparator />
+                </>
+              )}
+              <MenuItem onSelect={() => actions.copyLink(message)}>
+                <Link2 className="size-3.5 text-muted-foreground" /> Copy link
+              </MenuItem>
+              {actions.markUnread && (
+                <MenuItem onSelect={() => actions.markUnread?.(message)}>
+                  <EyeOff className="size-3.5 text-muted-foreground" /> Mark
+                  unread
+                </MenuItem>
+              )}
+              {own && canPost && !external && message.kind === "message" && (
+                <MenuItem onSelect={() => onEditingChange(true)}>
+                  <Pencil className="size-3.5 text-muted-foreground" /> Edit
+                  message
+                </MenuItem>
+              )}
+              {(own || isAdmin) && !external && message.kind === "message" && (
+                <MenuItem onSelect={() => actions.remove(message)}>
+                  <Trash2 className="size-3.5 text-destructive" /> Delete
+                  message
+                </MenuItem>
+              )}
+            </MenuContent>
+          </Menu>
+        </Toolbar>
+      )}
+    </div>
+  );
+});
+
+function authorName(
+  message: MessageRow,
+  nameOf: (id: string | null | undefined) => string,
+) {
+  if (message.authorKind === "agent") return "Agent";
+  if (message.authorKind === "system") return "Lictory";
+  return nameOf(message.authorUserId);
+}
+
+function Attachments({ message }: { message: MessageRow }) {
+  return (
+    <div className="mt-1 flex flex-wrap gap-2">
+      {message.attachments.map((file) =>
+        file.mimeType.startsWith("image/") ? (
+          <a
+            key={file.id}
+            href={`/api/files/${file.id}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="block"
+          >
+            <img
+              src={`/api/files/${file.id}`}
+              alt={file.filename}
+              loading="lazy"
+              className="max-h-64 max-w-full rounded-lg object-contain shadow-[0_0_0_1px_oklch(0_0_0/0.1)] sm:max-w-sm"
+            />
+          </a>
+        ) : (
+          <a
+            key={file.id}
+            href={`/api/files/${file.id}?download=1`}
+            className="flex max-w-64 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-[13px] hover:bg-muted"
+          >
+            <ArrowUpRight
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <span className="truncate">{file.filename}</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {Math.max(1, Math.round(file.size / 1024))} KB
+            </span>
+          </a>
+        ),
+      )}
+    </div>
+  );
+}
+
+// What a message became: the card links the proposal, decision or
+// discussion, rendered live by the reference chips.
+function PromotionCard({
+  message,
+  userId,
+}: {
+  message: MessageRow;
+  userId: string;
+}) {
+  const kind = message.payload?.promotion;
+  return (
+    <div className="mt-0.5 flex max-w-xl items-start gap-2 rounded-lg border bg-card px-3 py-2">
+      <Sparkles className="mt-1 size-3.5 shrink-0 text-primary" aria-hidden />
+      <div className="min-w-0 text-[13px]">
+        <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          {kind === "decision"
+            ? "Decision recorded"
+            : kind === "discussion"
+              ? "Discussion opened"
+              : "Proposal created"}
+        </p>
+        <MessageMarkdown source={message.body} userId={userId} />
+      </div>
+    </div>
+  );
+}
+
+function EditMessage({
+  message,
+  mentions,
+  onCancel,
+  onSave,
+}: {
+  message: MessageRow;
+  mentions: Mentionable[];
+  onCancel: () => void;
+  onSave: (body: string) => void;
+}) {
+  const [body, setBody] = useState(message.body);
+  const save = () => {
+    if (!body.trim() && !message.attachments.length) return;
+    if (body === message.body) onCancel();
+    else onSave(body);
+  };
+  return (
+    <div className="mt-1 rounded-lg border bg-card">
+      <MarkdownEditor
+        value={body}
+        onValueChange={setBody}
+        mentions={mentions}
+        onSubmit={save}
+        onEscape={onCancel}
+        enterSubmits
+        autoFocus
+        compact
+        toolbar={false}
+        minHeight="1.5rem"
+        maxHeight="16rem"
+        aria-label="Edit message"
+        containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:ring-0"
+      />
+      <div className="flex items-center justify-end gap-2 border-t px-2 py-1.5 text-[11px] text-muted-foreground">
+        <span className="mr-auto">Enter to save · Escape to cancel</span>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={save}>
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}

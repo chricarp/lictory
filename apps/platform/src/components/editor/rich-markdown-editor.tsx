@@ -93,6 +93,8 @@ function markdownOf(doc: PMNode, source: MarkdownSource) {
 // is read as Markdown, and "@handle " links a teammate without the picker.
 const MarkdownEditing = Extension.create<{
   submit: () => boolean;
+  // Chat composers: plain Enter submits too (not inside lists or code).
+  enterSubmits: () => boolean;
   escape: () => boolean;
   upload: (editor: Editor, files: File[], at?: number) => boolean;
   handles: () => { id: string; name: string; handle?: string | null }[];
@@ -101,6 +103,7 @@ const MarkdownEditing = Extension.create<{
   priority: 1000,
   addOptions: () => ({
     submit: () => false,
+    enterSubmits: () => false,
     escape: () => false,
     upload: () => false,
     handles: () => [],
@@ -108,6 +111,11 @@ const MarkdownEditing = Extension.create<{
   addKeyboardShortcuts() {
     return {
       "Mod-Enter": () => this.options.submit(),
+      Enter: () =>
+        this.options.enterSubmits() &&
+        !this.editor.isActive("codeBlock") &&
+        !this.editor.isActive("listItem") &&
+        this.options.submit(),
       Escape: () => this.options.escape(),
     };
   },
@@ -201,6 +209,7 @@ const RichMarkdownEditor = forwardRef<
     disabled = false,
     autoFocus = false,
     compact = false,
+    enterSubmits = false,
     toolbar: showToolbar = true,
     minHeight,
     maxHeight,
@@ -226,6 +235,7 @@ const RichMarkdownEditor = forwardRef<
   // Everything the editor's callbacks read, current after every render,
   // so the editor is created once.
   const latest = useRef({
+    enterSubmits,
     onValueChange,
     onSubmit,
     onEscape,
@@ -236,6 +246,7 @@ const RichMarkdownEditor = forwardRef<
   });
   useEffect(() => {
     latest.current = {
+      enterSubmits,
       onValueChange,
       onSubmit,
       onEscape,
@@ -364,6 +375,7 @@ const RichMarkdownEditor = forwardRef<
             ]
           : []),
         MarkdownEditing.configure({
+          enterSubmits: () => latest.current.enterSubmits,
           submit: () => {
             if (!latest.current.onSubmit || menuOpen()) return false;
             latest.current.onSubmit();
@@ -488,7 +500,13 @@ const RichMarkdownEditor = forwardRef<
             onValueChange(next);
           }}
           onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {
+            if (
+              e.key === "Enter" &&
+              onSubmit &&
+              (e.metaKey ||
+                e.ctrlKey ||
+                (enterSubmits && !e.shiftKey && !e.nativeEvent.isComposing))
+            ) {
               e.preventDefault();
               onSubmit();
             } else if (e.key === "Escape" && onEscape) {
