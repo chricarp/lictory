@@ -1,5 +1,7 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  ArrowRight,
   BadgeCheck,
   Bot,
   Check,
@@ -192,7 +194,7 @@ function Vignette({ id }: { id: ModuleId }) {
 export function ModuleGrid() {
   return (
     <ul className="module-grid">
-      {modules.map(({ id, name, summary, features }) => (
+      {modules.map(({ id, name, summary, features, link }) => (
         <li key={id} className="module-card">
           <Vignette id={id} />
           <h3>{name}</h3>
@@ -202,6 +204,12 @@ export function ModuleGrid() {
               <li key={feature}>{feature}</li>
             ))}
           </ul>
+          {link ? (
+            <Link href={link.href} className="module-link">
+              {link.label}
+              <ArrowRight aria-hidden />
+            </Link>
+          ) : null}
         </li>
       ))}
     </ul>

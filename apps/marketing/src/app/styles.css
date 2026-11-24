@@ -400,6 +400,20 @@ html {
   line-height: 28px;
   color: var(--secondary-text);
 }
+.section-intro-link {
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 25%,
+    transparent
+  );
+  text-underline-offset: 4px;
+}
+.section-intro-link:hover {
+  text-decoration-color: var(--foreground);
+}
 .section h3 {
   font-size: 16px;
   line-height: 24px;
@@ -587,6 +601,31 @@ html {
   color: var(--secondary-text);
   font-size: 14px;
   line-height: 21px;
+}
+.module-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  margin: 8px 16px -12px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 25%,
+    transparent
+  );
+  text-underline-offset: 4px;
+}
+.module-link:hover {
+  text-decoration-color: var(--foreground);
+}
+.module-link svg {
+  width: 16px;
+  height: 16px;
 }
 .module-features li {
   display: grid;
@@ -1245,6 +1284,13 @@ html {
 }
 
 @media (max-width: 1100px) {
+  /* Seven sections and two calls to action fit down to the 960px breakpoint. */
+  .header-inner {
+    gap: 12px;
+  }
+  .desktop-nav a {
+    padding-inline: 8px;
+  }
   .spaces-facts,
   .hosting-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));

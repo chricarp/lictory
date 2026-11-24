@@ -107,6 +107,14 @@ export const publicPages: readonly PublicPage[] = [
     changeFrequency: "weekly",
     priority: 1,
   },
+  {
+    path: "/download",
+    title: "Download Lictory",
+    description:
+      "The Lictory desktop app for macOS, Windows and Linux, and lictory-runner for the machines that run your agents. Always the newest stable release.",
+    changeFrequency: "monthly",
+    priority: 0.8,
+  },
   ...comparisons.map((item): PublicPage => ({
     path: `/compare/${item.slug}`,
     title: item.title,

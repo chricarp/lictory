@@ -7,7 +7,11 @@ import {
   comparisons,
 } from "@lictory/marketing/content/comparisons";
 import { roundups } from "@lictory/marketing/content/roundups";
-import { docsUrl, repositoryUrl } from "@lictory/marketing/lib/get-started";
+import {
+  docsUrl,
+  downloadPath,
+  repositoryUrl,
+} from "@lictory/marketing/lib/get-started";
 import { cn } from "@lictory/core/lib/utils";
 
 // Shared footer for the landing page, guides, comparisons and roundups.
@@ -70,6 +74,9 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             </Link>
           </div>
           <div className="flex flex-col gap-2">
+            <Link href={downloadPath} className={footerLinkClass}>
+              Download
+            </Link>
             <a href={docsUrl} className={footerLinkClass}>
               Documentation
             </a>

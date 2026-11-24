@@ -67,6 +67,8 @@ export const modules: ReadonlyArray<{
   name: string;
   summary: string;
   features: readonly string[];
+  /** Where to get the module, when it is installed apart from the server. */
+  link?: { label: string; href: string };
 }> = [
   {
     id: "channels",
@@ -133,6 +135,7 @@ export const modules: ReadonlyArray<{
       "lictory:// links, a tray icon and keyboard shortcuts",
       "A personal runner on the same machine is in preparation",
     ],
+    link: { label: "Download the desktop app", href: "/download" },
   },
 ];
 

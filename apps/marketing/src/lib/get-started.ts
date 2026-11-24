@@ -18,3 +18,11 @@ export const repositoryUrl = "https://github.com/chricarp/lictory";
 export const getStartedLabel = "Get started";
 export const installLabel = "Install on a server";
 export const repositoryLabel = "GitHub";
+
+/** The desktop app and lictory-runner of the newest stable release. */
+export const downloadPath = "/download";
+export const downloadLabel = "Download";
+
+/** The documentation of the desktop app and of runners. */
+export const desktopDocsUrl = `${docsUrl}/basics/desktop`;
+export const runnerDocsUrl = `${docsUrl}/factory/runners`;

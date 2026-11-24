@@ -39,6 +39,7 @@ import {
 } from "@lictory/marketing/components/landing/scenes/delivery-scenes";
 import { openSource } from "@lictory/marketing/lib/open-source";
 import { TrackedLink } from "@lictory/marketing/components/marketing/tracked-link";
+import { downloadPath } from "@lictory/marketing/lib/get-started";
 
 export function Landing() {
   return (
@@ -241,7 +242,10 @@ function Factory() {
         Install <code>lictory-runner</code> on a server, a VPS, a laptop or a
         Mac mini under a desk. It connects out to your Lictory server, needs no
         open port, and runs {harnesses.slice(0, -1).join(", ")} or{" "}
-        {harnesses.at(-1)} in a separate git worktree for every session.
+        {harnesses.at(-1)} in a separate git worktree for every session.{" "}
+        <Link href={`${downloadPath}#runner`} className="section-intro-link">
+          Download lictory-runner
+        </Link>
       </SectionHeading>
       <RunnersScene />
 
