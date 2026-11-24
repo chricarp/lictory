@@ -5,3 +5,14 @@ e009fdc76f90bfafecafd44d815f9071a12ccd1b:deploy/deploy.sh:generic-api-key:223
 # The same probe key, added for the collaboration service's upgrade probe
 # (since computed at runtime instead of written out).
 ceb348fa5d7564d74067b51521c0af0f21c2bfdc:deploy/deploy.sh:generic-api-key:414
+# Software factory test vectors, none of them a credential:
+# the Standard Webhooks specification's example signing secret,
+aaf84cef20ea73575ca0ceb643a5fdb289772eb3:packages/core/src/agent-events/agent-events.test.ts:generic-api-key:265
+# Slack's documented request-signing example secret,
+bb8a4e3f11efac27add956d1d75d137fb916256e:packages/core/src/channels/slack/slack.test.ts:generic-api-key:293
+# and placeholder hex strings for the fake Slack app and code-host webhook signatures.
+bb8a4e3f11efac27add956d1d75d137fb916256e:packages/core/src/channels/slack/slack.test.ts:generic-api-key:1050
+bb8a4e3f11efac27add956d1d75d137fb916256e:packages/core/src/channels/slack/slack.test.ts:generic-api-key:1051
+bb8a4e3f11efac27add956d1d75d137fb916256e:scripts/e2e-fakes/slack.ts:generic-api-key:75
+bb8a4e3f11efac27add956d1d75d137fb916256e:scripts/e2e-fakes/slack.ts:generic-api-key:76
+694bbc0bb77520cdca6b1a996a42923ab49cee71:packages/core/src/code/signatures.test.ts:generic-api-key:11
