@@ -156,16 +156,18 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(panel.getByText("Got it: Mention the v2 API.")).toBeVisible();
 
   // It asks for approval in the thread; Ada approves on the session's card,
-  // where the request shows with its context.
+  // where the request shows with its context. While the card shows it, the
+  // request is one block: its record line returns once answered.
   const approval = panel.getByRole("region", {
     name: "Forge asks for approval",
   });
-  await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(card.getByText("Waiting on you")).toBeVisible();
   await expect(
     card.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
+  await expect(approval).toHaveCount(0);
   await card.getByRole("button", { name: "Approve" }).click();
+  await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
 
   // The summary arrives as Forge's message and the card completes.
