@@ -1,4 +1,4 @@
-import { useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   Check,
   ChevronsUpDown,
@@ -84,6 +84,47 @@ export function Sidebar({
     () => (isMac() ? "⌘K" : "Ctrl K"),
     () => "Ctrl K",
   );
+  const nav = useRef<HTMLElement>(null);
+  const current = useRef<string | null>(null);
+  // The sidebar keeps its scroll position across navigation, so the groups
+  // above (Channels, Direct messages) stay where I left them. Only when
+  // another row becomes current (a deep link, a link from the page) and it
+  // is entirely out of view does it scroll, by the least amount that
+  // reveals the row. Moving between pages of the same row (pages of one
+  // space) never moves it.
+  useEffect(() => {
+    const list = nav.current;
+    if (!list) return;
+    const reveal = () => {
+      const row = list.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!row) return false;
+      const href = row.getAttribute("href");
+      if (href === current.current) return true;
+      current.current = href;
+      const view = list.getBoundingClientRect();
+      const box = row.getBoundingClientRect();
+      // Only the list moves, never the page around it.
+      if (box.bottom <= view.top) list.scrollTop -= view.top - box.top + 8;
+      else if (box.top >= view.bottom)
+        list.scrollTop += box.bottom - view.bottom + 8;
+      return true;
+    };
+    if (reveal()) return;
+    // The row can arrive with its data (a space, a channel) after the page.
+    const observer = new MutationObserver(() => {
+      if (reveal()) observer.disconnect();
+    });
+    observer.observe(list, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ["aria-current"],
+    });
+    const stop = setTimeout(() => observer.disconnect(), 5_000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(stop);
+    };
+  }, [pathname]);
   return (
     <CompactSidebarContext value={compact}>
       <div
@@ -164,6 +205,7 @@ export function Sidebar({
         )}
       </div>
       <nav
+        ref={nav}
         aria-label="Workspace"
         className={cn(
           "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2",

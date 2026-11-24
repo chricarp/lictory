@@ -325,6 +325,38 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
   await expect(aside).toHaveAttribute("data-sidebar", "full");
 });
 
+test("the sidebar stays put and reveals the current row only when it is hidden", async ({
+  page,
+}) => {
+  // Short enough that Spaces sits below the fold.
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await signIn(page, seeded.owner.email);
+  await page.goto(paths.org(seeded.slug));
+  const nav = sidebar(page);
+  const top = () => nav.evaluate((el) => el.scrollTop);
+  await expect(nav.getByRole("link", { name: "Home" })).toBeInViewport();
+  expect(await top()).toBe(0);
+  // A deep link to a space scrolls just enough to show its row.
+  const runbooks = nav.getByRole("link", { name: "Runbooks" });
+  await runbooks.click();
+  await page.reload();
+  await expect(runbooks).toHaveAttribute("aria-current", "page");
+  await expect(runbooks).toBeInViewport();
+  await expect.poll(top).toBeGreaterThan(0);
+  // Scrolled back up, opening a page of the same space keeps the sidebar
+  // where it is: Channels stays in view.
+  await nav.evaluate((el) => (el.scrollTop = 0));
+  await page
+    .getByRole("link", { name: "Rotate webhook secrets" })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Rotate webhook secrets" }),
+  ).toBeVisible();
+  expect(await top()).toBe(0);
+  await expect(nav.getByRole("link", { name: "All channels" })).toBeInViewport();
+});
+
 test("on a phone the navigation is a drawer with the rail", async ({
   page,
 }) => {

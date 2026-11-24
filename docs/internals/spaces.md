@@ -1056,8 +1056,10 @@ attributed to the anonymized account, like specification threads.
   steps aside while comments are open on frames under 80rem. The space home
   has "Find a page" (titles anywhere in the tree, with their path) and
   "Recently updated" with who published what (`publishedById`,
-  `publishedMessage` of the page summary). Breadcrumbs keep the immediate
-  parent and fold the ancestors between the space and it into "…".
+  `publishedMessage` of the page summary). A page starts with the shell's
+  `PageHeader`: its path (Spaces, the space, its parent pages), its title
+  and its toolbar; phones keep the title in the bar and put the toolbar
+  under the page's title.
 - **Reading.** A page shows main's latest commit, a branch's head
   (`?branch=<branchId>`) or a version picked with `?commit=<commitId>`,
   rendered by a read-only Tiptap editor from the commit's canonical JSON with

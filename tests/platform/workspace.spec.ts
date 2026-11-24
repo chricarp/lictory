@@ -400,7 +400,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     `${platformOrigin}${paths.account(workspacePath)}`,
   );
   await page.unroute("**/assets/account-*.js");
-  await page.getByRole("link", { name: "Back", exact: true }).click();
+  await page.getByRole("link", { name: /^Back( to |$)/ }).click();
   await expect(page).toHaveURL(`${platformOrigin}${workspacePath}`);
 
   // 1. Create an Epic through quick create (keyboard: c).

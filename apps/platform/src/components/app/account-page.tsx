@@ -79,15 +79,20 @@ export function AccountPage({
   useEffect(reload, [reload]);
   useEffect(() => onAccountChanged(reload), [reload]);
   const [memberships] = useQuery(queries.memberships());
-  const defaultOrganization = memberships
+  const organizations = memberships
     .map((m) => m.organization[0]?.data as OrganizationProfile | undefined)
-    .find((o) => !!o);
+    .filter((o) => !!o);
+  const defaultOrganization = organizations[0];
   const safe = returnTo ? safeCallbackPath(returnTo) : undefined;
   const safeReturnTo =
     safe && safe !== "/" && !safe.startsWith("/account") ? safe : undefined;
   const backHref =
     safeReturnTo ??
     (defaultOrganization ? paths.org(defaultOrganization.slug) : "/");
+  // "Back to Northwind": the organization the way back leads into.
+  const backTo = organizations.find(
+    (o) => backHref === paths.org(o.slug) || backHref.startsWith(`/${o.slug}/`),
+  );
 
   if (error && !account)
     return (
@@ -113,7 +118,11 @@ export function AccountPage({
           stays on top of the page as it scrolls. */}
       <PageHeader
         title="Account settings"
-        back={{ label: "Back", href: backHref }}
+        back={{
+          label: backTo ? `Back to ${backTo.name}` : "Back",
+          href: backHref,
+        }}
+        description="Applies to you everywhere, not to one organization."
         meta={
           <>
             <PersonAvatar
@@ -125,8 +134,8 @@ export function AccountPage({
               size={20}
             />
             <span className="truncate">
-              {account.user.name} · @{account.user.handle} · applies to you
-              everywhere, not to one organization
+              {account.user.name}
+              {account.user.handle ? ` · @${account.user.handle}` : ""}
             </span>
           </>
         }
