@@ -267,6 +267,8 @@ test("channels and the factory meet WCAG 2.2 AA automated checks", async ({
   // No runner yet: the Factory is one setup path; its agents and runners.
   await page.goto(paths.factory(seeded.slug));
   await expect(page.getByText("Set up the factory")).toBeVisible();
+  // An empty state under the page header is not a second page title.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await settled(page);
   await expectNoAccessibilityViolations(page, "factory setup");
   for (const [tab, text] of [
@@ -275,6 +277,7 @@ test("channels and the factory meet WCAG 2.2 AA automated checks", async ({
   ] as const) {
     await page.goto(`${paths.factory(seeded.slug)}/${tab}`);
     await expect(page.getByText(text, { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
     await settled(page);
     await expectNoAccessibilityViolations(page, `factory ${tab}`);
   }

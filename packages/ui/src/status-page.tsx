@@ -90,6 +90,7 @@ export function MissingState({
   illustration,
   children,
   action,
+  headingLevel = 1,
 }: {
   icon: Icon;
   tone?: keyof typeof wells;
@@ -97,7 +98,11 @@ export function MissingState({
   illustration?: IllustrationKind;
   children?: ReactNode;
   action?: ReactNode;
+  // 1 when the state is the whole page (not found, no access); 2 under a
+  // page header, whose title is already the page's h1.
+  headingLevel?: 1 | 2;
 }) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <div className="grid min-h-full place-items-center px-6 py-16">
       <div className="mx-auto max-w-sm text-center">
@@ -110,7 +115,7 @@ export function MissingState({
         >
           <Icon className="size-5" strokeWidth={1.75} />
         </div>
-        <h1 className="text-sm font-medium">{title}</h1>
+        <Heading className="text-sm font-medium">{title}</Heading>
         {children && (
           <div className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
             {children}

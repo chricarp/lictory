@@ -570,6 +570,7 @@ function EmptyExamples() {
       <Frame>
         <div className="h-72">
           <MissingState
+            headingLevel={2}
             icon={Bot}
             title="No agents yet"
             action={<Button size="sm">Create agent</Button>}

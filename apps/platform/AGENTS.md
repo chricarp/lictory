@@ -82,7 +82,8 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
 - **Empty states.** Say what will appear and what to do first, with
   `EmptyState` (lists) or `MissingState` (whole pages) from `@lictory/ui`.
   A page with no data at all is one `MissingState` with one primary action:
-  no zero stat cards, no empty sections beside it.
+  no zero stat cards, no empty sections beside it. Under a `PageHeader` pass
+  `headingLevel={2}`: the header's title is the page's h1.
 
 ## Shared building blocks
 
