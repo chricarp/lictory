@@ -302,6 +302,10 @@ test("on a phone the navigation is a drawer with the rail", async ({
   await expect(
     drawer.getByRole("navigation", { name: "Organizations" }),
   ).toBeVisible();
+  // It slides fully into view from the left edge.
+  await expect
+    .poll(async () => Math.round((await drawer.boundingBox())?.x ?? -1))
+    .toBe(0);
   await snapshot(page, "Phone drawer");
   // Escape closes it; choosing a page closes it too.
   await page.keyboard.press("Escape");
