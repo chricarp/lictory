@@ -49,6 +49,9 @@ export type CodeRepositoryEntity = {
   visibility: "public" | "private" | "internal";
   hostArchived: boolean;
   projectIds: string[];
+  // Projects whose agent sessions work here when a session names no
+  // repository.
+  defaultForProjectIds: string[];
   lastSyncedAt: string | null;
   lastSyncError: string | null;
 };
@@ -89,7 +92,33 @@ export type CodePullRequestEntity = {
   hostUpdatedAt: string;
   openedById: string | null;
   openedVia: string | null;
+  // Opened by a Factory agent, from this agent session (Lictory's
+  // provenance, never the host's author login).
+  agentId: string | null;
+  agentSessionId: string | null;
+  // Opened through Lictory by an agent acting for a person.
+  agentAuthored: boolean;
+  // A merge Lictory sent: who asked and how ("Autopilot · policy set by
+  // Ada Lovelace").
+  mergeRequestedById: string | null;
+  mergedVia: string | null;
+  // Reviews recorded in Lictory, newest first, with whether they reviewed
+  // the current head.
+  reviews: CodeReviewRef[];
   links: CodeLinkRef[];
+};
+
+export type CodeReviewRef = {
+  id: string;
+  decision: "approve" | "request_changes";
+  headSha: string;
+  current: boolean;
+  reviewerId: string;
+  agentId: string | null;
+  agentName: string | null;
+  agentSessionId: string | null;
+  body: string;
+  createdAt: string;
 };
 
 export type CodeIssueEntity = {

@@ -7,7 +7,7 @@ import type {
   CodeLinkTarget,
   CodeWriteKind,
 } from "@lictory/core/db/code-schema";
-import { PROTOCOL } from "@lictory/core/contracts/protocol";
+import { canManageProject, PROTOCOL } from "@lictory/core/contracts/protocol";
 import {
   codePullRequest,
   codeWrite as codeWriteMachine,
@@ -55,6 +55,7 @@ import {
   type CodeMergeMethod,
 } from "@lictory/core/code/provider";
 import { writeCodeProjections } from "@lictory/core/code/projections";
+import { followCodeEvidence } from "@lictory/core/code/follow";
 import type { CodeHostProviders } from "@lictory/core/code/registry";
 import {
   addLink,
@@ -192,25 +193,6 @@ export function createCodeService(
     return found;
   };
 
-  const checksOf = async (
-    tx: Tx | Database,
-    organizationId: string,
-    repositoryId: string,
-    sha: string,
-  ) => {
-    const [found] = await tx
-      .select()
-      .from(s.codeCommitChecks)
-      .where(
-        and(
-          eq(s.codeCommitChecks.organizationId, organizationId),
-          eq(s.codeCommitChecks.repositoryId, repositoryId),
-          eq(s.codeCommitChecks.sha, sha),
-        ),
-      );
-    return found ?? { state: "none" as const, runs: [] };
-  };
-
   // Queues one write in the caller's transaction. A request repeated with
   // the same idempotency key returns its first write; reusing a key for a
   // different request is a conflict.
@@ -274,6 +256,9 @@ export function createCodeService(
         pullRequestId: input.pullRequestId ?? null,
         requestedById: actor.userId,
         performedVia: input.performedVia ?? performedVia(actor),
+        agentId: actor.agentScope?.id ?? null,
+        agentSessionId:
+          actor.agentSessionId ?? actor.agentScope?.sessionId ?? null,
         idempotencyKey,
         fingerprint,
         nextAttemptAt: now(),
@@ -764,6 +749,83 @@ export function createCodeService(
           repositoryIds: [input.repositoryId],
         });
       });
+    },
+
+    // The repository the project's agent sessions work in when a session
+    // names none (docs/internals/code-hosts.md#agent-sessions). One per
+    // project; null clears the choice (sessions then use the first linked
+    // repository).
+    async setDefaultRepository(
+      actor: Actor,
+      input: {
+        organizationId: string;
+        projectId: string;
+        repositoryId: string | null;
+      },
+    ) {
+      const { organizationId } = input;
+      await db.transaction(async (tx) => {
+        await lock(tx, organizationId);
+        requireRepositoryLinker(
+          await codeAccess(tx, actor.userId, organizationId),
+          input.projectId,
+        );
+        const links = await tx
+          .select()
+          .from(s.codeRepositoryProject)
+          .where(
+            and(
+              eq(s.codeRepositoryProject.organizationId, organizationId),
+              eq(s.codeRepositoryProject.projectId, input.projectId),
+            ),
+          );
+        if (
+          input.repositoryId &&
+          !links.some((l) => l.repositoryId === input.repositoryId)
+        )
+          throw new DomainError(
+            "validation",
+            "This repository does not serve the project. Link it first.",
+          );
+        const previous = links.find((l) => l.isDefault)?.repositoryId ?? null;
+        if (previous === input.repositoryId) return;
+        // Clear first: the partial unique index allows one default.
+        await tx
+          .update(s.codeRepositoryProject)
+          .set({ isDefault: false })
+          .where(
+            and(
+              eq(s.codeRepositoryProject.organizationId, organizationId),
+              eq(s.codeRepositoryProject.projectId, input.projectId),
+            ),
+          );
+        if (input.repositoryId)
+          await tx
+            .update(s.codeRepositoryProject)
+            .set({ isDefault: true })
+            .where(
+              and(
+                eq(s.codeRepositoryProject.organizationId, organizationId),
+                eq(s.codeRepositoryProject.projectId, input.projectId),
+                eq(s.codeRepositoryProject.repositoryId, input.repositoryId),
+              ),
+            );
+        await audit(
+          tx,
+          organizationId,
+          actor.userId,
+          "setDefaultCodeRepository",
+          {
+            projectId: input.projectId,
+            repositoryId: input.repositoryId,
+            previousRepositoryId: previous,
+          },
+        );
+        await writeCodeProjections(tx, organizationId, {
+          repositoryIds: links.map((l) => l.repositoryId),
+        });
+      });
+      return { ok: true };
     },
 
     // Mirrors the repository again now (missed webhooks, a new link).
@@ -1440,7 +1502,7 @@ export function createCodeService(
     },
 
     // A merge is a decision: a person asks for it (or the autonomy policy,
-    // through the merge executor), for the head they inspected.
+    // through `mergeForPolicyIn`), for the head they inspected.
     async merge(
       actor: Actor,
       input: {
@@ -1456,40 +1518,345 @@ export function createCodeService(
         actor,
         input,
         "merge",
-        async (tx, pr) => {
-          const checks = await checksOf(
-            tx,
-            input.organizationId,
-            pr.repositoryId,
-            pr.headSha,
-          );
-          const blockers = mergeBlockers({ ...pr, checks });
-          if (blockers.length)
-            throw new DomainError(
-              "conflict",
-              `Not merged: ${blockers[0]}`,
-              undefined,
-              "merge_blocked",
-            );
-          if (input.expectedHeadSha.trim() !== pr.headSha)
-            throw new DomainError(
-              "conflict",
-              "The pull request has new commits since it was checked. Review the current head before merging.",
-              undefined,
-              "stale_head",
-            );
-          return {
-            kind: "merge" as const,
-            payload: {
-              number: pr.number,
-              method: input.method ?? "merge",
-              expectedHeadSha: pr.headSha,
-            },
-            reuseInFlight: true,
-          };
-        },
+        mergeBuild(input),
         policy?.performedVia,
       );
+    },
+
+    // Autopilot's merge (docs/internals/claims.md#the-dispatcher), in the
+    // claims transaction under the organization lock. The merge follows a
+    // person's merge rules (state, draft, checks, requested changes,
+    // conflicts, the head it was decided for), is attributed to the policy
+    // and the administrator who set it ("Autopilot · policy set by Ada"),
+    // who must still administer the project the repository serves, and a
+    // comment on the pull request says so on the host. A refusal returns
+    // its reason and writes nothing.
+    async mergeForPolicyIn(
+      tx: Tx,
+      input: {
+        organizationId: string;
+        pullRequestId: string;
+        expectedHeadSha: string;
+        method?: CodeMergeMethod;
+        // One merge per policy decision: retries reuse it.
+        idempotencyKey: string;
+        policy: {
+          projectId: string;
+          configuredById: string;
+          version: number;
+          label?: string;
+        };
+        // What the comment on the host says passed.
+        explanation?: string;
+      },
+    ): Promise<
+      | { requested: true; writeId: string | null }
+      | {
+          requested: false;
+          reason: string;
+          category: DomainError["category"];
+        }
+    > {
+      const { policy } = input;
+      const [admin] = await tx
+        .select({ name: s.user.name })
+        .from(s.user)
+        .where(eq(s.user.id, policy.configuredById));
+      const via =
+        `${policy.label ?? "Autopilot"} · policy set by ${admin?.name ?? "a project administrator"}`.slice(
+          0,
+          200,
+        );
+      const actor: Actor = {
+        userId: policy.configuredById,
+        automation: "autopilot",
+      };
+      const authorize = (access: CodeAccess, projects: string[]) => {
+        if (
+          !canManageProject(
+            access.roster,
+            policy.configuredById,
+            access.admin,
+            policy.projectId,
+          )
+        )
+          throw new DomainError(
+            "forbidden",
+            "The administrator who set this project's autonomy policy no longer administers it; Autopilot does not merge until a current administrator saves the policy again.",
+          );
+        if (!projects.includes(policy.projectId))
+          throw new DomainError(
+            "forbidden",
+            "This pull request's repository does not serve the project whose policy would merge it.",
+          );
+      };
+      const request = {
+        organizationId: input.organizationId,
+        pullRequestId: input.pullRequestId,
+      };
+      try {
+        // A savepoint: a refusal leaves the caller's transaction intact.
+        return await tx.transaction(async (inner) => {
+          const merge = await pullRequestWriteIn(
+            inner,
+            actor,
+            { ...request, mutationId: `autopilot:${input.idempotencyKey}` },
+            "merge",
+            mergeBuild(input),
+            via,
+            authorize,
+          );
+          await pullRequestWriteIn(
+            inner,
+            actor,
+            {
+              ...request,
+              mutationId: `autopilot-comment:${input.idempotencyKey}`,
+            },
+            "comment",
+            (_tx, pr) =>
+              Promise.resolve({
+                kind: "comment" as const,
+                payload: {
+                  number: pr.number,
+                  body: `${(input.explanation ?? `Autopilot merges this pull request at ${pr.headSha.slice(0, 7)}: every required check passed.`).slice(0, 4000)}\n\nAutopilot is on for this project under the autonomy policy (version ${policy.version}) that ${admin?.name ?? "a project administrator"} set. Lowering the project's autonomy stops it.\n\n— ${via}, from Lictory`,
+                },
+              }),
+            via,
+            authorize,
+          );
+          return { requested: true as const, writeId: merge.writeId };
+        });
+      } catch (error) {
+        if (error instanceof DomainError)
+          return {
+            requested: false,
+            reason: error.message,
+            category: error.category,
+          };
+        throw error;
+      }
+    },
+
+    // A review recorded in Lictory, bound to the head commit it reviewed
+    // (docs/internals/code-hosts.md#reviews-recorded-in-lictory). Every
+    // write to a host carries the connection's identity, so the host cannot
+    // say which agent approved: the review is Lictory's record, which the
+    // Definition of Done reads, and a comment on the pull request shows it
+    // on the host. A new head needs a new review.
+    async reviewPullRequest(
+      actor: Actor,
+      input: {
+        organizationId: string;
+        pullRequestId: string;
+        decision: "approve" | "request_changes";
+        body?: string;
+        // The head the reviewer read; a newer one refuses the review.
+        expectedHeadSha?: string;
+        mutationId?: string;
+      },
+    ) {
+      const { organizationId } = input;
+      return db.transaction(async (tx) => {
+        await lock(tx, organizationId);
+        const access = await codeAccess(tx, actor.userId, organizationId);
+        const { pullRequest, repository } = await pullRequestRow(
+          tx,
+          organizationId,
+          input.pullRequestId,
+        );
+        const projects = await linkedProjectIds(
+          tx,
+          organizationId,
+          repository.id,
+        );
+        requireCodeWorker(access, projects, "review pull requests");
+        requireStep(codePullRequest, pullRequest.state, "review");
+        const expected = input.expectedHeadSha?.trim();
+        if (expected && expected !== pullRequest.headSha)
+          throw new DomainError(
+            "conflict",
+            `The pull request has new commits (head ${pullRequest.headSha.slice(0, 7)}) since you read ${expected.slice(0, 7)}. Review the current head.`,
+            undefined,
+            "stale_head",
+          );
+        const agentId = actor.agentScope?.id ?? null;
+        if (agentId && pullRequest.agentId === agentId)
+          throw new DomainError(
+            "forbidden",
+            "An agent does not review its own pull request. The project's reviewer agent or a person reviews it.",
+          );
+        const reviewId = input.mutationId
+          ? createHash("sha256")
+              .update(`code-review:${organizationId}:${input.mutationId}`)
+              .digest("hex")
+              .slice(0, 32)
+          : crypto.randomUUID();
+        const [existing] = await tx
+          .select()
+          .from(s.codeReview)
+          .where(
+            and(
+              eq(s.codeReview.organizationId, organizationId),
+              eq(s.codeReview.id, reviewId),
+            ),
+          );
+        if (existing)
+          return {
+            reviewId: existing.id,
+            headSha: existing.headSha,
+            decision: existing.decision,
+            replayed: true,
+          };
+        // The reviewer's earlier reviews of this pull request give way.
+        await tx
+          .update(s.codeReview)
+          .set({ supersededAt: now() })
+          .where(
+            and(
+              eq(s.codeReview.organizationId, organizationId),
+              eq(s.codeReview.pullRequestId, pullRequest.id),
+              isNull(s.codeReview.supersededAt),
+              agentId
+                ? eq(s.codeReview.agentId, agentId)
+                : and(
+                    eq(s.codeReview.reviewerId, actor.userId),
+                    isNull(s.codeReview.agentId),
+                  ),
+            ),
+          );
+        const body = (input.body ?? "").trim().slice(0, 20_000);
+        const agentName = performedVia(actor);
+        await tx.insert(s.codeReview).values({
+          id: reviewId,
+          organizationId,
+          pullRequestId: pullRequest.id,
+          headSha: pullRequest.headSha,
+          decision: input.decision,
+          body,
+          reviewerId: actor.userId,
+          agentId,
+          agentName,
+          agentSessionId:
+            actor.agentSessionId ?? actor.agentScope?.sessionId ?? null,
+        });
+        const touched = new Touched();
+        touched.pullRequestIds.add(pullRequest.id);
+        // Shown on the host too, signed, since the host shows the
+        // connection's account as its author.
+        const verdict =
+          input.decision === "approve" ? "Approved" : "Changes requested";
+        await enqueue(
+          tx,
+          actor,
+          {
+            organizationId,
+            connectionId: repository.connectionId,
+            repositoryId: repository.id,
+            kind: "comment",
+            payload: {
+              number: pullRequest.number,
+              body: `**${verdict}** at ${pullRequest.headSha.slice(0, 7)}${body ? `\n\n${body.slice(0, 60_000)}` : ""}\n\n— ${await signature(tx, actor)}, from Lictory`,
+            },
+            pullRequestId: pullRequest.id,
+            idempotencyKey: `code-review:${reviewId}`,
+          },
+          touched,
+        );
+        const linked = await tx
+          .select({
+            workItemId: s.codeWorkLink.workItemId,
+            projectId: s.codeWorkLink.projectId,
+          })
+          .from(s.codeWorkLink)
+          .where(
+            and(
+              eq(s.codeWorkLink.organizationId, organizationId),
+              eq(s.codeWorkLink.target, "pull_request"),
+              eq(s.codeWorkLink.targetId, pullRequest.id),
+              isNull(s.codeWorkLink.unlinkedAt),
+            ),
+          );
+        for (const link of linked) {
+          touched.workItemIds.add(link.workItemId);
+          await recordActivity(tx, {
+            organizationId,
+            projectId: link.projectId,
+            workItemId: link.workItemId,
+            actorId: actor.userId,
+            action:
+              input.decision === "approve"
+                ? "code_review_approved"
+                : "code_review_changes_requested",
+            detail: {
+              pullRequestId: pullRequest.id,
+              number: pullRequest.number,
+              title: pullRequest.title,
+              url: pullRequest.webUrl,
+              headSha: pullRequest.headSha,
+              ...(agentName ? { performedVia: agentName } : {}),
+              ...(agentId ? { agentId } : {}),
+            },
+          });
+        }
+        await writeCodeProjections(tx, organizationId, touched.toTouch());
+        // The Definition of Done reads the review.
+        await followCodeEvidence(tx, organizationId, touched);
+        return {
+          reviewId,
+          headSha: pullRequest.headSha,
+          decision: input.decision,
+          replayed: false,
+        };
+      });
+    },
+
+    // The pull request an agent session's pushed branch becomes
+    // (docs/internals/code-hosts.md#pull-requests-from-agent-sessions):
+    // opened through the outbox as the agent acting for its owner, for the
+    // session's work item, idempotent by the head branch (the outbox looks
+    // for the branch's open pull request before opening one). A branch
+    // whose open pull request another session opened (a reviewer pushed to
+    // it) opens nothing.
+    async openSessionPullRequest(
+      actor: Actor,
+      input: {
+        organizationId: string;
+        sessionId: string;
+        // Stable per run, so a repeated completion queues one write.
+        attempt: number;
+        repositoryId: string;
+        workItemId: string | null;
+        head: string;
+        base?: string | null;
+        title?: string;
+        body?: string;
+      },
+    ) {
+      const [open] = await db
+        .select()
+        .from(s.codePullRequest)
+        .where(
+          and(
+            eq(s.codePullRequest.organizationId, input.organizationId),
+            eq(s.codePullRequest.repositoryId, input.repositoryId),
+            eq(s.codePullRequest.headBranch, input.head),
+            eq(s.codePullRequest.state, "open"),
+          ),
+        );
+      if (open?.agentSessionId && open.agentSessionId !== input.sessionId)
+        return { outcome: "skipped" as const, pullRequestId: open.id };
+      const queued = await this.openPullRequest(actor, {
+        organizationId: input.organizationId,
+        repositoryId: input.repositoryId,
+        workItemId: input.workItemId ?? undefined,
+        head: input.head,
+        base: input.base ?? undefined,
+        title: input.title,
+        body: input.body,
+        mutationId: `session-pr:${input.sessionId}:${input.attempt}`,
+      });
+      return { outcome: "queued" as const, ...queued };
     },
 
     async setPullRequestState(
@@ -1698,25 +2065,31 @@ export function createCodeService(
   // repository serves, refused by the pull request's state machine.
   async function pullRequestWrite(
     actor: Actor,
-    input: {
-      organizationId: string;
-      pullRequestId: string;
-      mutationId?: string;
-    },
-    step: "comment" | "requestReview" | "merge" | "close" | "reopen",
-    build: (
-      tx: Tx,
-      pr: typeof s.codePullRequest.$inferSelect,
-    ) => Promise<{
-      kind: CodeWriteKind;
-      payload: Record<string, unknown>;
-      reuseInFlight?: boolean;
-    }>,
+    input: PullRequestWriteInput,
+    step: PullRequestStep,
+    build: PullRequestWriteBuild,
     via?: string,
   ) {
-    const { organizationId } = input;
     return db.transaction(async (tx) => {
-      await lock(tx, organizationId);
+      await lock(tx, input.organizationId);
+      return pullRequestWriteIn(tx, actor, input, step, build, via);
+    });
+  }
+
+  // The same, in the caller's transaction (which holds the organization
+  // lock). `authorize` replaces the code-worker check: the autonomy policy
+  // merges on its administrator's authority.
+  async function pullRequestWriteIn(
+    tx: Tx,
+    actor: Actor,
+    input: PullRequestWriteInput,
+    step: PullRequestStep,
+    build: PullRequestWriteBuild,
+    via?: string,
+    authorize?: (access: CodeAccess, projects: string[]) => void,
+  ) {
+    const { organizationId } = input;
+    {
       const access = await codeAccess(tx, actor.userId, organizationId);
       const { pullRequest, repository } = await pullRequestRow(
         tx,
@@ -1735,7 +2108,8 @@ export function createCodeService(
         close: "close pull requests",
         reopen: "reopen pull requests",
       };
-      requireCodeWorker(access, projects, verbs[step]);
+      if (authorize) authorize(access, projects);
+      else requireCodeWorker(access, projects, verbs[step]);
       requireStep(codePullRequest, pullRequest.state, step);
       // Asking for the state it is already in changes nothing.
       if (codePullRequest.targets(step).includes(pullRequest.state))
@@ -1780,7 +2154,7 @@ export function createCodeService(
       );
       await writeCodeProjections(tx, organizationId, touched.toTouch());
       return { ...writeView(write), replayed };
-    });
+    }
   }
 
   async function settleWrite(
@@ -1842,7 +2216,10 @@ export function createCodeService(
     repositoryId: string | undefined,
   ) {
     const repositories = await tx
-      .select({ repository: s.codeRepository })
+      .select({
+        repository: s.codeRepository,
+        isDefault: s.codeRepositoryProject.isDefault,
+      })
       .from(s.codeRepositoryProject)
       .innerJoin(
         s.codeRepository,
@@ -1882,14 +2259,79 @@ export function createCodeService(
         );
       return found.repository;
     }
+    const preferred = repositories.find((r) => r.isDefault);
+    if (preferred) return preferred.repository;
     if (repositories.length > 1)
       throw new DomainError(
         "validation",
-        `${project.name} uses several repositories (${repositories.map((r) => r.repository.fullName).join(", ")}). Choose one.`,
+        `${project.name} uses several repositories (${repositories.map((r) => r.repository.fullName).join(", ")}). Choose one, or a project administrator sets the default in the project's settings.`,
       );
     return repositories[0]!.repository;
   }
 }
+
+// What a merge sends, refused for the reasons a person's merge is.
+function mergeBuild(input: {
+  organizationId: string;
+  expectedHeadSha: string;
+  method?: CodeMergeMethod;
+}): PullRequestWriteBuild {
+  return async (tx, pr) => {
+    const [checks] = await tx
+      .select()
+      .from(s.codeCommitChecks)
+      .where(
+        and(
+          eq(s.codeCommitChecks.organizationId, input.organizationId),
+          eq(s.codeCommitChecks.repositoryId, pr.repositoryId),
+          eq(s.codeCommitChecks.sha, pr.headSha),
+        ),
+      );
+    const blockers = mergeBlockers({
+      ...pr,
+      checks: checks ?? { state: "none" },
+    });
+    if (blockers.length)
+      throw new DomainError(
+        "conflict",
+        `Not merged: ${blockers[0]}`,
+        undefined,
+        "merge_blocked",
+      );
+    if (input.expectedHeadSha.trim() !== pr.headSha)
+      throw new DomainError(
+        "conflict",
+        "The pull request has new commits since it was checked. Review the current head before merging.",
+        undefined,
+        "stale_head",
+      );
+    return {
+      kind: "merge" as const,
+      payload: {
+        number: pr.number,
+        method: input.method ?? "merge",
+        expectedHeadSha: pr.headSha,
+      },
+      reuseInFlight: true,
+    };
+  };
+}
+
+type PullRequestWriteInput = {
+  organizationId: string;
+  pullRequestId: string;
+  mutationId?: string;
+};
+type PullRequestStep =
+  "comment" | "requestReview" | "merge" | "close" | "reopen";
+type PullRequestWriteBuild = (
+  tx: Tx,
+  pr: typeof s.codePullRequest.$inferSelect,
+) => Promise<{
+  kind: CodeWriteKind;
+  payload: Record<string, unknown>;
+  reuseInFlight?: boolean;
+}>;
 
 function defaultImportType(
   access: CodeAccess,

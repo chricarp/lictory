@@ -216,6 +216,9 @@ export const agentSession = pgTable(
       onDelete: "set null",
     }),
     repositoryUrl: text("repository_url"),
+    // The Code module's repository the session works in (text; Code owns
+    // it), chosen when it started or when its workspace was resolved.
+    repositoryId: text("repository_id"),
     baseBranch: text("base_branch"),
     branch: text("branch"),
     // The conversation that steers the session (owned by Channels; no

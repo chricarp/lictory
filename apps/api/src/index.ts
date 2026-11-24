@@ -4,6 +4,7 @@ import "@lictory/api/configuration";
 import { serve } from "@hono/node-server";
 import { closeDatabase, db } from "@lictory/core/db";
 import { refreshAiAvailability } from "@lictory/core/domain/ai";
+import { installCodeLoop } from "@lictory/core/code/loop";
 import { installFactoryLoop } from "@lictory/core/factory/loop";
 import {
   refreshAiState,
@@ -24,6 +25,9 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 // The factory loop's ports: agents in channels, session threads, claims
 // following their sessions (docs/internals/factory.md#the-factory-loop).
 installFactoryLoop(db);
+// The code loop's ports: session workspaces and pull requests, Definition
+// of Done evidence and Autopilot merges (docs/internals/code-hosts.md).
+installCodeLoop(db);
 
 const port = envInteger("PORT") ?? 3002;
 const hostname = env("HOST") ?? "0.0.0.0";

@@ -704,7 +704,7 @@ void test("outbox: permanent failures stay visible with the host's reason, notif
   await db
     .update(s.codeWrite)
     .set({ nextAttemptAt: new Date(0) })
-    .where(eq(s.codeWrite.id, lost.writeId));
+    .where(eq(s.codeWrite.id, lost.writeId!));
   await f.outbox.processDue();
   assert.equal(f.host.comments(f.repo.externalId, pr.number).length, 3);
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
@@ -860,8 +860,8 @@ void test("autopilot merges are attributed to the policy and need its administra
   const [write] = await db
     .select()
     .from(s.codeWrite)
-    .where(eq(s.codeWrite.id, queued.writeId));
-  assert.equal(write!.performedVia, "Autopilot");
+    .where(eq(s.codeWrite.id, queued.writeId!));
+  assert.equal(write!.performedVia, "Autopilot · policy set by Ada Owner");
   assert.equal(write!.requestedById, f.owner);
 });
 

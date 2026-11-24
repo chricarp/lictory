@@ -148,7 +148,12 @@ export async function upsertPullRequest(
   repository: RepositoryRow,
   info: CodePullRequestInfo,
   touched: Touched,
-  provenance?: { openedById: string; openedVia: string | null },
+  provenance?: {
+    openedById: string;
+    openedVia: string | null;
+    agentId?: string | null;
+    agentSessionId?: string | null;
+  },
 ) {
   const organizationId = repository.organizationId;
   const [existing] = await tx

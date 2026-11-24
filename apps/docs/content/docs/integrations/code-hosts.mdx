@@ -50,6 +50,11 @@ Under the connection, choose **Link a repository**, find it and pick the
 project it serves. Lictory reads its last 30 days right away. A repository can
 serve several projects.
 
+When a project uses several repositories, choose **Make _project_'s default
+for agents** on the one its agent sessions should work in. Without a choice,
+sessions use the repository linked to the project first. A session can still
+name another repository of the project.
+
 </Step>
 </Steps>
 
@@ -73,12 +78,18 @@ review state. From there you can:
 
 **Code** in the sidebar lists open, merged and closed pull requests of every
 linked repository, filtered by repository, project, yours, those that ask for
-your review, or those agents opened. Set your login on the host in
+your review, or those agents opened through Lictory (**Agent-authored**: an
+agent session's branch, or an agent's request, not the author's login on the
+host). Set your login on the host in
 **Organization settings → Code hosts** so **Mine** and **Review requested**
 find yours.
 
 A pull request's page shows its description, checks, reviews and the work
 items it delivers. **Show files changed** reads the diff from the host.
+Reviews agents record in Lictory are listed with the commit they reviewed:
+a review of an older commit no longer counts. When Lictory merged the pull
+request, the page says who asked, such as **merged by Autopilot · policy set
+by Ada**.
 
 **Merge** is available when the pull request is open, not a draft, its checks
 passed, nobody requested changes and it has no conflicts. Lictory merges the

@@ -4,6 +4,8 @@ import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import { signalWork } from "@lictory/core/jobs/signal";
 import { createConnections } from "@lictory/core/code/connections";
 import { writeCodeProjections } from "@lictory/core/code/projections";
+import { followCodeEvidence } from "@lictory/core/code/follow";
+import { afterCommit, codeSessionHooks } from "@lictory/core/code/hooks";
 import {
   CodeHostError,
   type CodeChecksSummary,
@@ -227,6 +229,7 @@ export function createCodeIngest(
       await connections.markFailure(row, error);
       throw error;
     }
+    const changed: string[] = [];
     await db.transaction(async (tx) => {
       await lock(tx, row.organizationId);
       if (!(await stillLeased(tx, delivery))) return;
@@ -247,7 +250,14 @@ export function createCodeIngest(
         })
         .where(eq(s.codeWebhookDelivery.id, delivery.id));
       await writeCodeProjections(tx, row.organizationId, touched.toTouch());
+      // Pull requests, reviews and checks are Definition of Done evidence.
+      await followCodeEvidence(tx, row.organizationId, touched);
+      changed.push(...touched.pullRequestIds);
     });
+    if (changed.length)
+      await afterCommit("pull_requests_changed", () =>
+        codeSessionHooks().pullRequestsChanged(row.organizationId, changed),
+      );
   }
 
   async function fetchFor(

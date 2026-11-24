@@ -53,6 +53,8 @@ export type SessionCardPayload = {
   summary: string | null;
   error: string | null;
   path: string;
+  // The code pull request its branch became: Lictory's page and the host's.
+  pullRequest: { id: string; path: string; url: string | null } | null;
 };
 
 export type ApprovalCardPayload = {
@@ -166,6 +168,13 @@ export async function syncSessionCard(
     summary: session.resultSummary?.slice(0, 2000) ?? null,
     error: session.error?.slice(0, 1000) ?? null,
     path,
+    pullRequest: session.pullRequestId
+      ? {
+          id: session.pullRequestId,
+          path: paths.codePullRequest(slug, session.pullRequestId),
+          url: session.pullRequestUrl,
+        }
+      : null,
   };
   const body = [
     `**${agent.name}** · ${sessionStatusLabels[session.status]}`,
@@ -173,6 +182,9 @@ export async function syncSessionCard(
       ? ` · ${formatReference({ kind: "item", id: session.workItemId }, item.key)}`
       : "",
     `\n\n${session.title}`,
+    payload.pullRequest
+      ? `\n\n[Pull request](${url(payload.pullRequest.path)})`
+      : "",
     `\n\n[Open the session in the Factory](${url(path)})`,
   ].join("");
   const message = await appendSystemMessage(tx, {

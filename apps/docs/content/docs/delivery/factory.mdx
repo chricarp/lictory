@@ -60,6 +60,35 @@ moved it since. A claim also ends when the item moves to Done, is canceled
 or archived, or is moved back out of progress, and when its agent stops
 renewing it (after about 15 minutes).
 
+## From a session to a merged pull request
+
+When a project's repositories are linked (see
+[code hosts](/integrations/code-hosts)), a session started for an item works
+in the project's default repository, on a branch named for the item
+(`lictory/pay-142-refund-retries-1a2b3c4d`). The runner receives a credential
+for that repository only for as long as the session runs (where the host
+offers one), and only if the agent's person can work with the project's code.
+
+1. When the session finishes, the runner pushes the branch and Lictory opens
+   a pull request for the item, titled with its key, as the agent acting for
+   its person (**Forge via Ada**). The pull request is linked to the item and
+   the session, its card in the thread links it, and the agent says so in the
+   thread. Finishing again opens no second pull request for the same branch.
+2. On **Build** and **Autopilot**, the project's reviewer agent gets a review
+   session for each new head commit. Its approval or requested changes are
+   recorded in Lictory for that commit and posted on the pull request, signed.
+   An agent never reviews its own pull request.
+3. CI reports to the code host; its webhook updates the item's Definition of
+   Done.
+4. On **Build** a person merges. On **Autopilot**, when CI passed on the head
+   commit, the reviewer agent approved it and every other check passed,
+   Lictory merges it once, as **Autopilot · policy set by** the administrator
+   who chose Autopilot, and says so on the pull request. New commits, a
+   failing check, conflicts, a lowered level or an administrator who no
+   longer administers the project stop it.
+5. The merged pull request completes the Definition of Done: the item moves
+   to Done and records the revision it delivered.
+
 ## Autonomy levels
 
 Project administrators choose the level in **Project settings → Autonomy**:
@@ -83,7 +112,7 @@ passing CI is always required.
 Every change is recorded in the audit log, and **History** restores an
 earlier policy. Lowering the level releases nothing: claims in flight
 continue until they finish or someone releases them; the factory just stops
-starting new work. Specification approvals, accepted scope, merged breakdowns
+starting new work, and below Autopilot it stops merging. Specification approvals, accepted scope, merged breakdowns
 and resolved discussions stay a person's decision at every level.
 
 If the dispatcher cannot start a session (no runner is online, for example),
@@ -99,7 +128,8 @@ is done, next to the Definition of Ready:
   requests that name the item's key (PAY-142) are linked automatically.
 - **Required CI checks passed** on the head commit.
 - **A reviewer approved the head commit**: the project's reviewer agent when
-  one is set.
+  one is set (its review recorded in Lictory for that commit); otherwise any
+  approval, in Lictory or on the host.
 - **Acceptance criteria verified**: a sign-off by a person of the disciplines
   you choose, such as QA. Add as many sign-offs as you need.
 

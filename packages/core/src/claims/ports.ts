@@ -110,8 +110,13 @@ export type CodePullRequestEvidence = {
   // check succeeded; `pending` lists checks that have not finished.
   checks: { required: number; failing: string[]; pending: string[] };
   // Approving reviews of the head commit: an agent (by agent id) or a
-  // person (by user id).
-  approvals: { agentId: string | null; userId: string | null }[];
+  // person (by user id), recorded in Lictory; or an approval on the host
+  // (its `login`, with the person who set it as their login, if any).
+  approvals: {
+    agentId: string | null;
+    userId: string | null;
+    login?: string | null;
+  }[];
   // Whether the code host would merge it now (mergeable, no conflicts,
   // branch protection met), as last reported.
   mergeable: boolean | null;

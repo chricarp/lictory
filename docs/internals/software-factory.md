@@ -21,6 +21,18 @@ Delivered revision recorded on the item                      (traceable)
 Every arrow is an existing or new domain operation with an actor, an audit
 entry and a reverse. Nothing in the factory moves because text said so.
 
+The loop runs end to end: the dispatcher claims a ready item and starts a
+session for an implementer agent; the runner checks out the item's project
+repository on a branch named for the item, with a credential for that
+repository; the pushed branch becomes a pull request linked to the item and
+the session and shown in its thread; CI and the reviewer agent's review of
+the head commit arrive as evidence; a person merges (Build) or Lictory does
+(Autopilot, attributed to the policy and its administrator); the Definition
+of Done moves the item to Done with the delivered revision. The Factory and
+Code install the ports Claims defines (`installFactoryLoop`,
+`installCodeLoop`); see [the factory loop](factory.md#the-factory-loop) and
+[the code loop](code-hosts.md#the-code-loop).
+
 This document holds the durable concepts. The glossary in `AGENTS.md` names
 them; each module's internals document owns its details.
 
@@ -223,6 +235,9 @@ review decision, checks), issues and the commits that mention work items.
   writes to the host only through explicit commands (create a branch, open,
   comment on or merge a pull request), queued in the domain transaction and
   sent by the worker, idempotently.
+- **Agents' reviews are Lictory's record.** The host shows every write as the
+  connection's account, so an agent's approval is recorded in Lictory for
+  the head commit it read, and a signed comment shows it on the host.
 - **Lictory owns links.** A branch, pull request, issue or commit is linked
   to a work item automatically when it names the item's key (`PAY-142`), or
   explicitly by a person or agent. Links are history: unlinking is recorded.
@@ -246,6 +261,8 @@ Node access in pages; everything else opens in the browser.
 
 Channels, Work and Spaces work with no agent, runner, model or code host
 configured. The Factory and Code modules explain what to connect instead of
-failing. Turning a level of autonomy down never strands work: sessions in
-flight finish or can be canceled, claims are released, and items return to
-the ready queue.
+failing. Turning a level of autonomy down never strands work and releases
+nothing: the dispatcher stops starting sessions (and, below Autopilot,
+Lictory stops merging), while sessions in flight finish or can be canceled
+and their claims continue until the work is done or a person releases them
+from the Factory queue or the item, which returns it to the ready queue.

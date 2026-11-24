@@ -168,7 +168,12 @@ merged and required checks passed). Kinds:
 - `checks_passed`: the code host's required checks passed on the head
   commit;
 - `code_review_approved`: the reviewer agent approved the head commit (any
-  reviewer when the policy names none);
+  reviewer when the policy names none). An agent's approval is a review
+  recorded in Lictory for that commit (`reviewCodePullRequest`, see
+  [reviews recorded in Lictory](code-hosts.md#reviews-recorded-in-lictory));
+  people's approvals also come from the host, by the login they set. In
+  Build and Autopilot projects Code starts the reviewer agent's session for
+  each new head of an agent's pull request;
 - `acceptance_verified`: a person of the chosen disciplines signed off that
   the acceptance criteria were verified. Several may be required.
 
@@ -192,8 +197,10 @@ themselves.
 
 Evaluation re-runs when evidence changes: on sign-offs and overrides, when
 the definition changes (passing items move then), when the Code module calls
-`followDefinitionOfDone` after it ingests pull request or check events, and
-in every dispatcher run for claimed work.
+`followDefinitionOfDone` after it ingests pull request, review or check
+events, records a review or the host's answer to a write (in that
+transaction, `followCodeEvidence`), and in every dispatcher run for claimed
+work.
 
 ## The dispatcher
 
@@ -230,8 +237,15 @@ approval of it, every other Definition of Done check) and the code host
 reports it mergeable, Lictory asks the `CodeMergeExecutor` to merge it, once
 per pull request head (`autopilot_merge`). The request is attributed to the
 policy version and the administrator who set it, never to the agent, and is
-refused when that person no longer administers the project. The item then
-completes through its Definition of Done like any other.
+refused when that person no longer administers the project. Code queues it
+under a person's merge rules (a head that moved, a failing check, conflicts
+refuse it), as "Autopilot · policy set by <administrator>" on the write, the
+mirror and a comment on the pull request
+([Autopilot's merge](code-hosts.md#autopilots-merge)). The item then
+completes through its Definition of Done like any other. Merges are only
+requested while the project is on Autopilot: lowering the level stops them,
+and the refusal for an administrator who lost the project is recorded once
+per head.
 
 ## Ports
 
@@ -249,6 +263,10 @@ host is connected"), nothing is merged.
 | `SessionResumer`         | Factory        | inside the transaction that resolved a question or ended a claim        |
 | `DeliveryEvidenceSource` | Code           | inside the transaction: the mirror of pull requests, checks and reviews |
 | `CodeMergeExecutor`      | Code           | inside the transaction: queue the merge for the Code worker             |
+
+The Factory installs its ports with `installFactoryLoop` and Code with
+`installCodeLoop` ([the code loop](code-hosts.md#the-code-loop)), both in
+the API and the worker.
 
 Ports called inside a transaction run under the organization lock: they read
 and write Lictory's own tables (queue work for their worker) and never call a

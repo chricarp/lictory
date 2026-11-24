@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { canonicalJson } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
@@ -8,6 +8,7 @@ import {
   type CodeEntity,
   type CodeLinkRef,
   type CodeLinkSummary,
+  type CodeReviewRef,
 } from "@lictory/core/code/entities";
 import { writeSummary } from "@lictory/core/code/write-summary";
 
@@ -163,6 +164,46 @@ type CodeEntityChecks = {
 };
 const noChecks: CodeEntityChecks = { state: "none", runs: [] };
 
+// Reviews recorded in Lictory, newest first; superseded ones stay out of
+// the projection (history keeps them).
+async function reviewsOf(
+  db: Database | Tx,
+  organizationId: string,
+  pullRequestIds: string[] | undefined,
+) {
+  const rows = await db
+    .select()
+    .from(s.codeReview)
+    .where(
+      and(
+        eq(s.codeReview.organizationId, organizationId),
+        isNull(s.codeReview.supersededAt),
+        pullRequestIds
+          ? inArray(s.codeReview.pullRequestId, pullRequestIds)
+          : undefined,
+      ),
+    )
+    .orderBy(desc(s.codeReview.createdAt));
+  const map = new Map<string, Omit<CodeReviewRef, "current">[]>();
+  for (const r of rows) {
+    const list = map.get(r.pullRequestId) ?? [];
+    if (list.length < 20)
+      list.push({
+        id: r.id,
+        decision: r.decision,
+        headSha: r.headSha,
+        reviewerId: r.reviewerId,
+        agentId: r.agentId,
+        agentName: r.agentName,
+        agentSessionId: r.agentSessionId,
+        body: r.body.slice(0, 2000),
+        createdAt: iso(r.createdAt),
+      });
+    map.set(r.pullRequestId, list);
+  }
+  return map;
+}
+
 async function computeCodeRows(
   db: Database | Tx,
   organizationId: string,
@@ -236,6 +277,10 @@ async function computeCodeRows(
               .filter((l) => l.repositoryId === repository.id)
               .map((l) => l.projectId)
               .sort(),
+            defaultForProjectIds: links
+              .filter((l) => l.repositoryId === repository.id && l.isDefault)
+              .map((l) => l.projectId)
+              .sort(),
             lastSyncedAt: isoOrNull(repository.lastSyncedAt),
             lastSyncError: repository.lastSyncError,
           },
@@ -260,13 +305,14 @@ async function computeCodeRows(
         ),
       );
     const visible = prs.filter((p) => repositories.has(p.repositoryId));
-    const [refs, checks] = await Promise.all([
+    const [refs, checks, reviews] = await Promise.all([
       linkRefs(db, organizationId, "pull_request", pullRequestIds),
       checksOf(
         db,
         organizationId,
         visible.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
       ),
+      reviewsOf(db, organizationId, pullRequestIds),
     ]);
     for (const p of visible) {
       const repository = repositories.get(p.repositoryId)!;
@@ -302,6 +348,17 @@ async function computeCodeRows(
             hostUpdatedAt: iso(p.hostUpdatedAt),
             openedById: p.openedById,
             openedVia: p.openedVia,
+            agentId: p.agentId,
+            agentSessionId: p.agentSessionId,
+            agentAuthored: Boolean(
+              p.agentId ?? p.agentSessionId ?? p.openedVia,
+            ),
+            mergeRequestedById: p.mergeRequestedById,
+            mergedVia: p.mergedVia,
+            reviews: (reviews.get(p.id) ?? []).map((r) => ({
+              ...r,
+              current: r.headSha === p.headSha,
+            })),
             links: refs.get(p.id) ?? [],
           },
           { repositoryId: p.repositoryId, facet: p.state },

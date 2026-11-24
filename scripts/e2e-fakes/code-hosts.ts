@@ -10,7 +10,11 @@
 // They run inside scripts/test-e2e.ts on 127.0.0.1 and are reached only
 // through route-fake-sites.ts, which that script preloads into the API and
 // worker it starts. Production images contain neither file.
+import { execFileSync } from "node:child_process";
 import { createHmac, randomUUID } from "node:crypto";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { json, listen, send } from "./http";
 
 export const FAKE_GITHUB_SITE = "https://github.lictory-e2e.test";
@@ -60,8 +64,37 @@ type Repo = {
   issues: Map<number, Issue>;
   checks: Map<string, Check[]>;
   sequence: number;
+  // A real bare repository on this machine (`git: true`), cloned and pushed
+  // to over file:// by a real lictory-runner; its branches are the host's.
+  gitDir: string | null;
 };
 type Hook = { url: string; secret: string };
+
+const git = (gitDir: string, args: string[], input?: string) =>
+  execFileSync("git", ["--git-dir", gitDir, ...args], {
+    encoding: "utf8",
+    input,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Fake Host",
+      GIT_AUTHOR_EMAIL: "host@example.test",
+      GIT_COMMITTER_NAME: "Fake Host",
+      GIT_COMMITTER_EMAIL: "host@example.test",
+    },
+  }).trim();
+
+// A bare repository whose default branch has one commit with a README.
+function createGitRepository(fullName: string, defaultBranch: string) {
+  const root = mkdtempSync(join(tmpdir(), "lictory-fake-git-"));
+  const gitDir = join(root, `${fullName.replaceAll("/", "__")}.git`);
+  mkdirSync(gitDir, { recursive: true });
+  git(gitDir, ["init", "--quiet", "--bare", "--initial-branch", defaultBranch]);
+  const blob = git(gitDir, ["hash-object", "-w", "--stdin"], "# Payments\n");
+  const tree = git(gitDir, ["mktree"], `100644 blob ${blob}\tREADME.md\n`);
+  const commit = git(gitDir, ["commit-tree", tree, "-m", "Initial commit"]);
+  git(gitDir, ["update-ref", `refs/heads/${defaultBranch}`, commit]);
+  return { gitDir, head: commit };
+}
 
 // The state every host's fake keeps.
 function createModel() {
@@ -85,22 +118,49 @@ function createModel() {
         )
       );
     },
-    addRepo(fullName: string, defaultBranch = "main") {
+    addRepo(fullName: string, defaultBranch = "main", withGit = false) {
       const existing = repos.get(fullName);
       if (existing) return existing;
+      const created = withGit
+        ? createGitRepository(fullName, defaultBranch)
+        : null;
       const repo: Repo = {
         id: ids++,
         uuid: `{${randomUUID()}}`,
         fullName,
         defaultBranch,
-        branches: new Map([[defaultBranch, sha()]]),
+        branches: new Map([[defaultBranch, created?.head ?? sha()]]),
         pulls: new Map(),
         issues: new Map(),
         checks: new Map(),
         sequence: 0,
+        gitDir: created?.gitDir ?? null,
       };
       repos.set(fullName, repo);
       return repo;
+    },
+    // A repository with real git: its branches are what was pushed, and an
+    // open pull request's head follows its branch (as on the host).
+    syncGit(repo: Repo) {
+      if (!repo.gitDir) return;
+      const refs = git(repo.gitDir, [
+        "for-each-ref",
+        "--format=%(refname:short) %(objectname)",
+        "refs/heads",
+      ]);
+      for (const line of refs.split("\n").filter(Boolean)) {
+        const [name, head] = line.split(" ") as [string, string];
+        repo.branches.set(name, head);
+        for (const pull of repo.pulls.values())
+          if (
+            pull.state === "open" &&
+            pull.head === name &&
+            pull.sha !== head
+          ) {
+            pull.sha = head;
+            pull.updated = tick();
+          }
+      }
     },
     openPull(
       repo: Repo,
@@ -172,14 +232,14 @@ async function control(
   },
 ): Promise<[number, unknown?]> {
   let match: RegExpExecArray | null;
-  if (method === "POST" && path === "/__fake/repos")
-    return [
-      200,
-      model.addRepo(
-        String(body.fullName),
-        (body.defaultBranch as string) || "main",
-      ),
-    ];
+  if (method === "POST" && path === "/__fake/repos") {
+    const repo = model.addRepo(
+      String(body.fullName),
+      (body.defaultBranch as string) || "main",
+      body.git === true,
+    );
+    return [200, { ...repo, branches: Object.fromEntries(repo.branches) }];
+  }
   if (method === "POST" && path === "/__fake/hooks") {
     model.hooks.splice(0, model.hooks.length, {
       url: String(body.url),
@@ -194,6 +254,7 @@ async function control(
   ) {
     const repo = model.repo(match[1]!);
     if (!repo) return [404, { message: "No such repository" }];
+    model.syncGit(repo);
     if (method === "GET" && !match[2]) return [200, [...repo.pulls.values()]];
     if (method === "POST" && !match[2]) {
       const pull = model.openPull(repo, {
@@ -244,7 +305,7 @@ export async function startFakeGitHub(port: number) {
     full_name: r.fullName,
     default_branch: r.defaultBranch,
     html_url: `${site}/${r.fullName}`,
-    clone_url: `${site}/${r.fullName}.git`,
+    clone_url: r.gitDir ? `file://${r.gitDir}` : `${site}/${r.fullName}.git`,
     visibility: "private",
     private: true,
     archived: false,
@@ -326,6 +387,7 @@ export async function startFakeGitHub(port: number) {
     if (!parts) return send(response, 404, { message: "Not Found" });
     const repo = model.repo(parts[0]!);
     if (!repo) return send(response, 404, { message: "Not Found" });
+    model.syncGit(repo);
     const sub = parts[1] ?? "";
     if (method === "GET" && sub === "")
       return send(response, 200, repoView(repo));

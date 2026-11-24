@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   CircleStop,
   GitBranch,
+  GitPullRequest,
   Hand,
   RotateCcw,
   Send,
@@ -155,6 +156,14 @@ export function SessionView() {
                   <GitBranch className="size-3" aria-hidden />
                   <span className="truncate">{session.branch}</span>
                 </span>
+              )}
+              {session.pullRequestId && (
+                <Link
+                  href={paths.codePullRequest(org, session.pullRequestId)}
+                  className="flex items-center gap-1 hover:text-foreground"
+                >
+                  <GitPullRequest className="size-3" aria-hidden /> Pull request
+                </Link>
               )}
               <time
                 dateTime={session.createdAt}

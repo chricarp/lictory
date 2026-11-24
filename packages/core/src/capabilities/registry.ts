@@ -260,6 +260,36 @@ async function assertAgentScope(
       );
     return assertAgentProject(agent, claim?.projectId ?? null);
   }
+  // Code operations on one pull request: the projects its repository
+  // serves decide (one of them in scope is enough).
+  if (typeof fields.pullRequestId === "string" && !fields.workItemId) {
+    const projects = await ctx.db
+      .select({ projectId: s.codeRepositoryProject.projectId })
+      .from(s.codePullRequest)
+      .innerJoin(
+        s.codeRepositoryProject,
+        and(
+          eq(
+            s.codeRepositoryProject.organizationId,
+            s.codePullRequest.organizationId,
+          ),
+          eq(
+            s.codeRepositoryProject.repositoryId,
+            s.codePullRequest.repositoryId,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(s.codePullRequest.organizationId, organizationId),
+          eq(s.codePullRequest.id, fields.pullRequestId),
+        ),
+      );
+    const inScope = projects.find((p) =>
+      agent.projectIds!.includes(p.projectId),
+    );
+    return assertAgentProject(agent, inScope?.projectId ?? null);
+  }
   // The calling agent's own claims are inside its scope by construction.
   if (capability.name === "listClaims" && fields.mine === true) return;
   if (typeof fields.workItemId === "string") {

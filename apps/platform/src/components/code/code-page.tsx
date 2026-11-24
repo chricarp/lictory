@@ -217,7 +217,7 @@ function PullRequests() {
                 myLogins.has(p.authorLogin.toLowerCase())))) ||
           (who === "review" &&
             p.requestedReviewers.some((r) => myLogins.has(r.toLowerCase()))) ||
-          (who === "agents" && (!!p.openedVia || p.authorIsBot))),
+          (who === "agents" && p.agentAuthored)),
     )
     .sort((a, b) => b.hostUpdatedAt.localeCompare(a.hostUpdatedAt));
   return (

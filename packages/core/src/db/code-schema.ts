@@ -164,10 +164,16 @@ export const codeRepositoryProject = pgTable(
     repositoryId: text("repository_id").notNull(),
     projectId: text("project_id").notNull(),
     linkedById: actor("linked_by_id"),
+    // The repository agent sessions of the project work in when the
+    // session names none (at most one per project; else the first linked).
+    isDefault: boolean("is_default").default(false).notNull(),
     createdAt: createdAt(),
   },
   (t) => [
     primaryKey({ columns: [t.organizationId, t.repositoryId, t.projectId] }),
+    uniqueIndex("code_repository_project_default_unique")
+      .on(t.organizationId, t.projectId)
+      .where(sql`${t.isDefault}`),
     foreignKey({
       columns: [t.organizationId, t.repositoryId],
       foreignColumns: [codeRepository.organizationId, codeRepository.id],
@@ -276,6 +282,14 @@ export const codePullRequest = pgTable(
     // them, if any. Lictory-owned provenance, never host data.
     openedById: optionalActor("opened_by_id"),
     openedVia: text("opened_via"),
+    // Opened by a Factory agent (its id) from an agent session: what the
+    // "Agent-authored" filter reads (text; the Factory owns those rows).
+    agentId: text("agent_id"),
+    agentSessionId: text("agent_session_id"),
+    // A merge Lictory sent: who asked (a person, or the administrator whose
+    // autonomy policy merged it) and how ("Autopilot · policy set by Ada").
+    mergeRequestedById: optionalActor("merge_requested_by_id"),
+    mergedVia: text("merged_via"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -528,6 +542,10 @@ export const codeWrite = pgTable(
     // The agent acting for the person (access token name, Litto) or the
     // autonomy policy, for history.
     performedVia: text("performed_via"),
+    // The Factory agent and agent session the write was made for (text;
+    // the Factory owns those rows).
+    agentId: text("agent_id"),
+    agentSessionId: text("agent_session_id"),
     idempotencyKey: text("idempotency_key").notNull(),
     fingerprint: text("fingerprint").notNull(),
     status: codeWriteStatus("status").default("queued").notNull(),
@@ -555,6 +573,48 @@ export const codeWrite = pgTable(
       foreignColumns: [codeRepository.organizationId, codeRepository.id],
     }).onDelete("restrict"),
     index("code_write_due_idx").on(t.status, t.nextAttemptAt),
+  ],
+);
+
+export const codeLictoryReviewDecision = pgEnum(
+  "code_lictory_review_decision",
+  ["approve", "request_changes"],
+);
+
+// Reviews recorded in Lictory, bound to the head commit they reviewed
+// (docs/internals/code-hosts.md#reviews-recorded-in-lictory). Every write
+// to a host carries the connection's identity, so a host cannot say which
+// agent approved; an agent's review is therefore Lictory's record, and a
+// comment on the host shows it there. A later review by the same reviewer
+// of the same head supersedes this one (history keeps both); a new head
+// needs a new review.
+export const codeReview = pgTable(
+  "code_review",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    pullRequestId: text("pull_request_id").notNull(),
+    headSha: text("head_sha").notNull(),
+    decision: codeLictoryReviewDecision("decision").notNull(),
+    body: text("body").notNull().default(""),
+    // The accountable person, and the agent acting for them, if any.
+    reviewerId: actor("reviewer_id"),
+    agentId: text("agent_id"),
+    agentName: text("agent_name"),
+    agentSessionId: text("agent_session_id"),
+    supersededAt: timestamp("superseded_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.pullRequestId],
+      foreignColumns: [codePullRequest.organizationId, codePullRequest.id],
+    }).onDelete("restrict"),
+    index("code_review_pull_request_idx").on(
+      t.organizationId,
+      t.pullRequestId,
+      t.headSha,
+    ),
   ],
 );
 

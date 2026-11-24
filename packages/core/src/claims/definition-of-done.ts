@@ -43,8 +43,12 @@ function approvedHead(
   pr: CodePullRequestEvidence,
   reviewer: { id: string } | null,
 ) {
+  // With a reviewer agent named only its approval counts; otherwise any
+  // approval of the head does (an agent's, a person's, or one on the host).
   return pr.approvals.some((a) =>
-    reviewer ? a.agentId === reviewer.id : a.agentId !== null || a.userId,
+    reviewer
+      ? a.agentId === reviewer.id
+      : a.agentId !== null || Boolean(a.userId) || Boolean(a.login),
   );
 }
 

@@ -109,6 +109,7 @@ export function sessionEntity(row: SessionRow, approvals: ApprovalRow[]) {
     workItemId: row.workItemId,
     projectId: row.projectId,
     repositoryUrl: row.repositoryUrl,
+    repositoryId: row.repositoryId,
     baseBranch: row.baseBranch,
     branch: row.branch,
     channelId: row.channelId,

@@ -27,6 +27,7 @@ import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
 import type { Actor, Database, Tx } from "@lictory/core/domain/service";
 import {
+  sessionRepositoryNamed,
   setSessionLeaseListener,
   setSessionThreadPublisher,
   type SessionThreadEvent,
@@ -56,6 +57,8 @@ import {
   type SessionRow,
 } from "@lictory/core/factory/store";
 import { stableId } from "@lictory/core/factory/thread-ids";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
+import { paths } from "@lictory/core/lib/paths";
 
 // The factory loop, joined up (docs/internals/factory.md#the-factory-loop):
 // the Factory installs the implementations of the boundaries Claims and
@@ -633,6 +636,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
     context ??= await threadContext(tx, event);
     const itemId = referencedItem(event.body);
     let workItemId: string | null = null;
+    let projectId: string | null = null;
     if (itemId) {
       const [item] = await tx
         .select({ projectId: s.workItem.projectId })
@@ -647,9 +651,18 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
       if (
         item &&
         (!agent.projectIds || agent.projectIds.includes(item.projectId))
-      )
+      ) {
         workItemId = itemId;
+        projectId = item.projectId;
+      }
     }
+    // "… in acme/payments": the repository the person names, if Code
+    // knows it (for the item's project, when there is one).
+    const repositoryId = await sessionRepositoryNamed(tx, {
+      organizationId: event.organizationId,
+      projectId,
+      text: plainMessage(event.body),
+    });
     const text = [
       prompt,
       "",
@@ -678,6 +691,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
             prompt: text,
             title: prompt.split("\n")[0]!.slice(0, 200) || `Asked in a thread`,
             workItemId,
+            repositoryId,
             sessionId: stableId("mention", event.messageId, agent.id),
             channelId: event.channelId,
             threadRootMessageId: threadRootId,
@@ -860,6 +874,26 @@ async function publish(db: Database, event: SessionThreadEvent) {
               `event:${event.eventSequence}`,
               text,
             );
+        }
+        // The pull request the session's branch became, as the agent's
+        // message, once.
+        if (
+          event.kind === "pull_request" &&
+          session.pullRequestId &&
+          event.pullRequest
+        ) {
+          const [org] = await tx
+            .select({ slug: s.organization.slug })
+            .from(s.organization)
+            .where(eq(s.organization.id, session.organizationId));
+          const page = `${platformUrl().replace(/\/$/, "")}${paths.codePullRequest(org?.slug ?? "", session.pullRequestId)}`;
+          await postSessionMessage(
+            tx,
+            session,
+            agent,
+            `pull-request:${session.pullRequestId}`,
+            `Opened pull request [#${event.pullRequest.number} ${event.pullRequest.title.replaceAll("]", "")}](${page}) for review ([on the code host](${event.pullRequest.url})).`,
+          );
         }
         if (
           event.kind === "status" &&
