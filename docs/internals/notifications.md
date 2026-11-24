@@ -85,6 +85,13 @@ it on a retry.
 Without a running worker, events queue up and nobody is notified until one
 starts; nothing is lost.
 
+The fan-out also writes the [agent events](agent-events.md) of addressed
+notices (mentions, review requests, stale approvals…) for the same
+recipients, before preferences apply: a person who turned a kind off in the
+inbox still has their agents woken. Notices of agent-only kinds (claims,
+agent mentions, page and code pull request decisions) produce agent events
+and no notification row.
+
 ## Recipients
 
 A person is involved in a work item when they created it, are its assignee,

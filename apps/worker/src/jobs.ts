@@ -17,6 +17,8 @@ import { processChatRuns } from "@lictory/core/intelligence/chat/runner";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
 import { pruneSlackEvents } from "@lictory/core/channels/slack/inbound";
 import { slackChatProvider } from "@lictory/core/channels/slack/provider";
+import { processAgentEventDeliveries } from "@lictory/core/agent-events/delivery";
+import { purgeAgentEvents } from "@lictory/core/agent-events/feed";
 import type { Job } from "@lictory/worker/supervisor";
 
 export type WorkerConfig = ReturnType<typeof workerConfig>;
@@ -89,6 +91,11 @@ const EXPORT_INTERVAL_MS = 60_000;
 // Deletions fall due after a grace period of days; a few minutes' delay
 // does not matter.
 const DELETION_INTERVAL_MS = 5 * 60_000;
+// Agent event webhooks are woken by their signal; polling picks up retries
+// (30 seconds and up) and expiring MCP subscriptions.
+const AGENT_EVENT_INTERVAL_MS = 30_000;
+const AGENT_EVENT_BATCH = 20;
+const AGENT_EVENT_PURGE_MS = 60 * 60_000;
 // Leases last 90 seconds; checking twice a minute bounds the delay.
 const FACTORY_LEASE_INTERVAL_MS = 30_000;
 const FACTORY_LEASE_BATCH = 20;
@@ -116,6 +123,7 @@ export function workerJobs(
     aiSettings?: () => Promise<void>;
   } = {},
 ): Job[] {
+  let purgedAt = 0;
   return [
     ...Array.from({ length: 4 }, (_, index): Job => ({
       name: `chat-${index + 1}`,
@@ -272,6 +280,28 @@ export function workerJobs(
             { name: "DispatchError" },
           );
         return { counts };
+      },
+    },
+    {
+      // Agent event deliveries to webhooks and MCP Events subscriptions
+      // (docs/internals/agent-events.md), and the feed's retention.
+      name: "agent-events",
+      kind: "agent-events",
+      intervalMs: AGENT_EVENT_INTERVAL_MS,
+      async run({ stopping }) {
+        const counts = await processAgentEventDeliveries(db, {
+          limit: AGENT_EVENT_BATCH,
+          signal: stopping,
+        });
+        let purged = 0;
+        if (Date.now() - purgedAt > AGENT_EVENT_PURGE_MS) {
+          purged = await purgeAgentEvents(db);
+          purgedAt = Date.now();
+        }
+        return {
+          more: counts.claimed === AGENT_EVENT_BATCH && !stopping.aborted,
+          counts: { ...counts, purged },
+        };
       },
     },
     {

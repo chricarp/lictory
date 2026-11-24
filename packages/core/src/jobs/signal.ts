@@ -18,6 +18,7 @@ export const workKinds = [
   // code/outbox.ts).
   "code",
   "slack",
+  "agent-events",
 ] as const;
 export type WorkKind = (typeof workKinds)[number];
 

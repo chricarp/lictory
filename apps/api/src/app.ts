@@ -9,7 +9,7 @@ import { trackCommitted } from "@lictory/core/capabilities/workspace";
 import { db } from "@lictory/core/db";
 import { auth } from "@lictory/core/lib/auth";
 import { matchesPlatformOrigin } from "@lictory/core/lib/auth-base-url";
-import { handleMcp } from "@lictory/core/mcp/server";
+import { handleMcpHttp } from "@lictory/core/mcp/server";
 import { limit, MB, sameOriginWrites } from "@lictory/api/middleware";
 import { eventRoutes } from "@lictory/api/routes/events";
 import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
@@ -98,9 +98,14 @@ export function createApp(options: { draining?: () => boolean } = {}) {
       },
       request.headers,
     );
-    const result = await handleMcp(ctx, payload);
-    if (result === null) return new Response(null, { status: 202 });
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    const { body, status } = await handleMcpHttp(ctx, payload, {
+      headers: request.headers,
+    });
+    if (body === null) return new Response(null, { status });
+    return Response.json(body, {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    });
   });
   // No server-initiated streams or sessions.
   app.on(

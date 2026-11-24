@@ -107,6 +107,9 @@ const appEnv = {
   // Production requires an explicit key before Jira can be connected (the
   // fake Jira site in tests/platform/knowledge-handoff.spec.ts).
   DELIVERY_CREDENTIALS_KEY: "e2e-delivery-credentials-key-local-only",
+  // Agent event webhooks reach the specs' local fake receivers
+  // (tests/platform/agent-events.spec.ts).
+  AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS: "true",
   // No AI provider, except for the workflows of Lictory Intelligence (the
   // scripted provider below).
   OPENAI_API_KEY: "",

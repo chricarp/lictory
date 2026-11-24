@@ -55,6 +55,8 @@ export const humanOnlyReasons = {
     "What Lictory Intelligence may read from another system (such as Slack messages) is an organization administrator's own decision; agents never widen what they can read.",
   autonomy:
     "How much agents may do by themselves, and the evidence that their work is done, are people's decisions: an agent never changes its own autonomy, its Definition of Done, or signs off its own work.",
+  egress:
+    "Where an organization's events may be sent outside Lictory is its administrators' own decision; agents never widen it.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 

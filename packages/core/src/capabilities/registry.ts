@@ -41,6 +41,10 @@ import {
 import { claimCapabilities } from "@lictory/core/capabilities/claims";
 import { channelCapabilities } from "@lictory/core/capabilities/channels";
 import { slackCapabilities } from "@lictory/core/capabilities/slack";
+import {
+  agentEventCapabilities,
+  agentEventGlobalCapabilities,
+} from "@lictory/core/capabilities/agent-events";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
 // routes, the MCP server, the embedded agent) lists and invokes from here.
@@ -66,6 +70,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...channelCapabilities,
   ...codeCapabilities,
   ...slackCapabilities,
+  ...agentEventCapabilities,
   humanOnlyCapability(() => capabilities),
 ];
 assertHumanOnlyMetadata(capabilities);
@@ -216,7 +221,11 @@ async function audit(
 // A Factory agent acts only in its organization and, with a project
 // allowlist, only where its scope can be shown (docs/internals/factory.md).
 // Capabilities an agent may call without naming its organization:
-const agentGlobal = new Set(["listOrganizations", "listHumanOnlyOperations"]);
+const agentGlobal = new Set([
+  "listOrganizations",
+  "listHumanOnlyOperations",
+  ...agentEventGlobalCapabilities,
+]);
 // Capabilities that check a project-limited agent's scope themselves: every
 // workspace command (`applyMutation`) and the Factory's own.
 const agentScoped = new Set([

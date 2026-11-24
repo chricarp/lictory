@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "@lictory/platform/components/app/agent-access";
+import { EventWebhooksSection } from "@lictory/platform/components/app/event-webhooks";
 import {
   PasskeysSection,
   TwoFactorSection,
@@ -122,6 +123,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
     { id: "agents", label: "AI agents" },
+    { id: "webhooks", label: "Event webhooks" },
     { id: "delete", label: "Delete account" },
   ];
 
@@ -199,6 +201,7 @@ export function AccountSettings(props: AccountSettingsProps) {
           description="AI agents that work in Lictory on your behalf."
         >
           <AgentAccessSection />
+          <EventWebhooksSection />
         </SettingsGroup>
 
         <SettingsGroup

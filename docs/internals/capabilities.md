@@ -131,9 +131,13 @@ result capture was introduced replay without these additional fields.
 The [user guide](https://docs.lictory.com/integrations/agents) covers creating
 a named token, client connection settings, proposal workflows and troubleshooting.
 
-`POST /api/mcp` implements stateless Streamable HTTP (JSON responses, protocol
-versions 2025-06-18, 2025-03-26 and 2024-11-05) with `initialize`, `ping`,
-`tools/list` and `tools/call`. Tools are generated from capabilities: JSON Schema
+`POST /api/mcp` implements stateless Streamable HTTP (JSON responses). It is
+dual-era: a request whose `_meta` names protocol version 2026-07-28 is served
+by that revision (`server/discover`, `resultType` in results, header checks),
+and `initialize` selects 2025-06-18, 2025-03-26 or 2024-11-05. Methods:
+`initialize`, `server/discover`, `ping`, `tools/list`, `tools/call` and the
+MCP Events extension's `events/list`, `events/subscribe` and
+`events/unsubscribe` (webhook mode; see [agent events](agent-events.md)). Tools are generated from capabilities: JSON Schema
 from the Zod input, annotations from kind, `destructive`, `idempotent` and
 `external`. Domain failures are tool results with `isError` and the shared error
 shape (`category`, `message`, optional `currentRevisionId`, `issues`, `kind`,
@@ -158,6 +162,11 @@ Clients authenticate with `Authorization: Bearer lct_…`, a personal access tok
 created in Account settings. Only a SHA-256 hash is stored; tokens are `read` or
 `write`, may expire and are revoked immediately. Requests with a foreign
 `Origin` are refused.
+
+Agents are woken instead of polling by the [agent event](agent-events.md)
+feed: `listEvents` and `waitForEvents` (a 25-second long-poll), or MCP Events
+webhooks. Bearer webhooks and the organization's webhook policy are
+human-only (`credentials`, `egress`).
 
 ## Audit
 

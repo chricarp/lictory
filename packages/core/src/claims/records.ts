@@ -6,6 +6,7 @@ import { claim as claimMachine } from "@lictory/core/contracts/state-machines";
 import { requireStep } from "@lictory/core/domain/errors";
 import { writeEntities } from "@lictory/core/domain/projections";
 import { serialize, type Tx } from "@lictory/core/domain/service";
+import { queueClaimEvent } from "@lictory/core/agent-events/producers";
 
 // Shared writes of the claims module: every claim state change goes through
 // `endClaim` or the writers in service.ts, which take the step from the
@@ -84,6 +85,12 @@ export async function endClaim(
           eq(s.dispatchBackoff.workItemId, claim.workItemId),
         ),
       );
+  await queueClaimEvent(tx, claim, {
+    kind: "claim_released",
+    state: end.state,
+    reason: end.reason,
+    byId: end.byId,
+  });
   await claimPorts().resumer.resume(tx, {
     kind: "claim_ended",
     organizationId: claim.organizationId,

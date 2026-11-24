@@ -642,6 +642,62 @@ export const agentApproval = stateMachine({
   },
 });
 
+// Where a person's agent events are delivered (docs/internals/agent-events.md):
+// a webhook a person registered, or an MCP Events subscription an MCP client
+// created. People pause and resume; the delivery worker suspends after
+// sustained failure and expires MCP subscriptions whose lease passed.
+export const agentEventSubscription = stateMachine({
+  name: "event subscription",
+  states: {
+    active: "Events are delivered as they happen.",
+    paused: "Turned off by its person; events wait after its cursor.",
+    suspended:
+      "Stopped after repeated delivery failures; resume it once the receiver works again.",
+    expired:
+      "The MCP client did not renew it in time; subscribing again recreates it.",
+  },
+  steps: {
+    pause: {
+      does: "Pause delivery",
+      from: ["active", "suspended"],
+      to: "paused",
+      idempotent: true,
+      refused: (state) => `This subscription is ${state}.`,
+    },
+    resume: {
+      does: "Resume delivery",
+      from: ["paused", "suspended"],
+      to: "active",
+      idempotent: true,
+      refused: (state) =>
+        state === "expired"
+          ? "This subscription expired; its agent subscribes again to recreate it."
+          : `This subscription is ${state}.`,
+    },
+    suspend: {
+      does: "Stop after repeated delivery failures",
+      from: ["active"],
+      to: "suspended",
+      automatic: true,
+      refused: "Only an active subscription is suspended.",
+    },
+    expire: {
+      does: "Expire when its lease passed",
+      from: ["active", "paused", "suspended"],
+      to: "expired",
+      automatic: true,
+      refused: "This subscription already expired.",
+    },
+    renew: {
+      does: "Renew from its MCP client",
+      from: ["active", "paused", "suspended", "expired"],
+      to: ["active", "paused"],
+      automatic: true,
+      refused: "This subscription cannot be renewed.",
+    },
+  },
+});
+
 // The state of a pull request row: closing is recorded as a deletion time
 // beside the stored status.
 export function pullRequestState<S extends string>(row: {
@@ -856,6 +912,7 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
     owner:
       "saving the app, the OAuth install, disconnecting and Slack's authentication errors and uninstall events in channels/slack/installation.ts",
   },
+  agent_event_subscription_status: declared(agentEventSubscription),
   "invitation.status": {
     moves: "external",
     owner: "Better Auth's organization plugin",

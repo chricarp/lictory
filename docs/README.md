@@ -46,6 +46,10 @@ adding domain writes or synchronized entities.
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Agent events](./internals/agent-events.md): waking external agents when
+  something waits on them: addressed events, identifiers-only payloads, the
+  commit-safe cursor, MCP Events and bearer webhooks, egress rules and the
+  organization policy
 - [State machines](./internals/state-machines.md): where the rule for each
   status lives, the declared tables that commands, the browser and agents
   share, and the check that refuses an undeclared status
