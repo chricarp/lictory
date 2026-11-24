@@ -38,7 +38,7 @@ export type HarnessContext = {
   config: RunnerConfig;
   // Lictory's MCP endpoint and the session's token, for the harness's
   // Lictory tools.
-  lictory: { mcpUrl: string; token: string };
+  lictory: { mcpUrl: string; token: string; organizationId: string };
   // A private directory for the session's files (MCP configuration…),
   // inside the worktree and ignored by git: its path on this machine and
   // as the harness sees it.

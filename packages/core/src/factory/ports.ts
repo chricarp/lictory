@@ -14,10 +14,18 @@ export type SessionThreadEvent = {
   sessionId: string;
   channelId: string | null;
   threadRootMessageId: string | null;
-  kind: "started" | "status" | "approval_requested" | "approval_answered";
+  kind:
+    | "started"
+    | "status"
+    | "approval_requested"
+    | "approval_answered"
+    // The agent answered a person's steering message (`eventSequence`).
+    | "agent_message";
   status: SessionStatus;
   // For approval events.
   approvalId?: string;
+  // For agent messages: the event in the session's log.
+  eventSequence?: number;
 };
 export type SessionThreadPublisher = {
   publish(event: SessionThreadEvent): Promise<void>;
@@ -93,4 +101,38 @@ export function resolveSessionWorkspace(
   session: Parameters<SessionWorkspaceResolver["resolve"]>[0],
 ) {
   return workspaceResolver.resolve(session);
+}
+
+// Runners renew their sessions' leases with every heartbeat. Called after
+// the heartbeat committed, with the sessions whose lease was renewed, so the
+// claim a session works under stays held while the session is alive. No-op
+// by default; failures are logged.
+export type SessionLeaseListener = {
+  renewed(organizationId: string, sessionIds: string[]): Promise<void>;
+};
+const noLeaseListener: SessionLeaseListener = {
+  renewed: async () => undefined,
+};
+let leaseListener: SessionLeaseListener = noLeaseListener;
+
+export function setSessionLeaseListener(listener: SessionLeaseListener | null) {
+  leaseListener = listener ?? noLeaseListener;
+}
+
+export async function sessionLeasesRenewed(
+  organizationId: string,
+  sessionIds: string[],
+) {
+  if (!sessionIds.length) return;
+  try {
+    await leaseListener.renewed(organizationId, sessionIds);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "factory.lease_listener_failed",
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 }

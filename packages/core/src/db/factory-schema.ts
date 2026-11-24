@@ -260,6 +260,11 @@ export const agentSession = pgTable(
     index("agent_session_runner_idx").on(t.runnerId, t.status),
     index("agent_session_lease_idx").on(t.status, t.leaseExpiresAt),
     index("agent_session_agent_idx").on(t.agentId, t.createdAt),
+    // A reply in a channel thread finds the session it steers.
+    index("agent_session_thread_idx").on(
+      t.organizationId,
+      t.threadRootMessageId,
+    ),
     check(
       "agent_session_attempts",
       sql`${t.maxAttempts} between 1 and 10 and ${t.attempts} >= 0`,

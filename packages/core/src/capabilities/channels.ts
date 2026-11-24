@@ -43,8 +43,12 @@ const actorOf = (ctx: CapabilityContext): Actor => ({
   userId: ctx.principal.userId,
   surface: ctx.principal.surface,
   client: ctx.principal.client,
-  agentId: ctx.principal.tokenId ?? null,
+  // A Factory agent is named by its own id (the agent directory maps it to
+  // the agent); other MCP agents by their access token's.
+  agentId: ctx.principal.agent?.id ?? ctx.principal.tokenId ?? null,
   agentName: ctx.principal.agentName ?? null,
+  agentScope: ctx.principal.agent ?? null,
+  agentSessionId: ctx.principal.agent?.sessionId ?? null,
 });
 
 const body = z

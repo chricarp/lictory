@@ -53,6 +53,25 @@ export type AgentSessionLauncher = {
 
 export type SessionResumeEvent =
   | {
+      // The agent asked people a question under its claim (askQuestion):
+      // the session's thread and the project's reporting channel can
+      // announce it.
+      kind: "question_asked";
+      organizationId: string;
+      claimId: string;
+      agentSessionId: string | null;
+      projectId: string;
+      workItemId: string;
+      itemKey: string;
+      // The anchored discussion and the item it is on.
+      threadId: string;
+      questionItemId: string;
+      questionItemKey: string;
+      question: string;
+      agentName: string;
+      ownerId: string;
+    }
+  | {
       kind: "question_resolved";
       organizationId: string;
       claimId: string;
@@ -74,7 +93,7 @@ export type SessionResumeEvent =
     };
 
 // Tells the session behind a claim what people decided. Inside the
-// transaction that resolved the question or ended the claim.
+// transaction that asked or resolved the question or ended the claim.
 export type SessionResumer = {
   resume(tx: Tx, event: SessionResumeEvent): Promise<void>;
 };

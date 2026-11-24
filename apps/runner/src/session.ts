@@ -223,7 +223,11 @@ export class SessionRun {
         worktree: workspace.path,
         exec: prepared.exec,
         config,
-        lictory: { mcpUrl: `${base}/api/mcp`, token: assignment.lictory.token },
+        lictory: {
+          mcpUrl: `${base}/api/mcp`,
+          token: assignment.lictory.token,
+          organizationId: assignment.organizationId,
+        },
         scratch: {
           host: workspace.scratch,
           exec: `${prepared.exec.cwd}/.lictory`,

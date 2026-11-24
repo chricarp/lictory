@@ -234,6 +234,21 @@ async function assertAgentScope(
   const fields = (input ?? {}) as Record<string, unknown>;
   if (typeof fields.projectId === "string")
     return assertAgentProject(agent, fields.projectId);
+  // Claim operations name the claim; its project decides.
+  if (typeof fields.claimId === "string") {
+    const [claim] = await ctx.db
+      .select({ projectId: s.workItemClaim.projectId })
+      .from(s.workItemClaim)
+      .where(
+        and(
+          eq(s.workItemClaim.organizationId, organizationId),
+          eq(s.workItemClaim.id, fields.claimId),
+        ),
+      );
+    return assertAgentProject(agent, claim?.projectId ?? null);
+  }
+  // The calling agent's own claims are inside its scope by construction.
+  if (capability.name === "listClaims" && fields.mine === true) return;
   if (typeof fields.workItemId === "string") {
     const [item] = await ctx.db
       .select({ projectId: s.workItem.projectId })
