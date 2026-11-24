@@ -163,6 +163,9 @@ export function Sidebar({
           </button>
         )}
       </div>
+      {/* The list keeps its scroll position across navigation and never
+          scrolls by itself: the groups above (Channels, Direct messages)
+          stay where I left them, whichever row becomes current. */}
       <nav
         aria-label="Workspace"
         className={cn(

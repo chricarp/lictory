@@ -841,3 +841,45 @@ void test("projections equal a rebuild from the domain", async () => {
     drift.push(...(await projectionDrift(db, id)));
   assert.deepEqual(drift, []);
 });
+
+void test("an agent's question waits in To do; Updates lists and counts only its outcome", async () => {
+  const f = await fixture();
+  const sessionId = crypto.randomUUID();
+  await db.transaction((tx) =>
+    queueNotifications(tx, f.organizationId, [
+      {
+        userIds: [f.reviewerId],
+        kind: "agent_approval_requested",
+        actorId: null,
+        detail: { group: `ask:${sessionId}`, sessionId, agentName: "Forge" },
+      },
+      {
+        userIds: [f.reviewerId],
+        kind: "agent_session_finished",
+        actorId: null,
+        detail: {
+          group: `finished:${sessionId}`,
+          sessionId,
+          agentName: "Forge",
+          status: "completed",
+        },
+      },
+    ]),
+  );
+  await processNotificationEvents(db);
+  // The ask is written (it still emails and wakes agents)...
+  const written = await db
+    .select({ kind: s.notification.kind })
+    .from(s.notification)
+    .where(eq(s.notification.userId, f.reviewerId));
+  assert.ok(written.some((n) => n.kind === "agent_approval_requested"));
+  // ...but Updates shows the outcome alone, and counts it alone.
+  assert.deepEqual(await f.kinds(f.reviewerId), ["agent_session_finished"]);
+  assert.equal((await notifications.unread(f.reviewerId))[f.organizationId], 1);
+  // Asked for by kind, it is listed.
+  const asked = await notifications.list(f.reviewerId, {
+    organizationId: f.organizationId,
+    kinds: ["agent_approval_requested"],
+  });
+  assert.equal(asked.items.length, 1);
+});

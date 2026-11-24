@@ -375,32 +375,39 @@ export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
 
 type InboxView = "updates" | "todo";
 
-// One place for everything addressed to me. "Updates" is the notification
-// history (events, with read state); "To do" is current work derived from live
-// state. They answer different questions ("what happened?" vs "what is
-// waiting on me?") but people look for both in the same place.
+// One place for everything addressed to me. "To do" is current work derived
+// from live state; "Updates" is the notification history (events, with read
+// state). They answer different questions ("what is waiting on me?" vs
+// "what happened?") but people look for both in the same place. The Inbox
+// opens on To do when something waits on me, else on Updates; `?view=`
+// names one, and choosing a tab writes it.
 export function Inbox() {
   const { organization } = useWorkspace();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const view: InboxView =
-    searchParams.get("view") === "todo" ? "todo" : "updates";
   const waiting = useWaitingOnYou();
+  // Once To do has opened by default it stays, even when its last entry
+  // resolves while I look at it.
+  const [todoOpened, setTodoOpened] = useState(false);
+  if (waiting.length > 0 && !todoOpened) setTodoOpened(true);
+  const asked = searchParams.get("view");
+  const view: InboxView =
+    asked === "todo" || asked === "updates"
+      ? asked
+      : todoOpened
+        ? "todo"
+        : "updates";
   const unread = useUnreadNotifications(organization.id)[organization.id] ?? 0;
   const tabs: { value: InboxView; label: string; count: number }[] = [
-    { value: "updates", label: "Updates", count: unread },
     { value: "todo", label: "To do", count: waiting.length },
+    { value: "updates", label: "Updates", count: unread },
   ];
   return (
     <Tabs
       value={view}
       onValueChange={(next) => {
         if (next === null || next === view) return;
-        router.replace(
-          next === "todo"
-            ? `${paths.inbox(organization.slug)}?view=todo`
-            : paths.inbox(organization.slug),
-        );
+        router.replace(paths.inbox(organization.slug, next));
       }}
       className="flex h-full flex-col"
     >
@@ -423,11 +430,11 @@ export function Inbox() {
           </>
         }
       />
-      <TabsPanel value="updates" className="min-h-0 flex-1">
-        <NotificationFeed />
-      </TabsPanel>
       <TabsPanel value="todo" className="min-h-0 flex-1">
         <AttentionList rows={waiting} />
+      </TabsPanel>
+      <TabsPanel value="updates" className="min-h-0 flex-1">
+        <NotificationFeed />
       </TabsPanel>
     </Tabs>
   );

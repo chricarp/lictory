@@ -66,6 +66,9 @@ void test("channel mentions reach the badge from read state, not as notification
   assert.ok(!badgeCounts({ kind: "channel_mentioned" }));
   assert.ok(!badgeCounts({ kind: "direct_message" }));
   assert.ok(badgeCounts({ kind: "assigned" }));
+  // An agent's question is answered in To do, never read in Updates.
+  assert.ok(attentionKinds.includes("agent_approval_requested"));
+  assert.ok(!badgeCounts({ kind: "agent_approval_requested" }));
   const badges: number[] = [];
   const sync = createDesktopSync({
     bridge: { notify: () => undefined },
@@ -151,7 +154,7 @@ void test("a burst becomes the newest two and a summary", () => {
   const shown = toDesktopNotifications(burst);
   assert.equal(shown.length, 3);
   assert.equal(shown[0]?.title, "4 more notifications need you");
-  assert.equal(shown[0]?.path, "/acme/inbox");
+  assert.equal(shown[0]?.path, "/acme/inbox?view=updates");
   assert.deepEqual(
     shown.slice(1).map((n) => n.tag),
     [burst[4]?.id, burst[5]?.id],

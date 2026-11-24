@@ -18,13 +18,17 @@ export function NavBadgesProvider({ children }: { children: ReactNode }) {
   for (const section of navSections)
     read.push(section.useBadge ? section.useBadge() : null);
   const key = read
-    .map((b) => (b ? `${b.count}:${b.tone}:${b.dock ? 1 : 0}:${b.label}` : ""))
+    .map((b) =>
+      b
+        ? `${b.count}:${b.tone}:${b.dock ? 1 : 0}:${b.label}:${b.dot ?? ""}`
+        : "",
+    )
     .join("|");
   const badges = useMemo<Badges>(() => {
     const map = new Map<string, NavBadge>();
     navSections.forEach((section, index) => {
       const badge = read[index];
-      if (badge && badge.count > 0) map.set(section.id, badge);
+      if (badge && (badge.count > 0 || badge.dot)) map.set(section.id, badge);
     });
     return map;
     // The key captures every badge's content.

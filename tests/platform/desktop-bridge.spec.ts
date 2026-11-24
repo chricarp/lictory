@@ -103,7 +103,7 @@ test("@smoke an assignment reaches the desktop notification and badge", async ({
   await expect(page).toHaveURL(new RegExp(`/${seeded.slug}/.*DSK-1`));
 
   // Reading it in the inbox clears the badge; nothing is notified twice.
-  await page.goto(`/${seeded.slug}/inbox`);
+  await page.goto(`/${seeded.slug}/inbox?view=updates`);
   await page.getByRole("button", { name: "Mark all read" }).click();
   await expect.poll(async () => (await recorded(page)).badges.at(-1)).toBe(0);
   expect((await recorded(page)).notified).toHaveLength(0);

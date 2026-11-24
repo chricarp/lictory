@@ -43,15 +43,20 @@ export function StatusPage({
         </header>
       )}
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16 text-center">
-        {illustration && <StateIllustration kind={illustration} />}
-        <div
-          className={cn(
-            "lictory-enter mx-auto mb-6 grid size-14 place-items-center rounded-2xl",
-            wells[tone],
-          )}
-        >
-          <Icon className="size-7" strokeWidth={1.75} />
-        </div>
+        {/* One piece of art: the illustration, or the icon in its well
+            where no illustration fits; never both. */}
+        {illustration ? (
+          <StateIllustration kind={illustration} />
+        ) : (
+          <div
+            className={cn(
+              "lictory-enter mx-auto mb-6 grid size-14 place-items-center rounded-2xl",
+              wells[tone],
+            )}
+          >
+            <Icon className="size-7" strokeWidth={1.75} />
+          </div>
+        )}
         {kicker && (
           <p className="lictory-enter lictory-enter-delay-1 mb-2 text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
             {kicker}
@@ -106,15 +111,18 @@ export function MissingState({
   return (
     <div className="grid min-h-full place-items-center px-6 py-16">
       <div className="mx-auto max-w-sm text-center">
-        {illustration && <StateIllustration kind={illustration} />}
-        <div
-          className={cn(
-            "mx-auto mb-4 grid size-10 place-items-center rounded-[10px]",
-            wells[tone],
-          )}
-        >
-          <Icon className="size-5" strokeWidth={1.75} />
-        </div>
+        {illustration ? (
+          <StateIllustration kind={illustration} />
+        ) : (
+          <div
+            className={cn(
+              "mx-auto mb-4 grid size-10 place-items-center rounded-[10px]",
+              wells[tone],
+            )}
+          >
+            <Icon className="size-5" strokeWidth={1.75} />
+          </div>
+        )}
         <Heading className="text-sm font-medium">{title}</Heading>
         {children && (
           <div className="mt-1.5 text-[13px] leading-5 text-muted-foreground">

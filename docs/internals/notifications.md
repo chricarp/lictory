@@ -5,25 +5,38 @@ of them or changed in work they are part of. They are not an activity feed.
 
 ## Inbox
 
-The Inbox has two views of what is addressed to a person:
+The Inbox has two views of what is addressed to a person. It opens on To do
+when something waits on the person, else on Updates.
 
-- **Updates**: notifications, a history of events with read and archived state.
-  Conversation activity is digested per conversation: the direct messages,
-  channel messages and thread replies of one channel or direct conversation
-  are one row ("Ben Ortiz · 2 messages", "#payments · 3 messages from …"),
-  read or archived together, so a busy conversation never buries a review
-  request. Mentions stay their own rows: they are addressed to the person.
-  An agent's failed sessions are digested per agent the same way ("Forge
-  failed 3 sessions", the newest reason under it), so a failing agent never
-  floods Updates; a finished session stays its own row
-  (`src/notifications/digest.ts`).
 - **To do**: current work derived from live state (questions agents ask me
   and agent sessions waiting for my next message, the same sessions as the
   Factory's badge and "Needs you",
   reviews waiting on me, with the blocking discussions on what I review, my
   items blocked or with changes requested, my items ready). An entry leaves
   when the state resolves; nothing needs marking as read. Home's "Waiting on
-  you" is the same list, so the two always count the same things.
+  you" is the same list, so the two always count the same things. The
+  sidebar's Inbox badge is this count; unread updates add a quiet dot
+  beside it.
+- **Updates**: notifications, a history of events with read and archived
+  state. An agent's question is not listed or counted there
+  (`toDoKinds` in `src/notifications/catalog.ts`): it waits in To do, with
+  its Approve and Deny, until someone answers it, and its notification only
+  emails, wakes agents and raises the desktop app's native notification.
+  Updates keeps the outcome (the session finished or failed).
+  Conversation activity is digested per conversation, by one rule: a
+  direct conversation, a thread (its replies) and a channel (its top-level
+  messages, for people who chose "all messages") are each one row ("Ben
+  Ortiz · 2 messages", "3 replies to a thread in #payments from …",
+  "#payments · 3 messages from …"), read or archived together, so a busy
+  conversation never buries a review request. The fan-out already folds
+  unread direct messages and thread replies into one notification (see
+  [Lictory Channels](#lictory-channels)); the feed groups the rest by the
+  same rule and counts every message folded in. Mentions stay their own
+  rows: they are addressed to the person.
+  An agent's failed sessions are digested per agent the same way ("Forge
+  failed 3 sessions", the newest reason under it), so a failing agent never
+  floods Updates; a finished session stays its own row
+  (`src/notifications/digest.ts`).
 
 To do covers pages as well as work items, marked "Page": page pull requests
 that ask for my review and that I have not decided on (again after my

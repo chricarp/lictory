@@ -142,7 +142,7 @@ function FoldingGroup({
             aria-hidden
             className="size-3 shrink-0 opacity-0 transition-[transform,opacity] duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 group-data-open:rotate-90 motion-reduce:transition-none"
           />
-          {!open && badge && badge.count > 0 && (
+          {!open && badge && (badge.count > 0 || badge.dot) && (
             <NavCount badge={badge} className="ml-auto" />
           )}
         </CollapsibleTrigger>
@@ -176,7 +176,8 @@ export function SidebarAction({
   );
 }
 
-// A count beside a row: strong counts are filled, quiet ones are text.
+// A count beside a row: strong counts are filled, quiet ones are text. A
+// `dot` follows the count (or stands alone) as a small muted dot.
 function NavCount({
   badge,
   className,
@@ -186,7 +187,16 @@ function NavCount({
 }) {
   const compact = useCompactSidebar();
   const text = badge.count > 99 ? "99+" : String(badge.count);
-  if (compact)
+  if (compact) {
+    if (badge.count === 0)
+      return (
+        <span
+          className={cn(
+            "absolute top-0.5 right-0.5 size-2 rounded-full bg-muted-foreground/80 ring-2 ring-sidebar",
+            className,
+          )}
+        />
+      );
     return (
       <span
         className={cn(
@@ -200,17 +210,30 @@ function NavCount({
         {text}
       </span>
     );
+  }
   return (
     <span
-      className={cn(
-        "ml-auto shrink-0 rounded-full px-1.5 text-[10.5px] leading-4 font-semibold tabular-nums",
-        badge.tone === "strong"
-          ? "bg-foreground text-background"
-          : "text-muted-foreground",
-        className,
-      )}
+      data-nav-count
+      className={cn("ml-auto flex shrink-0 items-center gap-1.5", className)}
     >
-      {text}
+      {badge.count > 0 && (
+        <span
+          className={cn(
+            "rounded-full px-1.5 text-[10.5px] leading-4 font-semibold tabular-nums",
+            badge.tone === "strong"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground",
+          )}
+        >
+          {text}
+        </span>
+      )}
+      {badge.dot && (
+        <span
+          data-nav-dot
+          className="size-1.5 rounded-full bg-muted-foreground/70"
+        />
+      )}
     </span>
   );
 }
@@ -238,7 +261,7 @@ export function SidebarLink({
 }) {
   const compact = useCompactSidebar();
   const badgeId = useId();
-  const shown = badge && badge.count > 0 ? badge : null;
+  const shown = badge && (badge.count > 0 || badge.dot) ? badge : null;
   return (
     <Link
       href={href}
@@ -279,7 +302,11 @@ export function SidebarLink({
         // Hidden from the link's name, referenced as its description.
         <span id={badgeId} aria-hidden className="contents">
           <NavCount badge={shown} />
-          <span className="sr-only">{` ${shown.label}`}</span>
+          {/* "3 to do", "3 to do, unread updates", "unread updates". */}
+          <span className="sr-only">
+            {shown.count > 0 ? ` ${shown.label}` : ""}
+            {shown.dot ? `${shown.count > 0 ? ", " : ""}${shown.dot}` : ""}
+          </span>
         </span>
       )}
       <PendingHint />

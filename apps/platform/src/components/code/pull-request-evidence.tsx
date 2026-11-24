@@ -16,7 +16,7 @@ import {
   refinementMeta,
   type Project,
 } from "@lictory/core/lib/work-items";
-import { StatusChip } from "@lictory/ui/status-chip";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Link } from "@lictory/platform/lib/navigation";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import {
@@ -68,8 +68,12 @@ export function PullRequestEvidence({ pr }: { pr: CodePullRequestEntity }) {
   );
 }
 
+// The facts a merge rests on, always in the same four rows, each saying
+// "not yet" rather than disappearing: delivery status, the specification
+// (the item's own, or its parent's for a Task or Subtask) with its
+// readiness, the accepted revision, and the Definition of Done.
 function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
-  const { organization } = useWorkspace();
+  const { organization, items, projects, delivery } = useWorkspace();
   // The item's own rows (its Definition of Done evaluation) load with it.
   const { entities } = useItemView(item.id);
   const done = entities.find(
@@ -77,8 +81,26 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
       e.type === "doneEvaluation" && e.workItemId === item.id,
   );
   const key = identifier(project, item.number);
-  const ready = item.refinementState === "ready";
+  const status = delivery.statuses.get(item.statusId);
+  const parent =
+    !item.refinementState && item.parentId
+      ? items.find((i) => i.id === item.parentId)
+      : undefined;
+  const spec = item.refinementState
+    ? item
+    : parent?.refinementState
+      ? parent
+      : undefined;
+  const specKey =
+    spec && spec !== item
+      ? identifier(
+          projects.find((p) => p.id === spec.projectId),
+          spec.number,
+        )
+      : null;
+  const ready = spec?.refinementState === "ready";
   const passedDone = done?.checks.filter((c) => c.passed).length ?? 0;
+  const muted = "text-muted-foreground";
   return (
     <li className="px-3.5 py-3">
       <Link
@@ -91,31 +113,55 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
         <span className="min-w-0 truncate font-medium">{item.title}</span>
       </Link>
       <dl className="mt-2 grid gap-1.5 text-xs">
-        {item.refinementState && (
-          <Fact label="Specification">
+        {status && (
+          <Fact label="Status">
             <StatusChip
-              tone={ready ? "success" : "attention"}
-              icon={<ClipboardCheck />}
-              title={`${item.readinessPassed} of ${item.readinessTotal} readiness checks pass`}
+              tone={
+                status.category === "done"
+                  ? "success"
+                  : status.category === "started"
+                    ? "info"
+                    : "neutral"
+              }
+              icon={<StatusDot />}
             >
-              {refinementMeta[item.refinementState].label} ·{" "}
-              {item.readinessPassed}/{item.readinessTotal}
+              {status.name}
             </StatusChip>
           </Fact>
         )}
-        {item.committedRevisionNumber != null && (
+        <Fact label="Specification">
+          {spec?.refinementState ? (
+            <StatusChip
+              tone={ready ? "success" : "attention"}
+              icon={<ClipboardCheck />}
+              title={`${spec.readinessPassed} of ${spec.readinessTotal} readiness checks pass${specKey ? ` on ${specKey}, which this item belongs to` : ""}`}
+            >
+              {specKey ? `${specKey} · ` : ""}
+              {refinementMeta[spec.refinementState].label} ·{" "}
+              {spec.readinessPassed}/{spec.readinessTotal}
+            </StatusChip>
+          ) : (
+            <span className={muted}>None for this item</span>
+          )}
+        </Fact>
+        {spec && (
           <Fact label="Accepted">
-            <span>Revision {item.committedRevisionNumber}</span>
-            {item.committedRevisionId !== item.revisionId && (
-              <span className="text-muted-foreground">
-                {" "}
-                · now {item.revisionNumber}
-              </span>
+            {spec.committedRevisionNumber != null ? (
+              <>
+                <span>Revision {spec.committedRevisionNumber}</span>
+                {spec.committedRevisionId !== spec.revisionId && (
+                  <span className={muted}>
+                    &nbsp;· now {spec.revisionNumber}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className={muted}>No revision accepted yet</span>
             )}
           </Fact>
         )}
-        {done && done.checks.length > 0 && (
-          <Fact label="Done">
+        <Fact label="Done">
+          {done && done.checks.length > 0 ? (
             <span className="flex min-w-0 flex-1 items-center gap-2">
               <span className="tabular-nums">
                 {passedDone} of {done.checks.length}
@@ -132,8 +178,10 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
                 ))}
               </span>
             </span>
-          </Fact>
-        )}
+          ) : (
+            <span className={muted}>Checked once work on it starts</span>
+          )}
+        </Fact>
       </dl>
       {done && done.checks.some((c) => !c.passed) && (
         <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">

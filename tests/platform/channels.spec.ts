@@ -97,7 +97,7 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
   await expect(
     adaMessage.getByRole("button", { name: /1 reply/ }),
   ).toBeVisible();
-  await page.goto(`/${seeded.slug}/inbox`);
+  await page.goto(`/${seeded.slug}/inbox?view=updates`);
   await expect(
     page.getByText("Ben Engineer mentioned you in #payments-team"),
   ).toBeVisible({ timeout: 20_000 });

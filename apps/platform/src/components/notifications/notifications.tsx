@@ -38,6 +38,7 @@ import {
   notificationCategories,
   notificationKindList,
   notificationKinds,
+  toDoKinds,
   type NotificationCategory,
 } from "@lictory/core/notifications/catalog";
 import {
@@ -118,8 +119,11 @@ export function NotificationFeed() {
         : {}),
       ...(filters.category
         ? {
+            // To do kinds stay in To do (`toDoKinds`).
             kinds: notificationKindList.filter(
-              (k) => notificationKinds[k].category === filters.category,
+              (k) =>
+                notificationKinds[k].category === filters.category &&
+                !toDoKinds.includes(k),
             ),
           }
         : {}),
@@ -200,8 +204,8 @@ export function NotificationFeed() {
     }
   };
 
-  // Conversation traffic is digested per conversation, an agent's failed
-  // sessions per agent.
+  // Conversation traffic is digested per conversation (a direct
+  // conversation, a thread, a channel), an agent's failed sessions per agent.
   const rows = useMemo(() => digestFeed(page?.items ?? []), [page?.items]);
   const unreadElsewhere = directory.organizations
     .filter((o) => o.id !== organization.id && (page?.unread[o.id] ?? 0) > 0)
@@ -322,7 +326,7 @@ export function NotificationFeed() {
                 <span key={o.id}>
                   {i > 0 && ", "}
                   <Link
-                    href={paths.inbox(o.slug)}
+                    href={paths.inbox(o.slug, "updates")}
                     className="font-medium text-foreground hover:underline"
                   >
                     {o.name} ({o.count})
@@ -454,7 +458,7 @@ function Row({
   // A conversation's digest shows its newest message, with who wrote it;
   // an agent's failures show the newest reason.
   const body =
-    digest && row.group === "conversation" && described.body
+    digest && row.group !== "agent_failures" && described.body
       ? `${actor}: ${described.body}`
       : described.body;
   const href = notificationHref(n.organizationSlug, n);

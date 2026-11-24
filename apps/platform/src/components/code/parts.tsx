@@ -2,7 +2,9 @@ import {
   CircleCheck,
   CircleDashed,
   CircleDot,
+  CircleMinus,
   CircleX,
+  Eye,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
@@ -17,7 +19,7 @@ import type {
   CodePullRequestEntity,
 } from "@lictory/core/code/entities";
 import { cn } from "@lictory/core/lib/utils";
-import { Badge } from "@lictory/ui/primitives";
+import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
 
 // Small, shared pieces of the Code UI: state icons, check and review
@@ -128,25 +130,25 @@ export function ChecksIcon({
 export function ChecksBadge({ checks }: { checks: CodeChecks }) {
   const failing = checks.runs.filter((r) => r.state === "failure").length;
   const pending = checks.runs.filter((r) => r.state === "pending").length;
+  const tone: StatusTone =
+    checks.state === "success"
+      ? "success"
+      : checks.state === "failure"
+        ? "danger"
+        : checks.state === "pending"
+          ? "info"
+          : "neutral";
   return (
-    <Badge
-      tone={
-        checks.state === "success"
-          ? "good"
-          : checks.state === "failure"
-            ? "danger"
-            : checks.state === "pending"
-              ? "warning"
-              : "neutral"
-      }
+    <StatusChip
+      tone={tone}
+      icon={<ChecksIcon state={checks.state} className="size-3" />}
     >
-      <ChecksIcon state={checks.state} className="size-3" />
       {checks.state === "failure"
         ? `${failing} failing`
         : checks.state === "pending"
           ? `${pending} running`
           : checkWords[checks.state]}
-    </Badge>
+    </StatusChip>
   );
 }
 
@@ -157,25 +159,28 @@ const reviewWords: Record<CodePullRequestEntity["reviewDecision"], string> = {
   none: "No reviews",
 };
 
+const reviewLooks: Record<
+  CodePullRequestEntity["reviewDecision"],
+  [StatusTone, LucideIcon]
+> = {
+  approved: ["success", CircleCheck],
+  changes_requested: ["danger", CircleX],
+  // Waits on a reviewer.
+  review_required: ["attention", Eye],
+  none: ["neutral", CircleMinus],
+};
+
+// The host's review decision as a state chip.
 export function ReviewBadge({
   decision,
 }: {
   decision: CodePullRequestEntity["reviewDecision"];
 }) {
+  const [tone, Icon] = reviewLooks[decision];
   return (
-    <Badge
-      tone={
-        decision === "approved"
-          ? "good"
-          : decision === "changes_requested"
-            ? "danger"
-            : decision === "review_required"
-              ? "warning"
-              : "neutral"
-      }
-    >
+    <StatusChip tone={tone} icon={<Icon />}>
       {reviewWords[decision]}
-    </Badge>
+    </StatusChip>
   );
 }
 
