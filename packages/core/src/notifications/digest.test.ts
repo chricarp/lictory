@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  describeConversation,
-  digestConversations,
-} from "@lictory/core/notifications/digest";
+import { describeDigest, digestFeed } from "@lictory/core/notifications/digest";
 
 let sequence = 0;
 function n(
@@ -37,7 +34,7 @@ void test("messages of one conversation become one row, in feed order", () => {
     n("direct_message", dm),
     n("channel_message", payments, "Cara Singh"),
   ];
-  const rows = digestConversations(items);
+  const rows = digestFeed(items);
   assert.deepEqual(
     rows.map((r) => r.items.map((i) => i.id)),
     [
@@ -46,9 +43,9 @@ void test("messages of one conversation become one row, in feed order", () => {
       [items[2]!.id, items[4]!.id],
     ],
   );
-  assert.equal(describeConversation(rows[0]!), "Ben Ortiz · 2 messages");
+  assert.equal(describeDigest(rows[0]!), "Ben Ortiz · 2 messages");
   assert.equal(
-    describeConversation(rows[2]!),
+    describeDigest(rows[2]!),
     "#payments · 2 messages from Dev Patel and Cara Singh",
   );
 });
@@ -59,11 +56,52 @@ void test("mentions stay their own rows: they are addressed to me", () => {
     n("channel_message", payments),
     n("channel_mentioned", payments),
   ];
-  assert.equal(digestConversations(items).length, 3);
+  assert.equal(digestFeed(items).length, 3);
 });
 
 void test("the same channel in two organizations is two conversations", () => {
   const a = n("channel_message", payments);
   const b = { ...n("channel_message", payments), organizationId: "other" };
-  assert.equal(digestConversations([a, b]).length, 2);
+  assert.equal(digestFeed([a, b]).length, 2);
+});
+
+void test("an agent's failed sessions become one row; finished ones stay single", () => {
+  const failed = (agentId: string, agentName: string, title: string) =>
+    n(
+      "agent_session_finished",
+      {
+        agentId,
+        agentName,
+        status: "failed",
+        sessionTitle: title,
+        error: "Runner went offline",
+      },
+      null,
+    );
+  const items = [
+    failed("forge", "Forge", "Fix refunds"),
+    n("agent_session_finished", {
+      agentId: "forge",
+      agentName: "Forge",
+      status: "completed",
+    }),
+    failed("forge", "Forge", "Fix refunds"),
+    failed("scout", "Scout", "Triage"),
+    failed("forge", "Forge", "Add webhooks"),
+    // Written before notifications named the agent's id: grouped by name.
+    n("agent_session_finished", { agentName: "Forge", status: "failed" }),
+  ];
+  const rows = digestFeed(items);
+  assert.deepEqual(
+    rows.map((r) => r.items.map((i) => i.id)),
+    [
+      [items[0]!.id, items[2]!.id, items[4]!.id],
+      [items[1]!.id],
+      [items[3]!.id],
+      [items[5]!.id],
+    ],
+  );
+  assert.equal(rows[0]!.group, "agent_failures");
+  assert.equal(describeDigest(rows[0]!), "Forge failed 3 sessions");
+  assert.equal(rows[1]!.group, undefined);
 });

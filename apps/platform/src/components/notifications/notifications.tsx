@@ -46,8 +46,8 @@ import {
 } from "@lictory/core/notifications/format";
 import type { NotificationItem } from "@lictory/core/notifications/service";
 import {
-  describeConversation,
-  digestConversations,
+  describeDigest,
+  digestFeed,
   unreadIn,
   type FeedRow,
 } from "@lictory/core/notifications/digest";
@@ -200,11 +200,9 @@ export function NotificationFeed() {
     }
   };
 
-  // Conversation traffic is digested per conversation.
-  const rows = useMemo(
-    () => digestConversations(page?.items ?? []),
-    [page?.items],
-  );
+  // Conversation traffic is digested per conversation, an agent's failed
+  // sessions per agent.
+  const rows = useMemo(() => digestFeed(page?.items ?? []), [page?.items]);
   const unreadElsewhere = directory.organizations
     .filter((o) => o.id !== organization.id && (page?.unread[o.id] ?? 0) > 0)
     .map((o) => ({ ...o, count: page!.unread[o.id]! }));
@@ -452,16 +450,22 @@ function Row({
           : Bell;
   const actor = n.actorName ?? (n.actorId ? "Former member" : "Lictory");
   const described = describeNotification(n, actor);
-  const headline = digest ? describeConversation(row) : described.headline;
-  // A digest shows its newest message, with who wrote it.
+  const headline = digest ? describeDigest(row) : described.headline;
+  // A conversation's digest shows its newest message, with who wrote it;
+  // an agent's failures show the newest reason.
   const body =
-    digest && described.body ? `${actor}: ${described.body}` : described.body;
+    digest && row.group === "conversation" && described.body
+      ? `${actor}: ${described.body}`
+      : described.body;
   const href = notificationHref(n.organizationSlug, n);
   const title =
     !digest && typeof n.detail.title === "string" ? n.detail.title : null;
   const unread = unreadIn(row).length > 0;
   const archived = Boolean(n.archivedAt);
-  const urgent = n.kind === "blocking_thread" || n.kind === "export_failed";
+  const urgent =
+    n.kind === "blocking_thread" ||
+    n.kind === "export_failed" ||
+    (n.kind === "agent_session_finished" && n.detail.status === "failed");
   const time = (
     <time
       dateTime={n.createdAt}
