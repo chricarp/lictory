@@ -10,8 +10,11 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  KanbanSquare,
+  ListFilter,
   Plus,
   Repeat,
   Rows3,
@@ -65,9 +68,11 @@ import {
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import {
-  useAgentLabel,
+  useAgents,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -207,13 +212,7 @@ function ProjectBoard({ project }: { project: Project }) {
   const { openCreate, toast } = useShell();
   // Agent claims, as a compact mark on each claimed card.
   const claims = useLiveClaims();
-  const agentLabel = useAgentLabel();
-  const claimLabels = new Map(
-    [...claims.values()].map((c) => [
-      c.workItemId,
-      agentLabel(c, items.find((i) => i.id === c.workItemId)?.assigneeId),
-    ]),
-  );
+  const agentById = useAgents();
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
   const peek = useItemPeek();
@@ -378,201 +377,288 @@ function ProjectBoard({ project }: { project: Project }) {
     assignees.length || typeFilter.length || teamFilter.value,
   );
   const points = scoped.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
+  const assigneeSummary = assignees.length
+    ? `${assignees.length} ${assignees.length === 1 ? "person" : "people"}`
+    : "Anyone";
+  const typeSummary = typeFilter.length
+    ? `${typeFilter.length} ${typeFilter.length === 1 ? "type" : "types"}`
+    : "All types";
+  const toggle = (key: string, list: string[], v: string) =>
+    setParam(
+      key,
+      (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]).join(","),
+    );
+  const assigneePicker = (
+    <PeoplePicker
+      multiple
+      title="Assignee"
+      none={{ value: "unassigned", label: "Unassigned" }}
+      value={assignees}
+      onSelect={(v) => toggle("assignee", assignees, v)}
+    />
+  );
+  const typePicker = (
+    <Picker
+      multiple
+      title="Types"
+      options={enabledTypes(delivery, project.id)
+        .filter((t) => !isTopLevel(t))
+        .map((t) => ({
+          value: t.id,
+          label: t.name,
+          icon: <TypeIcon type={t} />,
+        }))}
+      value={typeFilter}
+      onSelect={(v) => toggle("type", typeFilter, v)}
+    />
+  );
+  const teamPicker = (
+    <Picker
+      title="Team"
+      options={[
+        { value: "all", label: "All teams" },
+        ...teamFilter.teams.map((t) => ({ value: t.id, label: t.name })),
+        { value: "none", label: "No team" },
+      ]}
+      value={teamFilter.value ?? "all"}
+      onSelect={(v) => teamFilter.setTeam(v === "all" ? undefined : v)}
+    />
+  );
+  const boardOptions = (
+    <div className="p-1">
+      <p className="px-2 pt-1 pb-1 text-xs font-semibold text-muted-foreground">
+        Swimlanes
+      </p>
+      <RadioGroup<Lane>
+        aria-label="Swimlanes"
+        value={lane}
+        onValueChange={(next) => {
+          if (next) setParam("lanes", next === "none" ? undefined : next);
+        }}
+        className="flex flex-col gap-0"
+      >
+        {(Object.keys(laneLabel) as Lane[]).map((key) => (
+          <Radio key={key} value={key} className={choiceRowClass}>
+            {laneLabel[key]}
+          </Radio>
+        ))}
+      </RadioGroup>
+      <div className="my-1 border-t" />
+      <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
+        <Checkbox
+          checked={showCanceled}
+          onCheckedChange={(checked) => setShowCanceled(checked === true)}
+        />
+        Show canceled column
+      </label>
+    </div>
+  );
+  // Phones show one column per screen: start at the first one with work,
+  // not at an empty Backlog.
+  const firstFilled = columns.find((c) =>
+    scoped.some((i) => i.statusId === c.id),
+  )?.id;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <h1 className="truncate text-sm font-semibold">{project.name}</h1>
-        <span className="text-xs text-muted-foreground">Board</span>
-        <TeamFilterPicker filter={teamFilter} />
-        {usesIterations && (
-          <Popover
-            width={260}
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                <Repeat className="size-3.5" />
-                {iteration
-                  ? iterationLabel(iteration, project?.iterationMode)
-                  : "All work"}
-                {iteration?.state === "active" && (
-                  <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full bg-success"
-                    />
-                    Active
-                  </span>
+      <PageHeader
+        title="Board"
+        icon={<KanbanSquare />}
+        breadcrumbs={[
+          {
+            label: project.name,
+            href: paths.project(organization.slug, project.key),
+          },
+        ]}
+        meta={
+          // Counts per column sit in the column headers; this is the total.
+          <span className="tabular-nums">
+            {scoped.length} {scoped.length === 1 ? "item" : "items"}
+            {project.estimateScale !== "none" &&
+              points > 0 &&
+              ` · ${points} pts`}
+          </span>
+        }
+        actions={
+          <>
+            {usesIterations && (
+              <Popover
+                width={260}
+                align="end"
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="sm"
+                    className="max-w-40"
+                  >
+                    <Repeat className="size-3.5" />
+                    <span className="truncate">
+                      {iteration
+                        ? iterationLabel(iteration, project?.iterationMode)
+                        : "All work"}
+                    </span>
+                    {iteration?.state === "active" && (
+                      <StatusChip
+                        tone="success"
+                        icon={<StatusDot />}
+                        className="max-sm:hidden"
+                      >
+                        Active
+                      </StatusChip>
+                    )}
+                  </Button>
                 )}
-              </Button>
-            )}
-          >
-            <Picker
-              title={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
-              options={[
-                { value: "all", label: "All work" },
-                ...iterations.map((i) => ({
-                  value: i.id,
-                  label: iterationLabel(i, project?.iterationMode),
-                  hint: i.state === "active" ? "Active" : shortRange(i),
-                })),
-              ]}
-              value={iterationId ?? "all"}
-              onSelect={(v) => setParam("iteration", v)}
-            />
-          </Popover>
-        )}
-        <ContextControl
-          project={project}
-          lists={[
-            { label: project.name },
-            ...(createTeamId
-              ? [
-                  {
-                    label: delivery.teams.get(createTeamId)?.name ?? "Team",
-                    teamId: createTeamId,
-                  },
-                ]
-              : []),
-            ...(iteration
-              ? [
-                  {
-                    label: iterationLabel(iteration, project.iterationMode),
-                    iterationId: iteration.id,
-                    iteration,
-                  },
-                ]
-              : []),
-          ]}
-        />
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {scoped.length} items
-          {project.estimateScale !== "none" && points > 0 && ` · ${points} pts`}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          <Popover
-            width={260}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                <UserRound className="size-3.5" />
-                {assignees.length ? `${assignees.length} people` : "Anyone"}
-              </Button>
-            )}
-          >
-            <PeoplePicker
-              multiple
-              title="Assignee"
-              none={{ value: "unassigned", label: "Unassigned" }}
-              value={assignees}
-              onSelect={(v) =>
-                setParam(
-                  "assignee",
-                  (assignees.includes(v)
-                    ? assignees.filter((x) => x !== v)
-                    : [...assignees, v]
-                  ).join(","),
-                )
-              }
-            />
-          </Popover>
-          <Popover
-            width={220}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                {typeFilter.length ? `${typeFilter.length} types` : "All types"}
-              </Button>
-            )}
-          >
-            <Picker
-              multiple
-              title="Types"
-              options={enabledTypes(delivery, project.id)
-                .filter((t) => !isTopLevel(t))
-                .map((t) => ({
-                  value: t.id,
-                  label: t.name,
-                  icon: <TypeIcon type={t} />,
-                }))}
-              value={typeFilter}
-              onSelect={(v) =>
-                setParam(
-                  "type",
-                  (typeFilter.includes(v)
-                    ? typeFilter.filter((x) => x !== v)
-                    : [...typeFilter, v]
-                  ).join(","),
-                )
-              }
-            />
-          </Popover>
-          <Popover
-            width={220}
-            align="end"
-            trigger={(props) => (
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                aria-label="Board options"
               >
-                <Rows3 className="size-3.5" />
-              </Button>
-            )}
-          >
-            <div className="p-1">
-              <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
-                Swimlanes
-              </p>
-              <RadioGroup<Lane>
-                aria-label="Swimlanes"
-                value={lane}
-                onValueChange={(next) => {
-                  if (next)
-                    setParam("lanes", next === "none" ? undefined : next);
-                }}
-                className="flex flex-col gap-0"
-              >
-                {(Object.keys(laneLabel) as Lane[]).map((key) => (
-                  <Radio key={key} value={key} className={choiceRowClass}>
-                    {laneLabel[key]}
-                  </Radio>
-                ))}
-              </RadioGroup>
-              <div className="my-1 border-t" />
-              <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <Checkbox
-                  checked={showCanceled}
-                  onCheckedChange={(checked) =>
-                    setShowCanceled(checked === true)
+                <Picker
+                  title={
+                    project.iterationMode === "automatic" ? "Cycle" : "Sprint"
                   }
+                  options={[
+                    { value: "all", label: "All work" },
+                    ...iterations.map((i) => ({
+                      value: i.id,
+                      label: iterationLabel(i, project?.iterationMode),
+                      hint: i.state === "active" ? "Active" : shortRange(i),
+                    })),
+                  ]}
+                  value={iterationId ?? "all"}
+                  onSelect={(v) => setParam("iteration", v)}
                 />
-                Show canceled column
-              </label>
+              </Popover>
+            )}
+            {/* Phones: one button for every filter. */}
+            <div className="sm:hidden">
+              <BoardFilters
+                active={
+                  assignees.length +
+                  typeFilter.length +
+                  (lane !== "none" ? 1 : 0) +
+                  (teamFilter.value ? 1 : 0)
+                }
+                views={{
+                  ...(teamFilter.teams.length || teamFilter.value
+                    ? {
+                        team: {
+                          label: "Team",
+                          value:
+                            teamFilter.value === "none"
+                              ? "No team"
+                              : (teamFilter.team?.name ?? "All teams"),
+                          content: teamPicker,
+                        },
+                      }
+                    : {}),
+                  assignee: {
+                    label: "Assignee",
+                    value: assigneeSummary,
+                    content: assigneePicker,
+                  },
+                  type: {
+                    label: "Types",
+                    value: typeSummary,
+                    content: typePicker,
+                  },
+                  options: {
+                    label: "Swimlanes",
+                    value: laneLabel[lane],
+                    content: boardOptions,
+                  },
+                }}
+              />
             </div>
-          </Popover>
-          {canManage(project.id) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Workflow settings"
-              title="Workflow settings"
-              render={
-                <Link
-                  href={paths.projectSettings(
-                    organization.slug,
-                    project.key,
-                    "workflow",
-                  )}
-                />
-              }
-            >
-              <Settings2 className="size-3.5" />
-            </Button>
-          )}
-          <span aria-hidden className="mx-1 h-4 w-px bg-border max-lg:hidden" />
-          <LittoLauncher />
-        </div>
-      </header>
+            <div className="flex items-center gap-1 max-sm:hidden">
+              <TeamFilterPicker filter={teamFilter} />
+              <ContextControl
+                project={project}
+                lists={[
+                  { label: project.name },
+                  ...(createTeamId
+                    ? [
+                        {
+                          label:
+                            delivery.teams.get(createTeamId)?.name ?? "Team",
+                          teamId: createTeamId,
+                        },
+                      ]
+                    : []),
+                  ...(iteration
+                    ? [
+                        {
+                          label: iterationLabel(
+                            iteration,
+                            project.iterationMode,
+                          ),
+                          iterationId: iteration.id,
+                          iteration,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              <Popover
+                width={260}
+                align="end"
+                trigger={(props) => (
+                  <Button {...props} variant="ghost" size="sm">
+                    <UserRound className="size-3.5" />
+                    {assigneeSummary}
+                  </Button>
+                )}
+              >
+                {assigneePicker}
+              </Popover>
+              <Popover
+                width={220}
+                align="end"
+                trigger={(props) => (
+                  <Button {...props} variant="ghost" size="sm">
+                    {typeSummary}
+                  </Button>
+                )}
+              >
+                {typePicker}
+              </Popover>
+              <Popover
+                width={220}
+                align="end"
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Board options"
+                  >
+                    <Rows3 className="size-3.5" />
+                  </Button>
+                )}
+              >
+                {boardOptions}
+              </Popover>
+              {canManage(project.id) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Workflow settings"
+                  title="Workflow settings"
+                  render={
+                    <Link
+                      href={paths.projectSettings(
+                        organization.slug,
+                        project.key,
+                        "workflow",
+                      )}
+                    />
+                  }
+                >
+                  <Settings2 className="size-3.5" />
+                </Button>
+              )}
+              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              <LittoLauncher />
+            </div>
+          </>
+        }
+      />
       {usesIterations && iterationParam !== "all" && !iteration ? (
         <EmptyState
           illustration="planning"
@@ -599,7 +685,7 @@ function ProjectBoard({ project }: { project: Project }) {
             : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
-        <BoardScroller>
+        <BoardScroller startAt={firstFilled}>
           <div
             className={cn(
               "inline-flex min-h-full min-w-full flex-col gap-3 p-3 pr-4",
@@ -644,6 +730,8 @@ function ProjectBoard({ project }: { project: Project }) {
                         data-board-column={status.id}
                         className={cn(
                           "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
+                          // Phones: one column per screen, snapping.
+                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-3rem)] max-sm:snap-start",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
@@ -711,7 +799,6 @@ function ProjectBoard({ project }: { project: Project }) {
                                 }
                                 delivery={delivery}
                                 orgSlug={organization.slug}
-                                memberName={memberName}
                                 dragging={drag === item.id}
                                 draggable={canMove}
                                 selected={
@@ -720,7 +807,9 @@ function ProjectBoard({ project }: { project: Project }) {
                                 }
                                 onOpen={peek.onLinkClick}
                                 claim={claims.get(item.id)}
-                                claimLabel={claimLabels.get(item.id)}
+                                claimAgent={agentById.get(
+                                  claims.get(item.id)?.agentId ?? "",
+                                )}
                                 onDragStart={(e) => {
                                   setDrag(item.id);
                                   e.dataTransfer.effectAllowed = "move";
@@ -794,7 +883,7 @@ function ColumnHeader({
         <button
           onClick={onCreate}
           aria-label={`New item in ${status.name}`}
-          className="ml-auto grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="ml-auto grid size-6 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
         >
           <Plus className="size-3.5" />
         </button>
@@ -806,8 +895,33 @@ function ColumnHeader({
 // The board scrolls sideways when its columns outgrow the frame (Litto open
 // on a laptop). A fade on the edge that has more columns says so, instead of
 // the last column looking cut off.
-function BoardScroller({ children }: { children: ReactNode }) {
+function BoardScroller({
+  children,
+  startAt,
+}: {
+  children: ReactNode;
+  // The column phones open at (one column fills the screen there).
+  startAt?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  // Once, when the board first has work: on a phone, show the first column
+  // that holds some instead of an empty one.
+  const started = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !startAt || started.current) return;
+    started.current = true;
+    if (!window.matchMedia("(max-width: 639px)").matches) return;
+    const column = el.querySelector<HTMLElement>(
+      `[data-board-column="${CSS.escape(startAt)}"]`,
+    );
+    if (column)
+      el.scrollLeft =
+        column.getBoundingClientRect().left -
+        el.getBoundingClientRect().left +
+        el.scrollLeft -
+        12;
+  }, [startAt]);
   const [more, setMore] = useState({ left: false, right: false });
   useEffect(() => {
     const el = ref.current;
@@ -864,7 +978,10 @@ function BoardScroller({ children }: { children: ReactNode }) {
   };
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={ref} className="h-full [scrollbar-width:thin] overflow-auto">
+      <div
+        ref={ref}
+        className="h-full [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
+      >
         {children}
       </div>
       {(["left", "right"] as const).map((side) => (
@@ -891,7 +1008,7 @@ function BoardScroller({ children }: { children: ReactNode }) {
             }
             onClick={() => step(side)}
             className={cn(
-              "grid size-8 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.95]",
+              "grid size-8 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) focus-ring transition-[color,transform] duration-150 outline-none hover:text-foreground active:scale-[0.95]",
               more[side] && "pointer-events-auto",
             )}
           >
@@ -904,5 +1021,80 @@ function BoardScroller({ children }: { children: ReactNode }) {
         </div>
       ))}
     </div>
+  );
+}
+
+type FilterView = { label: string; value: string; content: ReactNode };
+
+// Every board filter behind one button, for phones: a list of what is
+// filtered, each opening its picker in place, with a way back.
+function BoardFilters({
+  views,
+  active,
+}: {
+  views: Record<string, FilterView>;
+  // How many filters are set.
+  active: number;
+}) {
+  const [shown, setShown] = useState<string>();
+  const view = shown ? views[shown] : undefined;
+  return (
+    <Popover
+      width={280}
+      align="end"
+      onOpenChange={(open) => !open && setShown(undefined)}
+      trigger={(props) => (
+        <Button
+          {...props}
+          variant="ghost"
+          size="icon"
+          aria-label={active ? `Filters (${active} set)` : "Filters"}
+          className="relative"
+        >
+          <ListFilter className="size-4" />
+          {active > 0 && (
+            <span
+              aria-hidden
+              className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+            />
+          )}
+        </Button>
+      )}
+    >
+      {view ? (
+        <div className="flex max-h-[70dvh] min-h-0 flex-col">
+          <button
+            type="button"
+            onClick={() => setShown(undefined)}
+            className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2.5 text-[13px] text-muted-foreground focus-ring-inset outline-none hover:text-foreground"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" />
+            Filters
+          </button>
+          <div className="min-h-0 overflow-y-auto">{view.content}</div>
+        </div>
+      ) : (
+        <ul aria-label="Filters" className="p-1">
+          {Object.entries(views).map(([key, v]) => (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => setShown(key)}
+                className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] focus-ring-inset outline-none hover:bg-muted"
+              >
+                <span className="font-medium">{v.label}</span>
+                <span className="ml-auto truncate text-muted-foreground">
+                  {v.value}
+                </span>
+                <ChevronRight
+                  aria-hidden
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Popover>
   );
 }
