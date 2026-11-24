@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { imagesSchema } from "@lictory/core/release/images";
 import {
@@ -17,7 +18,13 @@ export const releaseSchema = z.object({
   body: z.string().nullable(),
   author: z.object({ login: z.string() }),
   assets: z.array(
-    z.object({ id: z.number(), name: z.string(), url: z.string() }),
+    z.object({
+      id: z.number(),
+      name: z.string(),
+      url: z.string(),
+      // `sha256:<hex>`, which GitHub records for assets uploaded since 2025.
+      digest: z.string().nullable().optional(),
+    }),
   ),
 });
 export type Release = z.infer<typeof releaseSchema>;
@@ -278,8 +285,11 @@ export class GitHub {
   }
 
   /**
-   * Attaches a text asset (release.env, SBOMs, the license report) to a
-   * reserved draft once. A retry must carry the same bytes; a release
+   * Attaches an asset (release.env, SBOMs, the license report, the client
+   * downloads) to a reserved draft once. A retry must carry the same bytes,
+   * except with `replaceInDraft`: assets rebuilt by a re-run (the client
+   * downloads, which are not byte-reproducible) replace the earlier upload
+   * while the release is still a draft nobody can download. A release
    * published before the asset existed is left unchanged, since published
    * releases are immutable.
    *
@@ -291,21 +301,32 @@ export class GitHub {
   async attach(
     manifest: Manifest,
     name: string,
-    body: string,
+    body: string | Uint8Array<ArrayBuffer>,
     reserved?: Release,
     contentType = "text/plain; charset=utf-8",
+    options: { replaceInDraft?: boolean } = {},
   ): Promise<void> {
     const release = reserved
       ? await this.reserved(manifest, reserved.id)
       : await this.release(manifest.tag);
     if (!release) throw new Error(`${manifest.tag} is not reserved.`);
+    const bytes =
+      typeof body === "string" ? new TextEncoder().encode(body) : body;
+    const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
     const existing = release.assets.filter((asset) => asset.name === name);
     if (existing.length > 1)
       throw new Error(`${manifest.tag} has more than one ${name}.`);
     if (existing.length) {
-      if ((await this.text(existing[0]!.url)) !== body)
+      const [asset] = existing as [Release["assets"][number]];
+      const same = asset.digest
+        ? asset.digest === digest
+        : `sha256:${createHash("sha256")
+            .update(await this.bytes(asset.url))
+            .digest("hex")}` === digest;
+      if (same) return;
+      if (!(options.replaceInDraft && release.draft))
         throw new Error(`${manifest.tag} already has a different ${name}.`);
-      return;
+      await this.request(`/releases/assets/${asset.id}`, "DELETE");
     }
     if (!release.draft) {
       console.warn(
@@ -321,9 +342,12 @@ export class GitHub {
           Authorization: `Bearer ${this.token}`,
           "Content-Type": contentType,
         },
-        body,
-        // SBOMs and license notices run to megabytes.
-        signal: AbortSignal.timeout(120_000),
+        body: typeof body === "string" ? body : bytes,
+        // SBOMs and license notices run to megabytes, desktop installers to
+        // hundreds: two minutes, plus three seconds per megabyte.
+        signal: AbortSignal.timeout(
+          120_000 + Math.ceil(bytes.byteLength / 1_000_000) * 3_000,
+        ),
       },
     );
     if (!response.ok)
@@ -346,7 +370,7 @@ export class GitHub {
     return release;
   }
 
-  private async text(url: string): Promise<string> {
+  private async bytes(url: string): Promise<Uint8Array> {
     if (new URL(url).hostname !== "api.github.com")
       throw new Error("Untrusted GitHub API URL.");
     const response = await this.fetcher(url, {
@@ -355,13 +379,13 @@ export class GitHub {
         Accept: "application/octet-stream",
         "X-GitHub-Api-Version": "2022-11-28",
       },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(600_000),
     });
     if (!response.ok)
       throw new Error(
         `GitHub GET ${new URL(url).pathname} failed (${response.status}).`,
       );
-    return response.text();
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   async publish(manifest: Manifest): Promise<void> {
