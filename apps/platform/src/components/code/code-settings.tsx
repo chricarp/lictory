@@ -350,7 +350,13 @@ function ConnectionRow({
         ) : (
           <ul className="divide-y rounded-lg border">
             {repositories.map((r) => (
-              <RepositoryRow key={r.id} repository={r} />
+              <RepositoryRow
+                key={r.id}
+                repository={r}
+                shared={repositories
+                  .filter((other) => other.id !== r.id)
+                  .flatMap((other) => other.projectIds)}
+              />
             ))}
           </ul>
         )}
@@ -360,7 +366,15 @@ function ConnectionRow({
   );
 }
 
-function RepositoryRow({ repository }: { repository: CodeRepositoryEntity }) {
+// `shared`: projects another repository serves too, where a project
+// administrator chooses which one agent sessions work in.
+function RepositoryRow({
+  repository,
+  shared,
+}: {
+  repository: CodeRepositoryEntity;
+  shared: string[];
+}) {
   const { organization, projects, canManage } = useWorkspace();
   const [error, setError] = useState<string>();
   const call = async (name: string, input: Record<string, unknown>) => {
@@ -404,6 +418,33 @@ function RepositoryRow({ repository }: { repository: CodeRepositoryEntity }) {
                 </button>
               )}
             </Badge>
+          );
+        })}
+        {repository.projectIds.map((id) => {
+          const project = projects.find((p) => p.id === id);
+          if (!project) return null;
+          const isDefault = repository.defaultForProjectIds.includes(id);
+          if (isDefault)
+            return (
+              <Badge key={`default-${id}`} tone="good">
+                Agents work here in {project.name}
+              </Badge>
+            );
+          if (!shared.includes(id) || !canManage(project.id)) return null;
+          return (
+            <Button
+              key={`default-${id}`}
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                call("setDefaultCodeRepository", {
+                  projectId: id,
+                  repositoryId: repository.id,
+                })
+              }
+            >
+              Make {project.name}&apos;s default for agents
+            </Button>
           );
         })}
         <Button

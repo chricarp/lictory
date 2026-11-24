@@ -15,7 +15,7 @@ import type {
 // commands, file writes, a question for a person and waiting for a
 // steering message. It never runs a model or a command.
 
-const step = z.union([
+const baseStep = z.union([
   z.object({ say: z.string() }),
   z.object({
     tool: z.object({
@@ -38,8 +38,10 @@ const step = z.union([
   z.object({ fail: z.string() }),
   // A call of one of Lictory's MCP tools with the session's token, as a
   // real harness makes. In string arguments `{{organizationId}}` is the
-  // session's organization and `{{claimId}}` the claim it holds (found
-  // with listClaims); the tool's error fails the session.
+  // session's organization, `{{claimId}}` the claim it holds (found with
+  // listClaims), and `{{pullRequestId}}` and `{{headSha}}` the pull
+  // request and head a review session's prompt names; the tool's error
+  // fails the session.
   z.object({
     lictory: z.object({
       tool: z.string(),
@@ -48,8 +50,32 @@ const step = z.union([
   }),
   z.object({ summary: z.string() }),
 ]);
+// Steps that depend on what the session was asked (one script for every
+// session of a runner): `then` when the prompt matches the pattern, else
+// `else`. A reviewer agent's session ("Review pull request …") and an
+// implementer's can share a runner this way.
+const conditional = z.object({
+  ifPrompt: z.object({
+    matches: z.string(),
+    then: z.array(baseStep).default([]),
+    else: z.array(baseStep).default([]),
+  }),
+});
+const step = z.union([baseStep, conditional]);
+type BaseStep = z.infer<typeof baseStep>;
 export const fakeScript = z.array(step);
 export type FakeScript = z.infer<typeof fakeScript>;
+
+// The steps this session runs.
+function stepsFor(script: FakeScript, prompt: string): BaseStep[] {
+  return script.flatMap((item) =>
+    "ifPrompt" in item
+      ? new RegExp(item.ifPrompt.matches, "m").test(prompt)
+        ? item.ifPrompt.then
+        : item.ifPrompt.else
+      : [item],
+  );
+}
 
 export const defaultScript: FakeScript = [
   { say: "Reading the task and the repository." },
@@ -104,7 +130,7 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
   const done = (async (): Promise<HarnessResult> => {
     let summary: string | undefined;
     let asked = 0;
-    for (const item of script) {
+    for (const item of stepsFor(script, ctx.prompt)) {
       if (signal.aborted) break;
       if ("say" in item) ctx.emit("message", { text: item.say });
       else if ("tool" in item) {
@@ -230,10 +256,27 @@ async function callLictory(
   let claimId: string | undefined;
   const fill = async (value: unknown): Promise<unknown> => {
     if (typeof value !== "string") return value;
+    // A review session's prompt names the pull request and its head, as a
+    // model reads them.
+    const named = (pattern: RegExp, what: string) => {
+      const found = pattern.exec(ctx.prompt)?.[1];
+      if (!found) throw new Error(`The prompt names no ${what}.`);
+      return found;
+    };
     let text = value.replaceAll(
       "{{organizationId}}",
       ctx.lictory.organizationId,
     );
+    if (text.includes("{{pullRequestId}}"))
+      text = text.replaceAll(
+        "{{pullRequestId}}",
+        named(/pull request ([0-9a-f-]{36})/i, "pull request"),
+      );
+    if (text.includes("{{headSha}}"))
+      text = text.replaceAll(
+        "{{headSha}}",
+        named(/at head ([0-9a-f]{40})/i, "head commit"),
+      );
     if (text.includes("{{claimId}}")) {
       if (!claimId) {
         const listed = (await mcp(ctx, "listClaims", {

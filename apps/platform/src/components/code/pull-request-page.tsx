@@ -143,6 +143,14 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
                 </code>
                 <span>· head {shortSha(pr.headSha)}</span>
                 <span>· updated {relativeTime(pr.hostUpdatedAt)}</span>
+                {pr.state === "merged" && pr.mergeRequestedById && (
+                  <span>
+                    {/* Autopilot names its policy's administrator itself. */}
+                    {pr.mergedVia?.startsWith("Autopilot")
+                      ? `· merged by ${pr.mergedVia}`
+                      : `· merged from Lictory by ${pr.mergedVia ? `${pr.mergedVia} via ` : ""}${memberName(pr.mergeRequestedById)}`}
+                  </span>
+                )}
               </p>
             </div>
             <section aria-label="Description">
@@ -207,10 +215,41 @@ function Checks({ pr }: { pr: CodePullRequestEntity }) {
 }
 
 function Reviews({ pr }: { pr: CodePullRequestEntity }) {
+  const { memberName } = useWorkspace();
   return (
     <section>
       <SectionLabel className="mb-2">Reviews</SectionLabel>
       <ReviewBadge decision={pr.reviewDecision} />
+      {pr.reviews.length > 0 && (
+        // Reviews recorded in Lictory (agents' reviews), bound to the head
+        // commit they read: an older head's review no longer counts.
+        <ul aria-label="Reviews in Lictory" className="mt-2 space-y-1.5">
+          {pr.reviews.map((review) => (
+            <li key={review.id} className="text-[13px]">
+              <span className="font-medium">
+                {review.agentName
+                  ? `${review.agentName} via ${memberName(review.reviewerId)}`
+                  : memberName(review.reviewerId)}
+              </span>{" "}
+              {review.decision === "approve" ? "approved" : "requested changes"}{" "}
+              <code className="font-mono text-xs">
+                {shortSha(review.headSha)}
+              </code>
+              {!review.current && (
+                <span className="text-xs text-muted-foreground">
+                  {" "}
+                  · an older head
+                </span>
+              )}
+              {review.body && (
+                <p className="line-clamp-3 text-xs text-muted-foreground">
+                  {review.body}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       <dl className="mt-2 space-y-1 text-[13px]">
         {pr.approvedBy.length > 0 && (
           <div>

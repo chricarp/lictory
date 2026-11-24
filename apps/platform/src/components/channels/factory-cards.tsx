@@ -3,10 +3,12 @@ import {
   ArrowUpRight,
   Check,
   CircleHelp,
+  GitPullRequest,
   ShieldQuestion,
   X,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
+import { paths } from "@lictory/core/lib/paths";
 import type { SessionStatus } from "@lictory/core/factory/entities";
 import type {
   ApprovalCardPayload,
@@ -74,11 +76,23 @@ export function FactoryCard({ payload }: { payload: FactoryCardPayload }) {
 }
 
 function SessionCard({ card }: { card: SessionCardPayload }) {
+  const { organization } = useWorkspace();
   const { session } = useSession(card.sessionId);
   const status = session?.status ?? card.status;
   const summary = session?.resultSummary ?? card.summary;
   const error = session?.error ?? card.error;
   const title = session?.title ?? card.title;
+  // The session's own projection knows its pull request first; the card's
+  // payload links Lictory's page.
+  const pullRequest =
+    card.pullRequest ??
+    (session?.pullRequestId
+      ? {
+          id: session.pullRequestId,
+          path: paths.codePullRequest(organization.slug, session.pullRequestId),
+          url: session.pullRequestUrl,
+        }
+      : null);
   return (
     <section aria-label={`${card.agentName} session`} className={cardClass}>
       <div className="flex flex-wrap items-center gap-2">
@@ -99,6 +113,16 @@ function SessionCard({ card }: { card: SessionCardPayload }) {
         </Button>
       </div>
       <p className="mt-1 font-medium">{title}</p>
+      {pullRequest && (
+        <p className="mt-1">
+          <Link
+            href={pullRequest.path}
+            className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
+          >
+            <GitPullRequest className="size-3.5" aria-hidden /> Pull request
+          </Link>
+        </p>
+      )}
       {status === "completed" && summary && (
         <p className="mt-1 line-clamp-3 text-muted-foreground">{summary}</p>
       )}
