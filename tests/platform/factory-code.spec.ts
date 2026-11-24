@@ -343,7 +343,12 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
       .locator("[data-item-code]")
       .getByRole("link", { name: "#1 RFD-1: Refund retries" })
       .click();
-    await expect(second.page.getByText("Hawk via Bo")).toBeVisible();
+    // The agent's review shows beside it, with the person it acts for.
+    const reviews = second.page.getByRole("region", {
+      name: "Reviews in Lictory",
+    });
+    await expect(reviews).toContainText("Hawk");
+    await expect(reviews).toContainText("via Bo");
     await second.page
       .getByRole("button", { name: "Merge", exact: true })
       .click();
@@ -399,6 +404,8 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
     .getByRole("link", { name: "#1 RFD-1: Refund retries" })
     .click();
   await expect(
-    page.getByText("merged by Autopilot · policy set by Ada"),
+    page
+      .getByRole("region", { name: "Merged" })
+      .getByText(/by Autopilot · policy set by Ada/),
   ).toBeVisible();
 });

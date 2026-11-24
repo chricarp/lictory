@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
 import { People } from "@lictory/platform/components/workspace/roles-settings";
 import {
   ReadOnlyNotice,
@@ -52,21 +51,6 @@ export function OrganizationSettingsLayout({
   }));
   return (
     <SettingsLayout
-      icon={
-        organization.logos.mark ? (
-          <OrganizationMark
-            organization={organization}
-            className="size-10 rounded-xl"
-          />
-        ) : (
-          <span
-            aria-hidden
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-sm font-semibold text-primary"
-          >
-            {organization.name.slice(0, 1).toUpperCase()}
-          </span>
-        )
-      }
       title="Organization settings"
       subtitle={
         <>

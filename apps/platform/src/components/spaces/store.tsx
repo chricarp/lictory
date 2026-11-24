@@ -205,7 +205,7 @@ const SIDEBAR_SPACES = 8;
 // Spaces for navigation (active ones): the organization's own, those of the
 // projects and teams I belong to, and a lookup by project for each project's
 // navigation (its spaces and its teams' spaces).
-export function useNavigationSpaces() {
+export function useNavigationSpaces(contextProjectId?: string | null) {
   const { index } = useSpacesContext();
   const { directory, userId } = useWorkspace();
   return useMemo(() => {
@@ -220,19 +220,30 @@ export function useNavigationSpaces() {
         .filter((t) => t.memberIds.includes(userId))
         .map((t) => t.id),
     );
+    // The project in context first, then the organization's spaces, then
+    // those of my other projects and teams.
+    const ofContext = contextProjectId
+      ? active.filter((s) => s.projectId === contextProjectId)
+      : [];
     const organization = active.filter((s) => !s.projectId);
-    const mine = active.filter((s) =>
-      s.teamId
-        ? myTeams.has(s.teamId)
-        : s.projectId !== null && myProjects.has(s.projectId),
+    const mine = active.filter(
+      (s) =>
+        s.projectId !== contextProjectId &&
+        (s.teamId
+          ? myTeams.has(s.teamId)
+          : s.projectId !== null && myProjects.has(s.projectId)),
     );
-    const listed = [...organization, ...mine];
+    const listed = [...ofContext, ...organization, ...mine];
     return {
       // The sidebar shows the first few; "All spaces" lists the rest.
       sidebar: listed.slice(0, SIDEBAR_SPACES),
       more: listed.length > SIDEBAR_SPACES,
-      ofProject: (projectId: string) =>
-        active.filter((s) => s.projectId === projectId),
     };
-  }, [index.spaces, directory.projectMembers, directory.teams, userId]);
+  }, [
+    index.spaces,
+    directory.projectMembers,
+    directory.teams,
+    userId,
+    contextProjectId,
+  ]);
 }

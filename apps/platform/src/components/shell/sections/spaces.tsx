@@ -15,17 +15,15 @@ import {
 } from "@lictory/platform/components/shell/sidebar-parts";
 import type { NavSection } from "@lictory/platform/components/shell/nav-registry";
 
-// Lictory Spaces: every space overview, then the organization's spaces and
-// those of my projects and teams. The project in context lists its own
-// spaces with its rows; they are not repeated here.
+// Lictory Spaces, listed in one place: every space overview, then the
+// spaces of the project in context, the organization's spaces and those of
+// my other projects and teams. The project's own rows do not repeat them.
 function SpacesSection() {
   const { organization } = useWorkspace();
   const { project } = useShell();
   const { openCreateSpace } = useSpaces();
   const active = useNavActive();
-  const spaces = useNavigationSpaces().sidebar.filter(
-    (space) => space.projectId !== project?.id,
-  );
+  const spaces = useNavigationSpaces(project?.id).sidebar;
   const org = organization.slug;
   const all = paths.spaces(org);
   return (

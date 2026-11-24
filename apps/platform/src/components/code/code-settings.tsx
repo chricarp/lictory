@@ -2,8 +2,11 @@ import { useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   Check,
+  CircleAlert,
+  CircleCheck,
   Copy,
   FolderGit2,
+  Info,
   Loader2,
   Plus,
   RefreshCw,
@@ -28,6 +31,7 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
@@ -235,16 +239,25 @@ function ConnectionRow({
   return (
     <div className="space-y-3 px-5 py-4 text-[13px]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{connection.name}</span>
-        <Badge tone="neutral">{providerLabels[connection.provider]}</Badge>
-        {connection.status === "active" ? (
-          <Badge tone="good">Connected</Badge>
-        ) : (
-          <Badge tone="danger">Needs attention</Badge>
-        )}
+        {/* The default name is the host and the account; say each once. */}
+        <span className="font-medium">
+          {connection.name ===
+          `${providerLabels[connection.provider]} ${connection.accountLabel}`
+            ? providerLabels[connection.provider]
+            : connection.name}
+        </span>
         <span className="text-muted-foreground">
           as {connection.accountLabel}
         </span>
+        {connection.status === "active" ? (
+          <StatusChip tone="success" icon={<CircleCheck />}>
+            Connected
+          </StatusChip>
+        ) : (
+          <StatusChip tone="danger" icon={<CircleAlert />}>
+            Needs attention
+          </StatusChip>
+        )}
         {canEdit && (
           <span className="ml-auto flex flex-wrap gap-1">
             {confirming ? (
@@ -295,14 +308,21 @@ function ConnectionRow({
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        {connection.baseUrl}
+        <span className="font-mono">{connection.baseUrl}</span>
         {" · "}
         {connection.lastWebhookAt
           ? `last webhook ${relativeTime(connection.lastWebhookAt)}`
           : "no webhook received yet"}
-        {connection.longLivedCredential &&
-          " · uses a stored token: agent sessions receive it as is, so prefer an app or short-lived credential where the host offers one"}
       </p>
+      {connection.longLivedCredential && (
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Info aria-hidden className="mt-px size-3.5 shrink-0" />
+          <span>
+            Uses a stored token, which agent sessions receive as is. Prefer an
+            app or a short-lived credential where the host offers one.
+          </span>
+        </p>
+      )}
       {confirming && (
         <p className="text-xs text-muted-foreground">
           Its repositories, pull requests and links stay as history and return

@@ -128,11 +128,11 @@ function AiPolicySection() {
         </p>
         {/* The decisions, as rows instead of prose. */}
         <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-[10rem_1fr]">
-          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+          <dt className="text-xs font-semibold text-muted-foreground sm:pt-0.5">
             Who can use it
           </dt>
           <dd>Members who can request reviews in a project.</dd>
-          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+          <dt className="text-xs font-semibold text-muted-foreground sm:pt-0.5">
             Data sent
           </dt>
           <dd>
@@ -141,7 +141,7 @@ function AiPolicySection() {
           </dd>
           {sentTo && (
             <>
-              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+              <dt className="text-xs font-semibold text-muted-foreground sm:pt-0.5">
                 Sent to
               </dt>
               <dd>
@@ -153,7 +153,7 @@ function AiPolicySection() {
                   </>
                 )}
               </dd>
-              <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+              <dt className="text-xs font-semibold text-muted-foreground sm:pt-0.5">
                 Voice input
               </dt>
               <dd>
@@ -165,7 +165,7 @@ function AiPolicySection() {
               </dd>
             </>
           )}
-          <dt className="font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:pt-0.5">
+          <dt className="text-xs font-semibold text-muted-foreground sm:pt-0.5">
             Who can change this
           </dt>
           <dd>

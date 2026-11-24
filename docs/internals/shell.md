@@ -41,9 +41,10 @@ the modules' synchronized state.
 - **Phones** get the rail and sidebar in a drawer, opened from the top bar,
   which also carries a dot when something addressed to the person waits.
 - **Projects** is the Work module: the project in context (named by the
-  route, or the last one visited) with its queues, delivery surfaces, teams,
-  spaces and saved views. Organization-level pages keep the last project in
-  context rather than dropping the person out of it.
+  route, or the last one visited) with its queues, delivery surfaces, teams
+  and saved views. Its spaces are listed once, first in the Spaces section.
+  Organization-level pages keep the last project in context rather than
+  dropping the person out of it.
 
 ## Home
 
@@ -57,21 +58,24 @@ and what is the factory doing?" before any module.
   data exists and the next one the single primary action. It leaves Home by
   itself once everything exists, and while it shows, Home shows no empty
   sections beside it (`components/shell/home/setup.ts`).
-- **Waiting on you** is the Inbox's To do derivation (reviews requested,
-  pull requests to approve, page changes to review or merge, changes
-  requested, blocked items): the same entries, the first few, linking to the
-  Inbox for the rest. The count under the greeting adds what agents ask me.
+- **Waiting on you** is the Inbox's To do derivation (questions agents ask
+  me, reviews requested, pull requests to approve, page changes to review or
+  merge, changes requested, blocked items): the same entries, the first few,
+  linking to the Inbox for the rest. The greeting, the card and the Inbox tab
+  count the same list (`waitingOnYou` in `components/shell/home/derive.ts`).
+  An agent's question is a compact `ApprovalRequest`, reviewed in place
+  before it can be approved; agents come first, because a waiting agent is
+  stopped.
 - **In flight** is work assigned to me whose delivery status is started (in
   Lictory, or as the delivery tool reports it).
 - **Ready to start** is ready, not yet committed work that is mine or
   unassigned. Work assigned to someone else is theirs to start.
 - **Recently edited pages** are pages whose published version changed last.
-- **Registered cards** sit beside them: **Agents ask you** (each request an
-  `ApprovalRequest` reviewed in place before it can be approved) and
-  **Agents at work** (sessions running that do not already wait on me, so a
-  session is listed once). A card renders nothing until it has something to
-  show, so an organization without agents sees no empty box, and a failing
-  card never takes Home down. In flight, Ready to start and Recently edited
+- **Registered cards** sit beside them: **Agents at work** (sessions
+  running that do not already wait on me, so a session is listed once). A
+  card renders nothing until it has something to show, so an organization
+  without agents sees no empty box, and a failing card never takes Home
+  down. In flight, Ready to start and Recently edited
   pages are hidden while empty; Waiting on you says so in one line.
 
 Every list is derived from synchronized state in the browser
@@ -100,13 +104,13 @@ hooks the shell calls for each entry run in a stable order.
 
 Registered today:
 
-| Module          | Section, badge                                                                | Palette                                    | Home                           |
-| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------ |
-| Channels        | joined channels, unread bold; mentions in channels (strong, dock)             | conversations, unread first                | none                           |
-| Direct messages | recent conversations; everything unread in them (strong, dock)                | (with conversations)                       | none                           |
-| Factory         | overview, agents, runners; sessions waiting on me (strong, not dock)          | sessions (active first), agents            | Agents ask you, Agents at work |
-| Work            | the project in context with its queues (and its Factory queue in native mode) | projects, items, views (the palette's own) | Home's own lists               |
-| Code            | pull requests; open ones requesting my review (strong, not dock)              | none                                       | none                           |
+| Module          | Section, badge                                                                | Palette                                    | Home             |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------ | ---------------- |
+| Channels        | joined channels, unread bold; mentions in channels (strong, dock)             | conversations, unread first                | none             |
+| Direct messages | recent conversations; everything unread in them (strong, dock)                | (with conversations)                       | none             |
+| Factory         | overview, agents, runners; sessions waiting on me (strong, not dock)          | sessions (active first), agents            | Agents at work   |
+| Work            | the project in context with its queues (and its Factory queue in native mode) | projects, items, views (the palette's own) | Home's own lists |
+| Code            | pull requests; open ones requesting my review (strong, not dock)              | none                                       | none             |
 
 The modules live in their own folders (`components/channels/nav.tsx`, `components/code/code-nav.tsx`,
 `components/factory/nav.tsx`); the registry only lists them. Code's

@@ -42,8 +42,6 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { itemOrigin } from "@lictory/platform/components/items/queues";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
-import { useNavigationSpaces } from "@lictory/platform/components/spaces/store";
-import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import {
   SidebarGroup,
   SidebarLink,
@@ -54,8 +52,9 @@ import {
 import type { NavSection } from "@lictory/platform/components/shell/nav-registry";
 
 // Work: the project in context (named by the route, or the last one
-// visited) with its queues, delivery, teams, spaces and saved views. The
-// project is a clear switcher, with its settings one click away.
+// visited) with its queues, delivery, teams and saved views; its spaces are
+// listed under Spaces. The project is a clear switcher, with its settings
+// one click away.
 function ProjectsSection() {
   const { projects, organization } = useWorkspace();
   const { project } = useShell();
@@ -168,8 +167,8 @@ function ProjectSwitcher({
 }
 
 // Inside a project the rows follow the work: refine it, deliver it (by the
-// project's mode), browse everything, the teams doing it, its spaces, and
-// saved views one click away without crowding the rest.
+// project's mode), browse everything, the teams doing it, and saved views
+// one click away without crowding the rest.
 function ProjectNav({ project }: { project: Project }) {
   const { delivery, directory, organization, userId } = useWorkspace();
   const active = useNavActive();
@@ -201,7 +200,6 @@ function ProjectNav({ project }: { project: Project }) {
   const viewActive = views.some(
     (v) => v.id !== "all" && active(paths.view(org, key, v.id)),
   );
-  const projectSpaces = useNavigationSpaces().ofProject(project.id);
   const tool = external
     ? (projectDeliveryTool(directory, project.id).product ?? "External")
     : null;
@@ -305,23 +303,6 @@ function ProjectNav({ project }: { project: Project }) {
                 }
               >
                 {t.name}
-              </SidebarLink>
-            );
-          })}
-        </SidebarGroup>
-      )}
-      {projectSpaces.length > 0 && (
-        <SidebarGroup id="project-spaces" label="Spaces" className="pt-2">
-          {projectSpaces.map((space) => {
-            const href = paths.space(org, space.slug);
-            return (
-              <SidebarLink
-                key={space.id}
-                href={href}
-                active={active(href)}
-                icon={<SpaceIcon space={space} />}
-              >
-                {space.name}
               </SidebarLink>
             );
           })}

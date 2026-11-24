@@ -28,12 +28,9 @@ const allowed = new Set([
 // Pages that still draw their own header. Each module stream adopts
 // `PageHeader` and removes its entries; the list only shrinks.
 const knownOffenders = new Set([
-  "components/app/account-page.tsx",
   "components/channels/browser.tsx",
   "components/channels/header.tsx",
   "components/claims/factory-queue.tsx",
-  "components/code/code-page.tsx",
-  "components/code/pull-request-page.tsx",
   "components/delivery/backlog.tsx",
   "components/delivery/board.tsx",
   "components/delivery/handoff.tsx",
@@ -45,11 +42,6 @@ const knownOffenders = new Set([
   "components/items/issue-list.tsx",
   "components/review/ai-review.tsx",
   "components/review/branch-workspace.tsx",
-  "components/spaces/history/workspace.tsx",
-  "components/spaces/space-home.tsx",
-  "components/spaces/space-settings.tsx",
-  "components/spaces/spaces-index.tsx",
-  "components/workspace/settings-section.tsx",
 ]);
 
 function sources(dir: string): string[] {

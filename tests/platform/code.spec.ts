@@ -116,8 +116,10 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
       ben.page.getByRole("heading", { name: "PAY-1: refunds over the API" }),
     ).toBeVisible();
     await expect(ben.page.getByText("Ready to merge")).toBeVisible();
-    await ben.page.getByRole("button", { name: "Show files changed" }).click();
+    // Opening the files view reads them from the host.
+    await ben.page.getByRole("tab", { name: "Files changed" }).click();
     await expect(ben.page.getByText("src/refunds.ts")).toBeVisible();
+    await ben.page.getByRole("tab", { name: "Conversation" }).click();
     await ben.page.getByRole("button", { name: "Merge", exact: true }).click();
     await ben.page.getByRole("button", { name: /^Merge [0-9a-f]{7}$/ }).click();
     await expect(ben.page.getByText("Merged", { exact: true })).toBeVisible({

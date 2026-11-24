@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useId, useState } from "react";
-import { Archive, Lock, Plus, Search, ShieldAlert, X } from "lucide-react";
+import {
+  Archive,
+  Library,
+  Lock,
+  Plus,
+  Search,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import type { SpaceAccessLevel } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
@@ -28,6 +36,7 @@ import {
   levelDescriptions,
   levelLabels,
 } from "@lictory/platform/components/spaces/space-meta";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 
 // Past this many spaces the index offers a filter.
 const filterFrom = 7;
@@ -72,84 +81,89 @@ export function SpacesIndex() {
       .sort((a, b) => a.title.localeCompare(b.title)),
   ].filter((g) => g.spaces.length);
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-4 pt-6 pb-16 sm:px-8 sm:pt-8">
-        <header className="flex flex-wrap items-center gap-x-3 gap-y-4">
-          <div className="min-w-0 flex-1 basis-64">
-            <h1 className="text-xl font-semibold tracking-tight">Spaces</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Pages your teams write and review together.
-            </p>
-          </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            {filtering && (
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title="Spaces"
+        icon={<Library />}
+        description="Pages your teams write and review together."
+        meta={
+          active.length > 0 &&
+          `${active.length} space${active.length === 1 ? "" : "s"}`
+        }
+        actions={
+          <Button size="sm" onClick={() => openCreateSpace()}>
+            <Plus className="size-3.5" aria-hidden /> New space
+          </Button>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-4 pt-6 pb-16 sm:px-8">
+          {filtering && (
+            <div className="mb-4 flex justify-end">
               <SpaceFilter
                 value={query}
                 onChange={setQuery}
                 count={shown.length}
                 total={active.length}
               />
-            )}
-            <Button onClick={() => openCreateSpace()} className="shrink-0">
-              <Plus className="size-3.5" aria-hidden /> New space
-            </Button>
-          </div>
-        </header>
-        {!complete && !spaces.length ? (
-          <LoadingState label="Loading spaces" />
-        ) : !active.length && !archived.length ? (
-          <EmptyState
-            illustration="knowledge"
-            title="No spaces yet"
-            action={
-              <Button onClick={() => openCreateSpace()}>
-                <Plus className="size-3.5" aria-hidden /> New space
-              </Button>
-            }
-          >
-            Create a space for a handbook, a project’s decisions or a team’s
-            runbooks. You choose who can read and edit it.
-          </EmptyState>
-        ) : (
-          <div className="mt-6 space-y-6">
-            {groups.length > 0 ? (
-              <SpaceList groups={groups} />
-            ) : active.length ? (
-              <div className="rounded-xl border border-transparent bg-card px-4 py-10 text-center text-[13px] text-muted-foreground shadow-(--shadow-border)">
-                No spaces match “{query.trim()}”.{" "}
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="rounded-sm font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
-                >
-                  Clear filter
-                </button>
-              </div>
-            ) : null}
-            {archived.length > 0 && (
-              <Collapsible open={showArchived} onOpenChange={setShowArchived}>
-                <CollapsibleTrigger className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
-                  <Archive className="size-3.5" aria-hidden />
-                  {showArchived
-                    ? "Hide archived spaces"
-                    : `Show archived spaces (${archived.length})`}
-                </CollapsibleTrigger>
-                <CollapsiblePanel className="mt-3">
-                  <SpaceList
-                    groups={[
-                      {
-                        key: "archived",
-                        title: "Archived",
-                        spaces: archived,
-                      },
-                    ]}
-                  />
-                </CollapsiblePanel>
-              </Collapsible>
-            )}
-          </div>
-        )}
-        <ManagedWithoutAccess />
+            </div>
+          )}
+          {!complete && !spaces.length ? (
+            <LoadingState label="Loading spaces" />
+          ) : !active.length && !archived.length ? (
+            <EmptyState
+              illustration="knowledge"
+              title="No spaces yet"
+              action={
+                <Button onClick={() => openCreateSpace()}>
+                  <Plus className="size-3.5" aria-hidden /> New space
+                </Button>
+              }
+            >
+              Create a space for a handbook, a project’s decisions or a team’s
+              runbooks. You choose who can read and edit it.
+            </EmptyState>
+          ) : (
+            <div className="space-y-6">
+              {groups.length > 0 ? (
+                <SpaceList groups={groups} />
+              ) : active.length ? (
+                <div className="rounded-xl border border-transparent bg-card px-4 py-10 text-center text-[13px] text-muted-foreground shadow-(--shadow-border)">
+                  No spaces match “{query.trim()}”.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="rounded-sm font-medium text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              ) : null}
+              {archived.length > 0 && (
+                <Collapsible open={showArchived} onOpenChange={setShowArchived}>
+                  <CollapsibleTrigger className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground">
+                    <Archive className="size-3.5" aria-hidden />
+                    {showArchived
+                      ? "Hide archived spaces"
+                      : `Show archived spaces (${archived.length})`}
+                  </CollapsibleTrigger>
+                  <CollapsiblePanel className="mt-3">
+                    <SpaceList
+                      groups={[
+                        {
+                          key: "archived",
+                          title: "Archived",
+                          spaces: archived,
+                        },
+                      ]}
+                    />
+                  </CollapsiblePanel>
+                </Collapsible>
+              )}
+            </div>
+          )}
+          <ManagedWithoutAccess />
+        </div>
       </div>
     </div>
   );
@@ -198,7 +212,7 @@ function SpaceFilter({
             aria-label="Clear filter"
             title="Clear filter"
             onClick={() => onChange("")}
-            className="pointer-events-auto grid size-6 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+            className="pointer-events-auto grid size-6 place-items-center rounded-full text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
           >
             <X className="size-3.5" aria-hidden />
           </button>
@@ -251,13 +265,13 @@ function SpaceGroup({ group, first }: { group: Group; first: boolean }) {
           <>
             <span
               aria-hidden
-              className="hidden text-right font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase @min-[40rem]/list:block"
+              className="hidden text-right text-xs font-semibold text-muted-foreground @min-[40rem]/list:block"
             >
               Pages
             </span>
             <span
               aria-hidden
-              className="hidden text-right font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase @min-[40rem]/list:block"
+              className="hidden text-right text-xs font-semibold text-muted-foreground @min-[40rem]/list:block"
             >
               Updated
             </span>
@@ -292,7 +306,7 @@ function SpaceRow({ space }: { space: Space }) {
       href={paths.space(organization.slug, space.slug)}
       className={cn(
         columns,
-        "min-h-13 px-4 py-2.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset",
+        "min-h-13 px-4 py-2.5 focus-ring-inset outline-none hover:bg-muted/50",
       )}
     >
       <span className="flex min-w-0 items-start gap-3 @min-[40rem]/list:items-center">

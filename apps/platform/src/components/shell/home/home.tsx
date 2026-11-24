@@ -24,8 +24,10 @@ import { Kbd } from "@lictory/ui/primitives";
 import { useSessionUser } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
-import { useAttention } from "@lictory/platform/components/workspace/inbox";
-import { usePageAttention } from "@lictory/platform/components/knowledge/page-attention";
+import {
+  WaitingRowView,
+  useWaitingOnYou,
+} from "@lictory/platform/components/workspace/inbox";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
@@ -44,10 +46,6 @@ import {
   SetupChecklist,
   useSetup,
 } from "@lictory/platform/components/shell/home/setup-checklist";
-import {
-  useFactory,
-  waitingOnMe,
-} from "@lictory/platform/components/factory/store";
 import {
   inFlight,
   readyToStart,
@@ -83,8 +81,7 @@ function Home() {
     capabilitiesIn,
   } = useWorkspace();
   const { openCreate, project } = useShell();
-  const attention = useAttention();
-  const pages = usePageAttention();
+  const waiting = useWaitingOnYou();
   const { index } = useSpaces();
   const links = useMemo(
     () =>
@@ -118,14 +115,6 @@ function Home() {
   );
   const org = organization.slug;
   const setup = useSetup();
-  const factory = useFactory();
-  // What agents ask me counts as waiting on me, like reviews and approvals.
-  const agentAsks = waitingOnMe(
-    factory.sessions,
-    factory.agentById,
-    userId,
-  ).reduce((n, s) => n + s.approvals.length, 0);
-  const waitingTotal = attention.length + pages.length;
   const showSetup = setup.ready && !setup.complete;
   const capabilities = capabilitiesIn(project?.id);
   const canCreate =
@@ -163,7 +152,7 @@ function Home() {
               {firstName ? `, ${firstName}` : ""}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {summary(waitingTotal + agentAsks, flight.total, ready.total)}
+              {summary(waiting.length, flight.total, ready.total)}
             </p>
           </div>
           {showSetup && (
@@ -176,7 +165,7 @@ function Home() {
               <Panel
                 title="Waiting on you"
                 icon={<Inbox />}
-                count={waitingTotal}
+                count={waiting.length}
                 more={{
                   label: "Open Inbox",
                   href: `${paths.inbox(org)}?view=todo`,
@@ -185,35 +174,12 @@ function Home() {
                 empty={
                   showSetup
                     ? undefined
-                    : "Nothing waits on you. Review requests, approvals and pull requests to merge appear here."
+                    : "Nothing waits on you. Review requests, questions from agents and pull requests to merge appear here."
                 }
               >
-                {attention.slice(0, SHOWN).map((entry) => {
-                  const p = projectById.get(entry.item.projectId);
-                  return (
-                    <ItemRow
-                      key={`${entry.item.id}-${entry.reason}`}
-                      item={entry.item}
-                      project={p}
-                      reason={`${entry.reason} · ${entry.detail}`}
-                      reasonIcon={entry.icon}
-                    />
-                  );
-                })}
-                {pages
-                  .slice(0, Math.max(0, SHOWN - attention.length))
-                  .map((entry) => (
-                    <ListRow
-                      key={entry.pullRequest.id}
-                      href={`${paths.spacePage(org, entry.space.slug, entry.page.id)}/history?view=pulls&pr=${entry.pullRequest.id}`}
-                      leading={
-                        <FileText className="size-4 text-muted-foreground" />
-                      }
-                      title={entry.page.title}
-                      meta={`${pageReason[entry.reason]} · ${entry.space.name}`}
-                      time={entry.pullRequest.updatedAt}
-                    />
-                  ))}
+                {waiting.slice(0, SHOWN).map((row) => (
+                  <WaitingRowView key={row.key} row={row} />
+                ))}
               </Panel>
               <Panel
                 title="In flight"
@@ -292,13 +258,6 @@ function Home() {
     </div>
   );
 }
-
-const pageReason = {
-  review_requested: "Review requested on a page change",
-  review_again: "Review again: the page change was updated",
-  changes_requested: "Changes requested on your page change",
-  ready_to_merge: "Ready to merge",
-} as const;
 
 function summary(waiting: number, flight: number, ready: number) {
   const parts = [

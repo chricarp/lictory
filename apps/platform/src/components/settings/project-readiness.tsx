@@ -379,7 +379,7 @@ function TypeRules({
         const gone = removed.filter((c) => group.kinds.includes(c.kind));
         return (
           <div key={group.id} className="px-5 pt-2">
-            <p className="mb-0.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+            <p className="mb-0.5 text-xs font-semibold text-muted-foreground">
               {group.title}
             </p>
             {sortedKinds(builtIns, group.kinds).map((kind) => {

@@ -103,14 +103,6 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
   return (
     <div className="h-dvh">
       <SettingsLayout
-        icon={
-          <span
-            aria-hidden
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"
-          >
-            <ShieldUser className="size-5" />
-          </span>
-        }
         title="Admin console"
         subtitle={`${window.location.host} · accounts, organizations and access for this installation`}
         nav={nav}

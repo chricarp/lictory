@@ -1,5 +1,11 @@
-import { BellRing } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  BellRing,
+  CircleAlert,
+  CircleCheck,
+  CirclePause,
+  Clock,
+} from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { SubscriptionView } from "@lictory/core/agent-events/subscriptions";
 import {
   agentEventTypeList,
@@ -14,7 +20,7 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { Input } from "@lictory/ui/input";
-import { Badge } from "@lictory/ui/primitives";
+import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { Switch } from "@lictory/ui/switch";
 import {
   InlineError,
@@ -39,6 +45,20 @@ const when = (iso: string | null) =>
         minute: "2-digit",
       })
     : null;
+
+const statusTone: Record<SubscriptionView["status"], StatusTone> = {
+  active: "success",
+  paused: "neutral",
+  suspended: "danger",
+  expired: "attention",
+};
+
+const statusIcon: Record<SubscriptionView["status"], ReactNode> = {
+  active: <CircleCheck />,
+  paused: <CirclePause />,
+  suspended: <CircleAlert />,
+  expired: <Clock />,
+};
 
 const statusLabel: Record<SubscriptionView["status"], string> = {
   active: "Active",
@@ -337,12 +357,19 @@ export function EventWebhooksSection() {
               className="space-y-1.5 px-5 py-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2 text-[13px] font-medium">
-                  <span className="truncate">{subscription.name}</span>
-                  <Badge>
+                <div className="flex min-w-0 items-center gap-2 text-[13px]">
+                  <span className="truncate font-medium">
+                    {subscription.name}
+                  </span>
+                  <StatusChip
+                    tone={statusTone[subscription.status]}
+                    icon={statusIcon[subscription.status]}
+                  >
+                    {statusLabel[subscription.status]}
+                  </StatusChip>
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
-                  </Badge>
-                  <Badge>{statusLabel[subscription.status]}</Badge>
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {subscription.kind === "webhook" && (
@@ -389,9 +416,11 @@ export function EventWebhooksSection() {
                   </Button>
                 </div>
               </div>
-              <p className="text-xs break-all text-muted-foreground">
-                <code>{hostOf(subscription.url)}</code> ·{" "}
-                {organizationName(subscription.organizationId)} · {typesText}
+              <p className="text-xs break-words text-muted-foreground">
+                <code className="font-mono break-all">
+                  {hostOf(subscription.url)}
+                </code>{" "}
+                · {organizationName(subscription.organizationId)} · {typesText}
               </p>
               <p
                 className="text-xs text-muted-foreground tabular-nums"
@@ -431,7 +460,7 @@ export function EventWebhooksSection() {
                 <p
                   role="status"
                   data-testid="event-webhook-test"
-                  className="text-xs text-foreground"
+                  className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground"
                 >
                   {notice.text}
                 </p>

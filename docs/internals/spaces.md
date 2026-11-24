@@ -622,8 +622,8 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 
 ## Integration with the rest of Lictory
 
-- Navigation: Spaces in the organization sidebar, and each project's and team's
-  spaces in their navigation. Page titles are in the command palette, and
+- Navigation: the Spaces section of the sidebar, the project in context's
+  spaces first. Page titles are in the command palette, and
   what pages say is found by [content search](#search-and-product-knowledge).
 - References to work items, other pages (optionally pinned to a version) and
   recorded decisions render as live chips for readers who can see the target:
@@ -1040,10 +1040,11 @@ attributed to the anonymized account, like specification threads.
   on `space_entity`). Creating a space, every access, home and publishing
   change and archiving a space wait for the server, because they decide who
   can read what.
-- **Navigation.** The organization sidebar lists the organization's spaces
-  and those of my projects and teams (the rest under "All spaces"); each
-  project's navigation lists its own and its teams' spaces. The command
-  palette finds spaces and page titles.
+- **Navigation.** Spaces are listed in one place, the sidebar's Spaces
+  section: the spaces of the project in context first, then the
+  organization's and those of my other projects and teams (the rest under
+  "All spaces"). The project's own rows do not repeat them, so a space is
+  never listed twice. The command palette finds spaces and page titles.
 - **The page tree** is a WAI-ARIA tree: arrow keys move and expand, Enter
   opens, Alt+Arrow moves a page among its siblings and Shift+F10 opens its
   actions. Dragging drops a page before, after or into another; "Move…"

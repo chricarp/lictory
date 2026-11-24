@@ -8,9 +8,17 @@ of them or changed in work they are part of. They are not an activity feed.
 The Inbox has two views of what is addressed to a person:
 
 - **Updates**: notifications, a history of events with read and archived state.
-- **To do**: current work derived from live state (reviews waiting on me, my
-  items blocked or with changes requested, my items ready). An entry leaves when
-  the state resolves; nothing needs marking as read.
+  Conversation activity is digested per conversation: the direct messages,
+  channel messages and thread replies of one channel or direct conversation
+  are one row ("Ben Ortiz · 2 messages", "#payments · 3 messages from …"),
+  read or archived together, so a busy conversation never buries a review
+  request. Mentions stay their own rows: they are addressed to the person
+  (`src/notifications/digest.ts`).
+- **To do**: current work derived from live state (questions agents ask me,
+  reviews waiting on me, with the blocking discussions on what I review, my
+  items blocked or with changes requested, my items ready). An entry leaves
+  when the state resolves; nothing needs marking as read. Home's "Waiting on
+  you" is the same list, so the two always count the same things.
 
 To do covers pages as well as work items, marked "Page": page pull requests
 that ask for my review and that I have not decided on (again after my
