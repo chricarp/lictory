@@ -1696,6 +1696,7 @@ export async function recordSessionPullRequestRefused(
 ) {
   const event = await factoryWrite(db, organizationId, async (tx) => {
     const session = await lockSession(tx, organizationId, sessionId);
+    if (!session) return null;
     const key = `pull-request-refused:${session.attempts}`;
     const [seen] = await tx
       .select({ sequence: s.agentSessionEvent.sequence })

@@ -843,7 +843,7 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
   // "no code host": the checks say what the pull request is waiting for.
   await f.ci(f.repos.pay, pr.number, pr.headSha, "failure");
   const open = await f.doneChecks(story.workItemId);
-  assert.ok(open.every((c) => !/No code host/.test(c.detail)));
+  assert.ok(open.every((c) => !c.detail.includes("No code host")));
   assert.match(
     open.find((c) => c.kind === "pull_request_merged")!.detail,
     /^Waiting for .*#\d+ .* to be merged\.$/,

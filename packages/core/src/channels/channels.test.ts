@@ -758,10 +758,10 @@ void test("notifications go to mentions, direct messages and thread participants
   assert.equal(digest?.detail.excerpt, "Noon works.");
   assert.equal(digest?.detail.count, 3);
   assert.equal(
-    describeNotification(digest!, "Cy").headline,
+    describeNotification(digest, "Cy").headline,
     "3 new messages, the latest from Cy",
   );
-  await inbox.act(f.ada, { action: "markRead", ids: [digest!.id] });
+  await inbox.act(f.ada, { action: "markRead", ids: [digest.id] });
   await f.post(f.cy, dm, "See you there.");
   await drainNotifications(db);
   assert.equal((await dms()).length, 2);
