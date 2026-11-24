@@ -93,22 +93,6 @@ export const prStatusMeta: Record<
   },
 };
 
-export function PrStatusPill({ status }: { status: PrStatus }) {
-  const meta = prStatusMeta[status];
-  const Icon = meta.icon;
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium",
-        meta.pill,
-      )}
-    >
-      <Icon aria-hidden className="size-3.5" />
-      {meta.label}
-    </span>
-  );
-}
-
 export function PrStatusIcon({
   status,
   className,
@@ -196,7 +180,7 @@ export function Tabs<T extends string>({
           <TabsTab
             key={t.id}
             value={t.id}
-            className="relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-selected:border-foreground data-selected:font-medium data-selected:text-foreground"
+            className="relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground"
           >
             {t.icon}
             {t.label}

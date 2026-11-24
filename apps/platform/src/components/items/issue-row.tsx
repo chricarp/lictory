@@ -27,6 +27,7 @@ import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import {
   ReadinessBar,
   ReviewSignal,
+  hasReviewSignal,
 } from "@lictory/platform/components/items/signals";
 import { TypeIcon, epicGlyph } from "@lictory/platform/components/items/icons";
 import {
@@ -56,6 +57,7 @@ export const IssueRow = memo(function IssueRow({
   hint,
   preview,
   pages,
+  showEstimate = true,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -84,6 +86,8 @@ export const IssueRow = memo(function IssueRow({
   preview?: ItemPreviewTarget;
   // Readable pages about the item (knowledge links).
   pages?: number;
+  // The list shows an estimate column (some item in it is estimated).
+  showEstimate?: boolean;
 }) {
   const delivery = useDelivery();
   const type = typeOf(delivery, item);
@@ -263,22 +267,33 @@ export const IssueRow = memo(function IssueRow({
         itemHref={href}
         className="hidden sm:inline-flex"
       />
-      {project?.deliveryMode !== "external" && (
+      {project?.deliveryMode !== "external" && showEstimate && (
         <span className="inline-flex shrink-0 justify-center md:w-7">
           {item.estimate !== null && (
             <span
               className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
-              title="Estimate"
+              title={`Estimate: ${item.estimate}`}
             >
-              {item.estimate}
+              <span aria-hidden>{item.estimate}</span>
+              <span className="sr-only">Estimate {item.estimate}</span>
             </span>
           )}
         </span>
       )}
-      <ReviewSignal
-        item={item}
-        className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
-      />
+      {hasReviewSignal(item) ? (
+        <ReviewSignal
+          item={item}
+          className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
+        />
+      ) : (
+        // An empty cell would read as missing data: say there is nothing.
+        <span
+          title="No review requested and no open discussions"
+          className="hidden text-xs text-muted-foreground/70 md:mr-3 md:inline md:w-36 md:shrink-0 @min-[65rem]/frame:w-52"
+        >
+          —
+        </span>
+      )}
       {/* A fixed slot keeps assignee and time aligned on rows without checks. */}
       <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
         <ReadinessBar item={item} labelled />

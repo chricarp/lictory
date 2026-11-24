@@ -708,7 +708,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
         exact: false,
       }),
     ).toContainText(
-      "Lictory automatically deleted branch integration/retries.",
+      "Lictory automatically deleted the branch integration/retries.",
     );
     await page.reload();
     await expect(deletion).toHaveCount(1);

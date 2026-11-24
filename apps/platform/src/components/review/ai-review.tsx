@@ -1,3 +1,5 @@
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import {
@@ -340,22 +342,20 @@ export function AiReviewView({
       {/* The review is evidence, not a decision: it reads as a proposal in a
           tray, with its provenance named before its verdict. */}
       <header className="rounded-[1.375rem] bg-tray p-1 ring-1 ring-border/70 ring-inset">
-        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2 pb-2.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2 pb-2.5 text-xs font-semibold text-muted-foreground">
           <IntelligenceMark className="size-3.5 text-foreground" />
           Lictory Intelligence · review
-          <span className="ml-auto inline-flex h-5 items-center rounded-full bg-card px-2 tracking-[0.04em] ring-1 ring-foreground/8 ring-inset">
-            Proposal · people decide
-          </span>
+          <StatusChip className="ml-auto">Proposal · people decide</StatusChip>
         </div>
         <div className="rounded-[1.125rem] bg-card p-4 shadow-(--shadow-border)">
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
               {/* The headline is what needs a human, not a grade. */}
-              <h1 className="text-xl font-semibold tracking-[-0.02em]">
+              <ItemScreenTitle>
                 {run.findings.length === 0
                   ? "No proposed concerns"
                   : `${run.findings.length} proposed concern${run.findings.length === 1 ? "" : "s"}`}
-              </h1>
+              </ItemScreenTitle>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
                 AI assessment of {identifier(ctx.project, ctx.item.number)} ·
                 requested by {ctx.memberName(run.requestedById)} ·{" "}

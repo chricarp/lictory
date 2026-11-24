@@ -1,14 +1,15 @@
 import { IterationContext } from "@lictory/platform/components/knowledge/context";
 import { LoadingState } from "@lictory/ui/spinner";
-import { Link } from "@lictory/platform/lib/navigation";
 import { useParams } from "@lictory/platform/lib/navigation";
-import { BarChart3, ChevronLeft } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import {
   iterationLabel,
   type IterationReport,
 } from "@lictory/core/contracts/protocol";
 import { MissingState } from "@lictory/ui/status-page";
+import { StatusChip } from "@lictory/ui/status-chip";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
@@ -46,69 +47,88 @@ export function IterationReportPage() {
       </MissingState>
     );
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-6 px-6 py-6">
-        <Link
-          href={paths.backlog(organization.slug, project.key)}
-          className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="size-3.5" /> {project.name} backlog
-        </Link>
-        <header>
-          <h1 className="text-lg font-semibold tracking-tight">
-            {iteration
-              ? iterationLabel(iteration, project?.iterationMode)
-              : "Iteration"}
-            {iteration && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {shortRange(iteration)} ·{" "}
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title={
+          iteration
+            ? iterationLabel(iteration, project?.iterationMode)
+            : "Iteration"
+        }
+        icon={<BarChart3 />}
+        back={{
+          label: `Back to the ${project.name} backlog`,
+          href: paths.backlog(organization.slug, project.key),
+        }}
+        meta={
+          iteration ? (
+            <>
+              <span className="tabular-nums">{shortRange(iteration)}</span>
+              <StatusChip
+                tone={
+                  iteration.state === "active"
+                    ? "success"
+                    : iteration.state === "completed"
+                      ? "neutral"
+                      : "info"
+                }
+              >
                 {iteration.state === "active"
                   ? "Active"
                   : iteration.state === "completed"
                     ? "Completed"
                     : "Planned"}
-              </span>
-            )}
-          </h1>
+              </StatusChip>
+            </>
+          ) : undefined
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-6 px-6 py-6 max-sm:px-3">
+          {iteration && (
+            // On phones the header's meta is hidden: the dates stay here.
+            <p className="text-[13px] text-muted-foreground sm:hidden">
+              {shortRange(iteration)}
+            </p>
+          )}
           {iteration?.goal && (
-            <p className="mt-1 text-[13px] text-muted-foreground">
+            <p className="text-[13px] text-muted-foreground">
               Goal: {iteration.goal}
             </p>
           )}
-        </header>
-        {iteration && project.deliveryMode === "native" && (
-          <IterationContext project={project} iteration={iteration} />
-        )}
-        {!report ? (
-          <LoadingState label="Loading report" />
-        ) : (
-          <>
-            <Totals report={report} usePoints={usePoints} />
-            <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
-              <h2 className="mb-3 text-sm font-semibold">Burndown</h2>
-              <Burndown
-                report={report}
-                usePoints={usePoints}
-                iteration={iteration}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">
-                Remaining {usePoints ? "points" : "items"} per day, replayed
-                from recorded changes. The dashed line is the ideal pace from
-                the committed scope to the last day; the upper line shows scope
-                changes.
-                {scaled &&
-                  !usePoints &&
-                  " Nothing in this iteration is estimated yet, so it burns down in items."}
-              </p>
-            </section>
-            {report.velocity.length > 0 && scaled && (
+          {iteration && project.deliveryMode === "native" && (
+            <IterationContext project={project} iteration={iteration} />
+          )}
+          {!report ? (
+            <LoadingState label="Loading report" />
+          ) : (
+            <>
+              <Totals report={report} usePoints={usePoints} />
               <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
-                <h2 className="mb-3 text-sm font-semibold">Velocity</h2>
-                <Velocity report={report} />
+                <h2 className="mb-3 text-sm font-semibold">Burndown</h2>
+                <Burndown
+                  report={report}
+                  usePoints={usePoints}
+                  iteration={iteration}
+                />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Remaining {usePoints ? "points" : "items"} per day, replayed
+                  from recorded changes. The dashed line is the ideal pace from
+                  the committed scope to the last day; the upper line shows
+                  scope changes.
+                  {scaled &&
+                    !usePoints &&
+                    " Nothing in this iteration is estimated yet, so it burns down in items."}
+                </p>
               </section>
-            )}
-          </>
-        )}
+              {report.velocity.length > 0 && scaled && (
+                <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
+                  <h2 className="mb-3 text-sm font-semibold">Velocity</h2>
+                  <Velocity report={report} />
+                </section>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

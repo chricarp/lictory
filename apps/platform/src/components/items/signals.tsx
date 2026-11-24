@@ -13,6 +13,16 @@ import type { WorkItem } from "@lictory/core/contracts/protocol";
 // the title attribute explains them.
 // Compact rows show only the one signal that needs attention most: blockers
 // first, then the review state; the full row shows every signal.
+// Whether the review slot of a row has anything to say: blockers, open
+// discussions or review requests.
+export function hasReviewSignal(item: WorkItem) {
+  return (
+    item.blockingThreads > 0 ||
+    item.openThreads > 0 ||
+    reviewState(item) !== "none"
+  );
+}
+
 export function ReviewSignal({
   item,
   className,

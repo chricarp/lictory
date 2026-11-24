@@ -1,3 +1,10 @@
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import {
+  BranchName,
+  SpecMergeBox,
+  SpecPullRequestHeader,
+  type MergeRequirement,
+} from "@lictory/platform/components/review/spec-pull-request";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -107,7 +114,6 @@ import {
   FlowSteps,
   NextStep,
   PrStatusIcon,
-  PrStatusPill,
   TabPanel,
   Tabs,
   plural,
@@ -475,7 +481,7 @@ function BranchOverview({
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">Branches & pull requests</h1>
+        <ItemScreenTitle>Branches & pull requests</ItemScreenTitle>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Propose changes to this specification without touching main. Edit on a
           branch, commit checkpoints, then open a pull request so the right
@@ -1060,10 +1066,10 @@ function BranchEditorBody({
     <>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <h1 className="flex items-center gap-2 font-mono text-lg font-semibold">
-            <GitBranch className="size-5 shrink-0" />
+          <ItemScreenTitle className="flex items-center gap-2 font-mono text-lg">
+            <GitBranch aria-hidden className="size-5 shrink-0" />
             <span className="truncate">{branch.name}</span>
-          </h1>
+          </ItemScreenTitle>
           <p className="text-xs text-muted-foreground">
             {memberName(branch.authorId)}&apos;s branch ·{" "}
             {ahead
@@ -2113,13 +2119,7 @@ function useMergeHash(snapshot: Snapshot | undefined) {
 }
 
 // ─── Pull request ──────────────────────────────────────────────────────────
-type MergeRow = {
-  key: string;
-  state: CheckState;
-  text: string;
-  detail?: ReactNode;
-  action?: ReactNode;
-};
+type MergeRow = MergeRequirement;
 function PullRequestView({
   id,
   onNavigate,
@@ -2412,23 +2412,33 @@ function PullRequestView({
         </Button>
       ),
     });
-  const mergeEffect = isMain(target)
-    ? `Merging publishes this result as revision ${item.revisionNumber + 1} of the specification. Approvals carry over to that revision${willDeleteSource ? `, and ${sourceName} is deleted` : ""}.`
-    : `Merging adds this result to ${targetName} as a merge commit. Main is not affected.`;
+  const mergeEffect = isMain(target) ? (
+    <>
+      Merging publishes this result as revision {item.revisionNumber + 1} of the
+      specification. Approvals carry over to that revision
+      {willDeleteSource && (
+        <>
+          , and the branch <BranchName>{sourceName}</BranchName> is deleted
+        </>
+      )}
+      .
+    </>
+  ) : (
+    <>
+      Merging adds this result to <BranchName>{targetName}</BranchName> as a
+      merge commit. Main is not affected.
+    </>
+  );
 
   return (
     <>
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold wrap-break-word">{p.title}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <PrStatusPill status={p.status} />
-          <span className="font-medium">{memberName(p.authorId)}</span>
-          <span className="text-muted-foreground">
-            {p.status === "merged" ? "merged" : "wants to merge"}{" "}
-            {plural(sourceHistory.length || shownHistory.length, "commit")} into
-          </span>
-          <BranchChip name={targetName} />
-          <span className="text-muted-foreground">from</span>
+      <SpecPullRequestHeader
+        title={p.title}
+        state={p.status}
+        authorId={p.authorId}
+        commits={sourceHistory.length || shownHistory.length}
+        target={<BranchChip name={targetName} />}
+        source={
           <BranchChip
             name={sourceName}
             muted={!source}
@@ -2438,8 +2448,8 @@ function PullRequestView({
                 : undefined
             }
           />
-        </div>
-      </header>
+        }
+      />
       <ErrorMessage message={error} />
       <Tabs
         className="space-y-6"
@@ -2485,65 +2495,40 @@ function PullRequestView({
             <div className="min-w-0 space-y-4">
               {/* What blocks the merge comes first, before the conversation. */}
               {p.status !== "merged" ? (
-                <section
-                  aria-label="Merge status"
-                  className={cn(
-                    "overflow-hidden rounded-lg border",
-                    !blockers.length && "border-success/40",
-                  )}
+                <SpecMergeBox
+                  requirements={rows}
+                  blockers={blockers.length}
+                  targetName={targetName}
+                  status={
+                    actionRuns.length > 0 &&
+                    !actionGate && (
+                      <div className="border-b px-4 py-2.5">
+                        <ActionCheckRow
+                          pullRequestId={p.id}
+                          sourceHeadId={source?.headId}
+                          onDetails={() => setTab("checks")}
+                        />
+                      </div>
+                    )
+                  }
+                  effect={mergeEffect}
+                  refusal={
+                    canMerge
+                      ? undefined
+                      : `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`
+                  }
+                  merging={pending}
+                  onMerge={
+                    heads &&
+                    (() =>
+                      void run({
+                        type: "mergePullRequest",
+                        workItemId: item.id,
+                        pullRequestId: p.id,
+                        ...heads,
+                      }))
+                  }
                 >
-                  <div className="flex items-start gap-3 border-b px-4 py-3">
-                    <span
-                      className={cn(
-                        "grid size-8 shrink-0 place-items-center rounded-full",
-                        blockers.length
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-success text-white",
-                      )}
-                    >
-                      <GitMerge className="size-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="text-sm font-semibold">
-                        {blockers.length
-                          ? "Merging is blocked"
-                          : "Ready to merge"}
-                      </h2>
-                      <p className="text-xs text-muted-foreground">
-                        {blockers.length
-                          ? `${plural(blockers.length, "requirement")} into ${targetName} not met yet.`
-                          : "Required reviews approve this merge result. No conflicts or blocking discussions remain."}
-                      </p>
-                    </div>
-                  </div>
-                  {actionRuns.length > 0 && !actionGate && (
-                    <div className="border-b px-4 py-2.5">
-                      <ActionCheckRow
-                        pullRequestId={p.id}
-                        sourceHeadId={source?.headId}
-                        onDetails={() => setTab("checks")}
-                      />
-                    </div>
-                  )}
-                  <ul className="divide-y">
-                    {rows.map((r) => (
-                      <li
-                        key={r.key}
-                        className="flex items-start gap-2.5 px-4 py-2.5 text-[13px]"
-                      >
-                        <CheckIcon state={r.state} className="mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p>{r.text}</p>
-                          {r.detail && (
-                            <p className="text-xs text-muted-foreground">
-                              {r.detail}
-                            </p>
-                          )}
-                        </div>
-                        {r.action}
-                      </li>
-                    ))}
-                  </ul>
                   {resolving && ours && theirs && source && target && (
                     <div className="border-t p-4">
                       <ConflictResolver
@@ -2573,31 +2558,7 @@ function PullRequestView({
                       />
                     </div>
                   )}
-                  <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-3">
-                    <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                      {canMerge
-                        ? mergeEffect
-                        : `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`}
-                    </p>
-                    <Button
-                      disabled={
-                        pending || !canMerge || blockers.length > 0 || !heads
-                      }
-                      onClick={() =>
-                        heads &&
-                        void run({
-                          type: "mergePullRequest",
-                          workItemId: item.id,
-                          pullRequestId: p.id,
-                          ...heads,
-                        })
-                      }
-                    >
-                      <GitMerge className="size-3.5" />
-                      Merge pull request
-                    </Button>
-                  </div>
-                </section>
+                </SpecMergeBox>
               ) : (
                 <section className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
@@ -2607,7 +2568,11 @@ function PullRequestView({
                     Merged. The reviewed content is recorded in the target
                     branch history.
                     {automaticallyDeleted && (
-                      <> Lictory automatically deleted branch {sourceName}.</>
+                      <>
+                        {" "}
+                        Lictory automatically deleted the branch{" "}
+                        <BranchName>{sourceName}</BranchName>.
+                      </>
                     )}
                     {source && isMain(target) && !willDeleteSource && (
                       <>

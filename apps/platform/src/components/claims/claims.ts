@@ -1,4 +1,7 @@
 import { useMemo } from "react";
+import { useQuery } from "@rocicorp/zero/react";
+import { queries } from "@lictory/zero/queries";
+import type { AgentEntity } from "@lictory/core/factory/entities";
 import {
   claimability,
   type Claimability,
@@ -39,6 +42,26 @@ export function useLiveClaims(): Map<string, ClaimEntity> {
     claimIndex.set(view.entities, index);
   }
   return index;
+}
+
+// The organization's agents by id (their names and avatars), without the
+// Factory's window of recent sessions: boards and items only draw who holds
+// work.
+export function useAgents(): ReadonlyMap<string, AgentEntity> {
+  const { organization } = useWorkspace();
+  const [rows] = useQuery(queries.factory({ organizationId: organization.id }));
+  return useMemo(
+    () =>
+      new Map(
+        (rows as readonly { type: string; data: unknown }[])
+          .filter((row) => row.type === "agent")
+          .map((row) => {
+            const agent = row.data as AgentEntity;
+            return [agent.id, agent];
+          }),
+      ),
+    [rows],
+  );
 }
 
 export function useAutonomy(projectId: string) {
@@ -136,21 +159,8 @@ export function leaseLeft(claim: ClaimEntity, now = Date.now()) {
   return Math.round((new Date(claim.leaseExpiresAt).getTime() - now) / 60_000);
 }
 
-// What a live claim shows. Its own state, except that a claim whose agent
-// session waits on a person's answer (an approval request) waits too: the
-// agent is blocked, not working.
-export type ClaimShownState = ClaimEntity["state"] | "session_waiting";
-export function claimShownState(claim: ClaimEntity): ClaimShownState {
-  return claim.state !== "waiting" && claim.sessionWaitingSince
-    ? "session_waiting"
-    : claim.state;
-}
-export const claimWaitsOnPeople = (claim: ClaimEntity) =>
-  claim.state === "waiting" || Boolean(claim.sessionWaitingSince);
-
-export const claimStateLabel: Record<ClaimShownState, string> = {
-  starting: "Starting",
-  active: "Working",
-  waiting: "Waiting on people",
-  session_waiting: "Waiting on a person",
-};
+export {
+  claimShownState,
+  claimWaitsOnPeople,
+  type ClaimShownState,
+} from "@lictory/platform/components/claims/claim-state";

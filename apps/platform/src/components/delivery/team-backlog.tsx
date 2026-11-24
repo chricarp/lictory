@@ -11,6 +11,7 @@ import {
   Plus,
   Settings2,
   Undo2,
+  Users,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -30,7 +31,9 @@ import {
 } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
-import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { Facepile } from "@lictory/platform/components/identity/actor";
 import { MissingState } from "@lictory/ui/status-page";
 import { LoadingState } from "@lictory/ui/spinner";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -87,7 +90,6 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
     items,
     delivery,
     organization,
-    memberName,
     mutate,
     capabilitiesIn,
     canManage,
@@ -222,63 +224,47 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
     ) : null;
 
   return (
-    <div
-      className={cn("h-full overflow-y-auto", peek.peeked && "2xl:pr-[452px]")}
-    >
-      <div
-        className={cn(
-          "mx-auto max-w-4xl space-y-4 px-6 py-6",
-          peek.peeked && "pb-[60dvh]",
-        )}
-      >
-        <header className="flex flex-wrap items-center gap-3">
-          <span
-            aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-sm font-semibold text-primary"
-          >
-            {team.name.slice(0, 1).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">
-              {team.name}
-            </h1>
-            <p className="truncate text-[13px] text-muted-foreground">
-              {project.name} team
-              {team.description ? ` · ${team.description}` : ""}
-            </p>
-          </div>
-          {members.length > 0 && (
-            <div
-              role="group"
-              className="flex -space-x-1.5"
-              aria-label={`${members.length} ${members.length === 1 ? "member" : "members"}`}
-            >
-              {members.slice(0, 6).map((m) => (
-                <span
-                  key={m.id}
-                  title={m.name}
-                  className="rounded-full ring-2 ring-background"
-                >
-                  <Avatar image={m.image} name={m.name} size="sm" />
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="ml-auto flex items-center gap-1">
-            <ContextControl
-              project={project}
-              lists={[
-                { label: team.name, teamId: team.id },
-                { label: project.name },
-              ]}
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title={team.name}
+        icon={<Users />}
+        breadcrumbs={[
+          { label: project.name, href: paths.project(org, project.key) },
+        ]}
+        description={team.description ?? undefined}
+        meta={
+          members.length > 0 ? (
+            <Facepile
+              people={members.map((m) => ({
+                id: m.id,
+                name: m.name,
+                image: m.image,
+              }))}
+              max={6}
+              label={`${members.length} ${members.length === 1 ? "member" : "members"}`}
             />
+          ) : undefined
+        }
+        actions={
+          <>
+            <div className="max-sm:hidden">
+              <ContextControl
+                project={project}
+                lists={[
+                  { label: team.name, teamId: team.id },
+                  { label: project.name },
+                ]}
+              />
+            </div>
             {native && (
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label="Board"
                 render={<Link href={paths.board(org, project.key, team.id)} />}
               >
-                <KanbanSquare className="size-3.5" /> Board
+                <KanbanSquare className="size-3.5" />
+                <span className="max-sm:hidden">Board</span>
               </Button>
             )}
             {canManage(project.id) && (
@@ -299,6 +285,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
             {canCreate && (
               <Button
                 size="sm"
+                aria-label="New item"
                 onClick={() =>
                   openCreate({
                     projectId: project.id,
@@ -307,247 +294,261 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                   })
                 }
               >
-                <Plus className="size-3.5" /> New item
+                <Plus className="size-3.5" />
+                <span className="max-sm:hidden">New item</span>
               </Button>
             )}
-          </div>
-        </header>
-
-        {view.status === "hydrating" && open.length === 0 ? (
-          <LoadingState label="Opening team backlog" />
-        ) : (
-          <>
-            <section
-              aria-label="Team backlog"
-              className={cn(
-                "rounded-xl bg-card shadow-(--shadow-border)",
-                over !== undefined && "ring-1 ring-primary/40",
-              )}
-              onDragOver={(e) => {
-                if (!drag) return;
-                e.preventDefault();
-                const rows = [
-                  ...e.currentTarget.querySelectorAll<HTMLElement>(
-                    "[data-row]",
-                  ),
-                ].filter((r) => r.dataset.row !== drag);
-                const index = rows.findIndex((r) => {
-                  const rect = r.getBoundingClientRect();
-                  return e.clientY < rect.top + rect.height / 2;
-                });
-                const at = index === -1 ? rows.length : index;
-                if (over !== at) setOver(at);
-              }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null))
-                  setOver(undefined);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                drop(over ?? backlog.length);
-              }}
-            >
-              <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-                <ListTodo className="size-3.5 text-muted-foreground" />
-                <h2 className="text-sm font-semibold">Backlog</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {backlog.length} {backlog.length === 1 ? "item" : "items"}
-                  {showPoints && ` · ${points(backlog)} pts`}
-                </span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {native
-                    ? usesIterations
-                      ? "Taken on, not yet in a sprint or cycle"
-                      : "Taken on, ranked by priority"
-                    : "Taken on, not yet handed off"}
-                </span>
-              </div>
-              {backlog.length === 0 ? (
-                <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-                  {intake.length && canTriage
-                    ? "Nothing waiting. Take work from the project below, or create an item for the team."
-                    : "Nothing waiting for this team."}
-                </p>
-              ) : (
-                <ul className="border-t">
-                  {backlog.map((item, index) => (
-                    <li key={item.id}>
-                      {over === index && drag && (
-                        <div className="h-0.5 bg-primary" aria-hidden />
-                      )}
-                      <BacklogRow
-                        item={item}
-                        {...peekProps(item)}
-                        label={identifier(project, item.number)}
-                        href={hrefOf(item)}
-                        estimate={estimateLabel(project, item.estimate)}
-                        memberName={memberName}
-                        draggable={canTriage}
-                        dragging={drag === item.id}
-                        onDragStart={() => setDrag(item.id)}
-                        onDragEnd={() => {
-                          setDrag(undefined);
-                          setOver(undefined);
-                        }}
-                        actions={
-                          canTriage ? (
-                            <>
-                              {planPicker(item)}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label={`Release ${identifier(project, item.number)} to the project`}
-                                title="Release to the project (no team)"
-                                onClick={() => update(item, { teamId: null })}
-                              >
-                                <Undo2 className="size-3.5" />
-                              </Button>
-                            </>
-                          ) : undefined
-                        }
-                      />
-                    </li>
-                  ))}
-                  {over !== undefined && over >= backlog.length && drag && (
-                    <div className="h-0.5 bg-primary" aria-hidden />
-                  )}
-                </ul>
-              )}
-            </section>
-
-            {(inIterations.length > 0 || handedOffRows.length > 0) && (
-              <section className="rounded-xl bg-card shadow-(--shadow-border)">
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <CalendarClock className="size-3.5 text-muted-foreground" />
-                  <h2 className="text-sm font-semibold">
-                    {native ? "Planned" : "Handed off"}
-                  </h2>
-                  {native && (
-                    <Link
-                      href={paths.backlog(org, project.key, team.id)}
-                      className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
-                    >
-                      Plan sprints
-                    </Link>
-                  )}
-                  {!native && (
-                    <Link
-                      href={paths.handoff(org, project.key)}
-                      className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
-                    >
-                      Open hand-off
-                    </Link>
-                  )}
-                </div>
-                <ul className="border-t">
-                  {inIterations.map(({ iteration, rows }) => (
-                    <li
-                      key={iteration.id}
-                      className="flex items-center gap-2 border-b px-4 py-2 text-[13px] last:border-b-0"
-                    >
-                      <span className="font-medium">
-                        {iterationLabel(iteration, project?.iterationMode)}
-                      </span>
-                      {iteration.state === "active" && (
-                        <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
-                          <span
-                            aria-hidden
-                            className="size-1.5 rounded-full bg-success"
-                          />
-                          Active
-                        </span>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {shortRange(iteration)}
-                      </span>
-                      <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                        {rows.length} {rows.length === 1 ? "item" : "items"}
-                        {showPoints && ` · ${points(rows)} pts`}
-                      </span>
-                    </li>
-                  ))}
-                  {handedOffRows.length > 0 && (
-                    <li className="px-4 py-2 text-[13px] text-muted-foreground">
-                      {handedOffRows.length === 1
-                        ? "1 item is"
-                        : `${handedOffRows.length} items are`}{" "}
-                      in the delivery tool.
-                    </li>
-                  )}
-                </ul>
-              </section>
-            )}
-
-            <section
-              aria-label="Unassigned project work"
-              className="rounded-xl bg-card shadow-(--shadow-border)"
-            >
-              <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-                <Inbox className="size-3.5 text-muted-foreground" />
-                <h2 className="text-sm font-semibold">No team yet</h2>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {intake.length} {intake.length === 1 ? "item" : "items"}
-                </span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {project.name} work no team has taken
-                </span>
-              </div>
-              {intake.length === 0 ? (
-                <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-                  Every open item of {project.name} belongs to a team or is
-                  planned.
-                </p>
-              ) : (
-                <ul className="border-t">
-                  {intake.map((item) => (
-                    <li key={item.id}>
-                      <BacklogRow
-                        item={item}
-                        {...peekProps(item)}
-                        label={identifier(project, item.number)}
-                        href={hrefOf(item)}
-                        estimate={estimateLabel(project, item.estimate)}
-                        memberName={memberName}
-                        draggable={canTriage}
-                        dragging={drag === item.id}
-                        onDragStart={() => setDrag(item.id)}
-                        onDragEnd={() => {
-                          setDrag(undefined);
-                          setOver(undefined);
-                        }}
-                        actions={
-                          canTriage ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              aria-label={`Take ${identifier(project, item.number)} into ${team.name}`}
-                              onClick={() => update(item, { teamId: team.id })}
-                            >
-                              <ArrowDownToLine className="size-3.5" />
-                              <span className="hidden sm:inline">Take</span>
-                            </Button>
-                          ) : undefined
-                        }
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-            {!canTriage && (
-              <p className="text-xs text-muted-foreground">
-                Ranking, taking and planning work needs a discipline in{" "}
-                {project.name} that can change properties.
-              </p>
-            )}
           </>
+        }
+      />
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto",
+          peek.peeked && "2xl:pr-[452px]",
         )}
-        {!open.length && view.status !== "hydrating" && (
-          <EmptyState illustration="planning" title="No open work yet">
-            Create items for {team.name}, or take them from {project.name} as
-            they come in.
-          </EmptyState>
-        )}
+      >
+        <div
+          className={cn(
+            "mx-auto max-w-4xl space-y-4 px-6 py-6 max-sm:px-3",
+            peek.peeked && "pb-[60dvh]",
+          )}
+        >
+          {view.status === "hydrating" && open.length === 0 ? (
+            <LoadingState label="Opening team backlog" />
+          ) : (
+            <>
+              <section
+                aria-label="Team backlog"
+                className={cn(
+                  "rounded-xl bg-card shadow-(--shadow-border)",
+                  over !== undefined && "ring-1 ring-primary/40",
+                )}
+                onDragOver={(e) => {
+                  if (!drag) return;
+                  e.preventDefault();
+                  const rows = [
+                    ...e.currentTarget.querySelectorAll<HTMLElement>(
+                      "[data-row]",
+                    ),
+                  ].filter((r) => r.dataset.row !== drag);
+                  const index = rows.findIndex((r) => {
+                    const rect = r.getBoundingClientRect();
+                    return e.clientY < rect.top + rect.height / 2;
+                  });
+                  const at = index === -1 ? rows.length : index;
+                  if (over !== at) setOver(at);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                    setOver(undefined);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  drop(over ?? backlog.length);
+                }}
+              >
+                <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+                  <ListTodo className="size-3.5 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">Backlog</h2>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {backlog.length} {backlog.length === 1 ? "item" : "items"}
+                    {showPoints && ` · ${points(backlog)} pts`}
+                  </span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {native
+                      ? usesIterations
+                        ? "Taken on, not yet in a sprint or cycle"
+                        : "Taken on, ranked by priority"
+                      : "Taken on, not yet handed off"}
+                  </span>
+                </div>
+                {backlog.length === 0 ? (
+                  <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
+                    {intake.length && canTriage
+                      ? "Nothing waiting. Take work from the project below, or create an item for the team."
+                      : "Nothing waiting for this team."}
+                  </p>
+                ) : (
+                  <ul className="border-t">
+                    {backlog.map((item, index) => (
+                      <li key={item.id}>
+                        {over === index && drag && (
+                          <div className="h-0.5 bg-primary" aria-hidden />
+                        )}
+                        <BacklogRow
+                          item={item}
+                          {...peekProps(item)}
+                          label={identifier(project, item.number)}
+                          href={hrefOf(item)}
+                          estimate={estimateLabel(project, item.estimate)}
+                          draggable={canTriage}
+                          dragging={drag === item.id}
+                          onDragStart={() => setDrag(item.id)}
+                          onDragEnd={() => {
+                            setDrag(undefined);
+                            setOver(undefined);
+                          }}
+                          actions={
+                            canTriage ? (
+                              <>
+                                {planPicker(item)}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Release ${identifier(project, item.number)} to the project`}
+                                  title="Release to the project (no team)"
+                                  onClick={() => update(item, { teamId: null })}
+                                >
+                                  <Undo2 className="size-3.5" />
+                                </Button>
+                              </>
+                            ) : undefined
+                          }
+                        />
+                      </li>
+                    ))}
+                    {over !== undefined && over >= backlog.length && drag && (
+                      <div className="h-0.5 bg-primary" aria-hidden />
+                    )}
+                  </ul>
+                )}
+              </section>
+
+              {(inIterations.length > 0 || handedOffRows.length > 0) && (
+                <section className="rounded-xl bg-card shadow-(--shadow-border)">
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <CalendarClock className="size-3.5 text-muted-foreground" />
+                    <h2 className="text-sm font-semibold">
+                      {native ? "Planned" : "Handed off"}
+                    </h2>
+                    {native && (
+                      <Link
+                        href={paths.backlog(org, project.key, team.id)}
+                        className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Plan sprints
+                      </Link>
+                    )}
+                    {!native && (
+                      <Link
+                        href={paths.handoff(org, project.key)}
+                        className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Open hand-off
+                      </Link>
+                    )}
+                  </div>
+                  <ul className="border-t">
+                    {inIterations.map(({ iteration, rows }) => (
+                      <li
+                        key={iteration.id}
+                        className="flex items-center gap-2 border-b px-4 py-2 text-[13px] last:border-b-0"
+                      >
+                        <span className="font-medium">
+                          {iterationLabel(iteration, project?.iterationMode)}
+                        </span>
+                        {iteration.state === "active" && (
+                          <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
+                            <span
+                              aria-hidden
+                              className="size-1.5 rounded-full bg-success"
+                            />
+                            Active
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {shortRange(iteration)}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                          {rows.length} {rows.length === 1 ? "item" : "items"}
+                          {showPoints && ` · ${points(rows)} pts`}
+                        </span>
+                      </li>
+                    ))}
+                    {handedOffRows.length > 0 && (
+                      <li className="px-4 py-2 text-[13px] text-muted-foreground">
+                        {handedOffRows.length === 1
+                          ? "1 item is"
+                          : `${handedOffRows.length} items are`}{" "}
+                        in the delivery tool.
+                      </li>
+                    )}
+                  </ul>
+                </section>
+              )}
+
+              <section
+                aria-label="Unassigned project work"
+                className="rounded-xl bg-card shadow-(--shadow-border)"
+              >
+                <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+                  <Inbox className="size-3.5 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">No team yet</h2>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {intake.length} {intake.length === 1 ? "item" : "items"}
+                  </span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {project.name} work no team has taken
+                  </span>
+                </div>
+                {intake.length === 0 ? (
+                  <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
+                    Every open item of {project.name} belongs to a team or is
+                    planned.
+                  </p>
+                ) : (
+                  <ul className="border-t">
+                    {intake.map((item) => (
+                      <li key={item.id}>
+                        <BacklogRow
+                          item={item}
+                          {...peekProps(item)}
+                          label={identifier(project, item.number)}
+                          href={hrefOf(item)}
+                          estimate={estimateLabel(project, item.estimate)}
+                          draggable={canTriage}
+                          dragging={drag === item.id}
+                          onDragStart={() => setDrag(item.id)}
+                          onDragEnd={() => {
+                            setDrag(undefined);
+                            setOver(undefined);
+                          }}
+                          actions={
+                            canTriage ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                aria-label={`Take ${identifier(project, item.number)} into ${team.name}`}
+                                onClick={() =>
+                                  update(item, { teamId: team.id })
+                                }
+                              >
+                                <ArrowDownToLine className="size-3.5" />
+                                <span className="hidden sm:inline">Take</span>
+                              </Button>
+                            ) : undefined
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+              {!canTriage && (
+                <p className="text-xs text-muted-foreground">
+                  Ranking, taking and planning work needs a discipline in{" "}
+                  {project.name} that can change properties.
+                </p>
+              )}
+            </>
+          )}
+          {!open.length && view.status !== "hydrating" && (
+            <EmptyState illustration="planning" title="No open work yet">
+              Create items for {team.name}, or take them from {project.name} as
+              they come in.
+            </EmptyState>
+          )}
+        </div>
       </div>
       <ItemPeek project={project} peek={peek} />
     </div>

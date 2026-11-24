@@ -16,6 +16,9 @@ const allowed = new Set([
   "components/shell/page-header.tsx",
   // A document's own title above its text: the item, the space page.
   "components/items/inline-title.tsx",
+  // The title of a screen in the item's place (its branches, a branch, a
+  // pull request, an AI review): the item's bar is the page's header.
+  "components/items/screen-title.tsx",
   "components/spaces/page-view.tsx",
   // Pages outside the workspace shell: sign-in, onboarding, the
   // organization scheduled for deletion, the last-resort error page.
@@ -28,16 +31,7 @@ const allowed = new Set([
 // Pages that still draw their own header. Each module stream adopts
 // `PageHeader` and removes its entries; the list only shrinks.
 const knownOffenders = new Set([
-  "components/claims/factory-queue.tsx",
-  "components/delivery/backlog.tsx",
-  "components/delivery/board.tsx",
-  "components/delivery/handoff.tsx",
-  "components/delivery/iteration-report.tsx",
-  "components/delivery/team-backlog.tsx",
   "components/intelligence/chat/intelligence.tsx",
-  "components/items/issue-list.tsx",
-  "components/review/ai-review.tsx",
-  "components/review/branch-workspace.tsx",
 ]);
 
 function sources(dir: string): string[] {

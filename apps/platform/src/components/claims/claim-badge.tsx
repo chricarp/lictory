@@ -1,44 +1,97 @@
-import { Bot, MessageCircleQuestion } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
 import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import { cn } from "@lictory/core/lib/utils";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  AgentActor,
+  type ActorSize,
+  type AgentIdentity,
+} from "@lictory/platform/components/identity/actor";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import {
+  claimBadgeLabel,
+  claimFor,
   claimShownState,
-  claimStateLabel,
-  claimWaitsOnPeople,
-} from "@lictory/platform/components/claims/claims";
+  claimState,
+} from "@lictory/platform/components/claims/claim-state";
 
 // The compact "an agent holds this" mark on board cards, backlog rows and
-// the queue. A waiting claim says so: it waits on people, not on the agent.
+// the queue, in the shared state vocabulary: "Forge · running", or, when
+// its session waits on an approval, "Forge · waiting on Ada" in the
+// attention tone. `data-claim` names the shown state for tests.
 export function ClaimBadge({
   claim,
-  label,
+  assigneeId,
+  withAgent = true,
   className,
 }: {
   claim: ClaimEntity;
-  // "Forge via Ada"
-  label: string;
+  // Whose item it is, when an agent holds work assigned to someone else.
+  assigneeId?: string | null;
+  // Name the agent ("Forge · waiting on Ada"); off where an owner line
+  // beside the badge already names it ("Waiting on Ada").
+  withAgent?: boolean;
   className?: string;
 }) {
-  const shown = claimShownState(claim);
-  const waiting = claimWaitsOnPeople(claim);
-  const Icon = waiting ? MessageCircleQuestion : Bot;
+  const { memberName } = useWorkspace();
+  const owner = memberName(claim.ownerId);
+  const state = claimState(claim, owner);
+  const forWhom = claimFor(claim, assigneeId, memberName);
+  const label = withAgent ? claimBadgeLabel(claim, owner) : state.label;
   return (
     <span
-      data-claim={shown}
-      title={`Claimed by ${label} · ${claimStateLabel[shown]}`}
-      className={cn(
-        "inline-flex h-5 max-w-36 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium ring-1 ring-inset",
-        waiting
-          ? "bg-warning/8 text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))] ring-warning/25"
-          : "bg-ring/8 text-[color-mix(in_oklab,var(--ring)_80%,var(--foreground))] ring-ring/25",
-        className,
-      )}
+      data-claim={claimShownState(claim)}
+      className={cn("inline-flex max-w-48 min-w-0", className)}
     >
-      <Icon aria-hidden className="size-3 shrink-0" />
-      <span className="truncate">{claim.agentName}</span>
-      <span className="sr-only">
-        {` claims this item for ${label.split(" via ")[1] ?? "its owner"}: ${claimStateLabel[shown]}`}
-      </span>
+      <SessionStateChip
+        state={{
+          ...state,
+          label,
+          meaning: `${claim.agentName} via ${owner}${forWhom ? `, ${forWhom}` : ""}. ${state.label}: ${state.meaning}`,
+        }}
+        className="max-w-full min-w-0 shrink"
+      />
+    </span>
+  );
+}
+
+// One owner line for an item an agent works: "Forge via Ada", and when the
+// item is assigned to someone else, "Forge via Ada, for Ben". It replaces the
+// assignee's avatar beside the claim, so the item never shows two owners.
+export function ClaimOwner({
+  claim,
+  agent,
+  assigneeId,
+  size = 16,
+  className,
+}: {
+  claim: ClaimEntity;
+  // The agent's identity (its avatar), when the caller has it.
+  agent?: AgentIdentity;
+  assigneeId?: string | null;
+  size?: ActorSize;
+  className?: string;
+}) {
+  const { memberName } = useWorkspace();
+  const forWhom = claimFor(claim, assigneeId, memberName);
+  return (
+    <span
+      data-claim-owner
+      className={cn("inline-flex min-w-0 items-center text-xs", className)}
+    >
+      <AgentActor
+        agent={agent ?? { id: claim.agentId, name: claim.agentName }}
+        ownerId={claim.ownerId}
+        size={size}
+        className="min-w-0"
+      />
+      {forWhom && (
+        <span
+          className="shrink-0 text-muted-foreground"
+          title={`Assigned to ${memberName(assigneeId ?? null)}`}
+        >
+          ,&nbsp;{forWhom}
+        </span>
+      )}
     </span>
   );
 }

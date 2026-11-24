@@ -157,13 +157,18 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
   // The claim shows on the board card (all work: no sprint is active).
   await page.goto(seeded.projectPath("/board?iteration=all"));
   const card = page.locator(`[data-card="${taskIds[0]}"]`);
-  await expect(card.locator('[data-claim="active"]')).toContainText("Forge");
+  await expect(card.locator('[data-claim="active"]')).toContainText("Running");
+  await expect(card.locator("[data-claim-owner]")).toContainText("Forge");
 
   // The item says who holds it and what Done needs.
   await page.goto(seeded.itemPath(2));
   const factory = page.getByRole("region", { name: "Agent claim" });
-  await expect(factory.getByText("Forge via Ada Forge")).toBeVisible();
-  await expect(factory.getByText("Working")).toBeVisible();
+  // One owner line: the agent and the person it acts for (by first name,
+  // the full name on hover), in the shared state vocabulary.
+  await expect(factory.locator("[data-claim-owner]")).toHaveText(
+    /Forge via Ada$/,
+  );
+  await expect(factory.getByText("Running", { exact: true })).toBeVisible();
   await expect(
     factory.getByText("Endpoint drafted; opening the pull request next."),
   ).toBeVisible();
