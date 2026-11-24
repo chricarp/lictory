@@ -172,7 +172,7 @@ void test("Autopilot merges one open pull request only when its requirements pas
     policy,
     reviewer,
   );
-  assert.ok(!refused.ready && /Lens has not approved/.test(refused.reason));
+  assert.ok(!refused.ready && refused.reason.includes("Lens has not approved"));
 });
 
 void test("policies and definitions validate what people can choose", () => {
