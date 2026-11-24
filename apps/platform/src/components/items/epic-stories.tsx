@@ -50,7 +50,8 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         ? capabilities.editSpecifications
         : capabilities.editSpecifications || capabilities.changeProperties),
   );
-  // Default to the richest child type one level down (Story under Epic).
+  // Default to the richest child type one level down (Story under Epic,
+  // Task under Story).
   const [childTypeId, setChildTypeId] = useState<string>();
   const childType =
     childTypes.find((t) => t.id === childTypeId) ??

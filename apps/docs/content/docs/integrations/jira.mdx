@@ -176,6 +176,10 @@ What is handed off:
 - Plain items such as Tasks and Subtasks go along under a handed-off parent.
   On their own they cannot be handed off: they have no specification to
   approve.
+- Jira cannot put a Task or Bug under a Story: both are standard issues
+  there. Such an item goes under the Story's Epic in Jira (the nearest
+  parent Jira accepts), or without a parent when there is none. The
+  preview and the result say so; in Lictory it stays under its Story.
 - Types left **Not exported** in the mapping are skipped.
 
 ### When some items fail
@@ -296,7 +300,7 @@ no iteration context pages or iteration notes.
 
 - Map only the types Jira needs. Leaving a type **Not exported** keeps
   Lictory-only work out of Jira.
-- Hand off a Story with its Tasks in one go, so Jira gets the hierarchy as
-  the team agreed it.
+- Hand off an Epic with its Stories and Tasks in one go, so Jira gets the
+  hierarchy as the team agreed it, as close as Jira allows.
 - Before handing off an amendment, compare it with the handed-off revision
   in the item's version history.

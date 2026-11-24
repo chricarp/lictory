@@ -1267,6 +1267,82 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
     }),
     /cannot be placed under a Story/,
   );
+  // Epic > Story > Task/Bug > Subtask: a Story breaks down into Tasks and
+  // Bugs, which may also sit directly under an Epic; nothing goes the other
+  // way.
+  const taskId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: f.proposalId,
+    title: "Persist the transaction ID",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Bug,
+    parentId: f.proposalId,
+    title: "Retry duplicates a charge",
+  });
+  const otherEpicId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: otherEpicId,
+    typeId: f.types.Epic,
+    parentId: null,
+    title: "Refunds",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Task,
+    parentId: otherEpicId,
+    title: "Refund ledger export",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Subtask,
+    parentId: taskId,
+    title: "Add the column",
+  });
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Story,
+      parentId: taskId,
+      title: "Story under a task",
+    }),
+    /A Story cannot be placed under a Task/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Bug,
+      parentId: taskId,
+      title: "Bug under a task",
+    }),
+    /A Bug cannot be placed under a Task/,
+  );
+  // A Story with Task children cannot become a Task.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      typeId: f.types.Task,
+    }),
+    /children that cannot sit under a Task/,
+  );
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
@@ -1626,7 +1702,7 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     organizationId: f.organizationId,
     name: "Outcome",
     icon: "flag",
-    level: 3,
+    level: 4,
     hasSpecification: true,
   });
   await db.insert(s.workItem).values({
@@ -1666,6 +1742,19 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     f.types.Subtask,
   );
   assert.ok(taskParents.epics.some((item) => item.id === f.proposalId));
+  // A Task's parent may be a Story (its breakdown) or an Epic.
+  const storyParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Task,
+  );
+  assert.ok(storyParents.epics.some((item) => item.id === f.proposalId));
+  assert.ok(storyParents.epics.some((item) => item.typeId === f.types.Epic));
   const topParents = await searchEpics(
     db,
     f.userId,

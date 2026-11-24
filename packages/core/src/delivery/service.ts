@@ -87,6 +87,9 @@ export type PlanEntry = {
   depth: number;
   action: PlanAction;
   reason?: string;
+  // Where an exported item goes when the delivery system cannot nest its
+  // type under its parent (a Jira Task under a Story).
+  note?: string;
   externalKey?: string;
   externalUrl?: string;
   // Owned fields edited externally since the last export; "linked" when the
@@ -410,6 +413,34 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     )[0];
     const connection = target?.delivery_connection ?? null;
 
+    // Where each item goes externally: under its parent, unless the
+    // delivery system cannot nest its type there (Jira keeps Tasks and Bugs
+    // beside Stories, not under them). Then it goes under the nearest
+    // ancestor whose mapped type sits higher in the external hierarchy, or
+    // under none. Unknown hierarchy levels keep the parent.
+    const mapping = target?.delivery_target.typeMapping ?? {};
+    const hierarchy = target?.delivery_target.typeHierarchy ?? {};
+    const externalLevel = (i: ItemRow) => {
+      const externalTypeId = mapping[i.typeId];
+      return externalTypeId === undefined
+        ? undefined
+        : hierarchy[externalTypeId];
+    };
+    const placement = new Map<string, string | null>();
+    for (const { item } of ordered) {
+      const own = externalLevel(item);
+      let placed = item.parentId;
+      const seen = new Set<string>();
+      while (own !== undefined && placed && !seen.has(placed)) {
+        seen.add(placed);
+        const ancestor = byId.get(placed);
+        const level = ancestor && externalLevel(ancestor);
+        if (!ancestor || level === undefined || level > own) break;
+        placed = ancestor.parentId;
+      }
+      placement.set(item.id, placed);
+    }
+
     const ids = ordered.map((o) => o.item.id);
     const links = connection
       ? await tx
@@ -424,6 +455,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
                 ...ordered.flatMap((o) =>
                   o.item.parentId ? [o.item.parentId] : [],
                 ),
+                ...[...placement.values()].filter((id) => id !== null),
               ]),
             ),
           )
@@ -508,11 +540,16 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         externalTypeId,
       };
       payloads.set(item.id, payload);
+      const placed = placement.get(item.id) ?? null;
+      const parentItem = item.parentId ? byId.get(item.parentId) : undefined;
+      if (parentItem && placed !== item.parentId) {
+        const parentType = types.get(parentItem.typeId)?.name ?? "Item";
+        const ancestor = placed ? byId.get(placed) : undefined;
+        entry.note = `Jira cannot nest ${article(type.name)} ${type.name} under ${article(parentType)} ${parentType}, so ${key} goes ${ancestor ? `under ${projectRow.key}-${ancestor.number}` : "without a parent"} in Jira.`;
+      }
       if (!link?.externalId) entry.action = "create";
       else {
-        const parentLink = item.parentId
-          ? linkOf.get(item.parentId)
-          : undefined;
+        const parentLink = placed ? linkOf.get(placed) : undefined;
         const parent = parentRef(parentLink);
         entry.action =
           link.payloadHash && link.payloadHash === hash({ ...payload, parent })
@@ -531,6 +568,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         target: () => target?.delivery_target,
         links: linkOf,
         payloads,
+        placement,
         items: byId,
       },
     };
@@ -792,6 +830,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           externalProjectId: project.id,
           externalProjectKey: project.key,
           typeMapping: mapping,
+          typeHierarchy: hierarchyOf(project.types),
         });
         await auditIntegration(
           tx,
@@ -1306,6 +1345,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         claimed.organizationId,
         claimed.connectionId,
       ).catch(() => null);
+      if (row) await learnHierarchy(claimed, row);
       const results = { ...claimed.results };
       try {
         for (const itemId of claimed.itemIds) {
@@ -1546,6 +1586,43 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     return { refreshed, failedConnections };
   }
 
+  // A target saved before Lictory recorded the external type hierarchy
+  // learns it before its first export since, outside the lock: placing a
+  // child its parent cannot hold needs it. On failure the export goes on
+  // with parents as they are and the delivery system reports any refusal.
+  async function learnHierarchy(publication: Publication, row: ConnectionRow) {
+    const [target] = await db
+      .select()
+      .from(s.deliveryTarget)
+      .where(
+        and(
+          eq(s.deliveryTarget.organizationId, publication.organizationId),
+          eq(s.deliveryTarget.projectId, publication.projectId),
+          eq(s.deliveryTarget.connectionId, row.id),
+        ),
+      );
+    if (!target || Object.keys(target.typeHierarchy).length) return;
+    try {
+      const { provider, connection } = open(row);
+      const project = await provider.describeProject(
+        connection,
+        target.externalProjectKey,
+      );
+      await db
+        .update(s.deliveryTarget)
+        .set({ typeHierarchy: hierarchyOf(project.types) })
+        .where(
+          and(
+            eq(s.deliveryTarget.organizationId, publication.organizationId),
+            eq(s.deliveryTarget.id, target.id),
+            sql`${s.deliveryTarget.typeHierarchy} = '{}'::jsonb`,
+          ),
+        );
+    } catch {
+      // Recorded per item if the delivery system refuses a parent.
+    }
+  }
+
   // Exports one item. Returns its final result, or undefined when it must be
   // retried later (a create attempt that cannot be confirmed yet).
   async function exportItem(
@@ -1584,11 +1661,21 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             )
         )[0];
       const item = await itemRow(tx, organizationId, itemId);
+      // The issue it goes under: its parent's, or the nearest ancestor's the
+      // delivery system accepts (see the plan's placement).
+      const placed =
+        planned instanceof DomainError || !planned.rows.placement.has(itemId)
+          ? item.parentId
+          : (planned.rows.placement.get(itemId) ?? null);
       return {
         planned,
         item,
         link: await linkFor(itemId),
-        parentLink: item.parentId ? await linkFor(item.parentId) : undefined,
+        directParentLink: item.parentId
+          ? await linkFor(item.parentId)
+          : undefined,
+        placed,
+        parentLink: placed ? await linkFor(placed) : undefined,
       };
     });
     // A runner that lost its lease records nothing; the owner redoes the
@@ -1604,21 +1691,31 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       return settle({ outcome: "skipped", message: state.planned.message });
     const entry = state.planned.entries.find((e) => e.workItemId === itemId);
     const key = entry?.key ?? "This item";
+    // Exported results say where the item went when that is not its parent.
+    const note = entry?.note ? { message: entry.note } : {};
     if (!entry || !exportable.has(entry.action))
       return settle({
         outcome: "skipped",
         message: `${key} was not exported: ${entry?.reason ?? "it is no longer part of this export."}`,
       });
-    const parentResult = state.item.parentId
-      ? results[state.item.parentId]
-      : undefined;
     // A parent that already exists externally (e.g. held as a conflict)
     // still anchors its children; only a parent with no external issue
-    // blocks them.
+    // blocks them. That holds for the item's parent and for the ancestor it
+    // goes under when the delivery system cannot nest it there.
+    const blocked = (
+      parentId: string | null,
+      parentLink: LinkRow | undefined,
+    ) => {
+      const parentResult = parentId ? results[parentId] : undefined;
+      return (
+        parentResult !== undefined &&
+        !succeeded(parentResult.outcome) &&
+        !parentLink?.externalId
+      );
+    };
     if (
-      parentResult &&
-      !succeeded(parentResult.outcome) &&
-      !state.parentLink?.externalId
+      blocked(state.item.parentId, state.directParentLink) ||
+      blocked(state.placed, state.parentLink)
     )
       return settle({
         outcome: "skipped",
@@ -1661,7 +1758,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
               message: `${link.externalKey} no longer exists in Jira. Unlink it to export a new issue.`,
             });
           return settle(
-            { outcome: "unchanged", externalKey: external.key, revisionNumber },
+            {
+              outcome: "unchanged",
+              externalKey: external.key,
+              revisionNumber,
+              ...note,
+            },
             {
               externalStatus: external.status,
               externalStatusCategory: external.statusCategory,
@@ -1683,7 +1785,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         }
         const external = await provider.updateItem(connection, ref, payload);
         return settle(
-          { outcome: "updated", externalKey: external.key, revisionNumber },
+          {
+            outcome: "updated",
+            externalKey: external.key,
+            revisionNumber,
+            ...note,
+          },
           { ...identity(external), payloadHash, revisionNumber },
         );
       }
@@ -1722,7 +1829,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         .linkBack(connection, external, payload)
         .catch(() => undefined);
       return settle(
-        { outcome: "created", externalKey: external.key, revisionNumber },
+        {
+          outcome: "created",
+          externalKey: external.key,
+          revisionNumber,
+          ...note,
+        },
         { ...identity(external), payloadHash, revisionNumber },
       );
     } catch (error) {
@@ -1906,6 +2018,9 @@ type PlanRows = {
   target: () => typeof s.deliveryTarget.$inferSelect | undefined;
   links: Map<string, LinkRow>;
   payloads: Map<string, Omit<DeliveryPayload, "parent">>;
+  // Item id → the item whose issue it goes under (its parent, or the
+  // nearest ancestor the delivery system accepts), null for none.
+  placement: Map<string, string | null>;
   items: Map<string, ItemRow>;
 };
 
@@ -1916,6 +2031,12 @@ function refOf(link: LinkRow): ExternalRef {
     url: link.externalUrl ?? "",
   };
 }
+
+// External issue type id → its provider-neutral hierarchy level.
+const hierarchyOf = (types: { id: string; hierarchyLevel: number }[]) =>
+  Object.fromEntries(types.map((t) => [t.id, t.hierarchyLevel]));
+
+const article = (name: string) => (/^[aeiou]/i.test(name) ? "an" : "a");
 
 function parentRef(link: LinkRow | undefined): ExternalRef | null {
   return link?.externalId ? refOf(link) : null;

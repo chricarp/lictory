@@ -59,6 +59,8 @@ type PlanEntry = {
     | "no_target"
     | "unmapped";
   reason?: string;
+  // Where it goes when Jira cannot nest it under its parent.
+  note?: string;
   externalKey?: string;
   externalUrl?: string;
   conflict?: ("title" | "content" | "labels" | "linked")[];
@@ -341,9 +343,10 @@ export function ExportDialog({
                           )}
                         </span>
                       </div>
-                      {(result?.message ?? (!result && entry.reason)) && (
+                      {(result?.message ??
+                        (!result && (entry.reason ?? entry.note))) && (
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {result?.message ?? entry.reason}
+                          {result?.message ?? entry.reason ?? entry.note}
                         </p>
                       )}
                       {(!publication && entry.conflict?.length) ||

@@ -428,7 +428,7 @@ export const formerMember = pgTable(
 );
 
 // Organization-wide type registry. Hierarchy level orders parents above
-// children (Epic 2, Story/Task/Bug 1, Subtask 0). Spec-backed types carry
+// children (Epic 3, Story 2, Task/Bug 1, Subtask 0). Spec-backed types carry
 // revisions, reviews, approvals and readiness; others are plain work.
 export const workItemType = pgTable(
   "work_item_type",
@@ -450,7 +450,7 @@ export const workItemType = pgTable(
     uniqueIndex("work_item_type_org_active_name_unique")
       .on(t.organizationId, sql`lower(${t.name})`)
       .where(sql`${t.archivedAt} IS NULL`),
-    check("work_item_type_level", sql`${t.level} BETWEEN 0 AND 3`),
+    check("work_item_type_level", sql`${t.level} BETWEEN 0 AND 4`),
     check("work_item_type_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
@@ -1626,6 +1626,15 @@ export const deliveryTarget = pgTable(
     // Lictory work item type id → external issue type id.
     typeMapping: jsonb("type_mapping")
       .$type<Record<string, string>>()
+      .default({})
+      .notNull(),
+    // External issue type id → provider-neutral hierarchy level (1 epic-like,
+    // 0 standard, -1 subtask), read when the mapping was saved. Decides where
+    // a child goes when the external system cannot nest it under its parent
+    // (a Jira Task under a Story). Empty for targets saved before it existed
+    // until the next export fills it.
+    typeHierarchy: jsonb("type_hierarchy")
+      .$type<Record<string, number>>()
       .default({})
       .notNull(),
     createdAt: createdAt(),

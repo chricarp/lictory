@@ -22,6 +22,7 @@ import {
   enabledTypes,
   isTopLevel,
   projectTeams,
+  typeLevels,
   typeOf,
 } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -79,14 +80,17 @@ export function QuickCreate({
   const type =
     types.find((t) => t.id === typeId) ??
     (options.intent === "work"
-      ? (types.find((t) => !t.hasSpecification && t.level === 1) ??
+      ? (types.find(
+          (t) => !t.hasSpecification && t.level === typeLevels.task,
+        ) ??
         types.find((t) => !t.hasSpecification) ??
         // Without plain types, create work the board and backlog show.
         types.find((t) => !isTopLevel(t)))
       : options.kind === "epic"
         ? types.find(isTopLevel)
-        : (types.find((t) => t.level === 1 && t.hasSpecification) ??
-          types.find((t) => t.level === 1))) ??
+        : (types.find(
+            (t) => t.level === typeLevels.story && t.hasSpecification,
+          ) ?? types.find((t) => t.level === typeLevels.story))) ??
     types.find((t) => !isTopLevel(t)) ??
     types[0];
   const [parentId, setParentId] = useState<string | null>(

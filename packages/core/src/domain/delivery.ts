@@ -11,6 +11,7 @@ import { iteration as iterationMachine } from "@lictory/core/contracts/state-mac
 import { notifyIteration } from "@lictory/core/notifications/server";
 import { writeEntities } from "@lictory/core/domain/projections";
 import { serialize } from "@lictory/core/domain/service";
+import { typeLevels } from "@lictory/core/lib/work-items";
 
 type Database = PostgresJsDatabase<typeof s>;
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -27,34 +28,42 @@ export const SYSTEM_ACTOR = "system";
 const DAY = 86_400_000;
 const closed: StatusCategory[] = ["done", "canceled"];
 
+// Epic > Story > Task and Bug > Subtask: a Story breaks down into Tasks and
+// Bugs, which may also sit directly under an Epic.
 export const defaultTypes = [
   {
     name: "Epic",
     icon: "epic",
     color: "purple",
-    level: 2,
+    level: typeLevels.epic,
     hasSpecification: true,
   },
   {
     name: "Story",
     icon: "story",
     color: "green",
-    level: 1,
+    level: typeLevels.story,
     hasSpecification: true,
   },
   {
     name: "Task",
     icon: "task",
     color: "blue",
-    level: 1,
+    level: typeLevels.task,
     hasSpecification: false,
   },
-  { name: "Bug", icon: "bug", color: "red", level: 1, hasSpecification: false },
+  {
+    name: "Bug",
+    icon: "bug",
+    color: "red",
+    level: typeLevels.task,
+    hasSpecification: false,
+  },
   {
     name: "Subtask",
     icon: "subtask",
     color: "gray",
-    level: 0,
+    level: typeLevels.subtask,
     hasSpecification: false,
   },
 ] as const;

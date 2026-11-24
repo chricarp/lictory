@@ -646,10 +646,11 @@ void test("new organizations are seeded idempotently with the type registry only
     .where(eq(s.workItemType.organizationId, organizationId));
   assert.deepEqual(
     types.map((t) => [t.name, t.level, t.hasSpecification]).sort(),
+    // Epic > Story > Task and Bug > Subtask.
     [
       ["Bug", 1, false],
-      ["Epic", 2, true],
-      ["Story", 1, true],
+      ["Epic", 3, true],
+      ["Story", 2, true],
       ["Subtask", 0, false],
       ["Task", 1, false],
     ],
@@ -894,6 +895,246 @@ void test("project-owned configuration migration moves workflow, teams, roles an
         >`SELECT count(*)::int AS n FROM team WHERE organization_id = 'empty'`
       )[0]!.n,
       0,
+    );
+  } finally {
+    await upgradeClient.end();
+    await admin`DROP DATABASE ${admin(name)} WITH (FORCE)`;
+    await rm(baseline, { recursive: true, force: true });
+  }
+});
+
+void test("the Story/Task hierarchy migration moves type levels by role and keeps every parent above its children", async () => {
+  const name = `lictory_hierarchy_upgrade_${crypto.randomUUID().replaceAll("-", "")}`;
+  const upgradeUrl = new URL(adminUrl);
+  upgradeUrl.pathname = `/${name}`;
+  await admin`CREATE DATABASE ${admin(name)}`;
+  const upgradeClient = postgres(upgradeUrl.toString(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const baseline = await mkdtemp(join(tmpdir(), "lictory-hierarchy-upgrade-"));
+  try {
+    await mkdir(join(baseline, "meta"));
+    const journal = JSON.parse(
+      await readFile("drizzle/meta/_journal.json", "utf8"),
+    ) as { entries: { idx: number; tag: string }[] };
+    const migration = journal.entries.find(
+      (e) => e.tag === "0060_story_task_hierarchy",
+    );
+    assert.ok(migration);
+    journal.entries = journal.entries.filter((e) => e.idx < migration.idx);
+    await writeFile(
+      join(baseline, "meta/_journal.json"),
+      JSON.stringify(journal),
+    );
+    for (const entry of journal.entries)
+      await copyFile(
+        `drizzle/${entry.tag}.sql`,
+        join(baseline, `${entry.tag}.sql`),
+      );
+    const upgradeDb = drizzle(upgradeClient, { schema: s });
+    await migrate(upgradeDb, { migrationsFolder: baseline });
+
+    // Two organizations on the previous scale (Epic 2, Story/Task/Bug 1,
+    // Subtask 0). Acme renamed and added types: a grouping type above Epic,
+    // a plain grouping type, a renamed Story, a plain custom type and an
+    // archived spec-backed type.
+    const userId = crypto.randomUUID();
+    await upgradeDb
+      .insert(s.user)
+      .values({ id: userId, name: "Owner", email: `${userId}@example.test` });
+    const orgs = ["acme", "globex"].map((slug) => ({
+      id: `${slug}-${crypto.randomUUID()}`,
+      name: slug,
+      slug: `${slug}-${crypto.randomUUID()}`,
+      createdAt: new Date(),
+    }));
+    await upgradeDb.insert(s.organization).values(orgs);
+    const [acme, globex] = orgs.map((o) => o.id) as [string, string];
+    const previous: [string, number, boolean, number][] = [
+      // name, previous level, specification, expected level
+      ["Epic", 2, true, 3],
+      ["Story", 1, true, 2],
+      ["Task", 1, false, 1],
+      ["Bug", 1, false, 1],
+      ["Subtask", 0, false, 0],
+    ];
+    const custom: typeof previous = [
+      ["Initiative", 3, true, 4],
+      ["Feature", 2, false, 3],
+      ["Requirement", 1, true, 2],
+      ["Spike", 1, false, 1],
+      ["Old story", 1, true, 2],
+    ];
+    const typeId = (organizationId: string, typeName: string) =>
+      `${organizationId}:${typeName}`;
+    for (const [organizationId, rows] of [
+      [acme, [...previous, ...custom]],
+      [globex, previous],
+    ] as const)
+      await upgradeDb.insert(s.workItemType).values(
+        rows.map(([typeName, level, hasSpecification], position) => ({
+          id: typeId(organizationId, typeName),
+          organizationId,
+          name: typeName,
+          icon: "task",
+          level,
+          hasSpecification,
+          position,
+          archivedAt: typeName === "Old story" ? new Date() : null,
+        })),
+      );
+    // Acme's work: every pair valid on the previous scale.
+    const projectId = crypto.randomUUID();
+    await upgradeDb.insert(s.project).values({
+      id: projectId,
+      organizationId: acme,
+      name: "Payments",
+      slug: "payments",
+      key: "PAY",
+      createdById: userId,
+    });
+    const [status] = await upgradeDb
+      .insert(s.workflowStatus)
+      .values({
+        organizationId: acme,
+        projectId,
+        name: "Backlog",
+        category: "backlog",
+      })
+      .returning();
+    const tree: [string, string, string | null][] = [
+      // item, type, parent
+      ["initiative", "Initiative", null],
+      ["epic", "Epic", "initiative"],
+      ["feature", "Feature", "initiative"],
+      ["story", "Story", "epic"],
+      ["task", "Task", "epic"],
+      ["bug", "Bug", "epic"],
+      ["requirement", "Requirement", "feature"],
+      ["old", "Old story", "feature"],
+      ["story-subtask", "Subtask", "story"],
+      ["task-subtask", "Subtask", "task"],
+      ["spike-subtask", "Subtask", "requirement"],
+    ];
+    const itemId = (key: string) => `${acme}:${key}`;
+    for (const [index, [key, typeName, parent]] of tree.entries())
+      await upgradeDb.insert(s.workItem).values({
+        id: itemId(key),
+        organizationId: acme,
+        projectId,
+        number: index + 1,
+        typeId: typeId(acme, typeName),
+        parentId: parent ? itemId(parent) : null,
+        statusId: status!.id,
+        rank: `a${index}`,
+        title: key,
+        createdById: userId,
+      });
+    // The directory projection lists types with their levels.
+    const directoryTypes = (organizationId: string, rows: typeof previous) =>
+      rows.map(([typeName, level], position) => ({
+        id: typeId(organizationId, typeName),
+        name: typeName,
+        level,
+        position,
+      }));
+    await upgradeDb.insert(s.syncEntity).values([
+      {
+        key: `directory:${acme}`,
+        organizationId: acme,
+        type: "directory",
+        data: {
+          members: ["kept"],
+          types: [
+            ...directoryTypes(acme, [...previous, ...custom]),
+            // A type the projection lists but the table no longer has.
+            { id: "gone", name: "Gone", level: 1, position: 99 },
+          ],
+        },
+      },
+      {
+        key: `directory:${globex}`,
+        organizationId: globex,
+        type: "directory",
+        data: { types: directoryTypes(globex, previous) },
+      },
+    ]);
+    const items = () =>
+      upgradeClient<
+        {
+          id: string;
+          parent_id: string | null;
+          type_id: string;
+          updated_at: Date;
+        }[]
+      >`SELECT id, parent_id, type_id, updated_at FROM work_item ORDER BY id`;
+    const before = await items();
+
+    await migrate(upgradeDb, { migrationsFolder: "drizzle" });
+
+    const levels = async (organizationId: string) =>
+      Object.fromEntries(
+        (
+          await upgradeDb
+            .select()
+            .from(s.workItemType)
+            .where(eq(s.workItemType.organizationId, organizationId))
+        ).map((t) => [t.name, t.level]),
+      );
+    assert.deepEqual(
+      await levels(acme),
+      Object.fromEntries(
+        [...previous, ...custom].map(([typeName, , , level]) => [
+          typeName,
+          level,
+        ]),
+      ),
+    );
+    assert.deepEqual(
+      await levels(globex),
+      Object.fromEntries(
+        previous.map(([typeName, , , level]) => [typeName, level]),
+      ),
+    );
+    // Items are untouched and every parent still sits strictly above its
+    // children.
+    assert.deepEqual(await items(), before);
+    const [{ invalid }] = await upgradeClient<{ invalid: number }[]>`
+      SELECT count(*)::int AS invalid FROM work_item c
+      JOIN work_item p ON p.id = c.parent_id
+      JOIN work_item_type ct ON ct.id = c.type_id
+      JOIN work_item_type pt ON pt.id = p.type_id
+      WHERE pt.level <= ct.level`;
+    assert.equal(invalid, 0);
+    // The directory projections carry the new levels; everything else in
+    // them is kept, in order.
+    const projected = async (organizationId: string) =>
+      (
+        await upgradeDb
+          .select()
+          .from(s.syncEntity)
+          .where(eq(s.syncEntity.key, `directory:${organizationId}`))
+      )[0]!.data as {
+        members?: string[];
+        types: { id: string; level: number; position: number }[];
+      };
+    const acmeDirectory = await projected(acme);
+    assert.deepEqual(acmeDirectory.members, ["kept"]);
+    assert.deepEqual(
+      acmeDirectory.types.map((t) => [t.id, t.level, t.position]),
+      [
+        ...[...previous, ...custom].map(([typeName, , , level], position) => [
+          typeId(acme, typeName),
+          level,
+          position,
+        ]),
+        ["gone", 1, 99],
+      ],
+    );
+    assert.deepEqual(
+      (await projected(globex)).types.map((t) => t.level),
+      previous.map(([, , , level]) => level),
     );
   } finally {
     await upgradeClient.end();

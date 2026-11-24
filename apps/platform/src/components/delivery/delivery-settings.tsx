@@ -3,7 +3,12 @@ import { useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { paths } from "@lictory/core/lib/paths";
-import { enabledTypes, type Project } from "@lictory/core/lib/work-items";
+import {
+  enabledTypes,
+  isTopLevel,
+  typeLevels,
+  type Project,
+} from "@lictory/core/lib/work-items";
 import type {
   DeliveryConnectionSummary,
   DeliveryTargetSummary,
@@ -496,7 +501,9 @@ function suggestMapping(
     const byName = external.find(
       (x) => x.name.toLowerCase() === t.name.toLowerCase(),
     );
-    const level = t.level >= 2 ? 1 : t.level === 0 ? -1 : 0;
+    // Grouping types are epic-like, Subtasks sub-tasks, the rest (Story,
+    // Task, Bug) standard issues.
+    const level = isTopLevel(t) ? 1 : t.level === typeLevels.subtask ? -1 : 0;
     const byLevel = external.find((x) => x.hierarchyLevel === level);
     const pick = byName ?? byLevel;
     if (pick && !pick.unsupportedRequiredFields.length)

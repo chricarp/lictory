@@ -43,7 +43,7 @@ after(async () => {
 });
 
 // An organization with an epic, two stories (one not ready) and a subtask,
-// connected to a fake Jira with Epic/Story/Subtask mapped.
+// connected to a fake Jira with Epic/Story/Task/Subtask mapped.
 async function fixture(
   onPublicationCompleted?: NonNullable<
     Parameters<typeof createDeliveryService>[1]
@@ -173,6 +173,7 @@ async function fixture(
     typeMapping: {
       [types.Epic]: "epic",
       [types.Story]: "story",
+      [types.Task]: "task",
       [types.Subtask]: "subtask",
     },
   });
@@ -208,6 +209,7 @@ async function fixture(
     connectionId,
     command,
     types,
+    create,
     epic,
     story,
     draft,
@@ -526,6 +528,113 @@ void test("a failing parent skips its whole subtree", async () => {
   assert.equal(failed.status, "failed");
   assert.equal(f.fake.items.size, 0);
   assert.equal((await f.links()).length, 0);
+});
+
+void test("a Story's Tasks go under the nearest issue Jira accepts as their parent, idempotently", async () => {
+  const f = await fixture();
+  // Lictory: Epic PAY-1 > Story PAY-2 > Task > Subtask. Jira keeps Tasks
+  // beside Stories, so the Task goes under the Epic; its Subtask stays
+  // under it.
+  const task = await f.create(f.types.Task, "Retry worker", f.story);
+  const taskSubtask = await f.create(f.types.Subtask, "Backoff", task);
+  const placed =
+    /^Jira cannot nest a Task under a Story, so PAY-\d+ goes under PAY-1 in Jira\.$/;
+  const preview = await f.service.preview(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  const entry = preview.entries.find((e) => e.workItemId === task)!;
+  assert.equal(entry.action, "create");
+  assert.match(entry.note!, placed);
+  assert.equal(
+    preview.entries.find((e) => e.workItemId === taskSubtask)!.note,
+    undefined,
+  );
+  const publication = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  assert.equal(publication.status, "completed");
+  assert.equal(publication.results[task]!.outcome, "created");
+  assert.match(publication.results[task]!.message!, placed);
+  const external = async (id: string) =>
+    f.fake.items.get((await f.linkOf(id))!.externalId!)!;
+  const epicIssue = await external(f.epic);
+  const taskIssue = await external(task);
+  assert.equal(taskIssue.typeId, "task");
+  assert.equal(taskIssue.parentId, epicIssue.id);
+  assert.equal((await external(taskSubtask)).parentId, taskIssue.id);
+  assert.equal((await external(f.story)).parentId, epicIssue.id);
+
+  // Exporting again changes nothing: the placement is part of what was
+  // exported, so the Task is unchanged, not moved or duplicated.
+  const size = f.fake.items.size;
+  f.fake.calls.length = 0;
+  const again = await f.service.preview(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  assert.equal(
+    again.entries.find((e) => e.workItemId === task)!.action,
+    "unchanged",
+  );
+  const repeated = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  assert.equal(repeated.results[task]!.outcome, "unchanged");
+  assert.match(repeated.results[task]!.message!, placed);
+  assert.equal(f.fake.items.size, size);
+  assert.ok(
+    !f.fake.calls.includes("createItem") &&
+      !f.fake.calls.includes("updateItem"),
+  );
+
+  // A Story without a higher ancestor: its Task goes without a parent.
+  const story = await f.create(f.types.Story, "Refund copy", null);
+  await f.setReady(story);
+  const orphan = await f.create(f.types.Task, "Refund email", story);
+  const alone = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    rootId: story,
+  });
+  assert.equal(alone.status, "completed");
+  assert.match(
+    alone.results[orphan]!.message!,
+    /cannot nest a Task under a Story, so PAY-\d+ goes without a parent in Jira/,
+  );
+  assert.equal((await external(orphan)).parentId, null);
+});
+
+void test("a target saved before Lictory recorded Jira's hierarchy learns it on the next export", async () => {
+  const f = await fixture();
+  const task = await f.create(f.types.Task, "Retry worker", f.story);
+  // As saved by an earlier version: a mapping without hierarchy levels.
+  await db
+    .update(s.deliveryTarget)
+    .set({ typeHierarchy: {} })
+    .where(eq(s.deliveryTarget.organizationId, f.organizationId));
+  const publication = await f.service.publish(f.userId, {
+    organizationId: f.organizationId,
+    rootId: f.epic,
+  });
+  assert.equal(publication.status, "completed");
+  const [target] = await db
+    .select()
+    .from(s.deliveryTarget)
+    .where(eq(s.deliveryTarget.organizationId, f.organizationId));
+  assert.deepEqual(target!.typeHierarchy, {
+    epic: 1,
+    story: 0,
+    task: 0,
+    subtask: -1,
+  });
+  const epic = (await f.linkOf(f.epic))!;
+  const taskLink = (await f.linkOf(task))!;
+  assert.equal(
+    f.fake.items.get(taskLink.externalId!)!.parentId,
+    epic.externalId,
+  );
 });
 
 void test("a crash between the external create and recording it is recovered, not duplicated", async () => {
