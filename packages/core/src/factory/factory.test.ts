@@ -9,7 +9,6 @@ import * as s from "@lictory/core/db/schema";
 import { seedOrganization } from "@lictory/core/domain/organization";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
 import {
-  CapabilityError,
   noEffects,
   type CapabilityContext,
   type Principal,
