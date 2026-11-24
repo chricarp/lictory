@@ -80,7 +80,9 @@ internal-suffix hosts refused unless the operator lists them in
 `CODE_HOST_PRIVATE_HOSTS`. The check runs on the URL and again on the
 addresses the name resolves to at connection time, so DNS rebinding is caught
 too. Pagination only follows links to the API's own origin: the credential
-goes with each request.
+goes with each request. Agent event webhooks use a different guard
+(`lib/egress.ts`) for destinations anyone types; see
+[agent events](agent-events.md#egress) for why the two are separate.
 
 ## Ingest
 

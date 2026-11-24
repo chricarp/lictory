@@ -23,6 +23,11 @@ import { CodeHostError } from "@lictory/core/code/provider";
 //   (local development and test stand-ins).
 // - Redirects are never followed, so a response cannot steer a request
 //   elsewhere.
+//
+// Agent event webhooks have their own guard (lib/egress.ts): any URL a
+// person or agent types, one installation-wide private-network switch and a
+// bounded node:http request, where this one serves named, operator-listed
+// hosts through fetch. docs/internals/agent-events.md#egress says why.
 
 function allowlist() {
   return new Set(

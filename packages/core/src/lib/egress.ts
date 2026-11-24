@@ -19,6 +19,9 @@ import { envBoolean, type Environment } from "@lictory/core/lib/env";
 // - https is required except to a private destination the operator
 //   allowed; redirects are never followed; time and response size are
 //   bounded.
+//
+// Code host requests use code/egress.ts instead (operator-listed private
+// hosts by name, fetch for paginated adapters); docs/internals/agent-events.md#egress.
 
 type EgressReason =
   | "invalid_url"

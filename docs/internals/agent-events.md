@@ -226,6 +226,16 @@ server-side request forgery risk (`lib/egress.ts`):
   allowed; no credentials in URLs; redirects are never followed; ten
   seconds per request; at most 64 KiB of response is read.
 
+Code host requests have their own guard (`code/egress.ts`, see
+[code hosts](code-hosts.md#egress)) on purpose. The destinations differ:
+an administrator names one self-managed host the operator lists by name in
+`CODE_HOST_PRIVATE_HOSTS`, and its adapters page through `fetch` with the
+credential, while a webhook is any URL a person or an agent types, sent
+once with a bounded answer under one installation-wide switch. Sharing one
+implementation would change what one of them accepts; both refuse
+link-local and metadata addresses, never follow redirects and judge the
+addresses a name resolves to at connection time.
+
 **Organization policy.** An organization's administrators decide whether
 its events may be sent to webhook destinations at all, and optionally only
 to listed hosts (`exact.example.com`, `*.example.com`), in Organization
