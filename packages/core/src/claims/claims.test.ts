@@ -38,6 +38,8 @@ import {
 } from "@lictory/core/claims/service";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
 import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
+import { invoke } from "@lictory/core/capabilities/registry";
+import { noEffects } from "@lictory/core/capabilities/core";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -1229,5 +1231,65 @@ void test("Autopilot requests the merge once, attributed to the policy and its a
   };
   await follow();
   assert.equal((await f.item(spec)).statusId, f.statuses.Done);
+  assert.deepEqual(await f.drift(), []);
+});
+
+void test("MCP agents claim through the capability layer; autonomy stays with people", async () => {
+  const f = await fixture();
+  const spec = await f.agreed();
+  const [token] = await db
+    .insert(s.accessToken)
+    .values({
+      userId: f.ada,
+      name: "Forge",
+      scope: "write",
+      prefix: "lct_test",
+      tokenHash: crypto.randomUUID(),
+    })
+    .returning();
+  const mcp = {
+    db,
+    effects: noEffects,
+    principal: {
+      userId: f.ada,
+      surface: "mcp" as const,
+      tokenId: token!.id,
+      agentName: "Forge",
+      access: "write" as const,
+    },
+  };
+  const listed = (await invoke(mcp, "listClaimableItems", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+  })) as { items: { workItemId: string }[] };
+  assert.deepEqual(
+    listed.items.map((i) => i.workItemId),
+    [spec],
+  );
+  const claimed = (await invoke(mcp, "claimItem", {
+    organizationId: f.organizationId,
+    workItemId: spec,
+  })) as { claimId: string };
+  const claim = await f.claimRow(claimed.claimId);
+  assert.equal(claim.agentId, token!.id);
+  assert.equal(claim.agentName, "Forge");
+  await assert.rejects(
+    invoke(mcp, "setAutonomyPolicy", {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      policy: defaultAutonomyPolicy,
+    }),
+    (e: unknown) =>
+      e instanceof Error &&
+      "details" in e &&
+      (e.details as { kind?: string }).kind === "human_only",
+  );
+  const done = (await invoke(mcp, "getDefinitionOfDone", {
+    organizationId: f.organizationId,
+    projectId: f.projectId,
+    workItemId: spec,
+  })) as { checks: unknown[]; evaluation: { passed: boolean } | null };
+  assert.equal(done.checks.length, 2);
+  assert.equal(done.evaluation?.passed, false);
   assert.deepEqual(await f.drift(), []);
 });

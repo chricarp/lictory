@@ -22,6 +22,7 @@ import {
   autonomyPolicyInputSchema,
   doneChecksSchema,
   effectiveAutonomy,
+  effectiveDoneChecks,
   type AutonomyPolicyInput,
   type ClaimEntity,
   type DoneCheckDefinition,
@@ -1979,6 +1980,48 @@ async function requestAutopilotMerge(
 }
 
 // --------------------------------------------------------------- reads
+
+// A project's Definition of Done and, for one item, its evaluation: what
+// agents read to know what finishing means.
+export async function definitionOfDoneOf(
+  db: Database,
+  userId: string,
+  input: { organizationId: string; projectId: string; workItemId?: string },
+) {
+  return db.transaction(
+    async (tx) => {
+      await authorize(tx, userId, input.organizationId);
+      const [stored] = await tx
+        .select()
+        .from(s.definitionOfDone)
+        .where(
+          and(
+            eq(s.definitionOfDone.organizationId, input.organizationId),
+            eq(s.definitionOfDone.projectId, input.projectId),
+          ),
+        );
+      let evaluation = null;
+      if (input.workItemId) {
+        const subjects = await doneSubjects(tx, input.organizationId, [
+          input.workItemId,
+        ]);
+        if (subjects[0]?.projectId !== input.projectId)
+          throw new DomainError("not_found", "This item is unavailable.");
+        evaluation =
+          (await evaluateDone(tx, input.organizationId, subjects)).get(
+            input.workItemId,
+          )?.entity ?? null;
+      }
+      return {
+        projectId: input.projectId,
+        checks: effectiveDoneChecks(stored),
+        version: stored?.version ?? 0,
+        evaluation,
+      };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
+}
 
 export type ClaimableEntry = {
   workItemId: string;

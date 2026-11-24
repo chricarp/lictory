@@ -1,17 +1,15 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import * as s from "@lictory/core/db/schema";
 import {
   autonomyLevels,
   autonomyPolicyInputSchema,
   autopilotRequirements,
   doneCheckDefinitionSchema,
-  effectiveDoneChecks,
 } from "@lictory/core/claims/contracts";
 import {
   askQuestion,
   autonomyPolicyOf,
   claimItem,
+  definitionOfDoneOf,
   dispatchState,
   listClaimable,
   listLiveClaims,
@@ -24,10 +22,8 @@ import {
   setDefinitionOfDone,
   signOffDoneCheck,
 } from "@lictory/core/claims/service";
-import { doneSubjects, evaluateDone } from "@lictory/core/claims/projections";
 import { claim } from "@lictory/core/contracts/state-machines";
-import { authorize, type Actor } from "@lictory/core/domain/service";
-import { DomainError } from "@lictory/core/domain/errors";
+import type { Actor } from "@lictory/core/domain/service";
 import {
   defineCapability,
   everywhere,
@@ -247,41 +243,7 @@ const getDefinitionOfDone = defineCapability({
   kind: "query",
   surfaces: everywhere,
   input: z.object({ organizationId, projectId: id, workItemId: id.optional() }),
-  async run(ctx, input) {
-    return ctx.db.transaction(
-      async (tx) => {
-        await authorize(tx, ctx.principal.userId, input.organizationId);
-        const [stored] = await tx
-          .select()
-          .from(s.definitionOfDone)
-          .where(
-            and(
-              eq(s.definitionOfDone.organizationId, input.organizationId),
-              eq(s.definitionOfDone.projectId, input.projectId),
-            ),
-          );
-        let evaluation = null;
-        if (input.workItemId) {
-          const subjects = await doneSubjects(tx, input.organizationId, [
-            input.workItemId,
-          ]);
-          if (subjects[0]?.projectId !== input.projectId)
-            throw new DomainError("not_found", "This item is unavailable.");
-          evaluation =
-            (await evaluateDone(tx, input.organizationId, subjects)).get(
-              input.workItemId,
-            )?.entity ?? null;
-        }
-        return {
-          projectId: input.projectId,
-          checks: effectiveDoneChecks(stored),
-          version: stored?.version ?? 0,
-          evaluation,
-        };
-      },
-      { isolationLevel: "repeatable read", accessMode: "read only" },
-    );
-  },
+  run: (ctx, input) => definitionOfDoneOf(ctx.db, ctx.principal.userId, input),
 });
 
 const setDefinitionOfDoneCapability = defineCapability({
