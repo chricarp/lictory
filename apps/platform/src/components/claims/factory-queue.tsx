@@ -42,6 +42,7 @@ import {
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
 import { ReleaseDialog } from "@lictory/platform/components/claims/item-panels";
+import { useFactory } from "@lictory/platform/components/factory/store";
 
 type Dispatch = {
   workItemId: string;
@@ -86,8 +87,16 @@ export function FactoryQueue() {
 const PAGE = 50;
 
 function Queue({ project }: { project: Project }) {
-  const { items, view, organization, capabilitiesIn, canManage, userId } =
-    useWorkspace();
+  const {
+    items,
+    view,
+    organization,
+    capabilitiesIn,
+    canManage,
+    userId,
+    memberName,
+  } = useWorkspace();
+  const { agentById } = useFactory();
   const claims = useLiveClaims();
   const verdictOf = useClaimability();
   const label = useAgentLabel();
@@ -143,6 +152,17 @@ function Queue({ project }: { project: Project }) {
     return { claimed, waiting, agreement, claimable, blocked };
   }, [items, claims, verdictOf, project.id]);
   const live = groups.claimed.length + groups.waiting.length;
+  // Work a person owns stays theirs: the dispatcher gives an assigned item
+  // only to an implementer acting for its assignee.
+  const implementerOwners = new Set(
+    policy.implementerAgentIds.map((id) => agentById.get(id)?.ownerId),
+  );
+  const leftTo = (item: WorkItem) =>
+    policy.level !== "assist" &&
+    item.assigneeId &&
+    !implementerOwners.has(item.assigneeId)
+      ? `Assigned to ${memberName(item.assigneeId)}: the ${autonomyLevelMeta[policy.level].label} policy leaves it to them.`
+      : undefined;
   const key = (item: WorkItem) => identifier(project, item.number);
   const href = (item: WorkItem) =>
     paths.item(organization.slug, project.key, key(item));
@@ -314,7 +334,7 @@ function Queue({ project }: { project: Project }) {
                     detail={
                       held
                         ? `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`
-                        : undefined
+                        : leftTo(item)
                     }
                     action={
                       held &&
