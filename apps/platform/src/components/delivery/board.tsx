@@ -489,10 +489,11 @@ function ProjectBoard({ project }: { project: Project }) {
                     {...props}
                     variant="ghost"
                     size="sm"
-                    className="max-w-40"
+                    // Room for the sprint's name beside the Active chip.
+                    className="max-w-72 max-sm:max-w-40"
                   >
                     <Repeat className="size-3.5" />
-                    <span className="truncate">
+                    <span className="min-w-0 truncate">
                       {iteration
                         ? iterationLabel(iteration, project?.iterationMode)
                         : "All work"}
@@ -501,7 +502,7 @@ function ProjectBoard({ project }: { project: Project }) {
                       <StatusChip
                         tone="success"
                         icon={<StatusDot />}
-                        className="max-sm:hidden"
+                        className="shrink-0 max-sm:hidden"
                       >
                         Active
                       </StatusChip>
