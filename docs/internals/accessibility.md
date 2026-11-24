@@ -52,6 +52,14 @@ minor findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
 
+## Focus
+
+Focus is always visible from the keyboard: one 2px ring in the theme's
+focus color, offset from the control (`focus-ring`), or drawn inside a
+full-bleed row that sits flush against a clipping scroll container
+(`focus-ring-inset`). The ring is opaque, so it keeps 3:1 against every
+surface. Muted text keeps 4.5:1 on every light surface it sits on.
+
 ## The editor's keyboard model
 
 Every rich text field (the live page editor and Work's Markdown fields:

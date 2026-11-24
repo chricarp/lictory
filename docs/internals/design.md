@@ -29,16 +29,28 @@ panel for agreeing on what to build.
   mode is neutral charcoal with the same structure: trays darker than cards.
   Success, warning and destructive keep at least 4.5:1 on every surface; use
   the tokens (`text-warning`, `bg-success/8`), not palette colors.
-- **Type.** Geist for the interface and reading text. Geist Mono, in small
-  capitals with open tracking, labels metadata: section labels, column
-  headers, stage steppers, identifiers and revisions.
+- **Type.** Geist for the interface and reading text. Section captions are
+  sans 12px semibold in the muted color. Geist Mono is only for
+  identifiers (keys, revisions, SHAs, branches, handles) and code, so an
+  identifier always looks like one.
 - **Shape.** Pills for every action and status; concentric radii everywhere a
   card sits in a tray (outer radius = inner radius + padding). Surfaces
   separate with hairline rings; real shadows are for what floats.
-- **Status grammar.** A status is a soft tint with a hairline ring of the same
-  hue, an optional dot or icon, and color only when it means something:
-  green for done or passing, warning for what needs attention, red for what
-  blocks. Everything else is neutral.
+- **Status grammar.** A status is one `StatusChip`: 20px tall, 6px corners,
+  sans 12px medium, an icon and a label, a soft tint with a hairline ring of
+  the same hue. Five tones, and color only when it means something:
+  attention (amber) for what waits on a person, info for what is in motion,
+  success for done or passing, danger for what failed or blocks; everything
+  else is neutral. An agent session and the claim it works for share one
+  vocabulary (`sessionState`), so no two panels name the same state
+  differently.
+- **Identity.** A person is a circle in a color derived from their id (the
+  same on every page and device), with their photo when they have one;
+  below 20px the initials give way to a dot named by a tooltip. An agent is
+  a rounded square with its emoji and a small robot badge, and always reads
+  "Forge via Ada": an agent acts for its owner. What a policy did by itself
+  reads "Build policy (set by Ada)". People seen through Slack carry the
+  Slack mark.
 - **Structure.** The specification is the primary surface. Workflow state is
   one statement, its evidence as pills, and one next action. Lists name
   their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
