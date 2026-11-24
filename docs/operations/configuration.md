@@ -172,9 +172,15 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Delivery integrations
 
-| Variable                   | Required | Default                                       | Read by     | Secret          | Description                                                                                                                                                                       |
-| -------------------------- | -------- | --------------------------------------------- | ----------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens). Never rotate it once credentials are stored. Required in production before the first Jira connection; see the note below. |
+| Variable                   | Required | Default                                       | Read by     | Secret          | Description                                                                                                                                                                                                                          |
+| -------------------------- | -------- | --------------------------------------------- | ----------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens) and the secrets of agent event webhooks. Never rotate it once credentials are stored. Required in production before the first Jira connection or webhook; see the note below. |
+
+## Agent events
+
+| Variable                              | Required | Default | Read by     | Secret | Description                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------- | ------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS` | No       | `false` | api, worker | No     | Lets agent event webhooks reach loopback and private-network addresses (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, single-label and `.internal`/`.local`/`.lan` names), and plain http there, for self-hosted agents on your LAN. Link-local and cloud metadata addresses stay refused. See docs/internals/agent-events.md. |
 
 ## File storage
 
