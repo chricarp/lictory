@@ -17,6 +17,7 @@ import {
   MessageSquare,
   MessagesSquare,
   RefreshCw,
+  Settings2,
   ShieldAlert,
   SquareKanban,
   Upload,
@@ -25,8 +26,9 @@ import {
 } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
-import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -43,6 +45,13 @@ import {
   notificationHref,
 } from "@lictory/core/notifications/format";
 import type { NotificationItem } from "@lictory/core/notifications/service";
+import {
+  describeConversation,
+  digestConversations,
+  unreadIn,
+  type FeedRow,
+} from "@lictory/core/notifications/digest";
+import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import {
   announceNotificationChange,
   notificationRequest,
@@ -191,6 +200,11 @@ export function NotificationFeed() {
     }
   };
 
+  // Conversation traffic is digested per conversation.
+  const rows = useMemo(
+    () => digestConversations(page?.items ?? []),
+    [page?.items],
+  );
   const unreadElsewhere = directory.organizations
     .filter((o) => o.id !== organization.id && (page?.unread[o.id] ?? 0) > 0)
     .map((o) => ({ ...o, count: page!.unread[o.id]! }));
@@ -327,6 +341,15 @@ export function NotificationFeed() {
           >
             <CheckCheck className="size-3.5" /> Mark all read
           </Button>
+          <Tooltip label="Notification settings">
+            <Link
+              href={paths.notificationSettings(organization.slug)}
+              aria-label="Notification settings"
+              className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+            >
+              <Settings2 className="size-4" aria-hidden />
+            </Link>
+          </Tooltip>
         </div>
       </div>
       {error && (
@@ -364,19 +387,23 @@ export function NotificationFeed() {
           </EmptyState>
         ) : (
           <ul className="divide-y">
-            {page.items.map((n) => (
-              <Row
-                key={n.id}
-                n={n}
-                showOrganization={filters.everywhere}
-                onOpen={(href) => {
-                  if (!n.readAt) void setRead([n.id], true);
-                  router.push(href);
-                }}
-                onRead={(read) => void setRead([n.id], read)}
-                onArchive={(archived) => void setArchived([n.id], archived)}
-              />
-            ))}
+            {rows.map((row) => {
+              const ids = row.items.map((n) => n.id);
+              return (
+                <Row
+                  key={row.key}
+                  row={row}
+                  showOrganization={filters.everywhere}
+                  onOpen={(href) => {
+                    const unread = unreadIn(row).map((n) => n.id);
+                    if (unread.length) void setRead(unread, true);
+                    router.push(href);
+                  }}
+                  onRead={(read) => void setRead(ids, read)}
+                  onArchive={(archived) => void setArchived(ids, archived)}
+                />
+              );
+            })}
           </ul>
         )}
         {page?.next && (
@@ -400,18 +427,20 @@ export function NotificationFeed() {
 }
 
 function Row({
-  n,
+  row,
   showOrganization,
   onOpen,
   onRead,
   onArchive,
 }: {
-  n: NotificationItem;
+  row: FeedRow<NotificationItem>;
   showOrganization: boolean;
   onOpen: (href: string) => void;
   onRead: (read: boolean) => void;
   onArchive: (archived: boolean) => void;
 }) {
+  const n = row.latest;
+  const digest = row.items.length > 1;
   const category = kindCategory(n.kind);
   const Icon =
     n.kind === "item_ready"
@@ -422,13 +451,28 @@ function Row({
           ? categoryIcons[category]
           : Bell;
   const actor = n.actorName ?? (n.actorId ? "Former member" : "Lictory");
-  const { headline, body } = describeNotification(n, actor);
+  const described = describeNotification(n, actor);
+  const headline = digest ? describeConversation(row) : described.headline;
+  // A digest shows its newest message, with who wrote it.
+  const body =
+    digest && described.body ? `${actor}: ${described.body}` : described.body;
   const href = notificationHref(n.organizationSlug, n);
-  const title = typeof n.detail.title === "string" ? n.detail.title : null;
-  const unread = !n.readAt;
+  const title =
+    !digest && typeof n.detail.title === "string" ? n.detail.title : null;
+  const unread = unreadIn(row).length > 0;
+  const archived = Boolean(n.archivedAt);
   const urgent = n.kind === "blocking_thread" || n.kind === "export_failed";
+  const time = (
+    <time
+      dateTime={n.createdAt}
+      title={new Date(n.createdAt).toLocaleString()}
+      className="shrink-0 text-xs text-muted-foreground tabular-nums"
+    >
+      {relativeTime(n.createdAt)}
+    </time>
+  );
   return (
-    <li className="group relative">
+    <li className="group relative" data-notification-row>
       <a
         href={href}
         onClick={(e) => {
@@ -437,7 +481,7 @@ function Row({
           onOpen(href);
         }}
         className={cn(
-          "flex items-start gap-3 py-2.5 pr-24 pl-4 hover:bg-muted/60",
+          "flex items-start gap-3 py-2.5 pr-4 pl-4 focus-ring-inset outline-none hover:bg-muted/60",
           !unread && "text-muted-foreground",
         )}
       >
@@ -463,12 +507,15 @@ function Row({
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "flex items-center gap-2 text-[13px]",
+              "flex items-center gap-2 text-[13px] leading-5",
               unread && "font-medium text-foreground",
             )}
           >
             {n.actorName && (
-              <Avatar userId={n.actorId} name={n.actorName} size="xs" />
+              <PersonAvatar
+                person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
+                size={20}
+              />
             )}
             <span className="min-w-0 truncate">{headline}</span>
           </p>
@@ -479,22 +526,29 @@ function Row({
               {body}
             </p>
           )}
+          {/* On phones the time sits under the text, so the headline keeps
+              the row's full width. */}
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
+            {time}
+            {showOrganization && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="truncate">{n.organizationName}</span>
+              </>
+            )}
+          </p>
           {showOrganization && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">
               {n.organizationName}
             </p>
           )}
         </div>
-        <time
-          dateTime={n.createdAt}
-          title={new Date(n.createdAt).toLocaleString()}
-          className="shrink-0 text-xs text-muted-foreground tabular-nums group-focus-within:invisible group-hover:invisible"
-        >
-          {relativeTime(n.createdAt)}
-        </time>
+        <span className="mt-0.5 group-focus-within:invisible group-hover:invisible max-sm:hidden">
+          {time}
+        </span>
       </a>
-      <div className="invisible absolute top-2 right-3 flex items-center gap-0.5 group-focus-within:visible group-hover:visible">
-        {!n.archivedAt && (
+      <div className="invisible absolute top-2 right-3 flex items-center gap-0.5 rounded-md bg-card shadow-(--shadow-border) group-focus-within:visible group-hover:visible">
+        {!archived && (
           <Button
             size="icon"
             variant="ghost"
@@ -512,11 +566,11 @@ function Row({
         <Button
           size="icon"
           variant="ghost"
-          aria-label={n.archivedAt ? "Restore" : "Archive"}
-          title={n.archivedAt ? "Restore" : "Archive"}
-          onClick={() => onArchive(!n.archivedAt)}
+          aria-label={archived ? "Restore" : "Archive"}
+          title={archived ? "Restore" : "Archive"}
+          onClick={() => onArchive(!archived)}
         >
-          {n.archivedAt ? (
+          {archived ? (
             <ArchiveRestore className="size-3.5" />
           ) : (
             <Archive className="size-3.5" />
