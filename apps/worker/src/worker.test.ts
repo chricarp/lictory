@@ -407,6 +407,8 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       "notification",
       "organization-deletion",
       "schedules",
+      "slack",
+      "slack-prune",
     ]);
     child.kill("SIGTERM");
     assert.equal(await exited, 0);
