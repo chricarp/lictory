@@ -70,7 +70,7 @@
       "project": ["src/**/*.ts"],
     },
     "apps/runner": {
-      "entry": ["src/cli.ts", "src/**/*.test.ts", "scripts/build.ts"],
+      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/**/*.ts"],
     },
   },
