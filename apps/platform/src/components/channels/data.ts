@@ -43,6 +43,7 @@ type ReactionRow = {
   readonly emoji: string;
   readonly userId: string | null;
   readonly agentId: string | null;
+  readonly externalSource?: string | null;
   readonly createdAt: number;
 };
 export type MessageRow = {
@@ -70,6 +71,20 @@ export type MessageRow = {
   readonly editedAt: number | null;
   readonly deletedAt: number | null;
   readonly externalSource: string | null;
+  // Messages written in a linked Slack channel: the author's name when they
+  // have no Lictory identity, file links and reactions from people there.
+  readonly externalAuthorName?: string | null;
+  readonly externalFiles?: readonly {
+    name: string;
+    mimeType: string;
+    size: number;
+    url: string;
+  }[];
+  readonly externalReactions?: readonly {
+    emoji: string;
+    names: readonly string[];
+    externalIds: readonly string[];
+  }[];
   readonly createdAt: number;
   readonly reactions?: readonly ReactionRow[];
 };
@@ -188,7 +203,9 @@ const authorOf = (m: MessageRow) =>
     ? `a:${m.authorAgentId}`
     : m.authorKind === "system"
       ? "system"
-      : `u:${m.authorUserId}`;
+      : m.authorKind === "external"
+        ? `x:${m.externalAuthorName}`
+        : `u:${m.authorUserId}`;
 
 /**
  * Messages in reading order with day dividers, a "new" divider before the
@@ -243,14 +260,24 @@ export function listEntries(
   return entries;
 }
 
-/** Reactions of a message grouped by emoji, in first-reacted order. */
+/**
+ * Reactions of a message grouped by emoji, in first-reacted order; people
+ * of a linked Slack channel with no Lictory identity count by name.
+ */
 export function groupReactions(
   reactions: readonly ReactionRow[] | undefined,
   userId: string,
+  external: MessageRow["externalReactions"] = [],
 ) {
   const groups = new Map<
     string,
-    { emoji: string; count: number; mine: boolean; userIds: string[] }
+    {
+      emoji: string;
+      count: number;
+      mine: boolean;
+      userIds: string[];
+      names: string[];
+    }
   >();
   for (const r of [...(reactions ?? [])].sort(
     (a, b) => a.createdAt - b.createdAt,
@@ -260,13 +287,26 @@ export function groupReactions(
       count: 0,
       mine: false,
       userIds: [],
+      names: [],
     };
     group.count++;
     if (r.userId) group.userIds.push(r.userId);
     if (r.userId === userId) group.mine = true;
     groups.set(r.emoji, group);
   }
-  return [...groups.values()];
+  for (const r of external ?? []) {
+    const group = groups.get(r.emoji) ?? {
+      emoji: r.emoji,
+      count: 0,
+      mine: false,
+      userIds: [],
+      names: [],
+    };
+    group.count += r.externalIds.length;
+    group.names.push(...r.names.map((n) => `${n} (Slack)`));
+    groups.set(r.emoji, group);
+  }
+  return [...groups.values()].filter((g) => g.count > 0);
 }
 
 /** The repliers shown on a thread root, people first by recency. */

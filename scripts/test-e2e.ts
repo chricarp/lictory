@@ -13,7 +13,7 @@
 // documentation is built and served only when the selected tests include it.
 //
 // External services are local stand-ins (scripts/e2e-fakes): a Jira Cloud
-// site and, for the workflows of Lictory Intelligence (*.ai.spec.ts), a
+// site, a Slack workspace and, for the workflows of Lictory Intelligence (*.ai.spec.ts), a
 // scripted AI provider. Those workflows run last, against the API and worker
 // restarted with the provider configured: every other workflow keeps a
 // server without AI, as a default installation has.
@@ -41,6 +41,7 @@ import {
   startFakeGitHub,
   startFakeGitLab,
 } from "./e2e-fakes/code-hosts";
+import { startFakeSlack } from "./e2e-fakes/slack";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -348,6 +349,7 @@ const reportDir = process.env.E2E_UPDATE_TIMINGS
 let fakeJira: Awaited<ReturnType<typeof startFakeJira>> | undefined;
 let scriptedAi: Awaited<ReturnType<typeof startScriptedAi>> | undefined;
 let fakeCodeHosts: Awaited<ReturnType<typeof startFakeGitHub>>[] | undefined;
+let fakeSlack: Awaited<ReturnType<typeof startFakeSlack>> | undefined;
 let aiEnv: (ai: boolean) => Record<string, string> = () => ({});
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
@@ -421,6 +423,7 @@ try {
     startFakeGitLab(ports.fakeGitLab),
     startFakeBitbucket(ports.fakeBitbucket),
   ]);
+  fakeSlack = await startFakeSlack(ports.fakeSlack);
   // The API and the worker reach the fake Jira site through a preloaded
   // route that only this script passes; with `ai`, the scripted provider
   // through the AI SDK's OPENAI_BASE_URL.
@@ -442,6 +445,7 @@ try {
       [FAKE_GITHUB_SITE]: fakeCodeHosts![0]!.url,
       [FAKE_GITLAB_SITE]: fakeCodeHosts![1]!.url,
       [FAKE_BITBUCKET_API]: fakeCodeHosts![2]!.url,
+      "https://slack.com": fakeSlack!.url,
     }),
     ...aiEnv(ai),
   });
@@ -578,6 +582,7 @@ try {
         E2E_FAKE_GITHUB_URL: fakeCodeHosts[0]!.url,
         E2E_FAKE_GITLAB_URL: fakeCodeHosts[1]!.url,
         E2E_FAKE_BITBUCKET_URL: fakeCodeHosts[2]!.url,
+        E2E_FAKE_SLACK_URL: fakeSlack.url,
         ...((phase.ai || "console" in phase) && {
           E2E_SCRIPTED_AI_URL: scriptedAi.url,
         }),
@@ -613,6 +618,7 @@ try {
     fakeJira?.close(),
     scriptedAi?.close(),
     ...(fakeCodeHosts ?? []).map((host) => host.close()),
+    fakeSlack?.close(),
   ]);
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.

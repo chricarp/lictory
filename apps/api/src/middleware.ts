@@ -34,6 +34,8 @@ const ownOriginPolicy = [
   /^\/api\/zero\//,
   /^\/api\/runner\//,
   /^\/api\/code\/webhooks\//,
+  // Slack signs its requests (channels/slack/signature.ts).
+  /^\/api\/slack\/(events|interactivity)\//,
 ];
 
 // Cookie-authenticated writes must come from the platform's exact origin.

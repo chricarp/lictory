@@ -15,3 +15,4 @@ export * from "@lictory/core/db/claims-schema";
 export * from "@lictory/core/db/factory-schema";
 export * from "@lictory/core/db/channel-schema";
 export * from "@lictory/core/db/code-schema";
+export * from "@lictory/core/db/slack-schema";

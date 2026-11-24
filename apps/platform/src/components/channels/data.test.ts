@@ -226,3 +226,40 @@ void test("reactions group by emoji with mine marked; ↑ finds my last editable
   ];
   assert.equal(lastOwnMessage(messages, "ada")?.id, "m1");
 });
+
+void test("people of a linked Slack channel group by name and count in reactions", () => {
+  const start = Date.UTC(2026, 10, 24, 9);
+  const external = (sequence: number, name: string) =>
+    message(sequence, "", start + sequence * 1000, {
+      authorKind: "external",
+      authorUserId: null,
+      externalSource: "slack",
+      externalAuthorName: name,
+    });
+  const entries = listEntries(
+    [external(1, "Ines"), external(2, "Ines"), external(3, "Raj")],
+    { now: start },
+  ).filter((e) => e.type === "message");
+  assert.deepEqual(
+    entries.map((e) => (e.type === "message" ? e.grouped : null)),
+    [false, true, false],
+  );
+  const reactions = groupReactions(
+    [
+      {
+        id: "1",
+        messageId: "m",
+        emoji: "👀",
+        userId: "ada",
+        agentId: null,
+        createdAt: 1,
+      },
+    ],
+    "ada",
+    [{ emoji: "👀", names: ["Ines", "Raj"], externalIds: ["U1", "U2"] }],
+  );
+  assert.deepEqual(
+    reactions.map((r) => [r.emoji, r.count, r.mine, r.names]),
+    [["👀", 3, true, ["Ines (Slack)", "Raj (Slack)"]]],
+  );
+});

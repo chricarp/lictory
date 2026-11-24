@@ -1,6 +1,9 @@
 import { and, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
-import type { ChannelAttachment } from "@lictory/core/db/channel-schema";
+import type {
+  ChannelAttachment,
+  ChannelExternalFile,
+} from "@lictory/core/db/channel-schema";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
   authorize,
@@ -24,6 +27,7 @@ import {
   validEmoji,
 } from "@lictory/core/channels/shared";
 import { queueChannelNotifications } from "@lictory/core/channels/notifications";
+import { queueMirror } from "@lictory/core/channels/mirror";
 
 // The conversation writer (docs/internals/channels.md#write-path): the one
 // writer of channel messages, reactions, read cursors and thread
@@ -87,10 +91,16 @@ async function authorOf(
   return { kind: "user", userId: actor.userId, via: null };
 }
 
-const authorKeyOf = (author: Author) =>
+// Repliers on a thread root also include people of a linked external
+// system with no Lictory identity (`x:ID`, shown by count only).
+type ReplyAuthor = Author | { kind: "external"; externalId: string };
+
+const authorKeyOf = (author: ReplyAuthor) =>
   author.kind === "user"
     ? participantKey("user", author.userId)
-    : participantKey("agent", author.agentId);
+    : author.kind === "agent"
+      ? participantKey("agent", author.agentId)
+      : `x:${author.externalId}`;
 
 function isAuthor(message: MessageRow, author: Author) {
   return author.kind === "user"
@@ -403,6 +413,7 @@ export async function postMessage(
       via,
       body: input.body,
     });
+  await queueMirror(tx, access.channel, message!, { kind: "message" });
   return { message: message!, replayed: false };
 }
 
@@ -492,7 +503,7 @@ async function recordReply(
   tx: Tx,
   root: MessageRow,
   reply: MessageRow,
-  author: Author,
+  author: ReplyAuthor,
   mentionedUserIds: string[],
 ): Promise<string[]> {
   const key = authorKeyOf(author);
@@ -598,6 +609,7 @@ export async function editMessage(
     .set({ body: input.body, editedAt: new Date() })
     .where(eq(s.channelMessage.id, message.id))
     .returning();
+  await queueMirror(tx, access.channel, edited!, { kind: "message" });
   // People newly mentioned by the edit are told once; earlier mentions stay.
   const mentions = await resolveMentions(tx, access.channel, input.body);
   const added = await recordMentions(tx, edited!, access.channel, mentions);
@@ -660,6 +672,7 @@ export async function deleteMessage(
     })
     .where(eq(s.channelMessage.id, message.id))
     .returning();
+  await queueMirror(tx, access.channel, deleted!, { kind: "message" });
   return deleted!;
 }
 
@@ -715,6 +728,11 @@ export async function reactToMessage(
         ),
       )
       .returning({ id: s.channelReaction.id });
+    if (removed.length)
+      await queueMirror(tx, access.channel, message, {
+        kind: "reaction",
+        emoji: input.emoji,
+      });
     return { changed: removed.length > 0 };
   }
   if (message.deletedAt)
@@ -749,6 +767,11 @@ export async function reactToMessage(
     })
     .onConflictDoNothing()
     .returning({ id: s.channelReaction.id });
+  if (inserted.length)
+    await queueMirror(tx, access.channel, message, {
+      kind: "reaction",
+      emoji: input.emoji,
+    });
   return { changed: inserted.length > 0 };
 }
 
@@ -946,6 +969,7 @@ export async function appendSystemMessage(
     .returning({
       lastSequence: s.channel.lastSequence,
       rootCount: s.channel.rootCount,
+      externalSource: s.channel.externalSource,
     });
   const [message] = await tx
     .insert(s.channelMessage)
@@ -987,6 +1011,19 @@ export async function appendSystemMessage(
           eq(s.channelMember.readRootCount, counter!.rootCount - 1),
         ),
       );
+  // Cards (promotions, agent sessions) reach a linked external channel as
+  // summaries with a link back; system lines stay in Lictory.
+  if (input.kind === "card")
+    await queueMirror(
+      tx,
+      {
+        id: input.channelId,
+        organizationId: input.organizationId,
+        externalSource: counter!.externalSource,
+      },
+      message!,
+      { kind: "message" },
+    );
   return message!;
 }
 
@@ -1025,6 +1062,30 @@ export async function updateCardPayload(
       ),
     )
     .returning();
+  // A linked external channel shows the card's body (its summary line), so a
+  // new body is sent again; payload-only changes stay in Lictory.
+  if (updated && input.body !== undefined) {
+    const [channel] = await tx
+      .select({ externalSource: s.channel.externalSource })
+      .from(s.channel)
+      .where(
+        and(
+          eq(s.channel.organizationId, input.organizationId),
+          eq(s.channel.id, input.channelId),
+        ),
+      );
+    if (channel?.externalSource)
+      await queueMirror(
+        tx,
+        {
+          id: input.channelId,
+          organizationId: input.organizationId,
+          externalSource: channel.externalSource,
+        },
+        updated,
+        { kind: "message" },
+      );
+  }
   return updated ?? null;
 }
 
@@ -1130,5 +1191,461 @@ export async function postAgentMessage(
     mentionedUserIds: [],
     participantIds: participants,
   });
+  await queueMirror(tx, channel, message!, { kind: "message" });
   return { message: message!, replayed: false };
+}
+
+// ------------------------------------------------- linked external channels
+//
+// Messages written in a linked external chat system (Slack) enter through
+// these functions, called by the provider's ingest in the worker. There is
+// no actor: the authority is the verified delivery of the provider's
+// installation and the channel's active link to the external channel it
+// names. The same locks and counters as Lictory messages apply. Ownership
+// (docs/internals/channels.md#slack): rows written here carry
+// `externalSource` and their external id; only these functions change them,
+// and they never change a message written in Lictory.
+
+export type ExternalAuthor =
+  // A person of the external system mapped to this Lictory person (by
+  // verified email); re-checked here as an organization member who can
+  // read the channel, or shown with `name` instead.
+  | { kind: "user"; userId: string; externalId: string; name: string }
+  | { kind: "external"; externalId: string; name: string };
+
+type ExternalRef = {
+  organizationId: string;
+  channelId: string;
+  source: string;
+};
+
+type Skipped = { skipped: string };
+
+async function openLinked(
+  tx: Tx,
+  ref: ExternalRef,
+  externalChannelId: string,
+): Promise<ChannelRow | Skipped> {
+  await lockConversation(tx, ref.organizationId, ref.channelId);
+  const [channel] = await tx
+    .select()
+    .from(s.channel)
+    .where(
+      and(
+        eq(s.channel.organizationId, ref.organizationId),
+        eq(s.channel.id, ref.channelId),
+      ),
+    );
+  if (
+    channel?.externalSource !== ref.source ||
+    channel.externalId !== externalChannelId
+  )
+    return { skipped: "channel not linked" };
+  if (channel.archivedAt) return { skipped: "channel archived in Lictory" };
+  return channel;
+}
+
+/** The Lictory message an external id names: written there, or mirrored. */
+export async function messageByExternalId(
+  tx: Tx,
+  ref: ExternalRef,
+  externalId: string,
+): Promise<MessageRow | undefined> {
+  const [owned] = await tx
+    .select()
+    .from(s.channelMessage)
+    .where(
+      and(
+        eq(s.channelMessage.organizationId, ref.organizationId),
+        eq(s.channelMessage.externalSource, ref.source),
+        eq(s.channelMessage.externalId, externalId),
+      ),
+    );
+  if (owned) return owned.channelId === ref.channelId ? owned : undefined;
+  const [mirrored] = await tx
+    .select({ message: s.channelMessage })
+    .from(s.channelMirror)
+    .innerJoin(
+      s.channelMessage,
+      and(
+        eq(s.channelMessage.organizationId, s.channelMirror.organizationId),
+        eq(s.channelMessage.id, s.channelMirror.messageId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.channelMirror.organizationId, ref.organizationId),
+        eq(s.channelMirror.channelId, ref.channelId),
+        eq(s.channelMirror.target, "message"),
+        eq(s.channelMirror.externalId, externalId),
+      ),
+    );
+  return mirrored?.message;
+}
+
+// A mapped author keeps their Lictory identity only while they are an
+// organization member who can read the channel.
+async function verifiedAuthor(
+  tx: Tx,
+  channel: ChannelRow,
+  author: ExternalAuthor,
+): Promise<ExternalAuthor> {
+  if (author.kind !== "user") return author;
+  const [member] = await tx
+    .select({ id: s.member.id })
+    .from(s.member)
+    .where(
+      and(
+        eq(s.member.organizationId, channel.organizationId),
+        eq(s.member.userId, author.userId),
+      ),
+    );
+  let readable = member !== undefined;
+  if (readable && channel.kind !== "public")
+    readable = await isChannelMemberRow(tx, channel.id, author.userId);
+  return readable
+    ? author
+    : { kind: "external", externalId: author.externalId, name: author.name };
+}
+
+async function isChannelMemberRow(tx: Tx, channelId: string, userId: string) {
+  const [row] = await tx
+    .select({ id: s.channelMember.id })
+    .from(s.channelMember)
+    .where(
+      and(
+        eq(s.channelMember.channelId, channelId),
+        eq(s.channelMember.userId, userId),
+      ),
+    );
+  return row !== undefined;
+}
+
+/**
+ * Appends a message written in the linked external channel. Idempotent by
+ * its external id. Agent mentions reach the agent registry only when the
+ * author is a mapped Lictory person (`agentMentions` is the adapter's
+ * permission check per agent); for anyone else they stay text.
+ */
+export async function appendExternalMessage(
+  tx: Tx,
+  input: ExternalRef & {
+    externalChannelId: string;
+    externalId: string;
+    threadExternalId?: string | null;
+    author: ExternalAuthor;
+    body: string;
+    files?: ChannelExternalFile[];
+    createdAt: Date;
+  },
+): Promise<PostResult | Skipped> {
+  const channel = await openLinked(tx, input, input.externalChannelId);
+  if ("skipped" in channel) return channel;
+  const existing = await messageByExternalId(tx, input, input.externalId);
+  if (existing) return { message: existing, replayed: true };
+  const author = await verifiedAuthor(tx, channel, input.author);
+  const files = (input.files ?? []).slice(0, 20);
+  const body = input.body.slice(0, CHANNEL_MESSAGE_MAX);
+  if (!body.trim() && !files.length) return { skipped: "empty message" };
+  let root: MessageRow | undefined;
+  if (input.threadExternalId && input.threadExternalId !== input.externalId) {
+    root = await messageByExternalId(tx, input, input.threadExternalId);
+    // A reply to a message from before the link starts a thread of its own.
+    if (root?.threadRootId)
+      root = await messageIn(
+        tx,
+        input.organizationId,
+        input.channelId,
+        root.threadRootId,
+      );
+  }
+  const now = input.createdAt;
+  const [counter] = await tx
+    .update(s.channel)
+    .set({
+      lastSequence: sql`${s.channel.lastSequence} + 1`,
+      rootCount: root ? s.channel.rootCount : sql`${s.channel.rootCount} + 1`,
+      lastMessageAt: new Date(),
+    })
+    .where(
+      and(
+        eq(s.channel.organizationId, input.organizationId),
+        eq(s.channel.id, input.channelId),
+      ),
+    )
+    .returning({
+      lastSequence: s.channel.lastSequence,
+      rootCount: s.channel.rootCount,
+    });
+  const [message] = await tx
+    .insert(s.channelMessage)
+    .values({
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      sequence: counter!.lastSequence,
+      threadRootId: root?.id ?? null,
+      rootIndex: root ? null : counter!.rootCount,
+      authorKind: author.kind,
+      authorUserId: author.kind === "user" ? author.userId : null,
+      kind: "message",
+      body,
+      externalSource: input.source,
+      externalId: input.externalId,
+      externalAuthorId: author.externalId,
+      externalAuthorName:
+        author.kind === "external" ? author.name.slice(0, 120) : null,
+      externalFiles: files,
+      createdAt: now,
+    })
+    .returning();
+  const mentions = await resolveMentions(tx, channel, body);
+  // Text is information, never permission: only a mapped person's message
+  // can address an agent, and the adapter already kept only agents that
+  // person may address.
+  if (author.kind !== "user") mentions.agentIds = [];
+  await recordMentions(tx, message!, channel, mentions);
+  const participants = root
+    ? await recordReply(
+        tx,
+        root,
+        message!,
+        author.kind === "user"
+          ? { kind: "user", userId: author.userId, via: null }
+          : { kind: "external", externalId: author.externalId },
+        mentions.userIds,
+      )
+    : [];
+  if (!root && author.kind === "user")
+    await tx
+      .update(s.channelMember)
+      .set({
+        readSequence: counter!.lastSequence,
+        readRootCount: counter!.rootCount,
+        mentionCount: 0,
+      })
+      .where(
+        and(
+          eq(s.channelMember.channelId, channel.id),
+          eq(s.channelMember.userId, author.userId),
+        ),
+      );
+  await queueChannelNotifications(tx, {
+    channel,
+    message: message!,
+    root: root ?? null,
+    actorId: author.kind === "user" ? author.userId : null,
+    mentionedUserIds: mentions.userIds,
+    participantIds: participants,
+  });
+  // A mapped person writes as themselves (no `via`), so their replies steer
+  // and their mentions address agents exactly as in Lictory.
+  if (root && author.kind === "user")
+    await agentDirectory().replied?.(tx, {
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      messageId: message!.id,
+      threadRootId: root.id,
+      authorKind: "user",
+      authorUserId: author.userId,
+      via: null,
+      body,
+      agentIds: mentions.agentIds,
+    });
+  if (mentions.agentIds.length && author.kind === "user")
+    await agentDirectory().mentioned?.(tx, {
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      messageId: message!.id,
+      threadRootId: root?.id ?? null,
+      agentIds: mentions.agentIds,
+      mentionedById: author.userId,
+      authorKind: "user",
+      via: null,
+      body,
+    });
+  return { message: message!, replayed: false };
+}
+
+/**
+ * Applies an edit made in the external system to a message written there.
+ * Edits of messages Lictory owns (its own mirrored posts) are ignored.
+ */
+export async function applyExternalEdit(
+  tx: Tx,
+  input: ExternalRef & {
+    externalChannelId: string;
+    externalId: string;
+    body: string;
+    files?: ChannelExternalFile[];
+    editedAt: Date;
+  },
+): Promise<{ message: MessageRow } | Skipped> {
+  const channel = await openLinked(tx, input, input.externalChannelId);
+  if ("skipped" in channel) return channel;
+  const message = await messageByExternalId(tx, input, input.externalId);
+  if (!message) return { skipped: "unknown message" };
+  if (message.externalSource !== input.source)
+    return { skipped: "owned by Lictory" };
+  if (message.deletedAt) return { skipped: "deleted" };
+  const body = input.body.slice(0, CHANNEL_MESSAGE_MAX);
+  const files = input.files ?? message.externalFiles;
+  if (
+    body === message.body &&
+    JSON.stringify(files) === JSON.stringify(message.externalFiles)
+  )
+    return { message };
+  if (body !== message.body)
+    await tx.insert(s.channelMessageRevision).values({
+      organizationId: input.organizationId,
+      messageId: message.id,
+      body: message.body,
+      reason: "edited",
+      changedById: null,
+    });
+  const [edited] = await tx
+    .update(s.channelMessage)
+    .set({ body, externalFiles: files, editedAt: input.editedAt })
+    .where(eq(s.channelMessage.id, message.id))
+    .returning();
+  const mentions = await resolveMentions(tx, channel, body);
+  const added = await recordMentions(tx, edited!, channel, {
+    userIds: mentions.userIds,
+    agentIds: [],
+  });
+  const addedUsers = added.filter((m) => m.kind === "user").map((m) => m.id);
+  if (addedUsers.length)
+    await queueChannelNotifications(tx, {
+      channel,
+      message: edited!,
+      root: null,
+      actorId: edited!.authorUserId,
+      mentionedUserIds: addedUsers,
+      participantIds: [],
+      mentionsOnly: true,
+    });
+  return { message: edited! };
+}
+
+/** A deletion in the external system: a tombstone, like Lictory's own. */
+export async function applyExternalDelete(
+  tx: Tx,
+  input: ExternalRef & {
+    externalChannelId: string;
+    externalId: string;
+    deletedAt: Date;
+  },
+): Promise<{ message: MessageRow } | Skipped> {
+  const channel = await openLinked(tx, input, input.externalChannelId);
+  if ("skipped" in channel) return channel;
+  const message = await messageByExternalId(tx, input, input.externalId);
+  if (!message) return { skipped: "unknown message" };
+  if (message.externalSource !== input.source)
+    return { skipped: "owned by Lictory" };
+  if (message.deletedAt) return { message };
+  if (message.body)
+    await tx.insert(s.channelMessageRevision).values({
+      organizationId: input.organizationId,
+      messageId: message.id,
+      body: message.body,
+      reason: "deleted",
+      changedById: null,
+    });
+  const [deleted] = await tx
+    .update(s.channelMessage)
+    .set({
+      body: "",
+      externalFiles: [],
+      deletedAt: input.deletedAt,
+    })
+    .where(eq(s.channelMessage.id, message.id))
+    .returning();
+  return { message: deleted! };
+}
+
+/**
+ * A reaction added or removed in the external system, on any message of
+ * the linked channel. A mapped person's reaction is theirs (and is not
+ * mirrored back); anyone else's is counted on the message by name.
+ */
+export async function applyExternalReaction(
+  tx: Tx,
+  input: ExternalRef & {
+    externalChannelId: string;
+    messageExternalId: string;
+    emoji: string;
+    reactor: ExternalAuthor;
+    add: boolean;
+  },
+): Promise<{ changed: boolean } | Skipped> {
+  if (!validEmoji(input.emoji)) return { skipped: "unsupported emoji" };
+  const channel = await openLinked(tx, input, input.externalChannelId);
+  if ("skipped" in channel) return channel;
+  const message = await messageByExternalId(tx, input, input.messageExternalId);
+  if (!message) return { skipped: "unknown message" };
+  const reactor = await verifiedAuthor(tx, channel, input.reactor);
+  if (reactor.kind === "user") {
+    const id = reactionId(
+      message.id,
+      participantKey("user", reactor.userId),
+      input.emoji,
+    );
+    if (!input.add) {
+      const removed = await tx
+        .delete(s.channelReaction)
+        .where(
+          and(
+            eq(s.channelReaction.organizationId, input.organizationId),
+            eq(s.channelReaction.id, id),
+            eq(s.channelReaction.externalSource, input.source),
+          ),
+        )
+        .returning({ id: s.channelReaction.id });
+      return { changed: removed.length > 0 };
+    }
+    if (message.deletedAt) return { skipped: "deleted" };
+    const inserted = await tx
+      .insert(s.channelReaction)
+      .values({
+        id,
+        organizationId: input.organizationId,
+        channelId: input.channelId,
+        messageId: message.id,
+        emoji: input.emoji,
+        reactorKind: "user",
+        userId: reactor.userId,
+        externalSource: input.source,
+      })
+      .onConflictDoNothing()
+      .returning({ id: s.channelReaction.id });
+    return { changed: inserted.length > 0 };
+  }
+  const reactions = message.externalReactions.map((r) => ({
+    ...r,
+    names: [...r.names],
+    externalIds: [...r.externalIds],
+  }));
+  let entry = reactions.find((r) => r.emoji === input.emoji);
+  const has = entry?.externalIds.includes(reactor.externalId) ?? false;
+  if (input.add === has) return { changed: false };
+  if (input.add) {
+    if (message.deletedAt) return { skipped: "deleted" };
+    if (!entry) {
+      if (reactions.length >= 50) return { skipped: "too many reactions" };
+      entry = { emoji: input.emoji, names: [], externalIds: [] };
+      reactions.push(entry);
+    }
+    entry.externalIds.push(reactor.externalId);
+    entry.names.push(reactor.name.slice(0, 80));
+  } else if (entry) {
+    const index = entry.externalIds.indexOf(reactor.externalId);
+    entry.externalIds.splice(index, 1);
+    entry.names.splice(index, 1);
+  }
+  await tx
+    .update(s.channelMessage)
+    .set({
+      externalReactions: reactions.filter((r) => r.externalIds.length > 0),
+    })
+    .where(eq(s.channelMessage.id, message.id));
+  return { changed: true };
 }

@@ -113,6 +113,21 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.channelReaction },
   { table: s.channelThreadParticipant },
   { table: s.channelPromotion },
+  // Links to Slack channels and the installation (without its secrets,
+  // tokens or install state). The mirror outbox, the Slack event inbox and
+  // the Slack people cache are operational state.
+  { table: s.channelExternalLink },
+  {
+    table: s.slackInstallation,
+    omit: [
+      "encryptedClientSecret",
+      "encryptedSigningSecret",
+      "encryptedBotToken",
+      "oauthStateHash",
+      "oauthStateUserId",
+      "oauthStateExpiresAt",
+    ],
+  },
   { table: s.fileObject },
   { table: s.deliveryConnection, omit: ["encryptedCredential"] },
   { table: s.deliveryTarget },

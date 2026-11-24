@@ -18,6 +18,7 @@ import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
 import { runnerRoutes } from "@lictory/api/routes/runner";
 import { codeWebhookRoutes } from "@lictory/api/routes/code";
+import { slackRoutes } from "@lictory/api/routes/slack";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -150,6 +151,8 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   app.route("/", runnerRoutes());
   // Code host webhooks: their own body limit, signature authentication.
   app.route("/", codeWebhookRoutes());
+  // Slack's Events API, interactivity and OAuth redirect: signed by Slack.
+  app.route("/", slackRoutes());
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());

@@ -18,6 +18,7 @@ import { OrganizationIntelligence } from "@lictory/platform/components/settings/
 import { OrganizationAudit } from "@lictory/platform/components/settings/org-audit";
 import { OrganizationExport } from "@lictory/platform/components/settings/org-export";
 import { OrganizationDeletion } from "@lictory/platform/components/settings/org-deletion";
+import { SlackConnection } from "@lictory/platform/components/settings/org-slack";
 
 const sections = [
   { id: "general", label: "General", group: "Organization" },
@@ -105,14 +106,16 @@ function Integrations() {
   return (
     <>
       <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        Connections hold the credentials Lictory uses to reach Jira. Each
-        project delivered in Jira picks its Jira project and maps its work item
-        types in its own delivery settings.
+        Connections hold the credentials Lictory uses to reach Jira and Slack.
+        Each project delivered in Jira picks its Jira project and maps its work
+        item types in its own delivery settings; each channel links to Slack
+        from its own menu.
       </p>
       <JiraConnections />
+      <SlackConnection />
       {!isAdmin && (
         <ReadOnlyNotice>
-          Only organization administrators connect and update Jira.
+          Only organization administrators connect and update Jira and Slack.
         </ReadOnlyNotice>
       )}
     </>

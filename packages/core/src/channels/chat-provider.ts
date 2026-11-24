@@ -1,70 +1,55 @@
-// External chat systems (Slack first) behind one adapter, like delivery
-// providers. Not implemented yet: this is the boundary a Slack adapter
-// implements, written down so the channel model already carries what it
-// needs (`external_source`/`external_id` on channels and messages).
+import type { Database } from "@lictory/core/domain/service";
+
+// External chat systems behind one adapter, like delivery providers
+// (docs/internals/channels.md#slack). Slack is the first
+// (channels/slack/provider.ts). The domain side is provider-agnostic:
 //
-// Ownership rule (docs/internals/channels.md#external-chat): a message is
-// owned by the system it was written in. Messages written in Slack are
-// stored with `externalSource = provider.id` and their Slack id; only the
-// provider's ingest edits or deletes them, and Lictory refuses to. Messages
-// written in Lictory are mirrored to Slack by the worker after commit
-// (never inside the conversation writer's transaction), and later edits or
-// deletions in Lictory are mirrored the same way. Nothing synchronizes in
-// both directions for the same message.
+// - a linked channel carries `external_source`/`external_id`, and its link
+//   (name, URL, health) is a `channel_external_link` row;
+// - messages written there enter through the conversation writer's external
+//   functions (`appendExternalMessage`, `applyExternalEdit`,
+//   `applyExternalDelete`, `applyExternalReaction`) with `source = id`, and
+//   only those functions change them: a message is owned by the system it
+//   was written in, and Lictory refuses to edit or delete it
+//   (kind `external_owner`);
+// - messages written in Lictory are queued by the writer in its own
+//   transaction (`queueMirror`, one `channel_mirror` row per message and
+//   target) and sent by the provider's worker after commit, never inside a
+//   transaction. Nothing synchronizes in both directions for one message.
+//
+// An adapter owns its wire format, credentials, signature checks, rate
+// limits and people mapping; the domain never sees a provider payload.
 
-type ExternalChannelRef = { source: string; externalId: string };
-
-type ExternalMessage = {
-  externalId: string;
-  // Thread root's external id, for replies.
-  threadExternalId?: string | null;
-  authorExternalId: string;
-  // Markdown converted by the adapter from the provider's format.
+export type ChatProviderAnswer = {
+  status: number;
   body: string;
-  createdAt: Date;
-  editedAt?: Date | null;
-  deletedAt?: Date | null;
+  contentType?: string;
 };
-
-type ChatProviderEvent =
-  | { type: "message"; channel: ExternalChannelRef; message: ExternalMessage }
-  | {
-      type: "message_changed";
-      channel: ExternalChannelRef;
-      message: ExternalMessage;
-    }
-  | {
-      type: "message_deleted";
-      channel: ExternalChannelRef;
-      externalId: string;
-      deletedAt: Date;
-    };
 
 export interface ChatProvider {
   /** Stable source name stored on owned rows (`slack`). */
   readonly id: string;
-  /** Verifies and parses one inbound webhook delivery (signature checked). */
-  parseEvent(request: {
-    headers: Headers;
-    body: string;
-  }): Promise<ChatProviderEvent[]>;
-  /** Posts a Lictory-authored message to the linked external channel. */
-  postMessage(
-    channel: ExternalChannelRef,
-    message: {
+  /**
+   * One inbound HTTP request for an organization (events, interactivity):
+   * verifies it, stores what must be processed and answers at once.
+   */
+  receive(
+    db: Database,
+    request: {
+      organizationId: string;
+      kind: "events" | "interactivity";
+      headers: { get(name: string): string | null };
       body: string;
-      authorName: string;
-      threadExternalId?: string | null;
-      // Idempotency: the Lictory message id.
-      messageId: string;
     },
-  ): Promise<{ externalId: string }>;
-  updateMessage(
-    channel: ExternalChannelRef,
-    externalId: string,
-    body: string,
-  ): Promise<void>;
-  deleteMessage(channel: ExternalChannelRef, externalId: string): Promise<void>;
-  /** Maps an external author to a Lictory person by verified email. */
-  resolveAuthor(externalAuthorId: string): Promise<{ email: string } | null>;
+  ): Promise<ChatProviderAnswer>;
+  /** Worker: processes stored deliveries through the conversation writer. */
+  processInbound(
+    db: Database,
+    options: { limit: number; signal?: AbortSignal },
+  ): Promise<Record<string, number>>;
+  /** Worker: sends due `channel_mirror` rows of this provider's links. */
+  processOutbound(
+    db: Database,
+    options: { limit: number; signal?: AbortSignal },
+  ): Promise<Record<string, number>>;
 }

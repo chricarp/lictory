@@ -20,6 +20,7 @@ export function e2ePorts(offset: number) {
     fakeGitHub: 3007 + offset,
     fakeGitLab: 3008 + offset,
     fakeBitbucket: 3009 + offset,
+    fakeSlack: 3010 + offset,
   };
 }
 

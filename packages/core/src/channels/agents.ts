@@ -86,6 +86,38 @@ export interface AgentDirectory {
    * reaches an agent, as a steering message.
    */
   replied?(tx: Tx, event: ThreadReplyEvent): Promise<void>;
+  /**
+   * Whether this person may address (start work for) this agent: the
+   * Factory's rule is an active agent the person owns, or a shared one.
+   * Consulted for messages from linked external channels (Slack), where a
+   * mention only reaches the agent when its author maps to such a person.
+   * Without it, only the agent's owner may address it.
+   */
+  mayAddress?(
+    tx: Tx,
+    organizationId: string,
+    userId: string,
+    agent: ChannelAgent,
+  ): Promise<boolean>;
+}
+
+/** The agent a person may address by handle, or null (text stays text). */
+export async function addressableAgent(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  handle: string,
+): Promise<ChannelAgent | null> {
+  const directory = agentDirectory();
+  const normalized = handle.toLowerCase();
+  const agent = (
+    await directory.search(tx, organizationId, normalized, 10)
+  ).find((a) => a.handle.toLowerCase() === normalized);
+  if (!agent) return null;
+  const allowed = directory.mayAddress
+    ? await directory.mayAddress(tx, organizationId, userId, agent)
+    : agent.ownerId === userId;
+  return allowed ? agent : null;
 }
 
 const noAgents: AgentDirectory = {

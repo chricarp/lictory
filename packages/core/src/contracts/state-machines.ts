@@ -851,6 +851,11 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
   },
   agent_session_status: declared(agentSession),
   agent_approval_status: declared(agentApproval),
+  slack_installation_status: {
+    moves: "consequence",
+    owner:
+      "saving the app, the OAuth install, disconnecting and Slack's authentication errors and uninstall events in channels/slack/installation.ts",
+  },
   "invitation.status": {
     moves: "external",
     owner: "Better Auth's organization plugin",

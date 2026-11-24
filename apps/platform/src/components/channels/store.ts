@@ -266,3 +266,50 @@ export function useConversation() {
     [send, edit, remove, react, markRead, thread],
   );
 }
+
+export type ChannelLinkRow = {
+  readonly id: string;
+  readonly source: string;
+  readonly externalId: string;
+  readonly externalName: string;
+  readonly externalUrl: string | null;
+  readonly health: string;
+  readonly lastError: string | null;
+  readonly lastSyncedAt: number | null;
+};
+
+/** The channel's active link to a Slack channel, with its health. */
+export function useChannelLink(channelId: string, linked: boolean) {
+  const { organization } = useWorkspace();
+  const [rows] = useQuery(
+    queries.channelExternalLink({
+      organizationId: organization.id,
+      channelId,
+    }),
+    { enabled: linked, ttl: CHANNEL_TTL },
+  );
+  return linked
+    ? ((rows as readonly ChannelLinkRow[])[0] ?? undefined)
+    : undefined;
+}
+
+/** Lictory messages of the channel that could not reach Slack, by id. */
+export function useMirrorFailures(channelId: string, linked: boolean) {
+  const { organization } = useWorkspace();
+  const [rows] = useQuery(
+    queries.channelMirrorFailures({
+      organizationId: organization.id,
+      channelId,
+    }),
+    { enabled: linked, ttl: CHANNEL_TTL },
+  );
+  return useMemo(
+    () =>
+      new Map(
+        (
+          rows as readonly { messageId: string; lastError: string | null }[]
+        ).map((r) => [r.messageId, r.lastError ?? "Not sent to Slack."]),
+      ),
+    [rows],
+  );
+}
