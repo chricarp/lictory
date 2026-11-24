@@ -1,7 +1,6 @@
 import { memo, useState } from "react";
 import {
   ArrowUpRight,
-  Bot,
   CircleDot,
   Link2,
   Lightbulb,
@@ -15,7 +14,6 @@ import {
   EyeOff,
 } from "lucide-react";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
-import { Avatar } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
 import { Tooltip } from "@lictory/ui/tooltip";
 import {
@@ -26,6 +24,15 @@ import {
   MenuTrigger,
 } from "@lictory/ui/menu";
 import { cn } from "@lictory/core/lib/utils";
+import {
+  AgentAvatar,
+  Facepile,
+  PersonAvatar,
+  usePerson,
+  type AgentIdentity,
+  type Person,
+} from "@lictory/platform/components/identity/actor";
+import { firstName } from "@lictory/platform/lib/session-state";
 import {
   formatTime,
   groupReactions,
@@ -85,6 +92,8 @@ type Props = {
   nameOf: (id: string | null | undefined) => string;
   // Agents by id (the Factory's directory); "Agent" when unknown.
   agentNameOf?: (id: string | null | undefined) => string;
+  // The agent's identity (its emoji) for its avatar.
+  agentOf?: (id: string | null | undefined) => AgentIdentity | undefined;
   mentions: Mentionable[];
   actions: MessageActions;
   // Thread view: replies have no thread summary and no "reply" action.
@@ -94,7 +103,7 @@ type Props = {
 };
 
 const iconButton =
-  "grid size-6 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 touch:size-9";
+  "grid size-7 place-items-center rounded-md text-muted-foreground focus-ring-inset outline-none hover:bg-muted hover:text-foreground touch:size-9";
 
 export const ChannelMessage = memo(function ChannelMessage({
   message,
@@ -109,6 +118,7 @@ export const ChannelMessage = memo(function ChannelMessage({
   onEditingChange,
   nameOf,
   agentNameOf = () => "Agent",
+  agentOf = () => undefined,
   mentions,
   actions,
   inThread = false,
@@ -123,13 +133,34 @@ export const ChannelMessage = memo(function ChannelMessage({
   const agentAuthor =
     message.authorKind === "agent"
       ? {
+          id: message.authorAgentId ?? "agent",
           name: agentNameOf(message.authorAgentId),
+          avatar: agentOf(message.authorAgentId)?.avatar,
           ownerId: message.onBehalfOfUserId,
         }
       : factory
-        ? { name: factory.agentName, ownerId: factory.ownerId }
+        ? {
+            id: "agentId" in factory ? factory.agentId : factory.agentName,
+            name: factory.agentName,
+            avatar:
+              "agentId" in factory ? agentOf(factory.agentId)?.avatar : null,
+            ownerId: factory.ownerId,
+          }
         : undefined;
   const author = agentAuthor?.name ?? authorName(message, nameOf);
+  const member = usePerson(message.authorUserId);
+  // Someone in a linked Slack channel without a Lictory identity wears the
+  // Slack mark; a person seen through Slack is still themselves.
+  const person: Person =
+    message.authorKind === "external"
+      ? {
+          id: `slack:${message.externalAuthorName ?? "someone"}`,
+          name: message.externalAuthorName ?? "Someone",
+          external: "slack",
+        }
+      : message.authorKind === "system"
+        ? { id: "lictory", name: "Lictory" }
+        : member;
   const time = formatTime(message.createdAt);
   const reactions = groupReactions(
     message.reactions,
@@ -158,7 +189,7 @@ export const ChannelMessage = memo(function ChannelMessage({
           />
         </span>
         <time
-          className="shrink-0 text-[11px] tabular-nums"
+          className="shrink-0 text-xs tabular-nums"
           dateTime={new Date(message.createdAt).toISOString()}
         >
           {time}
@@ -193,48 +224,38 @@ export const ChannelMessage = memo(function ChannelMessage({
       <div className="w-9 shrink-0">
         {grouped ? (
           <time
-            className="mt-0.5 block text-right text-[10px] leading-6 text-muted-foreground tabular-nums opacity-0 group-focus-within/message:opacity-100 group-hover/message:opacity-100"
+            className="mt-0.5 block text-right text-[11px] leading-6 text-muted-foreground tabular-nums opacity-0 group-focus-within/message:opacity-100 group-hover/message:opacity-100"
             dateTime={new Date(message.createdAt).toISOString()}
           >
             {time}
           </time>
         ) : agentAuthor ? (
-          <span className="mt-0.5 grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Bot className="size-4.5" aria-hidden />
-          </span>
+          <AgentAvatar agent={agentAuthor} size={36} className="mt-0.5" />
         ) : (
-          <Avatar
-            name={author}
-            userId={message.authorUserId}
-            size="md"
-            className="mt-0.5 size-9 rounded-lg text-xs"
-          />
+          <PersonAvatar person={person} size={36} className="mt-0.5" />
         )}
       </div>
       <div className="min-w-0 flex-1">
         {!grouped && (
           <div className="flex flex-wrap items-baseline gap-x-1.5">
             <span className="text-[14px] font-semibold">{author}</span>
-            {agentAuthor && (
-              <span className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary uppercase">
-                agent
-              </span>
-            )}
             {agentAuthor?.ownerId && (
-              <span className="text-[12px] text-muted-foreground">
-                via {nameOf(agentAuthor.ownerId)}
-              </span>
+              <Tooltip label={`Acts for ${nameOf(agentAuthor.ownerId)}`}>
+                <span className="text-xs text-muted-foreground">
+                  via {firstName(nameOf(agentAuthor.ownerId))}
+                </span>
+              </Tooltip>
             )}
             {message.via && (
               <span
-                className="text-[12px] text-muted-foreground"
+                className="text-xs text-muted-foreground"
                 title="Sent by an agent acting for this person"
               >
                 via {message.via}
               </span>
             )}
             <time
-              className="text-[11px] text-muted-foreground tabular-nums"
+              className="text-xs text-muted-foreground tabular-nums"
               dateTime={new Date(message.createdAt).toISOString()}
               title={new Date(message.createdAt).toLocaleString()}
             >
@@ -244,7 +265,7 @@ export const ChannelMessage = memo(function ChannelMessage({
               (message.externalSource === "slack" ? (
                 <FromSlack />
               ) : (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   from {message.externalSource}
                 </span>
               ))}
@@ -266,7 +287,7 @@ export const ChannelMessage = memo(function ChannelMessage({
           />
         ) : message.kind === "card" ? (
           factory ? (
-            <FactoryCard payload={factory} />
+            <FactoryCard payload={factory} detailed={inThread} root={isRoot} />
           ) : (
             <PromotionCard message={message} userId={userId} />
           )
@@ -282,9 +303,7 @@ export const ChannelMessage = memo(function ChannelMessage({
               <ExternalFiles message={message} />
             )}
             {message.editedAt && (
-              <span className="text-[11px] text-muted-foreground">
-                (edited)
-              </span>
+              <span className="text-xs text-muted-foreground">(edited)</span>
             )}
           </>
         )}
@@ -301,7 +320,7 @@ export const ChannelMessage = memo(function ChannelMessage({
                   disabled={!canReact || deleted}
                   onClick={() => actions.react(message, r.emoji, !r.mine)}
                   className={cn(
-                    "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[12px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 touch:h-8",
+                    "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums focus-ring outline-none touch:h-8",
                     r.mine
                       ? "border-primary/40 bg-primary/10 text-primary"
                       : "bg-card hover:bg-muted",
@@ -329,21 +348,17 @@ export const ChannelMessage = memo(function ChannelMessage({
             <button
               type="button"
               onClick={() => actions.openThread?.(message)}
-              className="mt-1 -ml-1 flex items-center gap-2 rounded-md px-1 py-0.5 text-[12.5px] outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring/60"
+              className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
             >
-              <span className="flex -space-x-1">
-                {replyAuthorIds(message)
-                  .slice(0, 4)
-                  .map((id) => (
-                    <Avatar
-                      key={id}
-                      name={nameOf(id)}
-                      userId={id}
-                      size="sm"
-                      className="rounded-md ring-2 ring-background"
-                    />
-                  ))}
-              </span>
+              <Facepile
+                people={replyAuthorIds(message).map((id) => ({
+                  id,
+                  name: nameOf(id),
+                }))}
+                max={4}
+                size={20}
+                label="Replied"
+              />
               <span className="font-medium text-primary">
                 {message.replyCount}{" "}
                 {message.replyCount === 1 ? "reply" : "replies"}
@@ -491,7 +506,7 @@ function ExternalFiles({ message }: { message: MessageRow }) {
           <SlackMark className="text-muted-foreground" />
           <span className="truncate">{file.name}</span>
           {file.size > 0 && (
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {Math.max(1, Math.round(file.size / 1024))} KB
             </span>
           )}
@@ -535,7 +550,7 @@ function Attachments({ message }: { message: MessageRow }) {
               aria-hidden
             />
             <span className="truncate">{file.filename}</span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {Math.max(1, Math.round(file.size / 1024))} KB
             </span>
           </a>
@@ -559,7 +574,7 @@ function PromotionCard({
     <div className="mt-0.5 flex max-w-xl items-start gap-2 rounded-lg border bg-card px-3 py-2">
       <Sparkles className="mt-1 size-3.5 shrink-0 text-primary" aria-hidden />
       <div className="min-w-0 text-[13px]">
-        <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <p className="text-xs font-semibold text-muted-foreground">
           {kind === "decision"
             ? "Decision recorded"
             : kind === "discussion"
@@ -606,7 +621,7 @@ function EditMessage({
         aria-label="Edit message"
         containerClassName="rounded-none border-0 bg-transparent ring-0 focus-within:ring-0"
       />
-      <div className="flex items-center justify-end gap-2 border-t px-2 py-1.5 text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-end gap-2 border-t px-2 py-1.5 text-xs text-muted-foreground">
         <span className="mr-auto">Enter to save · Escape to cancel</span>
         <Button variant="ghost" size="sm" onClick={onCancel}>
           Cancel

@@ -186,7 +186,7 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await sidebar(page).getByRole("link", { name: "Overview" }).click();
   await expect(page).toHaveURL(paths.factory(seeded.slug));
   await expect(
-    page.getByRole("heading", { name: "Factory", level: 1 }),
+    page.getByRole("heading", { name: "Factory", level: 1, exact: true }),
   ).toBeVisible();
   await sidebar(page).getByRole("link", { name: "Agents" }).click();
   await expect(page).toHaveURL(`${paths.factory(seeded.slug)}/agents`);

@@ -13,12 +13,14 @@ import {
   Pencil,
   Search,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { normalizeChannelName } from "@lictory/core/channels/shared";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { Avatar } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Popover } from "@lictory/ui/popover";
@@ -38,6 +40,14 @@ import { Dialog, Field } from "@lictory/platform/components/spaces/dialog";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { useRouter } from "@lictory/platform/lib/navigation";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import {
+  Actor,
+  AgentAvatar,
+  Facepile,
+  PersonAvatar,
+  type Person,
+} from "@lictory/platform/components/identity/actor";
 import type {
   Channel,
   MemberRow,
@@ -50,18 +60,7 @@ import {
 import { callCapability } from "@lictory/core/capabilities/client";
 
 const iconButton =
-  "grid size-8 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60";
-
-function ChannelIcon({
-  channel,
-  className,
-}: {
-  channel: Pick<Channel, "kind">;
-  className?: string;
-}) {
-  const Icon = channel.kind === "private" ? Lock : Hash;
-  return <Icon className={cn("size-4", className)} aria-hidden />;
-}
+  "grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground";
 
 const failed = (title: string) => (e: unknown) =>
   toast({
@@ -84,9 +83,21 @@ export function ChannelHeader({
   onToggleSearch: () => void;
   searchOpen: boolean;
 }) {
-  const { mutateConfirmed, memberName, isAdmin, organization, userId } =
-    useWorkspace();
+  const {
+    mutateConfirmed,
+    memberName,
+    isAdmin,
+    organization,
+    userId,
+    directory,
+  } = useWorkspace();
+  const factory = useFactory();
   const router = useRouter();
+  const person = (id: string | null): Person => ({
+    id: id ?? "unknown",
+    name: memberName(id),
+    image: directory.members.find((m) => m.id === id)?.image ?? null,
+  });
   const [editing, setEditing] = useState(false);
   const [linking, setLinking] = useState(false);
   const member = channel.member;
@@ -131,189 +142,199 @@ export function ChannelHeader({
     mutateConfirmed({ type: "joinChannel", channelId: channel.id }).catch(
       failed("Not joined"),
     );
+  const facepile = [
+    ...people.map((m) => person(m.userId)),
+    ...agents.flatMap((m) => {
+      const agent = m.agentId ? factory.agentById.get(m.agentId) : undefined;
+      return agent ? [{ ...agent, agent: true as const }] : [];
+    }),
+  ];
+  const memberCount = people.length + agents.length;
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {direct ? (
-          <span className="flex -space-x-1">
-            {channel.others.slice(0, 3).map((o) =>
-              o.kind === "user" ? (
-                <Avatar
-                  key={o.id}
-                  name={memberName(o.id)}
-                  userId={o.id}
-                  size="md"
-                  className="rounded-md ring-2 ring-background"
-                />
-              ) : (
-                <span
-                  key={o.id}
-                  className="grid size-6 place-items-center rounded-md bg-primary/10 text-primary ring-2 ring-background"
-                >
-                  <Bot className="size-3.5" aria-hidden />
+    <>
+      <PageHeader
+        title={label}
+        icon={
+          direct ? (
+            channel.others[0]?.kind === "user" ? (
+              <PersonAvatar person={person(channel.others[0].id)} size={16} />
+            ) : (
+              <Bot />
+            )
+          ) : channel.kind === "private" ? (
+            <Lock />
+          ) : (
+            <Hash />
+          )
+        }
+        meta={
+          (channel.archivedAt ?? channel.topic) ? (
+            <>
+              {channel.archivedAt && (
+                <StatusChip tone="neutral" icon={<Archive />}>
+                  Archived
+                </StatusChip>
+              )}
+              {channel.topic && (
+                <span className="min-w-0 truncate" title={channel.topic}>
+                  {channel.topic}
                 </span>
-              ),
+              )}
+            </>
+          ) : undefined
+        }
+        actions={
+          <>
+            <SlackSyncStatus channel={channel} />
+            {!member && channel.kind === "public" && !channel.archivedAt && (
+              <Button onClick={join}>Join channel</Button>
             )}
-          </span>
-        ) : (
-          <ChannelIcon channel={channel} className="text-muted-foreground" />
-        )}
-        <h1 className="truncate text-[15px] font-semibold">{label}</h1>
-        {channel.archivedAt && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            Archived
-          </span>
-        )}
-        {channel.topic && (
-          <p
-            className="hidden min-w-0 truncate border-l pl-2 text-[13px] text-muted-foreground md:block"
-            title={channel.topic}
-          >
-            {channel.topic}
-          </p>
-        )}
-      </div>
-      <SlackSyncStatus channel={channel} />
-      {!member && channel.kind === "public" && !channel.archivedAt && (
-        <Button size="sm" onClick={join}>
-          Join channel
-        </Button>
-      )}
-      <button
-        type="button"
-        aria-label="Search messages"
-        aria-pressed={searchOpen}
-        className={cn(iconButton, searchOpen && "bg-muted text-foreground")}
-        onClick={onToggleSearch}
-      >
-        <Search className="size-4" aria-hidden />
-      </button>
-      <Popover
-        width={300}
-        align="end"
-        trigger={(props) => (
-          <button
-            type="button"
-            {...props}
-            aria-label={`${people.length} ${people.length === 1 ? "member" : "members"}`}
-            className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-[12px] text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
-            <span className="flex -space-x-1">
-              {people.slice(0, 3).map((m) => (
-                <Avatar
-                  key={m.id}
-                  name={memberName(m.userId)}
-                  userId={m.userId}
-                  size="sm"
-                  className="rounded ring-2 ring-background"
-                />
-              ))}
-            </span>
-            <span className="tabular-nums">
-              {people.length + agents.length}
-            </span>
-          </button>
-        )}
-      >
-        <MembersPanel
-          channel={channel}
-          people={people}
-          agents={agents}
-          canManage={canManage && !channel.archivedAt}
-          userId={userId}
-        />
-      </Popover>
-      {member && (
-        <Menu>
-          <MenuTrigger
-            render={
+            <Tooltip label="Search messages">
               <button
                 type="button"
-                aria-label={`Notifications: ${levelLabel(level)}`}
-                className={iconButton}
-              />
-            }
-          >
-            {level === "none" ? (
-              <BellOff className="size-4" aria-hidden />
-            ) : level === "all" ? (
-              <BellRing className="size-4" aria-hidden />
-            ) : (
-              <Bell className="size-4" aria-hidden />
-            )}
-          </MenuTrigger>
-          <MenuContent align="end" width={260}>
-            <MenuLabel>Notify me about</MenuLabel>
-            <MenuRadioGroup
-              value={level}
-              onValueChange={(v) => void setLevel(String(v))}
+                aria-label="Search messages"
+                aria-pressed={searchOpen}
+                className={cn(
+                  iconButton,
+                  searchOpen && "bg-muted text-foreground",
+                )}
+                onClick={onToggleSearch}
+              >
+                <Search className="size-4" aria-hidden />
+              </button>
+            </Tooltip>
+            <Popover
+              width={300}
+              align="end"
+              trigger={(props) => (
+                <button
+                  type="button"
+                  {...props}
+                  aria-label={`${memberCount} ${memberCount === 1 ? "member" : "members"}`}
+                  className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
+                >
+                  <Facepile
+                    people={facepile}
+                    max={3}
+                    size={20}
+                    className="max-sm:hidden"
+                  />
+                  <Users className="size-4 sm:hidden" aria-hidden />
+                  {/* The facepile counts beyond three; phones show the
+                      number alone. */}
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      facepile.length > 3 && "sm:hidden",
+                    )}
+                  >
+                    {memberCount}
+                  </span>
+                </button>
+              )}
             >
-              <MenuRadioItem value="all">All new messages</MenuRadioItem>
-              <MenuRadioItem value="mentions">
-                {direct ? "Mentions only" : "Mentions and my threads"}
-              </MenuRadioItem>
-              <MenuRadioItem value="none">Nothing (mute)</MenuRadioItem>
-            </MenuRadioGroup>
-          </MenuContent>
-        </Menu>
-      )}
-      {canManage && (
-        <Menu>
-          <MenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="Channel actions"
-                className={iconButton}
+              <MembersPanel
+                channel={channel}
+                people={people}
+                agents={agents}
+                canManage={canManage && !channel.archivedAt}
+                userId={userId}
               />
-            }
-          >
-            <MoreHorizontal className="size-4" aria-hidden />
-          </MenuTrigger>
-          <MenuContent align="end" width={220}>
-            {!channel.archivedAt && (
-              <MenuItem onSelect={() => setEditing(true)}>
-                <Pencil className="size-3.5 text-muted-foreground" /> Edit name
-                and topic
-              </MenuItem>
-            )}
-            {!channel.archivedAt &&
-              (channel.externalSource === "slack" ? (
-                <MenuItem onSelect={() => void unlink()}>
-                  <SlackMark className="size-3.5 text-muted-foreground" />{" "}
-                  Unlink from Slack
-                </MenuItem>
-              ) : (
-                !channel.externalSource && (
-                  <MenuItem onSelect={() => setLinking(true)}>
-                    <SlackMark className="size-3.5 text-muted-foreground" />{" "}
-                    Link to Slack channel…
-                  </MenuItem>
-                )
-              ))}
-            {channel.archivedAt ? (
-              <MenuItem onSelect={() => void archive(false)}>
-                <ArchiveRestore className="size-3.5 text-muted-foreground" />{" "}
-                Restore channel
-              </MenuItem>
-            ) : (
-              <MenuItem onSelect={() => void archive(true)}>
-                <Archive className="size-3.5 text-muted-foreground" /> Archive
-                channel
-              </MenuItem>
-            )}
+            </Popover>
             {member && (
-              <>
-                <MenuSeparator />
-                <MenuItem onSelect={() => void leave()}>
-                  <LogOut className="size-3.5 text-muted-foreground" /> Leave
-                  channel
-                </MenuItem>
-              </>
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label={`Notifications: ${levelLabel(level)}`}
+                      className={cn(iconButton, "max-sm:hidden")}
+                    />
+                  }
+                >
+                  {level === "none" ? (
+                    <BellOff className="size-4" aria-hidden />
+                  ) : level === "all" ? (
+                    <BellRing className="size-4" aria-hidden />
+                  ) : (
+                    <Bell className="size-4" aria-hidden />
+                  )}
+                </MenuTrigger>
+                <MenuContent align="end" width={260}>
+                  <MenuLabel>Notify me about</MenuLabel>
+                  <MenuRadioGroup
+                    value={level}
+                    onValueChange={(v) => void setLevel(String(v))}
+                  >
+                    <MenuRadioItem value="all">All new messages</MenuRadioItem>
+                    <MenuRadioItem value="mentions">
+                      {direct ? "Mentions only" : "Mentions and my threads"}
+                    </MenuRadioItem>
+                    <MenuRadioItem value="none">Nothing (mute)</MenuRadioItem>
+                  </MenuRadioGroup>
+                </MenuContent>
+              </Menu>
             )}
-          </MenuContent>
-        </Menu>
-      )}
+            {canManage && (
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Channel actions"
+                      className={iconButton}
+                    />
+                  }
+                >
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </MenuTrigger>
+                <MenuContent align="end" width={220}>
+                  {!channel.archivedAt && (
+                    <MenuItem onSelect={() => setEditing(true)}>
+                      <Pencil className="size-3.5 text-muted-foreground" /> Edit
+                      name and topic
+                    </MenuItem>
+                  )}
+                  {!channel.archivedAt &&
+                    (channel.externalSource === "slack" ? (
+                      <MenuItem onSelect={() => void unlink()}>
+                        <SlackMark className="size-3.5 text-muted-foreground" />{" "}
+                        Unlink from Slack
+                      </MenuItem>
+                    ) : (
+                      !channel.externalSource && (
+                        <MenuItem onSelect={() => setLinking(true)}>
+                          <SlackMark className="size-3.5 text-muted-foreground" />{" "}
+                          Link to Slack channel…
+                        </MenuItem>
+                      )
+                    ))}
+                  {channel.archivedAt ? (
+                    <MenuItem onSelect={() => void archive(false)}>
+                      <ArchiveRestore className="size-3.5 text-muted-foreground" />{" "}
+                      Restore channel
+                    </MenuItem>
+                  ) : (
+                    <MenuItem onSelect={() => void archive(true)}>
+                      <Archive className="size-3.5 text-muted-foreground" />{" "}
+                      Archive channel
+                    </MenuItem>
+                  )}
+                  {member && (
+                    <>
+                      <MenuSeparator />
+                      <MenuItem onSelect={() => void leave()}>
+                        <LogOut className="size-3.5 text-muted-foreground" />{" "}
+                        Leave channel
+                      </MenuItem>
+                    </>
+                  )}
+                </MenuContent>
+              </Menu>
+            )}
+          </>
+        }
+      />
       {editing && (
         <EditChannelDialog
           channel={channel}
@@ -323,7 +344,7 @@ export function ChannelHeader({
       {linking && (
         <LinkSlackDialog channel={channel} onClose={() => setLinking(false)} />
       )}
-    </header>
+    </>
   );
 }
 
@@ -381,7 +402,7 @@ function MembersPanel({
     }).catch(failed("Not removed"));
   return (
     <div className="flex max-h-96 flex-col">
-      <p className="px-3 pt-2 pb-1 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+      <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
         Members
       </p>
       <ul className="min-h-0 flex-1 overflow-y-auto p-1">
@@ -390,7 +411,7 @@ function MembersPanel({
             key={m.id}
             className="flex items-center gap-2 rounded-md px-2 py-1 text-[13px]"
           >
-            <Avatar name={memberName(m.userId)} userId={m.userId} size="md" />
+            <Actor userId={m.userId} size={24} label="none" />
             <span className="min-w-0 flex-1 truncate">
               {memberName(m.userId)}
               {m.userId === userId && (
@@ -401,7 +422,7 @@ function MembersPanel({
               <button
                 type="button"
                 aria-label={`Remove ${memberName(m.userId)}`}
-                className="grid size-6 place-items-center rounded text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+                className="grid size-7 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
                 onClick={() => void remove(m)}
               >
                 <X className="size-3.5" aria-hidden />
@@ -414,9 +435,14 @@ function MembersPanel({
             key={m.id}
             className="flex items-center gap-2 rounded-md px-2 py-1 text-[13px]"
           >
-            <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-primary">
-              <Bot className="size-3.5" aria-hidden />
-            </span>
+            {m.agentId && factory.agentById.get(m.agentId) ? (
+              <AgentAvatar
+                agent={factory.agentById.get(m.agentId)!}
+                size={24}
+              />
+            ) : (
+              <Bot className="size-4 text-muted-foreground" aria-hidden />
+            )}
             <span className="min-w-0 flex-1 truncate">
               {agentLabel(m.agentId)}
             </span>
@@ -424,7 +450,7 @@ function MembersPanel({
               <button
                 type="button"
                 aria-label={`Remove ${agentLabel(m.agentId)}`}
-                className="grid size-6 place-items-center rounded text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+                className="grid size-7 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
                 onClick={() => void remove(m)}
               >
                 <X className="size-3.5" aria-hidden />
@@ -442,7 +468,7 @@ function MembersPanel({
               <button
                 type="button"
                 {...props}
-                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+                className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] focus-ring-inset outline-none hover:bg-muted"
               >
                 <UserPlus
                   className="size-3.5 text-muted-foreground"
@@ -465,7 +491,7 @@ function MembersPanel({
                 render={
                   <button
                     type="button"
-                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] focus-ring-inset outline-none hover:bg-muted"
                   />
                 }
               >
@@ -475,7 +501,7 @@ function MembersPanel({
               <MenuContent align="start" width={260}>
                 {addable.map((a) => (
                   <MenuItem key={a.id} onSelect={() => void addAgent(a.id)}>
-                    <Bot className="size-3.5 text-muted-foreground" /> {a.name}
+                    <AgentAvatar agent={a} size={20} /> {a.name}
                     <span className="ml-auto text-[12px] text-muted-foreground">
                       @{a.handle}
                     </span>

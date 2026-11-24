@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
 import { seedWorkspace, signIn } from "../helpers/seed";
+import { fillMarkdown } from "../helpers/editor";
 
 // The Factory end to end: a person registers a real `lictory-runner`
 // process (running the scripted test harness), creates an agent, starts a
@@ -40,9 +41,11 @@ test("a person runs an agent on their own runner, steers it and approves what it
 
   // Add a runner: the dialog shows a one-time token in the commands.
   await page.goto(`/${seeded.slug}/factory/runners`);
+  // The Factory's own tabs (the sidebar has the same destinations).
+  const tabs = page.getByRole("navigation", { name: "Factory" });
   await expect(
-    page.getByRole("heading", { name: "Runners", exact: true }),
-  ).toBeVisible();
+    tabs.getByRole("link", { name: "Runners", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await page.getByRole("button", { name: "Add runner" }).first().click();
   const dialog = page.getByRole("dialog", { name: "Add a runner" });
   await dialog.getByRole("button", { name: /Organization runner/ }).click();
@@ -78,11 +81,9 @@ test("a person runs an agent on their own runner, steers it and approves what it
   runner.stdout?.on("data", (chunk: Buffer) => (output += chunk.toString()));
   runner.stderr?.on("data", (chunk: Buffer) => (output += chunk.toString()));
   await expect(page.getByText("e2e-runner")).toBeVisible();
-  await expect(page.getByText("Online")).toBeVisible();
+  await expect(page.getByText("Online", { exact: true })).toBeVisible();
 
   // Create an agent the person owns.
-  // The Factory's own tabs (the sidebar has the same destinations).
-  const tabs = page.getByRole("navigation", { name: "Factory" });
   await tabs.getByRole("link", { name: "Agents", exact: true }).click();
   await page.getByRole("button", { name: "New agent" }).first().click();
   const agentDialog = page.getByRole("dialog", { name: "New agent" });
@@ -120,15 +121,21 @@ test("a person runs an agent on their own runner, steers it and approves what it
     transcript.getByText("Ready for your instructions."),
   ).toBeVisible();
 
-  // Steer it with a message.
-  await page.getByLabel("Message the agent").fill("Mention the v2 API.");
-  await page.getByLabel("Message the agent").press("Enter");
+  // Steer it with a message, in the shared rich composer.
+  const steer = await fillMarkdown(
+    page,
+    "Message the agent",
+    "Mention the v2 API.",
+  );
+  await steer.press("Enter");
   await expect(
     transcript.getByText("Got it: Mention the v2 API."),
   ).toBeVisible();
 
   // It asks for an approval; the session waits on the person.
-  await expect(page.getByText("Waiting on a person")).toBeVisible();
+  await expect(
+    page.locator("[data-page-header]").getByText("Waiting on you"),
+  ).toBeVisible();
   const session = page.url();
   // The sidebar counts it, and Home lists the question with everything else
   // waiting on me; it opens the session, where it is answered.
@@ -153,7 +160,11 @@ test("a person runs an agent on their own runner, steers it and approves what it
     .getByRole("link", { name: "Add a changelog for refunds." })
     .click();
   await expect(page).toHaveURL(session);
-  await transcript.getByRole("button", { name: "Approve" }).click();
+  // The request waits above the composer, with its context.
+  await page
+    .getByRole("region", { name: "Waiting on you" })
+    .getByRole("button", { name: "Approve" })
+    .click();
   await expect(
     transcript.getByText(/approved “Run the database migration”/),
   ).toBeVisible();
@@ -162,7 +173,9 @@ test("a person runs an agent on their own runner, steers it and approves what it
   ).toBeVisible();
 
   // It completes with its summary; nothing is left to steer.
-  await expect(page.getByText("Completed", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("[data-page-header]").getByText("Completed", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Added CHANGES.md describing refunds over the API.").first(),
   ).toBeVisible();

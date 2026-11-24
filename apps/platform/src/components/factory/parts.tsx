@@ -1,305 +1,222 @@
-import { useState, type ReactNode } from "react";
-import { Bot, Check, X } from "lucide-react";
-import { callCapability } from "@lictory/core/capabilities/client";
-import { policyStarter } from "@lictory/core/claims/contracts";
+import { useCallback, type ReactNode } from "react";
+import { Factory, GitPullRequest } from "lucide-react";
 import {
   sessionTitle,
   type AgentEntity,
-  type ApprovalEntity,
   type SessionEntity,
 } from "@lictory/core/factory/entities";
-import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
-import { Button } from "@lictory/ui/button";
-import { Badge } from "@lictory/ui/primitives";
-import { toast } from "@lictory/ui/toast";
-import { Link, usePathname } from "@lictory/platform/lib/navigation";
+import { identifier } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { useLiveClaims } from "@lictory/platform/components/claims/claims";
 import {
-  statusLabels,
-  statusMeaning,
-  statusTone,
-} from "@lictory/platform/components/factory/labels";
+  Actor,
+  AgentActor,
+  AgentAvatar,
+  PolicyActor,
+} from "@lictory/platform/components/identity/actor";
+import {
+  PageHeader,
+  PageLinkTabs,
+} from "@lictory/platform/components/shell/page-header";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import { sessionState } from "@lictory/platform/lib/session-state";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
 
-// Pieces shared by the Factory's pages.
-
-// Who started a session: the person, or "Build policy (set by Ada)" for a
-// session an autonomy policy started (its owner stays accountable).
-export function useSessionStarter() {
-  const { memberName } = useWorkspace();
-  return (session: Pick<SessionEntity, "requestedById" | "startedByPolicy">) =>
-    session.startedByPolicy
-      ? policyStarter(
-          session.startedByPolicy,
-          memberName(session.startedByPolicy.setById),
-        )
-      : memberName(session.requestedById);
-}
+// Pieces shared by the Factory's pages: the page frame (one header with the
+// Factory's tabs), who started a session, its state and its row.
 
 export function FactoryPage({
-  title,
+  meta,
   description,
   actions,
   children,
 }: {
-  title: string;
-  description: ReactNode;
+  // One quiet line of counts in the header: "2 running · 1 queued".
+  meta?: ReactNode;
+  // What the page is for, behind the header's info button.
+  description: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   const { organization } = useWorkspace();
-  const pathname = usePathname();
   const org = organization.slug;
-  const tabs = [
-    { href: factoryPaths.overview(org), label: "Overview", exact: true },
-    { href: factoryPaths.agents(org), label: "Agents" },
-    { href: factoryPaths.runners(org), label: "Runners" },
-  ];
+  const tabs = (
+    <PageLinkTabs
+      label="Factory"
+      tabs={[
+        {
+          href: factoryPaths.overview(org),
+          label: "Overview",
+          exact: true,
+        },
+        { href: factoryPaths.agents(org), label: "Agents" },
+        { href: factoryPaths.runners(org), label: "Runners" },
+      ]}
+    />
+  );
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-4 pt-6 pb-16 sm:px-8 sm:pt-8">
-        <header className="flex flex-wrap items-start gap-x-3 gap-y-4">
-          <div className="min-w-0 flex-1 basis-64">
-            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
-          </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
-        </header>
-        <nav aria-label="Factory" className="mt-5 flex gap-1 border-b">
-          {tabs.map((tab) => {
-            const current = tab.exact
-              ? pathname === tab.href
-              : pathname.startsWith(tab.href);
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                aria-current={current ? "page" : undefined}
-                className={cn(
-                  "-mb-px border-b-2 px-3 pb-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                  current
-                    ? "border-foreground font-medium text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-6">{children}</div>
+    <div className="flex h-full min-h-0 flex-col">
+      <PageHeader
+        title="Factory"
+        icon={<Factory />}
+        description={description}
+        meta={meta}
+        tabs={<div className="max-sm:hidden">{tabs}</div>}
+        actions={actions}
+      />
+      {/* Phones: the header keeps the title; the tabs get their own row. */}
+      <div className="flex h-10 shrink-0 items-center border-b px-2 sm:hidden">
+        {tabs}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-5xl space-y-6 px-4 pt-6 pb-16 sm:px-8">
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
-export function SessionStatusBadge({ session }: { session: SessionEntity }) {
-  return (
-    <span title={statusMeaning(session.status)}>
-      <Badge tone={statusTone[session.status]}>
-        {(session.status === "running" || session.status === "assigned") && (
-          <span
-            aria-hidden
-            className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
-          />
-        )}
-        {statusLabels[session.status]}
-      </Badge>
-    </span>
-  );
-}
-
-export function AgentMark({
-  agent,
-  className,
+// Who started a session: the person, or "Build policy (set by Ada)" for a
+// session an autonomy policy started (its owner stays accountable).
+export function SessionStarter({
+  session,
+  size = 16,
 }: {
-  agent: Pick<AgentEntity, "avatar" | "name"> | undefined;
-  className?: string;
+  session: Pick<SessionEntity, "requestedById" | "startedByPolicy">;
+  size?: 16 | 20;
 }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "grid size-6 shrink-0 place-items-center rounded-md bg-muted text-[13px] text-muted-foreground ring-1 ring-foreground/8",
-        className,
-      )}
-    >
-      {agent?.avatar?.length ? agent.avatar : <Bot className="size-3.5" />}
-    </span>
+  return session.startedByPolicy ? (
+    <PolicyActor
+      level={session.startedByPolicy.level}
+      setById={session.startedByPolicy.setById}
+      size={size}
+    />
+  ) : (
+    <Actor userId={session.requestedById} size={size} label="first" />
   );
 }
 
-// "Forge via Ada": an agent always acts for its owner.
-export function AgentName({ agent }: { agent: AgentEntity | undefined }) {
-  const { memberName } = useWorkspace();
-  if (!agent)
-    return <span className="text-muted-foreground">Unknown agent</span>;
-  return (
-    <span className="min-w-0 truncate">
-      <span className="font-medium text-foreground">{agent.name}</span>
-      <span className="text-muted-foreground">
-        {" "}
-        via {memberName(agent.ownerId)}
-      </span>
-    </span>
+// Who answers the agent: "you" when it is me (I started the session or own
+// the agent), else the person who started it.
+export function useDecider() {
+  const { userId, memberName } = useWorkspace();
+  return useCallback(
+    (session: SessionEntity, agent: AgentEntity | undefined) =>
+      session.requestedById === userId || agent?.ownerId === userId
+        ? "you"
+        : memberName(session.requestedById),
+    [userId, memberName],
   );
 }
 
+// A session's state with its claim and who it waits on, from the shared
+// vocabulary (lib/session-state): "Waiting on you", "Running".
+export function useSessionStateOf() {
+  const claims = useLiveClaims();
+  const decider = useDecider();
+  return useCallback(
+    (session: SessionEntity, agent: AgentEntity | undefined) =>
+      sessionState(session, {
+        claim: session.workItemId ? claims.get(session.workItemId) : null,
+        decider: decider(session, agent),
+      }),
+    [claims, decider],
+  );
+}
+
+// The work item a session works on, as its key ("PAY-6").
+export function useItemKey() {
+  const { items, projects } = useWorkspace();
+  return useCallback(
+    (workItemId: string | null) => {
+      if (!workItemId) return undefined;
+      const item = items.find((i) => i.id === workItemId);
+      const project = item
+        ? projects.find((p) => p.id === item.projectId)
+        : undefined;
+      return item && project ? identifier(project, item.number) : undefined;
+    },
+    [items, projects],
+  );
+}
+
+// A session's title without the item key its row already shows
+// ("PAY-6: Refund retries" beside PAY-6 reads "Refund retries").
+export function titleBeside(title: string, key: string | undefined) {
+  const text = sessionTitle(title);
+  return key && text.startsWith(`${key}: `) ? text.slice(key.length + 2) : text;
+}
+
+// What a finished session changed, in one line: its summary or why it
+// failed, and its pull request.
+export function sessionOutcome(
+  session: Pick<
+    SessionEntity,
+    "status" | "resultSummary" | "error" | "pullRequestId" | "pullRequestUrl"
+  >,
+) {
+  const firstLine = (text: string | null) =>
+    text?.split("\n").find((line) => line.trim()) ?? null;
+  if (session.status === "failed")
+    return firstLine(session.error) ?? "It failed without saying why.";
+  if (session.status === "canceled") return "Canceled before it finished.";
+  return firstLine(session.resultSummary) ?? "No summary from the agent.";
+}
+
+// One session in a list: the agent, the item key and title, who started it
+// (or what it changed, once finished), its state and when it last moved.
 export function SessionRow({
   session,
   agent,
+  showOutcome = false,
 }: {
   session: SessionEntity;
   agent: AgentEntity | undefined;
+  showOutcome?: boolean;
 }) {
   const { organization } = useWorkspace();
-  const starter = useSessionStarter();
+  const stateOf = useSessionStateOf();
+  const itemKey = useItemKey();
+  const pullRequest = Boolean(session.pullRequestId ?? session.pullRequestUrl);
+  const key = itemKey(session.workItemId);
   return (
-    <li>
-      <Link
-        href={factoryPaths.session(organization.slug, session.id)}
-        className="flex items-center gap-3 rounded-lg px-3 py-2.5 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
-      >
-        <AgentMark agent={agent} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium">
-            {sessionTitle(session.title)}
-          </div>
-          <div className="mt-0.5 flex min-w-0 gap-1 text-xs text-muted-foreground">
-            <span className="truncate">
-              {agent?.name ?? "Agent"} · started by {starter(session)}
-            </span>
-          </div>
-        </div>
-        <SessionStatusBadge session={session} />
-        <time
-          dateTime={session.updatedAt}
-          className="hidden w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block"
-        >
-          {relativeTime(session.updatedAt)}
-        </time>
-      </Link>
-    </li>
+    <ListRow
+      // Phones keep the title: the time gives way.
+      className="max-sm:[&>time]:hidden"
+      href={factoryPaths.session(organization.slug, session.id)}
+      leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
+      identifier={key}
+      title={titleBeside(session.title, key)}
+      meta={
+        showOutcome ? (
+          <>
+            <span className="min-w-0 truncate">{sessionOutcome(session)}</span>
+            {pullRequest && (
+              <span className="flex shrink-0 items-center gap-1">
+                <span aria-hidden>·</span>
+                <GitPullRequest aria-hidden className="size-3" />
+                Pull request
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <AgentActor
+              agent={agent}
+              ownerId={agent?.ownerId}
+              avatar={false}
+              className="shrink-0"
+            />
+            <span aria-hidden>·</span>
+            <span className="shrink-0">started by</span>
+            <SessionStarter session={session} />
+          </>
+        )
+      }
+      chips={<SessionStateChip state={stateOf(session, agent)} />}
+      time={session.completedAt ?? session.updatedAt}
+    />
   );
-}
-
-export function SessionList({
-  sessions,
-  agentById,
-  empty,
-}: {
-  sessions: SessionEntity[];
-  agentById: ReadonlyMap<string, AgentEntity>;
-  empty?: ReactNode;
-}) {
-  if (!sessions.length)
-    return empty ? (
-      <p className="px-3 py-4 text-[13px] text-muted-foreground">{empty}</p>
-    ) : null;
-  return (
-    <ul className="divide-y divide-border/60 rounded-xl bg-card shadow-(--shadow-border)">
-      {sessions.map((s) => (
-        <SessionRow key={s.id} session={s} agent={agentById.get(s.agentId)} />
-      ))}
-    </ul>
-  );
-}
-
-export function Section({
-  title,
-  count,
-  action,
-  children,
-}: {
-  title: string;
-  count?: number;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="mt-8 first:mt-0">
-      <div className="mb-2 flex items-center gap-2">
-        <h2 className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-          {title}
-        </h2>
-        {count !== undefined && (
-          <span className="text-[11px] text-muted-foreground tabular-nums">
-            {count}
-          </span>
-        )}
-        <div className="flex-1" />
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-// Approve or Deny what an agent asked. Only the person who started the
-// session or the agent's owner sees the buttons; the server decides anyway.
-export function ApprovalActions({
-  session,
-  approval,
-  canAnswer,
-}: {
-  session: SessionEntity;
-  approval: ApprovalEntity;
-  canAnswer: boolean;
-}) {
-  const { organization } = useWorkspace();
-  const [sent, setSent] = useState<"approve" | "deny" | null>(null);
-  if (!canAnswer)
-    return (
-      <p className="text-xs text-muted-foreground">
-        Waiting for the person who started the session or the agent’s owner.
-      </p>
-    );
-  const answer = async (decision: "approve" | "deny") => {
-    setSent(decision);
-    try {
-      await callCapability("answerAgentApproval", {
-        organizationId: organization.id,
-        sessionId: session.id,
-        approvalId: approval.id,
-        decision,
-      });
-    } catch (error) {
-      setSent(null);
-      toast({
-        type: "error",
-        title: "The answer was not recorded",
-        description: (error as Error).message,
-      });
-    }
-  };
-  return (
-    <div className="flex gap-2">
-      <Button
-        size="sm"
-        onClick={() => answer("approve")}
-        disabled={sent !== null}
-      >
-        <Check className="size-3.5" aria-hidden /> Approve
-      </Button>
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={() => answer("deny")}
-        disabled={sent !== null}
-      >
-        <X className="size-3.5" aria-hidden /> Deny
-      </Button>
-    </div>
-  );
-}
-
-export function canAnswerSession(
-  session: SessionEntity,
-  agent: AgentEntity | undefined,
-  userId: string,
-) {
-  return session.requestedById === userId || agent?.ownerId === userId;
 }

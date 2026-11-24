@@ -1,43 +1,48 @@
 import {
-  useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
-  ArrowLeft,
   CircleStop,
   GitBranch,
   GitPullRequest,
   Hand,
   RotateCcw,
-  Send,
   Server,
+  SquareTerminal,
 } from "lucide-react";
-import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { sessionTitle } from "@lictory/core/factory/entities";
 import { cn } from "@lictory/core/lib/utils";
-import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
+import {
+  absoluteTime,
+  identifier,
+  relativeTime,
+} from "@lictory/core/lib/work-items";
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
-import { inputClass } from "@lictory/ui/input";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import {
+  ApprovalRequest,
+  canDecide,
+} from "@lictory/platform/components/shell/approval-request";
+import { AgentActor } from "@lictory/platform/components/identity/actor";
+import { Composer } from "@lictory/platform/components/channels/composer";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
-  AgentMark,
-  AgentName,
-  SessionStatusBadge,
-  canAnswerSession,
-  useSessionStarter,
+  SessionStarter,
+  useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import {
   useFactory,
@@ -49,48 +54,76 @@ import {
   transcriptItems,
 } from "@lictory/platform/components/factory/transcript";
 
+// One agent session, read like a coding agent's transcript: the header
+// says what it is and where it stands (back, title, state, Interrupt,
+// Cancel, Retry), one line says who and where (the agent via its owner,
+// the harness, the runner, the item, the branch, when it started), the
+// event log fills in live, a banner holds what the agent asks while it
+// waits on a person, and the shared composer steers it.
+
 // Events are synchronized in windows; "Show earlier" widens the window.
 const WINDOW = 200;
 const MAX_WINDOW = 2000;
 
 export function SessionView() {
   const { session: sessionId = "" } = useParams<{ session: string }>();
-  const starter = useSessionStarter();
   const { organization, userId, isAdmin, memberName, items, projects } =
     useWorkspace();
   const { agentById, runnerById } = useFactory();
   const { session, complete } = useSession(sessionId);
+  const stateOf = useSessionStateOf();
   const [limit, setLimit] = useState(WINDOW);
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
+  // Errors the log already shows, so the outcome does not repeat them.
+  const shownErrors = useMemo(
+    () =>
+      new Set(
+        events.flatMap((e) => {
+          const message = (e.data as { message?: unknown } | null)?.message;
+          return e.type === "error" && typeof message === "string"
+            ? [message.trim()]
+            : [];
+        }),
+      ),
+    [events],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const back = {
+    label: "Back to the Factory",
+    href: factoryPaths.overview(org),
+  };
 
   // Follow new events while the reader is at the bottom.
   useLayoutEffect(() => {
     const node = scroller.current;
     if (node && pinned.current) node.scrollTop = node.scrollHeight;
-  }, [transcript.length]);
+  }, [transcript.length, session?.approvals.length]);
 
   if (!session)
-    return complete ? (
-      <EmptyState title="This session does not exist">
-        It may belong to another organization.{" "}
-        <Link href={factoryPaths.overview(org)} className="underline">
-          Back to the Factory
-        </Link>
-      </EmptyState>
-    ) : (
-      <LoadingState label="Loading the session" />
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <PageHeader title="Session" back={back} />
+        {complete ? (
+          <EmptyState title="This session does not exist">
+            It may belong to another organization.{" "}
+            <Link href={back.href} className="underline">
+              Back to the Factory
+            </Link>
+          </EmptyState>
+        ) : (
+          <LoadingState label="Loading the session" />
+        )}
+      </div>
     );
 
   const agent = agentById.get(session.agentId);
   const runner = session.runnerId
     ? runnerById.get(session.runnerId)
     : undefined;
-  const steer = session.requestedById === userId || agent?.ownerId === userId;
-  const canAnswer = canAnswerSession(session, agent, userId);
+  const steer = canDecide(session, agent, userId);
   const item = session.workItemId
     ? items.find((i) => i.id === session.workItemId)
     : undefined;
@@ -115,99 +148,106 @@ export function SessionView() {
   };
   const truncated =
     events.length >= limit && limit < MAX_WINDOW && events[0]?.sequence !== 1;
+  const state = stateOf(session, agent);
+  const asks = session.status === "waiting" ? session.approvals : [];
+  const itemKey = item && project ? identifier(project, item.number) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b px-4 py-3 sm:px-6">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-start gap-x-3 gap-y-2">
-          <Link
-            href={factoryPaths.overview(org)}
-            aria-label="Back to the Factory"
-            className="mt-0.5 grid size-7 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-          >
-            <ArrowLeft className="size-4" aria-hidden />
-          </Link>
-          <div className="min-w-0 flex-1 basis-72">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-[15px] font-semibold">
-                {sessionTitle(session.title)}
-              </h1>
-              <SessionStatusBadge session={session} />
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex min-w-0 items-center gap-1.5">
-                <AgentMark agent={agent} className="size-4 text-[10px]" />
-                <AgentName agent={agent} />
-                {agent && <span>· {harnessLabel(agent.harness)}</span>}
-              </span>
-              <span>Started by {starter(session)}</span>
-              {runner && (
-                <span className="flex items-center gap-1">
-                  <Server className="size-3" aria-hidden /> {runner.name}
-                </span>
-              )}
-              {item && project && (
-                <Link
-                  href={paths.item(org, project.key, item.id)}
-                  className="font-mono hover:text-foreground"
-                >
-                  {project.key}-{item.number}
-                </Link>
-              )}
-              {session.branch && (
-                <span className="flex min-w-0 items-center gap-1 font-mono">
-                  <GitBranch className="size-3" aria-hidden />
-                  <span className="truncate">{session.branch}</span>
-                </span>
-              )}
-              {session.pullRequestId && (
-                <Link
-                  href={paths.codePullRequest(org, session.pullRequestId)}
-                  className="flex items-center gap-1 hover:text-foreground"
-                >
-                  <GitPullRequest className="size-3" aria-hidden /> Pull request
-                </Link>
-              )}
-              <time
-                dateTime={session.createdAt}
-                title={absoluteTime(session.createdAt)}
-              >
-                {relativeTime(session.createdAt)}
-              </time>
-              {session.attempts > 1 && (
-                <span>
-                  Attempt {session.attempts} of {session.maxAttempts}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
+      <PageHeader
+        back={back}
+        title={sessionTitle(session.title)}
+        actions={
+          <>
+            <SessionStateChip state={state} className="max-sm:hidden" />
             {steer && allows("interrupt") && (
               <Button
-                size="sm"
                 variant="secondary"
+                aria-label="Interrupt"
                 onClick={act("interruptAgentSession", "Interrupting")}
               >
-                <Hand className="size-3.5" aria-hidden /> Interrupt
+                <Hand className="size-3.5" aria-hidden />
+                <span className="max-md:hidden">Interrupt</span>
               </Button>
             )}
             {(steer || isAdmin) && allows("cancel") && (
               <Button
-                size="sm"
                 variant="secondary"
+                aria-label="Cancel"
                 onClick={act("cancelAgentSession", "Canceling")}
               >
-                <CircleStop className="size-3.5" aria-hidden /> Cancel
+                <CircleStop className="size-3.5" aria-hidden />
+                <span className="max-md:hidden">Cancel</span>
               </Button>
             )}
             {steer && allows("retry") && (
-              <Button size="sm" onClick={act("retryAgentSession", "Retrying")}>
+              <Button onClick={act("retryAgentSession", "Retrying")}>
                 <RotateCcw className="size-3.5" aria-hidden /> Retry
               </Button>
             )}
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
+      {/* Who and where, on one line (it scrolls sideways on phones). */}
+      <div
+        data-session-meta
+        className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*]:shrink-0"
+      >
+        <SessionStateChip state={state} className="sm:hidden" />
+        <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />
+        {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
+        {runner && (
+          <Meta icon={<Server />} label="Runner">
+            {runner.name}
+          </Meta>
+        )}
+        {itemKey && (
+          <Link
+            href={paths.item(org, project!.key, itemKey)}
+            className="rounded-sm font-mono focus-ring outline-none hover:text-foreground"
+          >
+            {itemKey}
+          </Link>
+        )}
+        {session.branch && (
+          <Meta icon={<GitBranch />} label="Branch">
+            <span className="font-mono">{session.branch}</span>
+          </Meta>
+        )}
+        {session.pullRequestId ? (
+          <Link
+            href={paths.codePullRequest(org, session.pullRequestId)}
+            className="flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline"
+          >
+            <GitPullRequest className="size-3.5" aria-hidden /> Pull request
+          </Link>
+        ) : (
+          session.pullRequestUrl && (
+            <a
+              href={session.pullRequestUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline"
+            >
+              <GitPullRequest className="size-3.5" aria-hidden /> Pull request
+            </a>
+          )
+        )}
+        <span className="flex items-center gap-1">
+          Started by <SessionStarter session={session} />
+          <time
+            dateTime={session.createdAt}
+            title={absoluteTime(session.createdAt)}
+          >
+            {relativeTime(session.createdAt)}
+          </time>
+        </span>
+        {session.attempts > 1 && (
+          <span>
+            Attempt {session.attempts} of {session.maxAttempts}
+          </span>
+        )}
+      </div>
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-y-auto"
@@ -217,9 +257,9 @@ export function SessionView() {
             node.scrollHeight - node.scrollTop - node.clientHeight < 80;
         }}
       >
-        <div className="mx-auto max-w-4xl space-y-3 px-4 py-5 sm:px-6">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           {truncated && (
-            <div className="text-center">
+            <div className="mb-4 text-center">
               <Button
                 size="sm"
                 variant="ghost"
@@ -231,7 +271,7 @@ export function SessionView() {
               </Button>
             </div>
           )}
-          <ol aria-label="Session transcript" className="space-y-3">
+          <ol aria-label="Session transcript" className="space-y-1">
             {transcript.map((entry) => {
               const key =
                 entry.kind === "tool"
@@ -240,32 +280,109 @@ export function SessionView() {
               return (
                 <li
                   key={key}
-                  className="[contain-intrinsic-size:auto_2.5rem] [content-visibility:auto]"
+                  className="[contain-intrinsic-size:auto_2rem] [content-visibility:auto]"
                 >
                   <TranscriptRow
                     item={entry}
                     session={session}
                     agent={agent}
                     memberName={memberName}
-                    canAnswer={canAnswer}
                   />
                 </li>
               );
             })}
           </ol>
+          {/* The outcome, unless the log already ends with the same error. */}
           {Boolean(session.resultSummary ?? session.error) &&
-            ["completed", "failed"].includes(session.status) && (
+            ["completed", "failed"].includes(session.status) &&
+            !(session.error && shownErrors.has(session.error.trim())) && (
               <Result summary={session.resultSummary} error={session.error} />
             )}
         </div>
       </div>
+      {asks.length > 0 && (
+        <section
+          aria-label={steer ? "Waiting on you" : state.label}
+          className="max-h-[55%] shrink-0 overflow-y-auto border-t bg-warning/5 px-4 py-3 sm:px-6"
+        >
+          <div className="mx-auto max-w-3xl space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+              <Hand className="size-3.5" aria-hidden />
+              {steer ? "Waiting on you" : state.label}
+            </p>
+            {asks.map((approval) => (
+              <ApprovalRequest
+                key={approval.id}
+                session={session}
+                approval={approval}
+                agent={agent}
+                runner={runner}
+                linkSession={false}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       {steer && allows("sendMessage") && (
-        <Composer
-          sessionId={session.id}
-          waiting={session.status === "queued"}
-        />
+        <div className="shrink-0 border-t bg-background pt-3">
+          <Composer
+            key={session.id}
+            draftKey={`${organization.id}:session:${session.id}`}
+            organizationId={organization.id}
+            label="Message the agent"
+            placeholder={
+              session.status === "queued"
+                ? "Add instructions before it starts…"
+                : session.status === "waiting" && !asks.length
+                  ? `${agent?.name ?? "The agent"} is waiting for your next message…`
+                  : `Steer ${agent?.name ?? "the agent"}…`
+            }
+            mentions={[]}
+            references={false}
+            maxLength={8000}
+            hint="Enter to send · Shift+Enter for a new line · the agent reads it on its next turn"
+            onSend={(text) =>
+              void callCapability("sendAgentSessionMessage", {
+                organizationId: organization.id,
+                sessionId: session.id,
+                text,
+              }).catch((error: unknown) =>
+                toast({
+                  type: "error",
+                  title: "The message was not sent",
+                  description: (error as Error).message,
+                }),
+              )
+            }
+            autoFocus
+            className="mx-auto max-w-3xl px-4 sm:mx-auto sm:px-6"
+          />
+        </div>
       )}
     </div>
+  );
+}
+
+function Meta({
+  icon,
+  label,
+  children,
+}: {
+  icon?: ReactNode;
+  // Names the icon for people who cannot see it.
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      {icon && (
+        <span aria-hidden className="[&_svg]:size-3.5">
+          {icon}
+        </span>
+      )}
+      {label && <span className="sr-only">{label}:</span>}
+      {children}
+    </span>
   );
 }
 
@@ -279,13 +396,14 @@ function Result({
   return (
     <div
       className={cn(
-        "rounded-xl px-4 py-3 text-[13px] shadow-(--shadow-border)",
+        "mt-4 rounded-xl px-4 py-3 text-[13px] shadow-(--shadow-border)",
         error ? "bg-destructive/6" : "bg-success/6",
       )}
     >
-      <div className="text-xs font-medium text-muted-foreground">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <SquareTerminal className="size-3.5" aria-hidden />
         {error ? "The session failed" : "The agent reports it is done"}
-      </div>
+      </p>
       {summary && <p className="mt-1 whitespace-pre-wrap">{summary}</p>}
       {error && (
         <p className="mt-1 whitespace-pre-wrap text-destructive">{error}</p>
@@ -297,90 +415,5 @@ function Result({
         </p>
       )}
     </div>
-  );
-}
-
-function Composer({
-  sessionId,
-  waiting,
-}: {
-  sessionId: string;
-  waiting: boolean;
-}) {
-  const { organization } = useWorkspace();
-  const [text, setText] = useState("");
-  const [pending, setPending] = useState(false);
-  const id = useId();
-  const field = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => field.current?.focus({ preventScroll: true }), []);
-  const send = async () => {
-    const message = text.trim();
-    if (!message || pending) return;
-    setPending(true);
-    try {
-      await callCapability("sendAgentSessionMessage", {
-        organizationId: organization.id,
-        sessionId,
-        text: message,
-      });
-      setText("");
-    } catch (error) {
-      toast({
-        type: "error",
-        title: "The message was not sent",
-        description: (error as Error).message,
-      });
-    } finally {
-      setPending(false);
-    }
-  };
-  return (
-    <form
-      className="shrink-0 border-t bg-background px-4 py-3 sm:px-6"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void send();
-      }}
-    >
-      <div className="mx-auto flex max-w-4xl items-end gap-2">
-        <label htmlFor={id} className="sr-only">
-          Message the agent
-        </label>
-        <Textarea
-          ref={field}
-          id={id}
-          rows={1}
-          value={text}
-          maxLength={8000}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (
-              event.key === "Enter" &&
-              !event.shiftKey &&
-              !event.nativeEvent.isComposing
-            ) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-          placeholder={
-            waiting ? "Add instructions before it starts…" : "Steer the agent…"
-          }
-          className={cn(
-            inputClass,
-            "h-auto max-h-40 min-h-10 resize-none py-2 text-[14px] leading-6",
-          )}
-        />
-        <Button
-          type="submit"
-          size="icon"
-          aria-label="Send"
-          disabled={!text.trim() || pending}
-          className="mb-1.5 size-8"
-        >
-          <Send className="size-3.5" aria-hidden />
-        </Button>
-      </div>
-    </form>
   );
 }

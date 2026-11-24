@@ -246,7 +246,7 @@ export function MessageList({
         <button
           type="button"
           onClick={jumpToUnread}
-          className="absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[12px] font-medium text-primary-foreground shadow-(--shadow-panel) outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[12px] font-medium text-primary-foreground shadow-(--shadow-panel) focus-ring outline-none"
         >
           <ArrowUp className="size-3.5" aria-hidden />
           Jump to first unread
@@ -256,7 +256,7 @@ export function MessageList({
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute right-4 bottom-3 z-20 flex items-center gap-1.5 rounded-full border bg-popover px-3 py-1 text-[12px] font-medium shadow-(--shadow-panel) outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="absolute right-4 bottom-3 z-20 flex items-center gap-1.5 rounded-full border bg-popover px-3 py-1 text-[12px] font-medium shadow-(--shadow-panel) focus-ring outline-none"
         >
           <ArrowDown className="size-3.5" aria-hidden />
           Jump to latest
@@ -277,7 +277,7 @@ function Row({
     return (
       <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-1.5">
         <div className="h-px flex-1 bg-border" />
-        <span className="rounded-full border bg-background px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span className="rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
           {entry.label}
         </span>
         <div className="h-px flex-1 bg-border" />
@@ -290,7 +290,7 @@ function Row({
         className="flex scroll-mt-10 items-center gap-2 px-4 py-1"
       >
         <div className="h-px flex-1 bg-destructive/50" />
-        <span className="text-[11px] font-semibold text-destructive">New</span>
+        <span className="text-xs font-semibold text-destructive">New</span>
       </div>
     );
   return (

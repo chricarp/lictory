@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import type { Editor, Range } from "@tiptap/core";
 import {
-  Bot,
   FileText,
   Hash,
   Heading1,
@@ -23,7 +22,10 @@ import {
   Table,
 } from "lucide-react";
 import { matchesPerson } from "@lictory/core/lib/handles";
-import { Avatar } from "@lictory/ui/primitives";
+import {
+  AgentAvatar,
+  PersonAvatar,
+} from "@lictory/platform/components/identity/actor";
 import {
   fileUrl,
   uploadFile,
@@ -384,37 +386,47 @@ export type Mentionable = {
   handle?: string | null;
   // An agent (channels): written as `@[handle](agent:ID)`.
   kind?: "agent";
+  // An agent's emoji, for its avatar in the list.
+  avatar?: string | null;
+  // A person's photo.
+  image?: string | null;
 };
 
+const MENTION_PEOPLE = 6;
+const MENTION_AGENTS = 4;
+
+// People first, then agents under their own heading: an agent is a
+// participant with an owner, never listed as a person.
 export function mentionItems(
   query: string,
   people: readonly Mentionable[],
 ): MenuItem[] {
   const q = query.toLowerCase();
-  return (
-    people
-      .filter((m) => matchesPerson(m, query))
-      // Handle-prefix matches first: that is what people type after @.
-      .sort(
-        (a, b) =>
-          Number(!a.handle?.startsWith(q)) - Number(!b.handle?.startsWith(q)),
-      )
-      .slice(0, 6)
-      .map((person) => ({
-        id: person.id,
-        label: person.name,
-        hint: person.handle
-          ? `@${person.handle}${person.kind === "agent" ? " · agent" : ""}`
-          : person.email,
-        icon:
-          person.kind === "agent" ? (
-            <Bot className="size-4 text-primary" aria-hidden />
-          ) : (
-            <Avatar userId={person.id} name={person.name} size="xs" />
-          ),
-        run: (editor, range) => insertMention(editor, range, person),
-      }))
-  );
+  const matches = people
+    .filter((m) => matchesPerson(m, query))
+    // Handle-prefix matches first: that is what people type after @.
+    .sort(
+      (a, b) =>
+        Number(!a.handle?.startsWith(q)) - Number(!b.handle?.startsWith(q)),
+    );
+  const humans = matches.filter((m) => m.kind !== "agent");
+  const agents = matches.filter((m) => m.kind === "agent");
+  return [
+    ...humans.slice(0, MENTION_PEOPLE),
+    ...agents.slice(0, MENTION_AGENTS),
+  ].map((person) => ({
+    id: person.id,
+    label: person.name,
+    hint: person.handle ? `@${person.handle}` : person.email,
+    group: person.kind === "agent" ? "Agents" : "People",
+    icon:
+      person.kind === "agent" ? (
+        <AgentAvatar agent={person} size={20} />
+      ) : (
+        <PersonAvatar person={person} size={20} />
+      ),
+    run: (editor, range) => insertMention(editor, range, person),
+  }));
 }
 
 export function insertMention(

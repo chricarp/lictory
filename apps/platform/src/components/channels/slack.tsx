@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { ArrowUpRight, Loader2, Lock, Hash, RotateCw } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -14,6 +13,8 @@ import { Dialog, Field } from "@lictory/platform/components/spaces/dialog";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannelLink } from "@lictory/platform/components/channels/store";
+import { SlackMark } from "@lictory/platform/components/identity/slack-mark";
+import { StatusChip } from "@lictory/ui/status-chip";
 import type { Channel } from "@lictory/platform/components/channels/data";
 
 // Lictory Channels ↔ Slack in the browser (docs/internals/channels.md#slack):
@@ -22,30 +23,17 @@ import type { Channel } from "@lictory/platform/components/channels/data";
 // messages that could not reach Slack. Ownership is the server's: these
 // only show it.
 
-/** A small mark for things that live in Slack. */
-export function SlackMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      aria-hidden
-      className={cn("size-3 shrink-0", className)}
-      fill="currentColor"
-    >
-      <rect x="5" y="1" width="2.6" height="7" rx="1.3" />
-      <rect x="8.4" y="8" width="2.6" height="7" rx="1.3" />
-      <rect x="8" y="5" width="7" height="2.6" rx="1.3" />
-      <rect x="1" y="8.4" width="7" height="2.6" rx="1.3" />
-    </svg>
-  );
-}
+// The Slack mark is identity's (people from Slack wear it too).
+export { SlackMark };
 
 /** "Slack" beside the author of a message written there. */
 export function FromSlack() {
   return (
     <Tooltip label="Written in Slack: it can only be edited or deleted there.">
-      <span className="inline-flex items-center gap-1 rounded bg-muted px-1 text-[10px] font-medium text-muted-foreground">
-        <SlackMark />
-        Slack
+      <span className="inline-flex">
+        <StatusChip tone="neutral" icon={<SlackMark />}>
+          Slack
+        </StatusChip>
       </span>
     </Tooltip>
   );
@@ -57,28 +45,21 @@ export function SlackSyncStatus({ channel }: { channel: Channel }) {
   if (!link) return null;
   const failing = link.health === "failing";
   const label = `Synced with #${link.externalName} in Slack`;
+  // A chip in the header: the Slack channel it syncs with, or that the
+  // sync fails (a person must act).
   const content = (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-[11.5px] font-medium",
-        failing
-          ? "bg-destructive/10 text-destructive"
-          : "bg-muted text-muted-foreground",
-      )}
+    <StatusChip
+      tone={failing ? "danger" : "neutral"}
+      icon={<SlackMark />}
+      className="max-w-48"
     >
-      <span
-        aria-hidden
-        className={cn(
-          "size-1.5 rounded-full",
-          failing ? "bg-destructive" : "bg-emerald-500",
-        )}
-      />
-      <SlackMark />
-      <span className="hidden sm:inline">
+      <span className="max-sm:sr-only">
         {failing ? "Slack sync failing" : `#${link.externalName}`}
       </span>
-      {link.externalUrl && <ArrowUpRight className="size-3" aria-hidden />}
-    </span>
+      {link.externalUrl && (
+        <ArrowUpRight className="ml-0.5 inline size-3" aria-hidden />
+      )}
+    </StatusChip>
   );
   const tooltip = failing
     ? `${label}. ${link.lastError ?? "Messages are not reaching Slack."}`
@@ -92,7 +73,7 @@ export function SlackSyncStatus({ channel }: { channel: Channel }) {
           rel="noreferrer"
           aria-label={tooltip}
           data-testid="slack-sync-status"
-          className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="rounded-md focus-ring outline-none"
         >
           {content}
         </a>
@@ -124,7 +105,7 @@ export function SlackSendFailure({
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex items-center gap-1 rounded px-1 font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="inline-flex items-center gap-1 rounded px-1 font-medium underline-offset-2 focus-ring outline-none hover:underline"
         >
           <RotateCw className="size-3" aria-hidden /> Retry
         </button>

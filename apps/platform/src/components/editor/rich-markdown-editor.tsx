@@ -383,8 +383,8 @@ const RichMarkdownEditor = forwardRef<
           ? [
               suggestionExtension("mentionMenu", {
                 char: "@",
-                title: "People",
-                empty: "No matching people",
+                title: "Mention",
+                empty: "No one matches",
                 store: menus.people,
                 items: (query) =>
                   mentionItems(query, latest.current.mentions ?? []),

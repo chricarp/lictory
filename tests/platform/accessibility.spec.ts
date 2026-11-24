@@ -7,13 +7,16 @@ import {
   seedItem,
   seedWorkspace,
   signIn,
+  withDb,
   type Seeded,
 } from "../helpers/seed";
+import { createAgent } from "@lictory/core/factory/agents";
 import { clientAddress } from "../helpers/client-address";
 import { openDiscussions } from "../helpers/discussions";
 
 // Automated WCAG 2.2 AA checks (axe-core) on the main flows: account pages,
-// specification review, native delivery and settings. A new serious or critical
+// specification review, native delivery, settings, channels and the
+// Factory. A new serious or critical
 // violation fails the suite; see docs/internals/accessibility.md.
 
 // Each test signs in from its own client address: sign-in is rate limited per
@@ -218,5 +221,61 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
     ).toBeVisible();
     await settled(page);
     await expectNoAccessibilityViolations(page, `project settings: ${section}`);
+  }
+});
+
+test("channels and the factory meet WCAG 2.2 AA automated checks", async ({
+  page,
+}) => {
+  const { seeded } = await seed("AXF");
+  await signIn(page, seeded.owner.email);
+  const channelId = crypto.randomUUID();
+  await seeded.command({
+    type: "createChannel",
+    channelId,
+    kind: "public",
+    name: "payments",
+    topic: "Refunds and payouts",
+  });
+  await withDb((db) =>
+    createAgent(db, seeded.owner.id, seeded.organizationId, {
+      name: "Forge",
+      handle: `forge${crypto.randomUUID().slice(0, 6)}`,
+      avatar: "🛠️",
+      kind: "runner",
+      harness: "claude-code",
+      access: "write",
+    }),
+  );
+
+  await page.goto(paths.channels(seeded.slug));
+  await expect(
+    page
+      .getByRole("list", { name: "Channels" })
+      .getByRole("link", { name: "payments" }),
+  ).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "channels index");
+
+  await page.goto(paths.channel(seeded.slug, channelId));
+  await expect(
+    page.getByRole("heading", { name: "payments", level: 1 }),
+  ).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "channel");
+
+  // No runner yet: the Factory is one setup path; its agents and runners.
+  await page.goto(paths.factory(seeded.slug));
+  await expect(page.getByText("Set up the factory")).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "factory setup");
+  for (const [tab, text] of [
+    ["agents", "Forge"],
+    ["runners", "No runners yet"],
+  ] as const) {
+    await page.goto(`${paths.factory(seeded.slug)}/${tab}`);
+    await expect(page.getByText(text, { exact: true })).toBeVisible();
+    await settled(page);
+    await expectNoAccessibilityViolations(page, `factory ${tab}`);
   }
 });

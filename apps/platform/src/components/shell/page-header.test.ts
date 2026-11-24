@@ -28,16 +28,12 @@ const allowed = new Set([
 // Pages that still draw their own header. Each module stream adopts
 // `PageHeader` and removes its entries; the list only shrinks.
 const knownOffenders = new Set([
-  "components/channels/browser.tsx",
-  "components/channels/header.tsx",
   "components/claims/factory-queue.tsx",
   "components/delivery/backlog.tsx",
   "components/delivery/board.tsx",
   "components/delivery/handoff.tsx",
   "components/delivery/iteration-report.tsx",
   "components/delivery/team-backlog.tsx",
-  "components/factory/parts.tsx",
-  "components/factory/session-view.tsx",
   "components/intelligence/chat/intelligence.tsx",
   "components/items/issue-list.tsx",
   "components/review/ai-review.tsx",

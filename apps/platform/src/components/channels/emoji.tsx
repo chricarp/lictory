@@ -46,7 +46,7 @@ export function EmojiPicker({
               key={emoji}
               type="button"
               aria-label={`React with ${emoji}`}
-              className="grid size-8 place-items-center rounded-md text-lg outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+              className="grid size-8 place-items-center rounded-md text-lg focus-ring outline-none hover:bg-muted"
               onClick={() => {
                 onPick(emoji);
                 close();

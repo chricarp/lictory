@@ -38,7 +38,7 @@ export function ItemConversations({ workItemId }: { workItemId: string }) {
   if (!promotions.length) return null;
   return (
     <section aria-label="Conversations" className="mt-10">
-      <h2 className="mb-2 flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <MessagesSquare className="size-3.5" aria-hidden /> Conversations
       </h2>
       <ul className="space-y-1">

@@ -12,6 +12,7 @@ import {
 import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { SessionEntity } from "@lictory/core/factory/entities";
+import type { CodeRepositoryEntity } from "@lictory/core/code/entities";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { Dialog } from "@lictory/ui/dialog";
@@ -27,9 +28,32 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { useCodeHosts } from "@lictory/platform/components/code/store";
 
 // Start an agent session: which agent, what to do, and optionally the work
-// item and the repository. The server checks who may start it.
+// item and the repository (one linked to the item's project, picked by
+// name, or any address). The server checks who may start it.
+
+const DEFAULT = "default";
+const OTHER = "other";
+
+// The repositories offered: those serving the item's project when there is
+// one (its default first), else every linked one; archived ones never.
+export function repositoryChoices(
+  repositories: readonly CodeRepositoryEntity[],
+  projectId: string | null,
+) {
+  const live = repositories.filter((r) => !r.hostArchived);
+  const serving = projectId
+    ? live.filter((r) => r.projectIds.includes(projectId))
+    : live;
+  const fallback = projectId
+    ? (serving.find((r) => r.defaultForProjectIds.includes(projectId)) ??
+      serving[0] ??
+      null)
+    : null;
+  return { repositories: serving, fallback };
+}
 export function StartSessionDialog({
   onClose,
   agentId: initialAgent,
@@ -39,7 +63,7 @@ export function StartSessionDialog({
   agentId?: string;
   workItemId?: string;
 }) {
-  const { organization, userId } = useWorkspace();
+  const { organization, userId, items } = useWorkspace();
   const { agents } = useFactory();
   const router = useRouter();
   const startable = agents.filter(
@@ -55,6 +79,9 @@ export function StartSessionDialog({
   const [workItemId, setWorkItemId] = useState<string | null>(
     initialItem ?? null,
   );
+  const { repositories } = useCodeHosts();
+  // A linked repository (by id), the project's default, or an address.
+  const [repository, setRepository] = useState<string>(DEFAULT);
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +94,22 @@ export function StartSessionDialog({
     agent: useId(),
   };
 
+  const item = workItemId ? items.find((i) => i.id === workItemId) : undefined;
+  const choices = useMemo(
+    () => repositoryChoices(repositories, item?.projectId ?? null),
+    [repositories, item?.projectId],
+  );
+  // A repository that does not serve the item's project falls back.
+  const choice =
+    repository === OTHER ||
+    choices.repositories.some((r) => r.id === repository)
+      ? repository
+      : DEFAULT;
+  const chosenUrl =
+    choice === OTHER
+      ? repositoryUrl.trim()
+      : (choices.repositories.find((r) => r.id === choice)?.webUrl ?? "");
+
   const submit = async () => {
     setPending(true);
     setError(null);
@@ -78,7 +121,7 @@ export function StartSessionDialog({
           agentId,
           prompt,
           workItemId,
-          repositoryUrl: repositoryUrl.trim() || null,
+          repositoryUrl: chosenUrl || null,
           baseBranch: baseBranch.trim() || null,
           mutationId,
         },
@@ -179,14 +222,70 @@ export function StartSessionDialog({
                 (optional)
               </span>
             </label>
-            <Input
-              id={ids.repository}
-              value={repositoryUrl}
-              onChange={(event) => setRepositoryUrl(event.target.value)}
-              placeholder="https://github.com/acme/payments.git"
-              autoComplete="off"
-              spellCheck={false}
-            />
+            {repositories.length ? (
+              <DropdownSelect
+                id={ids.repository}
+                value={choice}
+                onValueChange={setRepository}
+                className="w-full"
+              >
+                <DropdownSelectOption
+                  value={DEFAULT}
+                  label={
+                    choices.fallback
+                      ? `Project default (${choices.fallback.fullName})`
+                      : "None"
+                  }
+                >
+                  <span className="truncate">
+                    {choices.fallback
+                      ? `Project default (${choices.fallback.fullName})`
+                      : "None"}
+                  </span>
+                </DropdownSelectOption>
+                {choices.repositories.map((r) => (
+                  <DropdownSelectOption
+                    key={r.id}
+                    value={r.id}
+                    label={r.fullName}
+                  >
+                    <span className="truncate font-mono text-[12.5px]">
+                      {r.fullName}
+                    </span>
+                    {r.visibility !== "public" && (
+                      <span className="ml-auto pl-3 text-xs text-muted-foreground">
+                        {r.visibility === "private" ? "Private" : "Internal"}
+                      </span>
+                    )}
+                  </DropdownSelectOption>
+                ))}
+                <DropdownSelectOption value={OTHER} label="Another address…">
+                  Another address…
+                </DropdownSelectOption>
+              </DropdownSelect>
+            ) : null}
+            {(!repositories.length || choice === OTHER) && (
+              <Input
+                id={
+                  repositories.length ? `${ids.repository}-url` : ids.repository
+                }
+                aria-label={
+                  repositories.length ? "Repository address" : undefined
+                }
+                value={repositoryUrl}
+                onChange={(event) => setRepositoryUrl(event.target.value)}
+                placeholder="https://github.com/acme/payments.git"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              {choice === OTHER || !repositories.length
+                ? "Cloned with the runner’s own git credentials."
+                : item
+                  ? "The project’s repositories, cloned with a short-lived credential."
+                  : "Linked repositories, cloned with a short-lived credential."}
+            </p>
           </div>
           <div className="space-y-1.5">
             <label htmlFor={ids.base} className="text-[13px] font-medium">
