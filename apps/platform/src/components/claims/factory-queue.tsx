@@ -32,7 +32,9 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import {
+  claimShownState,
   claimStateLabel,
+  claimWaitsOnPeople,
   leaseLeft,
   useAgentLabel,
   useAutonomy,
@@ -123,7 +125,7 @@ function Queue({ project }: { project: Project }) {
       if (item.projectId !== project.id || item.archivedAt) continue;
       const claim = claims.get(item.id);
       if (claim) {
-        (claim.state === "waiting" ? waiting : claimed).push({ item, claim });
+        (claimWaitsOnPeople(claim) ? waiting : claimed).push({ item, claim });
         continue;
       }
       const verdict = verdictOf(item);
@@ -210,7 +212,7 @@ function Queue({ project }: { project: Project }) {
                   detail={
                     claim.lastProgress
                       ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
-                      : `${label(claim)} · ${claimStateLabel[claim.state]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
+                      : `${label(claim)} · ${claimStateLabel[claimShownState(claim)]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
                   }
                   action={
                     (canAct || claim.ownerId === userId) && (
@@ -239,7 +241,29 @@ function Queue({ project }: { project: Project }) {
                   label={key(item)}
                   href={href(item)}
                   meta={<ClaimBadge claim={claim} label={label(claim)} />}
-                  detail={`${label(claim)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`}
+                  detail={
+                    claim.state === "waiting"
+                      ? `${label(claim)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
+                      : `${label(claim)} waits on a person's answer in its session since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
+                  }
+                  action={
+                    claim.agentSessionId && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        render={
+                          <Link
+                            href={paths.factorySession(
+                              organization.slug,
+                              claim.agentSessionId,
+                            )}
+                          />
+                        }
+                      >
+                        Open session
+                      </Button>
+                    )
+                  }
                 />
               ))}
               {groups.agreement.map(({ item, verdict }) => (

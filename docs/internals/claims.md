@@ -285,6 +285,11 @@ a failed (`session_failed`, a failed dispatch attempt) or canceled
 item; a completed session's claim stays, with a seven-day delivery hold
 (`DELIVERY_HOLD_MS`), until the Definition of Done completes it. Both are
 idempotent; a lost call falls back to the lease.
+`followSessionWaiting` mirrors whether the session waits on a person (an
+approval request) onto its claim (`sessionWaitingSince`) after every
+status change, reading the session's status under the lock, so the queue,
+the item and the board show such a claim as waiting on a person, never as
+working. It is not a claim state: the session's own machine moves it.
 
 ## Projections
 

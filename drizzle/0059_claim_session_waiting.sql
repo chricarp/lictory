@@ -1,0 +1,1 @@
+ALTER TABLE "work_item_claim" ADD COLUMN "session_waiting_since" timestamp with time zone;

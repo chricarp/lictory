@@ -338,6 +338,9 @@ conversation's lock after either.
 ### Claims follow their session
 
 - **Alive**: heartbeats renew the claim the session works under.
+- **Waiting**: while the session waits on a person's answer, its claim
+  says so (`sessionWaitingSince`) and the project's queue counts it as
+  waiting on people.
 - **Failed or canceled**: the claim is released (`session_failed`,
   `session_canceled`) and the item returns where it was; a dispatcher claim
   backs off after a failure and is held after a person's cancel.

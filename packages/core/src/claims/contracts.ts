@@ -218,6 +218,10 @@ export const claimEntitySchema = z.object({
   waitingThreadIds: z.array(id),
   lastProgress: z.string().nullable(),
   lastProgressAt: z.string().nullable(),
+  // Since when the session working under the claim waits on a person (an
+  // approval request); null while it works. Absent in projections written
+  // before it existed.
+  sessionWaitingSince: z.string().nullable().optional(),
 });
 
 // A project's autonomy policy; absent means Lictory's defaults (Assist).

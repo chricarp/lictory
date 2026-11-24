@@ -123,8 +123,21 @@ export function leaseLeft(claim: ClaimEntity, now = Date.now()) {
   return Math.round((new Date(claim.leaseExpiresAt).getTime() - now) / 60_000);
 }
 
-export const claimStateLabel: Record<ClaimEntity["state"], string> = {
+// What a live claim shows. Its own state, except that a claim whose agent
+// session waits on a person's answer (an approval request) waits too: the
+// agent is blocked, not working.
+export type ClaimShownState = ClaimEntity["state"] | "session_waiting";
+export function claimShownState(claim: ClaimEntity): ClaimShownState {
+  return claim.state !== "waiting" && claim.sessionWaitingSince
+    ? "session_waiting"
+    : claim.state;
+}
+export const claimWaitsOnPeople = (claim: ClaimEntity) =>
+  claim.state === "waiting" || Boolean(claim.sessionWaitingSince);
+
+export const claimStateLabel: Record<ClaimShownState, string> = {
   starting: "Starting",
   active: "Working",
   waiting: "Waiting on people",
+  session_waiting: "Waiting on a person",
 };

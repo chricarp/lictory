@@ -724,6 +724,64 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
   );
 });
 
+void test("a claim waits on people while its session waits on a person's approval, and works again after the answer", async () => {
+  const f = await fixture();
+  const story = await agreedStory(f);
+  await setAutonomyPolicy(
+    db,
+    { userId: f.ada },
+    {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      policy: {
+        ...defaultAutonomyPolicy,
+        level: "build",
+        implementerAgentIds: [f.agent.id],
+      },
+    },
+  );
+  assert.equal((await runDispatcher(db)).started, 1);
+  const { assignment } = await claimAndStart(f.runner);
+  const [session] = await f.sessions();
+  const projected = async () =>
+    (
+      await db
+        .select({ data: s.syncEntity.data })
+        .from(s.syncEntity)
+        .where(eq(s.syncEntity.key, `claim:${(await claimOf(story)).id}`))
+    )[0]?.data as { state: string; sessionWaitingSince?: string | null };
+  assert.equal((await claimOf(story)).sessionWaitingSince, null);
+  assert.equal((await projected()).sessionWaitingSince, null);
+
+  await appendRunnerEvents(db, f.runner, session!.id, assignment.leaseToken, [
+    {
+      seq: 1,
+      type: "approval_request",
+      data: { requestId: "r1", title: "Run the migration on staging" },
+    },
+  ]);
+  const [waiting] = await f.sessions();
+  assert.equal(waiting!.status, "waiting");
+  // The claim says the agent is blocked on a person, in the row and in
+  // what browsers read; its own state (questions) is unchanged.
+  assert.ok((await claimOf(story)).sessionWaitingSince);
+  assert.equal((await projected()).state, "active");
+  assert.ok((await projected()).sessionWaitingSince);
+
+  const [approval] = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.sessionId, session!.id));
+  await invoke(web(f.ada), "answerAgentApproval", {
+    organizationId: f.organizationId,
+    sessionId: session!.id,
+    approvalId: approval!.id,
+    decision: "approve",
+  });
+  assert.equal((await claimOf(story)).sessionWaitingSince, null);
+  assert.equal((await projected()).sessionWaitingSince, null);
+});
+
 void test("a failed or canceled session releases its claim and returns the item", async () => {
   const f = await fixture();
   const story = await agreedStory(f);

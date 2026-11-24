@@ -12,6 +12,7 @@ import {
 } from "@lictory/core/claims/ports";
 import {
   followSessionEnd,
+  followSessionWaiting,
   renewSessionClaims,
 } from "@lictory/core/claims/session-follow";
 import {
@@ -821,6 +822,23 @@ const channelAgents = (): ChannelAgentDirectory => ({
 
 async function publish(db: Database, event: SessionThreadEvent) {
   const ended = event.kind === "status" && TERMINAL.includes(event.status);
+  // The claim the session works under says whether it waits on a person.
+  if (
+    event.kind === "status" ||
+    event.kind === "approval_requested" ||
+    event.kind === "approval_answered"
+  )
+    await followSessionWaiting(
+      db,
+      event.organizationId,
+      event.sessionId,
+    ).catch((error: unknown) =>
+      log("factory.claim_waiting_follow_failed", {
+        organizationId: event.organizationId,
+        sessionId: event.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
   if (!event.channelId && !ended) return;
   const [session] = await db
     .select()
