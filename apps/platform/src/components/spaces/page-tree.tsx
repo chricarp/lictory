@@ -558,7 +558,7 @@ function PageRow({
         />
         <span className="ml-0.5 min-w-0 flex-1 truncate">{page.title}</span>
         {archived && (
-          <span className="shrink-0 font-mono text-[10px] tracking-[0.06em] text-muted-foreground uppercase">
+          <span className="shrink-0 text-xs text-muted-foreground">
             Archived
           </span>
         )}
