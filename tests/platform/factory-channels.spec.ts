@@ -7,9 +7,12 @@ import { createAgent } from "@lictory/core/factory/agents";
 import { createRunnerRegistration } from "@lictory/core/factory/runners";
 import { setAutonomyPolicy } from "@lictory/core/claims/service";
 import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
+import { installFactoryLoop } from "@lictory/core/factory/loop";
 import type { FakeScript } from "@lictory/runner/harness/fake";
+import { fillMarkdown, richEditor } from "../helpers/editor";
 import {
   currentRevision,
+  newPerson,
   seedItem,
   seedWorkspace,
   signIn,
@@ -123,7 +126,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
 
   // @handle becomes an agent mention as it is typed.
-  const composer = page.getByLabel("Message #builds");
+  const composer = await richEditor(page, "Message #builds");
   await composer.click();
   await page.keyboard.type(`@${agent.handle} add a changelog for refunds`);
   await expect(
@@ -144,10 +147,12 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(card.getByRole("link", { name: /Open session/ })).toBeVisible();
 
   // A reply by the person who asked steers the agent; its answer arrives.
-  const reply = panel.getByLabel("Reply in thread");
-  await reply.click();
-  await page.keyboard.type("Mention the v2 API.");
-  await page.keyboard.press("Enter");
+  const reply = await fillMarkdown(
+    panel,
+    "Reply in thread",
+    "Mention the v2 API.",
+  );
+  await reply.press("Enter");
   await expect(panel.getByText("Got it: Mention the v2 API.")).toBeVisible();
 
   // It asks for approval in the thread; Ada approves there.
@@ -172,6 +177,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
 
 test("dispatched work reports to the project's channel, asks there and resumes when answered", async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.slow();
@@ -240,8 +246,11 @@ test("dispatched work reports to the project's channel, asks there and resumes w
     { summary: "Partial refunds reuse the ID; opened the pull request." },
   ]);
   // Build: the dispatcher starts Forge on the ready story.
-  await withDb((db) =>
-    setAutonomyPolicy(
+  // Saving the policy checks its agents through the Factory's directory,
+  // which the API installs at start; this process installs it the same way.
+  await withDb((db) => {
+    installFactoryLoop(db);
+    return setAutonomyPolicy(
       db,
       { userId: ada.id },
       {
@@ -254,15 +263,15 @@ test("dispatched work reports to the project's channel, asks there and resumes w
           reportingChannelId: channelId,
         },
       },
-    ),
-  );
+    );
+  });
 
   await signIn(page, ada.email);
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
   // The session's card and Forge's question arrive in the channel.
   const card = page.getByRole("region", { name: "Forge session" }).first();
   await expect(card).toBeVisible({ timeout: 90_000 });
-  await expect(card.getByText("DSP-1")).toBeVisible();
+  await expect(card.getByText("DSP-1").first()).toBeVisible();
   const question = page
     .getByRole("region", { name: "Forge asks a question" })
     .first();
@@ -271,25 +280,31 @@ test("dispatched work reports to the project's channel, asks there and resumes w
   ).toBeVisible({ timeout: 60_000 });
 
   // Bo answers in the anchored discussion and resolves it.
-  await signIn(page, bo.email);
-  await page.goto(`/${seeded.slug}/channels/${channelId}`);
-  await question
+  const second = await newPerson(browser);
+  await signIn(second.page, bo.email);
+  await second.page.goto(`/${seeded.slug}/channels/${channelId}`);
+  await second.page
+    .getByRole("region", { name: "Forge asks a question" })
+    .first()
     .getByRole("link", { name: "Answer in the discussion" })
     .click();
-  await expect(page).toHaveURL(/thread=/);
-  const discussion = page
-    .locator("article, li, section")
-    .filter({ hasText: "Does a partial refund reuse the original ID too?" })
-    .last();
-  await discussion
+  await expect(second.page).toHaveURL(/\/items\//);
+  await second.page
+    .getByRole("button", { name: /^1 discussion/ })
+    .first()
+    .click();
+  await expect(
+    second.page.getByText("Does a partial refund reuse the original ID too?"),
+  ).toBeVisible();
+  // The only discussion: Forge's question, anchored on the quoted sentence.
+  await second.page
     .getByRole("button", { name: "Resolve", exact: true })
+    .first()
     .click();
 
-  // The session resumes and completes; the card says so.
-  await page.goto(`/${seeded.slug}/channels/${channelId}`);
-  await expect(
-    page.getByRole("region", { name: "Forge asks a question" }).first(),
-  ).toContainText("Question resolved");
+  // Ada watches the channel: the question resolves, the session resumes and
+  // completes, live.
+  await expect(question).toContainText("Question resolved");
   await expect(card.getByText("Completed")).toBeVisible({ timeout: 60_000 });
   await expect(card.getByText(/Partial refunds reuse the ID/)).toBeVisible();
 });

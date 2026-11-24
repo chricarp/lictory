@@ -354,12 +354,10 @@ export async function announceQuestion(
     organizationSlug(tx, question.organizationId),
     itemKeyOf(tx, question.questionItemId),
   ]);
-  const path = paths.item(
-    slug,
-    item?.project ?? "",
-    question.questionItemId,
-    new URLSearchParams({ thread: question.threadId }),
-  );
+  // The item, where the question is anchored on the specification's text
+  // and its discussion is listed (the item page has no deep link to one
+  // discussion yet).
+  const path = paths.item(slug, item?.project ?? "", question.questionItemId);
   const payload: QuestionCardPayload = {
     type: "agentQuestion",
     claimId: question.claimId,
