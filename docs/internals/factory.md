@@ -207,10 +207,16 @@ Model keys and code host credentials never live on a runner.
   agent (owner ∩ scope), returned once in the assignment and revoked when the
   run ends. Harnesses use it for Lictory's MCP tools.
 - **Repository.** The `SessionWorkspaceResolver` port (`factory/ports.ts`)
-  answers the workspace request. The default uses the repository URL stated
-  on the session (https or ssh, never with credentials embedded) and brokers
-  nothing: public repositories, or a runner with its own git credentials.
-  The Code module replaces it with short-lived, repository-scoped tokens.
+  answers the workspace request with the agent's owner, the session's
+  project and item and the repository it names (`repository_id`, Code's).
+  The default uses the repository URL stated on the session (https or ssh,
+  never with credentials embedded) and brokers nothing: public
+  repositories, or a runner with its own git credentials. The code loop
+  replaces it: the item's project's repository (the one the session names,
+  else the project's default, else its first), a credential for that
+  repository only where the host mints one, and only when the owner can
+  work with the project's code
+  ([agent sessions](code-hosts.md#agent-sessions)).
   The runner passes brokered credentials to git as an HTTP header for one
   command at a time, never in a remote URL, a git configuration or a file,
   and redacts them from errors.
@@ -225,8 +231,10 @@ Model keys and code host credentials never live on a runner.
 ## Isolation
 
 Each session works in its own `git worktree` of a bare repository cache on
-the runner, on the session's branch (`lictory/<item key or handle>-<id>`; a
-retry continues from the branch if an earlier attempt pushed it). Session
+the runner, on the session's branch (`lictory/<item key>-<title slug>-<id>`
+for an item, as Code suggests branch names so key detection links it, else
+`lictory/<handle>-<id>`; a retry continues from the branch if an earlier
+attempt pushed it). Session
 files (the MCP configuration) live in `.lictory/` inside the worktree and are
 excluded from git. When the harness finishes, the runner commits what was
 left uncommitted (as the agent, with the work item key in the message so
@@ -314,7 +322,8 @@ claimed work moves by evidence.
 | `AgentDirectory` (channels) | Channels | Agents by id and handle prefix; the acting agent of a call whose token is bound to an agent (an external agent's token or a session's); `mentioned` and `replied` (below).                                                                                                                            |
 | `SessionThreadPublisher`    | Factory  | Writes the session's cards and the agent's replies into its thread, then lets the claim follow a session that ended.                                                                                                                                                                                  |
 | `SessionLeaseListener`      | Factory  | After every heartbeat, renews the claims of the sessions whose lease the runner renewed (`renewSessionClaims`, at most every five minutes per claim).                                                                                                                                                 |
-| `SessionWorkspaceResolver`  | Code     | Not installed here. Sessions carry their project and work item, so the Code module's resolver can choose the project's repository; without one a session works in an empty workspace through Lictory's tools.                                                                                         |
+| `SessionWorkspaceResolver`  | Code     | Installed by the code loop (`installCodeLoop`, [code hosts](code-hosts.md#the-code-loop)): the item's project's repository with a credential for it. Without a code host, a session works in the repository it states or an empty workspace through Lictory's tools.                                  |
+| `SessionCompletionListener` | Code     | Installed by the code loop: a session that completed after pushing its branch becomes a code pull request, recorded on the session (`pull_request_id/url`) and announced in its thread.                                                                                                               |
 
 Claims take the exclusive organization lock and Factory writes the shared
 one, which never upgrades. So whatever crosses from a session to its claim
@@ -401,6 +410,12 @@ they change in place without a revision.
   heartbeat renewed, after commit.
 - `SessionWorkspaceResolver` (`setSessionWorkspaceResolver`): repositories
   and credentials, from Code.
+- `SessionCompletionListener` (`setSessionCompletionListener`): called after
+  a completion that reported a pushed branch committed; Code opens its pull
+  request. `recordSessionPullRequest(tx, …)` runs in Code's outbox
+  transaction (exclusive organization lock) and `publishSessionPullRequest`
+  after it: the card's payload gains the pull request and the agent posts
+  "Opened pull request …" once. "Completed" still moves nothing in delivery.
 - `startSession` (domain) for the dispatcher of autonomy policies; it applies
   the same checks as people's starts. `startSessionIn` and
   `sendSessionMessageIn` run the same commands inside a caller's transaction

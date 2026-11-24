@@ -209,23 +209,149 @@ Modules never read the code tables; they call these (`code/ports.ts`):
 - **Definition of Done** (`createCodeEvidence(db)`):
   `linkedPullRequests(organizationId, workItemId)` returns each currently
   linked pull request with `merged`, `mergedAt`, `headSha`, `reviewDecision`,
-  `approvedBy`, `openedById`, `openedVia` and its checks evidence;
-  `checksForSha(organizationId, repositoryId, sha)` says whether a commit's
-  checks `passed` (and which fail or run); `pullRequest(organizationId, id)`.
-- **Autopilot** (`createCodeMergeExecutor(db).enqueueMerge({ organizationId,
-pullRequestId, expectedHeadSha, method, policy: { projectId,
-configuredById, label }, idempotencyKey })`): queues the merge attributed to
-  the policy (`performed_via` "Autopilot") and the administrator who set it,
-  who must still administer the project; the repository must serve it. The
-  same merge rules apply; the Definition of Done is the caller's to check.
+  `approvedBy`, `openedById`, `openedVia`, the agent and session that opened
+  it and its checks evidence; `checksForSha(organizationId, repositoryId,
+sha)` says whether a commit's checks `passed` (and which fail or run);
+  `pullRequest(organizationId, id)`; and `evidence(tx, organizationId,
+workItemIds)`, the Claims `DeliveryEvidenceSource`, read with the claims
+  transaction.
+- **Autopilot** (`createCodeMergeExecutor(db)`): `requestMerge(tx, request)`
+  is the Claims `CodeMergeExecutor` (below); `enqueueMerge` does the same in
+  its own transaction and throws its refusal.
 - **Agent sessions** (`resolveSessionWorkspace(db, { organizationId, userId,
 repositoryId, branch })`): the clone URL, default branch and a credential
   for git over HTTPS (`username`, `token`, `expiresAt`, `longLived`). The
   session's accountable person must be able to work with the repository's
   code. The credential goes to the runner through the runner protocol, never
-  into a transcript.
+  into a transcript. `chooseSessionRepository` picks the repository (below).
 - **Links from sessions**: `createCodeService(db).linkCode(actor, { …,
 agentSessionId })` records `source: "agent_session"`.
+
+## The code loop
+
+`installCodeLoop(db)` (`code/loop.ts`, called by the API and the worker
+after `installFactoryLoop`) installs Code's side of
+[the factory loop](software-factory.md#claims-and-the-factory-loop):
+
+```text
+ready item ─dispatch─▶ session ─workspace─▶ runner clones the item's repository, pushes its branch
+   ▲                                                         │ complete (branch)
+   │                                                         ▼
+ Done ◀─Definition of Done─ mirror ◀─ingest── host ◀─outbox── pull request (linked to item + session)
+   ▲                          ▲                                   │ each new head
+   │                          └──── review recorded in Lictory ◀── reviewer agent's session
+   └── merge: a person (Build) or Autopilot (policy, its administrator)
+```
+
+| Port                                 | Where                     | Code's implementation                                                                                                       |
+| ------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `SessionWorkspaceResolver`           | Factory, runner request   | Chooses the repository, mints the credential, records the repository on the session                                         |
+| `SessionCompletionListener`          | Factory, after completion | Opens the pushed branch's pull request through the outbox                                                                   |
+| `DeliveryEvidenceSource`             | Claims, in transaction    | The mirror and reviews recorded in Lictory, as Definition of Done evidence                                                  |
+| `CodeMergeExecutor`                  | Claims, in transaction    | Queues Autopilot's merge (and its comment) under the policy administrator's authority                                       |
+| Code session hooks (`code/hooks.ts`) | Code's outbox and ingest  | Record a session's pull request (in the outbox transaction), show it in the thread and start review sessions (after commit) |
+
+### Agent sessions
+
+A session works in **the repository it names** (`repositoryId`, which must
+serve the item's project), else **the one whose clone address it states**,
+else **its project's default** (`code_repository_project.is_default`, set
+by a project administrator with `setDefaultCodeRepository`, one per
+project), else **the project's first linked repository**. A session without
+a project only uses a repository it names. An address that is not one of
+the project's repositories is the session's own and gets no brokered
+credential. The chosen repository is recorded on the session
+(`agent_session.repository_id`, Code-owned text), so its pull request opens
+there even if the default changes meanwhile.
+
+The branch is named for the item and the session
+(`lictory/pay-142-refund-retries-1a2b3c4d`: Code's branch suggestion plus
+the session), so key detection links it and two sessions never share one.
+
+### Pull requests from agent sessions
+
+When a session completes and its runner reports a pushed branch, the Factory
+calls the completion listener after the completion committed. Code opens the
+pull request as the agent acting for its owner (`surface: runner`, the agent
+and session on the write), for the session's work item (titled with its key,
+the body is the session's summary and a link to it), through the outbox:
+
+- **Idempotent by head branch and run.** The write's idempotency key is
+  `session-pr:<session>:<attempt>`, so a repeated completion reuses the
+  write, and the outbox looks for the branch's open pull request before
+  opening one, so a retried run (or an agent that opened it on the host)
+  finds the same pull request.
+- **Another session's branch opens nothing.** A reviewer that pushed to the
+  pull request it reviews does not open or claim it.
+- **Provenance.** The mirror row records `opened_by_id`, `opened_via`, and
+  `agent_id` and `agent_session_id`: the **Agent-authored** filter reads
+  `agentAuthored` (opened through Lictory by an agent), never the host's
+  author login. The link to the item has `source: agent_session` and the
+  session.
+- **The session learns it in the outbox's transaction.** That transaction
+  holds the organization lock exclusively, which excludes every Factory
+  writer, so it sets `agent_session.pull_request_id/url` and appends a
+  status event there (`recordSessionPullRequest`). After commit the session's
+  card links the pull request and the agent posts "Opened pull request …" in
+  its thread, once (stable message id).
+
+A refusal (the owner lost "Change properties", the repository stopped
+serving the project) leaves the branch pushed and is logged; a person can
+open the pull request from the item.
+
+### Reviews recorded in Lictory
+
+**Decision: an agent's review is Lictory's record, bound to the head
+commit, and a signed comment shows it on the host.** Every write to a host
+carries the connection's identity, so the host cannot say which agent
+approved, and a GitHub App or token cannot approve a pull request it opened.
+`reviewCodePullRequest` (`code_review`) records `approve` or
+`request_changes` for the pull request's current head (`expectedHeadSha`
+refuses a review of a head that moved), the accountable person and the
+agent, supersedes the same reviewer's earlier review of that pull request
+(history keeps it), queues the comment and re-evaluates the Definition of
+Done. It needs "Change properties" in a project the repository serves and
+the `review` step of the `codePullRequest` machine (open only). **An agent
+never reviews its own pull request** (`agent_id` of the pull request).
+
+The Definition of Done counts, per pull request, approvals of the head
+commit from reviews recorded in Lictory (agent and person) and from the
+host's approving logins (mapped to the people who set them as their login).
+With a reviewer agent in the autonomy policy only that agent's approval of
+the head counts; new commits need a new review.
+
+**Review sessions.** After a pull request opened from a session is opened
+or gets a new head (outbox, ingest, reconciliation), Code starts a session
+for the project's reviewer agent when the project is on Build or Autopilot
+and the reviewer is not the author: one per pull request head (its id
+derives from both), as the reviewer's owner, on the pull request's branch
+and repository, reporting to the policy's channel. Its prompt names the pull
+request, its head and the tool to call.
+
+### Evidence follows ingest
+
+Ingest, reconciliation, the outbox (recording an opened, refreshed or merged
+pull request) and recorded reviews call `followCodeEvidence(tx, …)` in their
+transaction, under the organization lock: the items linked to the touched
+pull requests are re-evaluated with `followDefinitionOfDone`, reading only
+Lictory's rows. Passing items move to Done, Autopilot requests merges. A
+failure there rolls back to a savepoint and is logged, never the mirror;
+the dispatcher evaluates claimed work again on its next run.
+
+### Autopilot's merge
+
+`requestMerge` runs in the claims transaction (once per pull request head;
+Claims records `autopilot_merge`). It queues the merge as a person's merge
+would be refused (state, draft, failing or pending checks, requested
+changes, conflicts, a head other than the one decided), with
+`requested_by_id` the administrator who set the policy, who must still
+administer the project the repository serves, and `performed_via`
+"Autopilot · policy set by Ada Lovelace". A comment on the pull request
+says what passed and under which policy version. When the host answers,
+the mirror records `merge_requested_by_id` and `merged_via`, shown on the
+pull request; a person's merge from Lictory records them too. Lowering the
+level below Autopilot or the administrator losing the project stops it
+(the refusal is recorded once per head).
 
 ## Failure without code hosts
 
