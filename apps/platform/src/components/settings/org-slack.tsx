@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Copy, Loader2, MessagesSquare } from "lucide-react";
+import {
+  ArrowUpRight,
+  Copy,
+  Loader2,
+  MessagesSquare,
+  MoreHorizontal,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Switch } from "@lictory/ui/switch";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@lictory/ui/menu";
 import { Badge } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -118,6 +130,7 @@ export function SlackConnection() {
 
   const connection = reading?.connection;
   const status = connection?.status ?? "none";
+  const mayDisconnect = status !== "disconnected" && status !== "pending";
   const showSetup =
     isAdmin && (editing || status === "none" || status === "disconnected");
   return (
@@ -202,22 +215,50 @@ export function SlackConnection() {
                         ? "Reinstall"
                         : "Install in Slack"}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setEditing(true)}
-                    >
-                      Replace app
-                    </Button>
-                    {status !== "disconnected" && status !== "pending" && (
+                    {/* On phones the less frequent actions share one
+                        labelled menu, so none is cut off. */}
+                    <span className="contents max-sm:hidden">
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setConfirming(true)}
+                        onClick={() => setEditing(true)}
                       >
-                        Disconnect…
+                        Replace app
                       </Button>
-                    )}
+                      {mayDisconnect && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setConfirming(true)}
+                        >
+                          Disconnect…
+                        </Button>
+                      )}
+                    </span>
+                    <Menu>
+                      <MenuTrigger
+                        render={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label="More Slack actions"
+                            className="sm:hidden"
+                          >
+                            <MoreHorizontal className="size-4" aria-hidden />
+                          </Button>
+                        }
+                      />
+                      <MenuContent align="end">
+                        <MenuItem onSelect={() => setEditing(true)}>
+                          Replace app
+                        </MenuItem>
+                        {mayDisconnect && (
+                          <MenuItem onSelect={() => setConfirming(true)}>
+                            Disconnect…
+                          </MenuItem>
+                        )}
+                      </MenuContent>
+                    </Menu>
                   </>
                 )}
               </span>
