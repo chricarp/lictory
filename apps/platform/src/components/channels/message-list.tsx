@@ -110,8 +110,10 @@ export function MessageList({
   // is unread history, else at the bottom; at a permalink when given.
   useLayoutEffect(() => {
     const el = scroller.current;
-    if (!el || positioned.current || !complete) return;
-    positioned.current = true;
+    if (!el || positioned.current) return;
+    // Cached rows render before the server answers: position on them, and
+    // again once the window is complete if the target was not there yet.
+    if (!messages.length && !complete) return;
     const target = focusMessageId
       ? el.querySelector<HTMLElement>(
           `[data-message-id="${CSS.escape(focusMessageId)}"]`,
@@ -121,8 +123,13 @@ export function MessageList({
       target.scrollIntoView({ block: focusMessageId ? "center" : "start" });
       atBottom.current =
         el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_PX;
-    } else el.scrollTop = el.scrollHeight;
-  }, [complete, focusMessageId, entries]);
+      positioned.current = true;
+      return;
+    }
+    el.scrollTop = el.scrollHeight;
+    const waiting = focusMessageId !== undefined || openedAt.unread > 0;
+    if (complete || !waiting) positioned.current = true;
+  }, [complete, focusMessageId, entries, messages.length, openedAt.unread]);
 
   // Keep the reading position when older messages are prepended, follow
   // the bottom when new ones arrive there.

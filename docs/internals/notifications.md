@@ -137,6 +137,18 @@ Mentions use the same `@[label](mention:USER_ID)` tokens as specification
 discussions; mentioning someone who cannot read the space notifies nobody.
 See [Lictory Spaces](spaces.md#notifications) for who receives each kind.
 
+## Lictory Channels
+
+Channel notifications (`channel_mentioned`, `direct_message`,
+`channel_thread_reply`, `channel_message`; the "Channels and direct
+messages" category) are queued by the conversation writer with the message
+itself. Ordinary channel traffic notifies nobody unless the member chose
+"all messages" for the channel; a muted channel notifies nothing. Each
+notification names its `channel_id`, and the fan-out, the Inbox, unread
+counts and email (`notificationReadable`) require that the recipient can
+still read the channel: it is public, or they are its member. See
+[Lictory Channels](channels.md#notifications).
+
 ## Preferences
 
 Only explicit choices are stored. For a kind, the most specific rule wins:
