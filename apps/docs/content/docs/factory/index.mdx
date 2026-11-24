@@ -30,6 +30,11 @@ claims it.
 You can start sessions with agents you own, and with agents their owners
 share with the organization. A shared agent still acts as its owner.
 
+You can also start one from a conversation: mention the agent in a channel
+or a direct message and the message's thread becomes the session's thread,
+with a live card, the agent's answers and its approval requests. See
+[ask an agent](/channels#ask-an-agent).
+
 ## Follow and steer
 
 The session page shows the transcript as it happens: the agent's messages,
@@ -44,7 +49,8 @@ files it changed and status changes. Below it:
   session again from its original instructions; its history stays.
 
 Only the person who started the session and the agent's owner can steer it.
-An organization administrator can also cancel it.
+An organization administrator can also cancel it. In a session's channel
+thread, their replies are messages to the agent too.
 
 ## Answer what the agent asks
 
@@ -63,3 +69,9 @@ checks and your Definition of Done.
 
 If the runner stops responding, the session returns to the queue and
 another runner takes it (up to three attempts).
+
+When the session works on a claimed item, the claim follows it: the runner
+keeps the claim while the session runs, a failed or canceled session gives
+the item back, and a completed one keeps the claim until the item's
+Definition of Done moves it to Done (for up to seven days; release it sooner
+if the work is abandoned).

@@ -115,23 +115,30 @@ reviewers (assignees of its current reviews, else the members of reviewing
 disciplines) are mentioned and notified through the normal mention path, and
 the claim waits.
 
-Resolving the discussion is a person's decision (`setThreadState`). The
-`claimQuestionResolved` hook resumes the claim when its last question is
+Asking also tells the `SessionResumer` (`question_asked`), so the Factory
+announces the question in the session's thread and the project's reporting
+channel. Resolving the discussion is a person's decision (`setThreadState`).
+The `claimQuestionResolved` hook resumes the claim when its last question is
 resolved, renews its lease and tells the session through the
-`SessionResumer` port. Questions never change the specification; the answer
+`SessionResumer` port, which delivers the discussion's replies to the
+session as a message. Questions never change the specification; the answer
 becomes a revision only when a person saves one.
 
 ## Autonomy policy
 
 One row per project (`autonomy_policy`; none means Assist):
 
-| Field                   | Meaning                                                                                |
-| ----------------------- | -------------------------------------------------------------------------------------- |
-| `level`                 | Assist (people start every session), Build (the dispatcher starts sessions), Autopilot |
-| `implementerAgentIds`   | Runner agents the dispatcher starts sessions for                                       |
-| `reviewerAgentId`       | The agent whose approval of a pull request's head commit counts as code review         |
-| `maxConcurrentSessions` | Most live claims the dispatcher fills the project up to (agents' own claims count too) |
-| `autopilotRequires`     | What must pass before an automatic merge; CI checks are always required                |
+| Field                   | Meaning                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `level`                 | Assist (people start every session), Build (the dispatcher starts sessions), Autopilot       |
+| `implementerAgentIds`   | Runner agents the dispatcher starts sessions for                                             |
+| `reviewerAgentId`       | The agent whose approval of a pull request's head commit counts as code review               |
+| `maxConcurrentSessions` | Most live claims the dispatcher fills the project up to (agents' own claims count too)       |
+| `reportingChannelId`    | Optional channel where dispatched sessions post their card and agent questions are announced |
+| `autopilotRequires`     | What must pass before an automatic merge; CI checks are always required                      |
+
+The reporting channel must be a public channel, or a private one the
+person saving the policy is in, and not archived.
 
 Only project and organization administrators set it, in the browser
 (`setAutonomyPolicy` is human-only, reason `autonomy`: an agent never raises
@@ -241,7 +248,21 @@ host is connected"), nothing is merged.
 
 Ports called inside a transaction run under the organization lock: they read
 and write Lictory's own tables (queue work for their worker) and never call a
-network service.
+network service. The Factory's implementations are described in
+[the factory loop](factory.md#the-factory-loop).
+
+### Claims follow their session
+
+The other direction is not a port: the Factory calls
+`claims/session-follow.ts` after its own writes commit (claims take the
+exclusive lock its shared-lock writes never upgrade to).
+`renewSessionClaims` keeps the claim of a session whose runner renewed its
+lease (at most every five minutes). `followSessionEnd` releases the claim of
+a failed (`session_failed`, a failed dispatch attempt) or canceled
+(`session_canceled`, held until someone retries) session and returns the
+item; a completed session's claim stays, with a seven-day delivery hold
+(`DELIVERY_HOLD_MS`), until the Definition of Done completes it. Both are
+idempotent; a lost call falls back to the lease.
 
 ## Projections
 

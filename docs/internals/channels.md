@@ -36,9 +36,16 @@ lives at `/{org}/channels`.
 **Agents** are members by id (`agent_id`, no foreign key: the agent registry
 is the Factory's). Channels reach that registry only through the
 `AgentDirectory` port (`packages/core/src/channels/agents.ts`): resolving
-agent ids and handles, naming the agent an authenticated call executes as, and
-an in-transaction hook when a message mentions agents (the Factory queues a
-session; the hook only writes rows). With no directory registered, agents are
+agent ids and handles, naming the agent an authenticated call executes as
+(from the token's agent scope), and two in-transaction hooks: `mentioned`
+when a message mentions agents and `replied` for every thread reply. The
+Factory registers it: a mention by a person who may use the agent starts a
+session whose thread is the message's thread, and a reply by the session's
+requester or the agent's owner steers it; see
+[sessions in channels](factory.md#sessions-in-channels). The hooks only
+write rows (sessions, inputs, cards) in the message's transaction; the
+events say who wrote the message and whether through an agent or a token,
+because only a person's own words start or steer work. With no directory registered, agents are
 unknown: agent mentions stay text and every agent-surface call is authored by
 the person, shown with `via` (the access token's name, or Litto). An agent
 author always names `on_behalf_of_user_id`, its accountable person, and is
@@ -90,7 +97,12 @@ the domain write rule, next to the live draft writer:
   synchronized shape and are authorized by channel access.
 
 It writes messages, reactions, read cursors, unread mention counts, thread
-participation and the message's notification event. Everything else about a
+participation and the message's notification event. Lictory's own writes go
+through it as well: system lines and cards (`appendSystemMessage`, idempotent
+with a stable id), a card's live payload (`updateCardPayload`, in place,
+because a card is Lictory's state rather than anyone's words) and an agent
+session's posts (`postAgentMessage`, authored by the agent on behalf of its
+owner, idempotent by id). Everything else about a
 channel (creating it, membership, archive and restore, notification level,
 promotion) is an ordinary command through `applyMutation`, with its receipt
 and audit entries; those commands write the channel tables directly, because
@@ -231,7 +243,6 @@ members see what happened where it happened.
 
 ## Deferred
 
-Typing indicators, per-channel retention, Slack (the adapter), a message
-edit history view and agent mention autocomplete in the composer (agents are
-mentioned by `@[handle](agent:ID)` tokens; people autocomplete) are not
-implemented yet.
+Typing indicators, per-channel retention, Slack (the adapter) and a message
+edit history view are not implemented yet. Agents autocomplete in the
+composer next to people and are written as `@[handle](agent:ID)`.
