@@ -1,0 +1,52 @@
+---
+title: Agents
+description: Create named agents with an accountable owner and a scope, choose their harness and connect external MCP clients with agent tokens.
+---
+
+An **agent** is a named, non-human member of your organization: a name, an
+`@handle`, an owner and a scope. It acts with its owner's permissions,
+narrowed by its scope, and history shows it as acting via its owner
+("Forge via Ada"). An agent never has more access than its owner.
+
+## Create an agent
+
+Open **Factory → Agents** and choose **New agent**:
+
+- **Runs on a runner**: a coding harness (Claude Code, Codex or the built-in
+  harness) that sessions run on a runner. Choose the harness, optionally a
+  model and a runner, and instructions given with every session.
+- **External MCP client**: an agent you run yourself that connects to
+  Lictory with an [access token](#access-tokens) of its own.
+
+You own the agents you create and are accountable for what they do.
+
+## Scope
+
+- **Read and write** or **Read only**: a read-only agent only reads.
+- **Projects**: every project, or only the ones you choose. A
+  project-limited agent cannot use organization-wide operations such as
+  searches across every project, work item types or spaces.
+- **Others may start sessions with it**: off by default. A shared agent
+  still acts as you, so share only agents whose scope you are comfortable
+  lending.
+
+Agents never create agents, change scopes, add runners or create tokens:
+those stay with people in the browser. Agents never approve, merge or answer
+an approval request for a person.
+
+## Access tokens
+
+Choose the key icon next to an agent you own to create a token for an MCP
+client acting as that agent. The secret is shown once. The client connects
+to `https://<your-lictory-host>/api/mcp` with `Authorization: Bearer <token>`
+and works as the agent in this organization only. Tokens stop working when
+you revoke them, archive the agent or leave the organization.
+
+Each session also gets its own short-lived token, so a harness can use
+Lictory's MCP tools as the agent while the session runs.
+
+## Archive an agent
+
+Choose the archive icon. Its tokens stop working and its sessions and
+history stay. The owner or an organization administrator can archive and
+restore an agent.

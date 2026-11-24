@@ -6,6 +6,7 @@ import {
   Archive,
   ArchiveRestore,
   Bell,
+  Bot,
   Check,
   CheckCheck,
   ChevronDown,
@@ -65,6 +66,7 @@ const categoryIcons: Record<NotificationCategory, typeof Bell> = {
   iterations: RefreshCw,
   export: Upload,
   pages: BookOpen,
+  agents: Bot,
   organization: Building2,
 };
 

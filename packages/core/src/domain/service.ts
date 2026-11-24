@@ -5067,6 +5067,7 @@ const reservedKeys = new Set([
   "PROJECTS",
   "INTELLIGENCE",
   "NOTIFICATIONS",
+  "FACTORY",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

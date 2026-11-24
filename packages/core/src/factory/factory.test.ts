@@ -241,13 +241,15 @@ async function refused(
   kind?: string,
 ) {
   await assert.rejects(call, (error: unknown) => {
-    const e = error as CapabilityError & { kind?: string };
+    // Capability errors carry the kind in details, domain errors directly.
+    const e = error as {
+      category: string;
+      message: string;
+      kind?: string;
+      details?: { kind?: string };
+    };
     assert.equal(e.category, category, e.message);
-    if (kind)
-      assert.equal(
-        e instanceof CapabilityError ? e.details.kind : e.kind,
-        kind,
-      );
+    if (kind) assert.equal(e.details?.kind ?? e.kind, kind);
     return true;
   });
 }
@@ -813,6 +815,16 @@ void test("approval requests are answered only by the requester or the agent's o
   ]);
   const waiting = await sessionRow(session.id);
   assert.equal(waiting.status, "waiting");
+  // The requester and the agent's owner are asked, through the queue.
+  const queued = await db
+    .select()
+    .from(s.notificationEvent)
+    .where(eq(s.notificationEvent.organizationId, organizationId));
+  const asked = queued
+    .flatMap((e) => e.notices)
+    .find((n) => n.kind === "agent_approval_requested");
+  assert.deepEqual(new Set(asked?.userIds), new Set([memberId, ownerId]));
+  assert.equal(asked?.detail?.sessionId, session.id);
   assert.ok(
     published.some(
       (e) => e.kind === "approval_requested" && e.channelId === "channel-1",

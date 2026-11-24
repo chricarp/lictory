@@ -64,6 +64,7 @@ import {
   type SessionRow,
 } from "@lictory/core/factory/store";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
+import { queueNotifications } from "@lictory/core/notifications/events";
 
 // Agent sessions (docs/internals/factory.md#sessions): one run of an agent on
 // one task. People start and steer them through capabilities; runners claim
@@ -218,6 +219,28 @@ function threadEvent(
     status: session.status,
     ...(approvalId ? { approvalId } : {}),
   };
+}
+
+// Tells the person who started the session how it ended.
+async function notifyFinished(tx: Tx, session: SessionRow) {
+  if (session.status !== "completed" && session.status !== "failed") return;
+  const agent = await agentOf(tx, session);
+  await queueNotifications(tx, session.organizationId, [
+    {
+      userIds: [session.requestedById],
+      kind: "agent_session_finished",
+      actorId: null,
+      detail: {
+        sessionId: session.id,
+        sessionTitle: session.title,
+        agentName: agent.name,
+        status: session.status,
+        summary: session.resultSummary?.slice(0, 300) ?? null,
+        error: session.error?.slice(0, 300) ?? null,
+      },
+      dedupeKey: `agent-session:${session.id}:${session.attempts}:${session.status}`,
+    },
+  ]);
 }
 
 // Runs a Factory write and publishes the thread events it produced after
@@ -1238,6 +1261,31 @@ export async function appendRunnerEvents(
         : {}),
     });
     await projectSession(tx, row);
+    if (approvals.length) {
+      // Asks the person who started it and the agent's owner.
+      const agent = await agentOf(tx, row);
+      const asked = await tx
+        .select()
+        .from(s.agentApproval)
+        .where(inArray(s.agentApproval.id, approvals));
+      await queueNotifications(
+        tx,
+        row.organizationId,
+        asked.map((approval) => ({
+          userIds: [row.requestedById, agent.ownerId],
+          kind: "agent_approval_requested" as const,
+          actorId: null,
+          detail: {
+            sessionId: row.id,
+            approvalId: approval.id,
+            question: approval.title,
+            sessionTitle: row.title,
+            agentName: agent.name,
+          },
+          dedupeKey: `agent-approval:${approval.id}`,
+        })),
+      );
+    }
     for (const approvalId of approvals)
       publish(threadEvent(row, "approval_requested", approvalId));
     return { acked: row.runnerSequence, status: row.status };
@@ -1356,6 +1404,7 @@ export async function completeRun(
       completedAt: now,
     });
     await projectSession(tx, row);
+    await notifyFinished(tx, row);
     publish(threadEvent(row, "status"));
     return sessionEntity(row, []);
   });
@@ -1529,8 +1578,8 @@ export async function recoverExpiredSessions(
           : { assignedAt: null, startedAt: null }),
       });
       await projectSession(tx, row);
-      if (!exhausted)
-        await signalFactory(tx, { organizationId: row.organizationId });
+      if (exhausted) await notifyFinished(tx, row);
+      else await signalFactory(tx, { organizationId: row.organizationId });
       publish(threadEvent(row, "status"));
       outcome[exhausted ? "failed" : "requeued"]++;
     });

@@ -14,6 +14,7 @@ export const notificationCategories = [
   "iterations",
   "export",
   "pages",
+  "agents",
   "organization",
 ] as const;
 export type NotificationCategory = (typeof notificationCategories)[number];
@@ -26,6 +27,7 @@ export const categoryLabels: Record<NotificationCategory, string> = {
   iterations: "Iterations",
   export: "Exports",
   pages: "Pages",
+  agents: "Agent sessions",
   organization: "Organization",
 };
 
@@ -279,6 +281,23 @@ export const notificationKinds = {
     category: "pages",
     label: "Page discussion reply",
     description: "Someone replied in a page discussion you took part in.",
+    inApp: true,
+    email: false,
+  },
+  // The Factory: what agent sessions ask of the person who started them and
+  // the agent's owner.
+  agent_approval_requested: {
+    category: "agents",
+    label: "An agent asks for your decision",
+    description:
+      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something.",
+    inApp: true,
+    email: true,
+  },
+  agent_session_finished: {
+    category: "agents",
+    label: "Agent session finished",
+    description: "An agent session you started completed or failed.",
     inApp: true,
     email: false,
   },
