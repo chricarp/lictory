@@ -231,7 +231,9 @@ function PullRequestDetail({
   pr: PullRequest;
   onBack: () => void;
 }) {
-  const { commits, reviews, branches } = usePageHistory(pr.pageId);
+  // `loaded`: the server has answered, so the discussions a merge warns
+  // about are current, not what this browser cached on an earlier visit.
+  const { commits, reviews, branches, loaded } = usePageHistory(pr.pageId);
   const { userId, memberName } = useWorkspace();
   const { canEdit } = usePageActions();
   const space = useSpace();
@@ -716,6 +718,7 @@ function PullRequestDetail({
                   className="w-full"
                   disabled={
                     action.pending ||
+                    !loaded ||
                     !fresh ||
                     !inspected ||
                     gate.blockers.length > 0

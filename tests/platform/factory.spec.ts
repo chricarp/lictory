@@ -81,7 +81,9 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(page.getByText("Online")).toBeVisible();
 
   // Create an agent the person owns.
-  await page.getByRole("link", { name: "Agents", exact: true }).click();
+  // The Factory's own tabs (the sidebar has the same destinations).
+  const tabs = page.getByRole("navigation", { name: "Factory" });
+  await tabs.getByRole("link", { name: "Agents", exact: true }).click();
   await page.getByRole("button", { name: "New agent" }).first().click();
   const agentDialog = page.getByRole("dialog", { name: "New agent" });
   await agentDialog.getByLabel("Name", { exact: true }).fill("Forge");
@@ -93,7 +95,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(page.getByText("@forge")).toBeVisible();
 
   // Start a session from the overview.
-  await page.getByRole("link", { name: "Overview", exact: true }).click();
+  await tabs.getByRole("link", { name: "Overview", exact: true }).click();
   await page.getByRole("button", { name: "Start session" }).click();
   const start = page.getByRole("dialog", { name: "Start an agent session" });
   await start
@@ -127,6 +129,22 @@ test("a person runs an agent on their own runner, steers it and approves what it
 
   // It asks for an approval; the session waits on the person.
   await expect(page.getByText("Waiting on a person")).toBeVisible();
+  const session = page.url();
+  // The sidebar counts it, and Home lists the question; it opens the
+  // session, where it is answered.
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace", exact: true })
+      .getByRole("link", { name: "Overview" }),
+  ).toHaveAccessibleDescription(/1 agent session waiting on you/);
+  await page.goto(`/${seeded.slug}`);
+  const asks = page.getByRole("region", { name: "Agents ask you" });
+  await expect(asks).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Agents at work" }),
+  ).toBeVisible();
+  await asks.getByRole("link", { name: /Run the database migration/ }).click();
+  await expect(page).toHaveURL(session);
   await transcript.getByRole("button", { name: "Approve" }).click();
   await expect(
     transcript.getByText(/approved “Run the database migration”/),

@@ -4,6 +4,7 @@ import type { NotificationItem } from "@lictory/core/notifications/service";
 import type { DesktopNotification } from "@lictory/platform/lib/desktop";
 import {
   attentionKinds,
+  badgeCounts,
   createBadge,
   createDesktopSync,
   createNotificationForwarder,
@@ -57,6 +58,26 @@ void test("attention kinds are those that ask something of the person", () => {
     "iteration_started",
   ] as const)
     assert.ok(!attentionKinds.includes(kind), kind);
+});
+
+void test("channel mentions reach the badge from read state, not as notifications", async () => {
+  // The sidebar's source counts them; reading a conversation clears it there.
+  assert.ok(attentionKinds.includes("channel_mentioned"));
+  assert.ok(!badgeCounts({ kind: "channel_mentioned" }));
+  assert.ok(!badgeCounts({ kind: "direct_message" }));
+  assert.ok(badgeCounts({ kind: "assigned" }));
+  const badges: number[] = [];
+  const sync = createDesktopSync({
+    bridge: { notify: () => undefined },
+    setBadge: (count) => badges.push(count),
+    fetchUnread: () =>
+      Promise.resolve({
+        items: [notification(), notification({ kind: "channel_mentioned" })],
+        next: null,
+      }),
+  });
+  await sync.refresh();
+  assert.deepEqual(badges, [1]);
 });
 
 void test("the badge is the sum of its sources and only changes when it must", () => {

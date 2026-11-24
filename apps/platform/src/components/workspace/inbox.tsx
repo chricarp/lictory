@@ -1,12 +1,13 @@
 import { Link } from "@lictory/platform/lib/navigation";
 import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
-import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
+import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { Button } from "@lictory/ui/button";
 import {
   CircleAlert,
   CircleCheckBig,
   FileText,
+  Inbox as InboxIcon,
   MessageSquareWarning,
   Settings2,
   ShieldAlert,
@@ -34,6 +35,10 @@ import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  PageHeader,
+  PageTabs,
+} from "@lictory/platform/components/shell/page-header";
 import {
   usePageAttention,
   type PageAttentionEntry,
@@ -386,9 +391,9 @@ export function Inbox() {
   const entries = useAttention();
   const pages = usePageAttention();
   const unread = useUnreadNotifications(organization.id)[organization.id] ?? 0;
-  const tabs: { id: InboxView; label: string; count: number }[] = [
-    { id: "updates", label: "Updates", count: unread },
-    { id: "todo", label: "To do", count: entries.length + pages.length },
+  const tabs: { value: InboxView; label: string; count: number }[] = [
+    { value: "updates", label: "Updates", count: unread },
+    { value: "todo", label: "To do", count: entries.length + pages.length },
   ];
   return (
     <Tabs
@@ -403,32 +408,23 @@ export function Inbox() {
       }}
       className="flex h-full flex-col"
     >
-      <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-        <h1 className="text-sm font-semibold">Inbox</h1>
-        <TabsList aria-label="Inbox view" className="flex items-center gap-0.5">
-          {tabs.map((t) => (
-            <TabsTab
-              key={t.id}
-              value={t.id}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground hover:text-foreground data-selected:bg-muted data-selected:font-medium data-selected:text-foreground"
+      <PageHeader
+        title="Inbox"
+        icon={<InboxIcon />}
+        tabs={<PageTabs label="Inbox view" tabs={tabs} />}
+        actions={
+          <>
+            <Link
+              href={paths.notificationSettings(organization.slug)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
             >
-              {t.label}
-              {t.count > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {t.count}
-                </span>
-              )}
-            </TabsTab>
-          ))}
-        </TabsList>
-        <Link
-          href={paths.notificationSettings(organization.slug)}
-          className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Settings2 className="size-3.5" /> Notification settings
-        </Link>
-        <LittoLauncher />
-      </header>
+              <Settings2 className="size-3.5" />
+              <span className="max-sm:sr-only">Notification settings</span>
+            </Link>
+            <LittoLauncher />
+          </>
+        }
+      />
       <TabsPanel value="updates" className="min-h-0 flex-1">
         <NotificationFeed />
       </TabsPanel>

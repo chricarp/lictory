@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { paths } from "@lictory/core/lib/paths";
+import { paths, safeCallbackPath } from "@lictory/core/lib/paths";
 import {
   notificationKindList,
   notificationKinds,
@@ -31,8 +31,9 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 // It reads the in-app notifications the inbox reads (POST
 // /api/notifications), refreshed by the same realtime signals; it adds no
 // server events. The badge is a sum of sources, so other kinds of unread
-// activity (the Channels stream: mentions and direct messages) add their own
-// count with useDesktopBadgeSource.
+// activity add their own count with useDesktopBadgeSource: the shell adds
+// its sidebar's mentions and direct messages (components/shell/nav-badges).
+// This module is the only caller of `setBadge`.
 
 // The catalog's rule (docs/internals/notifications.md): what asks something
 // of the person notifies by email by default; what only informs does not.
@@ -40,6 +41,18 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 export const attentionKinds: NotificationKind[] = notificationKindList.filter(
   (kind) => notificationKinds[kind].email,
 );
+
+// Channel mentions and direct messages reach the badge through the sidebar's
+// source, from read state: reading a conversation clears them there without
+// marking their notifications read, so counting both would count them twice
+// and keep them after reading. They are still forwarded as native ones.
+const channelKinds = new Set<string>(
+  notificationKindList.filter(
+    (kind) => notificationKinds[kind].category === "channels",
+  ),
+);
+export const badgeCounts = (n: Pick<NotificationItem, "kind">) =>
+  !channelKinds.has(n.kind);
 
 const PAGE = 100;
 // Native notifications per refresh; the rest are summed up in one.
@@ -182,7 +195,7 @@ export function createDesktopSync(options: {
     try {
       const page = await options.fetchUnread();
       if (stopped) return;
-      options.setBadge(page.items.length);
+      options.setBadge(page.items.filter(badgeCounts).length);
       for (const notification of toDesktopNotifications(
         forwarder.take(page.items),
       ))
@@ -222,9 +235,6 @@ const fetchUnread = () =>
     query: { status: "unread", kinds: attentionKinds, limit: PAGE },
   });
 
-const isInAppPath = (path: string) =>
-  path.startsWith("/") && !path.startsWith("//") && !path.includes("\\");
-
 // Connects the signed-in app to the desktop shell. Mounted once, inside the
 // signed-in layout, with the organizations the person belongs to (whose
 // realtime signals say when the inbox changed).
@@ -236,7 +246,10 @@ export function useDesktopBridge(
   useEffect(
     () =>
       bridge.onNavigate((path) => {
-        if (isInAppPath(path)) router.push(path);
+        // Pages of this app only: other origins and the account flows are
+        // refused (they come back as "/").
+        const target = safeCallbackPath(path);
+        if (target !== "/" || path === "/") router.push(target);
       }),
     [bridge, router],
   );

@@ -328,10 +328,9 @@ test("work item panels collapse independently and persist across routes and relo
   await expect(
     page.getByRole("navigation", { name: "Workspace" }).last(),
   ).toBeVisible();
-  // Click the exposed backdrop, outside the 260px navigation drawer.
-  await page
-    .getByRole("button", { name: "Close navigation" })
-    .click({ position: { x: 380, y: 100 } });
+  // Press the exposed backdrop, outside the navigation drawer.
+  await page.mouse.click(380, 100);
+  await expect(page.getByRole("dialog", { name: "Navigation" })).toBeHidden();
   await expect(heading).toBeVisible();
 
   // Layout controls still work if storage reads succeed but writes are blocked.

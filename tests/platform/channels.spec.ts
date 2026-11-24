@@ -36,6 +36,16 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
       .getByRole("navigation", { name: "Workspace" })
       .getByRole("link", { name: "payments-team" }),
   ).toBeVisible();
+  // The palette jumps to it from anywhere.
+  await page.goto(`/${seeded.slug}`);
+  await expect(
+    page.getByRole("heading", { name: "Home", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByRole("combobox", { name: "Search" }).fill("payments");
+  await palette.getByRole("option", { name: /#payments-team/ }).click();
+  await expect(page).toHaveURL(channelUrl);
 
   // Ben opens it, reads it and joins.
   const second = await newPerson(browser);
