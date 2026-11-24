@@ -17,6 +17,7 @@ export function e2ePorts(offset: number) {
     zeroChangeStreamer: 4859 + offset * 10,
     fakeJira: 3005 + offset,
     scriptedAi: 3006 + offset,
+    fakeSlack: 3007 + offset,
   };
 }
 

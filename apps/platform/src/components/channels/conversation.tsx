@@ -21,8 +21,10 @@ import {
   useChannelMembers,
   useChannels,
   useConversation,
+  useMirrorFailures,
   useMyThreads,
 } from "@lictory/platform/components/channels/store";
+import { callCapability } from "@lictory/core/capabilities/client";
 import {
   MessageList,
   useMessageWindow,
@@ -80,6 +82,10 @@ function Conversation({ channel }: { channel: Channel }) {
   const members = useChannelMembers(channel.id);
   const threads = useMyThreads();
   const history = useMessageWindow(channel);
+  const sendFailures = useMirrorFailures(
+    channel.id,
+    channel.externalSource === "slack",
+  );
   const label = channelLabel(channel, memberName);
   const title = channel.kind === "direct" ? label : `#${label}`;
   const [editingId, setEditingId] = useState<string>();
@@ -181,8 +187,27 @@ function Conversation({ channel }: { channel: Channel }) {
         ? (message) =>
             void conversation.markRead(channel.id, message.sequence - 1, true)
         : undefined,
+      retrySync: (message) =>
+        void callCapability("retrySlackMessage", {
+          organizationId: organization.id,
+          channelId: channel.id,
+          messageId: message.id,
+        }).catch((e: unknown) =>
+          toast({
+            title: "Not retried",
+            type: "error",
+            description: e instanceof Error ? e.message : undefined,
+          }),
+        ),
     }),
-    [conversation, channel.id, channel.member, openThread, base],
+    [
+      conversation,
+      channel.id,
+      channel.member,
+      openThread,
+      base,
+      organization.id,
+    ],
   );
 
   const render = useCallback(
@@ -202,6 +227,7 @@ function Conversation({ channel }: { channel: Channel }) {
         mentions={mentions}
         actions={actions}
         inThread={inThread}
+        syncError={sendFailures.get(message.id)}
       />
     ),
     [
@@ -215,6 +241,7 @@ function Conversation({ channel }: { channel: Channel }) {
       memberName,
       mentions,
       actions,
+      sendFailures,
     ],
   );
   const renderInThread = useCallback(

@@ -41,6 +41,11 @@ import {
   MarkdownEditor,
   type Mentionable,
 } from "@lictory/platform/components/editor/markdown-editor";
+import {
+  FromSlack,
+  SlackMark,
+  SlackSendFailure,
+} from "@lictory/platform/components/channels/slack";
 
 // One message of a conversation, Slack-dense: avatar and name on the first
 // of a group, hover (or focus) actions, reactions, the thread summary and
@@ -57,6 +62,8 @@ export type MessageActions = {
   promote: (message: MessageRow, kind: PromotionChoice) => void;
   copyLink: (message: MessageRow) => void;
   markUnread?: (message: MessageRow) => void;
+  // Send again a message a linked Slack channel never received.
+  retrySync?: (message: MessageRow) => void;
 };
 
 type Props = {
@@ -76,6 +83,8 @@ type Props = {
   actions: MessageActions;
   // Thread view: replies have no thread summary and no "reply" action.
   inThread?: boolean;
+  // Why a linked Slack channel never received this message.
+  syncError?: string;
 };
 
 const iconButton =
@@ -96,13 +105,18 @@ export const ChannelMessage = memo(function ChannelMessage({
   mentions,
   actions,
   inThread = false,
+  syncError,
 }: Props) {
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
   const author = authorName(message, nameOf);
   const time = formatTime(message.createdAt);
-  const reactions = groupReactions(message.reactions, userId);
+  const reactions = groupReactions(
+    message.reactions,
+    userId,
+    message.externalReactions,
+  );
   const isRoot = !message.threadRootId;
   const system = message.kind === "system";
   // Phones have no hover: a tap on the message shows its actions.
@@ -207,11 +221,14 @@ export const ChannelMessage = memo(function ChannelMessage({
             >
               {time}
             </time>
-            {external && (
-              <span className="text-[11px] text-muted-foreground">
-                from {message.externalSource}
-              </span>
-            )}
+            {external &&
+              (message.externalSource === "slack" ? (
+                <FromSlack />
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  from {message.externalSource}
+                </span>
+              ))}
           </div>
         )}
         {deleted ? (
@@ -238,6 +255,9 @@ export const ChannelMessage = memo(function ChannelMessage({
             {message.attachments.length > 0 && (
               <Attachments message={message} />
             )}
+            {(message.externalFiles?.length ?? 0) > 0 && (
+              <ExternalFiles message={message} />
+            )}
             {message.editedAt && (
               <span className="text-[11px] text-muted-foreground">
                 (edited)
@@ -250,7 +270,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             {reactions.map((r) => (
               <Tooltip
                 key={r.emoji}
-                label={`${r.userIds.map((id) => nameOf(id)).join(", ")} reacted with ${r.emoji}`}
+                label={`${[...r.userIds.map((id) => nameOf(id)), ...r.names].join(", ")} reacted with ${r.emoji}`}
               >
                 <button
                   type="button"
@@ -270,6 +290,14 @@ export const ChannelMessage = memo(function ChannelMessage({
               </Tooltip>
             ))}
           </div>
+        )}
+        {syncError && !deleted && (
+          <SlackSendFailure
+            error={syncError}
+            onRetry={
+              actions.retrySync ? () => actions.retrySync?.(message) : undefined
+            }
+          />
         )}
         {isRoot &&
           !inThread &&
@@ -419,7 +447,39 @@ function authorName(
 ) {
   if (message.authorKind === "agent") return "Agent";
   if (message.authorKind === "system") return "Lictory";
+  // Someone in a linked Slack channel with no Lictory identity.
+  if (message.authorKind === "external")
+    return `${message.externalAuthorName ?? "Someone"} (Slack)`;
   return nameOf(message.authorUserId);
+}
+
+// Files shared in Slack: a link to them there (Slack checks access).
+function ExternalFiles({ message }: { message: MessageRow }) {
+  return (
+    <div className="mt-1 flex flex-wrap gap-2">
+      {(message.externalFiles ?? []).map((file) => (
+        <a
+          key={file.url}
+          href={file.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="flex max-w-64 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-[13px] hover:bg-muted"
+        >
+          <SlackMark className="text-muted-foreground" />
+          <span className="truncate">{file.name}</span>
+          {file.size > 0 && (
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {Math.max(1, Math.round(file.size / 1024))} KB
+            </span>
+          )}
+          <ArrowUpRight
+            className="size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+        </a>
+      ))}
+    </div>
+  );
 }
 
 function Attachments({ message }: { message: MessageRow }) {

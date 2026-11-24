@@ -41,6 +41,12 @@ import type {
   Channel,
   MemberRow,
 } from "@lictory/platform/components/channels/data";
+import {
+  LinkSlackDialog,
+  SlackMark,
+  SlackSyncStatus,
+} from "@lictory/platform/components/channels/slack";
+import { callCapability } from "@lictory/core/capabilities/client";
 
 const iconButton =
   "grid size-8 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60";
@@ -81,6 +87,7 @@ export function ChannelHeader({
     useWorkspace();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [linking, setLinking] = useState(false);
   const member = channel.member;
   const direct = channel.kind === "direct";
   const canManage = !direct && (Boolean(member) || isAdmin);
@@ -106,6 +113,19 @@ export function ChannelHeader({
           router.push(paths.channels(organization.slug));
       })
       .catch(failed("You did not leave the channel"));
+  const unlink = () =>
+    callCapability("unlinkSlackChannel", {
+      organizationId: organization.id,
+      channelId: channel.id,
+    })
+      .then(() =>
+        toast({
+          title: "Unlinked from Slack",
+          description: "Both keep their history; nothing more is synced.",
+          duration: 5000,
+        }),
+      )
+      .catch(failed("Not unlinked"));
   const join = () =>
     mutateConfirmed({ type: "joinChannel", channelId: channel.id }).catch(
       failed("Not joined"),
@@ -152,6 +172,7 @@ export function ChannelHeader({
           </p>
         )}
       </div>
+      <SlackSyncStatus channel={channel} />
       {!member && channel.kind === "public" && !channel.archivedAt && (
         <Button size="sm" onClick={join}>
           Join channel
@@ -255,6 +276,20 @@ export function ChannelHeader({
                 and topic
               </MenuItem>
             )}
+            {!channel.archivedAt &&
+              (channel.externalSource === "slack" ? (
+                <MenuItem onSelect={() => void unlink()}>
+                  <SlackMark className="size-3.5 text-muted-foreground" />{" "}
+                  Unlink from Slack
+                </MenuItem>
+              ) : (
+                !channel.externalSource && (
+                  <MenuItem onSelect={() => setLinking(true)}>
+                    <SlackMark className="size-3.5 text-muted-foreground" />{" "}
+                    Link to Slack channel…
+                  </MenuItem>
+                )
+              ))}
             {channel.archivedAt ? (
               <MenuItem onSelect={() => void archive(false)}>
                 <ArchiveRestore className="size-3.5 text-muted-foreground" />{" "}
@@ -283,6 +318,9 @@ export function ChannelHeader({
           channel={channel}
           onClose={() => setEditing(false)}
         />
+      )}
+      {linking && (
+        <LinkSlackDialog channel={channel} onClose={() => setLinking(false)} />
       )}
     </header>
   );
