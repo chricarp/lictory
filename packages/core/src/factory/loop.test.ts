@@ -51,6 +51,8 @@ import {
   setSessionThreadPublisher,
 } from "@lictory/core/factory/ports";
 import { installFactoryLoop } from "@lictory/core/factory/loop";
+import { readAgentEvents } from "@lictory/core/agent-events/feed";
+import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import { sessionCardId } from "@lictory/core/factory/thread-ids";
 import type { AgentEntity } from "@lictory/core/factory/entities";
 
@@ -330,6 +332,15 @@ void test("a mention by someone who may not use the agent gets a polite reply, n
   const [reply] = await f.thread(messageId);
   assert.equal(reply!.kind, "system");
   assert.match(reply!.body, /private to its owner/);
+  // Nor does it wake the agent through its owner's event feed: text from
+  // someone who may not address the agent reaches nobody's agent.
+  const mentionEvents = async () => {
+    await drainNotifications(db);
+    return (await readAgentEvents(db, { userId: f.ada })).events.filter(
+      (e) => e.agentId === f.agent.id,
+    );
+  };
+  assert.equal((await mentionEvents()).length, 0);
   // An agent's or a token's message never starts a session, even the
   // owner's own.
   const viaToken = crypto.randomUUID();
@@ -344,6 +355,7 @@ void test("a mention by someone who may not use the agent gets a polite reply, n
   });
   assert.equal((await f.sessions()).length, 0);
   assert.match((await f.thread(viaToken))[0]!.body, /own message/);
+  const beforeSharing = (await mentionEvents()).length;
   // Shared, anyone in the organization may use it (it acts as Ada).
   await invoke(web(f.ada), "updateAgent", {
     organizationId: f.organizationId,
@@ -353,6 +365,8 @@ void test("a mention by someone who may not use the agent gets a polite reply, n
   await f.post(f.bo, `${f.mention} please deploy`);
   const [session] = await f.sessions();
   assert.equal(session!.requestedById, f.bo);
+  // Shared, Bo's mention also wakes it through Ada's feed.
+  assert.equal((await mentionEvents()).length, beforeSharing + 1);
 });
 
 void test("people in linked channels address agents by the Factory's rule; Slack text in the quoted thread is withheld", async () => {

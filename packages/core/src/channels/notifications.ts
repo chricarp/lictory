@@ -7,6 +7,7 @@ import {
 } from "@lictory/core/notifications/events";
 import { plainExcerpt } from "@lictory/core/channels/shared";
 import type { ChannelRow } from "@lictory/core/channels/access";
+import { mayAddressAgent } from "@lictory/core/channels/agents";
 
 // Who is told about a message (docs/internals/channels.md#notifications).
 // Channel traffic notifies nobody by default; a message notifies:
@@ -89,9 +90,15 @@ export async function queueChannelNotifications(
     },
   ];
   // An agent mentioned by name is woken through its person's feed,
-  // narrowed to it (no inbox notification: the person was not mentioned).
+  // narrowed to it (no inbox notification: the person was not mentioned),
+  // only when the author may address it (owner, or a shared agent): anyone
+  // else's mention stays text and wakes nobody's agent.
   for (const agent of input.mentionedAgents ?? [])
-    if (agent.id !== input.actorAgentId)
+    if (
+      agent.id !== input.actorAgentId &&
+      input.actorId &&
+      (await mayAddressAgent(tx, channel.organizationId, input.actorId, agent))
+    )
       notices.push({
         ...base,
         kind: "agent_mentioned",

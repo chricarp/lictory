@@ -97,8 +97,25 @@ export interface AgentDirectory {
     tx: Tx,
     organizationId: string,
     userId: string,
-    agent: ChannelAgent,
+    agent: Pick<ChannelAgent, "id" | "ownerId">,
   ): Promise<boolean>;
+}
+
+/**
+ * Whether this person may address the agent (the directory's rule; without
+ * one, only its owner). A mention by anyone else stays text: it neither
+ * starts work nor wakes the agent through its person's event feed.
+ */
+export async function mayAddressAgent(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  agent: Pick<ChannelAgent, "id" | "ownerId">,
+): Promise<boolean> {
+  const directory = agentDirectory();
+  return directory.mayAddress
+    ? directory.mayAddress(tx, organizationId, userId, agent)
+    : agent.ownerId === userId;
 }
 
 /** The agent a person may address by handle, or null (text stays text). */
@@ -114,10 +131,9 @@ export async function addressableAgent(
     await directory.search(tx, organizationId, normalized, 10)
   ).find((a) => a.handle.toLowerCase() === normalized);
   if (!agent) return null;
-  const allowed = directory.mayAddress
-    ? await directory.mayAddress(tx, organizationId, userId, agent)
-    : agent.ownerId === userId;
-  return allowed ? agent : null;
+  return (await mayAddressAgent(tx, organizationId, userId, agent))
+    ? agent
+    : null;
 }
 
 const noAgents: AgentDirectory = {

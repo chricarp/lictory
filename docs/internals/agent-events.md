@@ -273,6 +273,9 @@ with secrets) are not.
 - **Factory loop** registers the Channels `AgentDirectory`; agent mentions
   it resolves (in Lictory, or by a mapped person in a linked Slack channel)
   become `agent_mentioned` notices narrowed to the agent and addressed to
-  its owner, with no inbox notification.
+  its owner, with no inbox notification. Only a mention by someone who may
+  address the agent (its owner, or anyone when it is shared; the directory's
+  `mayAddress`) wakes it: anyone else's mention stays text, so a channel
+  member cannot put their words in front of another person's agent.
 - A new addressed notification kind becomes an agent event by adding it to
   a type's `from` in the catalog.
