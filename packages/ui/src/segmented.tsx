@@ -62,7 +62,7 @@ export function SegmentedItem({
       value={value}
       disabled={disabled}
       className={cn(
-        "inline-flex h-6 cursor-default items-center justify-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-xs font-medium whitespace-nowrap text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-card data-checked:text-foreground data-checked:shadow-(--shadow-border) data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        "inline-flex h-6 cursor-default items-center justify-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-xs font-medium whitespace-nowrap text-muted-foreground focus-ring outline-none select-none hover:text-foreground data-checked:bg-card data-checked:text-foreground data-checked:shadow-(--shadow-border) data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}

@@ -98,7 +98,7 @@ function useItem() {
 }
 
 const action =
-  "inline-flex h-8 touch:h-11 touch:px-4 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-8 touch:h-11 touch:px-4 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-ring enabled:active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50";
 const primary = `${action} bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover)`;
 const quiet = `${action} text-muted-foreground hover:bg-muted hover:text-foreground`;
 

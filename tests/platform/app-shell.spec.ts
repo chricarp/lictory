@@ -126,9 +126,18 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(
     flight.getByRole("link", { name: new RegExp(startedTitle) }),
   ).toBeVisible();
+  // An empty section is not shown: nothing is ready to start here.
   await expect(
     page.getByRole("region", { name: "Ready to start" }),
-  ).toBeVisible();
+  ).toBeHidden();
+  // A factory without code, runners, agents or channels starts with its
+  // setup, derived from its data: two people already belong to it.
+  const setup = page.getByRole("region", { name: "Set up Factory floor" });
+  await expect(setup).toContainText("1 of 5 done");
+  await expect(setup.getByRole("link", { name: "Add runner" })).toHaveAttribute(
+    "href",
+    `/${seeded.slug}/factory/runners`,
+  );
   await expect(
     page
       .getByRole("region", { name: "Recently edited pages" })

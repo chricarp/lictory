@@ -9,10 +9,10 @@ import {
   directMessagesSection,
 } from "@lictory/platform/components/channels/nav";
 import {
-  factoryHomeCards,
   factoryPalette,
   factorySection,
 } from "@lictory/platform/components/factory/nav";
+import { agentHomeCards } from "@lictory/platform/components/shell/home/agent-cards";
 import { codeSection } from "@lictory/platform/components/code/code-nav";
 
 // The navigation registry: what each module contributes to the shell. A
@@ -103,10 +103,11 @@ export type HomeCard = {
   // Names the card when it fails to render.
   label: string;
   // A card on Home. It renders nothing until it has something to show, so a
-  // module without data (no agents yet) leaves no empty box. Use `HomePanel`
-  // (`components/shell/home/panel`) for the frame.
+  // module without data (no agents yet) leaves no empty box. Use `Panel`
+  // and `ListRow` (`components/shell/panel`, `components/shell/list-row`);
+  // a `Panel` without rows and without `empty` renders nothing by itself.
   Card: ComponentType;
 };
 
 // The factory floor: what agents ask me, then the sessions at work.
-export const homeCards: readonly HomeCard[] = [...factoryHomeCards];
+export const homeCards: readonly HomeCard[] = [...agentHomeCards];

@@ -434,6 +434,18 @@ const channelRoute = createRoute({
   ),
   pendingComponent: ListSkeleton,
 });
+// The design gallery: the shared building blocks in light and dark, not
+// linked from the navigation. "design-system" is longer than any project key
+// (2-10 letters or digits), so it never shadows a project.
+const designGalleryRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/design-system",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/gallery"),
+    "DesignGallery",
+  ),
+  pendingComponent: ListSkeleton,
+});
 // The Code module: pull requests, issues and repositories of the connected
 // code hosts. A static segment, so it never resolves as a project key.
 const codeRoute = createRoute({
@@ -675,6 +687,7 @@ const routeTree = rootRoute.addChildren([
       channelRoute,
       codeRoute,
       codePullRequestRoute,
+      designGalleryRoute,
       projectRoute.addChildren([
         projectIndexRoute,
         itemsRoute.addChildren([itemsIndexRoute, itemRoute]),

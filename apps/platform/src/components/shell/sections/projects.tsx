@@ -107,7 +107,7 @@ function ProjectSwitcher({
             aria-label={`Switch project: ${project?.name ?? "none"}`}
             title={compact ? (project?.name ?? "Choose project") : undefined}
             className={cn(
-              "flex min-w-0 items-center gap-2 rounded-lg text-left text-[13px] outline-none hover:bg-sidebar-accent/70 focus-visible:ring-2 focus-visible:ring-ring/60",
+              "flex min-w-0 items-center gap-2 rounded-lg text-left text-[13px] focus-ring outline-none hover:bg-sidebar-accent/70",
               compact ? "size-8 justify-center" : "h-[30px] flex-1 px-1.5",
             )}
           >
@@ -155,7 +155,7 @@ function ProjectSwitcher({
           title="Project settings"
           aria-current={pathname.startsWith(settings) ? "page" : undefined}
           className={cn(
-            "grid size-[30px] shrink-0 place-items-center rounded-lg text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+            "grid size-[30px] shrink-0 place-items-center rounded-lg text-muted-foreground focus-ring outline-none hover:bg-sidebar-accent hover:text-foreground",
             pathname.startsWith(settings) &&
               "bg-sidebar-accent text-foreground shadow-(--shadow-border)",
           )}
@@ -371,7 +371,7 @@ function ViewsGroup({
   if (compact) return <SidebarGroup label="Views">{links}</SidebarGroup>;
   return (
     <Collapsible open={open} onOpenChange={onToggle} className="pt-2">
-      <CollapsibleTrigger className="group mb-0.5 flex h-6 w-full items-center gap-1 rounded-md px-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+      <CollapsibleTrigger className="group mb-0.5 flex h-6 w-full items-center gap-1 rounded-md px-2 text-xs font-semibold text-muted-foreground focus-ring outline-none hover:text-foreground">
         Views
         <ChevronRight
           aria-hidden

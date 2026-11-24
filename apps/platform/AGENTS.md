@@ -67,15 +67,62 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
   each with an `href` or a `run`; the palette matches, caps and groups them.
   Every section already gets a "Go to" command.
 - **Home card.** Add a `HomeCard` (`id`, `label`, `Card`) to `homeCards`.
-  `Card` renders null until it has something to show and uses `HomePanel`
-  and `HomeRow` (`components/shell/home/panel`) so Home reads as one page.
+  `Card` is a `Panel` of `ListRow`s; a `Panel` without rows and without
+  `empty` renders nothing, so a card without data leaves no box.
 - **Page header.** Start every module page with `PageHeader`
-  (`components/shell/page-header`): `title`, optional `icon`, `breadcrumbs`,
-  `tabs` (`PageTabs` inside your ui-sdk `Tabs` root) and `actions`. It is
-  also the desktop app's title bar, so keep its controls real buttons and
-  links.
+  (`components/shell/page-header`): `title`, optional `icon`, `back`
+  (`{ label: "Back to the Factory", href }`), `breadcrumbs`, `meta` (one quiet
+  line: a topic, a project chip, "3 running · 1 queued"), `description` (an
+  info button, never a paragraph under the title), `tabs` (`PageTabs` inside
+  your ui-sdk `Tabs` root, or `PageLinkTabs` for pages that are routes) and
+  `actions`. One 44px bar; on phones it is 48px and also carries the
+  navigation button and search, replacing the shell's top bar. Never write
+  an `<h1>` of your own: `components/shell/page-header.test.ts` fails on a
+  new one, and its `knownOffenders` list only shrinks.
 - **Empty states.** Say what will appear and what to do first, with
   `EmptyState` (lists) or `MissingState` (whole pages) from `@lictory/ui`.
+  A page with no data at all is one `MissingState` with one primary action:
+  no zero stat cards, no empty sections beside it.
+
+## Shared building blocks
+
+See them all in light and dark at `/{org}/design-system` (not linked from
+the navigation; `components/shell/gallery.tsx`). Use these rather than
+drawing your own; extend them here when a module needs more.
+
+- **People and agents** (`components/identity/actor`). `PersonAvatar`
+  (`person`, `size` 16–36: a deterministic color per id, the photo when
+  there is one, a dot with a tooltip under 20px, a Slack mark for
+  `external: "slack"`), `Actor` (avatar and name; `userId` looks the member
+  up, `label` "full" | "first" | "none"), `AgentAvatar` (rounded square, the
+  agent's emoji, a robot badge from 24px), `AgentActor` (`agent`, `ownerId` or `owner`:
+  "Forge via Ada", the agent's name never truncates), `PolicyActor`
+  (`level`, `setById`: "Build policy (set by Ada)", for what a policy did by
+  itself), `Facepile` (`people`, `max`; set `--actor-ring` to the surface
+  color when it is not the page background). Never draw initials or a robot
+  glyph by hand.
+- **State** (`lib/session-state`, `@lictory/ui/status-chip`).
+  `sessionState(session, { claim, decider })` is the one source of a
+  session's or claim's label and tone; a claim whose session waits on a
+  person reads "Waiting on Ada". Draw it with `SessionStateChip`
+  (`components/shell/session-chip`). Any other state is a `StatusChip`
+  (`tone`: neutral, info, attention, success, danger; an icon and a label).
+  Do not add pill styles.
+- **Rows and panels** (`components/shell/list-row`, `components/shell/panel`).
+  `ListRow` (`href` or `onClick`, `leading`, `identifier`, `title`, `meta`,
+  `chips`, `time`, `actions` shown on hover or focus) and `Panel` (`title`,
+  `icon`, `count`, `more`, `actions`, `empty`). `SectionCaption` labels a
+  group outside a card. Captions are sans 12px semibold muted; mono is only
+  for identifiers (keys, SHAs, branches, handles) and code.
+- **Agent approvals** (`components/shell/approval-request`). `ApprovalRequest`
+  (`session`, `approval`, `agent`, `runner`; `compact` in lists) shows what
+  is asked, who asks, where and the evidence, and answers through
+  `answerAgentApproval`. In lists its action is Review; Approve only appears
+  with the context. Only the person who started the session or the agent's
+  owner decides; others see who does.
+- **Focus.** Interactive elements use `focus-ring` (2px, offset) or
+  `focus-ring-inset` for full-bleed rows in a clipping container, with
+  `outline-none`. Do not use translucent `ring-ring/60` rings.
 - **Routes.** Module pages live at `/$org/<module>`. Add the segment to the
   reserved project keys in `packages/core/src/domain/service.ts` when you add
   one.

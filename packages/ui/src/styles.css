@@ -46,7 +46,9 @@
   --secondary: #f4f4f6;
   --secondary-foreground: #111214;
   --muted: #f4f4f6;
-  --muted-foreground: #6b6e76;
+  /* 4.5:1 or more on every light surface muted text sits on, hovered rows
+     and hairline-tinted wells included. */
+  --muted-foreground: #63666e;
   --accent: #f1f2f4;
   --accent-foreground: #111214;
   --destructive: #c81e1e;
@@ -838,6 +840,21 @@
   }
   to {
     background-position: 0 0;
+  }
+}
+/* The one focus indicator: a 2px ring in the theme's focus color, offset
+   from the control so it reads on any surface. Use `focus-ring-inset` for
+   full-bleed rows that sit flush against a clipping scroll container. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
   }
 }
 @utility shimmer {

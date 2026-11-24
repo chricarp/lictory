@@ -51,19 +51,28 @@ Home is the organization's index (`/{org}`). It used to redirect to Litto or
 to the last project; a factory needs one page that answers "what waits on me
 and what is the factory doing?" before any module.
 
+- **Set up {organization}** leads Home while the factory is incomplete: a
+  checklist derived from data (a code host connected, a runner that has
+  connected, an agent, a channel, a second member), each step done when its
+  data exists and the next one the single primary action. It leaves Home by
+  itself once everything exists, and while it shows, Home shows no empty
+  sections beside it (`components/shell/home/setup.ts`).
 - **Waiting on you** is the Inbox's To do derivation (reviews requested,
   pull requests to approve, page changes to review or merge, changes
   requested, blocked items): the same entries, the first few, linking to the
-  Inbox for the rest.
+  Inbox for the rest. The count under the greeting adds what agents ask me.
 - **In flight** is work assigned to me whose delivery status is started (in
   Lictory, or as the delivery tool reports it).
 - **Ready to start** is ready, not yet committed work that is mine or
   unassigned. Work assigned to someone else is theirs to start.
 - **Recently edited pages** are pages whose published version changed last.
-- **Registered cards** (Factory: what agents ask me, then the sessions at
-  work) sit beside them. A card renders nothing until it has something to
+- **Registered cards** sit beside them: **Agents ask you** (each request an
+  `ApprovalRequest` reviewed in place before it can be approved) and
+  **Agents at work** (sessions running that do not already wait on me, so a
+  session is listed once). A card renders nothing until it has something to
   show, so an organization without agents sees no empty box, and a failing
-  card never takes Home down.
+  card never takes Home down. In flight, Ready to start and Recently edited
+  pages are hidden while empty; Waiting on you says so in one line.
 
 Every list is derived from synchronized state in the browser
 (`components/shell/home/derive.ts`); nothing polls.
@@ -139,8 +148,14 @@ owner, `lib/desktop-bridge.ts` (mounted once in the signed-in layout; see
 
 ## Visual language
 
-One `PageHeader` (title, breadcrumbs, tabs, actions; 44px, on the page's
-surface) starts every module page. The work sits in one framed surface on
+One `PageHeader` (back, breadcrumbs, title, meta, tabs, actions; 44px, on
+the page's surface) starts every module page. On phones the header and the
+shell's top bar are one 48px bar: a mounted `PageHeader` claims the bar
+(`PhoneChromeContext`) and draws the navigation button before its title and
+search after its actions, and pages without one keep the shell's own bar.
+People, agents and policies are drawn by the identity components, states by
+`StatusChip` and `sessionState`, lists by `Panel` and `ListRow` (see
+`apps/platform/AGENTS.md` and the gallery at `/{org}/design-system`). The work sits in one framed surface on
 the sidebar's tone; the current sidebar row is a raised card. Empty states
 say what will appear and what to do first (`EmptyState`, `MissingState` from
 `@lictory/ui`), never only "nothing here". Light and dark come from the same

@@ -397,7 +397,7 @@ export function Toolbar({
       Boolean(c) && (!source?.active || (c as Control).id === "source"),
   );
   const base =
-    "inline-flex h-7 min-w-0 shrink-0 cursor-default items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 font-normal text-foreground/75 transition-[background-color,color] duration-150 ease-out outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-disabled:opacity-40 data-open:bg-foreground/8 data-open:text-foreground data-pressed:bg-foreground/8 data-pressed:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground";
+    "inline-flex h-7 min-w-0 shrink-0 cursor-default items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 font-normal text-foreground/75 transition-[background-color,color] duration-150 ease-out outline-none hover:bg-muted hover:text-foreground focus-ring data-disabled:opacity-40 data-open:bg-foreground/8 data-open:text-foreground data-pressed:bg-foreground/8 data-pressed:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground";
   // Keeps the editor's selection while clicking.
   const keepSelection = (e: { preventDefault: () => void }) =>
     e.preventDefault();
