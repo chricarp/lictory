@@ -69,6 +69,10 @@
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
+    "apps/runner": {
+      "entry": ["src/cli.ts", "src/**/*.test.ts", "scripts/build.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+    },
   },
   // Tailwind is loaded through CSS.
   "ignoreDependencies": ["tailwindcss"],

@@ -1,0 +1,21 @@
+{
+  "name": "@lictory/runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "lictory-runner": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts start",
+    "build": "bun scripts/build.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "4.0.21",
+    "@lictory/core": "workspace:*",
+    "ai": "^7.0.128",
+    "zod": "^4.6.7"
+  },
+  "license": "MIT"
+}

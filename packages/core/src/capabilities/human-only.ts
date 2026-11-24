@@ -286,6 +286,8 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Runner protocol: the session's repository and brokered credentials.",
   "POST /api/runner/v1/sessions/:id/complete":
     "Runner protocol: the session's result.",
+  "POST /api/runner/v1/sessions/:id/release":
+    "Runner protocol: a runner shutting down returns the session to the queue.",
   "POST /api/runner/v1/sessions/:id/model":
     "Runner protocol: model calls of the built-in harness through the server's AI provider.",
 };

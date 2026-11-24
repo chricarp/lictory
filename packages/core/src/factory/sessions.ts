@@ -1361,6 +1361,47 @@ export async function completeRun(
   });
 }
 
+// A runner shutting down hands a session back at once instead of letting
+// its lease expire. The attempt is given back: nothing failed.
+export async function releaseRun(
+  db: Database,
+  runner: RunnerRow,
+  sessionId: string,
+  leaseToken: string,
+  now = new Date(),
+) {
+  return writeAndPublish(db, runner.organizationId, async (tx, publish) => {
+    const session = await leased(tx, runner, sessionId, leaseToken, now);
+    requireStep(agentSession, session.status, "requeue");
+    const eventSequence = await appendEvents(tx, session, [
+      {
+        type: "status",
+        data: {
+          phase: "requeued",
+          status: "queued",
+          message: `${runner.name} shut down; the session is queued again.`,
+        },
+      },
+    ]);
+    await endRun(tx, session);
+    const row = await updateSession(tx, session.id, {
+      status: "queued",
+      runnerId: null,
+      attempts: Math.max(0, session.attempts - 1),
+      leaseToken: null,
+      leaseExpiresAt: null,
+      runnerSequence: 0,
+      eventSequence,
+      assignedAt: null,
+      startedAt: null,
+    });
+    await projectSession(tx, row);
+    await signalFactory(tx, { organizationId: row.organizationId });
+    publish(threadEvent(row, "status"));
+    return { status: row.status };
+  });
+}
+
 // The session's repository, with credentials when the code host integration
 // brokers them (ports.ts).
 export async function sessionWorkspace(

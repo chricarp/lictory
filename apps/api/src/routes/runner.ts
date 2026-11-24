@@ -29,6 +29,7 @@ import {
   completeRun,
   modelAccess,
   readInputs,
+  releaseRun,
   sessionStatusForRunner,
   sessionWorkspace,
   startRun,
@@ -283,6 +284,16 @@ export function runnerRoutes() {
     handle(async (runner, c) => {
       const request = await body(c, completeRequest);
       return completeRun(db, runner, sessionParam(c), request);
+    }),
+  );
+
+  // A runner shutting down hands the session back to the queue.
+  app.post(
+    "/api/runner/v1/sessions/:id/release",
+    limit(8 * 1024),
+    handle(async (runner, c) => {
+      const { leaseToken } = await body(c, startRequest);
+      return releaseRun(db, runner, sessionParam(c), leaseToken);
     }),
   );
 
