@@ -123,9 +123,9 @@ export function Sidebar({
       >
         <button
           type="button"
-          aria-label="Search everything"
+          aria-label={compact ? "Search Lictory" : undefined}
           aria-keyshortcuts="Meta+K Control+K /"
-          title={compact ? `Search everything  ${shortcut}` : undefined}
+          title={compact ? `Search  ${shortcut}` : undefined}
           onClick={onSearch}
           className={cn(
             "flex items-center gap-2 rounded-lg text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
@@ -137,7 +137,7 @@ export function Sidebar({
           <Search className="size-4 shrink-0" aria-hidden />
           {!compact && (
             <>
-              <span className="min-w-0 flex-1 truncate text-left">Search</span>
+              <span className="min-w-0 flex-1 truncate text-left">Search…</span>
               <span aria-hidden className="flex items-center gap-0.5">
                 <Kbd>{shortcut}</Kbd>
               </span>

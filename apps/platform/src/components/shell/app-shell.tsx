@@ -450,9 +450,7 @@ function ShellFrame({
             >
               {sidebar(sidebarCollapsed)}
             </aside>
-            {!sidebarCollapsed && (
-              <PaneResizer resize={resize.handle} className="-mr-1 ml-0" />
-            )}
+            {!sidebarCollapsed && <PaneResizer resize={resize.handle} />}
           </div>
           <Drawer
             open={drawer}
