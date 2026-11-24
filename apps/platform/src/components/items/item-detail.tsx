@@ -119,6 +119,10 @@ import {
 import { DeliveryScope } from "@lictory/platform/components/items/delivery-scope";
 import { ItemWorkflow } from "@lictory/platform/components/items/item-workflow";
 import {
+  ItemStatusStrip,
+  railSectionSelector,
+} from "@lictory/platform/components/items/status-strip";
+import {
   itemOrigin,
   originLink,
   originParams,
@@ -384,6 +388,24 @@ export function ItemDetail({
     null,
   );
   const [panelOpen, setPanelOpen] = useState(false);
+  // Scroll the review rail to one of its sections (checks and reviews, the
+  // claim, the Definition of Done, code), or open the drawer at it when the
+  // rail is folded away. The rail steps aside for discussions on mid-size
+  // frames; asking for one of its sections brings it back.
+  const openRailAt = (section: string) => {
+    if (railHidden) discussions.setPanelOpen(false);
+    const reveal = (panel: string) =>
+      document
+        .querySelector(`${panel} ${section}`)
+        ?.scrollIntoView({ block: "start" });
+    requestAnimationFrame(() => {
+      const rail = document.querySelector("[data-desktop-item-panel]");
+      if (rail?.getClientRects().length)
+        return reveal("[data-desktop-item-panel]");
+      flushSync(() => setPanelOpen(true));
+      reveal("[data-item-panel-drawer]");
+    });
+  };
   const rail = usePaneResize<HTMLElement>(railPane);
   // The discussions column can be dragged wider for long conversations.
   const discussionsPane = usePaneResize<HTMLElement>(discussionsPaneSpec);
@@ -1008,27 +1030,7 @@ export function ItemDetail({
                         ? () => update({ refinementState: "refinement" })
                         : undefined
                     }
-                    onReview={() => {
-                      // The rail steps aside for discussions on mid-size
-                      // frames; asking for the review brings it back.
-                      if (railHidden) discussions.setPanelOpen(false);
-                      // Checks and reviews sit below the properties: scroll
-                      // the rail to them, or the drawer when the rail is
-                      // folded away.
-                      const reveal = (panel: string) =>
-                        document
-                          .querySelector(`${panel} [data-review-panel]`)
-                          ?.scrollIntoView({ block: "start" });
-                      requestAnimationFrame(() => {
-                        const rail = document.querySelector(
-                          "[data-desktop-item-panel]",
-                        );
-                        if (rail?.getClientRects().length)
-                          return reveal("[data-desktop-item-panel]");
-                        flushSync(() => setPanelOpen(true));
-                        reveal("[data-item-panel-drawer]");
-                      });
-                    }}
+                    onReview={() => openRailAt("[data-review-panel]")}
                     onBreakdown={() =>
                       document
                         .querySelector("[data-item-breakdown]")
@@ -1044,6 +1046,17 @@ export function ItemDetail({
                       />
                     )}
                   </ItemWorkflow>
+                )}
+                {!focusScreen && !pendingCreate && (
+                  <ItemStatusStrip
+                    onOpen={(section) =>
+                      openRailAt(railSectionSelector[section])
+                    }
+                    className={cn(
+                      "mt-3",
+                      !railHidden && "@min-[53rem]/frame:hidden",
+                    )}
+                  />
                 )}
                 {!focusScreen && (
                   <>
@@ -1171,7 +1184,9 @@ export function ItemDetail({
                       <Relations item={item} canChange={canChange} />
                     </section>
                     {/* Where it was promoted from (Lictory Channels). */}
-                    {!pendingCreate && <ItemConversations workItemId={item.id} />}
+                    {!pendingCreate && (
+                      <ItemConversations workItemId={item.id} />
+                    )}
                     <>
                       {ctx.reviewable &&
                         discussionsShown &&
