@@ -34,6 +34,9 @@ export const paths = {
     `/${org}/spaces/${encodeURIComponent(space)}/settings`,
   spacePage: (org: string, space: string, page: string) =>
     `/${org}/spaces/${encodeURIComponent(space)}/pages/${page}`,
+  // The Factory: agents, runners and one agent session.
+  factorySession: (org: string, session: string) =>
+    `/${org}/factory/sessions/${session}`,
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,

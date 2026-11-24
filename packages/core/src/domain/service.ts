@@ -150,6 +150,11 @@ import {
   refuseClaimedCompletion,
 } from "@lictory/core/claims/follow";
 import {
+  assertAgentOrganization,
+  assertAgentProject,
+  type AgentScope,
+} from "@lictory/core/factory/authority";
+import {
   advanceProjectSchedule,
   automaticProjects,
   iterationReportRows,
@@ -1981,6 +1986,9 @@ export type Actor = {
   // Set when Lictory acts by itself for the person (the dispatcher, the
   // Definition of Done, an expired lease), so history says it was automatic.
   automation?: string | null;
+  // A Factory agent's scope narrows the person's authority
+  // (factory/authority.ts).
+  agentScope?: AgentScope | null;
 };
 
 // Activity detail that identifies delegated execution, so history shows which
@@ -1997,6 +2005,8 @@ export function delegation(actor: Actor): Record<string, string | null> {
     agentName: actor.agentName?.slice(0, 80) ?? null,
     agentClient: actor.client?.slice(0, 200) ?? null,
     ...(actor.agentSessionId ? { agentSessionId: actor.agentSessionId } : {}),
+    // Factory agents are named by their handle as well ("Forge via Ada").
+    ...(actor.agentScope ? { agentHandle: actor.agentScope.handle } : {}),
   };
 }
 export type MutationResult = {
@@ -2037,7 +2047,9 @@ export async function applyMutation(
     after: Entity[];
     directory?: Directory;
   } = { before: [], after: [] };
+  const agentScope = actor.agentScope;
   const result = await (async (): Promise<MutationResult> => {
+    assertAgentOrganization(agentScope, organizationId);
     await lock(tx, organizationId);
     const fingerprint = createHash("sha256")
       .update(JSON.stringify(c))
@@ -2071,6 +2083,14 @@ export async function applyMutation(
       };
     }
     const admin = isAdmin(membership);
+    // Organization-wide commands are outside a project-limited agent's scope.
+    if (
+      isTypeCommand(c) ||
+      isSpaceCommand(c) ||
+      isKnowledgeCommand(c) ||
+      c.type === "setAiPolicy"
+    )
+      assertAgentProject(agentScope, null);
     if (isTypeCommand(c)) {
       await applyTypeCommand(tx, { organizationId, userId, admin, roster }, c);
       return receipt(tx, organizationId, mutation.id, userId, fingerprint);
@@ -2139,6 +2159,7 @@ export async function applyMutation(
       // Configuration lives in the directory; commands that also move
       // items (status replacement, iteration carry-over, automatic
       // cycles) or change the project emit those entities.
+      assertAgentProject(agentScope, c.projectId);
       const scope = { organizationId, projectId: c.projectId };
       requireValue(
         roster.projects.find((p) => p.id === c.projectId),
@@ -2263,6 +2284,10 @@ export async function applyMutation(
           `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
         );
     }
+    assertAgentProject(
+      agentScope,
+      c.type === "createProject" ? null : projectId,
+    );
     if (c.type !== "createProject")
       projectRow = requireValue(
         (
@@ -5121,6 +5146,7 @@ const reservedKeys = new Set([
   "PROJECTS",
   "INTELLIGENCE",
   "NOTIFICATIONS",
+  "FACTORY",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

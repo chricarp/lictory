@@ -400,6 +400,7 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       "email",
       "export",
       "factory",
+      "factory-leases",
       "notification",
       "organization-deletion",
       "schedules",

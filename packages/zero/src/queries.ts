@@ -173,6 +173,56 @@ export const queries = defineQueries({
         .whereExists("readers", (r) => r.where("userId", ctx.userID))
         .whereExists("members", (m) => m.where("userId", ctx.userID)),
   ),
+  // The Factory: agents and runners of the organization.
+  factory: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.factoryEntity
+      .where("organizationId", args.organizationId)
+      .where("type", "IN", ["agent", "runner"])
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Agent session summaries, most recently updated first (a window).
+  factorySessions: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      limit: z.number().int().min(1).max(500),
+    }),
+    ({ args, ctx }) =>
+      zql.factoryEntity
+        .where("organizationId", args.organizationId)
+        .where("type", "session")
+        .whereExists("members", (m) => m.where("userId", ctx.userID))
+        .orderBy("updatedAt", "desc")
+        .limit(args.limit),
+  ),
+  // One session's summary.
+  factorySession: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      sessionId: z.string().min(1),
+    }),
+    ({ args, ctx }) =>
+      zql.factoryEntity
+        .where("organizationId", args.organizationId)
+        .where("key", `session:${args.sessionId}`)
+        .whereExists("members", (m) => m.where("userId", ctx.userID))
+        .one(),
+  ),
+  // The latest `limit` events of one session's log (newest first); the
+  // transcript widens the window to read earlier events.
+  factorySessionEvents: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      sessionId: z.string().min(1),
+      limit: z.number().int().min(1).max(2000),
+    }),
+    ({ args, ctx }) =>
+      zql.agentSessionEvent
+        .where("organizationId", args.organizationId)
+        .where("sessionId", args.sessionId)
+        .whereExists("members", (m) => m.where("userId", ctx.userID))
+        .orderBy("sequence", "desc")
+        .limit(args.limit),
+  ),
   // My effective access level in each space I can read.
   mySpaceAccess: defineQuery(organizationArgs, ({ args, ctx }) =>
     zql.spaceReader

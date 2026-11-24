@@ -46,9 +46,12 @@ function actor(ctx: CapabilityContext): Actor {
     userId: p.userId,
     surface: p.surface,
     client: p.client,
-    agentId: p.agentId ?? p.tokenId ?? null,
-    agentName: p.agentName ?? null,
-    agentSessionId: p.agentSessionId ?? null,
+    // A Factory agent is named by its own id; other MCP agents by their
+    // access token's (as in workspace commands).
+    agentId: p.agent?.id ?? p.tokenId ?? null,
+    agentName: p.agent?.name ?? p.agentName ?? null,
+    agentSessionId: p.agent?.sessionId ?? null,
+    agentScope: p.agent ?? null,
   };
 }
 

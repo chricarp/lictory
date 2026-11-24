@@ -16,6 +16,7 @@ import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
 import { documentRoutes, relayRoutes } from "@lictory/api/routes/public";
 import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
+import { runnerRoutes } from "@lictory/api/routes/runner";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -89,6 +90,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
         surface: "mcp",
         tokenId: token.tokenId,
         agentName: token.name,
+        agent: token.agent,
         access: token.access,
         client: request.headers.get("user-agent"),
       },
@@ -142,6 +144,9 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     if (!userID) return c.json({ error: "unauthorized" }, 401);
     return c.json(await zero.mutate(c.req.raw, userID));
   });
+
+  // The runner protocol: bearer runner credentials, its own body limits.
+  app.route("/", runnerRoutes());
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());

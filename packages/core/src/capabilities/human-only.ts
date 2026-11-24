@@ -268,6 +268,28 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Serves an organization logo to email clients, by its content hash.",
   "GET /api/users/:id/photo": "Serves a profile photo.",
   "ALL /api/*": "Unknown API path fallback.",
+  // The runner protocol (docs/internals/factory.md#protocol): machines
+  // authenticated with a runner credential, not people or agents.
+  "POST /api/runner/v1/register":
+    "Runner protocol: exchanges a one-time registration token for a runner credential.",
+  "POST /api/runner/v1/heartbeat":
+    "Runner protocol: heartbeat and lease renewal.",
+  "POST /api/runner/v1/claim":
+    "Runner protocol: long-poll for an agent session to run.",
+  "POST /api/runner/v1/sessions/:id/start":
+    "Runner protocol: the claimed session started.",
+  "POST /api/runner/v1/sessions/:id/events":
+    "Runner protocol: session event batches.",
+  "POST /api/runner/v1/sessions/:id/inputs":
+    "Runner protocol: long-poll for steering inputs.",
+  "POST /api/runner/v1/sessions/:id/workspace":
+    "Runner protocol: the session's repository and brokered credentials.",
+  "POST /api/runner/v1/sessions/:id/complete":
+    "Runner protocol: the session's result.",
+  "POST /api/runner/v1/sessions/:id/release":
+    "Runner protocol: a runner shutting down returns the session to the queue.",
+  "POST /api/runner/v1/sessions/:id/model":
+    "Runner protocol: model calls of the built-in harness through the server's AI provider.",
 };
 
 export type HumanOnlyOperation = HumanOnly & {

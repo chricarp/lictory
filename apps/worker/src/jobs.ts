@@ -7,6 +7,7 @@ import {
   processDeliveryPublications,
   processDueOrganizationDeletions,
   processNotificationEvents,
+  recoverExpiredSessions,
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
@@ -84,6 +85,9 @@ const EXPORT_INTERVAL_MS = 60_000;
 // Deletions fall due after a grace period of days; a few minutes' delay
 // does not matter.
 const DELETION_INTERVAL_MS = 5 * 60_000;
+// Leases last 90 seconds; checking twice a minute bounds the delay.
+const FACTORY_LEASE_INTERVAL_MS = 30_000;
+const FACTORY_LEASE_BATCH = 20;
 
 export function workerJobs(
   db: Database,
@@ -222,6 +226,21 @@ export function workerJobs(
             { name: "DispatchError" },
           );
         return { counts };
+      },
+    },
+    {
+      // Agent sessions whose runner stopped renewing its lease return to the
+      // queue or fail after their attempts (claims also recover them).
+      name: "factory-leases",
+      intervalMs: FACTORY_LEASE_INTERVAL_MS,
+      async run() {
+        const counts = await recoverExpiredSessions(db, {
+          limit: FACTORY_LEASE_BATCH,
+        });
+        return {
+          more: counts.requeued + counts.failed === FACTORY_LEASE_BATCH,
+          counts,
+        };
       },
     },
     {

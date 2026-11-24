@@ -209,6 +209,16 @@ export function describeNotification(
       };
     case "page_thread_reply":
       return { headline: `${actor} replied on ${page}`, body: excerpt };
+    case "agent_approval_requested":
+      return {
+        headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
+        body: str(d.sessionTitle),
+      };
+    case "agent_session_finished":
+      return {
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${str(d.sessionTitle) ?? "a session"}`,
+        body: str(d.error) ?? str(d.summary),
+      };
     case "organization_deletion_scheduled":
       return {
         headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
@@ -234,6 +244,8 @@ export function notificationHref(
   n: NotificationView & { teamId?: string | null },
 ) {
   const d = n.detail;
+  const session = str(d.sessionId);
+  if (session) return paths.factorySession(orgSlug, session);
   const key = str(d.itemKey);
   if (key)
     return `${paths.itemByKey(orgSlug, key)}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;

@@ -149,6 +149,19 @@
         "vite": "8.3.5",
       },
     },
+    "apps/runner": {
+      "name": "@lictory/runner",
+      "version": "0.1.0",
+      "bin": {
+        "lictory-runner": "src/cli.ts",
+      },
+      "dependencies": {
+        "@ai-sdk/provider": "4.0.21",
+        "@lictory/core": "workspace:*",
+        "ai": "^7.0.128",
+        "zod": "^4.6.7",
+      },
+    },
     "apps/worker": {
       "name": "@lictory/worker",
       "version": "0.0.0",
@@ -178,6 +191,7 @@
         "@ai-sdk/mistral": "4.0.56",
         "@ai-sdk/openai": "^4.0.83",
         "@ai-sdk/openai-compatible": "3.0.62",
+        "@ai-sdk/provider": "4.0.21",
         "@ai-sdk/xai": "5.0.14",
         "@aws-sdk/client-s3": "^3.1156.0",
         "@aws-sdk/credential-provider-node": "3.972.92",
@@ -696,6 +710,8 @@
     "@lictory/marketing": ["@lictory/marketing@workspace:apps/marketing"],
 
     "@lictory/platform": ["@lictory/platform@workspace:apps/platform"],
+
+    "@lictory/runner": ["@lictory/runner@workspace:apps/runner"],
 
     "@lictory/ui": ["@lictory/ui@workspace:packages/ui"],
 

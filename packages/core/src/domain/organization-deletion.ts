@@ -243,6 +243,10 @@ export const deletionOrder: readonly PgTable[] = [
   s.workItemPageSource,
   s.pageBranchOrigin,
   s.pageContextLink,
+  // Agent sessions reference work items and projects; their events,
+  // inputs and approval requests cascade with them, agents and runners with
+  // the organization.
+  s.agentSession,
   // Queued events first: the delete waits for a fan-out in flight, so the
   // notifications it writes are removed by the next statements.
   s.notificationEvent,

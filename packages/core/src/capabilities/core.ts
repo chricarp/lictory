@@ -4,6 +4,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DeliveryProviders } from "@lictory/core/delivery/registry";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 import type { ProposalDrafter } from "@lictory/core/ai/intake";
+import type { AgentScope } from "@lictory/core/factory/authority";
 
 // The shared application layer.
 //
@@ -74,10 +75,9 @@ export type Principal = {
   // The agent's name: the access token's name for MCP, Litto for the
   // embedded agent. Each token is one named agent acting for its person.
   agentName?: string | null;
-  // A Factory agent's identity and session, when the call comes from one
-  // (runner sessions); MCP tokens use `tokenId` as the agent id.
-  agentId?: string | null;
-  agentSessionId?: string | null;
+  // A Factory agent the token is bound to: the call runs as its owner
+  // (`userId`) narrowed by the agent's scope (factory/authority.ts).
+  agent?: AgentScope | null;
 };
 
 // Process-level side effects owned by the hosting runtime (API, tests,

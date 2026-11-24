@@ -337,6 +337,20 @@
       "when": 1795479473432,
       "tag": "0047_claims_autonomy_definition_of_done",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795484663341,
+      "tag": "0048_factory_agents_runners_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795484665478,
+      "tag": "0049_factory_zero_publication",
+      "breakpoints": true
     }
   ]
 }

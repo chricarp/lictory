@@ -74,6 +74,20 @@ export const auditActions = {
     category: "access",
     label: "Revoked an access token",
   },
+  "agent.created": { category: "access", label: "Created an agent" },
+  "agent.updated": { category: "access", label: "Changed an agent" },
+  "agent.scope_changed": {
+    category: "access",
+    label: "Changed an agent's access or projects",
+  },
+  "agent.archived": { category: "access", label: "Archived an agent" },
+  "agent.restored": { category: "access", label: "Restored an agent" },
+  "runner.registration_created": {
+    category: "access",
+    label: "Created a runner registration token",
+  },
+  "runner.registered": { category: "access", label: "Registered a runner" },
+  "runner.revoked": { category: "access", label: "Revoked a runner" },
   "two_factor.requirement_changed": {
     category: "access",
     label: "Changed the two-factor requirement",

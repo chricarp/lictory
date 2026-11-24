@@ -392,6 +392,25 @@ const spaceSettingsRoute = createRoute({
   pendingComponent: SettingsSectionSkeleton,
 });
 
+// The Factory: agents, runners and agent sessions. Static segments rank
+// above `$project` (FACTORY is a reserved project key).
+const factoryRoute = (path: string, name: string) =>
+  createRoute({
+    getParentRoute: () => orgRoute,
+    path,
+    component: lazyRouteComponent(
+      () => import("@lictory/platform/routes/factory"),
+      name as "FactoryRoute",
+    ),
+    pendingComponent: ListSkeleton,
+  });
+const factoryRoutes = [
+  factoryRoute("/factory", "FactoryRoute"),
+  factoryRoute("/factory/agents", "FactoryAgentsRoute"),
+  factoryRoute("/factory/runners", "FactoryRunnersRoute"),
+  factoryRoute("/factory/sessions/$session", "FactorySessionRoute"),
+];
+
 const projectRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/$project",
@@ -607,6 +626,7 @@ const routeTree = rootRoute.addChildren([
         spacePullRequestsRoute,
         spaceSettingsRoute,
       ]),
+      ...factoryRoutes,
       projectRoute.addChildren([
         projectIndexRoute,
         itemsRoute.addChildren([itemsIndexRoute, itemRoute]),

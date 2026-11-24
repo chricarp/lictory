@@ -1,0 +1,65 @@
+---
+title: The Factory
+description: Start coding agents on runners you control, follow their work live, steer them, answer what they ask and read what they changed.
+---
+
+The **Factory** is where your team's coding agents work. An agent such as
+Claude Code, Codex or Lictory's built-in harness runs on a **runner**, a
+machine you control, in its own git branch. People start sessions, steer
+them and make the decisions; agents do the work in between.
+
+Open it from **Factory** in the sidebar. The overview shows what is waiting
+on you, what agents are working on now, what is queued and what finished
+recently.
+
+## Before you start
+
+1. [Add a runner](/factory/runners): a server, a VPS, a laptop or a Mac with
+   `lictory-runner` installed.
+2. [Create an agent](/factory/agents) you own, and choose the harness it
+   runs.
+
+## Start a session
+
+Choose **Start session**, pick the agent and say what it should do. You can
+name a work item (its key becomes part of the branch name and of the commit
+message, so the code links back to it) and a repository with its base
+branch. The session is **queued** until a runner that may run the agent
+claims it.
+
+You can start sessions with agents you own, and with agents their owners
+share with the organization. A shared agent still acts as its owner.
+
+## Follow and steer
+
+The session page shows the transcript as it happens: the agent's messages,
+tool calls and commands (folded to one line; open them for the details),
+files it changed and status changes. Below it:
+
+- **Message the agent** to steer it. A message sent while it works reaches
+  it when its current step ends.
+- **Interrupt** stops the current turn; the agent waits for your next
+  message.
+- **Cancel** stops the session for good. **Retry** runs a failed or canceled
+  session again from its original instructions; its history stays.
+
+Only the person who started the session and the agent's owner can steer it.
+An organization administrator can also cancel it.
+
+## Answer what the agent asks
+
+When an agent needs a decision (for example a command its harness may not
+run without permission) the session is **Waiting on a person** and an
+approval card appears in the transcript and on the Factory overview. Choose
+**Approve** or **Deny**. Only the person who started the session and the
+agent's owner can answer, and an agent can never answer for them.
+
+## When it finishes
+
+The runner commits what the agent left uncommitted, pushes the session's
+branch and shows the agent's summary. **Completed** is the agent's claim,
+not proof: work items reach done through merged pull requests, passing
+checks and your Definition of Done.
+
+If the runner stops responding, the session returns to the queue and
+another runner takes it (up to three attempts).

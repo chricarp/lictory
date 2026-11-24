@@ -31,6 +31,9 @@ adding domain writes or synchronized entities.
   which work agents may claim, leases, agent questions, the autonomy
   policy, evidence-based Done, the dispatcher and the ports the Factory and
   Code modules implement
+- [The Factory](./internals/factory.md): agents (owner ∩ scope), runners,
+  agent sessions, the runner protocol, leases, credential brokering and
+  isolation
 - [Organizations, projects and teams](./internals/organization-model.md):
   what each scope owns, application roles, project roles and disciplines,
   delivery modes
