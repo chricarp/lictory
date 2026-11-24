@@ -57,11 +57,6 @@ export function ProjectSettingsLayout({ children }: { children: ReactNode }) {
   }));
   return (
     <SettingsLayout
-      icon={
-        <span className="grid h-9 min-w-9 place-items-center rounded-lg bg-muted px-1.5 font-mono text-[11px] font-semibold tracking-wide">
-          {project.key}
-        </span>
-      }
       title={project.name}
       subtitle={`Project settings · ${plural(members, "member")}`}
       nav={nav}

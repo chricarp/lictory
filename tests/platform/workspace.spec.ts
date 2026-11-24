@@ -760,7 +760,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toContainText("2");
   // The same review request is also current work in "To do".
   await reviewerInbox.getByRole("tab", { name: /^To do/ }).click();
-  await expect(reviewerInbox.getByText("Review requested")).toBeVisible();
+  await expect(
+    reviewerInbox.getByText("Review requested", { exact: true }),
+  ).toBeVisible();
   await reviewerInbox.getByRole("tab", { name: /^Updates/ }).click();
   await reviewerInbox.getByRole("button", { name: "Mark all read" }).click();
   await expect(reviewerInbox.getByText("You're all caught up")).toBeVisible();

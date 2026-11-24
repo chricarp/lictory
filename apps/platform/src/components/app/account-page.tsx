@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@rocicorp/zero/react";
-import { ArrowLeft, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { z } from "zod";
 
-import { Link } from "@lictory/platform/lib/navigation";
 import { AccountSettings } from "@lictory/platform/components/app/account-settings";
 import { paths, safeCallbackPath } from "@lictory/core/lib/paths";
 import { queries } from "@lictory/zero/queries";
 import type { OrganizationProfile } from "@lictory/core/contracts/projection";
-import { Avatar } from "@lictory/ui/primitives";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import { Button } from "@lictory/ui/button";
 import { SettingsSectionSkeleton } from "@lictory/ui/skeleton";
 import { MissingState } from "@lictory/ui/status-page";
@@ -108,49 +108,49 @@ export function AccountPage({
       </div>
     );
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <Link
-        href={backHref}
-        className="group mb-6 -ml-2 inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-muted-foreground transition-[background-color,color,transform] duration-100 ease-out outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96]"
-      >
-        <ArrowLeft aria-hidden className="size-4" strokeWidth={1.75} />
-        Back
-      </Link>
-
-      <header className="flex items-center gap-3.5">
-        <Avatar
-          name={account.user.name}
-          image={account.user.image}
-          className="size-10 text-sm"
-        />
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-tight">
-            Account settings
-          </h1>
-          <p className="truncate text-[13px] text-muted-foreground">
-            {account.user.name} · @{account.user.handle} · applies to you
-            everywhere, not to one organization
-          </p>
-        </div>
-      </header>
-
-      <AccountSettings
-        user={{
-          name: account.user.name,
-          image: account.user.image,
-          email: account.user.email,
-          emailVerified: account.user.emailVerified,
-          handle: account.user.handle ?? "",
-          twoFactorEnabled: account.user.twoFactorEnabled,
-        }}
-        providers={account.providers}
-        signIn={account.signIn}
-        accounts={account.accounts}
-        returnTo={safeReturnTo}
-        connected={connected}
-        connectionError={connectionError}
-        sessionCount={account.sessionCount}
+    <>
+      {/* Account settings live outside any organization, so the header
+          stays on top of the page as it scrolls. */}
+      <PageHeader
+        title="Account settings"
+        back={{ label: "Back", href: backHref }}
+        meta={
+          <>
+            <PersonAvatar
+              person={{
+                id: account.user.handle ?? account.user.email,
+                name: account.user.name,
+                image: account.user.image,
+              }}
+              size={20}
+            />
+            <span className="truncate">
+              {account.user.name} · @{account.user.handle} · applies to you
+              everywhere, not to one organization
+            </span>
+          </>
+        }
+        className="sticky top-0 z-20 bg-background"
       />
-    </div>
+      <div className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
+        <AccountSettings
+          user={{
+            name: account.user.name,
+            image: account.user.image,
+            email: account.user.email,
+            emailVerified: account.user.emailVerified,
+            handle: account.user.handle ?? "",
+            twoFactorEnabled: account.user.twoFactorEnabled,
+          }}
+          providers={account.providers}
+          signIn={account.signIn}
+          accounts={account.accounts}
+          returnTo={safeReturnTo}
+          connected={connected}
+          connectionError={connectionError}
+          sessionCount={account.sessionCount}
+        />
+      </div>
+    </>
   );
 }

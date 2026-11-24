@@ -133,7 +133,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <nav
         aria-label="Settings sections"
-        className="hidden pt-14 lg:sticky lg:top-0 lg:block lg:self-start"
+        className="hidden pt-14 lg:sticky lg:top-11 lg:block lg:self-start"
       >
         <ul className="space-y-0.5">
           {nav.map((n) => (
@@ -142,7 +142,7 @@ export function AccountSettings(props: AccountSettingsProps) {
                 href={`#${n.id}`}
                 aria-current={n.id === active ? "location" : undefined}
                 className={cn(
-                  "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color,box-shadow] duration-100 hover:bg-muted hover:text-foreground",
+                  "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground focus-ring-inset transition-[background-color,color,box-shadow] duration-100 outline-none hover:bg-muted hover:text-foreground",
                   n.id === active &&
                     "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
                 )}

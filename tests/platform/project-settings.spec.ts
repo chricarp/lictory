@@ -124,10 +124,14 @@ test("organization settings keep their header and sidebar while switching sectio
   const membersPath = paths.settings(slug, "members");
   // The base settings URL still opens General and selects its navigation link.
   await page.goto(paths.settings(slug));
-  const header = page.getByRole("heading", { name: "Organization settings" });
+  // The page header names the section; the scope is its breadcrumb.
+  const header = page.locator("[data-page-header]");
+  await expect(
+    header.getByRole("link", { name: "Organization settings" }),
+  ).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
   await expect(
-    page.getByRole("heading", { name: "General", exact: true }),
+    page.getByRole("heading", { level: 3, name: "General", exact: true }),
   ).toBeVisible();
   await expect(
     nav.getByRole("link", { name: "General", exact: true }),
@@ -142,7 +146,7 @@ test("organization settings keep their header and sidebar while switching sectio
   await nav.getByRole("link", { name: "Members", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${membersPath}$`));
   await expect(
-    page.getByRole("heading", { name: "Members", exact: true }),
+    page.getByRole("heading", { level: 3, name: "Members", exact: true }),
   ).toBeVisible();
   await expect(header).toBeVisible();
   await expect(nav).toBeVisible();
@@ -169,7 +173,7 @@ test("organization settings keep their header and sidebar while switching sectio
       new RegExp(`${paths.settings(slug, section)}$`),
     );
     await expect(
-      page.getByRole("heading", { name: heading, exact: true }),
+      page.getByRole("heading", { level: 3, name: heading, exact: true }),
     ).toBeVisible();
     await expect(
       nav.getByRole("link", { name: label, exact: true }),
@@ -182,11 +186,15 @@ test("organization settings keep their header and sidebar while switching sectio
     nav.getByRole("link", { name: "Lictory Intelligence", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
-    page.getByRole("heading", { name: "Lictory Intelligence", exact: true }),
+    page.getByRole("heading", {
+      level: 3,
+      name: "Lictory Intelligence",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.goForward();
   await expect(
-    page.getByRole("heading", { name: "General", exact: true }),
+    page.getByRole("heading", { level: 3, name: "General", exact: true }),
   ).toBeVisible();
   expect(await headerNode.evaluate((node) => node.isConnected)).toBe(true);
   expect(await navNode.evaluate((node) => node.isConnected)).toBe(true);
@@ -194,14 +202,14 @@ test("organization settings keep their header and sidebar while switching sectio
   // A direct link or reload restores the same section and selected link.
   await page.goto(membersPath);
   await expect(
-    page.getByRole("heading", { name: "Members", exact: true }),
+    page.getByRole("heading", { level: 3, name: "Members", exact: true }),
   ).toBeVisible();
   await expect(
     nav.getByRole("link", { name: "Members", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Members", exact: true }),
+    page.getByRole("heading", { level: 3, name: "Members", exact: true }),
   ).toBeVisible();
   await expect(header).toBeVisible();
 });

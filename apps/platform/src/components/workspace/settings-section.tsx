@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { SettingsNavigation } from "@lictory/platform/components/workspace/settings-navigation";
+import { Settings2 } from "lucide-react";
+import {
+  SettingsNavigation,
+  useSelectedSetting,
+} from "@lictory/platform/components/workspace/settings-navigation";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { cn } from "@lictory/core/lib/utils";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
@@ -18,9 +23,7 @@ export function SettingsGroup({
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h2 className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-          {title}
-        </h2>
+        <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
         {description && (
           <p className="mt-1 text-[13px] text-muted-foreground">
             {description}
@@ -56,7 +59,7 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-title`}
       className={cn(
-        "scroll-mt-6 rounded-xl bg-card shadow-(--shadow-border)",
+        "scroll-mt-16 rounded-xl bg-card shadow-(--shadow-border)",
         className,
       )}
     >
@@ -154,37 +157,34 @@ export type SettingsNavItem = {
   group?: string;
 };
 export function SettingsLayout({
-  icon,
   title,
   subtitle,
   nav,
   children,
 }: {
-  icon: ReactNode;
+  // The scope: "Organization settings", the project's name.
   title: string;
   subtitle?: ReactNode;
   nav: SettingsNavItem[];
   children: ReactNode;
 }) {
+  const selected = useSelectedSetting(nav);
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <header className="flex items-center gap-3.5">
-          {icon}
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="truncate text-[13px] text-muted-foreground">
-                {subtitle}
-              </p>
-            )}
+    <div className="flex h-full flex-col">
+      {/* The section is the page's title; the scope it belongs to is the
+          breadcrumb before it. */}
+      <PageHeader
+        title={selected?.label ?? title}
+        icon={<Settings2 />}
+        breadcrumbs={nav[0] ? [{ label: title, href: nav[0].href }] : []}
+        meta={subtitle}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-4 pt-4 pb-16 sm:px-6 lg:pt-8">
+          <div className="gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
+            <SettingsNavigation nav={nav} selected={selected?.id} />
+            <div className="min-w-0 space-y-6">{children}</div>
           </div>
-        </header>
-        <div className="mt-8 gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
-          <SettingsNavigation nav={nav} />
-          <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>
     </div>

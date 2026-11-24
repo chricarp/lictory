@@ -73,7 +73,9 @@ test("an instance administrator manages accounts and organizations from the admi
   await page.getByRole("button", { name: /Open the admin console/ }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(
-    page.getByRole("heading", { name: "Admin console", exact: true }),
+    page
+      .getByRole("navigation", { name: "Breadcrumb" })
+      .getByRole("link", { name: "Admin console", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Instance administrators")).toBeVisible();
   await expect(

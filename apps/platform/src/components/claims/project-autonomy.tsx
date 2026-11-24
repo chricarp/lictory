@@ -22,6 +22,7 @@ import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannels } from "@lictory/platform/components/channels/store";
+import { AgentActor } from "@lictory/platform/components/identity/actor";
 import {
   InlineError,
   SettingsBody,
@@ -204,7 +205,7 @@ export function ProjectAutonomy({
               <ul className="space-y-1.5">
                 {runners.map((agent) => (
                   <li key={agent.id}>
-                    <label className="flex items-center gap-2 text-[13px]">
+                    <label className="flex min-h-6 items-center gap-2 text-[13px]">
                       <Checkbox
                         disabled={!editable}
                         checked={draft.implementerAgentIds.includes(agent.id)}
@@ -218,22 +219,25 @@ export function ProjectAutonomy({
                           })
                         }
                       />
-                      <span className="font-medium">{agent.name}</span>
-                      <span className="text-muted-foreground">
-                        via {memberName(agent.ownerId)}
-                      </span>
+                      <AgentActor
+                        agent={agent}
+                        ownerId={agent.ownerId}
+                        avatar={false}
+                      />
                     </label>
                   </li>
                 ))}
               </ul>
             )}
           </Field>
-          <div className="flex flex-wrap gap-4">
-            <label className="text-[13px]">
+          {/* Labels sit above their fields, so a long name never runs into
+              its select. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="grid content-start gap-1.5 text-[13px]">
               <span className="font-medium">Reviewer agent</span>
               <DropdownSelect
                 disabled={!editable}
-                className="mt-1 w-56"
+                className="w-full"
                 aria-label="Reviewer agent"
                 value={draft.reviewerAgentId ?? ""}
                 placeholder="None"
@@ -248,12 +252,15 @@ export function ProjectAutonomy({
                   </DropdownSelectOption>
                 ))}
               </DropdownSelect>
+              <span className="text-xs text-muted-foreground">
+                Reviews the implementers’ pull requests.
+              </span>
             </label>
-            <label className="text-[13px]">
+            <label className="grid content-start gap-1.5 text-[13px]">
               <span className="font-medium">Concurrent sessions</span>
               <DropdownSelect
                 disabled={!editable}
-                className="mt-1 w-40"
+                className="w-full"
                 aria-label="Concurrent sessions"
                 value={draft.maxConcurrentSessions}
                 onValueChange={(value) =>
@@ -269,12 +276,15 @@ export function ProjectAutonomy({
                   </DropdownSelectOption>
                 ))}
               </DropdownSelect>
+              <span className="text-xs text-muted-foreground">
+                At most this many agents work in the project at once.
+              </span>
             </label>
-            <label className="text-[13px]">
+            <label className="grid content-start gap-1.5 text-[13px] sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
               <span className="font-medium">Report to channel</span>
               <DropdownSelect
                 disabled={!editable}
-                className="mt-1 w-56"
+                className="w-full"
                 aria-label="Report to channel"
                 value={draft.reportingChannelId ?? ""}
                 placeholder="None"
@@ -289,7 +299,7 @@ export function ProjectAutonomy({
                   </DropdownSelectOption>
                 ))}
               </DropdownSelect>
-              <span className="mt-1 block max-w-56 text-[12px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 Dispatched sessions post their live card there; agents’
                 questions are announced there.
               </span>

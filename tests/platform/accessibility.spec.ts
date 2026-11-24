@@ -189,7 +189,9 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
   ]) {
     await page.goto(paths.settings(seeded.slug, section));
     await expect(
-      page.getByRole("heading", { name: "Organization settings" }),
+      page
+        .getByRole("navigation", { name: "Breadcrumb" })
+        .getByRole("link", { name: "Organization settings" }),
     ).toBeVisible();
     await settled(page);
     await expectNoAccessibilityViolations(
