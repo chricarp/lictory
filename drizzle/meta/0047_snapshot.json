@@ -1,5 +1,5 @@
 {
-  "id": "a4649337-654b-4ce4-96f3-3ee82f850635",
+  "id": "9b73d2e8-5cf6-4f6e-af5c-1a8f22d8e6cd",
   "prevId": "138f6cf6-bfbf-4daa-95fd-be5dc89b62b9",
   "version": "7",
   "dialect": "postgresql",
@@ -16655,8 +16655,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
+        "joined_at": {
+          "name": "joined_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,

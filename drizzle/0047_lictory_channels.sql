@@ -46,7 +46,7 @@ CREATE TABLE "channel_member" (
 	"mention_count" integer DEFAULT 0 NOT NULL,
 	"notification_level" "channel_notification_level" DEFAULT 'mentions' NOT NULL,
 	"added_by_id" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"joined_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "channel_member_identity" CHECK (("channel_member"."member_kind" = 'user' AND "channel_member"."user_id" IS NOT NULL AND "channel_member"."agent_id" IS NULL)
         OR ("channel_member"."member_kind" = 'agent' AND "channel_member"."agent_id" IS NOT NULL AND "channel_member"."user_id" IS NULL)),

@@ -192,7 +192,7 @@ export const channelMember = pgTable(
       .default("mentions")
       .notNull(),
     addedById: optionalActor("added_by_id"),
-    joinedAt: createdAt(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
     updatedAt: updatedAt(),
   },
   (t) => [
