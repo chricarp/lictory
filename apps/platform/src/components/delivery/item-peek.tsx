@@ -34,10 +34,8 @@ import {
   StatusIcon,
 } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
-import {
-  AssigneePicker,
-  IssuePriority,
-} from "@lictory/platform/components/items/properties";
+import { IssuePriority } from "@lictory/platform/components/items/properties";
+import { OwnerField } from "@lictory/platform/components/claims/claim-badge";
 import {
   EstimatePicker,
   IterationPicker,
@@ -338,7 +336,8 @@ function PeekContent({
               />
             </Row>
             <Row label="Owner">
-              <AssigneePicker
+              <OwnerField
+                itemId={item.id}
                 assigneeId={item.assigneeId}
                 onChange={
                   canChange && !item.archivedAt

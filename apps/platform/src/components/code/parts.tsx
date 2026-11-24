@@ -95,14 +95,17 @@ const checkWords: Record<CodeChecks["state"], string> = {
   success: "Checks passed",
   failure: "Checks failing",
   pending: "Checks running",
-  none: "No checks",
+  none: "No checks reported",
 };
 
 export function ChecksIcon({
   state,
+  label = checkWords[state],
   className,
 }: {
   state: CodeChecks["state"];
+  // Its words, when they differ from the state's (a skipped run).
+  label?: string;
   className?: string;
 }) {
   const [Icon, tone]: [LucideIcon, string] =
@@ -115,12 +118,13 @@ export function ChecksIcon({
               CircleDashed,
               "text-warning motion-safe:animate-spin [animation-duration:3s]",
             ]
-          : [CircleDashed, "text-muted-foreground/50"];
+          : // Nothing reported is not "pending": a flat dash, not a ring.
+            [CircleMinus, "text-muted-foreground"];
   return (
-    <Tooltip label={checkWords[state]}>
+    <Tooltip label={label}>
       <Icon
         role="img"
-        aria-label={checkWords[state]}
+        aria-label={label}
         className={cn("size-3.5 shrink-0", tone, className)}
       />
     </Tooltip>

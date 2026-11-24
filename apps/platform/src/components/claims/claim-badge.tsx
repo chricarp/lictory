@@ -13,6 +13,11 @@ import {
   claimShownState,
   claimState,
 } from "@lictory/platform/components/claims/claim-state";
+import {
+  useAgents,
+  useLiveClaims,
+} from "@lictory/platform/components/claims/claims";
+import { AssigneePicker } from "@lictory/platform/components/ui/people-picker";
 
 // The compact "an agent holds this" mark on board cards, backlog rows and
 // the queue, in the shared state vocabulary: "Forge · running", or, when
@@ -22,6 +27,7 @@ export function ClaimBadge({
   claim,
   assigneeId,
   withAgent = true,
+  compactOnPhone = false,
   className,
 }: {
   claim: ClaimEntity;
@@ -30,6 +36,9 @@ export function ClaimBadge({
   // Name the agent ("Forge · waiting on Ada"); off where an owner line
   // beside the badge already names it ("Waiting on Ada").
   withAgent?: boolean;
+  // In narrow rows on phones, only the state's icon and the agent's
+  // initial ("✋ F"); the full label stays the accessible name.
+  compactOnPhone?: boolean;
   className?: string;
 }) {
   const { memberName } = useWorkspace();
@@ -37,19 +46,33 @@ export function ClaimBadge({
   const state = claimState(claim, owner);
   const forWhom = claimFor(claim, assigneeId, memberName);
   const label = withAgent ? claimBadgeLabel(claim, owner) : state.label;
+  const meaning = `${claim.agentName} via ${owner}${forWhom ? `, ${forWhom}` : ""}. ${state.label}: ${state.meaning}`;
   return (
     <span
       data-claim={claimShownState(claim)}
       className={cn("inline-flex max-w-48 min-w-0", className)}
     >
       <SessionStateChip
-        state={{
-          ...state,
-          label,
-          meaning: `${claim.agentName} via ${owner}${forWhom ? `, ${forWhom}` : ""}. ${state.label}: ${state.meaning}`,
-        }}
-        className="max-w-full min-w-0 shrink"
+        state={{ ...state, label, meaning }}
+        className={cn(
+          "max-w-full min-w-0 shrink",
+          compactOnPhone && "max-sm:hidden",
+        )}
       />
+      {compactOnPhone && (
+        <span className="contents sm:hidden">
+          <span aria-hidden className="contents">
+            <SessionStateChip
+              state={{
+                ...state,
+                label: Array.from(claim.agentName)[0]?.toUpperCase() ?? "",
+                meaning,
+              }}
+            />
+          </span>
+          <span className="sr-only">{label}</span>
+        </span>
+      )}
     </span>
   );
 }
@@ -91,6 +114,42 @@ export function ClaimOwner({
         >
           ,&nbsp;{forWhom}
         </span>
+      )}
+    </span>
+  );
+}
+
+// The Owner property of a work item. While an agent holds unassigned work,
+// the agent is who works on it ("Forge via Ada"), with the picker beside it
+// to assign a person: the field never says "Unassigned" under a claim.
+export function OwnerField({
+  itemId,
+  assigneeId,
+  onChange,
+}: {
+  itemId: string;
+  assigneeId: string | null;
+  onChange?: (assigneeId: string | null) => void;
+}) {
+  const { memberName } = useWorkspace();
+  const claim = useLiveClaims().get(itemId);
+  const agents = useAgents();
+  if (!claim || assigneeId)
+    return <AssigneePicker assigneeId={assigneeId} onChange={onChange} />;
+  return (
+    <span
+      data-claim-worker
+      title={`No person is assigned; ${claim.agentName} works on it via ${memberName(claim.ownerId)}.`}
+      className="flex min-w-0 items-center gap-1"
+    >
+      <ClaimOwner
+        claim={claim}
+        agent={agents.get(claim.agentId)}
+        size={20}
+        className="min-w-0 px-1.5 text-[13px]"
+      />
+      {onChange && (
+        <AssigneePicker compact assigneeId={null} onChange={onChange} />
       )}
     </span>
   );

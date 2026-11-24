@@ -292,7 +292,11 @@ test("custom types move from proposal through refinement to native delivery, wit
   await page.screenshot({ path: "/tmp/lictory-custom-types-catalog.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(paths.proposals(seeded.slug, "NAV"));
-  await page.getByRole("button", { name: "New proposal", exact: true }).click();
+  // Phones create from the bar's one "+", which opens a proposal here.
+  await expect(
+    page.getByRole("button", { name: "New proposal", exact: true }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(create).toBeVisible();
   await expect(
     create.getByRole("textbox", { name: "Title", exact: true }),

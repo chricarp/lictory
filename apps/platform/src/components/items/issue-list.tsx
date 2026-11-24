@@ -662,11 +662,12 @@ export function IssueList({
             })
           }
           aria-label={createLabel ?? `New ${createKind}`}
+          // Phones create from the bar's own button, which opens the same
+          // dialog for this page (a proposal on Proposals): one "+" per bar.
+          className={cn(!compact && "max-sm:hidden")}
         >
           <Plus className="size-3.5" />
-          {!compact && (
-            <span className="max-sm:hidden">{createLabel ?? "New item"}</span>
-          )}
+          {!compact && <span>{createLabel ?? "New item"}</span>}
         </Button>
       )}
       {!compact && <LittoLauncher className="ml-1 max-sm:hidden" />}
