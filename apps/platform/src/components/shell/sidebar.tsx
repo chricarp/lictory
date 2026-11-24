@@ -27,7 +27,8 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@lictory/ui/menu";
-import { Avatar, Kbd } from "@lictory/ui/primitives";
+import { Kbd } from "@lictory/ui/primitives";
+import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import { Link, usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import { useSessionState } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -96,7 +97,7 @@ export function Sidebar({
           <button
             type="button"
             className={cn(
-              "grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+              "grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground focus-ring outline-none hover:bg-sidebar-accent hover:text-foreground",
               !compact && "max-lg:hidden",
             )}
             data-sidebar-toggle
@@ -128,7 +129,7 @@ export function Sidebar({
           title={compact ? `Search  ${shortcut}` : undefined}
           onClick={onSearch}
           className={cn(
-            "flex items-center gap-2 rounded-lg text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+            "flex items-center gap-2 rounded-lg text-[13px] text-muted-foreground focus-ring outline-none hover:text-foreground",
             compact
               ? "size-8 justify-center hover:bg-sidebar-accent"
               : "h-8 min-w-0 flex-1 bg-sidebar-accent/60 px-2 shadow-(--shadow-border) hover:bg-sidebar-accent",
@@ -152,7 +153,7 @@ export function Sidebar({
             aria-keyshortcuts="C"
             onClick={onCreate}
             className={cn(
-              "grid size-8 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              "grid size-8 shrink-0 place-items-center rounded-lg focus-ring outline-none",
               compact
                 ? "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 : "bg-sidebar-accent text-foreground shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
@@ -232,7 +233,7 @@ function OrganizationMenu({ compact }: { compact: boolean }) {
             }
             title={compact ? organization.name : undefined}
             className={cn(
-              "flex h-8 min-w-0 items-center gap-2 rounded-lg text-left text-[13px] font-semibold outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60",
+              "flex h-8 min-w-0 items-center gap-2 rounded-lg text-left text-[13px] font-semibold focus-ring outline-none hover:bg-sidebar-accent",
               compact ? "size-8 justify-center" : "flex-1 px-2",
             )}
           />
@@ -311,6 +312,7 @@ function AccountMenu({
   onSignOut: () => Promise<void>;
 }) {
   const pathname = usePathname();
+  const { userId } = useWorkspace();
   // Instance policy for the menu (the server enforces it either way).
   const sessionUser = useSessionState().session?.user;
   const privacyItem = useRef<HTMLDivElement>(null);
@@ -323,7 +325,7 @@ function AccountMenu({
             aria-label={`Account menu: ${user.name || user.email}`}
             title={compact ? `Account: ${user.name || user.email}` : undefined}
             className={cn(
-              "flex min-w-0 items-center gap-2 rounded-lg p-1 text-left outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60",
+              "flex min-w-0 items-center gap-2 rounded-lg p-1 text-left focus-ring outline-none hover:bg-sidebar-accent",
               compact ? "size-8 justify-center" : "flex-1",
             )}
           />
@@ -331,7 +333,14 @@ function AccountMenu({
       >
         {/* The name already says whose account this is. */}
         <span aria-hidden className="inline-flex shrink-0">
-          <Avatar image={user.image} name={user.name || user.email} size="sm" />
+          <PersonAvatar
+            person={{
+              id: userId,
+              name: user.name || user.email,
+              image: user.image,
+            }}
+            size={20}
+          />
         </span>
         {!compact && (
           <>

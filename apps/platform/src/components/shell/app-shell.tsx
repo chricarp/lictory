@@ -64,6 +64,10 @@ import {
   NavBadgesProvider,
   useNavBadges,
 } from "@lictory/platform/components/shell/nav-badges";
+import {
+  PhoneChromeContext,
+  type PhoneChrome,
+} from "@lictory/platform/components/shell/page-header";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -171,6 +175,8 @@ function ShellFrame({
   }, [overlayOpen]);
   const [currentItem, setCurrentItem] = useState<WorkItem>();
   const [drawer, setDrawer] = useState(false);
+  // Page headers mounted now. While one is, it carries the phone's top bar.
+  const [headers, setHeaders] = useState(0);
   const [sidebarCollapsed, toggleSidebarPreference, setSidebarCollapsed] =
     usePanelCollapsed(organization.id, "sidebar");
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -397,6 +403,24 @@ function ShellFrame({
     }),
     [toast, openPalette, openCreate, currentItem, project],
   );
+  const createHere = !!project && canCreate;
+  const onCreatePhone = createHere ? () => openCreate() : undefined;
+  const phoneChrome = useMemo<PhoneChrome>(
+    () => ({
+      claim: () => {
+        setHeaders((n) => n + 1);
+        return () => setHeaders((n) => n - 1);
+      },
+      leading: <PhoneMenuButton onMenu={() => setDrawer(true)} />,
+      trailing: (
+        <PhoneTrailing
+          onSearch={() => openPalette()}
+          onCreate={createHere ? () => openCreate() : undefined}
+        />
+      ),
+    }),
+    [openPalette, openCreate, createHere],
+  );
   const me = directory.members.find((m) => m.id === userId);
   const sidebarUser = { ...user, image: me ? me.image : user.image };
   const sidebar = (compact: boolean, inDrawer = false) => (
@@ -472,33 +496,37 @@ function ShellFrame({
               data-app-frame
               className="@container/frame relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background min-[1440px]:rounded-[20px] lg:rounded-2xl lg:shadow-(--shadow-border)"
             >
-              <PhoneBar
-                onMenu={() => setDrawer(true)}
-                onSearch={() => openPalette()}
-                onCreate={project && canCreate ? () => openCreate() : undefined}
-                place={
-                  // Name where the person is: a space's pages belong to the
-                  // space, not to the project the sidebar remembers.
-                  routeSpace ? (
-                    <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                      <SpaceIcon space={routeSpace} />
-                      <span className="truncate">{routeSpace.name}</span>
-                    </span>
-                  ) : (
-                    <span className="truncate text-sm font-medium">
-                      {phonePlace(pathname, routeProject?.name) ??
-                        project?.name ??
-                        organization.name}
-                    </span>
-                  )
-                }
-              />
+              {headers === 0 && (
+                <PhoneBar
+                  onMenu={() => setDrawer(true)}
+                  onSearch={() => openPalette()}
+                  onCreate={onCreatePhone}
+                  place={
+                    // Name where the person is: a space's pages belong to the
+                    // space, not to the project the sidebar remembers.
+                    routeSpace ? (
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                        <SpaceIcon space={routeSpace} />
+                        <span className="truncate">{routeSpace.name}</span>
+                      </span>
+                    ) : (
+                      <span className="truncate text-sm font-medium">
+                        {phonePlace(pathname, routeProject?.name) ??
+                          project?.name ??
+                          organization.name}
+                      </span>
+                    )
+                  }
+                />
+              )}
               <main
                 id="main"
                 tabIndex={-1}
                 className="min-h-0 flex-1 overflow-hidden outline-none"
               >
-                {children}
+                <PhoneChromeContext value={phoneChrome}>
+                  {children}
+                </PhoneChromeContext>
               </main>
             </div>
             {dockReady && (
@@ -554,7 +582,8 @@ function phonePlace(pathname: string, routeProject: string | undefined) {
   }
 }
 
-// The phone's top bar: navigation, where I am, search, create and Litto.
+// The phone's top bar on pages without a `PageHeader`: navigation, where I
+// am, search, create and Litto. Pages with a header carry these themselves.
 function PhoneBar({
   onMenu,
   onSearch,
@@ -566,54 +595,77 @@ function PhoneBar({
   onCreate?: () => void;
   place: ReactNode;
 }) {
-  const badges = useNavBadges();
-  const waitingId = useId();
-  // Something addressed to me waits behind the menu.
-  const waiting = [...badges.values()].some((b) => b.tone === "strong");
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 lg:hidden">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Open navigation"
-        aria-describedby={waiting ? waitingId : undefined}
-        className="relative"
-        onClick={onMenu}
-      >
-        <MenuIcon className="size-4" />
-        {waiting && (
-          // Hidden from the button's name, referenced as its description.
-          <span
-            id={waitingId}
-            aria-hidden
-            className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
-          >
-            <span className="sr-only">Unread activity</span>
-          </span>
-        )}
-      </Button>
+    <div className="flex h-12 shrink-0 items-center gap-2 border-b px-2 lg:hidden">
+      <PhoneMenuButton onMenu={onMenu} />
       {place}
       <div className="ml-auto flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Search"
-          onClick={onSearch}
-        >
-          <Search className="size-4" />
-        </Button>
-        {onCreate && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Create"
-            onClick={onCreate}
-          >
-            <Plus className="size-4" />
-          </Button>
-        )}
+        <PhoneTrailing onSearch={onSearch} onCreate={onCreate} />
         <LittoLauncher compact />
       </div>
     </div>
+  );
+}
+
+// Opens the navigation drawer; a dot says something addressed to me waits
+// behind it.
+function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
+  const badges = useNavBadges();
+  const waitingId = useId();
+  const waiting = [...badges.values()].some((b) => b.tone === "strong");
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Open navigation"
+      aria-describedby={waiting ? waitingId : undefined}
+      className="relative size-8 shrink-0"
+      onClick={onMenu}
+    >
+      <MenuIcon className="size-4" />
+      {waiting && (
+        // Hidden from the button's name, referenced as its description.
+        <span
+          id={waitingId}
+          aria-hidden
+          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
+        >
+          <span className="sr-only">Unread activity</span>
+        </span>
+      )}
+    </Button>
+  );
+}
+
+function PhoneTrailing({
+  onSearch,
+  onCreate,
+}: {
+  onSearch: () => void;
+  onCreate?: () => void;
+}) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Search"
+        className="size-8"
+        onClick={onSearch}
+      >
+        <Search className="size-4" />
+      </Button>
+      {onCreate && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Create"
+          className="size-8"
+          onClick={onCreate}
+        >
+          <Plus className="size-4" />
+        </Button>
+      )}
+    </>
   );
 }

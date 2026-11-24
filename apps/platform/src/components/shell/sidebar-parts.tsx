@@ -44,8 +44,8 @@ export function useNavActive() {
   );
 }
 
-const captionClass =
-  "font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase";
+// Section captions: sans 12px semibold, muted (mono is for identifiers).
+const captionClass = "text-xs font-semibold text-muted-foreground";
 
 // A captioned group of rows. With `id` the caption folds the group away and
 // the choice is remembered in this browser. The compact sidebar draws a
@@ -134,7 +134,7 @@ function FoldingGroup({
         <CollapsibleTrigger
           className={cn(
             captionClass,
-            "group flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-2 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
+            "group flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md px-2 focus-ring outline-none hover:text-foreground",
           )}
         >
           <span className="truncate">{label}</span>
@@ -169,7 +169,7 @@ export function SidebarAction({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3.5"
+      className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-sidebar-accent hover:text-foreground [&_svg]:size-3.5"
     >
       {children}
     </button>
@@ -246,7 +246,7 @@ export function SidebarLink({
       title={compact ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center rounded-lg text-[13px] transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transition-none",
+        "relative flex items-center rounded-lg text-[13px] focus-ring transition-[background-color,color,box-shadow] duration-150 outline-none motion-reduce:transition-none",
         compact ? "size-8 justify-center" : "h-[30px] gap-2.5 px-2",
         // The current page is a raised card on the shell.
         active

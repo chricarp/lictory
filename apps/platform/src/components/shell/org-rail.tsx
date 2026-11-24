@@ -11,7 +11,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useUnread } from "@lictory/platform/components/shell/unread";
 
 const tile =
-  "relative grid size-8 place-items-center rounded-[9px] outline-none transition-[background-color,box-shadow,transform] duration-150 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96] motion-reduce:transition-none";
+  "relative grid size-8 place-items-center rounded-[9px] outline-none transition-[background-color,box-shadow,transform] duration-150 focus-ring active:scale-[0.96] motion-reduce:transition-none";
 
 // Every organization I belong to, as its mark, with a way to add another.
 // One organization reads as the app's anchor; several switch like Slack
