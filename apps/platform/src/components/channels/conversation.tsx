@@ -39,6 +39,10 @@ import {
   ThreadPanel,
 } from "@lictory/platform/components/channels/side-panels";
 import { PromoteDialog } from "@lictory/platform/components/channels/promote-dialog";
+import {
+  TypingIndicator,
+  useAnnounceTyping,
+} from "@lictory/platform/components/channels/typing";
 
 // /{org}/channels/{channel}: one conversation. The channel is addressed by
 // its id (renames never break links); a name also resolves. `?thread=`
@@ -85,6 +89,7 @@ function Conversation({ channel }: { channel: Channel }) {
   }>();
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const canPost = Boolean(channel.member) && !channel.archivedAt;
+  const announceTyping = useAnnounceTyping(channel.id);
   const canReact = !channel.archivedAt;
   const mentions = directory.members;
   const base = paths.channel(organization.slug, channel.id);
@@ -251,6 +256,7 @@ function Conversation({ channel }: { channel: Channel }) {
           }
           empty={<ChannelStart channel={channel} label={label} />}
         />
+        <TypingIndicator channelId={channel.id} />
         {channel.member ? (
           <Composer
             draftKey={`${organization.id}:${channel.id}`}
@@ -263,6 +269,7 @@ function Conversation({ channel }: { channel: Channel }) {
             disabledReason={disabledReason}
             onSend={(body) => send(body)}
             onEditLast={editLast}
+            onTyping={announceTyping}
             autoFocus
           />
         ) : (

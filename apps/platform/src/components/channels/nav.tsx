@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Collapsible,
   CollapsiblePanel,
@@ -18,7 +18,11 @@ import { Avatar } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Link, usePathname } from "@lictory/platform/lib/navigation";
 import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
-import { useChannels } from "@lictory/platform/components/channels/store";
+import { desktop } from "@lictory/platform/lib/desktop";
+import {
+  useChannelAttention,
+  useChannels,
+} from "@lictory/platform/components/channels/store";
 import {
   channelLabel,
   sidebarChannels,
@@ -141,6 +145,16 @@ function Item({
 const unreadOf = (c: Channel) =>
   c.unread > 0 && c.member?.notificationLevel !== "none";
 
+// The desktop app's dock or taskbar badge: unread mentions and direct
+// messages of this organization (channel traffic never counts).
+function DesktopBadge() {
+  const { total } = useChannelAttention();
+  useEffect(() => {
+    desktop()?.setBadge(total);
+  }, [total]);
+  return null;
+}
+
 /** Joined channels, alphabetically, with unread state and mention counts. */
 export function ChannelsNavSection({
   collapsed = false,
@@ -155,45 +169,48 @@ export function ChannelsNavSection({
   const channels = sidebarChannels(list);
   const all = paths.channels(organization.slug);
   return (
-    <Section
-      id="sidebar-channels"
-      label="Channels"
-      addLabel="New channel"
-      onAdd={() => setCreating(true)}
-      collapsed={collapsed}
-    >
-      <Item
-        href={all}
-        active={pathname === all}
-        icon={<MessagesSquare className="size-4" />}
-        label="All channels"
-        unread={false}
-        count={0}
+    <>
+      <DesktopBadge />
+      <Section
+        id="sidebar-channels"
+        label="Channels"
+        addLabel="New channel"
+        onAdd={() => setCreating(true)}
         collapsed={collapsed}
-      />
-      {channels.map((c) => {
-        const href = paths.channel(organization.slug, c.id);
-        return (
-          <Item
-            key={c.id}
-            href={href}
-            active={pathname === href}
-            icon={
-              c.kind === "private" ? (
-                <Lock className="size-3.5" />
-              ) : (
-                <Hash className="size-3.5" />
-              )
-            }
-            label={c.name ?? "channel"}
-            unread={unreadOf(c)}
-            count={c.mentions}
-            collapsed={collapsed}
-          />
-        );
-      })}
-      {creating && <CreateChannelDialog onClose={() => setCreating(false)} />}
-    </Section>
+      >
+        <Item
+          href={all}
+          active={pathname === all}
+          icon={<MessagesSquare className="size-4" />}
+          label="All channels"
+          unread={false}
+          count={0}
+          collapsed={collapsed}
+        />
+        {channels.map((c) => {
+          const href = paths.channel(organization.slug, c.id);
+          return (
+            <Item
+              key={c.id}
+              href={href}
+              active={pathname === href}
+              icon={
+                c.kind === "private" ? (
+                  <Lock className="size-3.5" />
+                ) : (
+                  <Hash className="size-3.5" />
+                )
+              }
+              label={c.name ?? "channel"}
+              unread={unreadOf(c)}
+              count={c.mentions}
+              collapsed={collapsed}
+            />
+          );
+        })}
+        {creating && <CreateChannelDialog onClose={() => setCreating(false)} />}
+      </Section>
+    </>
   );
 }
 

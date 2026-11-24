@@ -37,7 +37,7 @@ export type MemberRow = {
   readonly notificationLevel: string;
   readonly joinedAt: number;
 };
-export type ReactionRow = {
+type ReactionRow = {
   readonly id: string;
   readonly messageId: string;
   readonly emoji: string;
@@ -168,7 +168,7 @@ function dayKey(at: number) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-export function dayLabel(at: number, now = Date.now()) {
+function dayLabel(at: number, now = Date.now()) {
   const key = dayKey(at);
   if (key === dayKey(now)) return "Today";
   if (key === dayKey(now - 86_400_000)) return "Yesterday";

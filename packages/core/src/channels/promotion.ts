@@ -40,7 +40,7 @@ type Source = {
   mutationId?: string;
 };
 
-export type PromotionTarget =
+type PromotionTarget =
   | {
       kind: "proposal";
       projectId: string;
@@ -69,7 +69,7 @@ export type PromotionTarget =
       note?: string;
     };
 
-export type PromotionResult = {
+type PromotionResult = {
   promotionId: string;
   kind: ChannelPromotionKind;
   workItemId: string;

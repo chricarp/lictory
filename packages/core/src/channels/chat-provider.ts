@@ -12,9 +12,9 @@
 // deletions in Lictory are mirrored the same way. Nothing synchronizes in
 // both directions for the same message.
 
-export type ExternalChannelRef = { source: string; externalId: string };
+type ExternalChannelRef = { source: string; externalId: string };
 
-export type ExternalMessage = {
+type ExternalMessage = {
   externalId: string;
   // Thread root's external id, for replies.
   threadExternalId?: string | null;
@@ -26,7 +26,7 @@ export type ExternalMessage = {
   deletedAt?: Date | null;
 };
 
-export type ChatProviderEvent =
+type ChatProviderEvent =
   | { type: "message"; channel: ExternalChannelRef; message: ExternalMessage }
   | {
       type: "message_changed";

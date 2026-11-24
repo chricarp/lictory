@@ -3,6 +3,7 @@ import { db } from "@lictory/core/db";
 import { realtime } from "@lictory/core/domain/realtime";
 import { authorize } from "@lictory/core/domain/service";
 import { auth } from "@lictory/core/lib/auth";
+import { readableChannelIds } from "@lictory/core/channels/access";
 
 // Ephemeral signals for an open workspace: presence and "your inbox
 // changed". Data never travels here; Zero synchronizes it. Each stream ends
@@ -43,15 +44,43 @@ export function eventRoutes() {
         };
         const send = (event: object) =>
           write(`data: ${JSON.stringify(event)}\n\n`);
+        // Typing in a channel reaches only people who can read it; access
+        // is checked once per channel and remembered for a minute.
+        const readable = new Map<string, { ok: boolean; at: number }>();
+        const canRead = async (channelId: string) => {
+          const hit = readable.get(channelId);
+          if (hit && Date.now() - hit.at < 60_000) return hit.ok;
+          const ok = (
+            await readableChannelIds(db, organizationId, userId, [channelId])
+          ).has(channelId);
+          readable.set(channelId, { ok, at: Date.now() });
+          return ok;
+        };
         const unsubscribePresence = await realtime.subscribePresence(
           (event) => {
-            if (event.organizationId === organizationId)
-              send({
-                type: "presence",
-                workItemId: event.workItemId,
-                userId: event.userId,
-                at: event.at,
-              });
+            if (event.organizationId !== organizationId) return;
+            if (event.channelId) {
+              if (event.userId === userId) return;
+              const channelId = event.channelId;
+              void canRead(channelId)
+                .then((ok) => {
+                  if (ok)
+                    send({
+                      type: "typing",
+                      channelId,
+                      userId: event.userId,
+                      at: event.at,
+                    });
+                })
+                .catch(() => undefined);
+              return;
+            }
+            send({
+              type: "presence",
+              workItemId: event.workItemId,
+              userId: event.userId,
+              at: event.at,
+            });
           },
         );
         const unsubscribeNotifications = await realtime.subscribeNotifications(

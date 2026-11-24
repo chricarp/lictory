@@ -51,7 +51,7 @@ export type MessageRow = typeof s.channelMessage.$inferSelect;
 const channelLockSeed = 1;
 
 /** Shared organization lock, then the channel's own lock. */
-export async function lockConversation(
+async function lockConversation(
   tx: Tx,
   organizationId: string,
   channelId: string,
@@ -256,7 +256,7 @@ async function recordMentions(
   return inserted;
 }
 
-export type PostMessageInput = {
+type PostMessageInput = {
   organizationId: string;
   channelId: string;
   // Client-chosen id (a UUID): the browser's prediction and the stored row
@@ -270,7 +270,7 @@ export type PostMessageInput = {
   attachmentIds?: readonly string[];
 };
 
-export type PostResult = { message: MessageRow; replayed: boolean };
+type PostResult = { message: MessageRow; replayed: boolean };
 
 /** Posts a message or a thread reply. */
 export async function postMessage(

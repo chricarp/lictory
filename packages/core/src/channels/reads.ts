@@ -39,7 +39,7 @@ const read = <T>(db: Database, run: (tx: Tx) => Promise<T>) =>
     accessMode: "read only",
   });
 
-export type ChannelSummary = {
+type ChannelSummary = {
   id: string;
   kind: ChannelKind;
   name: string | null;

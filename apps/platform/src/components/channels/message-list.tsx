@@ -58,7 +58,7 @@ export function useMessageWindow(channel: Channel) {
   );
   return { ...data, openedAt, more, grow };
 }
-export type MessageWindow = ReturnType<typeof useMessageWindow>;
+type MessageWindow = ReturnType<typeof useMessageWindow>;
 
 export function MessageList({
   channel,

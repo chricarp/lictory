@@ -31,6 +31,7 @@ export function Composer({
   onEscape,
   autoFocus,
   label,
+  onTyping,
 }: {
   draftKey: string;
   organizationId: string;
@@ -42,12 +43,15 @@ export function Composer({
   onSend: (body: string) => void;
   onEditLast?: () => boolean;
   onEscape?: () => void;
+  // Called while the person writes (typing indicators).
+  onTyping?: () => void;
   autoFocus?: boolean;
   label: string;
 }) {
   const [body, setBody] = useState(() => drafts.get(draftKey) ?? "");
   const editor = useRef<MarkdownEditorHandle>(null);
   const change = (value: string) => {
+    if (value.trim() && value !== body) onTyping?.();
     setBody(value);
     if (value.trim()) drafts.set(draftKey, value);
     else drafts.delete(draftKey);

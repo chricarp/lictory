@@ -20,7 +20,7 @@ import type { Database, Tx } from "@lictory/core/domain/service";
 // is checked separately by `authorize`, inside the same transaction.
 
 export type ChannelRow = typeof s.channel.$inferSelect;
-export type ChannelMemberRow = typeof s.channelMember.$inferSelect;
+type ChannelMemberRow = typeof s.channelMember.$inferSelect;
 
 export type ChannelAccess = {
   channel: ChannelRow;
@@ -31,7 +31,7 @@ export type ChannelAccess = {
   canManage: boolean;
 };
 
-export function channelAccessOf(
+function channelAccessOf(
   channel: ChannelRow,
   member: ChannelMemberRow | undefined,
   admin: boolean,
@@ -51,7 +51,7 @@ export function channelAccessOf(
   };
 }
 
-export const channelNotFound = () =>
+const channelNotFound = () =>
   new DomainError("not_found", "This channel is unavailable.");
 
 /** Loads a channel with the person's membership, or refuses as not found. */
@@ -90,28 +90,6 @@ export async function readChannelAccess(
   return access;
 }
 
-/**
- * SQL that is true when `userIdColumn` may read the channel named by
- * `channelIdColumn` (in `organizationIdColumn`): the channel is public, or
- * the person is its member. Organization membership is checked by the
- * caller's join.
- */
-export function channelReadableBy(
-  organizationIdColumn: SQL | typeof s.notification.organizationId,
-  channelIdColumn: SQL | typeof s.notification.channelId,
-  userIdColumn: SQL | typeof s.notification.userId,
-): SQL {
-  return sql`exists (
-    select 1 from ${s.channel} c
-    where c.organization_id = ${organizationIdColumn}
-      and c.id = ${channelIdColumn}
-      and (c.kind = 'public' or exists (
-        select 1 from ${s.channelMember} cm
-        where cm.channel_id = c.id
-          and cm.organization_id = c.organization_id
-          and cm.user_id = ${userIdColumn})))`;
-}
-
 /** Channel ids among `channelIds` that `userId` may read. */
 export async function readableChannelIds(
   tx: Tx | Database,
@@ -131,4 +109,24 @@ export async function readableChannelIds(
         select 1 from ${s.channelMember} cm
         where cm.channel_id = c.id and cm.user_id = ${userId}))`);
   return new Set(rows.map((r) => r.id));
+}
+
+/** Whether `userId` is a member of the channel (for typing signals). */
+export async function isChannelMember(
+  tx: Tx | Database,
+  organizationId: string,
+  userId: string,
+  channelId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: s.channelMember.id })
+    .from(s.channelMember)
+    .where(
+      and(
+        eq(s.channelMember.organizationId, organizationId),
+        eq(s.channelMember.channelId, channelId),
+        eq(s.channelMember.userId, userId),
+      ),
+    );
+  return row !== undefined;
 }

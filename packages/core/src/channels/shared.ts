@@ -1,32 +1,20 @@
 // Lictory Channels rules shared by the server, the browser's predictions and
 // agents (docs/internals/channels.md). Pure: no database, no React.
 
-export const channelKinds = ["public", "private", "direct"] as const;
+const channelKinds = ["public", "private", "direct"] as const;
 export type ChannelKind = (typeof channelKinds)[number];
-export const channelNotificationLevels = ["all", "mentions", "none"] as const;
-export type ChannelNotificationLevel =
-  (typeof channelNotificationLevels)[number];
-export const channelPromotionKinds = [
-  "proposal",
-  "decision",
-  "discussion",
-] as const;
+const channelPromotionKinds = ["proposal", "decision", "discussion"] as const;
 export type ChannelPromotionKind = (typeof channelPromotionKinds)[number];
 
 // A message body is Markdown of at most this many characters (Slack's limit
 // is 40,000; long text belongs in a page or a specification).
 export const CHANNEL_MESSAGE_MAX = 16_000;
-export const CHANNEL_TOPIC_MAX = 250;
 // Files one message may carry.
 export const CHANNEL_ATTACHMENTS_MAX = 10;
 // People (besides the author) in one direct conversation.
 export const DIRECT_MEMBERS_MAX = 8;
 // Repliers shown on a thread root.
 export const REPLY_AUTHORS_MAX = 5;
-
-// Channel names are lowercase handles: letters, digits, hyphens and
-// underscores, starting with a letter or digit, at most 80 characters.
-export const channelNamePattern = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
 /** Turns what a person typed ("Payments Releases") into a channel name. */
 export function normalizeChannelName(input: string): string {
@@ -42,7 +30,7 @@ export function normalizeChannelName(input: string): string {
 }
 
 // Who wrote or reacted: `u:USER_ID` for a person, `a:AGENT_ID` for an agent.
-export type ParticipantKind = "user" | "agent";
+type ParticipantKind = "user" | "agent";
 export function participantKey(kind: ParticipantKind, id: string): string {
   return `${kind === "user" ? "u" : "a"}:${id}`;
 }
@@ -105,11 +93,6 @@ export function channelMentions(body: string): {
   return { userIds: [...userIds], agentIds: [...agentIds] };
 }
 
-export function agentMentionToken(agent: { id: string; handle: string }) {
-  const label = agent.handle.replace(/[[\]\n]/g, "").trim() || "agent";
-  return `@[${label}](agent:${agent.id})`;
-}
-
 /** Plain text for excerpts: mentions become `@label`, links their label. */
 export function plainExcerpt(body: string, max = 280): string {
   const text = body
@@ -123,21 +106,14 @@ export function plainExcerpt(body: string, max = 280): string {
 }
 
 // Unread state is arithmetic over counters (no row per unread message):
-// top-level messages after the member's cursor, unread mentions, and replies
-// in a followed thread after the participant's cursor.
+// top-level messages after the member's cursor and unread mentions (a
+// followed thread's unread replies are `replyCount - readReplyCount`).
 export function unreadMessages(
   channel: { rootCount: number },
   member: { readRootCount: number } | null | undefined,
 ): number {
   if (!member) return 0;
   return Math.max(0, channel.rootCount - member.readRootCount);
-}
-export function unreadReplies(
-  root: { replyCount: number },
-  participant: { readReplyCount: number; following: boolean } | undefined,
-): number {
-  if (!participant?.following) return 0;
-  return Math.max(0, root.replyCount - participant.readReplyCount);
 }
 
 /**
