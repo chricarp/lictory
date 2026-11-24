@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Link } from "@lictory/platform/lib/navigation";
 
-export type Crumb = { label: string; href: string };
+type Crumb = { label: string; href: string };
 
 // The one header every module page starts with: where I am (breadcrumbs, then
 // the page's title), the page's views (tabs) and its actions, in a single

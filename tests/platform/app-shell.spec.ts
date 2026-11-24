@@ -94,7 +94,7 @@ const sidebar = (page: Page) =>
 test("Home, the rail, the sections and the palette form one shell @smoke", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await signIn(page, seeded.owner.email);
   await page.goto(paths.org(seeded.slug));
 
@@ -226,7 +226,7 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
 });
 
 test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await signIn(page, seeded.owner.email);
   await page.goto(paths.org(seeded.slug));
   const aside = page.locator("aside[data-sidebar]");
@@ -320,7 +320,7 @@ test("on a phone the navigation is a drawer with the rail", async ({
 test("inside the desktop app the shell becomes the window's title bar and follows its navigation", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   // The bridge the desktop app's preload exposes.
   await page.addInitScript(() => {
     const listeners: ((path: string) => void)[] = [];

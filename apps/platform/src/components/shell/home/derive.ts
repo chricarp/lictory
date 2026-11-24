@@ -9,7 +9,7 @@ import type { Delivery, Project } from "@lictory/core/lib/work-items";
 // What Home shows, derived from synchronized state. Each list says how many
 // rows exist in all, so Home can show the first few and link to the rest.
 
-export type Listed<T> = { rows: T[]; total: number };
+type Listed<T> = { rows: T[]; total: number };
 
 type Context = {
   items: readonly WorkItem[];

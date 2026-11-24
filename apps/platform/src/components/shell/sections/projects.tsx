@@ -237,7 +237,11 @@ function ProjectNav({ project }: { project: Project }) {
           active={active(paths.handoff(org, key))}
           icon={<Send />}
           trailing={
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            // The link is named Hand-off; the tool is a visual hint.
+            <span
+              aria-hidden
+              className="shrink-0 text-[11px] text-muted-foreground"
+            >
               {tool}
             </span>
           }

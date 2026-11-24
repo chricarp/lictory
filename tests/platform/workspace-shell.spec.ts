@@ -227,9 +227,7 @@ test("revisiting a work item paints its local history on the first frame", async
 test("panes resize by dragging or keyboard, snap, fold, reset and persist", async ({
   page,
 }) => {
-  // Wide enough for the organization rail, the sidebar, the list, the
-  // document and the review rail side by side.
-  await page.setViewportSize({ width: 1536, height: 900 });
+  await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, panesEmail);
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })

@@ -27,7 +27,11 @@ the modules' synchronized state.
 - **The organization rail** lists every organization the person belongs to,
   with a dot when another organization has unread notifications, and a way to
   create one when the instance allows it. One organization is the common case
-  and reads as the app's anchor.
+  and reads as the app's anchor. The rail appears on wide windows (96rem and
+  up) beside the full sidebar and in the phone drawer. On laptops its 48px go
+  to the work instead: at 1280 to 1440px they decide whether an item's review
+  rail fits beside its discussions, and the organization menu at the top of
+  the sidebar switches organizations there.
 - **The sidebar** holds the registered sections in a fixed order. Groups fold
   under their caption (remembered per organization in this browser); a folded
   group still shows its count. The sidebar is resizable (its edge is a window

@@ -177,7 +177,7 @@ export function SidebarAction({
 }
 
 // A count beside a row: strong counts are filled, quiet ones are text.
-export function NavCount({
+function NavCount({
   badge,
   className,
 }: {

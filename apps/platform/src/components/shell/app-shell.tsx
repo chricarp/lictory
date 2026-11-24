@@ -427,7 +427,13 @@ function ShellFrame({
               data-drag-region
               className="absolute inset-x-0 top-0 h-[var(--titlebar-inset,0px)]"
             />
-            {!sidebarCollapsed && <OrganizationRail />}
+            {/* Wide windows only: on laptops the room goes to the work,
+                and the organization menu switches. */}
+            {!sidebarCollapsed && (
+              <div className="hidden min-[96rem]:flex">
+                <OrganizationRail />
+              </div>
+            )}
             <aside
               id={sidebarId}
               ref={sidebarElement}

@@ -123,9 +123,9 @@ export function Sidebar({
       >
         <button
           type="button"
-          aria-label="Search and commands"
+          aria-label="Search everything"
           aria-keyshortcuts="Meta+K Control+K /"
-          title={compact ? `Search and commands  ${shortcut}` : undefined}
+          title={compact ? `Search everything  ${shortcut}` : undefined}
           onClick={onSearch}
           className={cn(
             "flex items-center gap-2 rounded-lg text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60",
@@ -241,7 +241,14 @@ function OrganizationMenu({ compact }: { compact: boolean }) {
         {compact ? (
           <OrganizationMark organization={organization} />
         ) : !organization.logos.full ? (
-          <span className="truncate">{organization.name}</span>
+          <>
+            {/* Beside the rail (wide windows) the name is enough. */}
+            <OrganizationMark
+              organization={organization}
+              className="min-[96rem]:hidden"
+            />
+            <span className="truncate">{organization.name}</span>
+          </>
         ) : (
           // The full logo already contains the name; keep it for
           // assistive technology.
