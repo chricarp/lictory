@@ -47,7 +47,7 @@ panel for agreeing on what to build.
 - **Identity.** A person is a circle in a color derived from their id (the
   same on every page and device), with their photo when they have one;
   below 20px the initials give way to a dot named by a tooltip. An agent is
-  a rounded square with its emoji and a small robot badge, and always reads
+  a rounded square with its emoji (and a small robot badge from 24px), and always reads
   "Forge via Ada": an agent acts for its owner. What a policy did by itself
   reads "Build policy (set by Ada)". People seen through Slack carry the
   Slack mark.

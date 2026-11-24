@@ -95,7 +95,7 @@ drawing your own; extend them here when a module needs more.
   there is one, a dot with a tooltip under 20px, a Slack mark for
   `external: "slack"`), `Actor` (avatar and name; `userId` looks the member
   up, `label` "full" | "first" | "none"), `AgentAvatar` (rounded square, the
-  agent's emoji, a robot badge), `AgentActor` (`agent`, `ownerId` or `owner`:
+  agent's emoji, a robot badge from 24px), `AgentActor` (`agent`, `ownerId` or `owner`:
   "Forge via Ada", the agent's name never truncates), `PolicyActor`
   (`level`, `setById`: "Build policy (set by Ada)", for what a policy did by
   itself), `Facepile` (`people`, `max`; set `--actor-ring` to the surface

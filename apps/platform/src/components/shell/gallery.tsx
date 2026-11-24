@@ -146,6 +146,7 @@ export function DesignGallery() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1280px] space-y-10 px-4 py-8 sm:px-8">
           <Section
+            wide
             title="PageHeader"
             rule="One 44px bar starts every module page (48px on phones, merged with the shell's top bar). Back, breadcrumbs, title, an info button instead of a description, one meta line, link tabs, actions."
           >
@@ -153,7 +154,7 @@ export function DesignGallery() {
           </Section>
           <Section
             title="Identity"
-            rule="People are circles in their own color, photos when they have one; under 20px a dot with a tooltip. Agents are rounded squares with a robot badge, always named via their owner's first name. Automated acts name the policy and who set it."
+            rule="People are circles in their own color, photos when they have one; under 20px a dot with a tooltip. Agents are rounded squares (a robot badge from 24px), always named via their owner's first name. Automated acts name the policy and who set it."
           >
             <IdentityExamples />
           </Section>
@@ -190,10 +191,13 @@ export function DesignGallery() {
 function Section({
   title,
   rule,
+  wide = false,
   children,
 }: {
   title: string;
   rule: string;
+  // Light above dark, for examples that need the page's width.
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -202,7 +206,9 @@ function Section({
       <p className="mt-1 max-w-3xl text-[13px] leading-5 text-muted-foreground">
         {rule}
       </p>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <div
+        className={wide ? "mt-4 grid gap-4" : "mt-4 grid gap-4 xl:grid-cols-2"}
+      >
         <Themed theme="light">{children}</Themed>
         <Themed theme="dark">{children}</Themed>
       </div>

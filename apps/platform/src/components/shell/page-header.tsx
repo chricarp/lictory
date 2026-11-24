@@ -131,7 +131,7 @@ export function PageHeader({
         {meta && (
           <div
             data-page-meta
-            className="flex min-w-0 shrink items-center gap-2 truncate border-l pl-3 text-[13px] text-muted-foreground max-sm:hidden"
+            className="flex min-w-0 shrink-[4] items-center gap-2 truncate border-l pl-3 text-[13px] text-muted-foreground max-sm:hidden"
           >
             {meta}
           </div>

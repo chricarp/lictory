@@ -147,7 +147,7 @@ export type AgentIdentity = {
 };
 
 // An agent's avatar: a rounded square in the agent's color with its emoji
-// (or its initial), and a robot in the corner from 20px up.
+// (or its initial), and a robot in the corner from 24px up.
 export function AgentAvatar({
   agent,
   size = 20,
@@ -190,7 +190,9 @@ export function AgentAvatar({
         ) : (
           <span aria-hidden>{agent.name.slice(0, 1).toUpperCase()}</span>
         ))}
-      {size >= 20 && (
+      {/* Below 24px the badge would be an unreadable blob: the shape and
+          "via" the owner say "agent" there. */}
+      {size >= 24 && (
         <CornerBadge size={size} label="Agent">
           <Bot className="size-[75%]" strokeWidth={2.25} />
         </CornerBadge>
