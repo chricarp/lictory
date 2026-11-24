@@ -1676,7 +1676,9 @@ owns authorization, business rules, transactions and external side effects.
   organization lock plus a per-channel lock, membership and channel access
   checked in the transaction, sequences assigned there, append-only, no
   `sync_entity` projection because its rows are synchronized directly and
-  authorized by channel access); creating channels, membership,
+  authorized by channel access). Its second path has no actor: messages
+  from a linked Slack channel, authorized by the verified installation and
+  the channel's active link. Creating channels, membership,
   archive/restore and promotion are ordinary commands. See
   [Lictory Channels](docs/internals/channels.md#write-path).
 - Browsers receive only the tables in the `lictory_zero` publication
