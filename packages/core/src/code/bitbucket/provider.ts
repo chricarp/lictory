@@ -43,11 +43,6 @@ const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
 
 const CLOUD = "https://bitbucket.org";
 
-export type BitbucketCredential =
-  | { token: string }
-  | { email: string; apiToken: string }
-  | { key: string; secret: string };
-
 function apiUrl(baseUrl: string) {
   return baseUrl === CLOUD ? "https://api.bitbucket.org/2.0" : `${baseUrl}/2.0`;
 }

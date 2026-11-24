@@ -40,7 +40,7 @@ const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
 const CLOUD = "https://gitlab.com";
 const ZERO_SHA = /^0{40}$/;
 
-export function gitlabApiUrl(baseUrl: string) {
+function gitlabApiUrl(baseUrl: string) {
   return `${baseUrl}/api/v4`;
 }
 

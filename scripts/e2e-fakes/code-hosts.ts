@@ -16,10 +16,10 @@ import { json, listen, send } from "./http";
 export const FAKE_GITHUB_SITE = "https://github.lictory-e2e.test";
 export const FAKE_GITHUB_TOKEN = "e2e-fake-github-token";
 export const FAKE_GITLAB_SITE = "https://gitlab.lictory-e2e.test";
-export const FAKE_GITLAB_TOKEN = "e2e-fake-gitlab-token";
+const FAKE_GITLAB_TOKEN = "e2e-fake-gitlab-token";
 // Bitbucket Cloud has fixed addresses; the route sends both to the fake.
 export const FAKE_BITBUCKET_API = "https://api.bitbucket.org";
-export const FAKE_BITBUCKET_TOKEN = "e2e-fake-bitbucket-token";
+const FAKE_BITBUCKET_TOKEN = "e2e-fake-bitbucket-token";
 
 type Check = { name: string; state: "pending" | "success" | "failure" };
 type PullRequest = {

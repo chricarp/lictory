@@ -97,9 +97,11 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   const d = entry.detail ?? {};
   const auto = d.automatic === true;
   const actor =
-    (entry.action === "branch_deleted" ||
+    ((entry.action === "branch_deleted" ||
       entry.action === "pull_request_ready_to_merge") &&
-    auto
+      auto) ||
+    // Code linked because it names the item's key.
+    (entry.action === "code_linked" && d.source === "key")
       ? "Lictory"
       : memberName(entry.actorId);
   let body: ReactNode;
@@ -550,6 +552,50 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    case "code_linked":
+    case "code_unlinked": {
+      const what =
+        d.target === "pull_request"
+          ? "pull request"
+          : d.target === "commit"
+            ? "commit"
+            : d.target === "issue"
+              ? "issue"
+              : "branch";
+      const ref = str(d.url) ? (
+        <a
+          href={str(d.url)}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium underline-offset-2 hover:underline"
+        >
+          {str(d.ref)}
+        </a>
+      ) : (
+        <b>{str(d.ref)}</b>
+      );
+      body =
+        entry.action === "code_unlinked" ? (
+          <>
+            unlinked {what} {ref}
+          </>
+        ) : d.source === "key" ? (
+          <>
+            linked {what} {ref}, which mentions this item
+          </>
+        ) : d.source === "import" ? (
+          <>imported this from issue {ref}</>
+        ) : d.source === "lictory" ? (
+          <>
+            {what === "branch" ? "created" : "opened"} {what} {ref}
+          </>
+        ) : (
+          <>
+            linked {what} {ref}
+          </>
+        );
+      break;
+    }
     case "external_unlinked":
       body = (
         <>

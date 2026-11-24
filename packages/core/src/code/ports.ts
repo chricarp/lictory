@@ -67,7 +67,7 @@ export type PullRequestEvidence = {
   checks: CheckEvidence;
 };
 
-export function checkEvidence(
+function checkEvidence(
   sha: string,
   row: { state: CheckEvidence["state"]; runs: s.CodeCheckRun[] } | undefined,
 ): CheckEvidence {

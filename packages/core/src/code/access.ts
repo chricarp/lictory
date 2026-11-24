@@ -43,7 +43,7 @@ export async function codeAccess(
   return { userId, admin: isAdmin(membership), roster };
 }
 
-export function canManageCodeHosts(access: CodeAccess) {
+function canManageCodeHosts(access: CodeAccess) {
   return access.admin;
 }
 

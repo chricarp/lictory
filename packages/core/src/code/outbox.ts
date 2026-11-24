@@ -41,7 +41,7 @@ const MAX_ATTEMPTS = 5;
 
 type WriteRow = typeof s.codeWrite.$inferSelect;
 
-export const commentMarker = (writeId: string) =>
+const commentMarker = (writeId: string) =>
   `<!-- lictory:write:${writeId} -->`;
 
 export function createCodeOutbox(

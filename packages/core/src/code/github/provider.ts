@@ -47,7 +47,7 @@ const arr = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
 
 const CLOUD = "https://github.com";
 
-export function githubApiUrl(baseUrl: string) {
+function githubApiUrl(baseUrl: string) {
   return baseUrl === CLOUD ? "https://api.github.com" : `${baseUrl}/api/v3`;
 }
 
@@ -61,7 +61,7 @@ function tokenCredential(value: unknown): GitHubTokenCredential {
   return { token };
 }
 
-export function appCredential(value: unknown): GitHubAppCredential {
+function appCredential(value: unknown): GitHubAppCredential {
   const v = obj(value);
   const appId = str(v.appId);
   const privateKey = str(v.privateKey);

@@ -163,7 +163,7 @@ type CodeEntityChecks = {
 };
 const noChecks: CodeEntityChecks = { state: "none", runs: [] };
 
-export async function computeCodeRows(
+async function computeCodeRows(
   db: Database | Tx,
   organizationId: string,
   filter: Filter,
@@ -590,7 +590,7 @@ async function linkRows(
 }
 
 // A branch's page on its host.
-export function branchUrl(
+function branchUrl(
   repository: { webUrl: string; provider: string },
   name: string,
 ) {
