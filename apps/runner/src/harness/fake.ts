@@ -36,6 +36,16 @@ const step = z.union([
   z.object({ waitForMessage: z.literal(true) }),
   z.object({ sleep: z.number().int().min(0).max(600_000) }),
   z.object({ fail: z.string() }),
+  // A call of one of Lictory's MCP tools with the session's token, as a
+  // real harness makes. In string arguments `{{organizationId}}` is the
+  // session's organization and `{{claimId}}` the claim it holds (found
+  // with listClaims); the tool's error fails the session.
+  z.object({
+    lictory: z.object({
+      tool: z.string(),
+      arguments: z.record(z.string(), z.unknown()).default({}),
+    }),
+  }),
   z.object({ summary: z.string() }),
 ]);
 export const fakeScript = z.array(step);
@@ -144,6 +154,25 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
         ctx.emit("message", {
           text: text ? `Got it: ${text}` : "No message arrived.",
         });
+      } else if ("lictory" in item) {
+        const callId = `call-${Math.random().toString(36).slice(2, 10)}`;
+        ctx.emit("tool_call", {
+          callId,
+          name: item.lictory.tool,
+          input: item.lictory.arguments,
+        });
+        try {
+          const output = await callLictory(ctx, item.lictory);
+          ctx.emit("tool_result", {
+            callId,
+            output: JSON.stringify(output).slice(0, 2000),
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          ctx.emit("tool_result", { callId, output: message, isError: true });
+          return { outcome: "failed", error: message };
+        }
       } else if ("sleep" in item) await wait(item.sleep, signal);
       else if ("fail" in item) return { outcome: "failed", error: item.fail };
       else if ("summary" in item) {
@@ -160,4 +189,70 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
     stop: () => stop.abort(),
     done,
   };
+}
+
+type McpResult = {
+  result?: {
+    isError?: boolean;
+    structuredContent?: unknown;
+    content?: { text?: string }[];
+  };
+  error?: { message: string };
+};
+
+async function mcp(ctx: HarnessContext, name: string, args: unknown) {
+  const response = await fetch(ctx.lictory.mcpUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ctx.lictory.token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: args },
+    }),
+    signal: ctx.signal,
+  });
+  const body = (await response.json()) as McpResult;
+  if (body.error) throw new Error(body.error.message);
+  if (body.result?.isError)
+    throw new Error(body.result.content?.[0]?.text ?? `${name} failed`);
+  return body.result?.structuredContent;
+}
+
+async function callLictory(
+  ctx: HarnessContext,
+  call: { tool: string; arguments: Record<string, unknown> },
+) {
+  let claimId: string | undefined;
+  const fill = async (value: unknown): Promise<unknown> => {
+    if (typeof value !== "string") return value;
+    let text = value.replaceAll(
+      "{{organizationId}}",
+      ctx.lictory.organizationId,
+    );
+    if (text.includes("{{claimId}}")) {
+      if (!claimId) {
+        const listed = (await mcp(ctx, "listClaims", {
+          organizationId: ctx.lictory.organizationId,
+          mine: true,
+        })) as { claims?: { id: string }[] } | undefined;
+        claimId = listed?.claims?.[0]?.id;
+        if (!claimId) throw new Error("This session holds no claim.");
+      }
+      text = text.replaceAll("{{claimId}}", claimId);
+    }
+    return text;
+  };
+  const args = Object.fromEntries(
+    await Promise.all(
+      Object.entries(call.arguments).map(
+        async ([key, value]) => [key, await fill(value)] as const,
+      ),
+    ),
+  );
+  return mcp(ctx, call.tool, args);
 }

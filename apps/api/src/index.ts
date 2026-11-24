@@ -4,6 +4,7 @@ import "@lictory/api/configuration";
 import { serve } from "@hono/node-server";
 import { closeDatabase, db } from "@lictory/core/db";
 import { refreshAiAvailability } from "@lictory/core/domain/ai";
+import { installFactoryLoop } from "@lictory/core/factory/loop";
 import {
   refreshAiState,
   watchAiSettings,
@@ -19,6 +20,10 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 // The Lictory API on Node: Better Auth, capabilities, MCP, Zero's query and
 // mutate endpoints, event streams and the SPA document. Background work runs
 // in the worker, never here.
+
+// The factory loop's ports: agents in channels, session threads, claims
+// following their sessions (docs/internals/factory.md#the-factory-loop).
+installFactoryLoop(db);
 
 const port = envInteger("PORT") ?? 3002;
 const hostname = env("HOST") ?? "0.0.0.0";

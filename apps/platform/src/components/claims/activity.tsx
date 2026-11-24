@@ -16,6 +16,8 @@ const releaseReasons: Record<string, string> = {
   item_canceled: "ended the claim: the item was canceled",
   item_archived: "ended the claim: the item was archived",
   launch_failed: "could not start a session",
+  session_failed: "stopped: its agent session failed",
+  session_canceled: "stopped: its agent session was canceled",
 };
 
 export function claimActivity(

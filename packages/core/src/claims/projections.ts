@@ -117,6 +117,7 @@ export async function claimOrganizationEntities(
           level: p.level,
           implementerAgentIds: p.implementerAgentIds,
           reviewerAgentId: p.reviewerAgentId,
+          reportingChannelId: p.reportingChannelId,
           maxConcurrentSessions: p.maxConcurrentSessions,
           autopilotRequires: p.autopilotRequires,
           version: p.version,

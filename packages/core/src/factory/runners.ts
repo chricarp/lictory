@@ -18,6 +18,7 @@ import {
   type heartbeatRequest,
   type registerRequest,
 } from "@lictory/core/factory/protocol";
+import { sessionLeasesRenewed } from "@lictory/core/factory/ports";
 import { factoryWrite, projectRunner } from "@lictory/core/factory/store";
 
 // Runners: machines that execute agent sessions
@@ -230,7 +231,7 @@ export async function heartbeat(
   report: z.infer<typeof heartbeatRequest>,
   now = new Date(),
 ) {
-  return factoryWrite(db, runner.organizationId, async (tx) => {
+  const result = await factoryWrite(db, runner.organizationId, async (tx) => {
     const changed =
       runner.os !== report.os ||
       runner.arch !== report.arch ||
@@ -265,6 +266,12 @@ export async function heartbeat(
     const leases = await renewLeases(tx, runner, report.sessions, now);
     return { serverTime: now.toISOString(), leases };
   });
+  // After commit: the claims these sessions work under stay held.
+  await sessionLeasesRenewed(
+    runner.organizationId,
+    result.leases.filter((l) => l.held).map((l) => l.sessionId),
+  );
+  return result;
 }
 
 // Renews the leases a runner still holds and tells it which it lost.

@@ -63,6 +63,8 @@ import {
   updateSession,
   type SessionRow,
 } from "@lictory/core/factory/store";
+import { sessionCardId } from "@lictory/core/factory/thread-ids";
+import { readChannelAccess } from "@lictory/core/channels/access";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { queueNotifications } from "@lictory/core/notifications/events";
 
@@ -317,12 +319,33 @@ export async function startSession(
   db: Database,
   actor: SessionActor,
   input: StartSessionInput,
+  options: { trustedChannel?: boolean } = {},
+) {
+  return writeAndPublish(db, input.organizationId, (tx, publish) =>
+    startSessionIn(tx, actor, input, publish, options),
+  );
+}
+
+// Starts a session in the caller's transaction, which holds the
+// organization lock (shared at least): the conversation writer starts the
+// session an agent mention asks for in the message's own transaction. Thread
+// events are handed to `publish`; the caller publishes them after commit.
+export async function startSessionIn(
+  tx: Tx,
+  actor: SessionActor,
+  input: StartSessionInput,
+  publish: (event: SessionThreadEvent) => void,
+  options: {
+    // The caller chose the channel (the dispatcher's reporting channel, set
+    // by a project administrator): the requester need not be a member.
+    trustedChannel?: boolean;
+  } = {},
 ) {
   const { organizationId } = input;
   const sessionId =
     input.sessionId ??
     (input.mutationId ? derivedId(input.mutationId) : crypto.randomUUID());
-  return writeAndPublish(db, organizationId, async (tx, publish) => {
+  {
     await authorize(tx, actor.userId, organizationId);
     if (actor.agent?.sessionId)
       throw new DomainError(
@@ -420,6 +443,41 @@ export async function startSession(
         "validation",
         "That base branch name is not valid.",
       );
+    const channelId = present(input.channelId);
+    let threadRootMessageId = present(input.threadRootMessageId);
+    if (channelId) {
+      // A session posts its card and its agent's replies in this thread,
+      // so the person starting it must be able to post there.
+      if (!options.trustedChannel) {
+        const access = await readChannelAccess(
+          tx,
+          organizationId,
+          actor.userId,
+          channelId,
+          false,
+        );
+        if (!access.canPost)
+          throw new DomainError(
+            "forbidden",
+            "Join the channel (and make sure it is not archived) to start a session in its thread.",
+          );
+      }
+      if (threadRootMessageId) {
+        const [root] = await tx
+          .select({ threadRootId: s.channelMessage.threadRootId })
+          .from(s.channelMessage)
+          .where(
+            and(
+              eq(s.channelMessage.organizationId, organizationId),
+              eq(s.channelMessage.channelId, channelId),
+              eq(s.channelMessage.id, threadRootMessageId),
+            ),
+          );
+        if (!root)
+          throw new DomainError("not_found", "This message is unavailable.");
+        threadRootMessageId = root.threadRootId ?? threadRootMessageId;
+      } else threadRootMessageId = sessionCardId(sessionId);
+    } else threadRootMessageId = null;
     const requestedRunnerId = input.runnerId ?? agent.defaultRunnerId ?? null;
     if (requestedRunnerId) {
       const [runner] = await tx
@@ -461,8 +519,8 @@ export async function startSession(
         repositoryUrl,
         baseBranch,
         branch,
-        channelId: input.channelId ?? null,
-        threadRootMessageId: input.threadRootMessageId ?? null,
+        channelId,
+        threadRootMessageId,
         maxAttempts: input.maxAttempts ?? 3,
       })
       .returning();
@@ -489,13 +547,32 @@ export async function startSession(
     await signalFactory(tx, { organizationId });
     publish(threadEvent(session, "started"));
     return sessionEntity(session, []);
-  });
+  }
 }
 
 export async function sendSessionMessage(
   db: Database,
   actor: SessionActor,
   input: { organizationId: string; sessionId: string; text: string },
+) {
+  return factoryWrite(db, input.organizationId, (tx) =>
+    sendSessionMessageIn(tx, actor, input),
+  );
+}
+
+// A steering message in the caller's transaction (organization lock held):
+// replies in a session's thread by the person who started it or the agent's
+// owner reach the agent this way, in the reply's own transaction.
+export async function sendSessionMessageIn(
+  tx: Tx,
+  actor: SessionActor,
+  input: {
+    organizationId: string;
+    sessionId: string;
+    text: string;
+    // Where the message came from, recorded with it ("in #payments").
+    source?: { channelId: string; messageId: string } | null;
+  },
 ) {
   const text = input.text.trim();
   if (!text) throw new DomainError("validation", "Write a message.");
@@ -504,7 +581,7 @@ export async function sendSessionMessage(
       "validation",
       `Keep messages under ${MAX_MESSAGE.toLocaleString("en")} characters.`,
     );
-  return factoryWrite(db, input.organizationId, async (tx) => {
+  {
     const { session } = await steerable(
       tx,
       actor,
@@ -518,6 +595,12 @@ export async function sendSessionMessage(
       authorId: actor.userId,
       authorName,
       ...(actor.agent ? { viaAgent: actor.agent.name } : {}),
+      ...(input.source
+        ? {
+            channelId: input.source.channelId,
+            messageId: input.source.messageId,
+          }
+        : {}),
     };
     const inputSequence = await addInput(
       tx,
@@ -535,7 +618,7 @@ export async function sendSessionMessage(
     });
     await projectSession(tx, row);
     return { sessionId: row.id, sequence: eventSequence };
-  });
+  }
 }
 
 export async function interruptSession(
@@ -1245,6 +1328,40 @@ export async function appendRunnerEvents(
         requireStep(agentSession, session.status, "start");
       else requireStep(agentSession, session.status, "wait");
     }
+    // The agent's answers to people reach the session's thread: the first
+    // message after a person's steering message (the full log stays in the
+    // Factory). Everything else (progress, tool calls) stays in the log.
+    const replies: number[] = [];
+    if (session.channelId && stored.some((e) => e.type === "message")) {
+      const [last] = await tx
+        .select({ type: s.agentSessionEvent.type })
+        .from(s.agentSessionEvent)
+        .where(
+          and(
+            eq(s.agentSessionEvent.sessionId, session.id),
+            inArray(s.agentSessionEvent.type, ["message", "user_message"]),
+          ),
+        )
+        .orderBy(desc(s.agentSessionEvent.sequence))
+        .limit(1);
+      // The prompt itself is the first user message; the session card
+      // already answers it.
+      const [prompts] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(s.agentSessionEvent)
+        .where(
+          and(
+            eq(s.agentSessionEvent.sessionId, session.id),
+            eq(s.agentSessionEvent.type, "user_message"),
+          ),
+        );
+      let awaiting = last?.type === "user_message" && (prompts?.count ?? 0) > 1;
+      stored.forEach((event, index) => {
+        if (event.type !== "message") return;
+        if (awaiting) replies.push(session.eventSequence + 1 + index);
+        awaiting = false;
+      });
+    }
     const eventSequence = await appendEvents(tx, session, [
       ...stored,
       ...(status !== session.status
@@ -1288,6 +1405,11 @@ export async function appendRunnerEvents(
     }
     for (const approvalId of approvals)
       publish(threadEvent(row, "approval_requested", approvalId));
+    for (const sequence of replies)
+      publish({
+        ...threadEvent(row, "agent_message"),
+        eventSequence: sequence,
+      });
     return { acked: row.runnerSequence, status: row.status };
   });
 }

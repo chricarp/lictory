@@ -278,14 +278,111 @@ checkout with `bun apps/runner/src/cli.ts`. The binary embeds the protocol
 schemas of the server it was built with; the protocol is versioned by its
 path (`/api/runner/v1`).
 
+## The factory loop
+
+The Factory installs the implementations of the boundaries Claims and
+Channels left open (`factory/loop.ts`, `installFactoryLoop`, called at
+process start by the API and the worker, which both reach every port), so
+a team meets one loop: talk to an agent in a channel, it works on a runner,
+it reports and asks in the thread, a person steers or approves there, and
+claimed work moves by evidence.
+
+| Port                        | Owner    | Factory's implementation                                                                                                                                                                                                                                                                              |
+| --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AgentDirectory` (claims)   | Claims   | The organization's runner and external agents, not archived; runner agents are dispatchable.                                                                                                                                                                                                          |
+| `AgentSessionLauncher`      | Claims   | `startSession` as the agent's owner, outside any transaction. The session id derives from the claim id (`stableId("claim-session", claimId)`), so a second launch of one reservation returns the first session; it never claims again. Refusals that retrying cannot fix are not retryable.           |
+| `SessionResumer`            | Claims   | In the claims transaction: announces a question (`question_asked`), tells the session an answer (`question_resolved`, with the discussion's replies quoted as untrusted data) or an ended claim (`claim_ended`), each once per key; a claim that ends before a runner started its session cancels it. |
+| `AgentDirectory` (channels) | Channels | Agents by id and handle prefix; the acting agent of a call whose token is bound to an agent (an external agent's token or a session's); `mentioned` and `replied` (below).                                                                                                                            |
+| `SessionThreadPublisher`    | Factory  | Writes the session's cards and the agent's replies into its thread, then lets the claim follow a session that ended.                                                                                                                                                                                  |
+| `SessionLeaseListener`      | Factory  | After every heartbeat, renews the claims of the sessions whose lease the runner renewed (`renewSessionClaims`, at most every five minutes per claim).                                                                                                                                                 |
+| `SessionWorkspaceResolver`  | Code     | Not installed here. Sessions carry their project and work item, so the Code module's resolver can choose the project's repository; without one a session works in an empty workspace through Lictory's tools.                                                                                         |
+
+Claims take the exclusive organization lock and Factory writes the shared
+one, which never upgrades. So whatever crosses from a session to its claim
+runs after the Factory write committed (`followSessionEnd`,
+`renewSessionClaims` in `claims/session-follow.ts`), and whatever crosses
+from a claim to its session runs inside the claim's transaction, where the
+exclusive lock already excludes every Factory writer. Card writes take the
+conversation's lock after either.
+
+### Claims follow their session
+
+- **Alive**: heartbeats renew the claim the session works under.
+- **Failed or canceled**: the claim is released (`session_failed`,
+  `session_canceled`) and the item returns where it was; a dispatcher claim
+  backs off after a failure and is held after a person's cancel.
+- **Completed**: the claim stays, its lease extended to a seven-day delivery
+  hold, until the Definition of Done moves the item to Done. "Completed" is
+  still only the agent's claim.
+
+The follow-up is idempotent and runs after commit; a lost one falls back to
+the claim's lease (a failed session stops renewing, so its claim expires).
+
+## Sessions in channels
+
+A session has a steering thread when it is started from a conversation or
+dispatched in a project that reports to a channel (`reportingChannelId` on
+the autonomy policy). Starting a session in a thread requires being able to
+post there (the dispatcher's reporting channel was chosen by a project
+administrator, so it is trusted). A session in a channel without a thread
+takes its card as the thread: the card's id is stable
+(`sessionCardId(sessionId)`) and is the session's `thread_root_message_id`.
+
+**Mentions.** `@[forge](agent:ID)` in a person's own message (no agent, no
+token, no Litto) starts a session for each runner agent mentioned (at most
+three) that the person may use: its owner, or anyone for a shared agent.
+The session is requested by that person and acts as the owner. Its prompt
+is the message (mentions as `@handle`), the thread it belongs to and, in
+public channels only, the earlier thread quoted between delimiters as
+information, never instruction; private conversations are not copied into a
+session every member can read in the Factory. A message linking exactly one
+work item in the agent's scope names it. The session starts in the
+message's own transaction (`startSessionIn`, under the writer's shared
+organization lock), each in a savepoint, and its card is written there too;
+a refusal (a private agent, an archived one) becomes a short system reply
+instead. Messages written by agents or through tokens never start sessions,
+and get a reply saying so. Mentioning an agent already working in the thread
+starts nothing.
+
+**Replies.** A reply in a live session's thread is a steering message
+(`sendSessionMessageIn`, recorded with its channel message) only when its
+author wrote it themselves and is the session's requester or the agent's
+owner. Every other reply stays conversation and never reaches the agent.
+
+**What the thread shows.** The thread is the place people act, so it shows
+only what they need; the full log stays in the Factory:
+
+- the live **session card** (agent via owner, status, work item, Factory
+  link), updated in place on every status change; the browser renders it
+  from the session's synchronized projection when it has it;
+- an **approval card** per request, naming the people who may decide (the
+  requester and the owner) and calling `answerAgentApproval` from Approve
+  and Deny; it shows the answer once given;
+- the agent's **first message after each steering message** (its answer to
+  the person) and its **summary**, as messages authored by the agent on
+  behalf of its owner (`postAgentMessage`); progress messages, tool calls
+  and commands are not posted;
+- **question cards** for `askQuestion`, in the session's thread and at the
+  top of the reporting channel, linking the anchored discussion, marked
+  resolved when a person resolves it.
+
+Every write has a stable id (`factory/thread-ids.ts`), so a retried publish
+or a replayed hook changes a card in place and never adds a message. Card
+payloads are Lictory's live state (`updateCardPayload`), not anyone's words:
+they change in place without a revision.
+
 ## Ports for other modules
 
 - `resolveAgentHandle(db, organizationId, handle)` for mention resolution.
 - `SessionThreadPublisher` (`setSessionThreadPublisher`): called after commit
-  when a session starts, changes status, asks for or receives an approval, so
-  Channels can post and update a session card in its thread. No-op by
-  default.
+  when a session starts, changes status, asks for or receives an approval,
+  or answers a steering message (`agent_message`). Installed by the factory
+  loop; no-op by default.
+- `SessionLeaseListener` (`setSessionLeaseListener`): sessions whose lease a
+  heartbeat renewed, after commit.
 - `SessionWorkspaceResolver` (`setSessionWorkspaceResolver`): repositories
   and credentials, from Code.
 - `startSession` (domain) for the dispatcher of autonomy policies; it applies
-  the same checks as people's starts.
+  the same checks as people's starts. `startSessionIn` and
+  `sendSessionMessageIn` run the same commands inside a caller's transaction
+  that holds the organization lock.

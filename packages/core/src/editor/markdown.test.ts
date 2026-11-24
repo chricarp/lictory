@@ -185,6 +185,20 @@ void test("freshly written Markdown reads back as the same document and is a fix
   }
 });
 
+void test("agent mentions (channels) read and write as agent mentions", () => {
+  const markdown =
+    "Ask @[forge](agent:agent-1) with @[ada](mention:user-ada).\n";
+  const { doc } = parseMarkdown(markdown);
+  const mentions = doc
+    .content![0]!.content!.filter((n) => n.type === "mention")
+    .map((n) => n.attrs);
+  assert.deepEqual(JSON.parse(JSON.stringify(mentions)), [
+    { id: "agent-1", label: "forge", kind: "agent" },
+    { id: "user-ada", label: "ada", kind: null },
+  ]);
+  assert.equal(serializeMarkdown(doc), markdown.trimEnd());
+});
+
 void test("readiness sections, references and mentions survive a fresh write", () => {
   for (const [name, markdown] of Object.entries(fixtures)) {
     const fresh = serializeMarkdown(parseMarkdown(markdown).doc);
@@ -245,8 +259,8 @@ void test("the editor model holds what specifications use", () => {
       ["workItemRef", "pageRef", "decisionRef", "mention"].includes(n.type),
     );
   assert.deepEqual(JSON.parse(JSON.stringify(refs.map((n) => n.attrs))), [
-    { id: "user-ada", label: "ada" },
-    { id: "user-ben", label: "ben" },
+    { id: "user-ada", label: "ada", kind: null },
+    { id: "user-ben", label: "ben", kind: null },
     { workItemId: "item-pay-2", key: "PAY-2" },
     { pageId: "page-runbook", commitId: "commit-7", label: "Refund runbook" },
     { decisionId: "dec-retry", label: "Retries reuse the ID" },

@@ -77,6 +77,7 @@ function MentionView({ node }: ReactNodeViewProps) {
       as="span"
       data-type="mention"
       data-id={String(node.attrs.id ?? "")}
+      data-kind={node.attrs.kind === "agent" ? "agent" : undefined}
       className="editor-mention"
     >
       @{text(node.attrs.label) ?? "member"}

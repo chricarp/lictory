@@ -36,6 +36,7 @@ import {
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 import { Dialog, Field } from "@lictory/platform/components/spaces/dialog";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useFactory } from "@lictory/platform/components/factory/store";
 import { useRouter } from "@lictory/platform/lib/navigation";
 import type {
   Channel,
@@ -310,12 +311,28 @@ function MembersPanel({
   userId: string;
 }) {
   const { mutateConfirmed, memberName } = useWorkspace();
+  const factory = useFactory();
   const add = (id: string) =>
     mutateConfirmed({
       type: "addChannelMembers",
       channelId: channel.id,
       userIds: [id],
     }).catch(failed("Not added"));
+  const addAgent = (agentId: string) =>
+    mutateConfirmed({
+      type: "addChannelMembers",
+      channelId: channel.id,
+      agentIds: [agentId],
+    }).catch(failed("Not added"));
+  const memberAgents = new Set(agents.map((m) => m.agentId));
+  const addable = factory.agents.filter(
+    (a) =>
+      !a.archivedAt && a.kind !== "intelligence" && !memberAgents.has(a.id),
+  );
+  const agentLabel = (id: string | null) => {
+    const agent = id ? factory.agentById.get(id) : undefined;
+    return agent ? `${agent.name} (@${agent.handle})` : "Agent";
+  };
   const remove = (member: MemberRow) =>
     mutateConfirmed({
       type: "removeChannelMember",
@@ -362,7 +379,19 @@ function MembersPanel({
             <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-primary">
               <Bot className="size-3.5" aria-hidden />
             </span>
-            <span className="min-w-0 flex-1 truncate">Agent</span>
+            <span className="min-w-0 flex-1 truncate">
+              {agentLabel(m.agentId)}
+            </span>
+            {canManage && (
+              <button
+                type="button"
+                aria-label={`Remove ${agentLabel(m.agentId)}`}
+                className="grid size-6 place-items-center rounded text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+                onClick={() => void remove(m)}
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -392,6 +421,31 @@ function MembersPanel({
               onSelect={(id) => void add(id)}
             />
           </Popover>
+          {addable.length > 0 && (
+            <Menu>
+              <MenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+                  />
+                }
+              >
+                <Bot className="size-3.5 text-muted-foreground" aria-hidden />
+                Add an agent
+              </MenuTrigger>
+              <MenuContent align="start" width={260}>
+                {addable.map((a) => (
+                  <MenuItem key={a.id} onSelect={() => void addAgent(a.id)}>
+                    <Bot className="size-3.5 text-muted-foreground" /> {a.name}
+                    <span className="ml-auto text-[12px] text-muted-foreground">
+                      @{a.handle}
+                    </span>
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          )}
         </div>
       )}
     </div>

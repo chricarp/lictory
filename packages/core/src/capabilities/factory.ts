@@ -388,7 +388,7 @@ const startSessionCapability = defineCapability({
   name: "startAgentSession",
   title: "Start agent session",
   description:
-    "Ask a runner agent to work on a task. It is queued until a runner that may run the agent claims it. `prompt` says what to do; `workItemId` names the work item (its key becomes the default branch); `repositoryUrl` (https or ssh, no credentials) and `baseBranch` say where the code is. You need to own the agent or the agent must be shared. Retrying with the same `mutationId` returns the same session.",
+    "Ask a runner agent to work on a task. It is queued until a runner that may run the agent claims it. `prompt` says what to do; `workItemId` names the work item (its key becomes the default branch); `repositoryUrl` (https or ssh, no credentials) and `baseBranch` say where the code is. You need to own the agent or the agent must be shared. With `channelId` (and optionally `threadRootMessageId`) the session's live card, its approval requests and the agent's answers are posted in that thread, and replies there by you or the agent's owner steer it; you must be able to post in the channel. Retrying with the same `mutationId` returns the same session.",
   kind: "command",
   surfaces: everywhere,
   idempotent: true,

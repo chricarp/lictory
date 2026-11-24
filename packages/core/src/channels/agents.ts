@@ -24,6 +24,27 @@ export type AgentMentionEvent = {
   agentIds: string[];
   // Who wrote the message (the person, or the person an agent acts for).
   mentionedById: string;
+  // `user` with no `via`: the person wrote it themselves. An agent's
+  // message, or a person's sent through a token or Litto, says so.
+  authorKind: "user" | "agent";
+  via: string | null;
+  body: string;
+};
+
+// A reply in a thread, for the Factory to steer the agent session whose
+// thread it is. Same transaction rules as `mentioned`.
+export type ThreadReplyEvent = {
+  organizationId: string;
+  channelId: string;
+  messageId: string;
+  threadRootId: string;
+  authorKind: "user" | "agent";
+  // The person (or the person an agent acts for).
+  authorUserId: string;
+  via: string | null;
+  body: string;
+  // The reply also mentions these agents (handled by `mentioned`).
+  agentIds: string[];
 };
 
 export interface AgentDirectory {
@@ -58,6 +79,13 @@ export interface AgentDirectory {
    * authorized by its own capabilities.
    */
   mentioned?(tx: Tx, event: AgentMentionEvent): Promise<void>;
+  /**
+   * Called inside the reply's transaction for every thread reply, before
+   * `mentioned`. Replies are conversation: only what the Factory decides
+   * (the session's requester or the agent's owner writing themselves)
+   * reaches an agent, as a steering message.
+   */
+  replied?(tx: Tx, event: ThreadReplyEvent): Promise<void>;
 }
 
 const noAgents: AgentDirectory = {

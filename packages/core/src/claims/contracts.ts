@@ -71,6 +71,12 @@ export const autonomyPolicyInputSchema = z
       .min(1)
       .max(maxConcurrentSessionsLimit)
       .describe("Most claims the dispatcher holds at once in this project."),
+    reportingChannelId: id
+      .nullable()
+      .optional()
+      .describe(
+        "A channel where sessions the dispatcher starts post their live card (their steering thread) and where agent questions are announced. Null or absent: none.",
+      ),
     autopilotRequires: z
       .array(z.enum(autopilotRequirements))
       .max(autopilotRequirements.length)
@@ -102,6 +108,7 @@ export const defaultAutonomyPolicy: AutonomyPolicyInput = {
   level: "assist",
   implementerAgentIds: [],
   reviewerAgentId: null,
+  reportingChannelId: null,
   maxConcurrentSessions: 2,
   autopilotRequires: [...autopilotRequirements],
 };
@@ -221,6 +228,7 @@ export const autonomyPolicyEntitySchema = z.object({
   level: z.enum(autonomyLevels),
   implementerAgentIds: z.array(id),
   reviewerAgentId: id.nullable(),
+  reportingChannelId: id.nullable().optional(),
   maxConcurrentSessions: z.number().int(),
   autopilotRequires: z.array(z.enum(autopilotRequirements)),
   version: z.number().int(),
@@ -300,14 +308,14 @@ export type DoneEvaluationEntity = z.infer<typeof doneEvaluationEntitySchema>;
 // The policy that governs a project: its stored row or the defaults.
 export function effectiveAutonomy(
   stored:
-    | Pick<
+    | (Pick<
         AutonomyPolicyEntity,
         | "level"
         | "implementerAgentIds"
         | "reviewerAgentId"
         | "maxConcurrentSessions"
         | "autopilotRequires"
-      >
+      > & { reportingChannelId?: string | null })
     | null
     | undefined,
 ): AutonomyPolicyInput {
@@ -316,6 +324,7 @@ export function effectiveAutonomy(
         level: stored.level,
         implementerAgentIds: stored.implementerAgentIds,
         reviewerAgentId: stored.reviewerAgentId,
+        reportingChannelId: stored.reportingChannelId ?? null,
         maxConcurrentSessions: stored.maxConcurrentSessions,
         autopilotRequires: stored.autopilotRequires,
       }

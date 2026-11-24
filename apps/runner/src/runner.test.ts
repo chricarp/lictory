@@ -226,7 +226,11 @@ void test("the scripted harness walks its script with steering and approval", as
       personal: false,
       credential: "lcr_x",
     }),
-    lictory: { mcpUrl: "https://lictory.example.test/api/mcp", token: "lct_x" },
+    lictory: {
+      mcpUrl: "https://lictory.example.test/api/mcp",
+      token: "lct_x",
+      organizationId: "org-1",
+    },
     scratch: { host: worktree, exec: worktree },
     emit: (type, data) => {
       events.push([type, data]);

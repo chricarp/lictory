@@ -455,7 +455,7 @@ export const isHeld = (row: { nextAttemptAt: Date }) =>
 // work, unless someone moved it since. Through `applyMutation` in a
 // savepoint, so a refusal (the person lost the right to change properties)
 // keeps the release and explains why the item stayed.
-async function returnItem(
+export async function returnItem(
   tx: Tx,
   claim: ClaimRow,
   actor: Actor,
@@ -1113,6 +1113,21 @@ export async function askQuestion(
         at: now,
       });
       await projectClaims(tx, organizationId, claim.projectId, facts.entities);
+      await claimPorts().resumer.resume(tx, {
+        kind: "question_asked",
+        organizationId,
+        claimId: claim.id,
+        agentSessionId: claim.agentSessionId,
+        projectId: claim.projectId,
+        workItemId: claim.workItemId,
+        itemKey: claimedKey,
+        threadId,
+        questionItemId: subject.id,
+        questionItemKey: facts.key(subject),
+        question: input.question.trim().slice(0, 2000),
+        agentName: claim.agentName,
+        ownerId: claim.ownerId,
+      });
       return {
         claimId: claim.id,
         state: "waiting",
@@ -1283,6 +1298,14 @@ export async function setAutonomyPolicy(
           "validation",
           "Autopilot requires the reviewer agent's approval: choose a reviewer agent.",
         );
+      const reportingChannelId = policy.reportingChannelId ?? null;
+      if (reportingChannelId)
+        await requireReportingChannel(
+          tx,
+          organizationId,
+          actor.userId,
+          reportingChannelId,
+        );
       const [current] = await tx
         .select()
         .from(s.autonomyPolicy)
@@ -1310,6 +1333,7 @@ export async function setAutonomyPolicy(
         level: policy.level,
         implementerAgentIds: policy.implementerAgentIds,
         reviewerAgentId: policy.reviewerAgentId,
+        reportingChannelId,
         maxConcurrentSessions: policy.maxConcurrentSessions,
         autopilotRequires: policy.autopilotRequires,
         version: version + 1,
@@ -1347,6 +1371,56 @@ export async function setAutonomyPolicy(
       };
     },
   );
+}
+
+// A reporting channel is a public or private channel of the organization,
+// not archived; a private one only when the person setting it is a member
+// (everyone in it will see the project's agent sessions).
+async function requireReportingChannel(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  channelId: string,
+) {
+  const [channel] = await tx
+    .select({
+      kind: s.channel.kind,
+      name: s.channel.name,
+      archivedAt: s.channel.archivedAt,
+    })
+    .from(s.channel)
+    .where(
+      and(
+        eq(s.channel.organizationId, organizationId),
+        eq(s.channel.id, channelId),
+      ),
+    );
+  const member =
+    channel?.kind === "public"
+      ? true
+      : channel
+        ? (
+            await tx
+              .select({ id: s.channelMember.id })
+              .from(s.channelMember)
+              .where(
+                and(
+                  eq(s.channelMember.channelId, channelId),
+                  eq(s.channelMember.userId, userId),
+                ),
+              )
+          ).length > 0
+        : false;
+  if (!channel || !member || channel.kind === "direct")
+    throw new DomainError(
+      "validation",
+      "Choose a public channel, or a private channel you are a member of, to report to.",
+    );
+  if (channel.archivedAt)
+    throw new DomainError(
+      "validation",
+      `#${channel.name} is archived. Restore it or choose another channel to report to.`,
+    );
 }
 
 // The project's policy with what an administrator needs to set it: the

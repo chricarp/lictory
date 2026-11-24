@@ -377,6 +377,20 @@ export async function postMessage(
     mentionedUserIds: mentions.userIds,
     participantIds: participants,
   });
+  const authorKind = author.kind;
+  const via = author.kind === "user" ? author.via : null;
+  if (root)
+    await agentDirectory().replied?.(tx, {
+      organizationId,
+      channelId,
+      messageId: message!.id,
+      threadRootId: root.id,
+      authorKind,
+      authorUserId: actor.userId,
+      via,
+      body: input.body,
+      agentIds: mentions.agentIds,
+    });
   if (mentions.agentIds.length)
     await agentDirectory().mentioned?.(tx, {
       organizationId,
@@ -385,6 +399,9 @@ export async function postMessage(
       threadRootId: root?.id ?? null,
       agentIds: mentions.agentIds,
       mentionedById: actor.userId,
+      authorKind,
+      via,
+      body: input.body,
     });
   return { message: message!, replayed: false };
 }
@@ -886,9 +903,24 @@ export async function appendSystemMessage(
     body: string;
     payload?: Record<string, unknown>;
     threadRootId?: string | null;
+    // A stable id makes the append idempotent: appending the same id again
+    // returns the stored message (session cards, approval cards).
+    messageId?: string;
   },
 ): Promise<MessageRow> {
   await lockConversation(tx, input.organizationId, input.channelId);
+  if (input.messageId) {
+    const [existing] = await tx
+      .select()
+      .from(s.channelMessage)
+      .where(
+        and(
+          eq(s.channelMessage.organizationId, input.organizationId),
+          eq(s.channelMessage.id, input.messageId),
+        ),
+      );
+    if (existing) return existing;
+  }
   const now = new Date();
   const root = input.threadRootId
     ? await messageIn(
@@ -918,6 +950,7 @@ export async function appendSystemMessage(
   const [message] = await tx
     .insert(s.channelMessage)
     .values({
+      ...(input.messageId ? { id: input.messageId } : {}),
       organizationId: input.organizationId,
       channelId: input.channelId,
       sequence: counter!.lastSequence,
@@ -955,4 +988,147 @@ export async function appendSystemMessage(
         ),
       );
   return message!;
+}
+
+/**
+ * Replaces the live state of a card Lictory wrote (a session's status, an
+ * approval's answer). Cards are Lictory's own messages, not anyone's words,
+ * so their payload changes in place; their body and place in the
+ * conversation do not. Returns null when the card is gone.
+ */
+export async function updateCardPayload(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    channelId: string;
+    messageId: string;
+    payload: Record<string, unknown>;
+    body?: string;
+  },
+): Promise<MessageRow | null> {
+  await lockConversation(tx, input.organizationId, input.channelId);
+  const [updated] = await tx
+    .update(s.channelMessage)
+    .set({
+      payload: input.payload,
+      ...(input.body !== undefined
+        ? { body: input.body.slice(0, CHANNEL_MESSAGE_MAX) }
+        : {}),
+    })
+    .where(
+      and(
+        eq(s.channelMessage.organizationId, input.organizationId),
+        eq(s.channelMessage.channelId, input.channelId),
+        eq(s.channelMessage.id, input.messageId),
+        eq(s.channelMessage.kind, "card"),
+        isNull(s.channelMessage.deletedAt),
+      ),
+    )
+    .returning();
+  return updated ?? null;
+}
+
+/**
+ * Posts what an agent said in a thread for it (its reply to a person, its
+ * summary), authored by the agent acting for its owner. The Factory decided
+ * this message belongs in the thread (docs/internals/factory.md#threads);
+ * the owner's channel access is not required, as for Lictory's own cards,
+ * because the session was started from this conversation. Idempotent by
+ * `messageId`. Followers of the thread are told as for any reply.
+ */
+export async function postAgentMessage(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    channelId: string;
+    threadRootId: string;
+    messageId: string;
+    agentId: string;
+    onBehalfOfUserId: string;
+    body: string;
+  },
+): Promise<PostResult | null> {
+  await lockConversation(tx, input.organizationId, input.channelId);
+  const [existing] = await tx
+    .select()
+    .from(s.channelMessage)
+    .where(
+      and(
+        eq(s.channelMessage.organizationId, input.organizationId),
+        eq(s.channelMessage.id, input.messageId),
+      ),
+    );
+  if (existing) return { message: existing, replayed: true };
+  const [channel] = await tx
+    .select()
+    .from(s.channel)
+    .where(
+      and(
+        eq(s.channel.organizationId, input.organizationId),
+        eq(s.channel.id, input.channelId),
+      ),
+    );
+  if (!channel || channel.archivedAt) return null;
+  let root = await messageIn(
+    tx,
+    input.organizationId,
+    input.channelId,
+    input.threadRootId,
+  );
+  if (root.threadRootId)
+    root = await messageIn(
+      tx,
+      input.organizationId,
+      input.channelId,
+      root.threadRootId,
+    );
+  const body = input.body.trim().slice(0, CHANNEL_MESSAGE_MAX);
+  if (!body) return null;
+  const now = new Date();
+  const [counter] = await tx
+    .update(s.channel)
+    .set({
+      lastSequence: sql`${s.channel.lastSequence} + 1`,
+      lastMessageAt: now,
+    })
+    .where(
+      and(
+        eq(s.channel.organizationId, input.organizationId),
+        eq(s.channel.id, input.channelId),
+      ),
+    )
+    .returning({ lastSequence: s.channel.lastSequence });
+  const [message] = await tx
+    .insert(s.channelMessage)
+    .values({
+      id: input.messageId,
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      sequence: counter!.lastSequence,
+      threadRootId: root.id,
+      rootIndex: null,
+      authorKind: "agent",
+      authorAgentId: input.agentId,
+      onBehalfOfUserId: input.onBehalfOfUserId,
+      kind: "message",
+      body,
+      attachments: [],
+      createdAt: now,
+    })
+    .returning();
+  const author: Author = {
+    kind: "agent",
+    agentId: input.agentId,
+    onBehalfOf: input.onBehalfOfUserId,
+  };
+  const participants = await recordReply(tx, root, message!, author, []);
+  await queueChannelNotifications(tx, {
+    channel,
+    message: message!,
+    root,
+    actorId: input.onBehalfOfUserId,
+    mentionedUserIds: [],
+    participantIds: participants,
+  });
+  return { message: message!, replayed: false };
 }

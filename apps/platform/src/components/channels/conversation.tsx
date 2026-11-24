@@ -33,6 +33,9 @@ import {
   type PromotionChoice,
 } from "@lictory/platform/components/channels/message";
 import { Composer } from "@lictory/platform/components/channels/composer";
+import type { Mentionable } from "@lictory/platform/components/editor/markdown-editor";
+import { useFactory } from "@lictory/platform/components/factory/store";
+import { activeStatuses } from "@lictory/platform/components/factory/labels";
 import { ChannelHeader } from "@lictory/platform/components/channels/header";
 import {
   SearchPanel,
@@ -91,7 +94,44 @@ function Conversation({ channel }: { channel: Channel }) {
   const canPost = Boolean(channel.member) && !channel.archivedAt;
   const announceTyping = useAnnounceTyping(channel.id);
   const canReact = !channel.archivedAt;
-  const mentions = directory.members;
+  const factory = useFactory();
+  // People and agents autocomplete after @. Mentioning an agent you may use
+  // starts its session in the message's thread.
+  const mentions = useMemo<Mentionable[]>(
+    () => [
+      ...directory.members,
+      ...factory.agents
+        .filter((a) => !a.archivedAt && a.kind !== "intelligence")
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          handle: a.handle,
+          kind: "agent" as const,
+        })),
+    ],
+    [directory.members, factory.agents],
+  );
+  const agentNameOf = useCallback(
+    (id: string | null | undefined) =>
+      (id ? factory.agentById.get(id)?.name : undefined) ?? "Agent",
+    [factory.agentById],
+  );
+  // A thread an agent session is working in: replies by its requester or
+  // the agent's owner steer it, anyone else's stay conversation.
+  const threadSession = threadId
+    ? factory.sessions.find(
+        (s) =>
+          s.channelId === channel.id &&
+          s.threadRootMessageId === threadId &&
+          activeStatuses.includes(s.status),
+      )
+    : undefined;
+  const threadAgent = threadSession
+    ? factory.agentById.get(threadSession.agentId)
+    : undefined;
+  const steers =
+    threadSession &&
+    (threadSession.requestedById === userId || threadAgent?.ownerId === userId);
   const base = paths.channel(organization.slug, channel.id);
 
   useEffect(() => {
@@ -199,12 +239,14 @@ function Conversation({ channel }: { channel: Channel }) {
         editing={editingId === message.id}
         onEditingChange={(on) => setEditingId(on ? message.id : undefined)}
         nameOf={memberName}
+        agentNameOf={agentNameOf}
         mentions={mentions}
         actions={actions}
         inThread={inThread}
       />
     ),
     [
+      agentNameOf,
       userId,
       isAdmin,
       canPost,
@@ -302,7 +344,18 @@ function Conversation({ channel }: { channel: Channel }) {
                 organizationId={organization.id}
                 channelId={channel.id}
                 label="Reply in thread"
-                placeholder="Reply…"
+                placeholder={
+                  threadSession && threadAgent
+                    ? steers
+                      ? `Reply to steer ${threadAgent.name}…`
+                      : `Reply… (${threadAgent.name} takes instructions only from ${[
+                          ...new Set([
+                            memberName(threadSession.requestedById),
+                            memberName(threadAgent.ownerId),
+                          ]),
+                        ].join(" and ")})`
+                    : "Reply…"
+                }
                 mentions={mentions}
                 onSend={(body) => send(body, threadId)}
                 onEscape={closeThread}

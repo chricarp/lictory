@@ -34,6 +34,10 @@ import {
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
 import {
+  FactoryCard,
+  factoryCardOf,
+} from "@lictory/platform/components/channels/factory-cards";
+import {
   EmojiPicker,
   QUICK_REACTIONS,
 } from "@lictory/platform/components/channels/emoji";
@@ -72,6 +76,8 @@ type Props = {
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
   nameOf: (id: string | null | undefined) => string;
+  // Agents by id (the Factory's directory); "Agent" when unknown.
+  agentNameOf?: (id: string | null | undefined) => string;
   mentions: Mentionable[];
   actions: MessageActions;
   // Thread view: replies have no thread summary and no "reply" action.
@@ -93,6 +99,7 @@ export const ChannelMessage = memo(function ChannelMessage({
   editing,
   onEditingChange,
   nameOf,
+  agentNameOf = () => "Agent",
   mentions,
   actions,
   inThread = false,
@@ -100,7 +107,19 @@ export const ChannelMessage = memo(function ChannelMessage({
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
-  const author = authorName(message, nameOf);
+  // The Factory's cards speak for their agent ("Forge via Ada").
+  const factory =
+    message.kind === "card" ? factoryCardOf(message.payload) : undefined;
+  const agentAuthor =
+    message.authorKind === "agent"
+      ? {
+          name: agentNameOf(message.authorAgentId),
+          ownerId: message.onBehalfOfUserId,
+        }
+      : factory
+        ? { name: factory.agentName, ownerId: factory.ownerId }
+        : undefined;
+  const author = agentAuthor?.name ?? authorName(message, nameOf);
   const time = formatTime(message.createdAt);
   const reactions = groupReactions(message.reactions, userId);
   const isRoot = !message.threadRootId;
@@ -165,7 +184,7 @@ export const ChannelMessage = memo(function ChannelMessage({
           >
             {time}
           </time>
-        ) : message.authorKind === "agent" ? (
+        ) : agentAuthor ? (
           <span className="mt-0.5 grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
             <Bot className="size-4.5" aria-hidden />
           </span>
@@ -182,14 +201,14 @@ export const ChannelMessage = memo(function ChannelMessage({
         {!grouped && (
           <div className="flex flex-wrap items-baseline gap-x-1.5">
             <span className="text-[14px] font-semibold">{author}</span>
-            {message.authorKind === "agent" && (
+            {agentAuthor && (
               <span className="rounded bg-primary/10 px-1 text-[10px] font-medium text-primary uppercase">
                 agent
               </span>
             )}
-            {message.authorKind === "agent" && message.onBehalfOfUserId && (
+            {agentAuthor?.ownerId && (
               <span className="text-[12px] text-muted-foreground">
-                via {nameOf(message.onBehalfOfUserId)}
+                via {nameOf(agentAuthor.ownerId)}
               </span>
             )}
             {message.via && (
@@ -229,7 +248,11 @@ export const ChannelMessage = memo(function ChannelMessage({
             }}
           />
         ) : message.kind === "card" ? (
-          <PromotionCard message={message} userId={userId} />
+          factory ? (
+            <FactoryCard payload={factory} />
+          ) : (
+            <PromotionCard message={message} userId={userId} />
+          )
         ) : (
           <>
             {message.body && (

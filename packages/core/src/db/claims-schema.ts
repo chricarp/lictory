@@ -172,6 +172,9 @@ export const autonomyPolicy = pgTable(
       .$type<string[]>()
       .notNull(),
     reviewerAgentId: text("reviewer_agent_id"),
+    // Where sessions the dispatcher starts post their card and where agent
+    // questions are announced (a channel of the organization). Null: none.
+    reportingChannelId: text("reporting_channel_id"),
     maxConcurrentSessions: integer("max_concurrent_sessions").notNull(),
     autopilotRequires: jsonb("autopilot_requires")
       .$type<AutopilotRequirement[]>()

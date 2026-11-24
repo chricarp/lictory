@@ -126,7 +126,9 @@ export function markdownExtensions(): AnyExtension[] {
       },
     }),
     MarkdownAttributes,
-    atom("mention", ["id", "label"]),
+    // `kind: "agent"` mentions an agent (`@[forge](agent:ID)`, channels);
+    // absent, a person (`mention:ID`).
+    atom("mention", ["id", "label", "kind"]),
     atom("workItemRef", ["workItemId", "key"]),
     atom("pageRef", ["pageId", "commitId", "label"]),
     atom("decisionRef", ["decisionId", "label"]),

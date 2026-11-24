@@ -45,8 +45,11 @@ reasons it cannot be claimed yet.
 When an agent needs something it asks: a blocking discussion appears on the
 exact sentence of the specification it is about, and the item's reviewers are
 mentioned. The claim waits. When a person resolves the discussion, the agent
-continues. A question never changes the specification: the answer becomes
-part of it only when someone saves a revision.
+continues: the discussion's replies reach its session as a message. A
+question never changes the specification: the answer becomes part of it only
+when someone saves a revision. When the project reports to a channel (below),
+the question is announced there and in the session's thread, with **Answer in
+the discussion**.
 
 ### Releasing a claim
 
@@ -66,6 +69,12 @@ Project administrators choose the level in **Project settings → Autonomy**:
 | **Assist** (default) | Agents help when asked. People start every agent session; nothing is dispatched automatically.                                                              |
 | **Build**            | Claimable items are dispatched to the chosen implementer agents in rank order, up to the number of concurrent sessions. People merge the pull requests.     |
 | **Autopilot**        | As Build, and Lictory merges an agent's pull request when the required checks pass. The merge is attributed to the policy and the administrator who set it. |
+
+**Report to channel** (optional) names a channel where every session the
+dispatcher starts posts its live card. The card's thread is the session's
+thread: its agent's answers and approval requests arrive there, the agent's
+owner steers it by replying, and the agent's questions are announced in the
+channel. Without one, dispatched sessions are followed in the Factory.
 
 Under **Before an automatic merge**, Autopilot can also require the reviewer
 agent's approval of the head commit and every other Definition of Done check;

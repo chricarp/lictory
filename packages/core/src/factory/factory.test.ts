@@ -16,6 +16,9 @@ import {
 } from "@lictory/core/capabilities/core";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { resolveAgentHandle } from "@lictory/core/factory/agents";
+import { postMessage } from "@lictory/core/channels/writer";
+import { PROTOCOL } from "@lictory/core/contracts/protocol";
+import { executeMutation } from "@lictory/core/domain/service";
 import { decodeWire } from "@lictory/core/factory/model-wire";
 import { proxyModelStream } from "@lictory/core/factory/model-proxy";
 import {
@@ -795,9 +798,41 @@ void test("approval requests are answered only by the requester or the agent's o
       published.push(e);
     },
   });
+  // The session's steering thread: a message in a channel Grace posts in.
+  const channelId = crypto.randomUUID();
+  await executeMutation(
+    db,
+    { userId: memberId },
+    {
+      protocol: PROTOCOL,
+      id: crypto.randomUUID(),
+      organizationId,
+      command: {
+        type: "createChannel",
+        channelId,
+        kind: "public",
+        name: `agents-${channelId.slice(0, 6)}`,
+      },
+    },
+  );
+  const { message: root } = await db.transaction((tx) =>
+    postMessage(
+      tx,
+      { userId: memberId },
+      { organizationId, channelId, body: "Can someone publish 2.1?" },
+    ),
+  );
+  // Starting a session in a thread needs a channel the person posts in.
+  await refused(
+    start(otherId, organizationId, agent.id, {
+      channelId,
+      threadRootMessageId: root.id,
+    }),
+    "forbidden",
+  );
   const session = await start(memberId, organizationId, agent.id, {
-    channelId: "channel-1",
-    threadRootMessageId: "message-1",
+    channelId,
+    threadRootMessageId: root.id,
   });
   const lease = (await claimSession(db, machineRow))!;
   await startRun(db, machineRow, session.id, lease.leaseToken);
@@ -827,7 +862,7 @@ void test("approval requests are answered only by the requester or the agent's o
   assert.equal(asked?.detail?.sessionId, session.id);
   assert.ok(
     published.some(
-      (e) => e.kind === "approval_requested" && e.channelId === "channel-1",
+      (e) => e.kind === "approval_requested" && e.channelId === channelId,
     ),
   );
   const [approval] = await db
