@@ -10,6 +10,9 @@ export const presenceSchema = z.object({
   workItemId: z.string().nullable(),
   userId: z.string(),
   at: z.number(),
+  // Typing in a channel (Lictory Channels): forwarded only to people who
+  // can read that channel.
+  channelId: z.string().optional(),
 });
 export type PresenceEvent = z.infer<typeof presenceSchema>;
 // Personal notifications: which users should refetch their inbox. No content.

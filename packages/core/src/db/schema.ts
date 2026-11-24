@@ -13,3 +13,4 @@ export * from "@lictory/core/db/knowledge-schema";
 export * from "@lictory/core/db/specification-draft-schema";
 export * from "@lictory/core/db/claims-schema";
 export * from "@lictory/core/db/factory-schema";
+export * from "@lictory/core/db/channel-schema";

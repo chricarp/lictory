@@ -83,6 +83,7 @@ import {
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
 import { Attachments } from "@lictory/platform/components/items/attachments";
+import { ItemConversations } from "@lictory/platform/components/channels/item-conversations";
 import {
   ItemKnowledge,
   KnowledgeJump,
@@ -1165,6 +1166,8 @@ export function ItemDetail({
                     <section className="mt-10">
                       <Relations item={item} canChange={canChange} />
                     </section>
+                    {/* Where it was promoted from (Lictory Channels). */}
+                    {!pendingCreate && <ItemConversations workItemId={item.id} />}
                     <>
                       {ctx.reviewable &&
                         discussionsShown &&

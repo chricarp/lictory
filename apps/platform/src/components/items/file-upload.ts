@@ -6,10 +6,26 @@ import {
 } from "@lictory/core/storage/policy";
 export { ACCEPT_FILES, MAX_FILE_SIZE };
 
-// A file belongs to a work item or to a Spaces page.
+// A file belongs to a work item, a Spaces page or a channel.
 export type FileContext =
-  | { organizationId: string; workItemId: string; pageId?: never }
-  | { organizationId: string; pageId: string; workItemId?: never };
+  | {
+      organizationId: string;
+      workItemId: string;
+      pageId?: never;
+      channelId?: never;
+    }
+  | {
+      organizationId: string;
+      pageId: string;
+      workItemId?: never;
+      channelId?: never;
+    }
+  | {
+      organizationId: string;
+      channelId: string;
+      workItemId?: never;
+      pageId?: never;
+    };
 export type FileEntry = {
   id: string;
   filename: string;
@@ -66,7 +82,7 @@ export async function uploadFile(
   });
   window.dispatchEvent(
     new CustomEvent("lictory:file-uploaded", {
-      detail: context.workItemId ?? context.pageId,
+      detail: context.workItemId ?? context.pageId ?? context.channelId,
     }),
   );
   return {

@@ -55,6 +55,9 @@ export type MarkdownEditorProps = {
   containerClassName?: string;
   // "#", "[[" and decision pickers (default on).
   references?: boolean;
+  // Chat composers: Enter sends (Shift+Enter breaks the line; lists and
+  // code blocks keep Enter for themselves). Mod+Enter always submits.
+  enterSubmits?: boolean;
 };
 
 export type MarkdownEditorHandle = { focus: () => void };
@@ -177,7 +180,13 @@ const PlainMarkdownField = forwardRef<
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {
+          if (
+            e.key === "Enter" &&
+            onSubmit &&
+            (e.metaKey ||
+              e.ctrlKey ||
+              (props.enterSubmits && !e.shiftKey && !e.nativeEvent.isComposing))
+          ) {
             e.preventDefault();
             onSubmit();
           } else if (e.key === "Escape" && onEscape) {

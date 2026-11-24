@@ -37,6 +37,11 @@ export const paths = {
   // The Factory: agents, runners and one agent session.
   factorySession: (org: string, session: string) =>
     `/${org}/factory/sessions/${session}`,
+  // Lictory Channels: the channel browser and one conversation (addressed
+  // by its id, which never changes when it is renamed).
+  channels: (org: string) => `/${org}/channels`,
+  channel: (org: string, channel: string) =>
+    `/${org}/channels/${encodeURIComponent(channel)}`,
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,

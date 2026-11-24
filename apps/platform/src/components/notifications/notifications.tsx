@@ -15,6 +15,7 @@ import {
   GitPullRequestArrow,
   Mail,
   MessageSquare,
+  MessagesSquare,
   RefreshCw,
   ShieldAlert,
   SquareKanban,
@@ -67,6 +68,7 @@ const categoryIcons: Record<NotificationCategory, typeof Bell> = {
   export: Upload,
   pages: BookOpen,
   agents: Bot,
+  channels: MessagesSquare,
   organization: Building2,
 };
 

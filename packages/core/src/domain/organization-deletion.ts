@@ -252,6 +252,16 @@ export const deletionOrder: readonly PgTable[] = [
   s.notificationEvent,
   s.notificationEmail,
   s.notification,
+  // Lictory Channels: everything that references messages, then messages
+  // (thread replies reference their roots in the same table), then
+  // memberships. Channels themselves go after the files attached to them.
+  s.channelPromotion,
+  s.channelMention,
+  s.channelReaction,
+  s.channelThreadParticipant,
+  s.channelMessageRevision,
+  s.channelMessage,
+  s.channelMember,
   s.workItemWatcher,
   s.intelligenceContextVersion,
   s.intelligenceContextEntry,
@@ -291,6 +301,7 @@ export const deletionOrder: readonly PgTable[] = [
   s.specificationCommit,
   s.specificationRevision,
   s.fileObject,
+  s.channel,
   s.iterationEvent,
   s.workItemLabel,
   s.workItemRelation,

@@ -410,6 +410,26 @@ const factoryRoutes = [
   factoryRoute("/factory/runners", "FactoryRunnersRoute"),
   factoryRoute("/factory/sessions/$session", "FactorySessionRoute"),
 ];
+// Lictory Channels. Static segments rank above `$project` ("CHANNELS" is a
+// reserved project key).
+const channelsRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/channels",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/channels"),
+    "ChannelsRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const channelRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/channels/$channel",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/channels"),
+    "ChannelRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
 
 const projectRoute = createRoute({
   getParentRoute: () => orgRoute,
@@ -627,6 +647,8 @@ const routeTree = rootRoute.addChildren([
         spaceSettingsRoute,
       ]),
       ...factoryRoutes,
+      channelsRoute,
+      channelRoute,
       projectRoute.addChildren([
         projectIndexRoute,
         itemsRoute.addChildren([itemsIndexRoute, itemRoute]),

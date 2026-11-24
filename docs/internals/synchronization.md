@@ -156,6 +156,13 @@ each author's session, membership and right to write the line in the same
 transaction. Whether a draft holds unsaved changes is projected by separate,
 exclusively locked transactions and by the commands that seal or replace it.
 
+The conversation writer of [Lictory Channels](channels.md#write-path) is the
+other: messages, reactions, read cursors and thread participation are written
+under the organization lock in shared mode plus a per-channel lock, with
+membership and channel access checked in the transaction. Its tables are in
+the `lictory_zero` publication themselves and the Channels queries authorize
+them through channel access; no `sync_entity` row exists for them.
+
 Lictory Spaces keep their projections in a separate table, `space_entity`,
 with the effective access rows `space_reader`; both are in the `lictory_zero`
 publication. The `spaces`, `page` and `mySpaceAccess` queries authorize

@@ -1627,6 +1627,21 @@ const pagePosition = {
   beforeId: id.nullable().optional(),
 };
 
+// Channel names: lowercase letters, digits, hyphens and underscores.
+const channelName = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^[a-z0-9][a-z0-9_-]{0,79}$/,
+    "Use lowercase letters, digits, hyphens and underscores, e.g. payments-releases.",
+  );
+// A channel's home: { projectId } a project and { projectId, teamId } a
+// team of that project; omitted (or null) the organization.
+const channelHome = z
+  .strictObject({ projectId: id, teamId: id.optional() })
+  .describe("Project (and optionally team) the channel belongs to.");
+
 export const commandSchema = z.discriminatedUnion("type", [
   // Lictory Spaces. Anyone in the organization may create a space; its
   // administrators (creator, organization administrators, home project
@@ -2489,6 +2504,76 @@ export const commandSchema = z.discriminatedUnion("type", [
     hasSpecification: z.boolean().optional(),
     archived: z.boolean().optional(),
   }),
+  // Lictory Channels (docs/internals/channels.md). Channel structure and
+  // membership are ordinary commands; messages, reactions and read cursors
+  // go through the conversation writer instead (capabilities in
+  // capabilities/channels.ts, Zero's `channels` mutators).
+  // Any member creates a public or private channel; the creator joins it,
+  // with the people named in `memberIds`.
+  z.object({
+    type: z.literal("createChannel"),
+    channelId: z.uuid(),
+    kind: z.enum(["public", "private"]),
+    name: channelName,
+    topic: z.string().trim().max(250).optional(),
+    home: channelHome.optional(),
+    memberIds: z.array(id).max(200).optional(),
+  }),
+  // A direct conversation with the named people (and agents): opening the
+  // same set again returns the existing conversation (`channelId` of the
+  // result). The author is always a member.
+  z.object({
+    type: z.literal("openDirectConversation"),
+    channelId: z.uuid(),
+    userIds: z.array(id).max(8),
+    agentIds: z.array(id).max(8).optional(),
+  }),
+  // Members of a public or private channel (and administrators, for public
+  // channels) rename it and change its topic and home.
+  z.object({
+    type: z.literal("updateChannel"),
+    channelId: id,
+    name: channelName.optional(),
+    topic: z.string().trim().max(250).optional(),
+    home: channelHome.nullable().optional(),
+  }),
+  // Archiving keeps every message and makes the channel read-only;
+  // restoring reopens it.
+  z.object({
+    type: z.literal("setChannelArchived"),
+    channelId: id,
+    archived: z.boolean(),
+  }),
+  // Joining is open for public channels; private channels are joined by
+  // being added.
+  z.object({
+    type: z.literal("joinChannel"),
+    channelId: id,
+  }),
+  z.object({
+    type: z.literal("leaveChannel"),
+    channelId: id,
+  }),
+  // Members add people (and agents) to public and private channels.
+  z.object({
+    type: z.literal("addChannelMembers"),
+    channelId: id,
+    userIds: z.array(id).max(200).optional(),
+    agentIds: z.array(id).max(50).optional(),
+  }),
+  z.object({
+    type: z.literal("removeChannelMember"),
+    channelId: id,
+    userId: id.optional(),
+    agentId: id.optional(),
+  }),
+  // What the person is told about: all messages, mentions (and their
+  // threads), or nothing.
+  z.object({
+    type: z.literal("setChannelNotificationLevel"),
+    channelId: id,
+    level: z.enum(["all", "mentions", "none"]),
+  }),
 ]);
 // Commands that change one project's configuration and may move its items.
 export type ProjectConfigurationCommand = Extract<
@@ -2662,6 +2747,37 @@ const knowledgeCommandTypes = new Set<string>([
 ]);
 export function isKnowledgeCommand(c: Command): c is KnowledgeCommand {
   return knowledgeCommandTypes.has(c.type);
+}
+// Channel structure and membership commands: they write channel rows (shaped
+// for synchronization) and never `sync_entity`.
+export type ChannelCommand = Extract<
+  Command,
+  {
+    type:
+      | "createChannel"
+      | "openDirectConversation"
+      | "updateChannel"
+      | "setChannelArchived"
+      | "joinChannel"
+      | "leaveChannel"
+      | "addChannelMembers"
+      | "removeChannelMember"
+      | "setChannelNotificationLevel";
+  }
+>;
+const channelCommandTypes = new Set<string>([
+  "createChannel",
+  "openDirectConversation",
+  "updateChannel",
+  "setChannelArchived",
+  "joinChannel",
+  "leaveChannel",
+  "addChannelMembers",
+  "removeChannelMember",
+  "setChannelNotificationLevel",
+]);
+export function isChannelCommand(c: Command): c is ChannelCommand {
+  return channelCommandTypes.has(c.type);
 }
 export type Command = z.infer<typeof commandSchema>;
 export const mutationSchema = z.object({

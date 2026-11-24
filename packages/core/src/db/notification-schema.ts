@@ -44,6 +44,10 @@ export const notification = pgTable(
     // page title or excerpt again.
     spaceId: text("space_id"),
     pageId: text("page_id"),
+    // Channel notifications (mentions, direct messages, thread replies) name
+    // their channel. Reading one requires current access to the channel, so
+    // nobody who left a private conversation sees its excerpt again.
+    channelId: text("channel_id"),
     // Rendering context captured at event time (item key and title, thread
     // excerpt, review responsibility…). Links resolve against live data.
     detail: jsonb("detail")
@@ -172,6 +176,7 @@ export type QueuedNotice = {
   workItemId?: string | null;
   spaceId?: string | null;
   pageId?: string | null;
+  channelId?: string | null;
   detail?: Record<string, unknown>;
   dedupeKey?: string;
   // Also everyone who explicitly watches `workItemId`.

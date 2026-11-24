@@ -103,6 +103,16 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.workItemPageSource },
   { table: s.pageBranchOrigin },
   { table: s.pageContextLink },
+  // Lictory Channels: conversations, memberships with read cursors,
+  // messages (tombstones included), reactions, thread participation and
+  // promotion links. Previous bodies of edited and deleted messages and the
+  // resolved mentions (derived) are not exported.
+  { table: s.channel },
+  { table: s.channelMember },
+  { table: s.channelMessage },
+  { table: s.channelReaction },
+  { table: s.channelThreadParticipant },
+  { table: s.channelPromotion },
   { table: s.fileObject },
   { table: s.deliveryConnection, omit: ["encryptedCredential"] },
   { table: s.deliveryTarget },

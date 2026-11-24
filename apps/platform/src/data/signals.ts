@@ -6,6 +6,9 @@ type PresenceEntry = { userId: string; workItemId: string | null; at: number };
 type Connection = {
   presence: Map<string, PresenceEntry>;
   presenceListeners: Set<() => void>;
+  // Who is typing in which channel (Lictory Channels), by person.
+  typing: Map<string, { channelId: string; at: number }>;
+  typingListeners: Set<() => void>;
   notificationListeners: Set<() => void>;
   refs: number;
   source?: EventSource;
@@ -18,6 +21,8 @@ function open(organizationId: string) {
     const created: Connection = {
       presence: new Map(),
       presenceListeners: new Set(),
+      typing: new Map(),
+      typingListeners: new Set(),
       notificationListeners: new Set(),
       refs: 0,
     };
@@ -34,6 +39,7 @@ function open(organizationId: string) {
           type?: string;
           userId?: string;
           workItemId?: string | null;
+          channelId?: string;
           at?: number;
         };
         try {
@@ -48,6 +54,12 @@ function open(organizationId: string) {
             at: data.at ?? Date.now(),
           });
           for (const l of created.presenceListeners) l();
+        } else if (data.type === "typing" && data.userId && data.channelId) {
+          created.typing.set(data.userId, {
+            channelId: data.channelId,
+            at: Date.now(),
+          });
+          for (const l of created.typingListeners) l();
         } else if (data.type === "notification")
           for (const l of created.notificationListeners) l();
       };
@@ -114,5 +126,40 @@ export async function announcePresence(
     });
   } catch {
     /* presence is best-effort */
+  }
+}
+
+// Typing in a channel: a signal every few seconds while someone writes,
+// shown for a few seconds after the last one. Best-effort, never stored.
+export const TYPING_TTL = 6_000;
+export function subscribeTyping(organizationId: string, listener: () => void) {
+  const release = open(organizationId);
+  connections.get(organizationId)?.typingListeners.add(listener);
+  return () => {
+    connections.get(organizationId)?.typingListeners.delete(listener);
+    release();
+  };
+}
+export function typingIn(organizationId: string, channelId: string) {
+  const connection = connections.get(organizationId);
+  if (!connection) return [];
+  const now = Date.now();
+  return [...connection.typing.entries()]
+    .filter(([, t]) => t.channelId === channelId && now - t.at < TYPING_TTL)
+    .map(([userId]) => userId)
+    .sort();
+}
+export async function announceTyping(
+  organizationId: string,
+  channelId: string,
+) {
+  try {
+    await fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId, workItemId: null, channelId }),
+    });
+  } catch {
+    /* typing is best-effort */
   }
 }

@@ -106,6 +106,10 @@ import {
   useSpaces,
 } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
+import {
+  ChannelsNavSection,
+  DirectMessagesNavSection,
+} from "@lictory/platform/components/channels/nav";
 
 // Overlays open on demand. They carry the Markdown editor and search, so they
 // load after the workspace is interactive instead of with every page.
@@ -733,6 +737,9 @@ function Sidebar({
             Litto
           </NavLink>
         </div>
+        {/* Lictory Channels (components/channels/nav.tsx). */}
+        <ChannelsNavSection collapsed={collapsed} />
+        <DirectMessagesNavSection collapsed={collapsed} />
         <SpacesNav
           organizationId={organization.id}
           projectId={project?.id}

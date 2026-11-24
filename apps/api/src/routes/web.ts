@@ -1,3 +1,4 @@
+import { isChannelMember } from "@lictory/core/channels/access";
 import {
   invitationIntent,
   placementOutcomeFor,
@@ -276,6 +277,7 @@ export function webRoutes() {
           organizationId: c.req.query("organizationId") ?? "",
           workItemId: c.req.query("workItemId"),
           pageId: c.req.query("pageId"),
+          channelId: c.req.query("channelId"),
         }),
         store,
       );
@@ -857,6 +859,8 @@ export function webRoutes() {
   const presenceSchema = z.object({
     organizationId: z.string().min(1),
     workItemId: z.string().min(1).nullable(),
+    // "Typing in this channel": only members of the channel may say so.
+    channelId: z.string().min(1).max(160).optional(),
   });
   app.post("/api/presence", async (c) => {
     const user = await currentUser(c.req.raw);
@@ -867,6 +871,16 @@ export function webRoutes() {
     if (!parsed.success) return new Response(null, { status: 400 });
     try {
       await authorize(db, user.id, parsed.data.organizationId);
+      if (
+        parsed.data.channelId &&
+        !(await isChannelMember(
+          db,
+          parsed.data.organizationId,
+          user.id,
+          parsed.data.channelId,
+        ))
+      )
+        return new Response(null, { status: 403 });
     } catch {
       return new Response(null, { status: 403 });
     }
@@ -875,6 +889,7 @@ export function webRoutes() {
       workItemId: parsed.data.workItemId,
       userId: user.id,
       at: Date.now(),
+      ...(parsed.data.channelId ? { channelId: parsed.data.channelId } : {}),
     });
     await db.execute(sql`select pg_notify('lictory_presence', ${payload})`);
     return new Response(null, { status: 204 });

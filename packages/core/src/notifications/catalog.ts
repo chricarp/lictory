@@ -15,6 +15,7 @@ export const notificationCategories = [
   "export",
   "pages",
   "agents",
+  "channels",
   "organization",
 ] as const;
 export type NotificationCategory = (typeof notificationCategories)[number];
@@ -28,6 +29,7 @@ export const categoryLabels: Record<NotificationCategory, string> = {
   export: "Exports",
   pages: "Pages",
   agents: "Agent sessions",
+  channels: "Channels and direct messages",
   organization: "Organization",
 };
 
@@ -298,6 +300,38 @@ export const notificationKinds = {
     category: "agents",
     label: "Agent session finished",
     description: "An agent session you started completed or failed.",
+    inApp: true,
+    email: false,
+  },
+  // Lictory Channels. Ordinary channel traffic notifies nobody unless the
+  // member chose "all messages" for the channel; delivered only to people
+  // who can read the channel, and hidden again from anyone who loses access.
+  channel_mentioned: {
+    category: "channels",
+    label: "Mentioned in a channel",
+    description: "Someone @mentioned you in a channel or a direct message.",
+    inApp: true,
+    email: true,
+  },
+  direct_message: {
+    category: "channels",
+    label: "Direct message",
+    description: "Someone sent you a direct message.",
+    inApp: true,
+    email: false,
+  },
+  channel_thread_reply: {
+    category: "channels",
+    label: "Thread reply",
+    description: "Someone replied in a thread you take part in or follow.",
+    inApp: true,
+    email: false,
+  },
+  channel_message: {
+    category: "channels",
+    label: "Channel message",
+    description:
+      "A new message in a channel you set to notify you about all messages.",
     inApp: true,
     email: false,
   },

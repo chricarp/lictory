@@ -23,6 +23,7 @@ import {
   entitySchema,
   estimateOptions,
   isKnowledgeCommand,
+  isChannelCommand,
   isProjectConfigurationCommand,
   isSpaceCommand,
   isTypeCommand,
@@ -120,6 +121,7 @@ import {
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { applyChannelCommand } from "@lictory/core/channels/commands";
 import {
   chosenRefinementStates,
   iteration as iterationMachine,
@@ -2139,6 +2141,24 @@ export async function applyMutation(
           roster,
           delegation: delegation(actor),
         },
+        c,
+      );
+      return receipt(
+        tx,
+        organizationId,
+        mutation.id,
+        userId,
+        fingerprint,
+        summary,
+      );
+    }
+    if (isChannelCommand(c)) {
+      // Channel structure and membership write channel rows, which are
+      // themselves synchronized (authorized by channel access): no
+      // `sync_entity` row and no directory input changes.
+      const summary = await applyChannelCommand(
+        tx,
+        { organizationId, userId, admin },
         c,
       );
       return receipt(
@@ -5147,6 +5167,8 @@ const reservedKeys = new Set([
   "INTELLIGENCE",
   "NOTIFICATIONS",
   "FACTORY",
+  // Lictory Channels lives at /{org}/channels.
+  "CHANNELS",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

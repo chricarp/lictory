@@ -112,7 +112,7 @@ linked to a Slack channel. A message is owned by the system it was written
 in: edits and deletions flow only from that system. Lictory never rewrites a
 Slack-authored message.
 
-Details belong in `docs/internals/channels.md` (to be written with the module).
+Details are in [Lictory Channels](channels.md).
 
 ## Agents
 

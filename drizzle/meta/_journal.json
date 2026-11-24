@@ -351,6 +351,20 @@
       "when": 1795484665478,
       "tag": "0049_factory_zero_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795485884011,
+      "tag": "0050_lictory_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795485886062,
+      "tag": "0051_channels_zero_publication",
+      "breakpoints": true
     }
   ]
 }

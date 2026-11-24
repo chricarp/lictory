@@ -96,6 +96,19 @@ export const auditActions = {
     category: "access",
     label: "Reset a member's two-factor authentication",
   },
+  // Lictory Channels: who can read a conversation. Public channel joins and
+  // direct conversations are not security events and are not recorded.
+  "channel.created": { category: "access", label: "Created a channel" },
+  "channel.archived": { category: "access", label: "Archived a channel" },
+  "channel.restored": { category: "access", label: "Restored a channel" },
+  "channel.member_added": {
+    category: "access",
+    label: "Added someone to a private channel",
+  },
+  "channel.member_removed": {
+    category: "access",
+    label: "Removed someone from a private channel",
+  },
 } as const satisfies Record<
   string,
   { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }

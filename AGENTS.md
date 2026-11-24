@@ -1665,14 +1665,23 @@ owns authorization, business rules, transactions and external side effects.
   transaction, and maintains the `sync_entity` read projections in the same
   transaction. Never write domain rows a projection depends on without writing
   the projection; never call independently committing services from a Zero
-  mutator. The one exception is the live draft writer, shared by page drafts
+  mutator. One exception is the live draft writer, shared by page drafts
   of Lictory Spaces and specification drafts (draft updates and the draft's
   stored sequence only, shared organization lock, no projection; sealing a
   draft into a commit or revision is an ordinary command); see
   [Lictory Spaces](docs/internals/spaces.md#draft-writes-a-narrow-exception-to-the-domain-write-rule)
   and [specification drafts](docs/internals/specification-drafts.md#writes-tables-and-projections).
+  The second exception is the conversation writer of Lictory Channels
+  (messages, reactions, read cursors and thread participation only; shared
+  organization lock plus a per-channel lock, membership and channel access
+  checked in the transaction, sequences assigned there, append-only, no
+  `sync_entity` projection because its rows are synchronized directly and
+  authorized by channel access); creating channels, membership,
+  archive/restore and promotion are ordinary commands. See
+  [Lictory Channels](docs/internals/channels.md#write-path).
 - Browsers receive only the tables in the `lictory_zero` publication
-  (projections and membership columns). Never add credentials, sessions,
+  (projections, membership columns and the Lictory Channels tables shaped for
+  synchronization). Never add credentials, sessions,
   tokens, private configuration or raw domain tables to it. Synced queries are
   server-defined and authorize through the membership relationship; the actor
   always comes from the verified session.

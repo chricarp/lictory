@@ -23,7 +23,10 @@ export function usePanelCollapsed(
     | "work-item-list"
     | "sidebar-views"
     | "sidebar-spaces"
-    | "space-page-tree",
+    | "space-page-tree"
+    // Whether the sidebar's Channels and Direct messages groups are folded.
+    | "sidebar-channels"
+    | "sidebar-direct",
 ) {
   const key = `lictory:panel-collapsed:${organizationId}:${panel}`;
   const subscribe = useCallback(
