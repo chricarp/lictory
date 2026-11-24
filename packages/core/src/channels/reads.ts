@@ -176,13 +176,21 @@ async function membersOf(tx: Tx, organizationId: string, channelIds: string[]) {
   return byChannel;
 }
 
+// Reads for Lictory Intelligence withhold messages written in Slack unless
+// the organization allows it (channels/slack/ai-access.ts).
+export type ReadOptions = { withholdExternal?: boolean };
+const WITHHELD =
+  "[A message from Slack, withheld from Lictory Intelligence: the organization has not allowed it to read Slack messages.]";
+
 export type MessageView = {
   id: string;
   sequence: number;
   threadRootId: string | null;
   kind: "message" | "system" | "card";
   author: {
-    kind: "user" | "agent" | "system";
+    // `external`: someone in a linked Slack channel with no Lictory
+    // identity, shown as "Name (Slack)".
+    kind: "user" | "agent" | "system" | "external";
     userId: string | null;
     agentId: string | null;
     name: string;
@@ -203,7 +211,16 @@ export type MessageView = {
   lastReplyAt: string | null;
   editedAt: string | null;
   deletedAt: string | null;
+  // The chat system the message was written in (`slack`), which alone may
+  // edit or delete it; its files and reactions from people there.
   external: string | null;
+  externalFiles: {
+    name: string;
+    mimeType: string;
+    size: number;
+    url: string;
+  }[];
+  externalReactions: { emoji: string; count: number; names: string[] }[];
   createdAt: string;
 };
 
@@ -212,6 +229,7 @@ async function views(
   organizationId: string,
   userId: string,
   messages: Message[],
+  options: ReadOptions = {},
 ): Promise<MessageView[]> {
   if (!messages.length) return [];
   const ids = messages.map((m) => m.id);
@@ -266,13 +284,18 @@ async function views(
         name:
           m.authorKind === "agent"
             ? (agents.find((a) => a.id === m.authorAgentId)?.handle ?? "agent")
-            : m.authorKind === "system" && !m.authorUserId
-              ? "Lictory"
-              : nameOf(m.authorUserId),
+            : m.authorKind === "external"
+              ? `${m.externalAuthorName ?? "Someone"} (Slack)`
+              : m.authorKind === "system" && !m.authorUserId
+                ? "Lictory"
+                : nameOf(m.authorUserId),
         onBehalfOfUserId: m.onBehalfOfUserId,
         via: m.via,
       },
-      body: m.body,
+      body:
+        options.withholdExternal && m.externalSource && m.body
+          ? WITHHELD
+          : m.body,
       payload: m.payload ?? null,
       attachments: m.attachments.map((a) => ({
         ...a,
@@ -284,6 +307,13 @@ async function views(
       editedAt: m.editedAt?.toISOString() ?? null,
       deletedAt: m.deletedAt?.toISOString() ?? null,
       external: m.externalSource,
+      externalFiles:
+        options.withholdExternal && m.externalSource ? [] : m.externalFiles,
+      externalReactions: m.externalReactions.map((r) => ({
+        emoji: r.emoji,
+        count: r.externalIds.length,
+        names: r.names,
+      })),
       createdAt: m.createdAt.toISOString(),
     };
   });
@@ -305,6 +335,7 @@ export async function readChannel(
     limit?: number;
     threads?: boolean;
   },
+  options: ReadOptions = {},
 ) {
   return read(db, async (tx) => {
     const membership = await authorize(tx, userId, input.organizationId);
@@ -354,7 +385,7 @@ export async function readChannel(
         readSequence: member?.readSequence ?? null,
         unreadMessages: unreadMessages(channel, member),
       },
-      messages: await views(tx, input.organizationId, userId, page),
+      messages: await views(tx, input.organizationId, userId, page, options),
       hasMore,
       nextCursor: page.at(-1)?.sequence ?? input.afterSequence ?? null,
     };
@@ -372,6 +403,7 @@ export async function readThread(
     afterSequence?: number;
     limit?: number;
   },
+  options: ReadOptions = {},
 ) {
   return read(db, async (tx) => {
     const membership = await authorize(tx, userId, input.organizationId);
@@ -410,10 +442,13 @@ export async function readThread(
       .orderBy(asc(s.channelMessage.sequence))
       .limit(limit + 1);
     const page = replies.slice(0, limit);
-    const [view, ...rest] = await views(tx, input.organizationId, userId, [
-      root,
-      ...page,
-    ]);
+    const [view, ...rest] = await views(
+      tx,
+      input.organizationId,
+      userId,
+      [root, ...page],
+      options,
+    );
     return {
       root: view!,
       replies: rest,
@@ -437,6 +472,7 @@ export async function searchMessages(
     channelId?: string;
     limit?: number;
   },
+  options: ReadOptions = {},
 ) {
   return read(db, async (tx) => {
     await authorize(tx, userId, input.organizationId);
@@ -466,6 +502,9 @@ export async function searchMessages(
             ? eq(s.channelMessage.channelId, input.channelId)
             : undefined,
           isNull(s.channelMessage.deletedAt),
+          options.withholdExternal
+            ? isNull(s.channelMessage.externalSource)
+            : undefined,
           sql`to_tsvector('simple', ${s.channelMessage.body}) @@ ${tsquery}`,
           or(
             eq(s.channel.kind, "public"),
@@ -485,6 +524,7 @@ export async function searchMessages(
       input.organizationId,
       userId,
       rows.map((r) => r.message),
+      options,
     );
     return {
       results: rows.map((r, i) => ({

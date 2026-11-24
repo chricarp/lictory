@@ -348,6 +348,24 @@ export const queries = defineQueries({
         .where("id", "IN", args.messageIds)
         .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
   ),
+  // The active link of a channel I can read to an external chat channel
+  // (Slack), for "Synced with #x in Slack" and its health.
+  channelExternalLink: defineQuery(channelArgs, ({ args, ctx }) =>
+    zql.channelExternalLink
+      .where("organizationId", args.organizationId)
+      .where("channelId", args.channelId)
+      .where("unlinkedAt", "IS", null)
+      .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
+  ),
+  // Lictory messages of a channel I can read that could not be mirrored to
+  // the linked external channel, so they show "Not sent to Slack · Retry".
+  channelMirrorFailures: defineQuery(channelArgs, ({ args, ctx }) =>
+    zql.channelMirror
+      .where("organizationId", args.organizationId)
+      .where("channelId", args.channelId)
+      .where("failedAt", "IS NOT", null)
+      .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
+  ),
   // Where a work item was promoted from, for its page: only conversations I
   // can read, so nobody learns a private channel discussed it.
   workItemConversations: defineQuery(workItemArgs, ({ args, ctx }) =>

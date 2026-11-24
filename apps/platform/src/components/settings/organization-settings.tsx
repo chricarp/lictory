@@ -13,11 +13,13 @@ import { paths } from "@lictory/core/lib/paths";
 import { OrganizationGeneral } from "@lictory/platform/components/settings/org-general";
 import { OrganizationProjects } from "@lictory/platform/components/settings/org-projects";
 import { OrganizationSecurity } from "@lictory/platform/components/settings/org-security";
+import { OrganizationWebhookPolicy } from "@lictory/platform/components/settings/org-webhook-policy";
 import { OrganizationTypes } from "@lictory/platform/components/settings/org-types";
 import { OrganizationIntelligence } from "@lictory/platform/components/settings/org-intelligence";
 import { OrganizationAudit } from "@lictory/platform/components/settings/org-audit";
 import { OrganizationExport } from "@lictory/platform/components/settings/org-export";
 import { OrganizationDeletion } from "@lictory/platform/components/settings/org-deletion";
+import { SlackConnection } from "@lictory/platform/components/settings/org-slack";
 
 const sections = [
   { id: "general", label: "General", group: "Organization" },
@@ -81,6 +83,7 @@ export function OrganizationSettingsLayout({
 }
 
 export function OrganizationSettingsSection({ section }: { section: string }) {
+  const { isAdmin } = useWorkspace();
   const active: Section =
     sections.find((s) => s.id === section)?.id ?? "general";
   return (
@@ -88,7 +91,12 @@ export function OrganizationSettingsSection({ section }: { section: string }) {
       {active === "general" && <OrganizationGeneral />}
       {active === "members" && <People />}
       {active === "projects" && <OrganizationProjects />}
-      {active === "security" && <OrganizationSecurity />}
+      {active === "security" && (
+        <>
+          <OrganizationSecurity />
+          {isAdmin && <OrganizationWebhookPolicy />}
+        </>
+      )}
       {active === "audit" && <OrganizationAudit />}
       {active === "export" && <OrganizationExport />}
       {active === "delete" && <OrganizationDeletion />}
@@ -105,14 +113,16 @@ function Integrations() {
   return (
     <>
       <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        Connections hold the credentials Lictory uses to reach Jira. Each
-        project delivered in Jira picks its Jira project and maps its work item
-        types in its own delivery settings.
+        Connections hold the credentials Lictory uses to reach Jira and Slack.
+        Each project delivered in Jira picks its Jira project and maps its work
+        item types in its own delivery settings; each channel links to Slack
+        from its own menu.
       </p>
       <JiraConnections />
+      <SlackConnection />
       {!isAdmin && (
         <ReadOnlyNotice>
-          Only organization administrators connect and update Jira.
+          Only organization administrators connect and update Jira and Slack.
         </ReadOnlyNotice>
       )}
     </>

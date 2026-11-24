@@ -17,6 +17,8 @@ export const workKinds = [
   // Code host webhooks to process and writes to send (code/ingest.ts,
   // code/outbox.ts).
   "code",
+  "slack",
+  "agent-events",
 ] as const;
 export type WorkKind = (typeof workKinds)[number];
 

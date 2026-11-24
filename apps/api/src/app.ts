@@ -9,7 +9,7 @@ import { trackCommitted } from "@lictory/core/capabilities/workspace";
 import { db } from "@lictory/core/db";
 import { auth } from "@lictory/core/lib/auth";
 import { matchesPlatformOrigin } from "@lictory/core/lib/auth-base-url";
-import { handleMcp } from "@lictory/core/mcp/server";
+import { handleMcpHttp } from "@lictory/core/mcp/server";
 import { limit, MB, sameOriginWrites } from "@lictory/api/middleware";
 import { eventRoutes } from "@lictory/api/routes/events";
 import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
@@ -18,6 +18,7 @@ import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
 import { runnerRoutes } from "@lictory/api/routes/runner";
 import { codeWebhookRoutes } from "@lictory/api/routes/code";
+import { slackRoutes } from "@lictory/api/routes/slack";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -97,9 +98,14 @@ export function createApp(options: { draining?: () => boolean } = {}) {
       },
       request.headers,
     );
-    const result = await handleMcp(ctx, payload);
-    if (result === null) return new Response(null, { status: 202 });
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    const { body, status } = await handleMcpHttp(ctx, payload, {
+      headers: request.headers,
+    });
+    if (body === null) return new Response(null, { status });
+    return Response.json(body, {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    });
   });
   // No server-initiated streams or sessions.
   app.on(
@@ -150,6 +156,8 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   app.route("/", runnerRoutes());
   // Code host webhooks: their own body limit, signature authentication.
   app.route("/", codeWebhookRoutes());
+  // Slack's Events API, interactivity and OAuth redirect: signed by Slack.
+  app.route("/", slackRoutes());
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());

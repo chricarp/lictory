@@ -22,6 +22,7 @@ import {
   type ThreadReplyEvent,
 } from "@lictory/core/channels/agents";
 import { appendSystemMessage } from "@lictory/core/channels/writer";
+import { intelligenceMayReadSlack } from "@lictory/core/channels/slack/ai-access";
 import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
 import type { Actor, Database, Tx } from "@lictory/core/domain/service";
@@ -463,6 +464,8 @@ async function threadContext(
       kind: s.channelMessage.kind,
       body: s.channelMessage.body,
       sequence: s.channelMessage.sequence,
+      externalSource: s.channelMessage.externalSource,
+      externalAuthorName: s.channelMessage.externalAuthorName,
     })
     .from(s.channelMessage)
     .where(
@@ -496,14 +499,27 @@ async function threadContext(
         ).map((a) => [a.id, a.name]),
       )
     : new Map<string, string>();
+  // The prompt goes to the agent's AI provider: messages written in a
+  // linked Slack channel are quoted only when the organization lets Lictory
+  // Intelligence read Slack (docs/internals/channels.md#slack-data-ai-providers-and-slacks-terms).
+  // The mention itself is the person's own request to this agent.
+  const readsSlack =
+    earlier.some((r) => r.externalSource) &&
+    (await intelligenceMayReadSlack(tx, event.organizationId));
   let text = earlier
     .map(
       (r) =>
         `${
           r.authorKind === "agent"
             ? `${agents.get(r.authorAgentId ?? "") ?? "Agent"} (agent)`
-            : (names.get(r.authorUserId ?? "") ?? "Someone")
-        }: ${plainMessage(r.body)}`,
+            : r.authorKind === "external"
+              ? `${r.externalAuthorName ?? "Someone"} (Slack)`
+              : (names.get(r.authorUserId ?? "") ?? "Someone")
+        }: ${
+          r.externalSource && !readsSlack
+            ? "(written in Slack; withheld from AI providers by the organization's settings)"
+            : plainMessage(r.body)
+        }`,
     )
     .join("\n");
   if (text.length > CONTEXT_CHARS) text = `…${text.slice(-CONTEXT_CHARS)}`;
@@ -771,6 +787,17 @@ const channelAgents = (): ChannelAgentDirectory => ({
     )
       return null;
     return channelAgent(agent);
+  },
+  // Who may address an agent from a linked external channel (a Slack
+  // mention by a mapped person): the same rule as starting a session, an
+  // active agent the person owns, or a shared one.
+  mayAddress: async (tx, organizationId, userId, candidate) => {
+    const agent = await agentRow(tx, candidate.id);
+    return (
+      agent?.organizationId === organizationId &&
+      !agent.archivedAt &&
+      (agent.ownerId === userId || agent.shared)
+    );
   },
   mentioned,
   replied,

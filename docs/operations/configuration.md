@@ -40,20 +40,23 @@ outside production.
 
 ## Delivery credentials key
 
-`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens. Without it the key
-is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
+`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens and the Slack
+app's secrets and bot token. Without it the key is derived from
+`BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
-- **New installations** must set it before connecting Jira. In production,
-  connecting Jira is refused while the key is unset and no delivery
-  credentials are stored yet (no `delivery_connection` row exists, including
-  archived ones). The rest of Lictory works without it.
+- **New installations** must set it before connecting Jira or Slack. In
+  production, connecting Jira or saving a Slack app is refused while the key
+  is unset and no credentials are stored yet (no `delivery_connection` or
+  `slack_installation` row exists, including archived ones). The rest of
+  Lictory works without it.
 - **Existing installations** that already stored credentials with the derived
   key keep working unchanged. The API and the worker log a `config.warning` at
   startup. To decouple the two secrets without re-entering tokens, set
   `DELIVERY_CREDENTIALS_KEY` to the current `BETTER_AUTH_SECRET` value (it
   derives the same key); `BETTER_AUTH_SECRET` can then rotate on its own.
 - Never rotate `DELIVERY_CREDENTIALS_KEY` once credentials are stored: they
-  become unreadable and every Jira connection must be reconnected.
+  become unreadable and every Jira connection and the Slack app must be
+  reconnected.
 
 ## Services
 
@@ -174,8 +177,14 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 | Variable                   | Required | Default                                       | Read by     | Secret          | Description                                                                                                                                                                                                                                                                                                                                  |
 | -------------------------- | -------- | --------------------------------------------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens). Never rotate it once credentials are stored. Required in production before the first Jira connection; see the note below.                                                                                                                                                            |
+| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens) and the secrets of agent event webhooks. Never rotate it once credentials are stored. Required in production before the first Jira connection or webhook; see the note below.                                                                                                         |
 | `CODE_HOST_PRIVATE_HOSTS`  | No       |                                               | api, worker | No              | Comma-separated host names (or addresses) of self-managed code hosts on private networks that Lictory may call, such as `gitlab.internal`. Without it, GitHub Enterprise Server and GitLab connections must use public https addresses; cloud metadata and link-local addresses are always refused. See docs/internals/code-hosts.md#egress. |
+
+## Agent events
+
+| Variable                              | Required | Default | Read by     | Secret | Description                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------- | ------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS` | No       | `false` | api, worker | No     | Lets agent event webhooks reach loopback and private-network addresses (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, single-label and `.internal`/`.local`/`.lan` names), and plain http there, for self-hosted agents on your LAN. Link-local and cloud metadata addresses stay refused. See docs/internals/agent-events.md. |
 
 ## File storage
 

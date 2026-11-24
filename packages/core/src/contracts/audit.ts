@@ -96,6 +96,24 @@ export const auditActions = {
     category: "access",
     label: "Reset a member's two-factor authentication",
   },
+  // Agent events (docs/internals/agent-events.md): where a person's events
+  // leave Lictory.
+  "event_webhook.created": {
+    category: "access",
+    label: "Added an agent event webhook",
+  },
+  "event_webhook.deleted": {
+    category: "access",
+    label: "Removed an agent event webhook",
+  },
+  "event_subscription.created": {
+    category: "access",
+    label: "An MCP client subscribed to agent events",
+  },
+  "event_subscription.deleted": {
+    category: "access",
+    label: "An MCP event subscription ended",
+  },
   // Lictory Channels: who can read a conversation. Public channel joins and
   // direct conversations are not security events and are not recorded.
   "channel.created": { category: "access", label: "Created a channel" },
@@ -108,6 +126,22 @@ export const auditActions = {
   "channel.member_removed": {
     category: "access",
     label: "Removed someone from a private channel",
+  },
+  // Slack: conversations leave Lictory for a workspace the organization
+  // controls, so connecting and linking are access events.
+  "slack.app_saved": {
+    category: "access",
+    label: "Saved the Slack app's credentials",
+  },
+  "slack.installed": { category: "access", label: "Installed the Slack app" },
+  "slack.disconnected": { category: "access", label: "Disconnected Slack" },
+  "slack.channel_linked": {
+    category: "access",
+    label: "Linked a channel to Slack",
+  },
+  "slack.channel_unlinked": {
+    category: "access",
+    label: "Unlinked a channel from Slack",
   },
 } as const satisfies Record<
   string,

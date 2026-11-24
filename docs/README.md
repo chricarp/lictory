@@ -49,6 +49,10 @@ adding domain writes or synchronized entities.
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Agent events](./internals/agent-events.md): waking external agents when
+  something waits on them: addressed events, identifiers-only payloads, the
+  commit-safe cursor, MCP Events and bearer webhooks, egress rules and the
+  organization policy
 - [State machines](./internals/state-machines.md): where the rule for each
   status lives, the declared tables that commands, the browser and agents
   share, and the check that refuses an undeclared status
@@ -57,7 +61,8 @@ adding domain writes or synchronized entities.
   the collaboration service (in development)
 - [Lictory Channels](./internals/channels.md): channels, threads and direct
   conversations, the conversation writer, read cursors and unread counts,
-  notifications, promotion into proposals, decisions and discussions
+  notifications, promotion into proposals, decisions and discussions, and
+  Slack sync (ownership, signatures, people mapping, the outbox)
 - [Live drafts of specifications](./internals/specification-drafts.md):
   several people editing a specification line at once, and how only Save
   revision and Commit turn the shared draft into history

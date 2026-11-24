@@ -15,7 +15,6 @@ import {
   type AgentMentionEvent,
   type ChannelAgent,
 } from "@lictory/core/channels/agents";
-import type { ChatProvider } from "@lictory/core/channels/chat-provider";
 import { editMessage, postMessage } from "@lictory/core/channels/writer";
 
 // Agents in channels through the AgentDirectory port (the Factory registers
@@ -247,14 +246,8 @@ void test("agents are members, authors acting via their person, and mentionable"
   ]);
 
   // A message owned by an external chat system is changed only there.
-  const slack: ChatProvider = {
-    id: "slack",
-    parseEvent: async () => [],
-    postMessage: async () => ({ externalId: "1700000000.0001" }),
-    updateMessage: async () => undefined,
-    deleteMessage: async () => undefined,
-    resolveAuthor: async () => null,
-  };
+  // The source name an adapter stores on the rows it owns.
+  const slack = { id: "slack" };
   await db
     .update(s.channelMessage)
     .set({ externalSource: slack.id, externalId: "1700000000.0002" })

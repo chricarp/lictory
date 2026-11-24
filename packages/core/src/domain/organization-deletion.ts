@@ -270,6 +270,8 @@ export const deletionOrder: readonly PgTable[] = [
   // (thread replies reference their roots in the same table), then
   // memberships. Channels themselves go after the files attached to them.
   s.channelPromotion,
+  s.channelMirror,
+  s.channelExternalLink,
   s.channelMention,
   s.channelReaction,
   s.channelThreadParticipant,

@@ -211,6 +211,51 @@ creation, integration credentials, the audit log, data exports, organization
 deletion and Litto conversations stay with you in the browser. The agent can call
 `listHumanOnlyOperations` to explain where to complete an unavailable operation.
 
+## Wake your agent when something waits on you
+
+Instead of asking Lictory over and over whether anything changed, an agent
+can be woken when something is waiting on you or on it: a mention in a
+channel or discussion, a direct message, a review request, an approval that
+went stale, a pull request decided or merged, an assignment, a question your
+agent asked that someone resolved, or your agent's claim ending. An event
+carries identifiers and a short title (such as `PAY-142` and its title, or a
+channel's name), never the specification or the message itself: the agent
+reads the details with its tools, with your permissions. Events say what
+happened, never what to do.
+
+Pick the way your agent can listen:
+
+| Your agent                                                    | How it is woken                                            |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| Keeps a connection open (a terminal agent, a script)          | `waitForEvents` in a loop                                  |
+| Supports MCP Events webhooks (ChatGPT dots, OpenClaw, Hermes) | It subscribes itself with `events/subscribe`               |
+| Runs from a webhook URL and key (Grok, Claude routines)       | A webhook you add in **Account settings → Event webhooks** |
+
+**Waiting over MCP.** Call `listEvents` with `after: "latest"` once to get a
+cursor, then `waitForEvents` with that cursor: it returns as soon as an
+event arrives (or after at most 25 seconds with none), with a new cursor
+for the next call. `listEvents` without a cursor reads the last 30 days.
+
+**MCP Events.** Clients that support the MCP Events extension find the
+event types with `events/list` and subscribe on their own; Lictory verifies
+the callback once and signs every delivery (Standard Webhooks). Their
+subscriptions appear under **Account settings → Event webhooks**, where you
+can pause or remove them.
+
+**A webhook.** In **Account settings → Event webhooks**, choose **New
+webhook**, enter a name, the URL your agent gave you and its secret (sent as
+`Authorization: Bearer <secret>`), choose the organization and the event
+types, then **Test** it. Each delivery's body has `text` (one sentence
+describing the event) and `event` (its type, identifiers and a link). A
+failing receiver is retried with backoff and paused after five failures;
+**Resume** it once it works again.
+
+Webhooks reach public HTTPS addresses only. A self-hosted installation can
+allow agents on its own network with `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS`
+(see [configuration](/self-hosting/configuration)). Organization
+administrators decide in **Organization settings → Security** whether the
+organization's events may be sent to webhooks at all, and to which hosts.
+
 ## Audit and disconnect
 
 Activity attributes changes to the person and named agent. Organization
@@ -232,6 +277,7 @@ Apply your organization's policy for sending product data to that provider.
 | Organization not found     | Rediscover with `listOrganizations`; use its exact ID or slug.                                                      |
 | Revision conflict          | Read the latest item and branch heads, then reconcile before retrying.                                              |
 | Client cannot connect      | Use `/api/mcp`, remote Streamable HTTP and a reachable HTTPS address; check your reverse proxy and custom CA trust. |
+| Webhook gets no events     | Check its state in Account settings (suspended, last problem) and the organization's webhook policy.                |
 
 For server diagnostics, use `lictory doctor` and `lictory logs api` on the
 installation's host. See [reverse proxies](/self-hosting/reverse-proxy) if

@@ -27,6 +27,16 @@ import {
 } from "@lictory/core/channels/writer";
 import { promoteMessage } from "@lictory/core/channels/promotion";
 import { trackCommitted } from "@lictory/core/capabilities/workspace";
+import { intelligenceMayReadSlack } from "@lictory/core/channels/slack/ai-access";
+
+// Lictory Intelligence (the embedded agent) reads Slack messages only when
+// the organization allows it (docs/internals/channels.md#ai).
+async function readOptions(ctx: CapabilityContext, organizationId: string) {
+  if (ctx.principal.surface !== "agent") return {};
+  return {
+    withholdExternal: !(await intelligenceMayReadSlack(ctx.db, organizationId)),
+  };
+}
 
 // Lictory Channels for every surface (docs/internals/channels.md). Channel
 // structure and membership are workspace commands (createChannel,
@@ -115,7 +125,13 @@ const readChannelCapability = defineCapability({
     limit: z.number().int().min(1).max(200).default(50),
     threads: z.boolean().default(false),
   }),
-  run: (ctx, q) => readChannel(ctx.db, ctx.principal.userId, q),
+  run: async (ctx, q) =>
+    readChannel(
+      ctx.db,
+      ctx.principal.userId,
+      q,
+      await readOptions(ctx, q.organizationId),
+    ),
 });
 
 const readThreadCapability = defineCapability({
@@ -131,7 +147,13 @@ const readThreadCapability = defineCapability({
     afterSequence: z.number().int().min(0).optional(),
     limit: z.number().int().min(1).max(200).default(100),
   }),
-  run: (ctx, q) => readThread(ctx.db, ctx.principal.userId, q),
+  run: async (ctx, q) =>
+    readThread(
+      ctx.db,
+      ctx.principal.userId,
+      q,
+      await readOptions(ctx, q.organizationId),
+    ),
 });
 
 const searchCapability = defineCapability({
@@ -147,7 +169,13 @@ const searchCapability = defineCapability({
     channelId: id.optional(),
     limit: z.number().int().min(1).max(50).default(20),
   }),
-  run: (ctx, q) => searchMessages(ctx.db, ctx.principal.userId, q),
+  run: async (ctx, q) =>
+    searchMessages(
+      ctx.db,
+      ctx.principal.userId,
+      q,
+      await readOptions(ctx, q.organizationId),
+    ),
 });
 
 const badgeCapability = defineCapability({

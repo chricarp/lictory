@@ -12,7 +12,10 @@ import { stripMentions } from "@lictory/core/notifications/mentions";
 // email) checks that access again. Preferences resolve against the space's
 // home: its team, then its project, then the organization.
 
-export type PageNotificationKind = Extract<NotificationKind, `page_${string}`>;
+export type PageNotificationKind =
+  | Extract<NotificationKind, `page_${string}`>
+  // Agent-only (agent-events/catalog.ts): wakes the author's agents.
+  | "page_pull_request_decided";
 
 export type PageNotice = {
   userIds: Iterable<string>;
@@ -160,6 +163,39 @@ export async function notifyPageApprovalInvalidated(
         detail: {
           pullRequestId: input.pullRequestId,
           pullRequestTitle: input.pullRequestTitle,
+        },
+      },
+    ],
+  });
+}
+
+// A reviewer approved or requested changes on a page pull request: its
+// author and contributors' agents are told (an agent event; the inbox shows
+// it in To do).
+export async function notifyPagePullRequestDecided(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    pageId: string;
+    actorId: string;
+    recipientIds: string[];
+    pullRequestId: string;
+    pullRequestTitle: string | null;
+    decision: "approved" | "changes_requested";
+  },
+) {
+  return notifyPage(tx, {
+    organizationId: input.organizationId,
+    pageId: input.pageId,
+    actorId: input.actorId,
+    notices: [
+      {
+        userIds: input.recipientIds,
+        kind: "page_pull_request_decided",
+        detail: {
+          pullRequestId: input.pullRequestId,
+          pullRequestTitle: input.pullRequestTitle,
+          decision: input.decision,
         },
       },
     ],
