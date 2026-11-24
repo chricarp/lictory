@@ -36,7 +36,7 @@ import { firstName } from "@lictory/platform/lib/session-state";
 import {
   formatTime,
   groupReactions,
-  replyAuthorIds,
+  replyAuthors,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
@@ -351,10 +351,16 @@ export const ChannelMessage = memo(function ChannelMessage({
               className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
             >
               <Facepile
-                people={replyAuthorIds(message).map((id) => ({
-                  id,
-                  name: nameOf(id),
-                }))}
+                people={replyAuthors(message).map((author) =>
+                  author.kind === "agent"
+                    ? {
+                        id: author.id,
+                        name: agentNameOf(author.id),
+                        avatar: agentOf(author.id)?.avatar,
+                        agent: true as const,
+                      }
+                    : { id: author.id, name: nameOf(author.id) },
+                )}
                 max={4}
                 size={20}
                 label="Replied"

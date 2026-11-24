@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   Check,
@@ -37,6 +37,7 @@ import {
 import { firstName, sessionState } from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
+import { titledByItem } from "@lictory/platform/components/channels/data";
 
 // What the Factory writes into a channel thread
 // (docs/internals/factory.md#sessions-in-channels): a session's live card
@@ -123,6 +124,10 @@ function SessionCard({
         }
       : null);
   const asks = session && status === "waiting" ? session.approvals : [];
+  // A dispatched session is titled after its item ("PAY-10: Refund
+  // button…"); the item's chip already names it, so the title is not
+  // repeated under it.
+  const namedByChip = titledByItem(card, title);
   return (
     <section
       aria-label={`${card.agentName} session`}
@@ -153,7 +158,7 @@ function SessionCard({
           <ArrowUpRight className="size-3.5" aria-hidden />
         </Link>
       </div>
-      {root && <p className="px-3 pb-2 font-medium">{title}</p>}
+      {root && !namedByChip && <p className="px-3 pb-2 font-medium">{title}</p>}
       <Progress
         sessionId={card.sessionId}
         live={state.active || detailed}
@@ -214,7 +219,10 @@ function LiveProgress({
   const progress = useMemo(() => sessionProgress(events), [events]);
   const step =
     asking && progress.step?.kind === "approval" ? null : progress.step;
-  if (!step && !progress.files.length) return null;
+  // While the agent asks, the request below carries the files with its
+  // evidence; they are not listed twice.
+  const files = asking ? [] : progress.files;
+  if (!step && !files.length) return null;
   return (
     <div className="space-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
       {step && (
@@ -242,7 +250,7 @@ function LiveProgress({
           )}
         </p>
       )}
-      {progress.files.length > 0 && (
+      {files.length > 0 && (
         <p className="flex min-w-0 items-center gap-1.5">
           <FileDiff aria-hidden className="size-3.5 shrink-0" />
           <span className="shrink-0">{filesChangedLabel(progress)}</span>
@@ -252,7 +260,7 @@ function LiveProgress({
             </span>
           )}
           <span className="min-w-0 truncate font-mono">
-            {progress.files
+            {files
               .slice(0, 3)
               .map((f) => f.path.split("/").pop())
               .join(", ")}
@@ -271,6 +279,33 @@ const stepIcons = {
   approval: <ShieldQuestion />,
 } as const;
 
+// Whether the session's card shows this request right now (pending, and the
+// session waits on it): then the card is where it is answered.
+function shownOnCard(
+  approval: ApprovalCardPayload,
+  session: ReturnType<typeof useSession>["session"],
+) {
+  return (
+    approval.status === "pending" &&
+    session?.status === "waiting" &&
+    session.approvals.some((a) => a.id === approval.approvalId)
+  );
+}
+
+// In a thread that also holds the session's card, a pending request the
+// card shows is one block, not two: its record line steps aside until it is
+// answered ("Approved by Ada" then stays as history).
+export function ApprovalRecordGate({
+  payload,
+  children,
+}: {
+  payload: ApprovalCardPayload;
+  children: ReactNode;
+}) {
+  const { session } = useSession(payload.sessionId);
+  return shownOnCard(payload, session) ? null : children;
+}
+
 // An agent's request in its thread. While the session card can show it, the
 // request is answered there (one card per session); this line records it
 // and leads to the card. Without the session (no access to the Factory),
@@ -281,10 +316,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
   const [sent, setSent] = useState<"approve" | "deny" | null>(null);
   const pending = approval.status === "pending";
   const mayDecide = approval.deciderIds.includes(userId);
-  const onCard =
-    pending &&
-    session?.status === "waiting" &&
-    session.approvals.some((a) => a.id === approval.approvalId);
+  const onCard = shownOnCard(approval, session);
   const answer = async (decision: "approve" | "deny") => {
     setSent(decision);
     try {

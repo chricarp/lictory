@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bell, BellOff, Search, X } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
@@ -9,9 +9,14 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannelThread } from "@lictory/platform/components/channels/store";
 import {
   formatTime,
+  sessionCardsIn,
   type Channel,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
+import {
+  ApprovalRecordGate,
+  factoryCardOf,
+} from "@lictory/platform/components/channels/factory-cards";
 
 // The right-hand panels of a conversation: a thread (?thread=) or message
 // search. On phones they cover the conversation; Escape closes them.
@@ -87,6 +92,11 @@ export function ThreadPanel({
   );
   const end = useRef<HTMLDivElement>(null);
   const following = participant?.following ?? false;
+  // Sessions whose card is in this thread answer their requests there.
+  const cards = useMemo(
+    () => sessionCardsIn(root ? [root, ...replies] : replies),
+    [root, replies],
+  );
   // Reading the open thread keeps it read as replies arrive.
   useEffect(() => {
     if (
@@ -156,7 +166,21 @@ export function ThreadPanel({
                 previous.authorUserId === reply.authorUserId &&
                 previous.authorAgentId === reply.authorAgentId &&
                 reply.createdAt - previous.createdAt < 5 * 60_000;
-              return <div key={reply.id}>{renderMessage(reply, grouped)}</div>;
+              const message = (
+                <div key={reply.id}>{renderMessage(reply, grouped)}</div>
+              );
+              const record =
+                reply.kind === "card"
+                  ? factoryCardOf(reply.payload)
+                  : undefined;
+              return record?.type === "agentApproval" &&
+                cards.has(record.sessionId) ? (
+                <ApprovalRecordGate key={reply.id} payload={record}>
+                  {message}
+                </ApprovalRecordGate>
+              ) : (
+                message
+              );
             })}
             <div ref={end} />
           </>

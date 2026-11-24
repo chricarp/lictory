@@ -6,8 +6,11 @@ import {
   indexChannels,
   lastOwnMessage,
   listEntries,
+  replyAuthors,
+  sessionCardsIn,
   sidebarChannels,
   sidebarDirect,
+  titledByItem,
   type ChannelRow,
   type MemberRow,
   type MessageRow,
@@ -261,5 +264,42 @@ void test("people of a linked Slack channel group by name and count in reactions
   assert.deepEqual(
     reactions.map((r) => [r.emoji, r.count, r.mine, r.names]),
     [["👀", 3, true, ["Ines (Slack)", "Raj (Slack)"]]],
+  );
+});
+
+void test("a thread root shows its people and agents who replied, Slack people left out", () => {
+  const root = message(1, "ada", start, {
+    replyAuthors: ["a:forge", "u:ben", "x:U123", "u:cara"],
+  });
+  assert.deepEqual(replyAuthors(root), [
+    { kind: "agent", id: "forge" },
+    { kind: "user", id: "ben" },
+    { kind: "user", id: "cara" },
+  ]);
+});
+
+void test("a thread knows which sessions have their card in it", () => {
+  const thread = [
+    message(1, "ada", start),
+    message(2, "ada", start, {
+      kind: "card",
+      payload: { type: "agentSession", sessionId: "s1" },
+    }),
+    message(3, "ada", start, {
+      kind: "card",
+      payload: { type: "agentApproval", sessionId: "s2" },
+    }),
+    message(4, "ada", start, { payload: { type: "agentSession" } }),
+  ];
+  assert.deepEqual([...sessionCardsIn(thread)], ["s1"]);
+});
+
+void test("a dispatched session's title repeats its item only when named after it", () => {
+  const card = { workItemId: "i10", workItemKey: "PAY-10" };
+  assert.equal(titledByItem(card, "PAY-10: Refund button"), true);
+  assert.equal(titledByItem(card, "Draft the webhook docs"), false);
+  assert.equal(
+    titledByItem({ workItemId: null, workItemKey: null }, "PAY-10: x"),
+    false,
   );
 });
