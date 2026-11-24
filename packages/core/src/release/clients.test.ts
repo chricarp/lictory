@@ -94,9 +94,13 @@ void test("SHA256SUMS lists every download in sha256sum's format", async () => {
   const written = await readFile(join(directory, checksumsName), "utf8");
   assert.equal(written, checksums(assets));
   // `sha256sum -c` accepts it: the installers and operators check with it.
-  execFileSync("sha256sum", ["--check", "--strict", "--quiet", checksumsName], {
-    cwd: directory,
-  });
+  execFileSync(
+    "bash",
+    ["-c", `sha256sum --check --strict --quiet ${checksumsName}`],
+    {
+      cwd: directory,
+    },
+  );
   // Read again (publication), it must still describe the files exactly.
   assert.deepEqual(await clientAssets(directory, version), assets);
   await writeFile(join(directory, "lictory-runner-linux-x64"), "changed");
