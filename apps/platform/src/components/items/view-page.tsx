@@ -194,6 +194,12 @@ export function ViewPage({
       project={project}
       hrefFor={hrefFor}
       title={overview ? (proposals ? "Proposals" : "Refinement") : meta.label}
+      breadcrumbs={[
+        {
+          label: project.name,
+          href: paths.project(organization.slug, project.key),
+        },
+      ]}
       description={
         overview
           ? proposals

@@ -18,6 +18,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -90,6 +91,7 @@ export function IssueList({
   compact = false,
   title,
   description,
+  breadcrumbs,
   emptyTitle = "No items",
   emptyBody,
   emptyIllustration = "proposal",
@@ -111,6 +113,8 @@ export function IssueList({
   compact?: boolean;
   title: string;
   description?: string;
+  // Pages above this one in the page header (the project).
+  breadcrumbs?: readonly { label: string; href: string }[];
   emptyTitle?: string;
   emptyBody?: ReactNode;
   emptyIllustration?: IllustrationKind;
@@ -143,6 +147,9 @@ export function IssueList({
     directory,
   } = useWorkspace();
   const { openCreate } = useShell();
+  // Phones list a row as the title over one line of key and signals, like
+  // the list beside an open item.
+  const phone = usePhone();
   const capabilities = capabilitiesIn(project?.id);
   const canCreate =
     capabilities.editSpecifications || capabilities.changeProperties;
@@ -517,7 +524,7 @@ export function IssueList({
           onValueChange={setSearch}
           placeholder="Filter…"
           aria-label="Filter by title or identifier"
-          className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base"
+          className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted max-sm:hidden touch:text-base"
         />
       )}
       <Popover
@@ -535,7 +542,7 @@ export function IssueList({
             }
           >
             <Filter className="size-3.5" />
-            {!compact && "Filters"}
+            {!compact && <span className="max-sm:hidden">Filters</span>}
             {activeFilterCount > 0 && (
               // The count is in the button's name; drawn so the visible
               // label stays a part of that name (WCAG 2.5.3).
@@ -657,10 +664,12 @@ export function IssueList({
           aria-label={createLabel ?? `New ${createKind}`}
         >
           <Plus className="size-3.5" />
-          {!compact && (createLabel ?? "New item")}
+          {!compact && (
+            <span className="max-sm:hidden">{createLabel ?? "New item"}</span>
+          )}
         </Button>
       )}
-      {!compact && <LittoLauncher className="ml-1" />}
+      {!compact && <LittoLauncher className="ml-1 max-sm:hidden" />}
     </>
   );
   return (
@@ -730,6 +739,7 @@ export function IssueList({
         <PageHeader
           title={title}
           description={description}
+          breadcrumbs={breadcrumbs}
           meta={
             <>
               <span className="tabular-nums">
@@ -740,6 +750,18 @@ export function IssueList({
           }
           actions={<>{controls}</>}
         />
+      )}
+      {!compact && (
+        // Phones: the filter takes a row of its own under the header.
+        <div className="shrink-0 border-b px-3 py-2 sm:hidden">
+          <Input
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Filter…"
+            aria-label="Filter by title or identifier"
+            className="h-9 w-full rounded-md bg-muted/70 px-2.5 text-base outline-none placeholder:text-muted-foreground/70 focus:bg-muted"
+          />
+        </div>
       )}
       {summary}
       {activeFilterCount > 0 && (
@@ -1032,9 +1054,8 @@ export function IssueList({
                           >
                             Checks
                           </span>
-                          <span className="w-7 text-center" title="Assignee">
-                            Who
-                          </span>
+                          <span className="sr-only">Assignee</span>
+                          <span className="w-7" />
                           <span className="hidden w-14 text-right sm:block">
                             Updated
                           </span>
@@ -1069,7 +1090,7 @@ export function IssueList({
                       href={hrefFor(item)}
                       selected={item.id === selectedId}
                       focused={cursorShown && item.id === focus}
-                      compact={compact}
+                      compact={compact || phone}
                       memberName={memberName}
                       onUpdate={
                         capabilities.changeProperties
@@ -1355,5 +1376,19 @@ function FilterPanel({
         Review outstanding
       </label>
     </div>
+  );
+}
+
+const phoneQuery = "(max-width: 39.99rem)";
+function subscribePhone(onChange: () => void) {
+  const media = window.matchMedia(phoneQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+function usePhone() {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(phoneQuery).matches,
+    () => false,
   );
 }
