@@ -169,7 +169,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     storyPreview.getByRole("heading", { name: "Save a card for later" }),
   ).toBeVisible();
-  await page.getByRole("heading", { name: "Checkout", exact: true }).click();
+  await page.getByRole("heading", { name: "Board", level: 1 }).click();
   await expect(storyPreview).toBeHidden();
   await storyCard.click();
   await page.keyboard.press("Escape");

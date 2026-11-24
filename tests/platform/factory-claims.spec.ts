@@ -165,7 +165,7 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
   // One owner line: the agent and the person it acts for (by first name,
   // the full name on hover), in the shared state vocabulary.
   await expect(factory.locator("[data-claim-owner]")).toHaveText(
-    "Forge via Ada",
+    /Forge via Ada$/,
   );
   await expect(factory.getByText("Running", { exact: true })).toBeVisible();
   await expect(
