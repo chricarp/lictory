@@ -44,7 +44,9 @@ import {
   codeEntityKey,
   webhookPath,
   type CodeEntity,
+  type CodeLinkEntity,
   type CodePullRequestEntity,
+  type CodeWriteEntity,
 } from "@lictory/core/code/entities";
 import { suggestBranchName } from "@lictory/core/code/keys";
 import { mergeBlockers } from "@lictory/core/code/merge-rules";
@@ -950,8 +952,10 @@ export function createCodeService(
         500,
       );
       return {
-        links: rows.filter((r) => r.type === "codeLink"),
-        writes: rows.filter((r) => r.type === "codeWrite"),
+        links: rows.filter((r): r is CodeLinkEntity => r.type === "codeLink"),
+        writes: rows.filter(
+          (r): r is CodeWriteEntity => r.type === "codeWrite",
+        ),
       };
     },
 
@@ -1645,6 +1649,16 @@ export function createCodeService(
       };
       requireCodeWorker(access, projects, verbs[step]);
       requireStep(codePullRequest, pullRequest.state, step);
+      // Asking for the state it is already in changes nothing.
+      if (codePullRequest.targets(step).includes(pullRequest.state))
+        return {
+          writeId: null,
+          kind: null,
+          status: "succeeded" as const,
+          lastError: null,
+          result: { unchanged: true, state: pullRequest.state },
+          replayed: false,
+        };
       const built = await build(tx, pullRequest);
       if (built.reuseInFlight) {
         const [inFlight] = await tx

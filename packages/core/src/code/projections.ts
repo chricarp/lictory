@@ -697,27 +697,33 @@ async function storedKeys(
         inArray(s.codeEntity.workItemId, touch.workItemIds),
       )!,
     );
-  if (touch.connectionIds?.length || touch.repositoryIds?.length) {
-    // A connection's rows (repositories, mirrors, links, writes) go with
-    // it when it is archived.
-    const repositoryIds = [
-      ...(touch.repositoryIds ?? []),
-      ...(touch.connectionIds?.length
-        ? (
-            await tx
-              .select({ id: s.codeRepository.id })
-              .from(s.codeRepository)
-              .where(
-                and(
-                  eq(s.codeRepository.organizationId, organizationId),
-                  inArray(s.codeRepository.connectionId, touch.connectionIds),
-                ),
-              )
-          ).map((r) => r.id)
-        : []),
-    ];
-    if (repositoryIds.length)
-      conditions.push(inArray(s.codeEntity.repositoryId, repositoryIds));
+  if (touch.connectionIds?.length) {
+    // An archived connection's rows (repositories, mirrors, links, writes)
+    // leave the projection with it.
+    const archived = await tx
+      .select({ id: s.codeRepository.id })
+      .from(s.codeRepository)
+      .innerJoin(
+        s.codeConnection,
+        and(
+          eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+          eq(s.codeConnection.id, s.codeRepository.connectionId),
+        ),
+      )
+      .where(
+        and(
+          eq(s.codeRepository.organizationId, organizationId),
+          inArray(s.codeRepository.connectionId, touch.connectionIds),
+          sql`${s.codeConnection.archivedAt} is not null`,
+        ),
+      );
+    if (archived.length)
+      conditions.push(
+        inArray(
+          s.codeEntity.repositoryId,
+          archived.map((r) => r.id),
+        ),
+      );
   }
   if (touch.connectionIds?.length)
     conditions.push(
