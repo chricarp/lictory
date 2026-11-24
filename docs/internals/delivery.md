@@ -26,6 +26,31 @@ description. Turning the flag on starts refinement at `draft`; turning it off
 hides refinement but never deletes revisions or discussions. Archiving a type
 stops new use; existing items keep it.
 
+### Hierarchy
+
+A parent's level is strictly above its child's; the server refuses any other
+parent, type change or proposed breakdown child. The defaults are:
+
+```text
+Epic 3  >  Story 2  >  Task 1, Bug 1  >  Subtask 0
+```
+
+So a Story breaks down into Tasks and Bugs (its implementation work), a Task
+or Bug may also sit directly under an Epic, and nothing goes the other way:
+a Story never sits under a Task. Levels are the whole model: there is no
+per-organization switch and no matrix of allowed parent types. An
+organization adds types at a level (0 to 4; 4 is above Epic, such as an
+Initiative) and the level cannot change later, because existing parent and
+child pairs depend on it. Levels from 3 up group work: boards and backlogs
+show their children instead, and agents never claim them.
+
+Organizations created before Stories could hold Tasks (when Epic was 2 and
+Story, Task and Bug shared 1) were moved to this scale by role, not by name,
+so renamed and custom types follow: levels 2 and above moved up one, level-1
+types with a specification (Story and its equivalents) moved to 2, plain
+level-1 types and level 0 stayed. That mapping keeps every strict order, so
+no existing parent and child became invalid and no item was rewritten.
+
 ## Workflows
 
 Each project has its own statuses, each in a fixed category (`backlog`,
@@ -234,6 +259,17 @@ Export is explicit and evidence-gated, independent of the readiness policy:
   subtree refuses entirely when the root is not ready; not-ready descendants
   (and everything under them) are skipped. Plain items (tasks, subtasks) go
   along only under an exported parent.
+- The delivery system's hierarchy can be stricter than Lictory's: in Jira a
+  Story and a Task are both standard issues, so a Task cannot be a Story's
+  child. Each item goes under the issue of its nearest ancestor whose mapped
+  issue type sits higher in the external hierarchy (a Story's Task under the
+  Story's Epic), or without a parent when no ancestor qualifies. The
+  hierarchy levels of the external types are recorded when a project's
+  mapping is saved (a target saved earlier learns them before its next
+  export). The preview and the item's result say where such an item went;
+  in Lictory it stays under its Story. The placement is part of what is
+  exported, so exporting again is unchanged unless the hierarchy or mapping
+  changed.
 - Lictory owns summary, description (latest revision, including acceptance
   criteria) and labels, pushed one-way on each export. Labels added in Jira
   are kept. Status, assignee, sprint and comments are Jira's; status, its

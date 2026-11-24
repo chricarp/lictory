@@ -14,6 +14,7 @@ import {
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "@lictory/core/db/schema";
+import { typeLevels } from "@lictory/core/lib/work-items";
 import {
   PROTOCOL,
   applicationRoleOf,
@@ -870,7 +871,8 @@ export async function searchEpics(
             .where(
               and(
                 eq(s.workItemType.organizationId, organizationId),
-                gt(s.workItemType.level, childType?.level ?? 1),
+                // Without a child type: grouping types (Epic and above).
+                gt(s.workItemType.level, childType?.level ?? typeLevels.story),
               ),
             ),
         ),
@@ -2554,7 +2556,8 @@ export async function applyMutation(
         "The work item type is unavailable.",
       );
     // Hierarchy follows type levels: a parent sits strictly above its
-    // children (Epic > Story/Task/Bug > Subtask).
+    // children (Epic > Story > Task/Bug > Subtask; a Task or Bug may also
+    // sit directly under an Epic).
     const validateParent = async (parentId: string | null, typeId: string) => {
       if (!parentId) return;
       const child = typeOf(typeId);

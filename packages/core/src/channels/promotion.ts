@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { typeLevels } from "@lictory/core/lib/work-items";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import { formatReference } from "@lictory/core/contracts/references";
 import { DomainError } from "@lictory/core/domain/errors";
@@ -45,7 +46,7 @@ type PromotionTarget =
       kind: "proposal";
       projectId: string;
       // A specification-backed type of the project; defaults to the first
-      // enabled one at the lowest level above subtasks (Story).
+      // enabled one at the Story level, else the lowest one.
       typeId?: string;
       title: string;
       teamId?: string | null;
@@ -389,7 +390,7 @@ async function commandFor(
 }
 
 // The project's first enabled specification-backed type, preferring the
-// level stories live at.
+// level stories live at (`typeLevels.story`).
 async function defaultProposalType(
   tx: Tx,
   organizationId: string,
@@ -419,7 +420,8 @@ async function defaultProposalType(
     );
   const chosen = types.sort(
     (a, b) =>
-      Number(a.level !== 1) - Number(b.level !== 1) ||
+      Number(a.level !== typeLevels.story) -
+        Number(b.level !== typeLevels.story) ||
       a.level - b.level ||
       a.position - b.position,
   )[0];

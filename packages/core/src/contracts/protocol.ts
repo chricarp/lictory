@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { aiProviderKinds } from "@lictory/core/contracts/ai-provider";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
+import { maxTypeLevel } from "@lictory/core/lib/work-items";
 import {
   aiActionPolicies,
   aiFindingSchema,
@@ -2492,7 +2493,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     name: text.max(40),
     icon: z.enum(typeIcons),
     color: z.enum(labelColors),
-    level: z.number().int().min(0).max(3),
+    level: z.number().int().min(0).max(maxTypeLevel),
     hasSpecification: z.boolean(),
   }),
   z.object({

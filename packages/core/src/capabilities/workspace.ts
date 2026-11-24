@@ -434,7 +434,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   commitBranch: {
     title: "Commit to branch",
     description:
-      "Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId, title, description) or a change to an existing direct child (changeId, workItemId, base {revisionId, title} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
+      "Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId of an enabled type whose level is below the parent's, such as a Task or Bug under a Story, title, description) or a change to an existing direct child (changeId, workItemId, base {revisionId, title} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.",
   },
   openSpecificationDraft: {
     title: "Open specification draft",
@@ -621,7 +621,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createType: {
     title: "Create work item type",
     description:
-      "Organization administrators: add an organization-wide work item type with a hierarchy level and whether it carries a specification. It is enabled in every project.",
+      "Organization administrators: add an organization-wide work item type with a hierarchy level and whether it carries a specification. A parent's level is strictly above its children's: 0 Subtask, 1 Task and Bug, 2 Story, 3 Epic, 4 above Epic. The level cannot change later. It is enabled in every project.",
   },
   updateType: {
     title: "Update work item type",

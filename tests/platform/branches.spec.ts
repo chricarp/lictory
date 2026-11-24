@@ -30,6 +30,7 @@ const authorEmail = `branch-author-${run}@example.test`;
 const reviewerEmail = `branch-reviewer-${run}@example.test`;
 let itemUrl: string;
 let workItemId: string;
+let taskTypeId: string;
 const initial =
   "# Behavior\n\nRetries reuse the transaction ID.\n\n## Acceptance criteria\n\n- [ ] Late responses return within 60 seconds.";
 const integration = initial.replace(
@@ -119,6 +120,7 @@ test.beforeAll(async () => {
       projectId,
       readinessPolicy: "block",
     });
+    taskTypeId = roster.types.find((t) => t.name === "Task")!.id;
     workItemId = crypto.randomUUID();
     await command({
       type: "createWorkItem",
@@ -839,6 +841,8 @@ test("a breakdown-only pull request creates children only after review and merge
     const child = (await childRows()).find(
       (child) => child.title === "Persist stable retry identifiers",
     )!;
+    // A Story breaks down into Tasks by default.
+    expect(child.typeId).toBe(taskTypeId);
     const revisions = await db
       .select()
       .from(s.specificationRevision)

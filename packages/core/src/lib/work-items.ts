@@ -96,10 +96,24 @@ export function statusOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
 export function categoryOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
   return d.statuses.get(item.statusId)?.category;
 }
-// Higher-level types (Epic by default) group implementation work: boards and
+// Type levels order the hierarchy: a parent sits strictly above its
+// children. The default types are Epic 3 > Story 2 > Task and Bug 1 >
+// Subtask 0, so a Story breaks down into Tasks and Bugs, which may also sit
+// directly under an Epic. Levels from `epic` up (Epic, an Initiative above
+// it) group work; organizations name and add types, the levels keep their
+// meaning.
+export const typeLevels = {
+  subtask: 0,
+  task: 1,
+  story: 2,
+  epic: 3,
+  initiative: 4,
+} as const;
+export const maxTypeLevel = typeLevels.initiative;
+// Grouping types (Epic by default) group implementation work: boards and
 // backlogs show their children instead.
 export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
-  type.level >= 2;
+  type.level >= typeLevels.epic;
 // The project's workflow, in order. Every item of a project uses it.
 export function projectStatuses(d: Delivery, projectId: string | undefined) {
   return [...d.statuses.values()]

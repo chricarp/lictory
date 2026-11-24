@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
+import { typeLevels } from "@lictory/core/lib/work-items";
 import type {
   CodeHostAuthKind,
   CodeHostProviderKind,
@@ -2354,8 +2355,8 @@ function defaultImportType(
   const pick =
     bug ??
     named("task") ??
-    types.find((t) => !t.hasSpecification && t.level === 1) ??
-    types.find((t) => t.level === 1);
+    types.find((t) => !t.hasSpecification && t.level === typeLevels.task) ??
+    types.find((t) => t.level === typeLevels.task);
   if (!pick)
     throw new DomainError(
       "validation",

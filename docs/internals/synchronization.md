@@ -13,7 +13,7 @@ configuration) and at most one of its **teams**. Moving an item between teams
 never changes its identifier, status or iteration. Its
 `typeId` points into the organization's type registry (see
 [delivery.md](delivery.md)); hierarchy follows type levels, so a parent's level is
-strictly above its child's (Epic 2 > Story/Task/Bug 1 > Subtask 0), and the
+strictly above its child's (Epic 3 > Story 2 > Task/Bug 1 > Subtask 0), and the
 server rejects any other parent or type change. Labels and milestones are
 project-scoped and archivable. Sibling order under a parent is a sparse integer
 `position` (`reorderWorkItem`); backlog and board order is a fractional `rank`

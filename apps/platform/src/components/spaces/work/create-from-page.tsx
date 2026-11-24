@@ -13,6 +13,7 @@ import {
   enabledTypes,
   identifier,
   isTopLevel,
+  typeLevels,
 } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
@@ -132,12 +133,15 @@ export function CreateFromPageDialog({
   const preferred =
     request.origin === "task"
       ? (types.find((t) => !t.hasSpecification && !isTopLevel(t)) ??
-        types.find((t) => t.level === 1))
-      : (types.find((t) => t.hasSpecification && t.level === 1) ??
-        types.find((t) => !isTopLevel(t)));
+        types.find((t) => t.level === typeLevels.task))
+      : (types.find(
+          (t) => t.hasSpecification && t.level === typeLevels.story,
+        ) ?? types.find((t) => !isTopLevel(t)));
   const [typeId, setTypeId] = useState<string>();
   const type = types.find((t) => t.id === typeId) ?? preferred ?? types[0];
-  const proposalType = types.find((t) => t.hasSpecification && t.level === 1);
+  const proposalType = types.find(
+    (t) => t.hasSpecification && t.level === typeLevels.story,
+  );
 
   const versionLabel = commit.version ? ` (version ${commit.version})` : "";
   const sourceLink = formatReference(
