@@ -435,9 +435,7 @@ async function startedOnItemByPerson(
         eq(s.agentSession.id, actor.agentSessionId),
       ),
     );
-  return Boolean(
-    session && session.workItemId === workItemId && !session.startedByPolicy,
-  );
+  return session?.workItemId === workItemId && !session.startedByPolicy;
 }
 
 function firstStatus(
