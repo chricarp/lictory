@@ -1041,6 +1041,12 @@ export const declarations: readonly Declaration[] = [
         "How often automatic cycles are advanced.",
       ],
       [
+        "WORKER_FACTORY_INTERVAL_MS",
+        "60000",
+        1,
+        "How often the factory dispatcher expires claims and starts claimable work.",
+      ],
+      [
         "WORKER_SHUTDOWN_TIMEOUT_MS",
         "25000",
         1,

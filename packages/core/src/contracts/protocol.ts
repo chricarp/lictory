@@ -11,6 +11,12 @@ import { intelligenceContextUseSchema } from "@lictory/core/intelligence/shared"
 import { readinessRulesSchema } from "@lictory/core/contracts/readiness";
 import { proposedChildrenSchema } from "@lictory/core/contracts/decomposition";
 import { chosenRefinementStates } from "@lictory/core/contracts/state-machines";
+import {
+  autonomyPolicyEntitySchema,
+  claimEntitySchema,
+  definitionOfDoneEntitySchema,
+  doneEvaluationEntitySchema,
+} from "@lictory/core/claims/contracts";
 
 const id = z.string().min(1).max(160);
 const text = z.string().trim().min(1).max(200_000);
@@ -520,6 +526,12 @@ export const entitySchema = z.discriminatedUnion("type", [
     updatedAt: z.string(),
     archivedAt: z.string().nullable(),
   }),
+  // Claims, autonomy policy and the Definition of Done
+  // (docs/internals/claims.md).
+  claimEntitySchema,
+  autonomyPolicyEntitySchema,
+  definitionOfDoneEntitySchema,
+  doneEvaluationEntitySchema,
 ]);
 export type Entity = z.infer<typeof entitySchema>;
 export type EntityType = Entity["type"];
@@ -566,6 +578,10 @@ const entityTypes = z.enum([
   "externalLink",
   "aiRun",
   "activity",
+  "claim",
+  "autonomyPolicy",
+  "definitionOfDone",
+  "doneEvaluation",
 ]);
 export const changeSchema = z.discriminatedUnion("operation", [
   z.object({

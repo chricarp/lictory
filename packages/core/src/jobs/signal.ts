@@ -13,6 +13,7 @@ export const workKinds = [
   "delivery",
   "chat",
   "export",
+  "factory",
 ] as const;
 export type WorkKind = (typeof workKinds)[number];
 

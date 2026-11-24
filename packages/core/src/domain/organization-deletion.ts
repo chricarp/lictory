@@ -252,6 +252,15 @@ export const deletionOrder: readonly PgTable[] = [
   s.intelligenceContextVersion,
   s.intelligenceContextEntry,
   s.aiRun,
+  // Claims and the Definition of Done reference items, revisions and
+  // projects (docs/internals/claims.md).
+  s.autopilotMerge,
+  s.claimQuestion,
+  s.workItemClaim,
+  s.doneSignOff,
+  s.dispatchBackoff,
+  s.autonomyPolicy,
+  s.definitionOfDone,
   s.decision,
   s.threadMessage,
   s.thread,

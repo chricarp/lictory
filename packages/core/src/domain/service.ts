@@ -140,6 +140,16 @@ import {
 } from "@lictory/core/domain/organization-access";
 import { logoUrl, type LogoKind } from "@lictory/core/branding/logo";
 import {
+  claimOrganizationEntities,
+  doneEvaluationEntities,
+  syncDoneProjections,
+} from "@lictory/core/claims/projections";
+import { claimQuestionResolved } from "@lictory/core/claims/questions";
+import {
+  followItemClaim,
+  refuseClaimedCompletion,
+} from "@lictory/core/claims/follow";
+import {
   advanceProjectSchedule,
   automaticProjects,
   iterationReportRows,
@@ -1618,6 +1628,9 @@ async function snapshotItems(
       serialize("relation", { ...r, projectId: itemProject.get(r.fromId) }),
     ),
     ...links,
+    // Live claims, autonomy policies and Definitions of Done
+    // (docs/internals/claims.md).
+    ...(await claimOrganizationEntities(tx, organizationId, projectId)),
   ];
   if (!workItemIds.length) return entities;
   const detailItems = workItemIds.map((id) =>
@@ -1732,6 +1745,22 @@ async function snapshotItems(
   );
   entities.push(
     ...detailItems.map((item) => readinessEntity(item, items, ctx)),
+  );
+  entities.push(
+    ...(await doneEvaluationEntities(
+      tx,
+      organizationId,
+      detailItems.map((item) => ({
+        id: item.id,
+        projectId: item.projectId,
+        category: ctx.categories.get(item.statusId),
+        committedRevisionId: item.committedRevisionId,
+        currentRevisionId: ctx.revisions.get(item.id)?.[0]?.id ?? null,
+        deliveryMode:
+          projects.find((p) => p.id === item.projectId)?.deliveryMode ??
+          "native",
+      })),
+    )),
   );
   entities.push(...runs);
   entities.push(
@@ -1938,24 +1967,36 @@ export async function followReadinessChecks(
 
 export type Actor = {
   userId: string;
-  surface?: "web" | "mcp" | "agent";
+  // `runner`: a runner agent's session started by the factory dispatcher
+  // (docs/internals/claims.md).
+  surface?: "web" | "mcp" | "agent" | "runner";
   client?: string | null;
   // The named agent executing for the person: the access token for MCP
   // (`agentId` is its id), Litto for the embedded agent. Agents are
   // delegations, not principals: authority and authorship stay the person's.
   agentId?: string | null;
   agentName?: string | null;
+  // The agent session the change belongs to, when the agent runs one.
+  agentSessionId?: string | null;
+  // Set when Lictory acts by itself for the person (the dispatcher, the
+  // Definition of Done, an expired lease), so history says it was automatic.
+  automation?: string | null;
 };
 
 // Activity detail that identifies delegated execution, so history shows which
 // of a person's agents produced a change. Empty for the person's own actions.
-function delegation(actor: Actor): Record<string, string | null> {
-  if (!actor.surface || actor.surface === "web") return {};
+export function delegation(actor: Actor): Record<string, string | null> {
+  const automatic: Record<string, string> = actor.automation
+    ? { automation: actor.automation }
+    : {};
+  if (!actor.surface || actor.surface === "web") return automatic;
   return {
+    ...automatic,
     performedVia: actor.surface,
     agentId: actor.agentId ?? null,
     agentName: actor.agentName?.slice(0, 80) ?? null,
     agentClient: actor.client?.slice(0, 200) ?? null,
+    ...(actor.agentSessionId ? { agentSessionId: actor.agentSessionId } : {}),
   };
 }
 export type MutationResult = {
@@ -2173,6 +2214,15 @@ export async function applyMutation(
           scope: { projectId: c.projectId, workItemId },
         })),
       );
+      // Workflow changes can move items into or out of progress, which is
+      // where the Definition of Done is evaluated (docs/internals/claims.md).
+      await syncDoneProjections(
+        tx,
+        organizationId,
+        after
+          .filter((e) => e.type === "workItem" && e.projectId === c.projectId)
+          .map((e) => e.id),
+      );
       return receipt(tx, organizationId, mutation.id, userId, fingerprint);
     }
     let projectId: string;
@@ -2276,13 +2326,13 @@ export async function applyMutation(
       action: string;
       detail?: Record<string, unknown>;
     }[] = [];
+    const delegated = delegation(actor);
     const log = (action: string, detail?: Record<string, unknown>) =>
       activities.push({
         action,
-        detail:
-          actor.surface && actor.surface !== "web"
-            ? { ...detail, ...delegation(actor) }
-            : detail,
+        detail: Object.keys(delegated).length
+          ? { ...detail, ...delegated }
+          : detail,
       });
     // Lictory Intelligence runs owned by other items (an Epic review
     // covering this Story) whose projection this command changed.
@@ -3288,6 +3338,15 @@ export async function applyMutation(
               });
             }
             if (to.category === "done" && from?.category !== "done") {
+              // Claimed work reaches Done through its Definition of Done,
+              // never because an agent reports it finished.
+              if (actor.surface && actor.surface !== "web" && !actor.automation)
+                await refuseClaimedCompletion(
+                  tx,
+                  organizationId,
+                  workItemId!,
+                  `${projectRow!.key}-${item!.number}`,
+                );
               patch.deliveredRevisionId = committed;
               log("delivery_scope_completed", {
                 revision: revisionNumber,
@@ -4147,6 +4206,15 @@ export async function applyMutation(
             log(c.resolved ? "thread_resolved" : "thread_reopened", {
               threadId: c.threadId,
             });
+          // An agent's question (docs/internals/claims.md): resolving it
+          // resumes the claim that asked.
+          if (c.resolved && !wasResolved)
+            await claimQuestionResolved(tx, {
+              organizationId,
+              threadId: c.threadId,
+              userId,
+              now,
+            });
           if (thread.blocking !== c.blocking)
             log("thread_blocking_changed", {
               threadId: c.threadId,
@@ -4695,6 +4763,17 @@ export async function applyMutation(
         break;
       }
     }
+    // A claim follows its item: closing, archiving or moving it back out
+    // of progress ends the claim (docs/internals/claims.md).
+    if (workItemId && c.type !== "createWorkItem")
+      for (const entry of await followItemClaim(tx, {
+        organizationId,
+        workItemId,
+        userId,
+        now,
+        automation: actor.automation ?? null,
+      }))
+        log(entry.action, entry.detail);
     if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
       await scheduleActionRuns(tx, {
         organizationId,

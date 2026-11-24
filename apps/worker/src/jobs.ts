@@ -11,6 +11,7 @@ import {
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
 import { processChatRuns } from "@lictory/core/intelligence/chat/runner";
+import { runDispatcher } from "@lictory/core/claims/dispatcher";
 import type { Job } from "@lictory/worker/supervisor";
 
 export type WorkerConfig = ReturnType<typeof workerConfig>;
@@ -58,6 +59,7 @@ export function workerConfig(env: Record<string, string | undefined>) {
       "WORKER_SCHEDULES_INTERVAL_MS",
       5 * 60_000,
     ),
+    factoryIntervalMs: milliseconds(env, "WORKER_FACTORY_INTERVAL_MS", 60_000),
     shutdownTimeoutMs,
     // External calls in flight are cancelled with this much budget left, so
     // interrupted work can still be handed back before the process exits.
@@ -199,6 +201,27 @@ export function workerJobs(
             config.deliveryRefreshLimit,
           ),
         };
+      },
+    },
+    {
+      // The factory dispatcher (docs/internals/claims.md): expires claims,
+      // completes work by its Definition of Done and starts claimable work
+      // in Build and Autopilot projects. Woken by policy and claim changes.
+      name: "factory",
+      kind: "factory",
+      intervalMs: config.factoryIntervalMs,
+      async run({ stopping }) {
+        const { failedOrganizations, ...counts } = await runDispatcher(db, {
+          signal: stopping,
+        });
+        if (failedOrganizations)
+          throw Object.assign(
+            new Error(
+              `${failedOrganizations} organizations could not be dispatched.`,
+            ),
+            { name: "DispatchError" },
+          );
+        return { counts };
       },
     },
     {
