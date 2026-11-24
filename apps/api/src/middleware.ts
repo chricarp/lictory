@@ -25,13 +25,15 @@ export function limit(
 
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 // Better Auth checks its own origins, MCP and runners authenticate with bearer
-// tokens and the Zero endpoints are internal (API key, cookies forwarded by
-// zero-cache).
+// tokens, the Zero endpoints are internal (API key, cookies forwarded by
+// zero-cache) and code host webhooks carry the host's signature, never
+// cookies.
 const ownOriginPolicy = [
   /^\/api\/auth\//,
   /^\/api\/mcp$/,
   /^\/api\/zero\//,
   /^\/api\/runner\//,
+  /^\/api\/code\/webhooks\//,
 ];
 
 // Cookie-authenticated writes must come from the platform's exact origin.

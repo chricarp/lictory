@@ -235,6 +235,20 @@ export async function cancelOrganizationDeletion(
 // exists. organization-deletion.test.ts checks this list against the
 // database's foreign keys, so a new table fails the test until it is added.
 export const deletionOrder: readonly PgTable[] = [
+  // Code: links and queued work reference work items, projects and
+  // mirrors; mirrors reference repositories, which reference connections.
+  s.codeWorkLink,
+  s.codeWrite,
+  s.codeWebhookDelivery,
+  s.codeHostIdentity,
+  s.codeCommitChecks,
+  s.codeCommit,
+  s.codeIssue,
+  s.codePullRequest,
+  s.codeBranch,
+  s.codeRepositoryProject,
+  s.codeRepository,
+  s.codeConnection,
   // Knowledge links reference pages, commits, branches, work items,
   // revisions, projects, teams and iterations: they go first.
   s.pageReference,

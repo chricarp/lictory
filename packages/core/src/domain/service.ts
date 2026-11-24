@@ -5169,6 +5169,7 @@ const reservedKeys = new Set([
   "FACTORY",
   // Lictory Channels lives at /{org}/channels.
   "CHANNELS",
+  "CODE",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

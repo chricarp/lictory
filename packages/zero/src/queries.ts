@@ -356,4 +356,57 @@ export const queries = defineQueries({
       .where("workItemId", args.workItemId)
       .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
   ),
+  // Code (docs/internals/code-hosts.md#projections): connections,
+  // repositories and my host logins, for settings, the Code page and every
+  // item's Code panel.
+  codeHosts: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.codeEntity
+      .where("organizationId", args.organizationId)
+      .where("type", "IN", ["codeConnection", "codeRepository", "codeIdentity"])
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Pull requests or issues in one state, most recently updated first.
+  codeList: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      type: z.enum(["codePullRequest", "codeIssue"]),
+      facet: z.enum(["open", "closed", "merged"]),
+      limit: z.number().int().min(1).max(1000).default(500),
+    }),
+    ({ args, ctx }) =>
+      zql.codeEntity
+        .where("organizationId", args.organizationId)
+        .where("type", args.type)
+        .where("facet", args.facet)
+        .whereExists("members", (m) => m.where("userId", ctx.userID))
+        .orderBy("updatedAt", "desc")
+        .limit(args.limit),
+  ),
+  // One pull request.
+  codePullRequest: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      pullRequestId: z.string().min(1),
+    }),
+    ({ args, ctx }) =>
+      zql.codeEntity
+        .where("organizationId", args.organizationId)
+        .where("key", `codePullRequest:${args.pullRequestId}`)
+        .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Writes Lictory queued for code hosts that have not succeeded yet.
+  codeWrites: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.codeEntity
+      .where("organizationId", args.organizationId)
+      .where("type", "codeWrite")
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // One work item's Code panel: its links (with what they point at) and
+  // the writes queued for it.
+  workItemCode: defineQuery(workItemArgs, ({ args, ctx }) =>
+    zql.codeEntity
+      .where("organizationId", args.organizationId)
+      .where("workItemId", args.workItemId)
+      .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
 });

@@ -8,6 +8,8 @@ import {
   processDueOrganizationDeletions,
   processNotificationEvents,
   recoverExpiredSessions,
+  processCodeWork,
+  reconcileCodeRepositories,
   refreshDeliveryStatuses,
 } from "@lictory/core/jobs";
 import type { Analyzer } from "@lictory/core/ai/analyzer";
@@ -88,6 +90,11 @@ const DELETION_INTERVAL_MS = 5 * 60_000;
 // Leases last 90 seconds; checking twice a minute bounds the delay.
 const FACTORY_LEASE_INTERVAL_MS = 30_000;
 const FACTORY_LEASE_BATCH = 20;
+// Code host webhooks and writes are woken by their signal; polling picks up
+// retries. Reconciliation runs often but only reads repositories that are
+// due (every ten minutes each, at once after a link).
+const CODE_INTERVAL_MS = 15_000;
+const CODE_RECONCILE_INTERVAL_MS = 60_000;
 
 export function workerJobs(
   db: Database,
@@ -193,6 +200,38 @@ export function workerJobs(
           { signal: stopping },
         );
         return { more: claimed > 0 && !stopping.aborted, counts };
+      },
+    },
+    {
+      name: "code",
+      kind: "code",
+      intervalMs: CODE_INTERVAL_MS,
+      async run({ stopping }) {
+        const { more, webhooks, writes } = await processCodeWork(db, {
+          signal: stopping,
+        });
+        return {
+          more: more && !stopping.aborted,
+          counts: {
+            webhooks: webhooks.processed,
+            webhookFailures: webhooks.failed,
+            writes: writes.succeeded,
+            writeFailures: writes.failed,
+          },
+        };
+      },
+    },
+    {
+      name: "code-reconcile",
+      // A reconciliation is woken with the code signal too, so a newly
+      // linked repository is backfilled right away.
+      kind: "code",
+      intervalMs: CODE_RECONCILE_INTERVAL_MS,
+      async run({ stopping }) {
+        const counts = await reconcileCodeRepositories(db, {
+          signal: stopping,
+        });
+        return { more: counts.due === 5 && !stopping.aborted, counts };
       },
     },
     {

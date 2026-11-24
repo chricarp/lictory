@@ -1,0 +1,104 @@
+---
+title: GitHub, GitLab and Bitbucket
+description: Connect your code host to see pull requests, checks, branches and issues next to the work they deliver, and to create branches, open and merge pull requests from Lictory.
+---
+
+Lictory shows the code behind each work item: the branches and pull requests
+that implement it, whether their checks pass, who reviewed them and whether
+they are merged. The code host stays the owner of the code; Lictory owns the
+links between code and work.
+
+## Set up
+
+<Steps>
+<Step>
+
+### Connect the code host (organization administrators)
+
+In **Organization settings → Code hosts**, choose **Connect a host** and pick
+GitHub, GitLab or Bitbucket. **How to set up** lists exactly what to create on
+the host and which permissions to give it.
+
+- **GitHub** (github.com or GitHub Enterprise Server): a **GitHub App** is
+  recommended. Each agent session then gets a token for one repository that
+  expires within an hour. A fine-grained personal access token works too.
+- **GitLab** (gitlab.com or self-managed): a group, project or personal
+  access token with the `api` scope.
+- **Bitbucket Cloud**: a repository, project or workspace access token, an
+  Atlassian API token with your email, or an OAuth consumer.
+
+**Verify and connect** checks the credential before saving it. It is
+encrypted and never shown again.
+
+</Step>
+<Step>
+
+### Add the webhook
+
+After connecting, Lictory shows the **webhook URL** and **webhook secret**
+once. Add them to the host (the app's settings on GitHub, the group or project
+webhooks on GitLab, each repository's webhooks on Bitbucket) with the events
+listed in **How to set up**. Without a webhook Lictory still reads every
+linked repository every ten minutes, so updates arrive more slowly.
+
+</Step>
+<Step>
+
+### Link repositories to projects (project administrators)
+
+Under the connection, choose **Link a repository**, find it and pick the
+project it serves. Lictory reads its last 30 days right away. A repository can
+serve several projects.
+
+</Step>
+</Steps>
+
+## Code on a work item
+
+Branches, pull requests and commits that mention an item's key, such as
+`PAY-142`, link to it automatically: in a branch name (`pay-142-refunds`), a
+pull request's title or description, or a commit message. Only the keys of the
+projects a repository serves count.
+
+The **Code** section of the item shows each pull request with its checks and
+review state. From there you can:
+
+- **Copy branch name** for the item, or **Create branch** on the host;
+- **Open pull request** from a linked branch, linked back to the item;
+- **Link** other code by branch name, number or commit, and unlink it. An
+  unlinked pull request is not linked again just because it still mentions
+  the key.
+
+## Pull requests
+
+**Code** in the sidebar lists open, merged and closed pull requests of every
+linked repository, filtered by repository, project, yours, those that ask for
+your review, or those agents opened. Set your login on the host in
+**Organization settings → Code hosts** so **Mine** and **Review requested**
+find yours.
+
+A pull request's page shows its description, checks, reviews and the work
+items it delivers. **Show files changed** reads the diff from the host.
+
+**Merge** is available when the pull request is open, not a draft, its checks
+passed, nobody requested changes and it has no conflicts. Lictory merges the
+head commit you see; if new commits arrive first, the merge is refused. The
+host's branch protection still applies. Comments you post are signed with
+your name, because the host shows the connection's account as their author.
+
+If the host refuses a change (a branch that exists, missing permissions),
+the item or pull request shows the host's reason with **Retry** and
+**Cancel**, and you are notified.
+
+## Issues
+
+Issues of linked repositories are listed under **Code → Issues**. They stay
+the host's. **Import as work item** creates an item in a project the
+repository serves; from then on the item is Lictory's, and the issue stays
+linked to it.
+
+## Self-managed hosts
+
+GitHub Enterprise Server and self-managed GitLab must be reachable over
+https. A host on a private network needs your operator to list its name in
+`CODE_HOST_PRIVATE_HOSTS` (see [configuration](/self-hosting/configuration)).

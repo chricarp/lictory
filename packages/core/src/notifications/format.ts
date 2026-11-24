@@ -189,6 +189,11 @@ export function describeNotification(
         body: `${num(d.failed)} of ${num(d.total)} items were not exported.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
       };
     }
+    case "code_write_failed":
+      return {
+        headline: `${str(d.summary) ?? "A change"} in ${str(d.repository) ?? "a repository"} failed`,
+        body: str(d.message),
+      };
     case "export_completed":
       return {
         headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,

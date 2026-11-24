@@ -1,4 +1,5 @@
 import { DropdownItem } from "@lictory/ui/dropdown";
+import { ItemCode } from "@lictory/platform/components/code/item-code";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   usePathname,
@@ -683,6 +684,9 @@ export function ItemDetail({
         <DefinitionOfDonePanel />
       )}
       <ExternalDelivery item={item} />
+      {!pendingCreate && (
+        <ItemCode item={item} project={project} canChange={canChange} />
+      )}
       {ctx.reviewable ? (
         <RevisionPanel onHistory={showHistory} />
       ) : (

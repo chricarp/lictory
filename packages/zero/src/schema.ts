@@ -15,7 +15,7 @@ import type { ChannelAttachment } from "@lictory/core/db/channel-schema";
 // (drizzle/0018_zero_publication.sql, 0035_spaces_zero_publication.sql and
 // the Factory's and Channels' publication migrations): read projections, the
 // membership columns that authorize every synced query, Lictory Spaces'
-// projections and effective access, Factory projections and session events,
+// projections and effective access, Code projections, Factory projections and session events,
 // and Lictory Channels' synchronization-shaped rows. Other domain tables are
 // never synced.
 
@@ -289,6 +289,25 @@ const channelPromotionRelationships = relationships(
   }),
 );
 
+// Code module projections (docs/internals/code-hosts.md#projections), apart
+// from `syncEntity` so the organization and work item queries never return
+// code rows. `workItemId` marks rows of one item's Code panel; `facet`
+// (open, closed, merged) narrows pull requests and issues.
+const codeEntity = table("codeEntity")
+  .from("code_entity")
+  .columns({
+    key: string(),
+    organizationId: string().from("organization_id"),
+    repositoryId: string().from("repository_id").optional(),
+    projectId: string().from("project_id").optional(),
+    workItemId: string().from("work_item_id").optional(),
+    type: string(),
+    facet: string().optional(),
+    data: json<Readonly<Record<string, ReadonlyJSONValue>>>(),
+    updatedAt: number().from("updated_at"),
+  })
+  .primaryKey("key");
+
 const memberRelationships = relationships(member, ({ many }) => ({
   // Filtered to the `organizationProfile` row by the memberships query.
   organization: many({
@@ -350,12 +369,23 @@ const agentSessionEventRelationships = relationships(
   }),
 );
 
+const codeEntityRelationships = relationships(codeEntity, ({ many }) => ({
+  // Code rows are organization-wide, like work items: every query requires
+  // the current user's membership through this relationship.
+  members: many({
+    sourceField: ["organizationId"],
+    destSchema: member,
+    destField: ["organizationId"],
+  }),
+}));
+
 export const schema = createSchema({
   tables: [
     member,
     syncEntity,
     spaceEntity,
     spaceReader,
+    codeEntity,
     factoryEntity,
     agentSessionEvent,
     channel,
@@ -370,6 +400,7 @@ export const schema = createSchema({
     syncEntityRelationships,
     spaceEntityRelationships,
     spaceReaderRelationships,
+    codeEntityRelationships,
     factoryEntityRelationships,
     agentSessionEventRelationships,
     channelRelationships,

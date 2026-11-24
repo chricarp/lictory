@@ -395,6 +395,8 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
       "chat-2",
       "chat-3",
       "chat-4",
+      "code",
+      "code-reconcile",
       "delivery",
       "delivery-status",
       "email",

@@ -33,6 +33,14 @@ import {
 import { busyPorts, e2ePorts } from "./e2e-ports";
 import { FAKE_JIRA_SITE, startFakeJira } from "./e2e-fakes/jira";
 import { startScriptedAi } from "./e2e-fakes/openai";
+import {
+  FAKE_BITBUCKET_API,
+  FAKE_GITHUB_SITE,
+  FAKE_GITLAB_SITE,
+  startFakeBitbucket,
+  startFakeGitHub,
+  startFakeGitLab,
+} from "./e2e-fakes/code-hosts";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -339,6 +347,7 @@ const reportDir = process.env.E2E_UPDATE_TIMINGS
 
 let fakeJira: Awaited<ReturnType<typeof startFakeJira>> | undefined;
 let scriptedAi: Awaited<ReturnType<typeof startScriptedAi>> | undefined;
+let fakeCodeHosts: Awaited<ReturnType<typeof startFakeGitHub>>[] | undefined;
 let aiEnv: (ai: boolean) => Record<string, string> = () => ({});
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
@@ -404,6 +413,14 @@ try {
   // Stand-ins for external services, local to this run (scripts/e2e-fakes).
   fakeJira = await startFakeJira(ports.fakeJira);
   scriptedAi = await startScriptedAi(ports.scriptedAi);
+  // Code hosts (tests/platform/code.spec.ts): GitHub Enterprise Server and
+  // self-managed GitLab shapes on their own fake sites, Bitbucket Cloud on
+  // its fixed API address.
+  fakeCodeHosts = await Promise.all([
+    startFakeGitHub(ports.fakeGitHub),
+    startFakeGitLab(ports.fakeGitLab),
+    startFakeBitbucket(ports.fakeBitbucket),
+  ]);
   // The API and the worker reach the fake Jira site through a preloaded
   // route that only this script passes; with `ai`, the scripted provider
   // through the AI SDK's OPENAI_BASE_URL.
@@ -420,7 +437,12 @@ try {
       : { OPENAI_API_KEY: "" };
   const backendEnv = (ai: boolean): NodeJS.ProcessEnv => ({
     ...appEnv,
-    E2E_FAKE_ROUTES: JSON.stringify({ [FAKE_JIRA_SITE]: fakeJira!.url }),
+    E2E_FAKE_ROUTES: JSON.stringify({
+      [FAKE_JIRA_SITE]: fakeJira!.url,
+      [FAKE_GITHUB_SITE]: fakeCodeHosts![0]!.url,
+      [FAKE_GITLAB_SITE]: fakeCodeHosts![1]!.url,
+      [FAKE_BITBUCKET_API]: fakeCodeHosts![2]!.url,
+    }),
     ...aiEnv(ai),
   });
   const preload = ["--import", "./scripts/e2e-fakes/route-fake-sites.ts"];
@@ -553,6 +575,9 @@ try {
         // The test's side of the fakes (what people do in Jira, what was
         // sent to the AI provider).
         E2E_FAKE_JIRA_URL: fakeJira.url,
+        E2E_FAKE_GITHUB_URL: fakeCodeHosts[0]!.url,
+        E2E_FAKE_GITLAB_URL: fakeCodeHosts[1]!.url,
+        E2E_FAKE_BITBUCKET_URL: fakeCodeHosts[2]!.url,
         ...((phase.ai || "console" in phase) && {
           E2E_SCRIPTED_AI_URL: scriptedAi.url,
         }),
@@ -584,7 +609,11 @@ try {
 } finally {
   if (interrupted) process.exitCode = 130;
   await stopAll();
-  await Promise.all([fakeJira?.close(), scriptedAi?.close()]);
+  await Promise.all([
+    fakeJira?.close(),
+    scriptedAi?.close(),
+    ...(fakeCodeHosts ?? []).map((host) => host.close()),
+  ]);
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.
   await admin`

@@ -591,6 +591,13 @@ export const declarations: readonly Declaration[] = [
     description:
       "Encrypts stored delivery credentials (Jira API tokens). Never rotate it once credentials are stored. Required in production before the first Jira connection; see the note below.",
   },
+  {
+    name: "CODE_HOST_PRIVATE_HOSTS",
+    group: "Delivery integrations",
+    services: server,
+    description:
+      "Comma-separated host names (or addresses) of self-managed code hosts on private networks that Lictory may call, such as `gitlab.internal`. Without it, GitHub Enterprise Server and GitLab connections must use public https addresses; cloud metadata and link-local addresses are always refused. See docs/internals/code-hosts.md#egress.",
+  },
 
   // ----------------------------------------------------------------- files
   {

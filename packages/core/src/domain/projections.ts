@@ -15,6 +15,7 @@ import {
 import type { Entity } from "@lictory/core/contracts/protocol";
 import { refreshSpaceAccess } from "@lictory/core/spaces/access";
 import { rebuildSpaceProjections } from "@lictory/core/spaces/projections";
+import { rebuildCodeProjections } from "@lictory/core/code/projections";
 import {
   lock,
   organizationDirectory,
@@ -348,7 +349,10 @@ export async function rebuildProjections(db: Database, organizationId: string) {
     await deleteKeys(tx, organizationId, deletes);
     // Lictory Spaces keep their own projections and effective access.
     const spaces = await rebuildSpaceProjections(tx, organizationId);
+    // The Code module keeps its own projections too.
+    const code = await rebuildCodeProjections(tx, organizationId);
     return {
+      code,
       upserted: upserts.length,
       deleted: deletes.length,
       unchanged: expected.size - upserts.length,

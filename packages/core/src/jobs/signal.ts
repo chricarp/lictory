@@ -14,6 +14,9 @@ export const workKinds = [
   "chat",
   "export",
   "factory",
+  // Code host webhooks to process and writes to send (code/ingest.ts,
+  // code/outbox.ts).
+  "code",
 ] as const;
 export type WorkKind = (typeof workKinds)[number];
 

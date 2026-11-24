@@ -290,6 +290,8 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Runner protocol: a runner shutting down returns the session to the queue.",
   "POST /api/runner/v1/sessions/:id/model":
     "Runner protocol: model calls of the built-in harness through the server's AI provider.",
+  "POST /api/code/webhooks/:connectionId":
+    "Code host webhooks, authenticated by the host's signature (code/ingest.ts).",
 };
 
 export type HumanOnlyOperation = HumanOnly & {

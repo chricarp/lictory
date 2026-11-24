@@ -657,6 +657,112 @@ export const pullRequestIsActive = (row: {
   deletedAt?: unknown;
 }) => !row.deletedAt && row.status !== "merged";
 
+// ------------------------------------------------------------------ code
+
+// A pull request on a code host (docs/internals/code-hosts.md). The host
+// owns its state; these are the steps Lictory sends to the host for a
+// person or the autonomy policy, refused here before anything is queued.
+// A merge also needs its evidence (code/merge-rules.ts).
+export const codePullRequest = stateMachine({
+  name: "code pull request",
+  states: {
+    open: "Open on the code host; it can be reviewed, merged or closed.",
+    closed: "Closed on the code host without merging; it can be reopened.",
+    merged: "Merged on the code host.",
+  },
+  steps: {
+    merge: {
+      does: "Merge",
+      from: ["open"],
+      to: "merged",
+      idempotent: true,
+      refused: (state) =>
+        state === "closed"
+          ? "This pull request is closed. Reopen it on the code host or from Lictory before merging."
+          : "This pull request is already merged.",
+    },
+    close: {
+      does: "Close",
+      from: ["open"],
+      to: "closed",
+      idempotent: true,
+      refused:
+        "This pull request is merged; a merged pull request cannot be closed.",
+    },
+    reopen: {
+      does: "Reopen",
+      from: ["closed"],
+      to: "open",
+      idempotent: true,
+      refused:
+        "This pull request is merged; a merged pull request cannot be reopened.",
+    },
+    comment: {
+      does: "Comment on",
+      from: ["open", "closed", "merged"],
+      refused: "This pull request cannot take comments.",
+    },
+    requestReview: {
+      does: "Request a review of",
+      from: ["open"],
+      refused: (state) =>
+        `This pull request is ${state}; reviews can only be requested on an open pull request.`,
+    },
+  },
+});
+
+// One write Lictory sends to a code host (create a branch, open, comment
+// on or merge a pull request). The worker sends queued writes; a failed
+// write stays visible with its error until a person retries or cancels it.
+export const codeWrite = stateMachine({
+  name: "code host write",
+  states: {
+    queued: "Waiting for the worker to send it to the code host.",
+    sending: "Being sent to the code host.",
+    succeeded: "The code host accepted it.",
+    failed:
+      "The code host refused it or could not be reached; it can be retried.",
+    canceled: "Canceled before it succeeded.",
+  },
+  steps: {
+    send: {
+      does: "Send",
+      from: ["queued"],
+      to: "sending",
+      automatic: true,
+      refused: "Only a queued write is sent.",
+    },
+    settle: {
+      does: "Record the answer of",
+      from: ["sending"],
+      to: ["succeeded", "failed", "queued"],
+      automatic: true,
+      refused: "Only a write being sent is settled.",
+    },
+    retry: {
+      does: "Retry",
+      from: ["failed"],
+      to: "queued",
+      refused: (state) =>
+        state === "succeeded"
+          ? "This write already succeeded."
+          : state === "canceled"
+            ? "This write was canceled. Ask for the change again instead."
+            : "This write is still waiting to be sent.",
+    },
+    cancel: {
+      does: "Cancel",
+      from: ["queued", "failed"],
+      to: "canceled",
+      idempotent: true,
+      refused: (state) =>
+        state === "sending"
+          ? "This write is being sent right now. Wait for its result."
+          : "This write already succeeded.",
+    },
+  },
+});
+
 // ----------------------------------------------- every stored status
 
 // How a stored status moves when no table above declares it. Each kind has
@@ -748,5 +854,23 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
   "invitation.status": {
     moves: "external",
     owner: "Better Auth's organization plugin",
+  },
+  code_pull_request_state: declared(codePullRequest),
+  code_write_status: declared(codeWrite),
+  code_connection_status: {
+    moves: "consequence",
+    owner: "connecting and code host authentication errors in code/service.ts",
+  },
+  code_issue_state: {
+    moves: "consequence",
+    owner: "mirrored from the code host by code/ingest.ts",
+  },
+  code_checks_state: {
+    moves: "consequence",
+    owner: "mirrored from the code host by code/ingest.ts",
+  },
+  code_webhook_status: {
+    moves: "job",
+    owner: "the webhook processor in code/ingest.ts",
   },
 };

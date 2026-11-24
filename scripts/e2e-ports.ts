@@ -17,6 +17,9 @@ export function e2ePorts(offset: number) {
     zeroChangeStreamer: 4859 + offset * 10,
     fakeJira: 3005 + offset,
     scriptedAi: 3006 + offset,
+    fakeGitHub: 3007 + offset,
+    fakeGitLab: 3008 + offset,
+    fakeBitbucket: 3009 + offset,
   };
 }
 
