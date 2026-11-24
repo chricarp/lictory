@@ -5,6 +5,7 @@ import { paths } from "@lictory/core/lib/paths";
 import { DocumentSkeleton } from "@lictory/ui/skeleton";
 import { AppearanceProvider } from "@lictory/platform/components/app/appearance-provider";
 import { PostHogIdentity } from "@lictory/platform/components/app/posthog-identity";
+import { DesktopConnector } from "@lictory/platform/components/app/desktop-connector";
 import { Invitation } from "@lictory/platform/components/app/invitation";
 import { OnboardingEntry } from "@lictory/platform/components/workspace/onboarding-entry";
 import { authClient } from "@lictory/platform/lib/auth-client";
@@ -36,6 +37,7 @@ export function AppLayout() {
     >
       <PostHogIdentity userId={user.id} />
       <WorkspaceDataProvider key={user.id} userId={user.id}>
+        <DesktopConnector />
         <div className="min-h-dvh bg-background">
           <Outlet />
         </div>
