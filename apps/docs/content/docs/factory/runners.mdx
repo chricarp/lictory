@@ -18,8 +18,27 @@ worktree; a runner can also run each session in a Docker container.
 1. Open **Factory → Runners** and choose **Add runner**.
 2. Choose an organization or a personal runner and **Create registration
    token**. The token works once and expires after an hour.
-3. Copy the commands for your system and run them on the machine. They
-   download `lictory-runner`, register it and install it as a service:
+3. Copy the command for your system and run it on the machine. It downloads
+   `lictory-runner` of your server's release, checks it against the
+   release's checksums, registers it and installs it as a service:
+
+```sh
+curl -fsSL https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.sh | sh -s -- \
+  --version 0.27.0 --url https://lictory.example.com --token lrt_… --service
+```
+
+On Windows, in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.ps1))) `
+  -Version 0.27.0 -Url https://lictory.example.com -Token lrt_… -Service
+```
+
+The installer puts `lictory-runner` in `/usr/local/bin` when it can write
+there and in `~/.local/bin` otherwise (`--dir` chooses another directory);
+on Windows in `%LOCALAPPDATA%\Programs\lictory-runner`, which it adds to your
+`PATH`. Without `--url` and `--token` it only installs and prints the
+commands to register:
 
 ```sh
 lictory-runner register --url https://lictory.example.com --token lrt_…
@@ -57,6 +76,23 @@ it), readable only by your account. `config.json` also holds
 `claudePermissionMode` (what Claude Code may do without asking, default
 `acceptEdits`), `codexSandbox` (default `workspace-write`),
 `containerImage` and `keepWorktrees`.
+
+## Update a runner
+
+Run the installer again with the new version (or without `--version` for
+the latest stable release) and without a token: it replaces the binary in
+place. A runner running as a service keeps the old version until it
+restarts (`systemctl --user restart lictory-runner` on Linux,
+`launchctl kickstart -k gui/$(id -u)/com.lictory.runner` on macOS).
+
+## Verify a download
+
+Every release lists the SHA-256 of each file in `SHA256SUMS`, which the
+installers check. The files are also signed by the release workflow:
+`gh attestation verify lictory-runner-linux-x64 --repo chricarp/lictory`
+checks a downloaded binary, and `cosign verify-blob` checks `SHA256SUMS`
+against `SHA256SUMS.sigstore.json` (see the
+[release documentation](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#runner-and-desktop-app)).
 
 ## Revoke a runner
 

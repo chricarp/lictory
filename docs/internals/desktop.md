@@ -229,24 +229,26 @@ say why and link to the releases page:
 - Linux: only the AppImage (checked against the release's SHA-512); a
   `.deb` belongs to the package manager.
 
-**What a release job needs** (none exists yet; this design publishes
-nothing): one job per operating system after the server release is tagged,
-each running `scripts/inject-release-version.ts <version>` (the desktop app
-takes the repository's version), `bun install --frozen-lockfile`,
-`bun run --cwd apps/desktop setup` and
-`bun run --cwd apps/desktop package -- --mac|--win|--linux`, then uploading
-the installers, their `.blockmap` files and the `latest*.yml` files to the
-same GitHub release. Every stable release must carry the desktop assets, or
-installed apps find no `latest*.yml` and report an update error until the
-next one. Secrets per platform:
+**Releases.** Every release, nightly and stable, carries the installers,
+their `.blockmap` files and the `latest*.yml` files, built by
+`.github/workflows/release-clients.yml` on macOS, Windows and Linux runners
+from the release's source with its version (`scripts/inject-release-version.ts`;
+the app takes the repository's version) and checked before publication:
+each `latest*.yml` must be for that version and describe its installer by
+SHA-512 and size, since an installed app finds no update without it. See
+[releases](../operations/releases.md#runner-and-desktop-app). The asset names
+come from `package.mjs` (`Lictory-<version>-mac-universal.zip`,
+`-windows-setup.exe`, `-linux-<arch>.AppImage`, `lictory_<version>_<arch>.deb`)
+and contain no spaces, which GitHub would rename, breaking `latest*.yml`.
+Installed apps follow GitHub's latest release, so nightlies never reach
+them.
 
-- macOS: `CSC_LINK` and `CSC_KEY_PASSWORD` (Developer ID Application
-  certificate) and either `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and
-  `APPLE_TEAM_ID` or `APPLE_API_KEY`, `APPLE_API_KEY_ID` and
-  `APPLE_API_ISSUER` for notarization; runs on macOS.
-- Windows: `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` (or a cloud signing
-  service configured in `package.mjs`); runs on Windows or with Wine.
-- Linux: no secrets; x64 and arm64 runners (or `--arch x64,arm64`).
+Signing certificates come from the **desktop-signing** environment
+(`MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, `APPLE_API_KEY_P8`,
+`APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, `WIN_CSC_LINK`,
+`WIN_CSC_KEY_PASSWORD`), mapped to electron-builder's variables in the
+packaging step. A platform whose certificates are missing is built unsigned
+and records that it does not update itself.
 
 ## Packaging
 
@@ -256,8 +258,9 @@ publishing:
 
 - **macOS:** universal (Intel and Apple silicon) DMG and ZIP (the ZIP feeds
   updates), hardened runtime with JIT, camera and microphone entitlements.
-  Without `CSC_LINK`/`CSC_NAME` the app is left unsigned instead of being
-  signed by whatever identity the build machine holds.
+  Without `CSC_LINK`/`CSC_NAME` the app is signed ad hoc (Apple silicon
+  runs no unsigned code) instead of by whatever identity the build machine
+  holds; such a build does not update itself.
 - **Windows:** NSIS installer for x64 and arm64, per user, without
   administrator rights.
 - **Linux:** AppImage and `.deb` for x64 and arm64. The AppImage uses
@@ -306,10 +309,11 @@ Implemented here, without depending on the runner:
   contain tokens or credentials.
 - `LICTORY_RUNNER_MANAGED_BY=lictory-desktop` is set in its environment.
 
-To ship it: build a standalone `lictory-runner` per platform and
-architecture, add it with electron-builder `extraResources` to
-`resources/runner/`, sign it with the app on macOS and Windows, and turn
-the flag into a setting.
+To ship it: add the release's `lictory-runner` binary for each platform and
+architecture (built by the same release workflow, see
+[factory](factory.md#distribution)) with electron-builder `extraResources` to
+`resources/runner/`, sign it with the app on macOS and Windows, and turn the
+flag into a setting.
 
 ## Tests
 

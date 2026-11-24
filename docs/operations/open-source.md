@@ -36,6 +36,10 @@ and release:
   Every release attaches that report for its source and an SPDX SBOM per image
   and platform, the container-level inventory
   ([signatures and attestations](releases.md#signatures-and-attestations)).
+  The runner binaries and desktop packages attached to every release embed
+  the Bun runtime or Electron (whose license files ship inside each desktop
+  package; check that Bun's notices are honored for the runner) and the
+  bundled JavaScript packages, which that report inventories.
 - Keep credentials, personal data, customer content and internal hostnames out
   of commits, release assets, Actions logs/artifacts, images/layers and
   issue/PR attachments. Keep findings outside Git and revoke an exposed
@@ -74,7 +78,10 @@ snapshot in a Markdown file as evidence that protection is enabled.
 - Restrict `release` and `websites` environment branches to `main`, with
   required reviewers if appropriate. `RELEASE_MANAGERS` controls who may
   release; when unset only the owner can. See [release access](releases.md#who-can-release)
-  and [website credentials](websites.md#github-configuration).
+  and [website credentials](websites.md#github-configuration). Restrict the
+  optional `desktop-signing` environment, which holds the desktop app's
+  signing certificates, to `main` and `release/*`
+  ([runner and desktop app](releases.md#runner-and-desktop-app)).
 - Secret scanning, push protection and private vulnerability reporting are on.
   Keep dependency and security alerts enabled. Verify who receives reports; the
   code of conduct documents the sole-maintainer reporting limitation.

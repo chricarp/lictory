@@ -373,13 +373,14 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command               | Runs on pull requests                    | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                                   | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Ready, unless the change is prose        | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | Ready, when applications or tests change | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full)      | Yes, before publishing |
-| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email         | (CI only)             | Ready, when the trial changes            | Yes, after publishing  |
+| Tier              | Proves                                                              | Command                                                                             | Runs on pull requests                         | Nightly                                                                                  |
+| ----------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations          | `bun run check`                                                                     | Always                                        | Yes                                                                                      |
+| Domain            | Invariants and contracts against real PostgreSQL                    | `bun run test:domain`                                                               | Ready, unless the change is prose             | Yes                                                                                      |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds   | `bun run test:smoke`                                                                | Ready, when applications or tests change      | Yes                                                                                      |
+| Browser workflows | Every workflow in `tests/`                                          | `bun run test:e2e`                                                                  | Manual (`CI` → Run workflow → full)           | Yes, before publishing                                                                   |
+| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email           | (CI only)                                                                           | Ready, when the trial changes                 | Yes, after publishing                                                                    |
+| Client packages   | The runner for every target and the desktop app as a Linux AppImage | `bun apps/runner/scripts/build.ts`, `bun run --cwd apps/desktop package -- --linux` | Ready, when the runner or desktop app changes | Every release builds all of them ([Release clients](releases.md#runner-and-desktop-app)) |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -395,8 +396,8 @@ it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
 
-A draft pull request runs only the static checks. The domain, smoke and
-laptop trial tiers it needs wait until it is marked ready for review, which
+A draft pull request runs only the static checks. The domain, smoke,
+laptop trial and client package tiers it needs wait until it is marked ready for review, which
 starts a new run with them. Each run reads whether the pull request is a draft
 when it starts, not from the event that started it: a push and "Ready for review"
 seconds apart can leave only the push's run, and it runs the tiers too;

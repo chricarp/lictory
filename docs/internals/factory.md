@@ -271,12 +271,31 @@ mcp_servers.lictory.url`, `bearer_token_env_var`) is not verified against
 
 `bun apps/runner/scripts/build.ts [target…]` compiles single-file binaries
 with `bun build --compile` for linux, darwin and windows on x64 and arm64
-(`apps/runner/dist/lictory-runner-<os>-<arch>`). The install commands the
-add-runner dialog shows download them from the latest GitHub release, so the
-release workflow must attach them; until it does, run the runner from a
-checkout with `bun apps/runner/src/cli.ts`. The binary embeds the protocol
-schemas of the server it was built with; the protocol is versioned by its
-path (`/api/runner/v1`).
+(`apps/runner/dist/lictory-runner-<os>-<arch>`), all from one machine; the
+darwin binaries come out signed ad hoc. The binary reports the product
+version (`lictory-runner --version`, its user agent and heartbeats): the root
+`package.json` version, which release builds stamp before compiling.
+
+Every release, nightly and stable, attaches the six binaries, their
+installers (`lictory-runner-install.sh` from `apps/runner/install.sh`,
+`lictory-runner-install.ps1` from `install.ps1`) and a signed `SHA256SUMS`;
+see [releases](../operations/releases.md#runner-and-desktop-app). The
+installers pick the binary for the system (the native one under Rosetta or
+x64 emulation), refuse one that does not match `SHA256SUMS`, install it
+(`/usr/local/bin` when writable, else `~/.local/bin`;
+`%LOCALAPPDATA%\Programs\lictory-runner` on Windows, added to the user's
+`PATH`) by renaming over the old file, so a running runner is never
+truncated, and optionally register it and install the service.
+
+The add-runner dialog shows one command: the installer of the latest release
+with the server's own version, its address and the one-time token
+(`apps/platform/src/components/factory/runner-install.ts`). The runner is
+therefore the server's exact release. A build without a release version
+installs the latest stable runner; a nightly whose release was pruned fails
+with that advice. The protocol is versioned by its path (`/api/runner/v1`),
+so a runner of another release keeps working within it. Runners do not update
+themselves: running the installer again replaces the binary, and the service
+picks it up when it restarts.
 
 ## Ports for other modules
 
