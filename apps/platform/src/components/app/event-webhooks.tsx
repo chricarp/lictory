@@ -397,9 +397,13 @@ export function EventWebhooksSection() {
                 className="text-xs text-muted-foreground tabular-nums"
                 data-testid="event-webhook-state"
               >
-                {subscription.deliveredCount} delivered
+                {/* Events delivered, and when the receiver last accepted
+                    anything (a test event counts there, not as delivered). */}
+                {subscription.deliveredCount === 0
+                  ? "No events delivered yet"
+                  : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
                 {subscription.lastSuccessAt
-                  ? `, last ${when(subscription.lastSuccessAt)}`
+                  ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
                   : ""}
                 {subscription.pending
                   ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`

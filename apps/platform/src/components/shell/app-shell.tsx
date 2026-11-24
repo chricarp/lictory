@@ -417,7 +417,7 @@ function ShellFrame({
       <DockProvider>
         <title>{title}</title>
         <OrganizationBrand organization={organization} />
-        <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
+        <div className="flex h-dvh overflow-clip bg-sidebar text-foreground">
           {/* The left column: the organization rail and the sidebar. */}
           <div className="relative hidden shrink-0 lg:flex">
             {/* Wide windows only: on laptops the room goes to the work,
@@ -470,7 +470,7 @@ function ShellFrame({
           <div className="flex min-w-0 flex-1 min-[1440px]:gap-3 min-[1440px]:py-3 min-[1440px]:pr-3 lg:gap-2 lg:py-2 lg:pr-2">
             <div
               data-app-frame
-              className="@container/frame relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background min-[1440px]:rounded-[20px] lg:rounded-2xl lg:shadow-(--shadow-border)"
+              className="@container/frame relative flex min-w-0 flex-1 flex-col overflow-clip bg-background min-[1440px]:rounded-[20px] lg:rounded-2xl lg:shadow-(--shadow-border)"
             >
               <PhoneBar
                 onMenu={() => setDrawer(true)}
@@ -493,10 +493,14 @@ function ShellFrame({
                   )
                 }
               />
+              {/* Pinned: `overflow-clip`, unlike `hidden`, is not a scroll
+                  container, so focusing or scrolling to a field deep in a
+                  page never shifts the frame and cuts its top bar. Pages
+                  scroll inside themselves. */}
               <main
                 id="main"
                 tabIndex={-1}
-                className="min-h-0 flex-1 overflow-hidden outline-none"
+                className="min-h-0 flex-1 overflow-clip outline-none"
               >
                 {children}
               </main>

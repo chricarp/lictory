@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AtSign,
   Check,
@@ -80,30 +80,70 @@ type AccountSettingsProps = {
   connectionError?: string;
 };
 
-// The section nearest the top of the viewport, for the anchor nav.
+// The section being read, for the anchor nav: the last one whose heading
+// has passed a reading line a third down the viewport. A section someone
+// jumped to (the URL's #hash or a nav link) stays current until they scroll
+// themselves, even when the page cannot scroll it to the top (the last
+// sections of a page), so `/account#webhooks` marks Event webhooks.
 function useActiveSection(ids: string[]) {
   const [active, setActive] = useState(ids[0]);
+  const pin = useRef<string | null>(null);
   const key = ids.join(",");
   useEffect(() => {
-    const sections = key
-      .split(",")
+    const all = key.split(",");
+    const sections = all
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => Boolean(el));
-    if (!sections.length || typeof IntersectionObserver === "undefined") return;
-    const visible = new Map<string, boolean>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries)
-          visible.set(entry.target.id, entry.isIntersecting);
-        const first = sections.find((el) => visible.get(el.id));
-        if (first) setActive(first.id);
-      },
-      { rootMargin: "0px 0px -60% 0px" },
-    );
-    for (const el of sections) observer.observe(el);
-    return () => observer.disconnect();
+    if (!sections.length) return;
+    const hashed = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      return all.includes(id) ? id : null;
+    };
+    pin.current = hashed();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (pin.current) return setActive(pin.current);
+      const line = window.innerHeight / 3;
+      let current = sections[0]!;
+      for (const el of sections)
+        if (el.getBoundingClientRect().top <= line) current = el;
+      setActive(current.id);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const jumped = () => {
+      pin.current = hashed();
+      schedule();
+    };
+    // Only a person's own scrolling releases a jump.
+    const released = () => {
+      if (!pin.current) return;
+      pin.current = null;
+      schedule();
+    };
+    update();
+    document.addEventListener("scroll", schedule, true);
+    window.addEventListener("hashchange", jumped);
+    window.addEventListener("wheel", released, { passive: true });
+    window.addEventListener("touchmove", released, { passive: true });
+    window.addEventListener("keydown", released);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      document.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("hashchange", jumped);
+      window.removeEventListener("wheel", released);
+      window.removeEventListener("touchmove", released);
+      window.removeEventListener("keydown", released);
+    };
   }, [key]);
-  return active;
+  // A nav link chosen again (the hash does not change) jumps as well.
+  const jump = (id: string) => {
+    pin.current = id;
+    setActive(id);
+  };
+  return [active, jump] as const;
 }
 
 // Personal settings, laid out like organization settings: an anchor nav on the
@@ -128,7 +168,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "delete", label: "Delete account" },
   ];
 
-  const active = useActiveSection(nav.map((n) => n.id));
+  const [active, jump] = useActiveSection(nav.map((n) => n.id));
   return (
     <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <nav
@@ -140,6 +180,7 @@ export function AccountSettings(props: AccountSettingsProps) {
             <li key={n.id}>
               <a
                 href={`#${n.id}`}
+                onClick={() => jump(n.id)}
                 aria-current={n.id === active ? "location" : undefined}
                 className={cn(
                   "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color,box-shadow] duration-100 hover:bg-muted hover:text-foreground",

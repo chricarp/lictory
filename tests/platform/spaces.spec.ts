@@ -112,6 +112,12 @@ test("a project's space: pages are created, nested, moved and archived @smoke", 
     await expect(treeItem(page, title)).toBeVisible();
   }
 
+  // Every page in the tree is a link to it: it opens in a new tab and
+  // shows its address like any link.
+  await expect(
+    treeItem(page, "Disputes").getByRole("link", { name: "Disputes" }),
+  ).toHaveAttribute("href", new RegExp(`^${spaceUrl}/.+`));
+
   // Drag Refunds into Runbooks.
   await treeItem(page, "Refunds").dragTo(treeItem(page, "Runbooks"));
   await expect(treeItem(page, "Runbooks")).toHaveAttribute(
