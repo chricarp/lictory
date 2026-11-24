@@ -20,6 +20,23 @@ const moving: ReadonlySet<SessionStatus> = new Set([
 
 const finishedAt = (s: SessionEntity) => s.completedAt ?? s.updatedAt;
 
+// A session waits on me when it waits on a person (a decision, or my next
+// message) and I am the one who answers: I started it or own its agent.
+// The one rule behind the Factory's badge, the overview's "Needs you" and
+// the agents in Home's and the Inbox's "Waiting on you", so they always
+// count the same sessions.
+export function waitsOnMe(
+  session: Pick<SessionEntity, "status" | "requestedById" | "agentId">,
+  agentById: ReadonlyMap<string, Pick<AgentEntity, "ownerId">>,
+  userId: string,
+) {
+  return (
+    session.status === "waiting" &&
+    (session.requestedById === userId ||
+      agentById.get(session.agentId)?.ownerId === userId)
+  );
+}
+
 export function overviewBlocks(
   sessions: readonly SessionEntity[],
   agentById: ReadonlyMap<string, Pick<AgentEntity, "ownerId">>,
@@ -30,12 +47,7 @@ export function overviewBlocks(
   const recent: SessionEntity[] = [];
   for (const session of sessions) {
     if (!moving.has(session.status)) recent.push(session);
-    else if (
-      session.status === "waiting" &&
-      (session.requestedById === userId ||
-        agentById.get(session.agentId)?.ownerId === userId)
-    )
-      needsYou.push(session);
+    else if (waitsOnMe(session, agentById, userId)) needsYou.push(session);
     else running.push(session);
   }
   // Decisions first (oldest question first: it has waited longest), then

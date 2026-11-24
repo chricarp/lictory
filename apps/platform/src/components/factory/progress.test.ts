@@ -12,6 +12,7 @@ import {
 import {
   agentActivity,
   overviewBlocks,
+  waitsOnMe,
 } from "@lictory/platform/components/factory/overview-blocks";
 
 let sequence = 0;
@@ -128,6 +129,38 @@ void test("each session is in exactly one block of the overview", () => {
   assert.deepEqual(
     overviewBlocks(sessions, agents, "ben").needsYou.map((s) => s.id),
     ["bb"],
+  );
+});
+
+void test("the badge and Needs you count the same sessions, questions or not", () => {
+  const agents = new Map<string, Pick<AgentEntity, "ownerId">>([
+    ["forge", { ownerId: "ada" }],
+    ["scout", { ownerId: "ben" }],
+  ]);
+  const sessions = [
+    // A question for Ada.
+    session("a", "waiting", {
+      approvals: [{ id: "q" } as SessionEntity["approvals"][number]],
+    }),
+    // Waiting for Ada's next message: no question, still hers to answer.
+    session("bb", "waiting"),
+    // Ben's agent, started by Ada: she answers it too.
+    session("ccc", "waiting", { agentId: "scout" }),
+    session("dddd", "waiting", { agentId: "scout", requestedById: "ben" }),
+    session("eeeee", "running"),
+  ];
+  for (const userId of ["ada", "ben", "cy"]) {
+    const badge = sessions.filter((s) => waitsOnMe(s, agents, userId));
+    assert.deepEqual(
+      badge.map((s) => s.id).sort(),
+      overviewBlocks(sessions, agents, userId)
+        .needsYou.map((s) => s.id)
+        .sort(),
+    );
+  }
+  assert.deepEqual(
+    sessions.filter((s) => waitsOnMe(s, agents, "ada")).map((s) => s.id),
+    ["a", "bb", "ccc"],
   );
 });
 

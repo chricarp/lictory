@@ -27,6 +27,7 @@ import {
   MoreHorizontal,
   PanelRight,
   Upload,
+  Bot,
   X,
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
@@ -56,6 +57,11 @@ import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Presence } from "@lictory/platform/components/items/presence";
 import { WatchButton } from "@lictory/platform/components/notifications/watch-button";
+import { useAgents } from "@lictory/platform/components/claims/claims";
+import {
+  StartSessionDialog,
+  startableAgents,
+} from "@lictory/platform/components/factory/start-session";
 import {
   IssueStatus,
   RefinementStatus,
@@ -427,6 +433,16 @@ export function ItemDetail({
   );
   const [exporting, setExporting] = useState(false);
   const exportAvailability = useExportAvailability(item);
+  // Start an agent on this item: native delivery, for people with an agent
+  // they may start. The dialog says what the agent works from and whether
+  // the readiness policy would let agents take it on their own.
+  const [startingAgent, setStartingAgent] = useState(false);
+  const agents = useAgents();
+  const canStartAgent =
+    native &&
+    !pendingCreate &&
+    !item.archivedAt &&
+    startableAgents(agents.values(), workspace.userId).length > 0;
   // Hand-off is offered for ready specifications of projects delivered in an
   // external tool.
   const canExport =
@@ -907,6 +923,20 @@ export function ItemDetail({
                       <Link2 className="size-3.5 text-muted-foreground" /> Copy
                       link
                     </DropdownItem>
+                    {canStartAgent && (
+                      <DropdownItem
+                        onClick={() => {
+                          close();
+                          setStartingAgent(true);
+                        }}
+                      >
+                        <Bot
+                          className="size-3.5 text-muted-foreground"
+                          aria-hidden
+                        />
+                        Start agent…
+                      </DropdownItem>
+                    )}
                     {canExport && (
                       <DropdownItem
                         className={cn(
@@ -1316,6 +1346,12 @@ export function ItemDetail({
         </div>
         {exporting && (
           <ExportDialog item={item} onClose={() => setExporting(false)} />
+        )}
+        {startingAgent && (
+          <StartSessionDialog
+            workItemId={item.id}
+            onClose={() => setStartingAgent(false)}
+          />
         )}
       </SpecDiscussionsContext.Provider>
     </ItemContext.Provider>

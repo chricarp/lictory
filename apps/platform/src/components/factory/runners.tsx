@@ -80,6 +80,7 @@ export function FactoryRunners() {
     >
       {!active.length ? (
         <MissingState
+          headingLevel={2}
           icon={Server}
           title="No runners yet"
           action={

@@ -206,6 +206,7 @@ function Setup({
   const org = organization.slug;
   return (
     <MissingState
+      headingLevel={2}
       icon={Factory}
       title="Set up the factory"
       action={

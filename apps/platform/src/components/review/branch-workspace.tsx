@@ -1,10 +1,15 @@
 import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { Tabs as TabsRoot } from "@ui-sdk/react/tabs";
+import { Actor } from "@lictory/platform/components/identity/actor";
 import {
-  BranchName,
-  SpecMergeBox,
-  SpecPullRequestHeader,
+  MergeBox,
+  MergedNotice,
   type MergeRequirement,
-} from "@lictory/platform/components/review/spec-pull-request";
+} from "@lictory/platform/components/review/merge-box";
+import {
+  PullRequestHeader,
+  PullRequestTabs,
+} from "@lictory/platform/components/review/pull-request-header";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -110,6 +115,7 @@ import {
 } from "@lictory/platform/components/review/ai-review";
 import {
   BranchChip,
+  BranchName,
   CheckIcon,
   FlowSteps,
   NextStep,
@@ -2431,514 +2437,528 @@ function PullRequestView({
   );
 
   return (
-    <>
-      <SpecPullRequestHeader
+    <TabsRoot
+      className="block space-y-6"
+      value={tab}
+      onValueChange={(next: typeof tab | null) => next && setTab(next)}
+    >
+      <PullRequestHeader
+        // The pull request takes the item's place under the item's bar.
+        headingLevel={1}
         title={p.title}
         state={p.status}
-        authorId={p.authorId}
+        author={<Actor userId={p.authorId} size={20} />}
         commits={sourceHistory.length || shownHistory.length}
-        target={<BranchChip name={targetName} />}
-        source={
-          <BranchChip
-            name={sourceName}
-            muted={!source}
-            onClick={
-              source
-                ? () => onNavigate({ kind: "branch", id: source.id })
-                : undefined
-            }
+        base={targetName}
+        head={sourceName}
+        headGone={!source}
+        onHeadClick={
+          source
+            ? () => onNavigate({ kind: "branch", id: source.id })
+            : undefined
+        }
+        tabs={
+          <PullRequestTabs
+            label="Pull request views"
+            tabs={[
+              {
+                value: "conversation",
+                label: "Conversation",
+                icon: <MessageSquare />,
+                count: threads.length,
+              },
+              {
+                value: "commits",
+                label: "Commits",
+                icon: <GitCommitHorizontal />,
+                count: shownHistory.length,
+              },
+              {
+                value: "checks",
+                label: "Actions",
+                icon: actionRuns.length ? (
+                  <CheckIcon state={checkState} />
+                ) : (
+                  <IntelligenceMark />
+                ),
+              },
+              { value: "changes", label: "Changes" },
+            ]}
           />
         }
       />
       <ErrorMessage message={error} />
-      <Tabs
-        className="space-y-6"
-        label="Pull request views"
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          {
-            id: "conversation",
-            label: "Conversation",
-            icon: <MessageSquare className="size-3.5" />,
-            count: threads.length,
-          },
-          {
-            id: "commits",
-            label: "Commits",
-            icon: <GitCommitHorizontal className="size-3.5" />,
-            count: shownHistory.length,
-          },
-          {
-            id: "checks",
-            label: "Actions",
-            icon: actionRuns.length ? (
-              <CheckIcon state={checkState} className="size-3.5" />
-            ) : (
-              <IntelligenceMark className="size-3.5" />
-            ),
-          },
-          { id: "changes", label: "Changes" },
-        ]}
-      >
-        <TabPanel value="checks">
-          <ActionChecksPanel
-            pullRequest={p}
-            sourceHeadId={source?.headId}
-            sourceName={sourceName}
-            canCommit={Boolean(source?.collaboratorIds.includes(userId))}
-          />
-        </TabPanel>
-        {/* The other views share the merge status and the reviewers. */}
-        {tab !== "checks" && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-            <div className="min-w-0 space-y-4">
-              {/* What blocks the merge comes first, before the conversation. */}
-              {p.status !== "merged" ? (
-                <SpecMergeBox
-                  requirements={rows}
-                  blockers={blockers.length}
-                  targetName={targetName}
-                  status={
-                    actionRuns.length > 0 &&
-                    !actionGate && (
-                      <div className="border-b px-4 py-2.5">
-                        <ActionCheckRow
-                          pullRequestId={p.id}
-                          sourceHeadId={source?.headId}
-                          onDetails={() => setTab("checks")}
-                        />
-                      </div>
-                    )
-                  }
-                  effect={mergeEffect}
-                  refusal={
-                    canMerge
-                      ? undefined
-                      : `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`
-                  }
-                  merging={pending}
-                  onMerge={
-                    heads &&
-                    (() =>
-                      void run({
-                        type: "mergePullRequest",
-                        workItemId: item.id,
-                        pullRequestId: p.id,
-                        ...heads,
-                      }))
-                  }
-                >
-                  {resolving && ours && theirs && source && target && (
-                    <div className="border-t p-4">
-                      <ConflictResolver
-                        key={`${ours.id}:${theirs.id}`}
-                        base={common ?? { title: "", content: "" }}
-                        ours={ours}
-                        theirs={theirs}
-                        pending={pending}
-                        action={`Commit resolution to ${sourceName}`}
-                        oursLabel={`${sourceName} (this pull request)`}
-                        theirsLabel={targetName}
-                        onCancel={() => setResolving(false)}
-                        onResolve={(snapshot) =>
-                          void run(
-                            {
-                              type: "syncBranch",
-                              workItemId: item.id,
-                              branchId: source.id,
-                              targetId: target.id,
-                              sourceHeadId: source.headId,
-                              targetHeadId: target.headId,
-                              ...snapshot,
-                            },
-                            () => setResolving(false),
-                          )
-                        }
-                      />
-                    </div>
-                  )}
-                </SpecMergeBox>
-              ) : (
-                <section className="flex items-start gap-3 rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
-                    <GitMerge className="size-4" />
-                  </span>
-                  <p className="text-sm">
-                    Merged. The reviewed content is recorded in the target
-                    branch history.
-                    {automaticallyDeleted && (
-                      <>
-                        {" "}
-                        Lictory automatically deleted the branch{" "}
-                        <BranchName>{sourceName}</BranchName>.
-                      </>
-                    )}
-                    {source && isMain(target) && !willDeleteSource && (
-                      <>
-                        {" "}
-                        The source branch is retained because another active
-                        pull request uses it.
-                      </>
-                    )}
-                  </p>
-                </section>
-              )}
-              <TabPanel value="commits">
-                <CommitHistory commits={shownHistory} memberName={memberName} />
-              </TabPanel>
-              <TabPanel value="changes" className="space-y-4">
-                {display && before ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="min-w-0 flex-1 text-sm">
-                        <span className="text-muted-foreground">
-                          Resulting work item title:
-                        </span>{" "}
-                        <span className="font-medium">{display.title}</span>
-                        {display.title !== before.title && (
-                          <span className="block text-xs text-muted-foreground">
-                            Previous title: {before.title}
-                          </span>
-                        )}
-                      </p>
-                      {!readOnly && p.status !== "merged" && ours && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setDraft({ section: "Merge result" });
-                            setTab("conversation");
-                          }}
-                        >
-                          <MessageSquare className="size-3.5" />
-                          Discuss this change
-                        </Button>
-                      )}
-                    </div>
-                    {/* Changed words in context; "Show full text" reads the
-                      complete merge result. */}
-                    <SpecDiff
-                      before={before.content}
-                      after={display.content}
-                      beforeLabel={targetName}
-                      afterLabel={
-                        p.status === "merged" ? "Merged" : "This change"
-                      }
+      <TabPanel value="checks">
+        <ActionChecksPanel
+          pullRequest={p}
+          sourceHeadId={source?.headId}
+          sourceName={sourceName}
+          canCommit={Boolean(source?.collaboratorIds.includes(userId))}
+        />
+      </TabPanel>
+      {/* The other views share the merge status and the reviewers. */}
+      {tab !== "checks" && (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="min-w-0 space-y-4">
+            {/* What blocks the merge comes first, before the conversation. */}
+            {p.status !== "merged" ? (
+              <MergeBox
+                target={targetName}
+                requirements={rows}
+                blocked={blockers.length > 0}
+                readySummary="Required reviews approve this merge result. No conflicts or blocking discussions remain."
+                before={
+                  actionRuns.length > 0 &&
+                  !actionGate && (
+                    <ActionCheckRow
+                      pullRequestId={p.id}
+                      sourceHeadId={source?.headId}
+                      onDetails={() => setTab("checks")}
                     />
-                    <BreakdownProposal
-                      includeApplied
-                      proposals={pendingEntries(
-                        display.proposedChildren,
-                        before.proposedChildren,
+                  )
+                }
+                note={
+                  canMerge ? (
+                    <>
+                      {blockers.length > 0 && (
+                        <span className="block font-medium text-foreground">
+                          Resolve the{" "}
+                          {blockers.length === 1
+                            ? "requirement"
+                            : `${blockers.length} requirements`}{" "}
+                          above to merge.
+                        </span>
                       )}
-                    />
-                  </>
-                ) : (
-                  <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                    The merge result is unavailable until the conflicts are
-                    resolved.
-                  </p>
+                      {mergeEffect}
+                    </>
+                  ) : (
+                    `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`
+                  )
+                }
+                action={
+                  <Button
+                    disabled={
+                      pending || !canMerge || blockers.length > 0 || !heads
+                    }
+                    onClick={
+                      heads &&
+                      (() =>
+                        void run({
+                          type: "mergePullRequest",
+                          workItemId: item.id,
+                          pullRequestId: p.id,
+                          ...heads,
+                        }))
+                    }
+                  >
+                    <GitMerge className="size-3.5" aria-hidden />
+                    Merge pull request
+                  </Button>
+                }
+              >
+                {resolving && ours && theirs && source && target && (
+                  <ConflictResolver
+                    key={`${ours.id}:${theirs.id}`}
+                    base={common ?? { title: "", content: "" }}
+                    ours={ours}
+                    theirs={theirs}
+                    pending={pending}
+                    action={`Commit resolution to ${sourceName}`}
+                    oursLabel={`${sourceName} (this pull request)`}
+                    theirsLabel={targetName}
+                    onCancel={() => setResolving(false)}
+                    onResolve={(snapshot) =>
+                      void run(
+                        {
+                          type: "syncBranch",
+                          workItemId: item.id,
+                          branchId: source.id,
+                          targetId: target.id,
+                          sourceHeadId: source.headId,
+                          targetHeadId: target.headId,
+                          ...snapshot,
+                        },
+                        () => setResolving(false),
+                      )
+                    }
+                  />
                 )}
-              </TabPanel>
-              <TabPanel value="conversation" className="space-y-4">
-                <article className="overflow-hidden rounded-lg border">
-                  <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-                    <Avatar userId={p.authorId} name={memberName(p.authorId)} />
-                    <span className="font-medium text-foreground">
-                      {memberName(p.authorId)}
-                    </span>
-                    opened this {relativeTime(p.createdAt)}
-                  </p>
-                  <div className="p-4">
-                    <Markdown source={p.description} />
+              </MergeBox>
+            ) : (
+              <MergedNotice>
+                <p>
+                  Merged. The reviewed content is recorded in the target branch
+                  history.
+                  {automaticallyDeleted && (
+                    <>
+                      {" "}
+                      Lictory automatically deleted the branch{" "}
+                      <BranchName>{sourceName}</BranchName>.
+                    </>
+                  )}
+                  {source && isMain(target) && !willDeleteSource && (
+                    <>
+                      {" "}
+                      The source branch is retained because another active pull
+                      request uses it.
+                    </>
+                  )}
+                </p>
+              </MergedNotice>
+            )}
+            <TabPanel value="commits">
+              <CommitHistory commits={shownHistory} memberName={memberName} />
+            </TabPanel>
+            <TabPanel value="changes" className="space-y-4">
+              {display && before ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="min-w-0 flex-1 text-sm">
+                      <span className="text-muted-foreground">
+                        Resulting work item title:
+                      </span>{" "}
+                      <span className="font-medium">{display.title}</span>
+                      {display.title !== before.title && (
+                        <span className="block text-xs text-muted-foreground">
+                          Previous title: {before.title}
+                        </span>
+                      )}
+                    </p>
+                    {!readOnly && p.status !== "merged" && ours && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setDraft({ section: "Merge result" });
+                          setTab("conversation");
+                        }}
+                      >
+                        <MessageSquare className="size-3.5" />
+                        Discuss this change
+                      </Button>
+                    )}
                   </div>
-                </article>
-                {display && (
+                  {/* Changed words in context; "Show full text" reads the
+                      complete merge result. */}
+                  <SpecDiff
+                    before={before.content}
+                    after={display.content}
+                    beforeLabel={targetName}
+                    afterLabel={
+                      p.status === "merged" ? "Merged" : "This change"
+                    }
+                  />
                   <BreakdownProposal
                     includeApplied
                     proposals={pendingEntries(
                       display.proposedChildren,
-                      before?.proposedChildren,
+                      before.proposedChildren,
                     )}
                   />
-                )}
-                <section className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <SectionLabel>Discussions</SectionLabel>
-                    <span className="text-xs text-muted-foreground">
-                      {threads.filter((t) => t.status === "open").length} open
-                    </span>
-                  </div>
-                  {threads.map((t) => (
-                    <Thread key={t.id} thread={t} />
-                  ))}
-                  {!readOnly && p.status !== "merged" && ours && (
-                    <ThreadComposer
-                      draft={draft}
-                      onDraftChange={setDraft}
-                      pullRequestId={p.id}
-                      commitId={ours.id}
-                    />
+                </>
+              ) : (
+                <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                  The merge result is unavailable until the conflicts are
+                  resolved.
+                </p>
+              )}
+            </TabPanel>
+            <TabPanel value="conversation" className="space-y-4">
+              <article className="overflow-hidden rounded-lg border">
+                <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+                  <Avatar userId={p.authorId} name={memberName(p.authorId)} />
+                  <span className="font-medium text-foreground">
+                    {memberName(p.authorId)}
+                  </span>
+                  opened this {relativeTime(p.createdAt)}
+                </p>
+                <div className="p-4">
+                  <Markdown source={p.description} />
+                </div>
+              </article>
+              {display && (
+                <BreakdownProposal
+                  includeApplied
+                  proposals={pendingEntries(
+                    display.proposedChildren,
+                    before?.proposedChildren,
                   )}
-                </section>
-              </TabPanel>
-            </div>
-            <aside className="space-y-5 text-sm">
-              <section className="space-y-2">
-                <SectionLabel>Reviewers</SectionLabel>
-                {!reviews.length && (
-                  <p className="text-xs text-muted-foreground">
-                    No reviewers yet. Request the responsibilities that must
-                    approve this change.
-                  </p>
+                />
+              )}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <SectionLabel>Discussions</SectionLabel>
+                  <span className="text-xs text-muted-foreground">
+                    {threads.filter((t) => t.status === "open").length} open
+                  </span>
+                </div>
+                {threads.map((t) => (
+                  <Thread key={t.id} thread={t} />
+                ))}
+                {!readOnly && p.status !== "merged" && ours && (
+                  <ThreadComposer
+                    draft={draft}
+                    onDraftChange={setDraft}
+                    pullRequestId={p.id}
+                    commitId={ours.id}
+                  />
                 )}
-                <ul className="space-y-3">
-                  {reviews.map((r) => {
-                    const role = disciplines.find(
-                        (role) => role.id === r.disciplineId,
-                      ),
-                      assigned =
-                        role &&
-                        !role.archivedAt &&
-                        role.capabilities.review &&
-                        role.userIds.includes(userId) &&
-                        (!r.userId || r.userId === userId);
-                    const stale = Boolean(
-                      r.decision &&
-                      p.status !== "merged" &&
-                      (conflicted || (Boolean(hash) && r.resultHash !== hash)),
-                    );
-                    const state: CheckState = valid(r)
-                      ? "success"
-                      : stale
-                        ? "pending"
-                        : r.decision === "changes_requested"
-                          ? "failure"
-                          : "neutral";
-                    return (
-                      <li key={r.id} className="space-y-1.5">
-                        <div className="flex items-start gap-2">
-                          <CheckIcon state={state} className="mt-0.5" />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium">
-                              {role?.name ?? "Reviewer"}{" "}
-                              <span className="text-xs font-normal text-muted-foreground">
-                                {r.required ? "Required" : "Optional"}
-                              </span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {r.userId
-                                ? memberName(r.userId)
-                                : `Any ${role?.name ?? "role"} member`}
-                            </p>
-                          </div>
-                          <Badge
-                            tone={
-                              valid(r)
-                                ? "good"
-                                : stale
-                                  ? "warning"
-                                  : r.decision === "changes_requested"
-                                    ? "danger"
-                                    : undefined
-                            }
-                          >
-                            {stale
-                              ? "Review required again"
-                              : r.decision
-                                ? decisionLabel[r.decision]
-                                : "Pending"}
-                          </Badge>
+              </section>
+            </TabPanel>
+          </div>
+          <aside className="space-y-5 text-sm">
+            <section className="space-y-2">
+              <SectionLabel>Reviewers</SectionLabel>
+              {!reviews.length && (
+                <p className="text-xs text-muted-foreground">
+                  No reviewers yet. Request the responsibilities that must
+                  approve this change.
+                </p>
+              )}
+              <ul className="space-y-3">
+                {reviews.map((r) => {
+                  const role = disciplines.find(
+                      (role) => role.id === r.disciplineId,
+                    ),
+                    assigned =
+                      role &&
+                      !role.archivedAt &&
+                      role.capabilities.review &&
+                      role.userIds.includes(userId) &&
+                      (!r.userId || r.userId === userId);
+                  const stale = Boolean(
+                    r.decision &&
+                    p.status !== "merged" &&
+                    (conflicted || (Boolean(hash) && r.resultHash !== hash)),
+                  );
+                  const state: CheckState = valid(r)
+                    ? "success"
+                    : stale
+                      ? "pending"
+                      : r.decision === "changes_requested"
+                        ? "failure"
+                        : "neutral";
+                  return (
+                    <li key={r.id} className="space-y-1.5">
+                      <div className="flex items-start gap-2">
+                        <CheckIcon state={state} className="mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">
+                            {role?.name ?? "Reviewer"}{" "}
+                            <span className="text-xs font-normal text-muted-foreground">
+                              {r.required ? "Required" : "Optional"}
+                            </span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.userId
+                              ? memberName(r.userId)
+                              : `Any ${role?.name ?? "role"} member`}
+                          </p>
                         </div>
-                        {r.reviewerId && (
+                        <Badge
+                          tone={
+                            valid(r)
+                              ? "good"
+                              : stale
+                                ? "warning"
+                                : r.decision === "changes_requested"
+                                  ? "danger"
+                                  : undefined
+                          }
+                        >
+                          {stale
+                            ? "Review required again"
+                            : r.decision
+                              ? decisionLabel[r.decision]
+                              : "Pending"}
+                        </Badge>
+                      </div>
+                      {r.reviewerId && (
+                        <p className="pl-6 text-xs text-muted-foreground">
+                          Decision by {memberName(r.reviewerId)}
+                        </p>
+                      )}
+                      {assigned &&
+                        !readOnly &&
+                        specificationPullRequest.allows(p.status, "review") &&
+                        heads && (
+                          <div className="flex flex-wrap gap-1 pl-6">
+                            {(
+                              [
+                                ["approve", "Approve"],
+                                ["changes_requested", "Request changes"],
+                                ...(r.decision
+                                  ? ([["revoke", "Revoke"]] as const)
+                                  : []),
+                              ] as const
+                            ).map(([decision, label]) => (
+                              <Button
+                                key={decision}
+                                size="sm"
+                                variant={
+                                  decision === "approve"
+                                    ? "primary"
+                                    : decision === "revoke"
+                                      ? "ghost"
+                                      : "secondary"
+                                }
+                                disabled={
+                                  pending ||
+                                  conflicted ||
+                                  (contributed && decision === "approve")
+                                }
+                                title={
+                                  contributed && decision === "approve"
+                                    ? "Contributors cannot approve their own changes."
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  void run({
+                                    type: "decidePullRequest",
+                                    workItemId: item.id,
+                                    pullRequestId: p.id,
+                                    reviewId: r.id,
+                                    ...heads,
+                                    decision,
+                                  })
+                                }
+                              >
+                                {label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      {assigned &&
+                        !readOnly &&
+                        specificationPullRequest.allows(p.status, "review") &&
+                        heads &&
+                        contributed &&
+                        !r.decision && (
                           <p className="pl-6 text-xs text-muted-foreground">
-                            Decision by {memberName(r.reviewerId)}
+                            You contributed to this change, so another{" "}
+                            {role?.name ?? "reviewing"} member approves it.
                           </p>
                         )}
-                        {assigned &&
-                          !readOnly &&
-                          specificationPullRequest.allows(p.status, "review") &&
-                          heads && (
-                            <div className="flex flex-wrap gap-1 pl-6">
-                              {(
-                                [
-                                  ["approve", "Approve"],
-                                  ["changes_requested", "Request changes"],
-                                  ...(r.decision
-                                    ? ([["revoke", "Revoke"]] as const)
-                                    : []),
-                                ] as const
-                              ).map(([decision, label]) => (
-                                <Button
-                                  key={decision}
-                                  size="sm"
-                                  variant={
-                                    decision === "approve"
-                                      ? "primary"
-                                      : decision === "revoke"
-                                        ? "ghost"
-                                        : "secondary"
-                                  }
-                                  disabled={
-                                    pending ||
-                                    conflicted ||
-                                    (contributed && decision === "approve")
-                                  }
-                                  title={
-                                    contributed && decision === "approve"
-                                      ? "Contributors cannot approve their own changes."
-                                      : undefined
-                                  }
-                                  onClick={() =>
-                                    void run({
-                                      type: "decidePullRequest",
-                                      workItemId: item.id,
-                                      pullRequestId: p.id,
-                                      reviewId: r.id,
-                                      ...heads,
-                                      decision,
-                                    })
-                                  }
-                                >
-                                  {label}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                        {assigned &&
-                          !readOnly &&
-                          specificationPullRequest.allows(p.status, "review") &&
-                          heads &&
-                          contributed &&
-                          !r.decision && (
-                            <p className="pl-6 text-xs text-muted-foreground">
-                              You contributed to this change, so another{" "}
-                              {role?.name ?? "reviewing"} member approves it.
-                            </p>
-                          )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                {manage &&
-                  capabilities.requestReviews &&
-                  specificationPullRequest.allows(p.status, "requestReview") &&
-                  roleOptions.length > 0 && (
-                    <div className="flex gap-1.5">
-                      <DropdownSelect
-                        placeholder="Add a reviewing discipline…"
-                        aria-label="PR reviewing discipline"
-                        className="min-w-0 flex-1"
-                        value={roleId}
-                        onValueChange={(value) => setRoleId(value)}
-                      >
-                        {roleOptions.map((r) => (
-                          <DropdownSelectOption key={r.id} value={r.id}>
-                            {r.name}
-                          </DropdownSelectOption>
-                        ))}
-                      </DropdownSelect>
-                      <Button
-                        size="md"
-                        variant="secondary"
-                        disabled={pending || !roleId}
-                        aria-label="Request required review"
-                        title="Request required review"
-                        onClick={() =>
-                          void run(
-                            {
-                              type: "requestPullRequestReview",
-                              workItemId: item.id,
-                              pullRequestId: p.id,
-                              disciplineId: roleId,
-                              userId: null,
-                              required: true,
-                            },
-                            () => setRoleId(""),
-                          )
-                        }
-                      >
-                        Request
-                      </Button>
-                    </div>
-                  )}
-                {p.status === "open" && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Approvals apply to the exact merge result. Any new commit on
-                    either branch asks reviewers again.
-                  </p>
-                )}
-              </section>
-              <section className="space-y-2">
-                <SectionLabel>Lictory Actions</SectionLabel>
-                {actionRuns.length || policy !== "off" ? (
-                  <ActionCheckRow
-                    pullRequestId={p.id}
-                    sourceHeadId={source?.headId}
-                    onDetails={() => setTab("checks")}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                    onClick={() => setTab("checks")}
-                  >
-                    No Lictory Actions have run on this pull request.
-                  </button>
-                )}
-              </section>
-              <section className="space-y-2 border-t pt-4">
-                {manage &&
-                  specificationPullRequest.allows(p.status, "markDraft") && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start"
-                      disabled={pending}
-                      onClick={() => setDraftState(true)}
+                    </li>
+                  );
+                })}
+              </ul>
+              {manage &&
+                capabilities.requestReviews &&
+                specificationPullRequest.allows(p.status, "requestReview") &&
+                roleOptions.length > 0 && (
+                  <div className="flex gap-1.5">
+                    <DropdownSelect
+                      placeholder="Add a reviewing discipline…"
+                      aria-label="PR reviewing discipline"
+                      className="min-w-0 flex-1"
+                      value={roleId}
+                      onValueChange={(value) => setRoleId(value)}
                     >
-                      <GitPullRequest className="size-3.5" />
-                      Convert to draft
-                    </Button>
-                  )}
-                {!readOnly &&
-                  (p.authorId === userId ||
-                    capabilities.editSpecifications) && (
-                    <DeletePrompt
-                      name={`pull request “${p.title}”`}
-                      detail={
-                        p.status === "merged"
-                          ? "The merged content stays in the specification."
-                          : "The branch is kept."
-                      }
-                      onDelete={() =>
-                        run(
+                      {roleOptions.map((r) => (
+                        <DropdownSelectOption key={r.id} value={r.id}>
+                          {r.name}
+                        </DropdownSelectOption>
+                      ))}
+                    </DropdownSelect>
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      disabled={pending || !roleId}
+                      aria-label="Request required review"
+                      title="Request required review"
+                      onClick={() =>
+                        void run(
                           {
-                            type: "deletePullRequest",
+                            type: "requestPullRequestReview",
                             workItemId: item.id,
                             pullRequestId: p.id,
+                            disciplineId: roleId,
+                            userId: null,
+                            required: true,
                           },
-                          () => onNavigate({ kind: "branches" }),
+                          () => setRoleId(""),
                         )
                       }
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start hover:text-destructive"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Delete pull request
-                        </Button>
-                      }
-                    />
-                  )}
-              </section>
-            </aside>
-          </div>
-        )}
-      </Tabs>
-    </>
+                    >
+                      Request
+                    </Button>
+                  </div>
+                )}
+              {p.status === "open" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Approvals apply to the exact merge result. Any new commit on
+                  either branch asks reviewers again.
+                </p>
+              )}
+            </section>
+            <section className="space-y-2">
+              <SectionLabel>Lictory Actions</SectionLabel>
+              {actionRuns.length || policy !== "off" ? (
+                <ActionCheckRow
+                  pullRequestId={p.id}
+                  sourceHeadId={source?.headId}
+                  onDetails={() => setTab("checks")}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  onClick={() => setTab("checks")}
+                >
+                  No Lictory Actions have run on this pull request.
+                </button>
+              )}
+            </section>
+            <section className="space-y-2 border-t pt-4">
+              {manage &&
+                specificationPullRequest.allows(p.status, "markDraft") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    disabled={pending}
+                    onClick={() => setDraftState(true)}
+                  >
+                    <GitPullRequest className="size-3.5" />
+                    Convert to draft
+                  </Button>
+                )}
+              {!readOnly &&
+                (p.authorId === userId || capabilities.editSpecifications) && (
+                  <DeletePrompt
+                    name={`pull request “${p.title}”`}
+                    detail={
+                      p.status === "merged"
+                        ? "The merged content stays in the specification."
+                        : "The branch is kept."
+                    }
+                    onDelete={() =>
+                      run(
+                        {
+                          type: "deletePullRequest",
+                          workItemId: item.id,
+                          pullRequestId: p.id,
+                        },
+                        () => onNavigate({ kind: "branches" }),
+                      )
+                    }
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start hover:text-destructive"
+                      >
+                        <Trash2 className="size-3.5" />
+                        Delete pull request
+                      </Button>
+                    }
+                  />
+                )}
+            </section>
+          </aside>
+        </div>
+      )}
+    </TabsRoot>
   );
 }

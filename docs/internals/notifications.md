@@ -12,9 +12,14 @@ The Inbox has two views of what is addressed to a person:
   channel messages and thread replies of one channel or direct conversation
   are one row ("Ben Ortiz · 2 messages", "#payments · 3 messages from …"),
   read or archived together, so a busy conversation never buries a review
-  request. Mentions stay their own rows: they are addressed to the person
+  request. Mentions stay their own rows: they are addressed to the person.
+  An agent's failed sessions are digested per agent the same way ("Forge
+  failed 3 sessions", the newest reason under it), so a failing agent never
+  floods Updates; a finished session stays its own row
   (`src/notifications/digest.ts`).
-- **To do**: current work derived from live state (questions agents ask me,
+- **To do**: current work derived from live state (questions agents ask me
+  and agent sessions waiting for my next message, the same sessions as the
+  Factory's badge and "Needs you",
   reviews waiting on me, with the blocking discussions on what I review, my
   items blocked or with changes requested, my items ready). An entry leaves
   when the state resolves; nothing needs marking as read. Home's "Waiting on

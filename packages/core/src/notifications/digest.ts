@@ -1,9 +1,12 @@
-// The Inbox's Updates digest conversation traffic: messages in one channel
-// or direct conversation become one row ("Ben Ortiz · 2 messages") instead
-// of one row per message, so a chatty conversation never buries a review
-// request or a blocking discussion. Mentions stay their own rows: they are
-// addressed to the person. Pure, so the browser groups what it loaded and
-// tests can pin the rule.
+// The Inbox's Updates digest repeated traffic so it never buries a review
+// request or a blocking discussion:
+// - conversation traffic: messages in one channel or direct conversation
+//   become one row ("Ben Ortiz · 2 messages") instead of one per message.
+//   Mentions stay their own rows: they are addressed to the person.
+// - an agent's failed sessions: one row per agent ("Forge failed 3
+//   sessions"), the newest failure's reason under it, instead of one row
+//   per failure. A finished session stays its own row.
+// Pure, so the browser groups what it loaded and tests can pin the rule.
 
 // Conversation activity that is digested per conversation.
 const conversationKinds = new Set([
@@ -21,31 +24,54 @@ type Groupable = {
   detail: Record<string, unknown>;
 };
 
-// One row of the feed: a single notification, or several messages of one
-// conversation, newest first (`latest` is the first of `items`).
-export type FeedRow<N> = { key: string; latest: N; items: N[] };
+// One row of the feed: a single notification, or several notifications of
+// one group (a conversation's messages, an agent's failures), newest first
+// (`latest` is the first of `items`).
+export type FeedRow<N> = {
+  key: string;
+  group?: "conversation" | "agent_failures";
+  latest: N;
+  items: N[];
+};
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 
-export function digestConversations<N extends Groupable>(
+// Which group a notification joins, if any.
+function groupOf(n: Groupable) {
+  const channelId = str(n.detail.channelId);
+  if (conversationKinds.has(n.kind) && channelId)
+    return {
+      group: "conversation" as const,
+      key: `conversation:${n.organizationId}:${channelId}`,
+    };
+  // Older notifications name the agent only; its name stands in for its id.
+  const agent = str(n.detail.agentId) ?? str(n.detail.agentName);
+  if (n.kind === "agent_session_finished" && n.detail.status === "failed")
+    return {
+      group: "agent_failures" as const,
+      key: `agent-failures:${n.organizationId}:${agent ?? "unknown"}`,
+    };
+  return null;
+}
+
+export function digestFeed<N extends Groupable>(
   items: readonly N[],
 ): FeedRow<N>[] {
   const rows: FeedRow<N>[] = [];
-  const byConversation = new Map<string, FeedRow<N>>();
+  const byGroup = new Map<string, FeedRow<N>>();
   for (const n of items) {
-    const channelId = str(n.detail.channelId);
-    if (!conversationKinds.has(n.kind) || !channelId) {
+    const group = groupOf(n);
+    if (!group) {
       rows.push({ key: n.id, latest: n, items: [n] });
       continue;
     }
-    const key = `${n.organizationId}:${channelId}`;
-    const row = byConversation.get(key);
+    const row = byGroup.get(group.key);
     if (row) {
       row.items.push(n);
       continue;
     }
-    const created = { key: `conversation:${key}`, latest: n, items: [n] };
-    byConversation.set(key, created);
+    const created = { ...group, latest: n, items: [n] };
+    byGroup.set(group.key, created);
     rows.push(created);
   }
   return rows;
@@ -58,12 +84,17 @@ function people(names: string[]) {
   return `${names.slice(0, 2).join(", ")} and ${names.length - 2} other${names.length > 3 ? "s" : ""}`;
 }
 
-// The headline of a digested conversation: who wrote how many messages
-// where. Single notifications keep their own sentence (describeNotification).
-export function describeConversation<N extends Groupable>(
+// The headline of a digest: who wrote how many messages where, or which
+// agent failed how many sessions. Single notifications keep their own
+// sentence (describeNotification).
+export function describeDigest<N extends Groupable>(
   row: FeedRow<N>,
   formerMember = "Former member",
 ): string {
+  if (row.group === "agent_failures") {
+    const agent = str(row.latest.detail.agentName) ?? "An agent";
+    return `${agent} failed ${row.items.length} sessions`;
+  }
   const names = [...new Set(row.items.map((n) => n.actorName ?? formerMember))];
   const count = `${row.items.length} message${row.items.length > 1 ? "s" : ""}`;
   const d = row.latest.detail;

@@ -82,7 +82,8 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
 - **Empty states.** Say what will appear and what to do first, with
   `EmptyState` (lists) or `MissingState` (whole pages) from `@lictory/ui`.
   A page with no data at all is one `MissingState` with one primary action:
-  no zero stat cards, no empty sections beside it.
+  no zero stat cards, no empty sections beside it. Under a `PageHeader` pass
+  `headingLevel={2}`: the header's title is the page's h1.
 
 ## Shared building blocks
 
@@ -95,7 +96,7 @@ drawing your own; extend them here when a module needs more.
   there is one, a dot with a tooltip under 20px, a Slack mark for
   `external: "slack"`), `Actor` (avatar and name; `userId` looks the member
   up, `label` "full" | "first" | "none"), `AgentAvatar` (rounded square, the
-  agent's emoji, a robot badge from 24px), `AgentActor` (`agent`, `ownerId` or `owner`:
+  agent's emoji or initial at every size, a robot badge from 24px), `AgentActor` (`agent`, `ownerId` or `owner`:
   "Forge via Ada", the agent's name never truncates), `PolicyActor`
   (`level`, `setById`: "Build policy (set by Ada)", for what a policy did by
   itself), `Facepile` (`people`, `max`; set `--actor-ring` to the surface
@@ -124,11 +125,13 @@ drawing your own; extend them here when a module needs more.
   `components/review/merge-box`). One pull request page for code and
   specifications: `PullRequestHeader` (`title`, `number`, `state` draft |
   open | merged | closed, `author` as an `Actor` or `AgentActor`,
+  `headingLevel` 2, or 1 where the pull request takes an item's place,
   `commits`, `base`, `head`, `meta`, `tabs` as `PullRequestTabs` inside a
   ui-sdk `Tabs` root) under the page's `PageHeader`, and `MergeBox`
   (`target`, `requirements` with a state and the reason in words,
   `blocked`, `note` saying what merging does or why this person cannot,
-  `action` with the merge button; `MergedNotice` once merged).
+  `action` with the merge button, `children` for a conflict resolver;
+  `MergedNotice` once merged).
 - **Focus.** Interactive elements use `focus-ring` (2px, offset) or
   `focus-ring-inset` for full-bleed rows in a clipping container, with
   `outline-none`. Do not use translucent `ring-ring/60` rings.

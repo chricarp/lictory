@@ -30,9 +30,7 @@ const allowed = new Set([
 
 // Pages that still draw their own header. Each module stream adopts
 // `PageHeader` and removes its entries; the list only shrinks.
-const knownOffenders = new Set([
-  "components/intelligence/chat/intelligence.tsx",
-]);
+const knownOffenders = new Set<string>([]);
 
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

@@ -245,6 +245,7 @@ function Queue({ project }: { project: Project }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {policy.level === "assist" ? (
             <MissingState
+              headingLevel={2}
               illustration="planning"
               icon={Bot}
               title="Agents work here when asked"
@@ -262,6 +263,7 @@ function Queue({ project }: { project: Project }) {
             </MissingState>
           ) : (
             <MissingState
+              headingLevel={2}
               illustration="planning"
               icon={Bot}
               title="Nothing to dispatch yet"

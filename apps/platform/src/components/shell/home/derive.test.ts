@@ -180,8 +180,16 @@ void test("waiting on you is one queue: agents' questions first, each thing once
       },
     ],
     requests: [
-      { approval: { id: "a1", createdAt: "2026-10-30" } },
-      { approval: { id: "a2", createdAt: "2026-10-31" } },
+      {
+        session: { id: "s1", updatedAt: "2026-10-30" },
+        approval: { id: "a1", createdAt: "2026-10-30" },
+      },
+      {
+        session: { id: "s1", updatedAt: "2026-10-30" },
+        approval: { id: "a2", createdAt: "2026-10-31" },
+      },
+      // Waiting for my next message: the session itself, once.
+      { session: { id: "s2", updatedAt: "2026-10-29" } },
     ],
   });
   // An agent waiting on a person is stopped: its questions lead, newest
@@ -191,6 +199,7 @@ void test("waiting on you is one queue: agents' questions first, each thing once
     [
       "agent:a2",
       "agent:a1",
+      "agent:session:s2",
       "page:p2",
       "item:i2:Review requested",
       "item:i1:Changes requested",

@@ -241,6 +241,8 @@ async function notifyFinished(tx: Tx, session: SessionRow) {
       detail: {
         sessionId: session.id,
         sessionTitle: session.title,
+        // The Inbox digests one agent's failures into one row.
+        agentId: agent.id,
         agentName: agent.name,
         status: session.status,
         summary: session.resultSummary?.slice(0, 300) ?? null,

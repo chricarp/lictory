@@ -8,6 +8,7 @@ import type {
   SessionEventRow,
 } from "@lictory/core/factory/entities";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { waitsOnMe } from "@lictory/platform/components/factory/overview-blocks";
 
 // The Factory as the browser sees it: synchronized `factory_entity` rows
 // (agents, runners, a window of recent sessions) and one session's event
@@ -80,17 +81,13 @@ export function useSessionEvents(sessionId: string, limit: number) {
   return { events, complete: result.type === "complete" };
 }
 
-// Approval requests I may answer: sessions I started or whose agent I own.
+// Sessions waiting on me, for a decision or for my next message (see
+// `waitsOnMe`): the Factory's badge and "Needs you", and the agents in
+// "Waiting on you".
 export function waitingOnMe(
-  sessions: SessionEntity[],
+  sessions: readonly SessionEntity[],
   agentById: ReadonlyMap<string, AgentEntity>,
   userId: string,
 ) {
-  return sessions.filter(
-    (s) =>
-      s.status === "waiting" &&
-      s.approvals.length > 0 &&
-      (s.requestedById === userId ||
-        agentById.get(s.agentId)?.ownerId === userId),
-  );
+  return sessions.filter((s) => waitsOnMe(s, agentById, userId));
 }

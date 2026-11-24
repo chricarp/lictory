@@ -107,6 +107,7 @@ export function FactoryAgents() {
     >
       {!agents.length ? (
         <MissingState
+          headingLevel={2}
           icon={Bot}
           title="No agents yet"
           action={
