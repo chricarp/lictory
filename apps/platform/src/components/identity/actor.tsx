@@ -27,6 +27,16 @@ const text: Record<ActorSize, string> = {
   36: "text-[13px]",
 };
 
+// Initials one step smaller in a facepile, so two letters stay inside the
+// part of the disc the next avatar leaves uncovered.
+const pileText: Record<ActorSize, string> = {
+  16: "",
+  20: "text-[8px]",
+  24: "text-[9px]",
+  32: "text-[11px]",
+  36: "text-xs",
+};
+
 export type Person = {
   id: string;
   name: string;
@@ -330,8 +340,10 @@ export function PolicyActor({
 }
 
 // Overlapping avatars that never clip each other's initials: each sits on a
-// ring in the surface color, and the overflow is a count. Pass the surface
-// as `--actor-ring` when it is not the page background.
+// ring in the surface color, the next one covers only the edge of the disc
+// before it (never its initials, which are a step smaller here), and the
+// overflow is a count. Pass the surface as `--actor-ring` when it is not
+// the page background.
 export function Facepile({
   people,
   max = 4,
@@ -348,6 +360,10 @@ export function Facepile({
 }) {
   const shown = people.slice(0, people.length > max ? max - 1 : max);
   const rest = people.length - shown.length;
+  // The next avatar starts 2px inside this one and its 2px ring covers 2px
+  // more: 4px of the disc's edge, while the (centered) initials take at
+  // most ~60% of its width.
+  const overlap = -2;
   return (
     <span
       role="group"
@@ -359,12 +375,22 @@ export function Facepile({
         <span
           key={p.id}
           className="relative inline-flex"
-          style={{ marginLeft: i === 0 ? 0 : -Math.round(size * 0.25) }}
+          style={{ marginLeft: i === 0 ? 0 : overlap }}
         >
           {"agent" in p ? (
-            <AgentAvatar agent={p} size={size} ring />
+            <AgentAvatar
+              agent={p}
+              size={size}
+              ring
+              className={pileText[size]}
+            />
           ) : (
-            <PersonAvatar person={p} size={size} ring />
+            <PersonAvatar
+              person={p}
+              size={size}
+              ring
+              className={pileText[size]}
+            />
           )}
         </span>
       ))}
@@ -375,11 +401,11 @@ export function Facepile({
           style={{
             height: size,
             minWidth: size,
-            marginLeft: -Math.round(size * 0.25),
+            marginLeft: overlap,
           }}
           className={cn(
             "relative inline-grid place-items-center rounded-full bg-muted px-1 font-semibold text-muted-foreground tabular-nums ring-2 ring-(--actor-ring,var(--background))",
-            text[size === 16 ? 20 : size],
+            pileText[size === 16 ? 20 : size],
           )}
         >
           +{rest}
