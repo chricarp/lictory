@@ -1,56 +1,82 @@
 ---
 title: Find your way around
-description: The sidebar, a project's views, the parts of a work item page, previews and split view, item addresses, and what the sync indicator tells you.
+description: Home, the organization rail and the sidebar, a project's views, the parts of a work item page, previews and split view, item addresses, and what the sync indicator tells you.
 ---
 
-Lictory has one window for everything: the sidebar on the left, and the work
-in a frame beside it. This page names the parts so the rest of the guide can
-refer to them.
+Lictory has one window for everything: the organization rail and the
+sidebar on the left, and the work in a frame beside them. This page names the
+parts so the rest of the guide can refer to them.
+
+## Home
+
+Opening an organization lands on **Home**, which answers "what needs me, and
+what is moving?":
+
+- **Waiting on you**: reviews requested of you, pull requests and page
+  changes that wait for your approval or a merge, and items of yours with
+  changes requested or blocking discussions. **Open Inbox** shows all of
+  them ([Inbox](/inbox)).
+- **In flight**: work assigned to you that has started.
+- **Ready to start**: ready work that is yours or nobody's yet.
+- **Recently edited pages** in your [spaces](/spaces).
+
+Everything on Home updates as the work changes; there is nothing to refresh.
+
+## The organization rail
+
+The narrow strip on the far left shows every organization you belong to.
+Select one to switch to it; a dot means it has unread notifications. **+**
+creates another organization, where your installation allows it.
 
 ## The sidebar
 
 From top to bottom:
 
-- **The organization switcher** shows your organization's name or logo.
-  Open it to switch to another organization you belong to, to reach
-  **Organization settings**, or, where your installation allows it, to
+- **The organization menu** shows your organization's name or logo. Open it
+  to switch organizations, to reach **Organization settings**, or to
   **Create organization**.
-- **Collapse app sidebar** (beside the switcher) folds the sidebar into a
-  narrow strip of icons. **Search** (`/`) opens the command palette.
-- **New item** (`C`) creates a work item in the project you are in.
-- **Inbox** collects the notifications and to-dos that need you. Its badge
-  counts unread notifications, or, when everything is read, your open
-  to-dos. See [Inbox](/inbox).
-- **Litto** opens the conversations with Lictory's assistant. See
-  [Litto](/ai/litto).
+- **Collapse app sidebar** (`[`) folds the sidebar into a strip of icons.
+  Drag the sidebar's edge to make it wider or narrower (double-click the edge
+  to reset).
+- **Search** (`Ctrl K`, `⌘ K` or `/`) opens the [command palette](#the-command-palette).
+- **New item** (the pencil beside Search, or `C`) creates a work item in the
+  project you are in.
+- **Home**, then **Inbox**, which collects the notifications and to-dos that
+  need you. Its badge counts unread notifications, or, when everything is
+  read, your open to-dos. **Litto** opens the conversations with Lictory's
+  assistant ([Litto](/ai/litto)).
+- **Channels**, **Direct messages**, **Factory** (agents) and **Code**
+  (repositories and pull requests).
+- **Projects**: the project you are in, with its views (below). Open the
+  project switcher to choose another; the gear beside it opens **Project
+  settings**.
 - **Spaces** lists **All spaces** and the organization's spaces and those
   of your projects and teams. The **+** beside the heading creates a space.
   See [Spaces](/spaces).
-- **The project switcher** shows the current project; open it to choose
-  another. The gear beside it opens **Project settings**.
-- **The project's views** follow the work (below).
 - **Organization settings** sits at the bottom.
 - **Your account menu** (your name at the very bottom) has **Account
   settings**, **Privacy preferences**, **Sign out** and the version of
   Lictory you are using. Instance administrators also see **Admin console**.
   The small indicator beside it is the [sync status](#sync-status-and-offline).
 
+Select a section's heading to fold it away; Lictory remembers it in this
+browser. A folded section still shows its count.
+
 ### A project's views
 
-Inside a project the sidebar groups the views by what you do with the work:
+Under the project switcher the views follow what you do with the work:
 
-| Group        | Views                                                                                                                               |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Prepare**  | **Proposals**, **Refinement**, **Reviews**: the [refinement](/specifications) queues                                                |
-| **Delivery** | **Board** and **Backlog** (**Backlog & sprints** or **Backlog & cycles** when the project plans that way). See [Deliver](/delivery) |
-| **Browse**   | **All items**, every work item of the project with filters                                                                          |
-| **Teams**    | One entry per team, yours first: the [team's backlog](/delivery/teams)                                                              |
-| **Spaces**   | The project's own spaces                                                                                                            |
-| **Views**    | **Needs review**, **Blocked** and **Recently updated**. Fold the group away with its heading                                        |
+| Views                                                                                                     | What for                                                                                |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Proposals**, **Refinement**, **Reviews**                                                                | The [refinement](/specifications) queues                                                |
+| **Board** and **Backlog** (**Backlog & sprints** or **Backlog & cycles** when the project plans that way) | [Delivery](/delivery)                                                                   |
+| **All items**                                                                                             | Every work item of the project, with filters                                            |
+| **Teams**                                                                                                 | One entry per team, yours first: its [backlog](/delivery/teams)                         |
+| **Spaces**                                                                                                | The project's own spaces                                                                |
+| **Views**                                                                                                 | **Needs review**, **Blocked** and **Recently updated**, folded away until you open them |
 
-In a project that delivers in Jira, the Delivery group is called
-**Delivery · Jira** and holds **Hand-off** instead of the board and backlog
-([Jira](/integrations/jira)).
+In a project that delivers in Jira, **Hand-off** (marked **Jira**) takes the
+place of the board and backlog ([Jira](/integrations/jira)).
 
 ## A work item page
 
@@ -152,9 +178,11 @@ keep working.
 
 `Ctrl K` (`⌘ K` on a Mac) or `/` opens the command palette anywhere. Type to
 find work items (by title or key, such as `PAY-142`), pages, spaces,
-projects and their views, and commands: create an item or a space, go to the
-Inbox or Organization settings, ask Litto, and, while an item is open,
-**Assign PAY-142 to me** or **Set status: …**. See [search](/search).
+projects and their views, and commands: **New proposal**, **New page in …**,
+create an item or a space, **Go to** any part of the sidebar, settings,
+switch organization, switch to the light or dark appearance, ask Litto, and,
+while an item is open, **Assign PAY-142 to me** or **Set status: …**. See
+[search](/search).
 
 ## Sync status and offline
 

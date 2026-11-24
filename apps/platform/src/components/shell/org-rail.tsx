@@ -12,7 +12,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useUnread } from "@lictory/platform/components/shell/unread";
 
 const tile =
-  "relative grid size-9 place-items-center rounded-[10px] outline-none transition-[background-color,box-shadow,transform] duration-150 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96] motion-reduce:transition-none";
+  "relative grid size-8 place-items-center rounded-[9px] outline-none transition-[background-color,box-shadow,transform] duration-150 focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-[0.96] motion-reduce:transition-none";
 
 // Every organization I belong to, as its mark, with a way to add another.
 // One organization reads as the app's anchor; several switch like Slack
@@ -26,7 +26,7 @@ export function OrganizationRail() {
   return (
     <nav
       aria-label="Organizations"
-      className="flex w-[52px] shrink-0 flex-col items-center gap-2 py-2"
+      className="flex w-12 shrink-0 flex-col items-center gap-2 py-2"
     >
       <ul className="flex flex-col items-center gap-2">
         {organizations.map((o, index) => (
@@ -96,7 +96,7 @@ function OrganizationTile({
       >
         <OrganizationMark
           organization={organization}
-          className="size-9 rounded-[10px] text-sm"
+          className="size-8 rounded-[9px] text-[13px]"
         />
         {unread > 0 && (
           <span

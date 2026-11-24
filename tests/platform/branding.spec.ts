@@ -74,8 +74,13 @@ test("an administrator brands the organization with its logos, browser icon and 
   });
 
   const switcher = page.getByRole("button", { name: "Brand Co" }).first();
-  await expect(switcher).toContainText("B");
-  await expect(switcher.locator("img")).toHaveCount(0);
+  // The organization rail wears the logomark; the menu names it.
+  const tile = page
+    .getByRole("navigation", { name: "Organizations" })
+    .getByRole("link", { name: "Brand Co", exact: true });
+  await expect(switcher).toContainText("Brand Co");
+  await expect(tile).toContainText("B");
+  await expect(tile.locator("img")).toHaveCount(0);
 
   await page
     .getByRole("link", { name: "Organization settings", exact: true })
@@ -88,7 +93,7 @@ test("an administrator brands the organization with its logos, browser icon and 
   await expect(
     page.getByRole("button", { name: "Replace", exact: true }),
   ).toHaveCount(1);
-  await expect(switcher.locator("img")).toHaveCount(1);
+  await expect(tile.locator("img")).toHaveCount(1);
   await loaded(page, 'img[src*="/logo/mark"]');
   await expect(switcher).toContainText("Brand Co");
 

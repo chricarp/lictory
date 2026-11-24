@@ -656,6 +656,17 @@ export function CommandPalette({
     const matchedCommands = commands.filter(
       (c) => !q || c.label.toLowerCase().includes(q) || c.keywords?.includes(q),
     );
+    // A command whose name has a word starting with what was typed ("dark",
+    // "home") is what the person is asking for: it leads the content search.
+    const named = (c: Item) =>
+      c.label
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .some((word) => word.startsWith(q));
+    const namedCommands = q ? matchedCommands.filter(named) : [];
+    const otherCommands = q
+      ? matchedCommands.filter((c) => !named(c))
+      : suggested(commands);
     // Everything the content says, beyond the first few, with filters.
     const seeAll: Item[] =
       !parsed && query.trim().length >= MIN_CONTENT_QUERY
@@ -688,9 +699,10 @@ export function CommandPalette({
     return {
       titles: [...matchedItems, ...matchedPages],
       rest: [
+        ...namedCommands,
         ...fromContent,
         ...seeAll,
-        ...(q ? matchedCommands : suggested(commands)),
+        ...otherCommands,
         ...ask,
       ],
     };

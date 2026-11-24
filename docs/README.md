@@ -27,6 +27,9 @@ adding domain writes or synchronized entities.
 - [The software factory](./internals/software-factory.md): channels, agents,
   agent sessions, runners, claims, autonomy policy, code hosts and the
   desktop app, and what text and agents can never do
+- [The workspace shell](./internals/shell.md): the organization rail,
+  sidebar sections, Home, the command palette and how modules register into
+  them, reserved module routes, and the desktop app's title bar
 - [Organizations, projects and teams](./internals/organization-model.md):
   what each scope owns, application roles, project roles and disciplines,
   delivery modes

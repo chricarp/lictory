@@ -21,6 +21,7 @@ import { popupContainer } from "@lictory/ui/popup";
 import { Button } from "@lictory/ui/button";
 import { track } from "@lictory/core/lib/analytics/client";
 import { cn } from "@lictory/core/lib/utils";
+import { paths } from "@lictory/core/lib/paths";
 import { enabledTypes } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import {
@@ -99,7 +100,17 @@ function isTyping(target: EventTarget | null) {
   );
 }
 
-const SIDEBAR_DEFAULT = 240;
+const SIDEBAR_DEFAULT = 232;
+
+// `G` then one of these letters.
+const goTargets: Record<string, (org: string) => string> = {
+  h: paths.org,
+  i: paths.inbox,
+  c: paths.channels,
+  f: paths.factory,
+  d: paths.code,
+  s: paths.spaces,
+};
 
 // The workspace around every organization page: the organization rail, the
 // sidebar (full, compact, or a drawer on phones), the framed page, Litto's
@@ -162,7 +173,6 @@ function ShellFrame({
   const [drawer, setDrawer] = useState(false);
   const [sidebarCollapsed, toggleSidebarPreference, setSidebarCollapsed] =
     usePanelCollapsed(organization.id, "sidebar");
-  const sidebarId = useId();
   const sidebarRef = useRef<HTMLElement | null>(null);
   const [dockReady, setDockReady] = useState(false);
   const restoreSidebarFocus = useRef(false);
@@ -213,6 +223,8 @@ function ShellFrame({
       },
     },
   );
+  // The resizer and the collapse toggle both control the sidebar by its id.
+  const sidebarId = resize.pane.id;
   const attachSidebar = resize.pane.attach;
   const sidebarElement = useCallback(
     (element: HTMLElement | null) => {
@@ -326,6 +338,7 @@ function ShellFrame({
     },
     [organization.id],
   );
+  const goPrefix = useRef(0);
   const [drawerPath, setDrawerPath] = useState(pathname);
   if (drawerPath !== pathname) {
     setDrawerPath(pathname);
@@ -341,6 +354,27 @@ function ShellFrame({
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTyping(event.target)) return;
+      // `G` then a module's letter goes there (G H Home, G I Inbox).
+      const goTo = goPrefix.current && Date.now() - goPrefix.current < 1200;
+      goPrefix.current = 0;
+      const target = goTo ? goTargets[event.key.toLowerCase()] : undefined;
+      if (target) {
+        event.preventDefault();
+        router.push(target(organization.slug));
+        return;
+      }
+      if (event.key === "g" && !event.shiftKey) {
+        goPrefix.current = Date.now();
+        return;
+      }
+      if (
+        event.key === "[" &&
+        window.matchMedia("(min-width: 64rem)").matches
+      ) {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
       if (event.key === "c" && project) {
         event.preventDefault();
         openCreate();
@@ -351,7 +385,7 @@ function ShellFrame({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [project, pathname, openCreate, openPalette, palette.open]);
+  });
   const shell = useMemo<ShellContextValue>(
     () => ({
       toast,
@@ -402,10 +436,10 @@ function ShellFrame({
               className={cn(
                 "flex shrink-0 flex-col bg-sidebar",
                 sidebarCollapsed
-                  ? "w-[52px]"
+                  ? "w-12"
                   : resize.pane.sized
                     ? "w-(--pane-w)"
-                    : "w-[240px]",
+                    : "w-[232px]",
               )}
             >
               {sidebar(sidebarCollapsed)}
@@ -423,11 +457,11 @@ function ShellFrame({
             <DrawerBackdrop className="fixed inset-0 z-40 bg-black/30 lg:hidden" />
             <DrawerContent
               aria-label="Navigation"
-              className="z-50 flex h-dvh w-[312px] max-w-[88vw] border-r bg-sidebar text-foreground shadow-xl lg:hidden"
+              className="z-50 flex h-dvh max-h-none w-[300px] max-w-[88vw] flex-row gap-0 overflow-hidden border-0 border-r bg-sidebar p-0 text-foreground shadow-xl lg:hidden"
             >
               <DrawerTitle className="sr-only">Navigation</DrawerTitle>
               <OrganizationRail />
-              <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {sidebar(false, true)}
               </div>
             </DrawerContent>

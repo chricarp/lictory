@@ -449,9 +449,15 @@ test("joining waits without creating an organization, discovers invitations, and
   });
   await page.getByRole("button", { name: "Check invitations" }).click();
   await page.getByRole("button", { name: "Join", exact: true }).click();
-  // Joining an organization with projects lands in its project: without an AI
-  // provider, Litto would only say it is unavailable.
-  await expect(page).toHaveURL(/\/exist\/(board|refinement|items)$/);
+  // Joining an organization with projects lands on its Home, with its
+  // project in the sidebar.
+  await expect(page).toHaveURL(new RegExp(`/${orgId}$`));
+  await expect(
+    page.getByRole("heading", { name: "Home", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Switch project: Existing project" }),
+  ).toBeVisible();
   expect(
     await db
       .select()

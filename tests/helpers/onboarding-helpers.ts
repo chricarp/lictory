@@ -39,7 +39,7 @@ export async function createWorkspace(
       page.getByRole("heading", { name: "Proposals", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "New item C", exact: true }),
+      page.getByRole("button", { name: "Create work item", exact: true }),
     ).toBeVisible();
   }
 }

@@ -41,7 +41,7 @@ export function PageHeader({
     >
       <div className="flex min-w-0 shrink items-center gap-1.5">
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="min-w-0 max-sm:hidden">
+          <nav aria-label="Breadcrumb" className="min-w-0 shrink">
             <ol className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
               {breadcrumbs.map((crumb) => (
                 <Fragment key={crumb.href}>

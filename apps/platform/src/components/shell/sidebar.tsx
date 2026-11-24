@@ -100,8 +100,9 @@ export function Sidebar({
               !compact && "max-lg:hidden",
             )}
             data-sidebar-toggle
+            aria-keyshortcuts="["
             aria-label={compact ? "Expand app sidebar" : "Collapse app sidebar"}
-            title={compact ? "Expand app sidebar" : "Collapse app sidebar"}
+            title={`${compact ? "Expand app sidebar" : "Collapse app sidebar"}  [`}
             aria-expanded={!compact}
             aria-controls={sidebarId}
             onClick={onCollapse}
@@ -143,36 +144,29 @@ export function Sidebar({
             </>
           )}
         </button>
-        {onCreate &&
-          (compact ? (
-            <button
-              type="button"
-              aria-label="Create work item"
-              title="Create work item  C"
-              aria-keyshortcuts="C"
-              onClick={onCreate}
-              className="grid size-8 place-items-center rounded-lg text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              <SquarePen className="size-4" aria-hidden />
-            </button>
-          ) : (
-            <button
-              type="button"
-              aria-keyshortcuts="C"
-              title="Create work item"
-              onClick={onCreate}
-              className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-sidebar-accent px-2 text-[13px] font-medium text-foreground shadow-(--shadow-border) outline-none hover:shadow-(--shadow-border-hover) focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              <SquarePen className="size-3.5" aria-hidden />
-              New item <Kbd>C</Kbd>
-            </button>
-          ))}
+        {onCreate && (
+          <button
+            type="button"
+            aria-label="Create work item"
+            title="New item  C"
+            aria-keyshortcuts="C"
+            onClick={onCreate}
+            className={cn(
+              "grid size-8 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              compact
+                ? "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                : "bg-sidebar-accent text-foreground shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
+            )}
+          >
+            <SquarePen className="size-4" aria-hidden />
+          </button>
+        )}
       </div>
       <nav
         aria-label="Workspace"
         className={cn(
           "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2",
-          compact ? "items-center gap-1.5" : "gap-4",
+          compact ? "items-center gap-1.5" : "gap-3.5",
         )}
       >
         {navSections.map((section, index) => (
@@ -183,7 +177,7 @@ export function Sidebar({
               "space-y-0.5",
               compact && "flex flex-col items-center",
               // Home and Inbox sit together at the top.
-              !compact && index === 1 && "-mt-3.5",
+              !compact && index === 1 && "-mt-3",
             )}
           >
             <section.Section badge={badges.get(section.id) ?? null} />
@@ -244,8 +238,10 @@ function OrganizationMenu({ compact }: { compact: boolean }) {
           />
         }
       >
-        {compact || !organization.logos.full ? (
+        {compact ? (
           <OrganizationMark organization={organization} />
+        ) : !organization.logos.full ? (
+          <span className="truncate">{organization.name}</span>
         ) : (
           // The full logo already contains the name; keep it for
           // assistive technology.
@@ -260,12 +256,7 @@ function OrganizationMenu({ compact }: { compact: boolean }) {
           </>
         )}
         {!compact && (
-          <>
-            {!organization.logos.full && (
-              <span className="truncate">{organization.name}</span>
-            )}
-            <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-          </>
+          <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
         )}
       </MenuTrigger>
       <MenuContent width={240} side={compact ? "right" : "bottom"}>
