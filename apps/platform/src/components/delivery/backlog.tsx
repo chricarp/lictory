@@ -880,11 +880,7 @@ export function BacklogRow({
         </span>
       )}
       {claim && (
-        <ClaimBadge
-          claim={claim}
-          assigneeId={item.assigneeId}
-          className="max-sm:max-w-24"
-        />
+        <ClaimBadge claim={claim} assigneeId={item.assigneeId} compactOnPhone />
       )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">

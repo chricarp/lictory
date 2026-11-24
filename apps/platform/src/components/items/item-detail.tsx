@@ -126,6 +126,7 @@ import {
   ClaimPanel,
   DefinitionOfDonePanel,
 } from "@lictory/platform/components/claims/item-panels";
+import { OwnerField } from "@lictory/platform/components/claims/claim-badge";
 import { AiReviewView } from "@lictory/platform/components/review/ai-review";
 import { DockItemSource } from "@lictory/platform/components/intelligence/dock/item-source";
 import { Activity } from "@lictory/platform/components/review/activity";
@@ -656,7 +657,8 @@ export function ItemDetail({
       </Property>
       {native && (
         <Property label="Owner">
-          <AssigneePicker
+          <OwnerField
+            itemId={item.id}
             assigneeId={item.assigneeId}
             onChange={
               canChange ? (assigneeId) => update({ assigneeId }) : undefined
