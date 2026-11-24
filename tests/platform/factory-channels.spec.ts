@@ -166,6 +166,20 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     card.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
   await expect(approval).toHaveCount(0);
+  // Reply counts leave the set-aside record out: the thread's count and the
+  // channel's summary both state the replies the thread shows.
+  const log = panel.getByRole("log", { name: "Thread replies" });
+  await expect
+    .poll(async () => {
+      const n = (await log.locator("[data-message-id]").count()) - 1;
+      const label = `${n} ${n === 1 ? "reply" : "replies"}`;
+      const inThread = await log.getByText(label, { exact: true }).count();
+      const summary = await message
+        .getByRole("button", { name: new RegExp(`\\b${label}\\b`) })
+        .count();
+      return inThread + summary;
+    })
+    .toBe(2);
   await card.getByRole("button", { name: "Approve" }).click();
   await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(approval.getByText(/Approved by Ada/)).toBeVisible();

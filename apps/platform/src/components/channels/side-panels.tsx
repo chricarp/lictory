@@ -10,6 +10,7 @@ import { useChannelThread } from "@lictory/platform/components/channels/store";
 import {
   formatTime,
   sessionCardsIn,
+  shownReplyCount,
   type Channel,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
@@ -69,6 +70,7 @@ export function ThreadPanel({
   channel,
   label,
   rootMessageId,
+  hiddenReplies = 0,
   participant,
   renderMessage,
   composer,
@@ -79,6 +81,8 @@ export function ThreadPanel({
   channel: Channel;
   label: string;
   rootMessageId: string;
+  // Requests the session card shows, whose record lines step aside.
+  hiddenReplies?: number;
   participant: { following: boolean; readReplyCount: number } | undefined;
   renderMessage: (message: MessageRow, grouped: boolean) => ReactNode;
   composer: ReactNode;
@@ -91,6 +95,7 @@ export function ThreadPanel({
     rootMessageId,
   );
   const end = useRef<HTMLDivElement>(null);
+  const shown = root ? shownReplyCount(root, hiddenReplies) : 0;
   const following = participant?.following ?? false;
   // Sessions whose card is in this thread answer their requests there.
   const cards = useMemo(
@@ -154,7 +159,7 @@ export function ThreadPanel({
             {renderMessage(root, false)}
             <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
               <span>
-                {root.replyCount} {root.replyCount === 1 ? "reply" : "replies"}
+                {shown} {shown === 1 ? "reply" : "replies"}
               </span>
               <div className="h-px flex-1 bg-border" />
             </div>

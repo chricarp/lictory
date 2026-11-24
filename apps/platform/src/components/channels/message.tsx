@@ -37,6 +37,7 @@ import {
   formatTime,
   groupReactions,
   replyAuthors,
+  shownReplyCount,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
@@ -100,6 +101,9 @@ type Props = {
   inThread?: boolean;
   // Why a linked Slack channel never received this message.
   syncError?: string;
+  // Replies its thread holds but does not show (requests a session card
+  // shows): left out of the count.
+  hiddenReplies?: number;
 };
 
 const iconButton =
@@ -123,10 +127,12 @@ export const ChannelMessage = memo(function ChannelMessage({
   actions,
   inThread = false,
   syncError,
+  hiddenReplies = 0,
 }: Props) {
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
+  const replies = shownReplyCount(message, hiddenReplies);
   // The Factory's cards speak for their agent ("Forge via Ada").
   const factory =
     message.kind === "card" ? factoryCardOf(message.payload) : undefined;
@@ -343,7 +349,7 @@ export const ChannelMessage = memo(function ChannelMessage({
         )}
         {isRoot &&
           !inThread &&
-          message.replyCount > 0 &&
+          replies > 0 &&
           actions.openThread && (
             <button
               type="button"
@@ -366,8 +372,7 @@ export const ChannelMessage = memo(function ChannelMessage({
                 label="Replied"
               />
               <span className="font-medium text-primary">
-                {message.replyCount}{" "}
-                {message.replyCount === 1 ? "reply" : "replies"}
+                {replies} {replies === 1 ? "reply" : "replies"}
               </span>
               {message.lastReplyAt && (
                 <span className="text-muted-foreground">
