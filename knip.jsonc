@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Browser specs run `bun <runner cli> register|start`; knip reads the
+  // runner's subcommands as binaries.
+  "ignoreBinaries": ["register", "start"],
   "workspaces": {
     ".": {
       // Bun runs colocated tests; operators and the Better Auth CLI load these by path.
