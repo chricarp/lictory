@@ -10,12 +10,7 @@ import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Switch } from "@lictory/ui/switch";
-import {
-  Menu,
-  MenuContent,
-  MenuItem,
-  MenuTrigger,
-} from "@lictory/ui/menu";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { Badge } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";

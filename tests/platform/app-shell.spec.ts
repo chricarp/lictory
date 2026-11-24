@@ -369,9 +369,7 @@ test("the first Tab stop skips the navigation to the page", async ({
   // The next Tab stop is in the page, not the sidebar.
   await page.keyboard.press("Tab");
   expect(
-    await page.evaluate(
-      () => !!document.activeElement?.closest("main"),
-    ),
+    await page.evaluate(() => !!document.activeElement?.closest("main")),
   ).toBe(true);
 });
 

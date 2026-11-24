@@ -21,12 +21,7 @@ import {
   FAKE_GITHUB_TOKEN,
 } from "../../scripts/e2e-fakes/code-hosts";
 import { richEditor } from "../helpers/editor";
-import {
-  createPage,
-  createSpace,
-  paragraph,
-  text,
-} from "../helpers/knowledge";
+import { createPage, createSpace, paragraph, text } from "../helpers/knowledge";
 import { clientAddress } from "../helpers/client-address";
 import { openDiscussions } from "../helpers/discussions";
 
@@ -440,7 +435,9 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await scan(`${scheme}: factory overview with a request open`);
 
     await page.goto(`${paths.factory(seeded.slug)}/agents`);
-    await expect(page.getByText("Forge", { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByText("Forge", { exact: true }).first(),
+    ).toBeVisible();
     await scan(`${scheme}: factory agents`);
 
     await page.goto(sessionPath!);

@@ -347,40 +347,37 @@ export const ChannelMessage = memo(function ChannelMessage({
             }
           />
         )}
-        {isRoot &&
-          !inThread &&
-          replies > 0 &&
-          actions.openThread && (
-            <button
-              type="button"
-              onClick={() => actions.openThread?.(message)}
-              className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
-            >
-              <Facepile
-                people={replyAuthors(message).map((author) =>
-                  author.kind === "agent"
-                    ? {
-                        id: author.id,
-                        name: agentNameOf(author.id),
-                        avatar: agentOf(author.id)?.avatar,
-                        agent: true as const,
-                      }
-                    : { id: author.id, name: nameOf(author.id) },
-                )}
-                max={4}
-                size={20}
-                label="Replied"
-              />
-              <span className="font-medium text-primary">
-                {replies} {replies === 1 ? "reply" : "replies"}
-              </span>
-              {message.lastReplyAt && (
-                <span className="text-muted-foreground">
-                  Last reply {formatTime(message.lastReplyAt)}
-                </span>
+        {isRoot && !inThread && replies > 0 && actions.openThread && (
+          <button
+            type="button"
+            onClick={() => actions.openThread?.(message)}
+            className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
+          >
+            <Facepile
+              people={replyAuthors(message).map((author) =>
+                author.kind === "agent"
+                  ? {
+                      id: author.id,
+                      name: agentNameOf(author.id),
+                      avatar: agentOf(author.id)?.avatar,
+                      agent: true as const,
+                    }
+                  : { id: author.id, name: nameOf(author.id) },
               )}
-            </button>
-          )}
+              max={4}
+              size={20}
+              label="Replied"
+            />
+            <span className="font-medium text-primary">
+              {replies} {replies === 1 ? "reply" : "replies"}
+            </span>
+            {message.lastReplyAt && (
+              <span className="text-muted-foreground">
+                Last reply {formatTime(message.lastReplyAt)}
+              </span>
+            )}
+          </button>
+        )}
       </div>
       {!deleted && !editing && (
         // One tab stop per message; arrow keys move between its actions.
