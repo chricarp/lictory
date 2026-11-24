@@ -5,6 +5,7 @@ import type {
   CodeLinkTarget,
 } from "@lictory/core/db/code-schema";
 import { detectKeys } from "@lictory/core/code/keys";
+import { queuePullRequestTransitions } from "@lictory/core/code/agent-events";
 import { excerpt } from "@lictory/core/code/http";
 import type {
   CodeBranchInfo,
@@ -194,6 +195,7 @@ export async function upsertPullRequest(
       })
       .where(eq(s.codePullRequest.id, existing.id));
     touched.pullRequestIds.add(existing.id);
+    await queuePullRequestTransitions(tx, repository, existing, info);
     return { id: existing.id, changed: true, created: false };
   }
   const [created] = await tx

@@ -723,6 +723,11 @@ void test("merging: authorized, refused for unmet rules and a moved head, and th
     repository: f.host.repositoryPayload(f.repo.externalId),
     pull_request: { number: pr.number },
   };
+  // The linked item's assignee hears about the merge through their agents.
+  await db
+    .update(s.workItem)
+    .set({ assigneeId: f.engineer })
+    .where(eq(s.workItem.id, f.pay1));
   await f.deliver("pull_request", payload);
   const [stored] = await db
     .select()
@@ -770,6 +775,25 @@ void test("merging: authorized, refused for unmet rules and a moved head, and th
   await f.outbox.processDue();
   const merged = await f.prEntity(pr.number);
   assert.equal(merged?.state, "merged");
+  // A replayed webhook tells nobody twice (agent events, identifiers only).
+  await f.deliver("pull_request", payload);
+  const notices = (
+    await db
+      .select({ notices: s.notificationEvent.notices })
+      .from(s.notificationEvent)
+      .where(eq(s.notificationEvent.organizationId, f.organizationId))
+  ).flatMap((e) => e.notices);
+  const mergedNotices = notices.filter(
+    (n) => n.kind === "code_pull_request_merged",
+  );
+  assert.equal(mergedNotices.length, 1);
+  assert.deepEqual(mergedNotices[0]!.userIds, [f.engineer]);
+  assert.equal(mergedNotices[0]!.workItemId, f.pay1);
+  assert.equal(
+    (mergedNotices[0]!.detail as { pullRequestTitle?: string })
+      .pullRequestTitle,
+    "PAY-1",
+  );
   const [linked] = await evidence.linkedPullRequests(f.organizationId, f.pay1);
   assert.equal(linked?.merged, true);
   // Merged: merging again changes nothing, closing is refused.

@@ -252,13 +252,17 @@ with secrets) are not.
 
 ## Integration notes
 
-- **Code (S3)** calls `queueCodePullRequestEvent` in the transaction that
-  records a code host pull request change (decided, merged, no longer
-  mergeable), with the people it concerns, identifiers and the title. When
-  code pull requests get inbox notifications, map those kinds in the
-  catalog instead.
-- **Factory loop (W3)** registers the Channels `AgentDirectory`; agent
-  mentions it resolves become `agent_mentioned` notices narrowed to the
-  agent and addressed to its owner, with no inbox notification.
+- **Code** (`code/agent-events.ts`) calls `queueCodePullRequestEvent` in
+  the transaction that updates a mirrored pull request, when it becomes
+  merged, approved or changes-requested, or unmergeable (conflicts). Only
+  transitions of a pull request already mirrored count (a backfill is not
+  news). It addresses the person who opened it through Lictory, its host
+  author when mapped to a person and the assignees of its linked items;
+  the dedupe key is `<pull request>:<head sha>:<change>`. When code pull
+  requests get inbox notifications, map those kinds in the catalog instead.
+- **Factory loop** registers the Channels `AgentDirectory`; agent mentions
+  it resolves (in Lictory, or by a mapped person in a linked Slack channel)
+  become `agent_mentioned` notices narrowed to the agent and addressed to
+  its owner, with no inbox notification.
 - A new addressed notification kind becomes an agent event by adding it to
   a type's `from` in the catalog.
