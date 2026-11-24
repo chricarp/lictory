@@ -26,9 +26,6 @@ export function usePanelCollapsed(
     | "sidebar-views"
     | "sidebar-spaces"
     | "space-page-tree"
-    // Whether the sidebar's Channels and Direct messages groups are folded.
-    | "sidebar-channels"
-    | "sidebar-direct"
     | `sidebar-section:${string}`,
 ) {
   const key = `lictory:panel-collapsed:${organizationId}:${panel}`;

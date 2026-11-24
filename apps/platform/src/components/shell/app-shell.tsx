@@ -418,15 +418,8 @@ function ShellFrame({
         <title>{title}</title>
         <OrganizationBrand organization={organization} />
         <div className="flex h-dvh overflow-hidden bg-sidebar text-foreground">
-          {/* The left column: the organization rail and the sidebar. In the
-              desktop app its top strip is the window's title bar, with room
-              for the macOS window buttons. */}
-          <div className="relative hidden shrink-0 pt-[var(--titlebar-inset,0px)] lg:flex">
-            <div
-              aria-hidden
-              data-drag-region
-              className="absolute inset-x-0 top-0 h-[var(--titlebar-inset,0px)]"
-            />
+          {/* The left column: the organization rail and the sidebar. */}
+          <div className="relative hidden shrink-0 lg:flex">
             {/* Wide windows only: on laptops the room goes to the work,
                 and the organization menu switches. */}
             {!sidebarCollapsed && (

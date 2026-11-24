@@ -60,7 +60,8 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
   counter) returning `{ count, label, tone, dock? }` or null. `strong` is
   addressed to the person (mentions, direct messages, requests), `quiet` is
   activity. Set `dock` only for mentions and direct messages: the shell sums
-  those into the desktop dock badge; never call `setBadge` yourself. The
+  those into one source of the desktop badge (`lib/desktop-bridge.ts`, the
+  only caller of `setBadge`); never call `setBadge` yourself. The
   shell passes the badge back to `Section` as `badge` for you to place.
 - **Palette provider.** Add a `PaletteProvider` (`id`, `group`,
   `useEntries(query)`) to `paletteProviders`. Return candidates (memoized),

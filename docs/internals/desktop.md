@@ -155,9 +155,20 @@ in the signed-in layout by `components/app/desktop-connector.tsx`):
   the kinds that notify by email by default. Informational kinds never
   raise the badge or a native notification. It uses the same endpoint and
   realtime signals as the Inbox and adds no server events.
-- The badge is a **sum of sources**. Notifications are one source; another
-  feature adds its own unread count with `useDesktopBadgeSource(source,
-count)`, for example Channels with mentions and direct messages.
+- The badge is a **sum of sources**, and this module is the only caller of
+  `setBadge`. Notifications are one source; another feature adds its own
+  unread count with `useDesktopBadgeSource(source, count)`. The shell adds
+  its sidebar's `dock` badges (channel mentions and direct messages of the
+  open organization, from read state; see [the shell](shell.md#desktop-app)),
+  so notifications of the Channels category are left out of the
+  notification source: reading a conversation clears its mentions without
+  marking their notifications read. They are still forwarded as native
+  notifications.
+- `onNavigate` paths go through the router only when they are pages of the
+  app: other origins and the account flows are refused.
+- The page is a view under the window's top bar and beside the server
+  switcher, so it declares no drag regions and leaves no room for window
+  buttons.
 - New notifications become native ones. The first read only records what
   is there (starting the app never replays the inbox), and later reads
   forward unseen notifications no older than the newest of that first read.

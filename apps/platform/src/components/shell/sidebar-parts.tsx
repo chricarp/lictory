@@ -224,6 +224,7 @@ export function SidebarLink({
   children,
   badge,
   trailing,
+  unread = false,
 }: {
   href: string;
   active: boolean;
@@ -232,6 +233,8 @@ export function SidebarLink({
   badge?: NavBadge | null;
   // Anything else at the end of the row (a status dot).
   trailing?: ReactNode;
+  // New activity since I last looked (a channel): the row reads bold.
+  unread?: boolean;
 }) {
   const compact = useCompactSidebar();
   const badgeId = useId();
@@ -248,7 +251,9 @@ export function SidebarLink({
         // The current page is a raised card on the shell.
         active
           ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
-          : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
+          : unread
+            ? "font-semibold text-foreground hover:bg-sidebar-accent/70"
+            : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
       )}
     >
       {icon ? (
@@ -267,6 +272,7 @@ export function SidebarLink({
       )}
       <span className={compact ? "sr-only" : "min-w-0 flex-1 truncate"}>
         {children}
+        {unread && <span className="sr-only">, unread</span>}
       </span>
       {!compact && trailing}
       {shown && (

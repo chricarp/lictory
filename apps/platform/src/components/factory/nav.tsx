@@ -1,115 +1,202 @@
-import { Factory } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
-import { Link } from "@lictory/platform/lib/navigation";
+import { useMemo } from "react";
+import { Bot, Factory, MessageCircleQuestion, Server } from "lucide-react";
+import { relativeTime } from "@lictory/core/lib/work-items";
+import type { SessionStatus } from "@lictory/core/factory/entities";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  SidebarGroup,
+  SidebarLink,
+  useNavActive,
+} from "@lictory/platform/components/shell/sidebar-parts";
+import {
+  HomePanel,
+  HomeRow,
+} from "@lictory/platform/components/shell/home/panel";
+import type {
+  HomeCard,
+  NavSection,
+  NavSectionProps,
+  PaletteEntry,
+  PaletteProvider,
+} from "@lictory/platform/components/shell/nav-registry";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
-  AgentMark,
-  SessionStatusBadge,
-} from "@lictory/platform/components/factory/parts";
+  activeStatuses,
+  statusLabels,
+} from "@lictory/platform/components/factory/labels";
 import {
   useFactory,
   waitingOnMe,
 } from "@lictory/platform/components/factory/store";
 
-// Integration points for the app shell (sidebar) and Home. The shell owns
-// their placement; these components own what they show.
+// The Factory in the shell (components/shell/nav-registry.tsx): its sidebar
+// section, badge, palette entries and Home cards. The shell owns their
+// placement; these own what they show. Everything reads the Factory's
+// synchronized queries (one subscription, shared by Zero).
 
-// The Factory's sidebar entry, with how many questions agents are waiting
-// for me to answer.
-export function FactoryNavSection({
-  active,
-  collapsed = false,
-}: {
-  active: boolean;
-  collapsed?: boolean;
-}) {
-  const { organization, userId } = useWorkspace();
-  const { sessions, agentById } = useFactory();
-  const waiting = waitingOnMe(sessions, agentById, userId).reduce(
-    (count, s) => count + s.approvals.length,
-    0,
-  );
-  const label = "Factory";
+function FactorySection({ badge }: NavSectionProps) {
+  const { organization } = useWorkspace();
+  const active = useNavActive();
+  const org = organization.slug;
+  const overview = factoryPaths.overview(org);
+  const agents = factoryPaths.agents(org);
+  const runners = factoryPaths.runners(org);
   return (
-    <Link
-      href={factoryPaths.overview(organization.slug)}
-      aria-current={active ? "page" : undefined}
-      aria-label={waiting ? `${label}, ${waiting} waiting on you` : label}
-      title={collapsed ? label : undefined}
-      className={cn(
-        "relative flex items-center rounded-lg text-[13px] transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-        collapsed ? "size-8 justify-center" : "h-8 gap-2.5 px-2.5",
-        active
-          ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"
-          : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
-      )}
-    >
-      <Factory className="size-4 shrink-0" aria-hidden />
-      {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
-      {waiting > 0 && (
-        <span
-          aria-hidden
-          className={cn(
-            "grid h-4 min-w-4 place-items-center rounded-full bg-warning px-1 text-[10px] font-semibold text-background tabular-nums",
-            collapsed && "absolute -top-0.5 -right-0.5",
-          )}
-        >
-          {waiting}
-        </span>
-      )}
-    </Link>
+    <SidebarGroup id="factory" label="Factory" badge={badge}>
+      <SidebarLink
+        href={overview}
+        // A session's page belongs to the overview.
+        active={active(overview, true) || active(`${overview}/sessions`)}
+        icon={<Factory />}
+        badge={badge}
+      >
+        Factory floor
+      </SidebarLink>
+      <SidebarLink href={agents} active={active(agents)} icon={<Bot />}>
+        Agents
+      </SidebarLink>
+      <SidebarLink href={runners} active={active(runners)} icon={<Server />}>
+        Runners
+      </SidebarLink>
+    </SidebarGroup>
   );
 }
 
-// A Home card: sessions at work right now, the ones waiting on me first.
-export function RunningSessionsCard({ limit = 5 }: { limit?: number }) {
+export const factorySection: NavSection = {
+  id: "factory",
+  label: "Factory",
+  icon: Factory,
+  href: factoryPaths.overview,
+  // Sessions whose agent asks me (its owner, or who started it) something.
+  useBadge: () => {
+    const { userId } = useWorkspace();
+    const { sessions, agentById } = useFactory();
+    const waiting = waitingOnMe(sessions, agentById, userId).length;
+    return waiting > 0
+      ? {
+          count: waiting,
+          label:
+            waiting === 1
+              ? "agent session waiting on you"
+              : "agent sessions waiting on you",
+          tone: "strong",
+        }
+      : null;
+  },
+  Section: FactorySection,
+};
+
+// Jump to a session (active ones first) or to the agents.
+export const factoryPalette: PaletteProvider = {
+  id: "factory",
+  group: "Factory",
+  useEntries: () => {
+    const { organization } = useWorkspace();
+    const { sessions, agents, agentById } = useFactory();
+    return useMemo(() => {
+      const org = organization.slug;
+      const active = new Set(activeStatuses);
+      const ordered = [...sessions].sort(
+        (a, b) =>
+          Number(active.has(b.status)) - Number(active.has(a.status)) ||
+          b.updatedAt.localeCompare(a.updatedAt),
+      );
+      const entries: PaletteEntry[] = ordered.map((s) => ({
+        id: `session-${s.id}`,
+        label: s.title,
+        hint: `${agentById.get(s.agentId)?.name ?? "Agent"} · ${statusLabels[s.status]}`,
+        icon: <Bot className="size-4" />,
+        keywords: `agent session ${agentById.get(s.agentId)?.name ?? ""}`,
+        href: factoryPaths.session(org, s.id),
+      }));
+      for (const agent of agents)
+        if (!agent.archivedAt)
+          entries.push({
+            id: `agent-${agent.id}`,
+            label: agent.name,
+            hint: "Agent",
+            icon: <Bot className="size-4" />,
+            keywords: "agent factory",
+            href: factoryPaths.agents(org),
+          });
+      return entries;
+    }, [sessions, agents, agentById, organization.slug]);
+  },
+};
+
+const SHOWN = 5;
+
+// Questions and approvals agents wait on me for. Answering happens on the
+// session's page, where its context is.
+function AgentRequestsCard() {
+  const { organization, userId } = useWorkspace();
+  const { sessions, agentById } = useFactory();
+  const requests = waitingOnMe(sessions, agentById, userId).flatMap((session) =>
+    session.approvals.map((approval) => ({ session, approval })),
+  );
+  if (!requests.length) return null;
+  const org = organization.slug;
+  return (
+    <HomePanel
+      title="Agents ask you"
+      icon={<MessageCircleQuestion />}
+      count={requests.length}
+      more={{ label: "Factory", href: factoryPaths.overview(org) }}
+    >
+      {requests.slice(0, SHOWN).map(({ session, approval }) => (
+        <HomeRow
+          key={approval.id}
+          href={factoryPaths.session(org, session.id)}
+          icon={<MessageCircleQuestion className="text-warning" />}
+          title={approval.title}
+          reason={`${agentById.get(session.agentId)?.name ?? "Agent"} · ${session.title}`}
+          time={relativeTime(approval.createdAt)}
+        />
+      ))}
+    </HomePanel>
+  );
+}
+
+// Sessions at work right now (started, not queued), the ones waiting on me
+// first.
+const atWork: ReadonlySet<SessionStatus> = new Set([
+  "assigned",
+  "running",
+  "waiting",
+]);
+function RunningSessionsCard() {
   const { organization, userId } = useWorkspace();
   const { sessions, agentById } = useFactory();
   const mine = new Set(
     waitingOnMe(sessions, agentById, userId).map((s) => s.id),
   );
   const working = sessions
-    .filter((s) => ["assigned", "running", "waiting"].includes(s.status))
+    .filter((s) => atWork.has(s.status))
     .sort((a, b) => Number(mine.has(b.id)) - Number(mine.has(a.id)));
   if (!working.length) return null;
   const org = organization.slug;
   return (
-    <section
-      aria-labelledby="factory-running"
-      className="rounded-xl bg-card p-3 shadow-(--shadow-border)"
+    <HomePanel
+      title="Agents at work"
+      icon={<Factory />}
+      count={working.length}
+      more={{ label: "Factory", href: factoryPaths.overview(org) }}
     >
-      <div className="mb-1 flex items-center gap-2 px-1">
-        <h2 id="factory-running" className="text-[13px] font-medium">
-          Agents at work
-        </h2>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {working.length}
-        </span>
-        <div className="flex-1" />
-        <Link
-          href={factoryPaths.overview(org)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          Factory
-        </Link>
-      </div>
-      <ul>
-        {working.slice(0, limit).map((session) => (
-          <li key={session.id}>
-            <Link
-              href={factoryPaths.session(org, session.id)}
-              className="flex items-center gap-2.5 rounded-lg px-1 py-1.5 outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
-            >
-              <AgentMark agent={agentById.get(session.agentId)} />
-              <span className="min-w-0 flex-1 truncate text-[13px]">
-                {session.title}
-              </span>
-              <SessionStatusBadge session={session} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
+      {working.slice(0, SHOWN).map((session) => (
+        <HomeRow
+          key={session.id}
+          href={factoryPaths.session(org, session.id)}
+          icon={<Bot className="text-muted-foreground" />}
+          title={session.title}
+          reason={`${agentById.get(session.agentId)?.name ?? "Agent"} · ${statusLabels[session.status]}`}
+          time={relativeTime(session.updatedAt)}
+        />
+      ))}
+    </HomePanel>
   );
 }
+
+export const factoryHomeCards: readonly HomeCard[] = [
+  { id: "agent-requests", label: "Agents ask you", Card: AgentRequestsCard },
+  { id: "agents-at-work", label: "Agents at work", Card: RunningSessionsCard },
+];

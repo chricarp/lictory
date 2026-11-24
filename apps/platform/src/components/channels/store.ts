@@ -51,22 +51,33 @@ export function useChannels() {
   return { ...index, loaded: channelsResult.type === "complete" };
 }
 
-/** Unread mentions and direct messages: the sidebar's and desktop badge. */
+/**
+ * Unread mentions and direct messages: the sidebar's badges, which the shell
+ * also adds to the desktop badge. `channels` counts mentions in channels,
+ * `direct` everything unread in direct conversations (mentions there too),
+ * so the two add up to `total`.
+ */
 export function useChannelAttention() {
   const { list } = useChannels();
-  return useMemo(
-    () =>
-      attentionCount(
-        list,
-        new Map(
-          list.flatMap((c) =>
-            c.member && !c.archivedAt ? [[c.id, c.member] as const] : [],
-          ),
-        ),
-        (c) => c.id,
+  return useMemo(() => {
+    const members = new Map(
+      list.flatMap((c) =>
+        c.member && !c.archivedAt ? [[c.id, c.member] as const] : [],
       ),
-    [list],
-  );
+    );
+    const idOf = (c: (typeof list)[number]) => c.id;
+    const channels = attentionCount(
+      list.filter((c) => c.kind !== "direct"),
+      members,
+      idOf,
+    ).total;
+    const direct = attentionCount(
+      list.filter((c) => c.kind === "direct"),
+      members,
+      idOf,
+    ).total;
+    return { channels, direct, total: channels + direct };
+  }, [list]);
 }
 
 /** A window of a channel's top-level messages, oldest first. */

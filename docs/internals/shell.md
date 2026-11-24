@@ -60,8 +60,8 @@ and what is the factory doing?" before any module.
 - **Ready to start** is ready, not yet committed work that is mine or
   unassigned. Work assigned to someone else is theirs to start.
 - **Recently edited pages** are pages whose published version changed last.
-- **Registered cards** (Factory: running agent sessions, questions agents
-  ask) sit beside them. A card renders nothing until it has something to
+- **Registered cards** (Factory: what agents ask me, then the sessions at
+  work) sit beside them. A card renders nothing until it has something to
   show, so an organization without agents sees no empty box, and a failing
   card never takes Home down.
 
@@ -81,17 +81,28 @@ hooks the shell calls for each entry run in a stable order.
   and whether it counts toward the desktop dock. `strong` is addressed to the
   person (mentions, direct messages, requests); `quiet` is activity worth a
   glance. Only mentions and direct messages count toward the dock or taskbar
-  badge; the shell sums them and is the only caller of `setBadge`.
+  badge: the shell sums them into one source of the desktop bridge (see
+  [Desktop app](#desktop-app)).
 - **Palette providers** (`paletteProviders`) return candidates for the typed
   query; the palette matches, ranks, caps and groups them, and every section
   automatically gets a "Go to" command.
 - **Home cards** (`homeCards`) are components that render nothing until they
   have something to show.
 
-Placeholder sections and pages for Channels, Direct messages, Factory and
-Code (`components/shell/placeholders`) keep every link working until their
-modules ship; a module replaces its placeholder by changing one import in the
-registry and one in the router.
+Registered today:
+
+| Module          | Section, badge                                                                | Palette                                    | Home                           |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------ |
+| Channels        | joined channels, unread bold; mentions in channels (strong, dock)             | conversations, unread first                | none                           |
+| Direct messages | recent conversations; everything unread in them (strong, dock)                | (with conversations)                       | none                           |
+| Factory         | overview, agents, runners; sessions waiting on me (strong, not dock)          | sessions (active first), agents            | Agents ask you, Agents at work |
+| Work            | the project in context with its queues (and its Factory queue in native mode) | projects, items, views (the palette's own) | Home's own lists               |
+| Code            | placeholder (`components/shell/placeholders/code`) until code hosts ship      | none                                       | none                           |
+
+The modules live in their own folders (`components/channels/nav.tsx`,
+`components/factory/nav.tsx`); the registry only lists them. Code's
+placeholder keeps its link working until its module ships, which replaces
+it by changing one import in the registry and one in the router.
 
 ## Routes and reserved project keys
 
@@ -104,18 +115,27 @@ key would be shadowed by a module page.
 ## Desktop app
 
 `desktop()` (`lib/desktop.ts`) returns the bridge the desktop app's preload
-exposes, or null in a browser, where nothing changes. Inside the app:
+exposes, or null in a browser, where nothing changes. The web side has one
+owner, `lib/desktop-bridge.ts` (mounted once in the signed-in layout; see
+[the desktop app](./desktop.md#the-bridge)):
 
-- the root element carries `data-desktop` and `data-desktop-platform`;
-- `[data-drag-region]` elements (the sidebar's top strip and every
-  `PageHeader`) move the window while their controls stay clickable;
-- on macOS the left column leaves `--titlebar-inset` (36px) for the window
-  buttons, which assumes a hidden, inset title bar;
-- `onNavigate` requests (deep links, notification clicks, the tray) go
+- **The badge is a sum of sources**, and the bridge alone calls
+  `setBadge`. Unread notifications that ask something of the person are one
+  source; the shell's `dock` badges (channel mentions and direct messages of
+  the open organization, from read state) are another
+  (`useDesktopBadgeSource("sidebar", …)`). Channel notifications are left
+  out of the first so a mention never counts twice or outlives reading the
+  conversation; they still arrive as native notifications.
+- **`onNavigate`** requests (deep links, notification clicks, the tray) go
   through the router, only to paths inside the app: other origins and the
-  account flows are refused;
-- ⌘1 to ⌘9 (Ctrl elsewhere) open the first nine organizations; browsers
-  keep those keys for their tabs.
+  account flows are refused.
+- **The title bar is the desktop app's.** Its window draws a 40px top bar
+  (with the macOS window buttons, or the Windows controls it overlays) and
+  the server switcher, and shows the page in a view below and beside them.
+  The page therefore leaves no room for window buttons and declares no drag
+  regions; `PageHeader` is an ordinary header.
+- ⌘1 to ⌘9 belong to the desktop app, which switches servers with them;
+  organizations switch from the rail, the organization menu or the palette.
 
 ## Visual language
 

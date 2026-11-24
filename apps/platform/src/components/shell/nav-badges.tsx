@@ -3,7 +3,7 @@ import {
   navSections,
   type NavBadge,
 } from "@lictory/platform/components/shell/nav-registry";
-import { useDesktopBadge } from "@lictory/platform/components/shell/desktop";
+import { useDesktopBadgeSource } from "@lictory/platform/lib/desktop-bridge";
 
 type Badges = ReadonlyMap<string, NavBadge>;
 const NavBadgesContext = createContext<Badges>(new Map());
@@ -30,9 +30,11 @@ export function NavBadgesProvider({ children }: { children: ReactNode }) {
     // The key captures every badge's content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+  // Mentions and direct messages of this organization, one source of the
+  // desktop badge (the bridge sums sources and alone calls `setBadge`).
   let dock = 0;
   for (const badge of badges.values()) if (badge.dock) dock += badge.count;
-  useDesktopBadge(dock);
+  useDesktopBadgeSource("sidebar", dock);
   return <NavBadgesContext value={badges}>{children}</NavBadgesContext>;
 }
 

@@ -3,9 +3,17 @@ import { homeSection } from "@lictory/platform/components/shell/sections/home";
 import { inboxSection } from "@lictory/platform/components/shell/sections/inbox";
 import { projectsSection } from "@lictory/platform/components/shell/sections/projects";
 import { spacesSection } from "@lictory/platform/components/shell/sections/spaces";
-import { channelsSection } from "@lictory/platform/components/shell/placeholders/channels";
-import { directMessagesSection } from "@lictory/platform/components/shell/placeholders/direct-messages";
-import { factorySection } from "@lictory/platform/components/shell/placeholders/factory";
+import {
+  channelsPalette,
+  channelsSection,
+  directMessagesSection,
+} from "@lictory/platform/components/channels/nav";
+import {
+  factoryHomeCards,
+  factoryPalette,
+  factorySection,
+} from "@lictory/platform/components/factory/nav";
+// Placeholder until the Code module (code hosts) ships.
 import { codeSection } from "@lictory/platform/components/shell/placeholders/code";
 
 // The navigation registry: what each module contributes to the shell. A
@@ -24,7 +32,8 @@ export type NavBadge = {
   // "quiet" count is activity worth a glance.
   tone: "strong" | "quiet";
   // Counts toward the desktop app's dock or taskbar badge. Only mentions and
-  // direct messages do (the desktop contract).
+  // direct messages do (the desktop contract); the shell adds them to the
+  // desktop bridge as one source (lib/desktop-bridge.ts).
   dock?: boolean;
 };
 
@@ -84,8 +93,11 @@ export type PaletteProvider = {
   useEntries: (query: string) => readonly PaletteEntry[];
 };
 
-// Channels and agents add providers here.
-export const paletteProviders: readonly PaletteProvider[] = [];
+// Conversations, then agent sessions and agents.
+export const paletteProviders: readonly PaletteProvider[] = [
+  channelsPalette,
+  factoryPalette,
+];
 
 export type HomeCard = {
   id: string;
@@ -97,5 +109,5 @@ export type HomeCard = {
   Card: ComponentType;
 };
 
-// The factory floor: running agent sessions, agent questions (Factory).
-export const homeCards: readonly HomeCard[] = [];
+// The factory floor: what agents ask me, then the sessions at work.
+export const homeCards: readonly HomeCard[] = [...factoryHomeCards];

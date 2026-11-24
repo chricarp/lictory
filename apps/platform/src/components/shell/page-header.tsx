@@ -8,8 +8,7 @@ type Crumb = { label: string; href: string };
 
 // The one header every module page starts with: where I am (breadcrumbs, then
 // the page's title), the page's views (tabs) and its actions, in a single
-// 44px bar on the page's surface. In the desktop app the bar also moves the
-// window; its controls stay clickable.
+// 44px bar on the page's surface.
 export function PageHeader({
   title,
   icon,
@@ -33,7 +32,6 @@ export function PageHeader({
   return (
     <header
       data-page-header
-      data-drag-region
       className={cn(
         "flex h-11 shrink-0 items-center gap-3 border-b px-4 max-sm:px-3",
         className,

@@ -167,17 +167,20 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     rail.getByRole("link", { name: "Second floor", exact: true }),
   ).toBeVisible();
 
-  // Module sections link to pages that exist today.
-  await sidebar(page).getByRole("link", { name: "Browse channels" }).click();
+  // Module sections link to their pages: Channels and the Factory are
+  // registered modules, Code is still a placeholder.
+  await sidebar(page).getByRole("link", { name: "All channels" }).click();
   await expect(page).toHaveURL(paths.channels(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Channels", level: 1 }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Agents" }).click();
+  await sidebar(page).getByRole("link", { name: "Overview" }).click();
   await expect(page).toHaveURL(paths.factory(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Factory", level: 1 }),
   ).toBeVisible();
+  await sidebar(page).getByRole("link", { name: "Agents" }).click();
+  await expect(page).toHaveURL(`${paths.factory(seeded.slug)}/agents`);
   await sidebar(page).getByRole("link", { name: "Pull requests" }).click();
   await expect(page).toHaveURL(paths.code(seeded.slug));
   await expect(
@@ -300,7 +303,8 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
   for (const name of [
     "Home",
     "Inbox",
-    "Browse channels",
+    "All channels",
+    "Overview",
     "Agents",
     "Pull requests",
   ])
@@ -346,7 +350,7 @@ test("on a phone the navigation is a drawer with the rail", async ({
   ).toBe(true);
 });
 
-test("inside the desktop app the shell becomes the window's title bar and follows its navigation", async ({
+test("inside the desktop app the shell sits under the app's own title bar and follows its navigation", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
@@ -376,12 +380,11 @@ test("inside the desktop app the shell becomes the window's title bar and follow
   await expect(
     page.getByRole("heading", { name: "Home", level: 1 }),
   ).toBeVisible();
-  const root = page.locator("html");
-  await expect(root).toHaveAttribute("data-desktop-platform", "darwin");
-  // Room for the macOS window buttons above the rail, and page headers that
-  // move the window while their buttons stay clickable.
+  // The desktop app draws the title bar (window buttons, Windows controls)
+  // above the page's view, so the page leaves no room for them and moves no
+  // window: the rail starts at the top and headers are ordinary.
   const rail = page.getByRole("navigation", { name: "Organizations" });
-  expect((await rail.boundingBox())!.y).toBeGreaterThanOrEqual(36);
+  expect((await rail.boundingBox())!.y).toBeLessThan(16);
   const header = page.locator("[data-page-header]");
   expect(
     await header.evaluate(
@@ -389,7 +392,7 @@ test("inside the desktop app the shell becomes the window's title bar and follow
         getComputedStyle(node).getPropertyValue("app-region") ||
         getComputedStyle(node).getPropertyValue("-webkit-app-region"),
     ),
-  ).toBe("drag");
+  ).not.toBe("drag");
   // A deep link or notification click navigates inside the app; other
   // origins are refused.
   await page.evaluate((path) => {
@@ -404,7 +407,8 @@ test("inside the desktop app the shell becomes the window's title bar and follow
     ).desktopTest.navigate("https://example.com/elsewhere");
   });
   await expect(page).toHaveURL(paths.inbox(seeded.slug));
-  // The dock badge counts mentions and direct messages (none yet).
+  // The dock badge counts mentions and direct messages (none yet), through
+  // the desktop bridge, its only caller.
   expect(
     await page.evaluate(
       () =>
