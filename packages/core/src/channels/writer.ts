@@ -942,6 +942,9 @@ export async function appendSystemMessage(
     // A stable id makes the append idempotent: appending the same id again
     // returns the stored message (session cards, approval cards).
     messageId?: string;
+    // The agent a reply card speaks for (the Factory's cards): it joins the
+    // root's repliers, so the thread's summary shows its avatar.
+    replyAgentId?: string;
   },
 ): Promise<MessageRow> {
   await lockConversation(tx, input.organizationId, input.channelId);
@@ -1001,15 +1004,24 @@ export async function appendSystemMessage(
       createdAt: now,
     })
     .returning();
-  if (root)
+  if (root) {
+    const key = input.replyAgentId
+      ? participantKey("agent", input.replyAgentId)
+      : null;
     await tx
       .update(s.channelMessage)
       .set({
         replyCount: sql`${s.channelMessage.replyCount} + 1`,
         lastReplyAt: now,
+        ...(key && {
+          replyAuthors: [
+            key,
+            ...root.replyAuthors.filter((k) => k !== key),
+          ].slice(0, REPLY_AUTHORS_MAX),
+        }),
       })
       .where(eq(s.channelMessage.id, root.id));
-  else
+  } else
     // The person who caused it has seen it.
     await tx
       .update(s.channelMember)
