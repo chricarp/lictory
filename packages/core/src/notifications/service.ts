@@ -102,13 +102,22 @@ export type NotificationItem = {
 };
 
 // A Spaces notification (one naming a space) is readable only while its
-// recipient holds effective access to that space; others need nothing more
-// than the member join.
-export const spaceNotificationReadable = sql`(${s.notification.spaceId} is null or exists (
+// recipient holds effective access to that space, and a Channels
+// notification (one naming a channel) only while they can read the channel
+// (it is public, or they are its member); others need nothing more than the
+// member join.
+export const notificationReadable = sql`(${s.notification.spaceId} is null or exists (
   select 1 from ${s.spaceReader}
   where ${s.spaceReader.organizationId} = ${s.notification.organizationId}
     and ${s.spaceReader.spaceId} = ${s.notification.spaceId}
-    and ${s.spaceReader.userId} = ${s.notification.userId}))`;
+    and ${s.spaceReader.userId} = ${s.notification.userId}))
+  and (${s.notification.channelId} is null or exists (
+  select 1 from ${s.channel} c
+  where c.organization_id = ${s.notification.organizationId}
+    and c.id = ${s.notification.channelId}
+    and (c.kind = 'public' or exists (
+      select 1 from ${s.channelMember} cm
+      where cm.channel_id = c.id and cm.user_id = ${s.notification.userId}))))`;
 
 // Every read and write is scoped to the authenticated user and, through the
 // member join, to organizations they still belong to.
@@ -139,7 +148,7 @@ export function createNotificationService(db: Database) {
       const q = notificationQuerySchema.parse(input);
       const where: (SQL | undefined)[] = [
         eq(s.notification.userId, userId),
-        spaceNotificationReadable,
+        notificationReadable,
       ];
       if (q.organizationId)
         where.push(eq(s.notification.organizationId, q.organizationId));
@@ -224,7 +233,7 @@ export function createNotificationService(db: Database) {
             eq(s.notification.userId, userId),
             isNull(s.notification.readAt),
             isNull(s.notification.archivedAt),
-            spaceNotificationReadable,
+            notificationReadable,
           ),
         )
         .groupBy(s.notification.organizationId);

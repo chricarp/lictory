@@ -34,6 +34,11 @@ export const paths = {
     `/${org}/spaces/${encodeURIComponent(space)}/settings`,
   spacePage: (org: string, space: string, page: string) =>
     `/${org}/spaces/${encodeURIComponent(space)}/pages/${page}`,
+  // Lictory Channels: the channel browser and one conversation (addressed
+  // by its id, which never changes when it is renamed).
+  channels: (org: string) => `/${org}/channels`,
+  channel: (org: string, channel: string) =>
+    `/${org}/channels/${encodeURIComponent(channel)}`,
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,

@@ -4,6 +4,7 @@ import * as s from "@lictory/core/db/schema";
 import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
 import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
 import { pageAccess } from "@lictory/core/spaces/access";
+import { readableChannelIds } from "@lictory/core/channels/access";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
 import {
   SUPPORTED_FILE_EXTENSIONS,
@@ -28,7 +29,10 @@ import {
 // membership. Removal marks the row first (no new links) and then moves the
 // bytes (old links stop working). A page's files follow its space's access:
 // commenters attach files (they already add content every reader sees),
-// readers list and download them, and nobody else learns they exist.
+// readers list and download them, and nobody else learns they exist. A
+// channel's files (attached to its messages) follow channel access: members
+// of an active channel upload them, anyone who reads the channel lists and
+// downloads them.
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -91,7 +95,53 @@ async function requirePageAccess(
   return row;
 }
 
-// What a file belongs to: a work item or a page, never both.
+// A channel's access for a file operation: `post` (a member of an active
+// channel) to attach, `read` to list, download, finish or remove. People
+// who cannot read the channel get not found.
+async function requireChannelAccess(
+  db: Database | Tx,
+  organizationId: string,
+  userId: string,
+  channelId: string,
+  level: "read" | "post",
+  missing = "Channel not found.",
+) {
+  if (
+    !(await readableChannelIds(db, organizationId, userId, [channelId])).has(
+      channelId,
+    )
+  )
+    throw new CapabilityError("not_found", missing);
+  if (level === "read") return;
+  const [row] = await db
+    .select({ archivedAt: s.channel.archivedAt, memberId: s.channelMember.id })
+    .from(s.channel)
+    .leftJoin(
+      s.channelMember,
+      and(
+        eq(s.channelMember.channelId, s.channel.id),
+        eq(s.channelMember.userId, userId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.channel.organizationId, organizationId),
+        eq(s.channel.id, channelId),
+      ),
+    );
+  if (!row?.memberId)
+    throw new CapabilityError(
+      "forbidden",
+      "Join the channel to add files to it.",
+    );
+  if (row.archivedAt)
+    throw new CapabilityError(
+      "conflict",
+      "This channel is archived. Restore it before adding files.",
+    );
+}
+
+// What a file belongs to: a work item, a page or a channel, exactly one.
 const fileOwner = {
   workItemId: id.optional().describe("The work item the file belongs to."),
   pageId: id
@@ -99,11 +149,22 @@ const fileOwner = {
     .describe(
       "The Lictory Spaces page the file belongs to (instead of workItemId).",
     ),
+  channelId: id
+    .optional()
+    .describe(
+      "The channel the file is attached in (for postChannelMessage attachmentIds).",
+    ),
 };
-const oneOwner = (input: { workItemId?: string; pageId?: string }) =>
-  Boolean(input.workItemId) !== Boolean(input.pageId);
+const oneOwner = (input: {
+  workItemId?: string;
+  pageId?: string;
+  channelId?: string;
+}) =>
+  [input.workItemId, input.pageId, input.channelId].filter(Boolean).length ===
+  1;
 const oneOwnerMessage = {
-  message: "Name either a work item (workItemId) or a page (pageId).",
+  message:
+    "Name one owner: a work item (workItemId), a page (pageId) or a channel (channelId).",
 };
 
 async function fileOf(
@@ -128,7 +189,7 @@ const listAttachments = defineCapability({
   name: "listAttachments",
   title: "List attachments",
   description:
-    "Files attached to a work item (workItemId) or to a page (pageId; readers of its space).",
+    "Files attached to a work item (workItemId), to a page (pageId; readers of its space) or in a channel (channelId; readers of the channel).",
   kind: "query",
   surfaces: everywhere,
   input: z
@@ -144,6 +205,14 @@ const listAttachments = defineCapability({
         userId,
         input.pageId,
         "view",
+      );
+    else if (input.channelId)
+      await requireChannelAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        input.channelId,
+        "read",
       );
     else {
       const [item] = await ctx.db
@@ -162,7 +231,9 @@ const listAttachments = defineCapability({
         eq(s.fileObject.organizationId, input.organizationId),
         input.pageId
           ? eq(s.fileObject.pageId, input.pageId)
-          : eq(s.fileObject.workItemId, input.workItemId!),
+          : input.channelId
+            ? eq(s.fileObject.channelId, input.channelId)
+            : eq(s.fileObject.workItemId, input.workItemId!),
         sql`${s.fileObject.readyAt} is not null`,
         sql`${s.fileObject.removedAt} is null`,
       ),
@@ -185,7 +256,7 @@ const listAttachments = defineCapability({
 const startAttachmentUpload = defineCapability({
   name: "startAttachmentUpload",
   title: "Start attachment upload",
-  description: `Reserve an attachment on a work item (workItemId) or a page (pageId; comment or edit access to its space) and get a presigned URL. PUT the bytes to \`uploadUrl\` with \`headers\` within five minutes, then call finishAttachmentUpload. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}. Files must be between 1 byte and 25 MB.`,
+  description: `Reserve an attachment on a work item (workItemId), a page (pageId; comment or edit access to its space) or in a channel you are a member of (channelId; then pass its id to postChannelMessage's attachmentIds) and get a presigned URL. PUT the bytes to \`uploadUrl\` with \`headers\` within five minutes, then call finishAttachmentUpload. Allowed types: ${SUPPORTED_FILE_EXTENSIONS.join(", ")}. Files must be between 1 byte and 25 MB.`,
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -215,6 +286,14 @@ const startAttachmentUpload = defineCapability({
         input.pageId,
         "comment",
       );
+    if (input.channelId)
+      await requireChannelAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        input.channelId,
+        "post",
+      );
     const fileId = crypto.randomUUID();
     const key = objectKey(input.organizationId, fileId);
     // Validate storage configuration before reserving metadata.
@@ -225,38 +304,56 @@ const startAttachmentUpload = defineCapability({
     );
     await ctx.db.transaction(async (tx) => {
       await lockedMember(tx, input.organizationId, userId);
-      const owner = input.pageId
-        ? {
-            projectId: null,
-            workItemId: null,
-            pageId: (
-              await requirePageAccess(
-                tx,
-                input.organizationId,
-                userId,
-                input.pageId,
-                "comment",
-              )
-            ).page.id,
-          }
-        : await (async () => {
-            const [item] = await tx
-              .select()
-              .from(s.workItem)
-              .where(
-                and(
-                  eq(s.workItem.organizationId, input.organizationId),
-                  eq(s.workItem.id, input.workItemId!),
-                ),
-              );
-            if (!item || item.archivedAt)
-              throw new CapabilityError("not_found", "Work item not found.");
+      const owner = input.channelId
+        ? await (async () => {
+            await requireChannelAccess(
+              tx,
+              input.organizationId,
+              userId,
+              input.channelId!,
+              "post",
+            );
             return {
-              projectId: item.projectId,
-              workItemId: item.id,
+              projectId: null,
+              workItemId: null,
               pageId: null,
+              channelId: input.channelId!,
             };
-          })();
+          })()
+        : input.pageId
+          ? {
+              projectId: null,
+              workItemId: null,
+              channelId: null,
+              pageId: (
+                await requirePageAccess(
+                  tx,
+                  input.organizationId,
+                  userId,
+                  input.pageId,
+                  "comment",
+                )
+              ).page.id,
+            }
+          : await (async () => {
+              const [item] = await tx
+                .select()
+                .from(s.workItem)
+                .where(
+                  and(
+                    eq(s.workItem.organizationId, input.organizationId),
+                    eq(s.workItem.id, input.workItemId!),
+                  ),
+                );
+              if (!item || item.archivedAt)
+                throw new CapabilityError("not_found", "Work item not found.");
+              return {
+                projectId: item.projectId,
+                workItemId: item.id,
+                pageId: null,
+                channelId: null,
+              };
+            })();
       await tx.insert(s.fileObject).values({
         id: fileId,
         organizationId: input.organizationId,
@@ -299,6 +396,15 @@ const finishAttachmentUpload = defineCapability({
         "view",
         "File not found.",
       );
+    if (file.channelId)
+      await requireChannelAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        file.channelId,
+        "read",
+        "File not found.",
+      );
     if (file.createdById !== userId)
       throw new CapabilityError(
         "forbidden",
@@ -339,7 +445,9 @@ const finishAttachmentUpload = defineCapability({
         organization_id: input.organizationId,
         ...(file.pageId
           ? { page_id: file.pageId }
-          : { project_id: file.projectId, work_item_id: file.workItemId }),
+          : file.channelId
+            ? { channel_id: file.channelId }
+            : { project_id: file.projectId, work_item_id: file.workItemId }),
         file_size: file.size,
         file_kind: file.mimeType.startsWith("image/") ? "image" : "document",
       },
@@ -416,6 +524,15 @@ const removeAttachment = defineCapability({
         "view",
         "File not found.",
       );
+    if (file.channelId)
+      await requireChannelAccess(
+        ctx.db,
+        input.organizationId,
+        userId,
+        file.channelId,
+        "read",
+        "File not found.",
+      );
     if (file.createdById !== userId)
       throw new CapabilityError(
         "forbidden",
@@ -457,7 +574,7 @@ const getAttachmentDownloadUrl = defineCapability({
   name: "getAttachmentDownloadUrl",
   title: "Get attachment download URL",
   description:
-    "A short-lived URL to download an attachment's bytes. The file id appears in `/api/files/<id>` references inside specifications, pages and comments. A page's files are available to readers of its space.",
+    "A short-lived URL to download an attachment's bytes. The file id appears in `/api/files/<id>` references inside specifications, pages, comments and channel messages. A page's files are available to readers of its space, a channel's to readers of the channel.",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -482,6 +599,15 @@ const getAttachmentDownloadUrl = defineCapability({
         ctx.principal.userId,
         file.pageId,
         "view",
+        "File not found.",
+      );
+    if (file.channelId)
+      await requireChannelAccess(
+        ctx.db,
+        file.organizationId,
+        ctx.principal.userId,
+        file.channelId,
+        "read",
         "File not found.",
       );
     return {

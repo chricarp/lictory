@@ -18,6 +18,27 @@ const projectArgs = z.object({
   projectId: z.string().min(1),
 });
 const knowledgeTypes = [...knowledgeEntityTypes];
+const channelArgs = z.object({
+  organizationId: z.string().min(1),
+  channelId: z.string().min(1),
+});
+
+// Lictory Channels access (docs/internals/channels.md#access), evaluated
+// against `ctx.userID` on every query: a public channel is readable by the
+// organization's members, a private or direct one only by its members.
+// Organization membership is required either way, so removing a member, or
+// a person leaving a private channel, removes its rows from open
+// subscriptions.
+function readableChannel(q: typeof zql.channel, userID: string) {
+  return q
+    .where((eb) =>
+      eb.or(
+        eb.cmp("kind", "public"),
+        eb.exists("members", (m) => m.where("userId", userID)),
+      ),
+    )
+    .whereExists("orgMembers", (m) => m.where("userId", userID));
+}
 
 // Server-defined queries. Arguments only narrow; access always comes from the
 // membership relationship evaluated against `ctx.userID`.
@@ -179,5 +200,110 @@ export const queries = defineQueries({
       .where("organizationId", args.organizationId)
       .where("userId", ctx.userID)
       .whereExists("members", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Lictory Channels. The channels I can read (public channels of the
+  // organization and those I belong to), with nothing of their messages.
+  channels: defineQuery(organizationArgs, ({ args, ctx }) =>
+    readableChannel(
+      zql.channel.where("organizationId", args.organizationId),
+      ctx.userID,
+    ),
+  ),
+  // My memberships with their read cursors, unread mentions and
+  // notification levels: the sidebar's unread counts are arithmetic over
+  // these and `channels`.
+  myChannelMemberships: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.channelMember
+      .where("organizationId", args.organizationId)
+      .where("userId", ctx.userID)
+      .whereExists("orgMembers", (m) => m.where("userId", ctx.userID)),
+  ),
+  // Who is in the direct conversations I belong to (to name them).
+  directConversationMembers: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.channelMember
+      .where("organizationId", args.organizationId)
+      .whereExists("channel", (c) =>
+        c
+          .where("kind", "direct")
+          .whereExists("members", (m) => m.where("userId", ctx.userID)),
+      )
+      .whereExists("orgMembers", (m) => m.where("userId", ctx.userID)),
+  ),
+  // The members of one channel I can read.
+  channelMembers: defineQuery(channelArgs, ({ args, ctx }) =>
+    zql.channelMember
+      .where("organizationId", args.organizationId)
+      .where("channelId", args.channelId)
+      .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
+  ),
+  // A window of a channel's top-level messages, newest first: the latest
+  // `limit`, or (with `beforeSequence`) older history, or (with
+  // `fromSequence`) the messages from an anchor on (jump to first unread,
+  // a permalink). The list grows the window as people scroll.
+  channelMessages: defineQuery(
+    channelArgs.extend({
+      limit: z.number().int().min(1).max(1000),
+      beforeSequence: z.number().int().min(1).optional(),
+      fromSequence: z.number().int().min(0).optional(),
+    }),
+    ({ args, ctx }) => {
+      let q = zql.channelMessage
+        .where("organizationId", args.organizationId)
+        .where("channelId", args.channelId)
+        .where("threadRootId", "IS", null);
+      if (args.beforeSequence !== undefined)
+        q = q.where("sequence", "<", args.beforeSequence);
+      if (args.fromSequence !== undefined)
+        q = q.where("sequence", ">=", args.fromSequence);
+      return q
+        .whereExists("channel", (c) => readableChannel(c, ctx.userID))
+        .related("reactions")
+        .orderBy("sequence", args.fromSequence !== undefined ? "asc" : "desc")
+        .limit(args.limit);
+    },
+  ),
+  // One thread: its first message and every reply, in order.
+  channelThread: defineQuery(
+    channelArgs.extend({ rootMessageId: z.string().min(1) }),
+    ({ args, ctx }) =>
+      zql.channelMessage
+        .where("organizationId", args.organizationId)
+        .where("channelId", args.channelId)
+        .where((eb) =>
+          eb.or(
+            eb.cmp("id", args.rootMessageId),
+            eb.cmp("threadRootId", args.rootMessageId),
+          ),
+        )
+        .whereExists("channel", (c) => readableChannel(c, ctx.userID))
+        .related("reactions")
+        .orderBy("sequence", "asc"),
+  ),
+  // Threads I take part in or follow (my own rows only), and their first
+  // messages, for thread unread counts and the Threads view.
+  myChannelThreads: defineQuery(organizationArgs, ({ args, ctx }) =>
+    zql.channelThreadParticipant
+      .where("organizationId", args.organizationId)
+      .where("userId", ctx.userID)
+      .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
+  ),
+  channelMessagesById: defineQuery(
+    z.object({
+      organizationId: z.string().min(1),
+      messageIds: z.array(z.string().min(1)).max(200),
+    }),
+    ({ args, ctx }) =>
+      zql.channelMessage
+        .where("organizationId", args.organizationId)
+        .where("id", "IN", args.messageIds)
+        .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
+  ),
+  // Where a work item was promoted from, for its page: only conversations I
+  // can read, so nobody learns a private channel discussed it.
+  workItemConversations: defineQuery(workItemArgs, ({ args, ctx }) =>
+    zql.channelPromotion
+      .where("organizationId", args.organizationId)
+      .where("workItemId", args.workItemId)
+      .whereExists("channel", (c) => readableChannel(c, ctx.userID)),
   ),
 });

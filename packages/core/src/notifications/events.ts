@@ -62,6 +62,7 @@ const noticesSchema = z.array(
     workItemId: text.nullish(),
     spaceId: text.nullish(),
     pageId: text.nullish(),
+    channelId: text.nullish(),
     detail: z.record(z.string(), z.unknown()).optional(),
     dedupeKey: text.optional(),
     watchers: z.boolean().optional(),
@@ -132,7 +133,7 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       ...(item && notice.watchers ? watch(item, true) : []),
     ])) {
       if (userId === notice.actorId || unwatched.has(userId)) continue;
-      const slot = `${userId}:${item ?? notice.pageId ?? ""}:${group}`;
+      const slot = `${userId}:${item ?? notice.pageId ?? notice.channelId ?? ""}:${group}`;
       drafts.push({ ...notice, userId, kind, slot });
     }
   }
@@ -179,6 +180,46 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
         ).map((r) => `${r.spaceId}:${r.userId}`)
       : [],
   );
+  // Channel notifications reach only people who can read the channel now.
+  const channelIds = [
+    ...new Set(drafts.flatMap((d) => (d.channelId ? [d.channelId] : []))),
+  ];
+  const channelRows = channelIds.length
+    ? await tx
+        .select({ id: s.channel.id, kind: s.channel.kind })
+        .from(s.channel)
+        .where(
+          and(
+            eq(s.channel.organizationId, organizationId),
+            inArray(s.channel.id, channelIds),
+          ),
+        )
+    : [];
+  const publicChannels = new Set(
+    channelRows.filter((c) => c.kind === "public").map((c) => c.id),
+  );
+  const privateChannels = channelRows
+    .filter((c) => c.kind !== "public")
+    .map((c) => c.id);
+  const channelReaders = new Set(
+    privateChannels.length
+      ? (
+          await tx
+            .select({
+              channelId: s.channelMember.channelId,
+              userId: s.channelMember.userId,
+            })
+            .from(s.channelMember)
+            .where(
+              and(
+                eq(s.channelMember.organizationId, organizationId),
+                inArray(s.channelMember.channelId, privateChannels),
+                inArray(s.channelMember.userId, userIds),
+              ),
+            )
+        ).map((r) => `${r.channelId}:${r.userId}`)
+      : [],
+  );
   const rules = await tx
     .select()
     .from(s.notificationPreference)
@@ -202,6 +243,12 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
     if (told.has(d.slot)) continue;
     if (!members.has(d.userId)) continue;
     if (d.spaceId && !readers.has(`${d.spaceId}:${d.userId}`)) continue;
+    if (
+      d.channelId &&
+      !publicChannels.has(d.channelId) &&
+      !channelReaders.has(`${d.channelId}:${d.userId}`)
+    )
+      continue;
     const channels = resolveChannels(rulesByUser.get(d.userId) ?? [], d.kind, {
       organizationId,
       projectId: d.projectId,
@@ -223,6 +270,7 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       workItemId: d.workItemId ?? null,
       spaceId: d.spaceId ?? null,
       pageId: d.pageId ?? null,
+      channelId: d.channelId ?? null,
       detail,
       dedupeKey: d.dedupeKey ?? null,
       createdAt: event.createdAt,

@@ -15,6 +15,14 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 const num = (v: unknown) =>
   typeof v === "number" || typeof v === "string" ? String(v) : "?";
 
+// "in #payments", or "in a direct message".
+function channelPlace(d: Record<string, unknown>) {
+  const name = str(d.channelName);
+  return d.channelKind === "direct" || !name
+    ? "in a direct message"
+    : `in #${name}`;
+}
+
 export function describeNotification(
   n: NotificationView,
   actor: string,
@@ -209,6 +217,23 @@ export function describeNotification(
       };
     case "page_thread_reply":
       return { headline: `${actor} replied on ${page}`, body: excerpt };
+    case "channel_mentioned":
+      return {
+        headline: `${actor} mentioned you ${channelPlace(d)}`,
+        body: excerpt,
+      };
+    case "direct_message":
+      return { headline: `${actor} sent you a message`, body: excerpt };
+    case "channel_thread_reply":
+      return {
+        headline: `${actor} replied to a thread ${channelPlace(d)}`,
+        body: excerpt,
+      };
+    case "channel_message":
+      return {
+        headline: `${actor} posted ${channelPlace(d)}`,
+        body: excerpt,
+      };
     case "organization_deletion_scheduled":
       return {
         headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
@@ -246,6 +271,17 @@ export function notificationHref(
         ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}`
         : "";
     return `${paths.spacePage(orgSlug, spaceSlug, pageId)}${query}`;
+  }
+  const channelId = str(d.channelId);
+  if (channelId) {
+    const thread = str(d.threadRootId);
+    const message = str(d.messageId);
+    const query = thread
+      ? `?thread=${encodeURIComponent(thread)}${message ? `&message=${encodeURIComponent(message)}` : ""}`
+      : message
+        ? `?message=${encodeURIComponent(message)}`
+        : "";
+    return `${paths.channel(orgSlug, channelId)}${query}`;
   }
   const projectKey = str(d.projectKey);
   const iterationId = str(d.iterationId);

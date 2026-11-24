@@ -1,4 +1,5 @@
 import {
+  boolean,
   createBuilder,
   createSchema,
   json,
@@ -8,12 +9,13 @@ import {
   table,
   type ReadonlyJSONValue,
 } from "@rocicorp/zero";
+import type { ChannelAttachment } from "@lictory/core/db/channel-schema";
 
 // The Zero schema covers exactly the replicated publication `lictory_zero`
 // (drizzle/0018_zero_publication.sql, 0035_spaces_zero_publication.sql): read
-// projections, the membership columns that authorize every synced query, and
-// Lictory Spaces' projections and effective access. Domain tables are never
-// synced.
+// projections, the membership columns that authorize every synced query,
+// Lictory Spaces' projections and effective access, and Lictory Channels'
+// synchronization-shaped rows. Other domain tables are never synced.
 
 const member = table("member")
   .columns({
@@ -69,6 +71,195 @@ const spaceReader = table("spaceReader")
   })
   .primaryKey("spaceId", "userId");
 
+// Lictory Channels (drizzle/0048_channels_zero_publication.sql). These rows
+// are shaped for synchronization; every Channels query authorizes through
+// organization membership and channel access: a public channel for
+// organization members, a private or direct one for its members only.
+const channel = table("channel")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    kind: string(),
+    name: string().optional(),
+    topic: string(),
+    projectId: string().from("project_id").optional(),
+    teamId: string().from("team_id").optional(),
+    lastSequence: number().from("last_sequence"),
+    rootCount: number().from("root_count"),
+    lastMessageAt: number().from("last_message_at").optional(),
+    createdById: string().from("created_by_id"),
+    archivedAt: number().from("archived_at").optional(),
+    externalSource: string().from("external_source").optional(),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+const channelMember = table("channelMember")
+  .from("channel_member")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    memberKind: string().from("member_kind"),
+    userId: string().from("user_id").optional(),
+    agentId: string().from("agent_id").optional(),
+    readSequence: number().from("read_sequence"),
+    readRootCount: number().from("read_root_count"),
+    mentionCount: number().from("mention_count"),
+    notificationLevel: string().from("notification_level"),
+    joinedAt: number().from("joined_at"),
+  })
+  .primaryKey("id");
+
+const channelMessage = table("channelMessage")
+  .from("channel_message")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    sequence: number(),
+    threadRootId: string().from("thread_root_id").optional(),
+    rootIndex: number().from("root_index").optional(),
+    authorKind: string().from("author_kind"),
+    authorUserId: string().from("author_user_id").optional(),
+    authorAgentId: string().from("author_agent_id").optional(),
+    onBehalfOfUserId: string().from("on_behalf_of_user_id").optional(),
+    via: string().optional(),
+    kind: string(),
+    body: string(),
+    payload: json<Readonly<Record<string, ReadonlyJSONValue>>>().optional(),
+    attachments: json<readonly ChannelAttachment[]>(),
+    replyCount: number().from("reply_count"),
+    lastReplyAt: number().from("last_reply_at").optional(),
+    replyAuthors: json<readonly string[]>().from("reply_authors"),
+    editedAt: number().from("edited_at").optional(),
+    deletedAt: number().from("deleted_at").optional(),
+    externalSource: string().from("external_source").optional(),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+const channelReaction = table("channelReaction")
+  .from("channel_reaction")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    messageId: string().from("message_id"),
+    emoji: string(),
+    reactorKind: string().from("reactor_kind"),
+    userId: string().from("user_id").optional(),
+    agentId: string().from("agent_id").optional(),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+const channelThreadParticipant = table("channelThreadParticipant")
+  .from("channel_thread_participant")
+  .columns({
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    rootMessageId: string().from("root_message_id"),
+    userId: string().from("user_id"),
+    readReplyCount: number().from("read_reply_count"),
+    following: boolean(),
+    updatedAt: number().from("updated_at"),
+  })
+  .primaryKey("rootMessageId", "userId");
+
+const channelPromotion = table("channelPromotion")
+  .from("channel_promotion")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    messageId: string().from("message_id"),
+    kind: string(),
+    workItemId: string().from("work_item_id"),
+    decisionId: string().from("decision_id").optional(),
+    threadId: string().from("thread_id").optional(),
+    cardMessageId: string().from("card_message_id").optional(),
+    createdById: string().from("created_by_id"),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+// Every channel-scoped row reaches its channel (for channel access) and the
+// organization's members (for organization membership).
+const toOrgMembers = {
+  sourceField: ["organizationId"],
+  destSchema: member,
+  destField: ["organizationId"],
+} as const;
+const channelRelationships = relationships(channel, ({ many }) => ({
+  orgMembers: many(toOrgMembers),
+  members: many({
+    sourceField: ["id"],
+    destSchema: channelMember,
+    destField: ["channelId"],
+  }),
+}));
+const channelMemberRelationships = relationships(
+  channelMember,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one({
+      sourceField: ["channelId"],
+      destSchema: channel,
+      destField: ["id"],
+    }),
+  }),
+);
+const channelMessageRelationships = relationships(
+  channelMessage,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one({
+      sourceField: ["channelId"],
+      destSchema: channel,
+      destField: ["id"],
+    }),
+    reactions: many({
+      sourceField: ["id"],
+      destSchema: channelReaction,
+      destField: ["messageId"],
+    }),
+  }),
+);
+const channelReactionRelationships = relationships(
+  channelReaction,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one({
+      sourceField: ["channelId"],
+      destSchema: channel,
+      destField: ["id"],
+    }),
+  }),
+);
+const channelThreadParticipantRelationships = relationships(
+  channelThreadParticipant,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one({
+      sourceField: ["channelId"],
+      destSchema: channel,
+      destField: ["id"],
+    }),
+  }),
+);
+const channelPromotionRelationships = relationships(
+  channelPromotion,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one({
+      sourceField: ["channelId"],
+      destSchema: channel,
+      destField: ["id"],
+    }),
+  }),
+);
+
 const memberRelationships = relationships(member, ({ many }) => ({
   // Filtered to the `organizationProfile` row by the memberships query.
   organization: many({
@@ -112,12 +303,29 @@ const spaceReaderRelationships = relationships(spaceReader, ({ many }) => ({
 }));
 
 export const schema = createSchema({
-  tables: [member, syncEntity, spaceEntity, spaceReader],
+  tables: [
+    member,
+    syncEntity,
+    spaceEntity,
+    spaceReader,
+    channel,
+    channelMember,
+    channelMessage,
+    channelReaction,
+    channelThreadParticipant,
+    channelPromotion,
+  ],
   relationships: [
     memberRelationships,
     syncEntityRelationships,
     spaceEntityRelationships,
     spaceReaderRelationships,
+    channelRelationships,
+    channelMemberRelationships,
+    channelMessageRelationships,
+    channelReactionRelationships,
+    channelThreadParticipantRelationships,
+    channelPromotionRelationships,
   ],
 });
 

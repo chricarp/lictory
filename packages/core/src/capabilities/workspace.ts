@@ -624,6 +624,56 @@ const commandDocs: Record<CommandType, CommandDoc> = {
     description:
       "Organization administrators: change or archive a work item type.",
   },
+  // Lictory Channels: structure and membership. Messages, replies,
+  // reactions and read cursors are the channel capabilities
+  // (postChannelMessage, readChannel…).
+  createChannel: {
+    title: "Create channel",
+    description:
+      "Create a channel: `public` (every organization member can find, read and join it) or `private` (only its members know it exists). `name` is a lowercase handle unique in the organization (letters, digits, hyphens, underscores). `home` optionally places it in a project ({ projectId }) or one of its teams ({ projectId, teamId }). The creator joins, with the people in `memberIds`.",
+  },
+  openDirectConversation: {
+    title: "Open direct conversation",
+    description:
+      "Open a direct conversation with up to 8 people (`userIds`) and agents (`agentIds`): a direct message with one, a group direct message with several. Opening the same set of members again returns the existing conversation's `channelId`. Members are fixed.",
+  },
+  updateChannel: {
+    title: "Update channel",
+    description:
+      "Members of a public or private channel (and organization administrators, for public channels) rename it, change its topic or move it to a project or team home (`home: null` for the organization). Direct conversations cannot be changed.",
+  },
+  setChannelArchived: {
+    title: "Archive or restore channel",
+    description:
+      "Archive (archived: true) or restore a public or private channel. Archived channels keep every message and are read-only. Members, and organization administrators for public channels.",
+    destructive: true,
+  },
+  joinChannel: {
+    title: "Join channel",
+    description:
+      "Join a public channel to post in it and track its unread messages. Private channels are joined by being added by a member.",
+  },
+  leaveChannel: {
+    title: "Leave channel",
+    description:
+      "Leave a public or private channel. Leaving a private channel removes access to it until a member adds you again. Direct conversations cannot be left.",
+  },
+  addChannelMembers: {
+    title: "Add channel members",
+    description:
+      "Members add organization members (`userIds`) and agents (`agentIds`) to a public or private channel.",
+  },
+  removeChannelMember: {
+    title: "Remove channel member",
+    description:
+      "Members of a channel (and organization administrators, for public channels) remove one person (`userId`) or agent (`agentId`). Their messages stay.",
+    destructive: true,
+  },
+  setChannelNotificationLevel: {
+    title: "Set channel notifications",
+    description:
+      "Your notifications for one channel: `all` messages, `mentions` (the default for channels: mentions and replies in threads you take part in) or `none` (muted; unread mentions are still counted).",
+  },
 };
 
 // Identifiers of entities a command creates are UUIDs chosen by the caller,

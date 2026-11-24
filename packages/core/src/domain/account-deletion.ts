@@ -170,6 +170,13 @@ export async function deleteAccount(db: Database, userId: string) {
         organizationId: s.spaceGrant.organizationId,
         spaceId: s.spaceGrant.spaceId,
       });
+    // Channel memberships (with read cursors) and thread follows are access
+    // and personal state, not history: their messages and reactions stay
+    // attributed to them, like their comments.
+    await tx
+      .delete(s.channelThreadParticipant)
+      .where(eq(s.channelThreadParticipant.userId, userId));
+    await tx.delete(s.channelMember).where(eq(s.channelMember.userId, userId));
     await tx.delete(s.member).where(eq(s.member.userId, userId));
     if (organizationIds.length)
       await tx

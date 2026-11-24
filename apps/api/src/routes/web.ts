@@ -276,6 +276,7 @@ export function webRoutes() {
           organizationId: c.req.query("organizationId") ?? "",
           workItemId: c.req.query("workItemId"),
           pageId: c.req.query("pageId"),
+          channelId: c.req.query("channelId"),
         }),
         store,
       );
