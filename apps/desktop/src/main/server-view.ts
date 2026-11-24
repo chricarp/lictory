@@ -226,11 +226,18 @@ export function createServerView(
   });
   contents.on("will-attach-webview", (event) => event.preventDefault());
 
+  // Chromium finishes loading its own error page after a failed load: that
+  // is not the server answering.
+  let failed = false;
+  contents.on("did-start-navigation", (event) => {
+    if (event.isMainFrame && !event.isSameDocument) failed = false;
+  });
   contents.on(
     "did-fail-load",
     (_event, code, description, url, isMainFrame) => {
       // -3 is an aborted load (a newer navigation replaced it).
       if (!isMainFrame || code === -3) return;
+      failed = true;
       const where = originOf(url) ? new URL(url).host : server.name;
       host.loadFailed(
         server.id,
@@ -238,7 +245,9 @@ export function createServerView(
       );
     },
   );
-  contents.on("did-finish-load", () => host.loaded(server.id));
+  contents.on("did-finish-load", () => {
+    if (!failed) host.loaded(server.id);
+  });
   contents.on("render-process-gone", (_event, details) => {
     if (details.reason === "clean-exit") return;
     host.loadFailed(

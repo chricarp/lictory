@@ -1,4 +1,9 @@
-import { createServer, type Server } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 
 // A stand-in for a Lictory server: the public session endpoint the desktop
@@ -31,27 +36,48 @@ const page = `<!doctype html>
   </script>
 </body></html>`;
 
+function handle(request: IncomingMessage, response: ServerResponse) {
+  if (request.url === "/api/session") {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(
+      JSON.stringify({
+        user: null,
+        providers: { google: false, microsoft: false, oidc: false },
+        signIn: { password: true, ssoName: null, signUpMode: "invite" },
+      }),
+    );
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(page);
+}
+
+async function listen(port: number) {
+  const server: Server = createServer(handle);
+  await new Promise<void>((resolve) =>
+    server.listen(port, "127.0.0.1", resolve),
+  );
+  return server;
+}
+
+// `stop` and `start` take the server down and up again on the same port.
 export async function startFakeServer() {
-  const server: Server = createServer((request, response) => {
-    if (request.url === "/api/session") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(
-        JSON.stringify({
-          user: null,
-          providers: { google: false, microsoft: false, oidc: false },
-          signIn: { password: true, ssoName: null, signUpMode: "invite" },
-        }),
-      );
-      return;
-    }
-    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    response.end(page);
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  let server: Server | null = await listen(0);
   const { port } = server.address() as AddressInfo;
+  const stop = async () => {
+    const current = server;
+    server = null;
+    if (!current) return;
+    current.closeAllConnections();
+    await new Promise<void>((resolve) => current.close(() => resolve()));
+  };
   return {
     origin: `http://127.0.0.1:${port}`,
     host: `127.0.0.1:${port}`,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    stop,
+    start: async () => {
+      server ??= await listen(port);
+    },
+    close: stop,
   };
 }

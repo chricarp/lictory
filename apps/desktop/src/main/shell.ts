@@ -7,6 +7,7 @@ import {
   nativeImage,
   nativeTheme,
   Notification,
+  powerMonitor,
   screen,
   session as electronSession,
   shell as electronShell,
@@ -115,6 +116,10 @@ export class Shell {
   private unread = new Map<string, number>();
   private loading = new Set<string>();
   private errors = new Map<string, string>();
+  private retries = new Map<
+    string,
+    { attempt: number; timer: NodeJS.Timeout | null }
+  >();
   private overlay: "add-server" | "settings" | null = null;
   private notifications = new Map<string, Notification>();
   private allowNotification = createRateLimiter();
@@ -219,6 +224,8 @@ export class Shell {
       for (const view of this.views.values()) view.destroy();
       this.views.clear();
     });
+    powerMonitor.on("resume", () => this.retryFailed());
+    powerMonitor.on("unlock-screen", () => this.retryFailed());
     nativeTheme.on("updated", () => {
       if (process.platform === "win32" && !win.isDestroyed())
         win.setTitleBarOverlay(this.titleBarOverlay());
@@ -399,10 +406,12 @@ export class Shell {
       confirmMedia: (s, kinds) => this.confirmMedia(s, kinds),
       loadFailed: (id, message) => {
         this.errors.set(id, message);
+        this.scheduleRetry(id);
         this.layout();
         this.changed();
       },
       loaded: (id) => {
+        this.clearRetry(id);
         if (this.errors.delete(id)) this.layout();
         this.changed();
       },
@@ -492,14 +501,39 @@ export class Shell {
     else this.chrome?.webContents.focus();
   }
 
+  // A server that cannot be loaded keeps its error screen while it is tried
+  // again: after 5 seconds, then less and less often up to every minute, at
+  // once when the computer wakes up, or when the person asks.
   retry(id: string) {
     const entry = this.views.get(id);
     if (!entry) return;
-    this.errors.delete(id);
-    if (entry.contents.getURL()) entry.contents.reload();
+    const pending = this.retries.get(id);
+    if (pending?.timer) clearTimeout(pending.timer);
+    if (pending) pending.timer = null;
+    const url = entry.contents.getURL();
+    if (originOf(url) === entry.server.origin) entry.contents.reload();
     else entry.load(entry.server.lastPath);
-    this.layout();
-    this.changed();
+  }
+
+  private scheduleRetry(id: string) {
+    const previous = this.retries.get(id);
+    if (previous?.timer) clearTimeout(previous.timer);
+    const attempt = (previous?.attempt ?? 0) + 1;
+    const delay = Math.min(60_000, 5_000 * 2 ** (attempt - 1));
+    this.retries.set(id, {
+      attempt,
+      timer: setTimeout(() => this.retry(id), delay),
+    });
+  }
+
+  private clearRetry(id: string) {
+    const pending = this.retries.get(id);
+    if (pending?.timer) clearTimeout(pending.timer);
+    this.retries.delete(id);
+  }
+
+  retryFailed() {
+    for (const id of this.errors.keys()) this.retry(id);
   }
 
   async removeServer(id: string) {
@@ -526,6 +560,7 @@ export class Shell {
     }
     this.unread.delete(id);
     this.errors.delete(id);
+    this.clearRetry(id);
     this.setServers(removeServer(this.servers, id));
     this.updateBadge();
   }
@@ -569,10 +604,9 @@ export class Shell {
   reload(force = false) {
     const entry = this.activeView();
     if (!entry) return;
-    this.errors.delete(entry.server.id);
-    if (force) entry.contents.reloadIgnoringCache();
+    if (this.errors.has(entry.server.id)) this.retry(entry.server.id);
+    else if (force) entry.contents.reloadIgnoringCache();
     else entry.contents.reload();
-    this.layout();
   }
 
   zoom(direction: 1 | -1 | 0) {

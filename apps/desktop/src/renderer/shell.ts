@@ -290,7 +290,15 @@ function errorScreen(
     "Try again",
   );
   queueMicrotask(() => retry.focus());
-  return h(
+  // While the server is being tried again (automatically or on request).
+  const update = (state: ShellState) => {
+    const loading =
+      state.servers.find((s) => s.id === screen.serverId)?.loading ?? false;
+    retry.disabled = loading;
+    retry.textContent = loading ? "Connecting…" : "Try again";
+  };
+  update(current);
+  const element = h(
     "main",
     { class: "screen centered", id: "main", tabIndex: -1 },
     h(
@@ -306,7 +314,7 @@ function errorScreen(
       h(
         "p",
         { class: "hint" },
-        "Check your network connection or VPN. If it continues, your administrator can check the server.",
+        "Lictory keeps trying in the background. Check your network connection or VPN; if it continues, your administrator can check the server.",
       ),
       h(
         "div",
@@ -324,6 +332,7 @@ function errorScreen(
       ),
     ),
   );
+  return { element, update };
 }
 
 function serverScreen(current: ShellState) {
@@ -355,8 +364,11 @@ function renderScreen(current: ShellState) {
       return welcomeScreen(current, true);
     case "add-server":
       return welcomeScreen(current, false);
-    case "error":
-      return errorScreen(current, screen);
+    case "error": {
+      const view = errorScreen(current, screen);
+      screenUpdate = view.update;
+      return view.element;
+    }
     case "settings": {
       const view = renderSettings(current, api);
       screenUpdate = view.update;

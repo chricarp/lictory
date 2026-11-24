@@ -112,6 +112,18 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
     await shell.keyboard.press("Escape");
     await expect(shell.getByRole("heading", { name: "Settings" })).toBeHidden();
 
+    // The server goes away: an error screen, then back with Try again.
+    await server.stop();
+    await page.evaluate(() => location.reload());
+    const unavailable = shell.getByRole("heading", {
+      name: `${server.host} is not available`,
+    });
+    await expect(unavailable).toBeVisible();
+    await server.start();
+    await shell.getByRole("button", { name: "Try again" }).click();
+    await expect(unavailable).toBeHidden();
+    await expect(page.locator("#bridge")).toContainText("bridge:");
+
     // Reopening restores the server and the page it was on.
     await app.close();
     app = await launch(userData);
