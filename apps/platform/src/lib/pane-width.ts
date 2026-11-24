@@ -2,7 +2,8 @@ import { useCallback, useSyncExternalStore } from "react";
 
 // Pane widths a person dragged, kept in this browser (like collapsed panels).
 // They describe a screen, not an organization, so every workspace shares them.
-export type PaneId = "work-item-list" | "review-rail" | "discussions" | "litto";
+export type PaneId =
+  "work-item-list" | "review-rail" | "discussions" | "litto" | "sidebar";
 
 // Within this distance of the default width a drag settles on the default.
 const SNAP_DISTANCE = 8;

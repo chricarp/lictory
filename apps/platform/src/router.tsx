@@ -28,7 +28,6 @@ import {
 } from "@lictory/platform/routes/app";
 import {
   NotificationsRedirect,
-  OrganizationIndex,
   OrganizationLayout,
   OrganizationNotFound,
   ProjectIndexRedirect,
@@ -229,10 +228,15 @@ const orgRoute = createRoute({
   notFoundComponent: OrganizationNotFound,
   pendingComponent: () => <DocumentSkeleton headerBar />,
 });
+// Home: what waits on me and what the factory is doing.
 const orgIndexRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/",
-  component: OrganizationIndex,
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/home/home"),
+    "HomeRoute",
+  ),
+  pendingComponent: ListSkeleton,
 });
 const orgAccountRoute = createRoute({
   getParentRoute: () => orgRoute,
@@ -327,6 +331,19 @@ const orgSettingsSectionRoute = createRoute({
     "OrganizationSettingsPage",
   ),
   pendingComponent: SettingsSectionSkeleton,
+});
+
+// Code (S3 replaces its placeholder page). Static segments rank above
+// `$project`; module names are reserved project keys. Channels and the
+// Factory register their own routes below.
+const codeRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/placeholders/code-page"),
+    "CodePage",
+  ),
+  pendingComponent: ListSkeleton,
 });
 
 // Lictory Spaces. Static segments rank above `$project`, so these addresses
@@ -638,6 +655,7 @@ const routeTree = rootRoute.addChildren([
         orgSettingsIndexRoute,
         orgSettingsSectionRoute,
       ]),
+      codeRoute,
       spacesRoute,
       spaceRoute.addChildren([
         spaceHomeRoute,

@@ -1,3 +1,4 @@
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -356,9 +357,7 @@ export function SearchResults() {
   const projectField = useId();
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-        <h1 className="text-sm font-semibold">Search</h1>
-      </header>
+      <PageHeader title="Search" icon={<Search />} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5">
           <form

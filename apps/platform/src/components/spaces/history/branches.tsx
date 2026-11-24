@@ -27,7 +27,9 @@ import {
 import { ConflictResolution } from "./conflicts";
 
 export function Branches({ pageId }: { pageId: string }) {
-  const { branches, commits, pullRequests } = usePageHistory(pageId);
+  // `loaded`: the server has answered, so the counts a deletion warns about
+  // are current, not what this browser cached on an earlier visit.
+  const { branches, commits, pullRequests, loaded } = usePageHistory(pageId);
   const { userId, memberName } = useWorkspace();
   const { canEdit } = usePageActions();
   const { branch, setBranch } = usePageBranchSelection();
@@ -93,6 +95,7 @@ export function Branches({ pageId }: { pageId: string }) {
               <Button
                 size="sm"
                 variant="ghost"
+                disabled={!loaded}
                 autoFocus={returnTo === b.id}
                 onFocus={() => {
                   if (returnTo === b.id) setReturnTo(undefined);

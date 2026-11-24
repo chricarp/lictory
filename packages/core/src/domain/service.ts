@@ -5157,6 +5157,8 @@ const spaceAccessCommands = new Set<string>([
   "setDisciplineMember",
   "setTeamMembership",
 ]);
+// Organization-level page segments (`/{org}/{segment}`) a project key would
+// otherwise share with its address.
 const reservedKeys = new Set([
   "INBOX",
   "SETTINGS",
@@ -5166,9 +5168,12 @@ const reservedKeys = new Set([
   "PROJECTS",
   "INTELLIGENCE",
   "NOTIFICATIONS",
-  "FACTORY",
+  "SEARCH",
+  "SPACES",
   // Lictory Channels lives at /{org}/channels.
   "CHANNELS",
+  "FACTORY",
+  "CODE",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

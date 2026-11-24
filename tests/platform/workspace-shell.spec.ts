@@ -74,18 +74,24 @@ test("an existing member can create and switch to another organization", async (
     page.getByText(`Lictory v${version}`, { exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: "Close navigation" })
-    .click({ position: { x: 380, y: 20 } });
+  // Pressing beside the drawer closes it.
+  const drawer = page.getByRole("dialog", { name: "Navigation" });
+  await expect(drawer).toBeVisible();
+  await page.mouse.click(380, 20);
+  await expect(drawer).toBeHidden();
   await page.setViewportSize(viewport);
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("menuitem", { name: "First Team" }).click();
-  // Switching organizations returns to the project last worked in there
-  // (Litto is the home page only when an AI provider can answer).
-  await expect(page).toHaveURL(
-    new RegExp(`${firstOrganization}/one/refinement$`),
-  );
+  // Switching organizations opens its Home, with the project last worked in
+  // there in the sidebar.
+  await expect(page).toHaveURL(new RegExp(`${firstOrganization}$`));
+  await expect(
+    page.getByRole("heading", { name: "Home", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Switch project: First project" }),
+  ).toBeVisible();
 });
 
 test("navigation commits immediately inside the persistent shell and shows a loading state while the page loads", async ({

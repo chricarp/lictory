@@ -1,7 +1,7 @@
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { LoadingState } from "@lictory/ui/spinner";
-import { Link } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
+import { ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { Popover, Picker } from "@lictory/ui/popover";
@@ -173,19 +173,15 @@ export function NotificationSettings() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
-        <Link
-          href={paths.inbox(organization.slug)}
-          aria-label="Back to inbox"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <h1 className="text-sm font-semibold">Notification settings</h1>
-        {saving && (
-          <span className="text-xs text-muted-foreground">Saving…</span>
-        )}
-      </header>
+      <PageHeader
+        title="Notification settings"
+        breadcrumbs={[{ label: "Inbox", href: paths.inbox(organization.slug) }]}
+        actions={
+          saving && (
+            <span className="text-xs text-muted-foreground">Saving…</span>
+          )
+        }
+      />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
           <div className="space-y-2">

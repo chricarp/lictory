@@ -35,6 +35,7 @@ export const paths = {
   spacePage: (org: string, space: string, page: string) =>
     `/${org}/spaces/${encodeURIComponent(space)}/pages/${page}`,
   // The Factory: agents, runners and one agent session.
+  factory: (org: string) => `/${org}/factory`,
   factorySession: (org: string, session: string) =>
     `/${org}/factory/sessions/${session}`,
   // Lictory Channels: the channel browser and one conversation (addressed
@@ -90,6 +91,9 @@ export const paths = {
   // planning, delivery, labels, context.
   projectSettings: (org: string, project: string, section?: string) =>
     `/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
+  // Code hosts (repositories, branches, pull requests). Home is the
+  // organization's own address (`org`).
+  code: (org: string) => `/${org}/code`,
 };
 
 // Top-level segments that are not workspace pages.

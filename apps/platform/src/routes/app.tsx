@@ -14,6 +14,7 @@ import { useSessionState, useSessionUser } from "@lictory/platform/lib/session";
 import { WorkspaceDataProvider } from "@lictory/platform/data/zero";
 import { useMemberships } from "@lictory/platform/data/memberships";
 import { PageTitle } from "@lictory/platform/routes/title";
+import { useDesktopIntegration } from "@lictory/platform/components/shell/desktop";
 import {
   ConnectionUnavailable,
   useConnectionBlocked,
@@ -23,6 +24,8 @@ import {
 // and a handle; this keeps the person's appearance and their own Zero client.
 export function AppLayout() {
   const state = useSessionState();
+  // Inside the desktop app: its title bar and its navigation requests.
+  useDesktopIntegration();
   const user = state.session?.user;
   if (!user) {
     const here = `${window.location.pathname}${window.location.search}`;

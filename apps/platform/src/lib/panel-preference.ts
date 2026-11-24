@@ -17,7 +17,9 @@ export function usePanelCollapsed(
   organizationId: string,
   // "sidebar-views" stores whether the sidebar's Views group is expanded;
   // "sidebar-spaces" whether its Spaces group is collapsed; "space-page-tree"
-  // whether the page tree beside a space's pages is put away.
+  // whether the page tree beside a space's pages is put away;
+  // "sidebar-section:<id>" whether a sidebar section differs from its
+  // default (folded or unfolded).
   panel:
     | "sidebar"
     | "work-item-list"
@@ -26,7 +28,8 @@ export function usePanelCollapsed(
     | "space-page-tree"
     // Whether the sidebar's Channels and Direct messages groups are folded.
     | "sidebar-channels"
-    | "sidebar-direct",
+    | "sidebar-direct"
+    | `sidebar-section:${string}`,
 ) {
   const key = `lictory:panel-collapsed:${organizationId}:${panel}`;
   const subscribe = useCallback(

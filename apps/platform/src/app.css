@@ -18,3 +18,30 @@
 :root[data-pane-resizing] iframe {
   pointer-events: none;
 }
+
+/* Inside the desktop app (apps/desktop) the sidebar's top strip and page
+   headers are the window's title bar; their controls stay clickable. macOS
+   draws its window buttons over the top-left corner, above the rail. */
+:root[data-desktop] [data-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+:root[data-desktop]
+  [data-drag-region]
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    [role],
+    [tabindex],
+    [contenteditable]
+  ) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+:root[data-desktop-platform="darwin"] {
+  --titlebar-inset: 2.25rem;
+}

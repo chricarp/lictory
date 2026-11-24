@@ -41,3 +41,41 @@ toolbar or disclosure: use the component.
 Left hand-rolled on purpose: the Tiptap suggestion list at the caret (the
 editor owns its keys), the pane resizer (pixel widths across components), the
 Litto dock's phone sheet, and the row preview card in lists.
+
+## Shell
+
+The shell (`src/components/shell`) is the rail, sidebar, page header,
+command palette and Home around every organization page. Modules plug in
+through the registry in `src/components/shell/nav-registry.tsx`; read
+[the workspace shell](../../docs/internals/shell.md) for the concepts.
+
+- **Sidebar section.** Export a `NavSection` (`id`, `label`, `icon`,
+  `href(org)`, `Section`) from your module and list it in `navSections`,
+  replacing its placeholder import (`components/shell/placeholders/*`). Build
+  `Section` from `SidebarGroup`, `SidebarLink`, `SidebarAction` and
+  `SidebarNote` (`components/shell/sidebar-parts`): they draw the full sidebar,
+  the compact one and the phone drawer, so never branch on width yourself.
+  Mark the current row with `useNavActive()`.
+- **Badge.** Give the section `useBadge`, a cheap hook (a Zero query, a
+  counter) returning `{ count, label, tone, dock? }` or null. `strong` is
+  addressed to the person (mentions, direct messages, requests), `quiet` is
+  activity. Set `dock` only for mentions and direct messages: the shell sums
+  those into the desktop dock badge; never call `setBadge` yourself. The
+  shell passes the badge back to `Section` as `badge` for you to place.
+- **Palette provider.** Add a `PaletteProvider` (`id`, `group`,
+  `useEntries(query)`) to `paletteProviders`. Return candidates (memoized),
+  each with an `href` or a `run`; the palette matches, caps and groups them.
+  Every section already gets a "Go to" command.
+- **Home card.** Add a `HomeCard` (`id`, `label`, `Card`) to `homeCards`.
+  `Card` renders null until it has something to show and uses `HomePanel`
+  and `HomeRow` (`components/shell/home/panel`) so Home reads as one page.
+- **Page header.** Start every module page with `PageHeader`
+  (`components/shell/page-header`): `title`, optional `icon`, `breadcrumbs`,
+  `tabs` (`PageTabs` inside your ui-sdk `Tabs` root) and `actions`. It is
+  also the desktop app's title bar, so keep its controls real buttons and
+  links.
+- **Empty states.** Say what will appear and what to do first, with
+  `EmptyState` (lists) or `MissingState` (whole pages) from `@lictory/ui`.
+- **Routes.** Module pages live at `/$org/<module>`. Add the segment to the
+  reserved project keys in `packages/core/src/domain/service.ts` when you add
+  one.

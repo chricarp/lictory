@@ -504,7 +504,7 @@ test("signing out removes the workspace from the browser before someone else sig
     await page.getByLabel("Email", { exact: true }).fill(other.owner.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/${other.slug}/`));
+    await expect(page).toHaveURL(new RegExp(`/${other.slug}(/|$)`));
     await expect(page.getByText("Other Company").first()).toBeVisible();
     await expect(page.getByText("Sync SWAP")).toHaveCount(0);
     await expect(page.getByText("Confidential roadmap item")).toHaveCount(0);

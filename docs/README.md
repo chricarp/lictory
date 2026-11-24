@@ -34,6 +34,9 @@ adding domain writes or synchronized entities.
 - [The Factory](./internals/factory.md): agents (owner ∩ scope), runners,
   agent sessions, the runner protocol, leases, credential brokering and
   isolation
+- [The workspace shell](./internals/shell.md): the organization rail,
+  sidebar sections, Home, the command palette and how modules register into
+  them, reserved module routes, and the desktop app's title bar
 - [Organizations, projects and teams](./internals/organization-model.md):
   what each scope owns, application roles, project roles and disciplines,
   delivery modes
