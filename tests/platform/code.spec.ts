@@ -53,9 +53,7 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await ada.page.getByRole("button", { name: "Connect a host" }).click();
     await ada.page.getByRole("radio", { name: "Fine-grained token" }).click();
     await ada.page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
-    await ada.page
-      .getByLabel("Token", { exact: true })
-      .fill(FAKE_GITHUB_TOKEN);
+    await ada.page.getByLabel("Token", { exact: true }).fill(FAKE_GITHUB_TOKEN);
     await ada.page.getByRole("button", { name: "Verify and connect" }).click();
     // The webhook secret is shown once, to paste into the host.
     await expect(
@@ -72,7 +70,7 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     // The project administrator links the repository to the project.
     await ada.page.getByRole("button", { name: "Link a repository" }).click();
     await ada.page.getByLabel("Find a repository").fill(repository);
-    await ada.page.getByRole("button", { name: "Search" }).click();
+    await ada.page.getByRole("button", { name: "Search", exact: true }).click();
     await ada.page.getByRole("radio", { name: repository }).check();
     await ada.page.getByRole("button", { name: "Link to project" }).click();
     await expect(
