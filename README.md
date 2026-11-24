@@ -189,6 +189,7 @@ required verification sequence.
 | `apps/worker`    | Background email, AI, Jira exports/status sync and cycles              |
 | `apps/marketing` | Static Next.js website at lictory.com                                  |
 | `apps/docs`      | Static Fumadocs site at docs.lictory.com                               |
+| `apps/desktop`   | Electron desktop app for macOS, Windows and Linux (any Lictory server) |
 | `packages/core`  | Domain rules, contracts, Drizzle/PostgreSQL access and adapters        |
 | `packages/zero`  | Synchronized projections, queries and mutations                        |
 | `packages/ui`    | Shared UI, theme and assets                                            |
