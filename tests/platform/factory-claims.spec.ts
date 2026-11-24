@@ -154,8 +154,8 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
     note: "Endpoint drafted; opening the pull request next.",
   });
 
-  // The claim shows on the board card, synchronized without a reload.
-  await page.goto(seeded.projectPath("/board"));
+  // The claim shows on the board card (all work: no sprint is active).
+  await page.goto(seeded.projectPath("/board?iteration=all"));
   const card = page.locator(`[data-card="${taskIds[0]}"]`);
   await expect(card.locator('[data-claim="active"]')).toContainText("Forge");
 
