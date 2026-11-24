@@ -1,0 +1,108 @@
+---
+title: Agents, autonomy and Done
+description: Let agents claim agreed work, choose how much the factory does by itself, and define when work is done from evidence.
+---
+
+Agents can do much of a project's delivery work: take agreed items, write the
+code, open pull requests and answer review comments. People decide what is
+agreed, how much agents may do by themselves, and what counts as done. This
+page covers projects that deliver in Lictory; projects that hand work off to
+Jira let Jira own execution, and agents do not claim their work.
+
+## The Factory queue
+
+Open **Factory queue** in the project's sidebar to see where the factory
+stands:
+
+| Section               | What it lists                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Claimed**           | Items an agent holds, with the agent, the person it acts for (**Forge via Ada**) and its latest progress note.       |
+| **Waiting on people** | Agents' open questions, and ready specifications whose scope nobody has accepted yet.                                |
+| **Claimable now**     | Agreed work an agent can take, in backlog rank order.                                                                |
+| **Blocked**           | Agreed work that cannot start yet, and why: a blocking item that is not done, readiness lost on the agreed revision. |
+
+## What agents can claim
+
+An agent **claims** an item to work on it. While the claim lasts, no other
+agent can take the item, and the item shows a small agent mark on the board
+and in the backlog. An item can be claimed when:
+
+- the project delivers in Lictory and the item has not started;
+- every item that **blocks** it is done;
+- a person accepted its scope: a specification is **Ready** and **Accept
+  revision N for delivery** was chosen; a Task or Subtask under it is covered
+  by that agreement;
+- a Task without any specification above it was moved out of the backlog to
+  **Todo** (or another unstarted status) by a person.
+
+Claiming moves the item to the project's first started status, exactly as
+moving it on the board would, attributed to the agent acting for its
+person. The item's right panel shows the claim under **Factory**, or the
+reasons it cannot be claimed yet.
+
+### Questions from agents
+
+When an agent needs something it asks: a blocking discussion appears on the
+exact sentence of the specification it is about, and the item's reviewers are
+mentioned. The claim waits. When a person resolves the discussion, the agent
+continues. A question never changes the specification: the answer becomes
+part of it only when someone saves a revision.
+
+### Releasing a claim
+
+The agent's person, project administrators and people who change properties
+can choose **Release** on the item or in the Factory queue, with an optional
+note. The item returns to the status it had before the claim, unless someone
+moved it since. A claim also ends when the item moves to Done, is canceled
+or archived, or is moved back out of progress, and when its agent stops
+renewing it (after about 15 minutes).
+
+## Autonomy levels
+
+Project administrators choose the level in **Project settings → Autonomy**:
+
+| Level                | What happens                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Assist** (default) | Agents help when asked. People start every agent session; nothing is dispatched automatically.                                                              |
+| **Build**            | Claimable items are dispatched to the chosen implementer agents in rank order, up to the number of concurrent sessions. People merge the pull requests.     |
+| **Autopilot**        | As Build, and Lictory merges an agent's pull request when the required checks pass. The merge is attributed to the policy and the administrator who set it. |
+
+Under **Before an automatic merge**, Autopilot can also require the reviewer
+agent's approval of the head commit and every other Definition of Done check;
+passing CI is always required.
+
+Every change is recorded in the audit log, and **History** restores an
+earlier policy. Lowering the level releases nothing: claims in flight
+continue until they finish or someone releases them; the factory just stops
+starting new work. Specification approvals, accepted scope, merged breakdowns
+and resolved discussions stay a person's decision at every level.
+
+If the dispatcher cannot start a session (no runner is online, for example),
+it tries again after 5, 20 and 80 minutes, then holds the item. The queue
+shows **Dispatch held** with **Retry**.
+
+## Definition of Done
+
+**Project settings → Definition of Done** sets what must be true before work
+is done, next to the Definition of Ready:
+
+- **A linked code pull request is merged** and none is still open. Pull
+  requests that name the item's key (PAY-142) are linked automatically.
+- **Required CI checks passed** on the head commit.
+- **A reviewer approved the head commit**: the project's reviewer agent when
+  one is set.
+- **Acceptance criteria verified**: a sign-off by a person of the disciplines
+  you choose, such as QA. Add as many sign-offs as you need.
+
+By default a project requires a merged pull request with passing checks. The
+item's right panel shows each check under **Definition of Done** while work
+is in progress. When every check passes, the item moves to Done by itself and
+records the revision it delivered. An agent saying it is finished never moves
+it.
+
+When a check cannot pass from evidence (the change needed no code, CI cannot
+run), someone who changes properties chooses **Pass by hand** and gives a
+reason, which is kept in the item's history. With no checks at all, people
+always move work to Done themselves.
+
+Until a code host is connected, the code checks say so and cannot pass.
