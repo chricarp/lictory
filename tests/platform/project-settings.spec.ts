@@ -224,7 +224,9 @@ test("project settings keep their header and sidebar while switching sections", 
   await signIn(page, 0);
 
   await page.goto(paths.projectSettings(slug, "JIRA"));
-  const header = page.getByRole("heading", { name: "Jira", exact: true });
+  // The page header names the section; the project is its breadcrumb.
+  const header = page.locator("[data-page-header]");
+  await expect(header.getByRole("link", { name: "Jira" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Settings sections" });
   await expect(header).toBeVisible();
   await expect(
