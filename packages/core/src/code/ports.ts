@@ -155,6 +155,16 @@ function claimsEvidence(
         : pr.draft || pr.reviewDecision === "changes_requested"
           ? false
           : pr.mergeable,
+    number: pr.number,
+    openedByAgent: Boolean(pr.agentSessionId ?? pr.agentId),
+    authorId:
+      pr.openedById ??
+      (pr.authorLogin
+        ? (context.identities.get(
+            `${context.connectionId}:${pr.authorLogin.toLowerCase()}`,
+          ) ?? null)
+        : null),
+    authorLogin: pr.authorLogin,
   };
 }
 
@@ -313,7 +323,7 @@ export function createCodeEvidence(db: Database | Tx) {
                 ),
               )
           : Promise.resolve([]),
-        all.some((p) => p.approvedBy.length)
+        all.some((p) => p.approvedBy.length || p.authorLogin)
           ? tx
               .select()
               .from(s.codeHostIdentity)

@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { Link } from "@lictory/platform/lib/navigation";
 import { memo } from "react";
 import { cn } from "@lictory/core/lib/utils";
@@ -14,7 +15,6 @@ import {
   deliveryCategory,
   type ExternalLink,
 } from "@lictory/core/lib/lifecycle";
-import { Avatar } from "@lictory/ui/primitives";
 import {
   IssueStatus,
   StatusIcon,
@@ -48,7 +48,6 @@ export const IssueRow = memo(function IssueRow({
   selected,
   focused,
   compact,
-  memberName,
   onUpdate,
   onFocus,
   onBlur,
@@ -68,7 +67,8 @@ export const IssueRow = memo(function IssueRow({
   selected: boolean;
   focused: boolean;
   compact: boolean;
-  memberName: (id: string | null) => string;
+  // Kept for callers; avatars look people up themselves.
+  memberName?: (id: string | null) => string;
   // Absent when the viewer's roles cannot change properties.
   onUpdate?: (patch: {
     statusId?: string;
@@ -167,13 +167,15 @@ export const IssueRow = memo(function IssueRow({
           </span>
           <TypeIcon type={type} />
           <IssueIdentifier project={project} number={item.number} />
-          <ReviewSignal item={item} compact className="ml-auto" />
+          {/* A phone's row (no preview card) says the next step here. */}
+          {hint && !preview && (
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {hint}
+            </span>
+          )}
+          <ReviewSignal item={item} compact className="ml-auto shrink-0" />
           {project?.deliveryMode !== "external" && item.assigneeId && (
-            <Avatar
-              userId={item.assigneeId}
-              name={memberName(item.assigneeId)}
-              size="xs"
-            />
+            <Actor userId={item.assigneeId} label="none" size={16} />
           )}
         </div>
       </li>
@@ -286,13 +288,11 @@ export const IssueRow = memo(function IssueRow({
           className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
         />
       ) : (
-        // An empty cell would read as missing data: say there is nothing.
+        // No review and no discussion: the slot stays empty and aligned.
         <span
-          title="No review requested and no open discussions"
-          className="hidden text-xs text-muted-foreground/70 md:mr-3 md:inline md:w-36 md:shrink-0 @min-[65rem]/frame:w-52"
-        >
-          —
-        </span>
+          aria-hidden
+          className="hidden md:mr-3 md:inline md:w-36 md:shrink-0 @min-[65rem]/frame:w-52"
+        />
       )}
       {/* A fixed slot keeps assignee and time aligned on rows without checks. */}
       <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
@@ -310,11 +310,23 @@ export const IssueRow = memo(function IssueRow({
             : "Not handed off"}
         </span>
       ) : (
-        <AssigneePicker
-          assigneeId={item.assigneeId}
-          compact
-          onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
-        />
+        // Nobody assigned: no placeholder face on every row; the picker
+        // shows on hover and focus for people who assign.
+        <span
+          className={cn(
+            "inline-flex",
+            !item.assigneeId &&
+              (onUpdate
+                ? "opacity-0 group-hover:opacity-100 focus-within:opacity-100 touch:opacity-100"
+                : "invisible"),
+          )}
+        >
+          <AssigneePicker
+            assigneeId={item.assigneeId}
+            compact
+            onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
+          />
+        </span>
       )}
       <time
         className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"

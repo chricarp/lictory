@@ -120,6 +120,17 @@ export type CodePullRequestEvidence = {
   // Whether the code host would merge it now (mergeable, no conflicts,
   // branch protection met), as last reported.
   mergeable: boolean | null;
+  // Who did the work, for claimability ("#12 by Ada"). Optional: an
+  // implementation that does not know leaves them out.
+  // The pull request's number on its host.
+  number?: number;
+  // Opened from an agent session of this factory (Lictory's provenance,
+  // never the host's author login): agent work the factory may retry.
+  openedByAgent?: boolean;
+  // The person who opened it: through Lictory, or the member who set the
+  // host author's login as theirs; else only the host login is known.
+  authorId?: string | null;
+  authorLogin?: string | null;
 };
 export type CodeEvidence =
   | { connected: false; explanation: string }

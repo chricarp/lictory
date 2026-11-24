@@ -42,9 +42,7 @@ export function ProjectKnowledge({ project }: { project: Project }) {
       aria-label={`${project.name} knowledge`}
       className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t px-4 py-2 text-xs"
     >
-      <h2 className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-        Knowledge
-      </h2>
+      <h2 className="text-xs font-semibold text-muted-foreground">Knowledge</h2>
       {spaces.length === 0 ? (
         <button
           type="button"

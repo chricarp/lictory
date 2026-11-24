@@ -17,6 +17,7 @@ import {
   claimBadgeLabel,
   claimShownState,
   claimState,
+  pullRequestStripPart,
 } from "@lictory/platform/components/claims/claim-state";
 
 // Where the rail's delivery evidence lives, for the strip to open at.
@@ -48,13 +49,7 @@ export function ItemStatusStrip({
   if (!claim && !evaluation) return null;
   const checks = evaluation?.checks ?? [];
   const passed = checks.filter((c) => c.passed).length;
-  const pulls = evaluation?.code.pullRequests ?? [];
-  const pull =
-    pulls.find((p) => p.state === "open") ??
-    pulls.find((p) => p.state === "merged");
-  const checksFailing = checks.some(
-    (c) => c.kind === "checks_passed" && !c.passed,
-  );
+  const pull = pullRequestStripPart(evaluation);
   return (
     <ul
       aria-label="Delivery status"
@@ -74,22 +69,12 @@ export function ItemStatusStrip({
       )}
       {pull && (
         <Part
-          tone={
-            pull.state === "merged"
-              ? "success"
-              : checksFailing
-                ? "danger"
-                : "info"
-          }
+          tone={pull.tone}
           hint={`: ${pull.title}. Show the code`}
           onClick={() => onOpen("code")}
         >
           <GitPullRequest />
-          {pull.state === "merged"
-            ? "PR merged"
-            : checksFailing
-              ? "PR open · checks failing"
-              : "PR open"}
+          {pull.label}
         </Part>
       )}
     </ul>

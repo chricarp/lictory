@@ -67,7 +67,7 @@ const listClaimableItems = defineCapability({
   name: "listClaimableItems",
   title: "List claimable work",
   description:
-    "Work items an agent can claim now, in rank order: native delivery, not started, every blocking item done, nobody holding it, and allowed to start by the readiness policy (a specification Ready with its scope accepted; plain work covered by its parent specification's accepted scope, or selected into an unstarted status). With `all`, also items that cannot be claimed yet, each with its `stage` (needs_agreement, blocked, claimed) and the reasons. External-delivery projects have no claimable work.",
+    "Work items an agent can claim now, in rank order: native delivery, not started, every blocking item done, nobody holding it, and allowed to start by the readiness policy (a specification Ready with its scope accepted; plain work covered by its parent specification's accepted scope, or selected into an unstarted status), and no pull request a person opened is linked to it (someone already does that work; a person may still start an agent on it). With `all`, also items that cannot be claimed yet, each with its `stage` (needs_agreement, blocked, claimed) and the reasons. External-delivery projects have no claimable work.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({

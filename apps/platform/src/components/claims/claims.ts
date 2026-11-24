@@ -6,6 +6,7 @@ import {
   claimability,
   type Claimability,
   type ClaimabilityFacts,
+  type LinkedPullRequestFact,
 } from "@lictory/core/claims/claimability";
 import {
   effectiveAutonomy,
@@ -20,6 +21,10 @@ import {
   useDelivery,
   useWorkspace,
 } from "@lictory/platform/components/workspace/provider";
+import {
+  useCodeHosts,
+  useCodeList,
+} from "@lictory/platform/components/code/store";
 
 // The browser's view of claims, autonomy and the Definition of Done, read
 // from the organization store (docs/internals/claims.md). Claimability is
@@ -102,11 +107,46 @@ export function useAgentLabel() {
     }`;
 }
 
+// Open and merged pull requests linked to work items, from the Code
+// module's synchronized mirror, as claimability reads them: who opened each
+// one, and whether an agent session of this factory did.
+function useLinkedPullRequests() {
+  const { memberName } = useWorkspace();
+  const { identities } = useCodeHosts();
+  const open = useCodeList("codePullRequest", "open").rows;
+  const merged = useCodeList("codePullRequest", "merged").rows;
+  return useMemo(() => {
+    // The member behind a host login, as `useLoginOwner` reads it.
+    const owner = new Map(
+      identities.map((i) => [i.login.toLowerCase(), i.userId]),
+    );
+    const linked = new Map<string, LinkedPullRequestFact[]>();
+    for (const pr of [...open, ...merged]) {
+      const authorId =
+        pr.openedById ??
+        (pr.authorLogin ? owner.get(pr.authorLogin.toLowerCase()) : undefined);
+      const fact: LinkedPullRequestFact = {
+        number: pr.number,
+        state: pr.state,
+        openedByAgent: Boolean(pr.agentSessionId ?? pr.agentId),
+        author: authorId ? memberName(authorId) : pr.authorLogin,
+      };
+      for (const link of pr.links)
+        linked.set(link.workItemId, [
+          ...(linked.get(link.workItemId) ?? []),
+          fact,
+        ]);
+    }
+    return linked;
+  }, [open, merged, identities, memberName]);
+}
+
 // Claimability of any item of the organization, from synchronized facts.
 export function useClaimability(): (item: WorkItem) => Claimability {
   const { items, relations, projects, directory } = useWorkspace();
   const delivery = useDelivery();
   const claims = useLiveClaims();
+  const pullRequests = useLinkedPullRequests();
   return useMemo(() => {
     const byId = new Map(items.map((i) => [i.id, i]));
     const blockers = new Map<string, string[]>();
@@ -147,11 +187,20 @@ export function useClaimability(): (item: WorkItem) => Claimability {
         blockers: (id) => blockers.get(id) ?? [],
         liveClaim: (id) => claims.get(id),
         hasStartedStatus: started.has(item.projectId),
+        linkedPullRequests: (id) => pullRequests.get(id) ?? [],
         now: new Date(),
       };
       return claimability(item, facts);
     };
-  }, [items, relations, projects, directory.projects, delivery, claims]);
+  }, [
+    items,
+    relations,
+    projects,
+    directory.projects,
+    delivery,
+    claims,
+    pullRequests,
+  ]);
 }
 
 // Minutes until a lease ends, for "expires in 12 min".

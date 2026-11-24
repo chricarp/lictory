@@ -8,12 +8,23 @@ import {
 } from "@lictory/platform/lib/navigation";
 import {
   useCallback,
+  useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
+import {
+  Drawer,
+  DrawerBackdrop,
+  DrawerClose,
+  DrawerContent,
+  DrawerTitle,
+} from "@ui-sdk/react/drawer";
+import { popupContainer } from "@lictory/ui/popup";
+import { PhoneChromeContext } from "@lictory/platform/components/shell/page-header";
 import { createPortal, flushSync } from "react-dom";
 import { usePaneWidth } from "@lictory/platform/lib/pane-width";
 import {
@@ -394,6 +405,10 @@ export function ItemDetail({
     null,
   );
   const [panelOpen, setPanelOpen] = useState(false);
+  // The item's header is the page's header: on phones it takes the shell's
+  // top bar (see PageHeader).
+  const phone = useContext(PhoneChromeContext);
+  useLayoutEffect(() => phone?.claim(), [phone]);
   // Scroll the review rail to one of its sections (checks and reviews, the
   // claim, the Definition of Done, code), or open the drawer at it when the
   // rail is folded away. The rail steps aside for discussions on mid-size
@@ -409,7 +424,16 @@ export function ItemDetail({
       if (rail?.getClientRects().length)
         return reveal("[data-desktop-item-panel]");
       flushSync(() => setPanelOpen(true));
-      reveal("[data-item-panel-drawer]");
+      // Scroll the sheet's body only: its header stays in view, and the
+      // sheet's own position is the drawer's.
+      const scroller = document.querySelector<HTMLElement>(
+        "[data-item-panel-scroll]",
+      );
+      const target = scroller?.querySelector(section);
+      if (scroller && target)
+        scroller.scrollTop +=
+          target.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top;
     });
   };
   const rail = usePaneResize<HTMLElement>(railPane);
@@ -747,8 +771,14 @@ export function ItemDetail({
         <div className="flex h-full flex-col">
           {/* On phones the header keeps the way back, the item's key and
               the actions a reviewer reaches for (Knowledge, Discussions,
-              Review & details); the parent and the rest move into More. */}
-          <header className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px] max-sm:gap-1 max-sm:pl-1.5">
+              Review & details); the parent and the rest move into More.
+              Like every page header it takes the shell's top bar there:
+              one 48px bar with the navigation button and search. */}
+          <header
+            data-page-header
+            className="flex h-11 shrink-0 items-center gap-1.5 border-b px-3 text-[13px] max-lg:h-12 max-sm:gap-1 max-sm:px-1.5"
+          >
+            {phone && <div className="contents lg:hidden">{phone.leading}</div>}
             <WorkItemListToggle />
             <nav
               aria-label="Breadcrumb"
@@ -1009,6 +1039,9 @@ export function ItemDetail({
                   <LittoConcerns />
                   <LittoLauncher />
                 </>
+              )}
+              {phone && (
+                <div className="contents lg:hidden">{phone.trailing}</div>
               )}
             </div>
           </header>
@@ -1311,37 +1344,45 @@ export function ItemDetail({
                 </aside>
               </>
             )}
-            {panelOpen && (
-              <div
+            {/* Review & details as a sheet where the rail has no room:
+                Escape and a press outside close it, focus stays inside,
+                and its header stays put while the body scrolls to the
+                section asked for. */}
+            <Drawer
+              open={panelOpen}
+              onOpenChange={setPanelOpen}
+              side="right"
+              container={popupContainer()}
+            >
+              <DrawerBackdrop
                 className={cn(
-                  "fixed inset-0 z-40",
+                  "fixed inset-0 z-40 bg-black/30",
                   !railHidden && "@min-[53rem]/frame:hidden",
                 )}
+              />
+              <DrawerContent
+                data-item-panel-drawer
+                className="z-50 flex h-dvh max-h-none w-[min(360px,90vw)] flex-col gap-0 overflow-hidden border-0 border-l bg-background p-0 text-foreground shadow-xl"
               >
-                <button
-                  aria-label="Close details"
-                  className="absolute inset-0 bg-black/30"
-                  onClick={() => setPanelOpen(false)}
-                />
-                <aside
-                  data-item-panel-drawer
-                  className="absolute inset-y-0 right-0 w-[min(360px,90vw)] overflow-y-auto border-l bg-background shadow-xl"
-                >
-                  <div className="flex h-11 items-center justify-between border-b px-4 text-sm font-medium">
+                <div className="flex h-12 shrink-0 items-center justify-between border-b pr-2 pl-4">
+                  <DrawerTitle className="m-0 text-sm font-medium">
                     Review & details
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Close"
-                      onClick={() => setPanelOpen(false)}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
+                  </DrawerTitle>
+                  <DrawerClose
+                    aria-label="Close details"
+                    className="grid size-8 place-items-center rounded-md bg-transparent text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </DrawerClose>
+                </div>
+                <div
+                  data-item-panel-scroll
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+                >
                   {panel}
-                </aside>
-              </div>
-            )}
+                </div>
+              </DrawerContent>
+            </Drawer>
           </div>
         </div>
         {exporting && (

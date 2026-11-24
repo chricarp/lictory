@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useMemo, useState, type ReactNode } from "react";
 import { GitCompareArrows, History } from "lucide-react";
 import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
@@ -14,7 +15,7 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
+import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import {
   useItem,
@@ -308,11 +309,7 @@ export function SpecVersions({
                     </span>
                   </span>
                   <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <Avatar
-                      userId={r.authorId}
-                      name={memberName(r.authorId)}
-                      size="xs"
-                    />
+                    <Actor userId={r.authorId} label="none" size={16} />
                     {memberName(r.authorId)}
                     <span aria-hidden>·</span>
                     <time

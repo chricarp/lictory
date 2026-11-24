@@ -143,7 +143,7 @@ export function ItemWorkflow({
   const stages = (
     <ol
       aria-label="Workflow stages"
-      className="flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.06em] text-muted-foreground uppercase max-sm:hidden"
+      className="flex items-center gap-1.5 text-xs text-muted-foreground max-sm:hidden"
     >
       {steps.map((name, index) => {
         const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
@@ -237,9 +237,7 @@ export function ItemWorkflow({
       )}
       {current && (
         <li>
-          <Pill tone="neutral" mono>
-            Revision {current.number}
-          </Pill>
+          <Pill tone="neutral">Revision {current.number}</Pill>
         </li>
       )}
       {item.readinessTotal > 0 && (
@@ -335,7 +333,7 @@ export function ItemWorkflow({
         <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
         {next && (
           <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
-            <span className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
+            <span className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
               Next
             </span>
             <span className="min-w-0">{next}</span>
@@ -397,7 +395,7 @@ function EvidenceRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <dt className="w-12 shrink-0 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:w-16">
+      <dt className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
         {label}
       </dt>
       <dd>

@@ -6,6 +6,7 @@ import {
   claimShownState,
   claimState,
   claimWaitsOnPeople,
+  pullRequestStripPart,
 } from "@lictory/platform/components/claims/claim-state";
 
 const claim = (
@@ -67,4 +68,60 @@ void test("an item assigned to someone other than the agent's owner is worked fo
   assert.equal(claimFor({ ownerId: "ada" }, "ben", name), "for Ben");
   assert.equal(claimFor({ ownerId: "ada" }, "ada", name), null);
   assert.equal(claimFor({ ownerId: "ada" }, null, name), null);
+});
+
+const evaluated = (
+  ...pulls: {
+    state: "open" | "merged" | "closed";
+    checks?: "passing" | "pending" | "failing" | "none";
+  }[]
+) => ({
+  code: {
+    connected: true,
+    explanation: null,
+    pullRequests: pulls.map((p, i) => ({
+      id: `pr${i}`,
+      title: `acme/pay#${i + 1} Refund endpoint`,
+      url: null,
+      headSha: "abc",
+      ...p,
+    })),
+  },
+});
+
+void test("the strip says checks are running, never failing, while CI is pending", () => {
+  const part = pullRequestStripPart(
+    evaluated({ state: "open", checks: "pending" }),
+  );
+  assert.equal(part?.label, "PR open · checks running");
+  assert.equal(part?.tone, "info");
+});
+
+void test("only a check the code host reported as failed reads failing", () => {
+  const part = pullRequestStripPart(
+    evaluated({ state: "open", checks: "failing" }),
+  );
+  assert.equal(part?.label, "PR open · checks failing");
+  assert.equal(part?.tone, "danger");
+});
+
+void test("an evaluation without check states claims nothing about the checks", () => {
+  const part = pullRequestStripPart(evaluated({ state: "open" }));
+  assert.equal(part?.label, "PR open");
+  assert.equal(part?.tone, "info");
+});
+
+void test("the open pull request speaks before a merged one; closed ones are not shown", () => {
+  assert.equal(
+    pullRequestStripPart(
+      evaluated({ state: "merged" }, { state: "open", checks: "passing" }),
+    )?.label,
+    "PR open · checks pass",
+  );
+  assert.equal(
+    pullRequestStripPart(evaluated({ state: "merged" }))?.label,
+    "PR merged",
+  );
+  assert.equal(pullRequestStripPart(evaluated({ state: "closed" })), null);
+  assert.equal(pullRequestStripPart(undefined), null);
 });

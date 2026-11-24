@@ -1,4 +1,8 @@
-import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import type {
+  ClaimEntity,
+  DoneEvaluationEntity,
+} from "@lictory/core/claims/contracts";
+import type { StatusTone } from "@lictory/ui/status-chip";
 import {
   firstName,
   sessionState,
@@ -63,4 +67,43 @@ export function claimFor(
   return assigneeId && assigneeId !== claim.ownerId
     ? `for ${firstName(assigneeName(assigneeId))}`
     : null;
+}
+
+// The pull request part of an item's delivery status strip, from its
+// Definition of Done evaluation: the open pull request (else the merged
+// one) and its checks in the code host's words. Checks still running are
+// not failing: only a check the code host reported as failed reads
+// "checks failing".
+export function pullRequestStripPart(
+  evaluation: Pick<DoneEvaluationEntity, "code"> | undefined,
+): { label: string; tone: StatusTone; title: string } | null {
+  const pulls = evaluation?.code.pullRequests ?? [];
+  const pull =
+    pulls.find((p) => p.state === "open") ??
+    pulls.find((p) => p.state === "merged");
+  if (!pull) return null;
+  if (pull.state === "merged")
+    return { label: "PR merged", tone: "success", title: pull.title };
+  switch (pull.checks) {
+    case "failing":
+      return {
+        label: "PR open · checks failing",
+        tone: "danger",
+        title: pull.title,
+      };
+    case "pending":
+      return {
+        label: "PR open · checks running",
+        tone: "info",
+        title: pull.title,
+      };
+    case "passing":
+      return {
+        label: "PR open · checks pass",
+        tone: "info",
+        title: pull.title,
+      };
+    default:
+      return { label: "PR open", tone: "info", title: pull.title };
+  }
 }

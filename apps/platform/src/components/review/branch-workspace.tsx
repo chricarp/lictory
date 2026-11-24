@@ -91,7 +91,7 @@ import {
 import { Button, buttonClass } from "@lictory/ui/button";
 import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
 import { popupContainer } from "@lictory/ui/popup";
-import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
+import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { SpecDiff } from "@lictory/platform/components/review/spec-diff";
@@ -1303,7 +1303,7 @@ function BranchEditorBody({
                 <ul className="space-y-1.5">
                   {branch.collaboratorIds.map((id) => (
                     <li key={id} className="flex items-center gap-2">
-                      <Avatar userId={id} name={memberName(id)} />
+                      <Actor userId={id} label="none" size={20} />
                       <span className="min-w-0 flex-1 truncate">
                         {memberName(id)}
                       </span>
@@ -2666,7 +2666,7 @@ function PullRequestView({
             <TabPanel value="conversation" className="space-y-4">
               <article className="overflow-hidden rounded-lg border">
                 <p className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-                  <Avatar userId={p.authorId} name={memberName(p.authorId)} />
+                  <Actor userId={p.authorId} label="none" size={20} />
                   <span className="font-medium text-foreground">
                     {memberName(p.authorId)}
                   </span>

@@ -17,6 +17,7 @@ import {
   type ClaimabilityFacts,
   type ClaimabilityItem,
   type Claimability,
+  type LinkedPullRequestFact,
 } from "@lictory/core/claims/claimability";
 import {
   autonomyPolicyInputSchema,
@@ -347,34 +348,94 @@ export async function projectFacts(
   );
   const key = (item: { projectId: string; number: number }) =>
     `${keys.get(item.projectId) ?? "?"}-${item.number}`;
-  return {
+  const facts: ClaimabilityFacts = {
     project,
-    items,
-    claims,
-    entities,
+    item: (id) => byId.get(id),
     key,
-    facts: {
-      project,
-      item: (id) => byId.get(id),
-      key,
-      category: (id) => statuses.get(id)?.category,
-      statusName: (id) => statuses.get(id)?.name,
-      hasSpecification: (id) => types.get(id)?.hasSpecification ?? false,
-      container: (id) => {
-        const type = types.get(id);
-        return type ? isTopLevel(type) : false;
-      },
-      blockers: (id) => blockersOf.get(id) ?? [],
-      liveClaim: (id) => live.get(id),
-      hasStartedStatus: roster.statuses.some(
-        (x) =>
-          x.projectId === projectId &&
-          x.category === "started" &&
-          !x.archivedAt,
-      ),
-      now,
+    category: (id) => statuses.get(id)?.category,
+    statusName: (id) => statuses.get(id)?.name,
+    hasSpecification: (id) => types.get(id)?.hasSpecification ?? false,
+    container: (id) => {
+      const type = types.get(id);
+      return type ? isTopLevel(type) : false;
     },
+    blockers: (id) => blockersOf.get(id) ?? [],
+    liveClaim: (id) => live.get(id),
+    hasStartedStatus: roster.statuses.some(
+      (x) =>
+        x.projectId === projectId && x.category === "started" && !x.archivedAt,
+    ),
+    now,
   };
+  // Linked pull requests only matter for work otherwise claimable, so the
+  // code evidence is read for those items alone.
+  const candidates = items
+    .filter((item) => claimability(item, facts).claimable)
+    .map((item) => item.id);
+  if (candidates.length) {
+    const evidence = await claimPorts().evidence.evidence(
+      tx,
+      organizationId,
+      candidates,
+    );
+    const name = (id: string) =>
+      roster.members.find((m) => m.id === id)?.name ??
+      roster.formerMembers.find((m) => m.id === id)?.name;
+    const linked = new Map<string, LinkedPullRequestFact[]>();
+    for (const [itemId, code] of evidence)
+      if (code.connected)
+        linked.set(
+          itemId,
+          // Only pull requests whose provenance the code host port knows.
+          code.pullRequests.flatMap((pr) =>
+            pr.openedByAgent === undefined
+              ? []
+              : [
+                  {
+                    number: pr.number ?? null,
+                    state: pr.state,
+                    openedByAgent: pr.openedByAgent,
+                    author:
+                      (pr.authorId ? name(pr.authorId) : undefined) ??
+                      pr.authorLogin ??
+                      null,
+                  },
+                ],
+          ),
+        );
+    facts.linkedPullRequests = (id) => linked.get(id) ?? [];
+  }
+  return { project, items, claims, entities, key, facts };
+}
+
+// A pull request a person opened keeps the factory off the item, not a
+// person: an agent whose session a person started on this very item may
+// claim it although one is linked. Every other refusal still holds.
+async function startedOnItemByPerson(
+  tx: Tx,
+  actor: Actor,
+  organizationId: string,
+  workItemId: string,
+  verdict: Claimability,
+) {
+  if (
+    !actor.agentSessionId ||
+    verdict.reasons.some((r) => r.code !== "pull_request_linked")
+  )
+    return false;
+  const [session] = await tx
+    .select({
+      workItemId: s.agentSession.workItemId,
+      startedByPolicy: s.agentSession.startedByPolicy,
+    })
+    .from(s.agentSession)
+    .where(
+      and(
+        eq(s.agentSession.organizationId, organizationId),
+        eq(s.agentSession.id, actor.agentSessionId),
+      ),
+    );
+  return session?.workItemId === workItemId && !session.startedByPolicy;
 }
 
 function firstStatus(
@@ -394,7 +455,9 @@ function refusal(key: string, verdict: Claimability) {
   const external = verdict.reasons.some((r) => r.code === "external_delivery");
   return new DomainError(
     external ? "validation" : "conflict",
-    `${key} cannot be claimed. ${verdict.reasons.map((r) => r.message).join(" ")}`,
+    `${key} cannot be claimed. ${verdict.reasons
+      .map((r) => (r.command ? `${r.message} (${r.command})` : r.message))
+      .join(" ")}`,
     undefined,
     external ? "external_delivery" : "not_claimable",
   );
@@ -673,7 +736,17 @@ export async function claimItem(
       const item = facts.items.find((i) => i.id === input.workItemId)!;
       const key = facts.key(item);
       const verdict = claimability(item, facts.facts);
-      if (!verdict.claimable) throw refusal(key, verdict);
+      if (
+        !verdict.claimable &&
+        !(await startedOnItemByPerson(
+          tx,
+          actor,
+          organizationId,
+          item.id,
+          verdict,
+        ))
+      )
+        throw refusal(key, verdict);
       const leaseExpiresAt = new Date(now.getTime() + CLAIM_LEASE_MS);
       const [claim] = await tx
         .insert(s.workItemClaim)

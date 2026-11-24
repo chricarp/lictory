@@ -366,6 +366,13 @@ export async function evaluateDone(
                 url: pr.url,
                 state: pr.state,
                 headSha: pr.headSha,
+                checks: pr.checks.failing.length
+                  ? "failing"
+                  : pr.checks.pending.length
+                    ? "pending"
+                    : pr.checks.required
+                      ? "passing"
+                      : "none",
               })),
             }
           : {
