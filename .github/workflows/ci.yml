@@ -6,7 +6,7 @@ name: CI
 #   Domain tests    bun test against PostgreSQL         (unless prose only)
 #   Browser smoke   the @smoke critical journeys        (when apps change)
 #   Laptop trial    deploy/try.sh on the newest stable  (when it changes)
-#   Client packages runner binaries, desktop AppImage   (when they change)
+#   Client packages runner and desktop app, every OS    (when they change)
 #
 # Every tier is split across parallel jobs so the slowest job, not the sum,
 # sets the duration: lint runs as three jobs over disjoint paths, domain test
@@ -292,30 +292,22 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/trial
 
-  # The runner for every target and the desktop app as a Linux x64 AppImage:
-  # the packaging a release depends on, without macOS or Windows runners
-  # (Release clients builds those for every release, and can be run by hand
-  # on a branch).
+  # Every client download a release publishes, built the way releases build
+  # it (the same reusable workflow): the runner for every target, the
+  # desktop app on macOS, Windows and Linux for each architecture, unsigned,
+  # and the whole set checked against the release contract. A nightly-shaped
+  # version, because the version injection accepts only release versions.
   clients:
     name: Runner and desktop packages
     needs: changes
     if: needs.changes.outputs.clients == 'true' && needs.changes.outputs.draft != 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-        with:
-          release-version: ${{ inputs.release_version }}
-      - name: Runner binaries for every target
-        run: bun apps/runner/scripts/build.ts
-      - name: The runner binary starts
-        run: apps/runner/dist/lictory-runner-linux-x64 --version
-      - name: Desktop app (Linux x64 AppImage)
-        run: bun run --cwd apps/desktop package -- --linux AppImage --arch x64
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-clients.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      version: ${{ inputs.release_version || '0.0.0-nightly.20260101.1' }}
+      signing: false
 
   verify:
     name: Verify

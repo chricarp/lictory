@@ -336,14 +336,32 @@ job attaches them to the draft before it publishes:
 | `Lictory-<version>-mac-universal.dmg` and `.zip` (+ `.zip.blockmap`), `latest-mac.yml`                                                 | macOS runner, Intel and Apple silicon in one app                 |
 | `Lictory-<version>-windows-setup.exe` (+ `.blockmap`), `latest.yml`                                                                    | Windows runner, one installer for x64 and arm64                  |
 | `Lictory-<version>-linux-{x86_64,arm64}.AppImage`, `lictory_<version>_{amd64,arm64}.deb`, `latest-linux.yml`, `latest-linux-arm64.yml` | Linux runner, both architectures                                 |
+| `Lictory-mac-universal.dmg`, `Lictory-windows-setup.exe`, `Lictory-linux-{x64,arm64}.AppImage`, `lictory_{amd64,arm64}.deb`            | Copies of the installers above, without the version              |
 | `SHA256SUMS`, `SHA256SUMS.sigstore.json`                                                                                               | The publish job                                                  |
 
-The names are a contract: the add-runner dialog runs the installer of the
-latest release with the server's own version
-(`lictory-runner-install.sh --version <server version>`), the installers
-download `lictory-runner-<os>-<arch>` of that release, and installed desktop
-apps read `latest*.yml`, which names their installers. Keep these names, and
-keep the installers able to install any earlier release.
+The names are a contract (`packages/core/src/release/downloads.ts`): the
+add-runner dialog runs the installer of the latest release with the
+server's own version (`lictory-runner-install.sh --version <server version>`),
+the installers download `lictory-runner-<os>-<arch>` of that release,
+installed desktop apps read `latest*.yml`, which names their versioned
+installers, and [lictory.com/download](https://lictory.com/download) links to
+`https://github.com/chricarp/lictory/releases/latest/download/<name>` of the
+names without a version. GitHub resolves `latest` to the newest stable
+release (nightlies are prereleases), so those links serve each new stable
+release without a website deployment:
+
+| Version-free name              | Copy of                                   |
+| ------------------------------ | ----------------------------------------- |
+| `Lictory-mac-universal.dmg`    | `Lictory-<version>-mac-universal.dmg`     |
+| `Lictory-windows-setup.exe`    | `Lictory-<version>-windows-setup.exe`     |
+| `Lictory-linux-x64.AppImage`   | `Lictory-<version>-linux-x86_64.AppImage` |
+| `Lictory-linux-arm64.AppImage` | `Lictory-<version>-linux-arm64.AppImage`  |
+| `lictory_amd64.deb`            | `lictory_<version>_amd64.deb`             |
+| `lictory_arm64.deb`            | `lictory_<version>_arm64.deb`             |
+
+The runner binaries, its installers and `SHA256SUMS` have no version in
+their names already. Keep every name, add new ones rather than renaming,
+and keep the installers able to install any earlier release.
 
 **Both channels.** Nightlies carry the downloads too. A stable release
 rebuilds a nightly's source, so the packaging is proven on every candidate
@@ -360,9 +378,10 @@ server still speaks.
 1. downloads the build jobs' artifacts and runs `bun run release clients`
    (the control checkout's code: nothing the downloads contain runs in a job
    that can sign), which refuses an incomplete set, a file it does not
-   expect, or a `latest*.yml` that is for another version or does not
-   describe its installer by SHA-512 and size; installed apps would otherwise
-   fail every update. It writes `SHA256SUMS` over every download;
+   expect, a version-free installer that is not a copy of this version's,
+   or a `latest*.yml` that is for another version or does not describe its
+   installer by SHA-512 and size; installed apps would otherwise fail every
+   update. It writes `SHA256SUMS` over every download, the copies included;
 2. signs `SHA256SUMS` keylessly with cosign (`SHA256SUMS.sigstore.json`, a
    Sigstore bundle) and attests every file it lists with a GitHub artifact
    attestation (SLSA build provenance) (`.github/actions/sign-clients`);
@@ -407,11 +426,15 @@ The identity is the publishing workflow, as for the
   AppImages update either way; they are checked against the SHA-512 in
   `latest-linux*.yml`.
 
-To try the packaging of a branch without releasing anything, run
+Release clients ends with the same check (`scripts/check-client-downloads.ts`,
+unprivileged, before anything is signed), so a broken set fails where it was
+built. To try the packaging of a branch without releasing anything, run
 **Actions → Release clients → Run workflow** on it: every download is built
 unsigned with the version given and kept as workflow artifacts for a week.
-Pull requests that change the runner or the desktop app build the runner for
-every target and the Linux AppImage in CI.
+Pull requests that change the runner, the desktop app or this contract run
+the same workflow from CI (**Runner and desktop packages**, part of
+`Verify`): every download on macOS, Windows and Linux runners, unsigned,
+with the version `0.0.0-nightly.20260101.1`, and the whole set checked.
 
 ## Hotfixes
 

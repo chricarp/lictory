@@ -7,15 +7,19 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import {
   checksums,
-  checksumsName,
   clientAssets,
   desktopInstallers,
   parseUpdateInfo,
+  writeChecksums,
+} from "@lictory/core/release/clients";
+import {
+  checksumsName,
+  latestDesktopInstallers,
+  latestDownloadUrl,
   runnerAsset,
   runnerInstallers,
   runnerTargets,
-  writeChecksums,
-} from "@lictory/core/release/clients";
+} from "@lictory/core/release/downloads";
 import {
   GitHubFixture,
   stable,
@@ -63,6 +67,8 @@ async function downloads() {
       body,
     );
   }
+  for (const [name, versioned] of Object.entries(latestDesktopInstallers))
+    files[name] = files[versioned(version)]!;
   files[`Lictory-${version}-windows-setup.exe.blockmap`] = "blockmap";
   for (const [name, content] of Object.entries(files))
     await writeFile(join(directory, name), content);
@@ -85,12 +91,45 @@ void test("client downloads have contract names that the dialog and installers u
   // GitHub renames asset names with spaces; none has one.
   for (const names of Object.values(desktopInstallers("1.5.0-nightly.1.2")))
     for (const name of names) assert.match(name, /^[\w.+-]+$/, name);
+  // lictory.com/download links to these names of the newest stable release
+  // forever: each is a copy of one versioned installer, none names a version.
+  assert.deepEqual(Object.keys(latestDesktopInstallers), [
+    "Lictory-mac-universal.dmg",
+    "Lictory-windows-setup.exe",
+    "Lictory-linux-x64.AppImage",
+    "Lictory-linux-arm64.AppImage",
+    "lictory_amd64.deb",
+    "lictory_arm64.deb",
+  ]);
+  const installers = Object.values(desktopInstallers("1.5.0")).flat();
+  for (const [name, versioned] of Object.entries(latestDesktopInstallers)) {
+    assert.ok(installers.includes(versioned("1.5.0") as never), name);
+    assert.doesNotMatch(name, /\d+\.\d+/, name);
+  }
+  assert.equal(
+    latestDownloadUrl("lictory_arm64.deb"),
+    "https://github.com/chricarp/lictory/releases/latest/download/lictory_arm64.deb",
+  );
+});
+
+void test("the version-free installers are copies of this version's", async () => {
+  const directory = await downloads();
+  await writeFile(join(directory, "Lictory-linux-x64.AppImage"), "older");
+  await assert.rejects(
+    writeChecksums(directory, version),
+    /Lictory-linux-x64\.AppImage is not a copy of Lictory-1\.5\.0-linux-x86_64\.AppImage/,
+  );
+  await unlink(join(directory, "Lictory-linux-x64.AppImage"));
+  await assert.rejects(
+    writeChecksums(directory, version),
+    /missing: Lictory-linux-x64\.AppImage/,
+  );
 });
 
 void test("SHA256SUMS lists every download in sha256sum's format", async () => {
   const directory = await downloads();
   const assets = await writeChecksums(directory, version);
-  assert.equal(assets.length, 6 + 2 + 4 + 7 + 1);
+  assert.equal(assets.length, 6 + 2 + 4 + 7 + 6 + 1);
   const written = await readFile(join(directory, checksumsName), "utf8");
   assert.equal(written, checksums(assets));
   // `sha256sum -c` accepts it: the installers and operators check with it.
@@ -145,10 +184,11 @@ void test("incomplete, unexpected or mismatched downloads block the release", as
   // An updater file whose SHA-512 is not the installer's would make every
   // installed app fail its update.
   const rebuilt = await downloads();
-  await writeFile(
-    join(rebuilt, `Lictory-${version}-linux-arm64.AppImage`),
-    "rebuilt",
-  );
+  for (const name of [
+    `Lictory-${version}-linux-arm64.AppImage`,
+    "Lictory-linux-arm64.AppImage",
+  ])
+    await writeFile(join(rebuilt, name), "rebuilt");
   await assert.rejects(
     writeChecksums(rebuilt, version),
     /latest-linux-arm64\.yml does not describe Lictory-1\.5\.0-linux-arm64\.AppImage as built/,

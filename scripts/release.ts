@@ -36,12 +36,11 @@ import {
   type Manifest,
 } from "@lictory/core/release/model";
 import { injectVersion } from "@lictory/core/release/build";
+import { clientAssets, writeChecksums } from "@lictory/core/release/clients";
 import {
   checksumsName,
   checksumsSignatureName,
-  clientAssets,
-  writeChecksums,
-} from "@lictory/core/release/clients";
+} from "@lictory/core/release/downloads";
 import {
   assertRun,
   nightlyDue,

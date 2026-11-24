@@ -26,6 +26,8 @@ import {
   releaseFile,
 } from "@lictory/core/release/images";
 import { nightlyEvents } from "@lictory/core/release/plan";
+import { latestDesktopInstallers } from "@lictory/core/release/downloads";
+import { assertBuildVersion } from "@lictory/core/release/version";
 
 void test("releases are pinned by digest in the configured registry", () => {
   assert.deepEqual(assertImages(images(), registry), images());
@@ -116,6 +118,7 @@ void test("manual production intent remains frozen when retries happen after a n
 type Step = {
   if?: string;
   id?: string;
+  name?: string;
   uses?: string;
   run?: string;
   with?: Record<string, string>;
@@ -367,6 +370,31 @@ void test("every release carries runner and desktop downloads, checked, signed a
           );
     }
   }
+  // Every installer also goes out under its version-free contract name
+  // (releases/latest/download/<name>, which lictory.com/download links to),
+  // and the whole set is checked as the publishing job checks it.
+  const collect = build.jobs
+    .desktop!.steps!.find((step) => step.name === "Collect the downloads")!
+    .run!.replaceAll("${VERSION}", "$VERSION");
+  for (const [name, versioned] of Object.entries(latestDesktopInstallers))
+    assert.ok(
+      collect.includes(`latest "${versioned("$VERSION")}" ${name}\n`),
+      name,
+    );
+  const check = build.jobs.check!;
+  assert.deepEqual(check.needs, ["runner", "desktop"]);
+  assert.ok(
+    check.steps!.some(
+      (step) =>
+        step.uses?.startsWith("actions/download-artifact@") &&
+        step.with?.pattern === "clients-*",
+    ),
+  );
+  assert.ok(
+    check.steps!.some((step) =>
+      step.run?.startsWith("bun scripts/check-client-downloads.ts "),
+    ),
+  );
   assert.equal(build.jobs.runner!.environment, undefined);
   assert.equal(
     build.jobs.desktop!.environment,
@@ -796,7 +824,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "branch protection requires the Verify check",
   );
   // Release candidates embed their version in every job that builds.
-  for (const job of ["static", "domain", "browser", "clients"])
+  for (const job of ["static", "domain", "browser"])
     assert.ok(
       jobs[job]!.steps!.some(
         (step) =>
@@ -809,6 +837,20 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     JSON.stringify(compositeAction("setup")),
     /inject-release-version/,
   );
+  // Pull requests build every client download exactly as releases do (the
+  // same reusable workflow, on macOS, Windows and Linux), unsigned and
+  // without secrets, with a version the injection accepts.
+  const clients = jobs.clients!;
+  assert.equal(clients.uses, "./.github/workflows/release-clients.yml");
+  assert.deepEqual(clients.permissions, { contents: "read" });
+  assert.equal(clients.secrets, undefined);
+  assert.equal(clients.with?.ref, "${{ inputs.ref || github.sha }}");
+  assert.equal(String(clients.with?.signing), "false");
+  const ciVersion = /^\$\{\{ inputs\.release_version \|\| '([^']+)' \}\}$/.exec(
+    clients.with?.version ?? "",
+  )?.[1];
+  assert.ok(ciVersion, `CI builds clients with ${clients.with?.version}`);
+  assertBuildVersion(ciVersion);
   // CI never holds credentials beyond its read-only token.
   assert.ok(!JSON.stringify(ci).includes("secrets."));
   assert.equal(ci.permissions.contents, "read");
@@ -1026,6 +1068,13 @@ void test("pull request suite selection fails open", () => {
     unit: "true",
     clients: "true",
   });
+  // So does the contract the build is checked against.
+  for (const path of [
+    "packages/core/src/release/clients.ts",
+    "packages/core/src/release/downloads.ts",
+    "scripts/check-client-downloads.ts",
+  ])
+    assert.equal(select(path).clients, "true", path);
 });
 
 void test("the released version display is preserved", async () => {

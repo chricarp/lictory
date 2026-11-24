@@ -27,9 +27,11 @@ while IFS= read -r path || [ -n "$path" ]; do
     deploy/try.sh | tests/try/* | .github/actions/trial/*) trial=true ;;
   esac
   case "$path" in
-    # The runner and desktop packages (built for every target by each
-    # release), here on Linux.
-    apps/desktop/* | apps/runner/* | .github/workflows/release-clients.yml) clients=true ;;
+    # The runner and desktop packages, built for every target as each
+    # release builds them, and the contract they are checked against.
+    apps/desktop/* | apps/runner/* | .github/workflows/release-clients.yml | \
+      packages/core/src/release/clients.ts | packages/core/src/release/downloads.ts | \
+      scripts/check-client-downloads.ts) clients=true ;;
   esac
   case "$path" in
     # CI itself: prove the whole pipeline still works.

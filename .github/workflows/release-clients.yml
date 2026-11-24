@@ -10,7 +10,9 @@ name: Release clients
 # publish or sign keylessly: the jobs read the repository and keep artifacts.
 #
 # Run workflow builds every download of a branch for testing: unsigned, with
-# the version given, kept as workflow artifacts for a week.
+# the version given, kept as workflow artifacts for a week. CI calls it the
+# same way for pull requests that change the runner or the desktop app, so
+# every package is built on its own operating system before it merges.
 on:
   workflow_call:
     inputs:
@@ -149,7 +151,15 @@ jobs:
           [ "$RUNNER_OS" = Windows ] || unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
           [ "$RUNNER_OS" = macOS ] || unset APPLE_API_KEY_ID APPLE_API_ISSUER
           bun run --cwd apps/desktop package -- "$PLATFORM"
+      # Each installer also goes out under a name without the version (a
+      # copy: latest*.yml keep naming the versioned files electron-updater
+      # downloads), so `releases/latest/download/<name>` always serves the
+      # newest stable release's. These names are a contract
+      # (packages/core/src/release/downloads.ts, which the check job and
+      # the publishing job enforce; lictory.com/download links to them).
       - name: Collect the downloads
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -160,6 +170,13 @@ jobs:
           files=(latest*.yml *.dmg *.zip *.exe *.AppImage *.deb *.blockmap)
           [ "${#files[@]}" -gt 0 ] || { echo "::error::electron-builder produced no packages."; exit 1; }
           cp "${files[@]}" "$out/"
+          latest() { [ ! -f "$1" ] || cp "$1" "$out/$2"; }
+          latest "Lictory-$VERSION-mac-universal.dmg" Lictory-mac-universal.dmg
+          latest "Lictory-$VERSION-windows-setup.exe" Lictory-windows-setup.exe
+          latest "Lictory-$VERSION-linux-x86_64.AppImage" Lictory-linux-x64.AppImage
+          latest "Lictory-$VERSION-linux-arm64.AppImage" Lictory-linux-arm64.AppImage
+          latest "lictory_${VERSION}_amd64.deb" lictory_amd64.deb
+          latest "lictory_${VERSION}_arm64.deb" lictory_arm64.deb
           ls -l "$out"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -168,3 +185,33 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           overwrite: true
+
+  # The whole set, checked as the publishing job checks it before signing
+  # (every runner binary and installer, every desktop installer and its
+  # version-free copy, latest*.yml describing their installers), so a pull
+  # request proves what a release would publish. Nothing is signed here.
+  check:
+    name: Every download, checked
+    needs: [runner, desktop]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.version }}
+          bun-cache: "false"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: clients-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/clients
+      - name: Check the downloads of ${{ inputs.version }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bun scripts/check-client-downloads.ts "$RUNNER_TEMP/clients" "$VERSION"

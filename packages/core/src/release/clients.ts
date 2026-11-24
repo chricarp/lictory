@@ -2,6 +2,14 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  checksumsName,
+  checksumsSignatureName,
+  latestDesktopInstallers,
+  runnerAsset,
+  runnerInstallers,
+  runnerTargets,
+} from "@lictory/core/release/downloads";
 
 // The client downloads of a release, next to its images: the lictory-runner
 // binaries with their installers, and the desktop app's installers with the
@@ -10,32 +18,11 @@ import { join } from "node:path";
 // SHA256SUMS over them (`bun run release clients`), signs and attests it,
 // and `release publish` attaches them to the draft before publishing.
 //
-// Their names are a contract: the add-runner dialog and the installers
-// download `releases/<tag>/download/<name>`, and installed desktop apps find
-// their update through latest*.yml. See docs/operations/releases.md.
-
-export const runnerTargets = [
-  "linux-x64",
-  "linux-arm64",
-  "darwin-x64",
-  "darwin-arm64",
-  "windows-x64",
-  "windows-arm64",
-] as const;
-export type RunnerTarget = (typeof runnerTargets)[number];
-
-export const runnerAsset = (target: RunnerTarget) =>
-  `lictory-runner-${target}${target.startsWith("windows") ? ".exe" : ""}`;
-
-/** apps/runner/install.sh and install.ps1 as release assets. */
-export const runnerInstallers = {
-  "lictory-runner-install.sh": "apps/runner/install.sh",
-  "lictory-runner-install.ps1": "apps/runner/install.ps1",
-} as const;
-
-export const checksumsName = "SHA256SUMS";
-/** The keyless cosign signature of SHA256SUMS (a Sigstore bundle). */
-export const checksumsSignatureName = "SHA256SUMS.sigstore.json";
+// Their names are a contract (downloads.ts): the add-runner dialog and the
+// installers download `releases/<tag>/download/<name>`, installed desktop
+// apps find their update through latest*.yml, and lictory.com/download links
+// to `releases/latest/download/<name>` of the version-free installer copies.
+// See docs/operations/releases.md.
 
 /** The desktop installers of one version, by the file names package.mjs gives them. */
 export function desktopInstallers(version: string) {
@@ -127,7 +114,8 @@ export function parseUpdateInfo(text: string): UpdateInfo {
 /**
  * Every client download of `version` in `directory`, checked before
  * anything is signed or attached: all six runner binaries and both
- * installers, every desktop installer under its contract name, latest*.yml
+ * installers, every desktop installer under its contract name and its
+ * version-free copy, latest*.yml
  * files of this version whose files exist with the SHA-512 and size they
  * state, and nothing else (block maps only next to their installer). An
  * existing SHA256SUMS must list exactly these files.
@@ -151,6 +139,7 @@ export async function clientAssets(
       update,
       ...files,
     ]),
+    ...Object.keys(latestDesktopInstallers),
   ];
   const missing = expected.filter((name) => !present.has(name));
   if (missing.length)
@@ -175,6 +164,14 @@ export async function clientAssets(
     built.set(name, rest);
     assets.push({ name, path, sha256 });
   }
+  // A version-free name serves the newest stable release's installer from
+  // `releases/latest/download/`; it must be exactly this version's file.
+  const sha256 = new Map(assets.map((asset) => [asset.name, asset.sha256]));
+  for (const [name, versioned] of Object.entries(latestDesktopInstallers))
+    if (sha256.get(name) !== sha256.get(versioned(version)))
+      throw new Error(
+        `${name} is not a copy of ${versioned(version)}; rebuild ${version}'s desktop app.`,
+      );
   for (const [update, pattern] of Object.entries(updates)) {
     const info = parseUpdateInfo(
       await readFile(join(directory, update), "utf8"),

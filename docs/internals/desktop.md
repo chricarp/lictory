@@ -251,6 +251,12 @@ SHA-512 and size, since an installed app finds no update without it. See
 come from `package.mjs` (`Lictory-<version>-mac-universal.zip`,
 `-windows-setup.exe`, `-linux-<arch>.AppImage`, `lictory_<version>_<arch>.deb`)
 and contain no spaces, which GitHub would rename, breaking `latest*.yml`.
+Each release also carries a byte-for-byte copy of every installer under a
+name without the version (`Lictory-mac-universal.dmg`,
+`Lictory-windows-setup.exe`, `Lictory-linux-{x64,arm64}.AppImage`,
+`lictory_{amd64,arm64}.deb`), so `releases/latest/download/<name>` always
+serves the newest stable one; lictory.com/download links only to those.
+Updates never use the copies: `latest*.yml` names the versioned files.
 Installed apps follow GitHub's latest release, so nightlies never reach
 them.
 
@@ -265,7 +271,9 @@ and records that it does not update itself.
 
 `bun run --cwd apps/desktop package -- --linux` (or `--mac`, `--win`) builds
 `dist/` and packages it with electron-builder (`package.mjs`), never
-publishing:
+publishing. Each operating system packages on its own (macOS only builds
+on macOS); CI builds all three, unsigned, for every pull request that
+changes the app, with the same workflow releases use:
 
 - **macOS:** universal (Intel and Apple silicon) DMG and ZIP (the ZIP feeds
   updates), hardened runtime with JIT, camera and microphone entitlements.
