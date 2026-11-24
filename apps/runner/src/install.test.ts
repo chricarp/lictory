@@ -59,7 +59,12 @@ after(() => server.close());
 let runs = 0;
 async function install(
   args: string[],
-  options: { tag?: string; os?: string; arch?: string } = {},
+  options: {
+    tag?: string;
+    os?: string;
+    arch?: string;
+    env?: Record<string, string>;
+  } = {},
 ) {
   const home = join(scratch, `run-${++runs}`);
   const shims = join(home, "shims");
@@ -79,6 +84,9 @@ async function install(
       HOME: home,
       LICTORY_TEST_CALLS: calls,
       LICTORY_RUNNER_DOWNLOAD_URL: `${origin}/${options.tag ?? "v9.9.9"}`,
+      // Never the machine's own /usr/local/bin (writable on CI runners).
+      LICTORY_RUNNER_SYSTEM_DIR: join(home, "no-system-bin"),
+      ...options.env,
     },
   });
   let stdout = "";
@@ -128,13 +136,26 @@ void test("installs the binary for the system after checking SHA256SUMS", async 
 });
 
 void test("defaults to ~/.local/bin and replaces an older binary in place", async () => {
+  // Root creates the system directory instead, which the next test checks.
+  if (process.getuid?.() === 0) return;
   const first = await install([]);
   assert.equal(first.status, 0, first.stderr);
-  // /usr/local/bin is not writable for the test's user (unless it runs as
-  // root, which writes there instead and is not what this test checks).
-  if (process.getuid?.() === 0) return;
   const binary = join(first.home, ".local", "bin", "lictory-runner");
   assert.ok((await readFile(binary, "utf8")).includes("linux-x64"));
+});
+
+void test("prefers a writable system directory", async () => {
+  const system = join(scratch, "system-bin");
+  await mkdir(system, { recursive: true });
+  const result = await install([], {
+    env: { LICTORY_RUNNER_SYSTEM_DIR: system },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(
+    (await readFile(join(system, "lictory-runner"), "utf8")).includes(
+      "linux-x64",
+    ),
+  );
 });
 
 void test("registers and installs the service when given a server and token", async () => {

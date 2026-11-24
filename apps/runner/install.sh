@@ -16,6 +16,7 @@
 #   --dir <path>    LICTORY_RUNNER_INSTALL_DIR   default /usr/local/bin when writable, else ~/.local/bin
 #   --url, --token, --name, --service            register (and install the service) afterwards
 #   LICTORY_RUNNER_DOWNLOAD_URL                  base URL of the release files (mirrors, tests)
+#   LICTORY_RUNNER_SYSTEM_DIR                    the system directory tried first, default /usr/local/bin
 #
 # Later releases keep publishing this script under the same name and the
 # binaries as lictory-runner-<linux|darwin>-<x64|arm64>, so the newest script
@@ -130,8 +131,9 @@ actual=$(sha256 "$work/lictory-runner")
 chmod 755 "$work/lictory-runner"
 
 if [ -z "$dir" ]; then
-  if [ -w /usr/local/bin ] || { [ "$(id -u)" = 0 ] && mkdir -p /usr/local/bin; }; then
-    dir=/usr/local/bin
+  system_dir=${LICTORY_RUNNER_SYSTEM_DIR:-/usr/local/bin}
+  if [ -w "$system_dir" ] || { [ "$(id -u)" = 0 ] && mkdir -p "$system_dir"; }; then
+    dir=$system_dir
   else
     dir=$HOME/.local/bin
   fi
