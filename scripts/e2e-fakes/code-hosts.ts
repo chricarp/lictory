@@ -216,14 +216,12 @@ async function control(
       return [204];
     }
     if (method === "POST" && match[3] === "checks") {
-      model.repos
-        .get(repo.fullName)!
-        .checks.set(pull.sha, [
-          {
-            name: typeof body.name === "string" ? body.name : "ci",
-            state: body.state as Check["state"],
-          },
-        ]);
+      model.repos.get(repo.fullName)!.checks.set(pull.sha, [
+        {
+          name: typeof body.name === "string" ? body.name : "ci",
+          state: body.state as Check["state"],
+        },
+      ]);
       await events.checks(repo, pull.sha, pull);
       return [204];
     }
