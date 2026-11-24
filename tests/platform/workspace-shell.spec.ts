@@ -139,8 +139,11 @@ test("navigation commits immediately inside the persistent shell and shows a loa
   }
   await expect(loading).toBeHidden();
   await page.unroute("**/assets/board-*.js");
+  // The board names its project in the header's breadcrumb.
   await expect(
-    page.getByRole("heading", { name: "Loading project", exact: true }),
+    page
+      .getByRole("navigation", { name: "Breadcrumb" })
+      .getByRole("link", { name: "Loading project", exact: true }),
   ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
   expect(await railNode.evaluate((node) => node.isConnected)).toBe(true);

@@ -1,14 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  Bot,
-  Check,
-  Factory,
-  Hand,
-  History,
-  Play,
-  Server,
-  Zap,
-} from "lucide-react";
+import { Bot, Check, Hand, History, Play, Server, Zap } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { runnerOnline } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
@@ -203,7 +194,7 @@ function Setup({
   return (
     <MissingState
       headingLevel={2}
-      icon={Factory}
+      illustration="planning"
       title="Set up the factory"
       action={
         !hasRunners ? (
