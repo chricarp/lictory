@@ -67,6 +67,8 @@ type Props = {
   compact?: boolean;
   // Show the link to the session (off inside the transcript itself).
   linkSession?: boolean;
+  // Show the work item (off where the surrounding card already names it).
+  linkItem?: boolean;
   // Replaces the server call (the design gallery's examples).
   onDecide?: (decision: "approve" | "deny") => Promise<void>;
 };
@@ -74,6 +76,7 @@ type Props = {
 export function ApprovalRequest({
   compact = false,
   linkSession = true,
+  linkItem = true,
   ...props
 }: Props) {
   const [open, setOpen] = useState(!compact);
@@ -86,7 +89,7 @@ export function ApprovalRequest({
         className="rounded-xl bg-card p-4 shadow-(--shadow-border) [--actor-ring:var(--card)]"
       >
         <Ask approval={approval} agent={agent} session={session} />
-        <Context {...props} linkSession={linkSession} />
+        <Context {...props} linkSession={linkSession} linkItem={linkItem} />
       </div>
     );
   return (
@@ -145,7 +148,7 @@ export function ApprovalRequest({
       </div>
       {open && (
         <div id={bodyId} className="px-3.5 pb-3.5 pl-[46px]">
-          <Context {...props} linkSession={linkSession} />
+          <Context {...props} linkSession={linkSession} linkItem={linkItem} />
         </div>
       )}
     </li>
@@ -250,8 +253,9 @@ function Context({
   agent,
   runner,
   linkSession,
+  linkItem,
   onDecide,
-}: Props & { linkSession: boolean }) {
+}: Props & { linkSession: boolean; linkItem: boolean }) {
   const { organization, userId, items, projects, memberName } = useWorkspace();
   const org = organization.slug;
   const { events, complete } = useSessionEvents(session.id, 60);
@@ -294,7 +298,7 @@ function Context({
             </Link>
           </Fact>
         )}
-        {item && project && (
+        {linkItem && item && project && (
           <Fact label="Work item">
             <Link
               href={paths.item(
