@@ -1,4 +1,4 @@
-import { comparisonRows } from "@lictory/marketing/components/landing/content";
+import { featureList } from "@lictory/marketing/components/landing/content";
 import { installUrl } from "@lictory/marketing/lib/get-started";
 import {
   absoluteUrl,
@@ -65,8 +65,10 @@ export const applicationNode = {
   url: absoluteUrl("/"),
   description: siteSummary,
   applicationCategory: "BusinessApplication",
-  applicationSubCategory: "Requirements management and project management",
-  operatingSystem: "Linux (server, Docker); used in a web browser",
+  applicationSubCategory:
+    "Team chat, requirements review, project management and coding agent orchestration",
+  operatingSystem:
+    "Linux (server, Docker); used in a web browser or the desktop app for macOS, Windows and Linux",
   license: "https://opensource.org/license/mit",
   image: absoluteUrl(marketingImage.path),
   publisher: { "@id": schemaIds.organization },
@@ -78,9 +80,7 @@ export const applicationNode = {
     description: "Free and open source (MIT), installed on your own server",
     url: installUrl,
   },
-  featureList: comparisonRows
-    .filter((row) => row.lictory === "yes")
-    .map((row) => row.feature),
+  featureList,
 };
 
 /** Home, then every ancestor that is itself a public page, then the page. */

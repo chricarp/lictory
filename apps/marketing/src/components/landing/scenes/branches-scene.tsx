@@ -22,10 +22,11 @@ import {
   SceneFrame,
   useSiteTheme,
 } from "@lictory/marketing/components/landing/scenes/scene-frame";
-import "./hero-scene.css";
+import "./branches-scene.css";
 
 /*
- * The hero: one specification's pull request, in the product's own window.
+ * Specifications: one specification's pull request, in the product's own
+ * window.
  *
  * Story (what the system does, then one human decision): Theo branches the
  * payment retry specification from revision 12. Litto and Ana's agent branch
@@ -536,11 +537,11 @@ function Scene({ s, layout }: { s: S; layout: Layout }) {
   );
 }
 
-export function HeroScene() {
+export function BranchesScene() {
   const theme = useSiteTheme();
   return (
     <SceneFrame
-      className="hero-scene"
+      className="branches-scene"
       label="Theo from engineering, Litto and Ana’s agent change the payment retry specification on parallel branches. Their work merges into one pull request, which passes its Lictory Intelligence check and collects product, engineering and QA approval. A person merges it as revision 13."
     >
       {(run) => (

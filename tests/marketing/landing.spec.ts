@@ -5,19 +5,18 @@ import { test, expect } from "@playwright/test";
 const tryUrl = "https://docs.lictory.com/self-hosting/try";
 const installUrl = "https://docs.lictory.com/self-hosting/install";
 const repositoryUrl = "https://github.com/chricarp/lictory";
+const hero = "From conversation to shipped code. People decide.";
 
 for (const width of [320, 390]) {
-  test(`mobile landing makes getting started visible and demonstrates refinement at ${width}px`, async ({
+  test(`mobile landing makes getting started visible and tells the factory story at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 
-    const hero = page.getByRole("region", {
-      name: "Agree on what to build before anyone builds it",
-    });
-    const start = hero.getByRole("link", { name: "Get started" });
+    const heroRegion = page.getByRole("region", { name: hero });
+    const start = heroRegion.getByRole("link", { name: "Get started" });
     // Geometry snapshots can race with rendering, even after a visibility check.
     await expect(async () => {
       const startBox = await start.boundingBox();
@@ -28,14 +27,36 @@ for (const width of [320, 390]) {
 
     // Each illustration is one described image. Under reduced motion it is a
     // still of its result, with nothing to replay.
-    const heroScene = hero.getByRole("img", {
-      name: /parallel branches.*revision 13/,
+    const heroScene = heroRegion.getByRole("img", {
+      name: /promotes a customer request.*revision 4.*Priya merges/,
     });
     await expect(heroScene).toBeVisible();
     await expect(
-      heroScene.getByText("Revision 13", { exact: true }),
+      heroScene.getByText(/is done\. Delivered revision 4\./),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Replay" })).toHaveCount(0);
+
+    // The loop names who lets work past each gate.
+    const loop = page.getByRole("list", {
+      name: "The loop from conversation to shipped code",
+    });
+    await expect(loop.getByRole("listitem")).toHaveCount(5);
+    await expect(loop.getByText("Decided by a person:")).toHaveCount(4);
+    await expect(loop.getByText("Evidence:")).toHaveCount(1);
+
+    for (const module of [
+      "Channels",
+      "Work",
+      "Factory",
+      "Code",
+      "Spaces",
+      "Desktop",
+    ])
+      await expect(
+        page
+          .locator("#modules")
+          .getByRole("heading", { level: 3, name: module, exact: true }),
+      ).toBeVisible();
 
     const review = page.getByRole("img", {
       name: /blocking question.*revision 13/,
@@ -47,6 +68,11 @@ for (const width of [320, 390]) {
     const reviewBox = await review.boundingBox();
     expect(reviewBox!.x).toBeGreaterThanOrEqual(0);
     expect(reviewBox!.x + reviewBox!.width).toBeLessThanOrEqual(width);
+
+    // A person answers the agent's request; the scene rests on that answer.
+    const runners = page.getByRole("img", { name: /Theo approves/ });
+    await runners.scrollIntoViewIfNeeded();
+    await expect(runners.getByText("Approved", { exact: true })).toBeVisible();
     await expect(page.getByRole("img", { name: /same history/ })).toBeVisible();
 
     // The review tools are listed, not hidden behind a disclosure.
@@ -54,21 +80,12 @@ for (const width of [320, 390]) {
       page.getByRole("term").filter({ hasText: "Revision-bound approvals" }),
     ).toBeVisible();
 
-    // Key differences are visible without interaction; phones get cards, not a wide table.
+    // Phones compare with the tool stack as cards, not a wide table.
     const comparison = page.getByRole("list", {
-      name: "Lictory compared with Jira and Linear",
+      name: "What a team needs, in a typical tool stack and in Lictory",
     });
-    await expect(
-      comparison.getByText("Approvals bound to a specific revision"),
-    ).toBeVisible();
+    await expect(comparison.getByText("Run coding agents")).toBeVisible();
     await expect(page.getByRole("table")).toBeHidden();
-    await expect(
-      comparison.getByText("Estimates, burndown, velocity"),
-    ).toBeHidden();
-    await page.getByRole("button", { name: /Show full comparison/ }).click();
-    await expect(
-      comparison.getByText("Estimates, burndown, velocity"),
-    ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
@@ -77,34 +94,35 @@ for (const width of [320, 390]) {
   });
 }
 
-test("desktop landing shows the comparison table and plays the hero story", async ({
+test("desktop landing shows the stack comparison and plays the hero story", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
 
   const table = page.getByRole("table", {
-    name: "Lictory compared with Jira and Linear",
+    name: "What a team needs, in a typical tool stack and in Lictory",
   });
   await expect(table).toBeVisible();
   await expect(
-    table.getByRole("rowheader", { name: "Durable decision records" }),
+    table.getByRole("rowheader", { name: "Run coding agents" }),
   ).toBeVisible();
 
   // The hero plays its story once, ends on the merge, and Replay tells it again.
-  const heroScene = page.getByRole("img", { name: /parallel branches/ });
+  const heroScene = page.getByRole("img", { name: /promotes a customer/ });
   const state = (text: string) =>
     heroScene.locator(".ss-states__item[data-on]", {
       hasText: new RegExp(`^${text}$`),
     });
-  await expect(state("Open")).toHaveCount(1);
-  await expect(state("Merged").first()).toBeVisible({ timeout: 20_000 });
+  await expect(heroScene.getByText("Merged by Priya Shah")).toHaveCount(0);
+  await expect(state("Merged").first()).toBeVisible({ timeout: 25_000 });
+  await expect(heroScene.getByText(/Delivered revision 4/)).toBeVisible();
   await page
     .locator(".hero-scene")
     .getByRole("button", { name: "Replay" })
     .click();
-  await expect(state("Open")).toHaveCount(1);
-  await expect(state("Merged").first()).toBeVisible({ timeout: 20_000 });
+  await expect(state("Merged")).toHaveCount(0);
+  await expect(state("Merged").first()).toBeVisible({ timeout: 25_000 });
 });
 
 test("/home permanently redirects to the landing page", async ({
@@ -140,7 +158,7 @@ test("calls to action lead to the laptop trial, the server installation and the 
     repositoryUrl,
   );
   const hero = page.getByRole("region", {
-    name: "Agree on what to build before anyone builds it",
+    name: hero,
   });
   await expect(hero.getByRole("link", { name: "GitHub" })).toHaveAttribute(
     "href",
@@ -152,7 +170,7 @@ test("calls to action lead to the laptop trial, the server installation and the 
 });
 
 for (const width of [320, 390, 768, 1280]) {
-  test(`marketing navigation exposes workflow and agent sections at ${width}px`, async ({
+  test(`marketing navigation exposes the factory and agent sections at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -203,12 +221,12 @@ test("persistent navigation tracks reading position and works from a guide", asy
     .locator("main")
     .evaluate((node) => node.getBoundingClientRect().top + window.scrollY);
   await page
-    .locator("#delivery")
+    .locator("#factory")
     .evaluate((node) =>
       node.scrollIntoView({ block: "start", behavior: "instant" }),
     );
   await expect(
-    nav.getByRole("link", { name: "Delivery", exact: true }),
+    nav.getByRole("link", { name: "Factory", exact: true }),
   ).toHaveAttribute("aria-current", "location");
   await expect(page.getByRole("banner")).toHaveAttribute("data-scrolled");
   await expect(
@@ -225,12 +243,12 @@ test("persistent navigation tracks reading position and works from a guide", asy
   await expect(
     nav.getByRole("link", { name: "Guides", exact: true }),
   ).toHaveAttribute("aria-current", "location");
-  await nav.getByRole("link", { name: "Workflow", exact: true }).click();
-  await expect(page).toHaveURL(/\/#features$/);
+  await nav.getByRole("link", { name: "How it works", exact: true }).click();
+  await expect(page).toHaveURL(/\/#how-it-works$/);
   await expect(
-    nav.getByRole("link", { name: "Workflow", exact: true }),
+    nav.getByRole("link", { name: "How it works", exact: true }),
   ).toHaveAttribute("aria-current", "location");
-  await expect(page.locator("#features-title")).toBeInViewport();
+  await expect(page.locator("#how-it-works-title")).toBeInViewport();
 });
 
 test("mobile navigation dismisses outside, stays closed after resizing and respects reduced motion", async ({
@@ -246,7 +264,7 @@ test("mobile navigation dismisses outside, stays closed after resizing and respe
   await expect(menu).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(
-    menu.getByRole("link", { name: "Workflow", exact: true }),
+    menu.getByRole("link", { name: "How it works", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(toggle).toBeFocused();
@@ -255,7 +273,7 @@ test("mobile navigation dismisses outside, stays closed after resizing and respe
   await expect(
     page
       .getByRole("region", {
-        name: "Agree on what to build before anyone builds it",
+        name: hero,
       })
       .getByRole("link", { name: "Get started" }),
   ).toBeFocused();
@@ -299,7 +317,7 @@ test("the open-source link describes the project directly and leads to its code"
     name: "Open source. Yours to shape.",
   });
   await expect(section).toContainText(
-    "Lictory is open-source work management for software teams.",
+    "Lictory is an open-source control plane for software teams and their agents.",
   );
   await expect(
     section.getByRole("link", { name: "View on GitHub" }),

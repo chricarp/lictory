@@ -1,21 +1,23 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  GitBranch,
-  GitCommitHorizontal,
-  GitMerge,
-  GitPullRequest,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 
-import { ComparisonTable } from "@lictory/marketing/components/landing/comparison";
 import {
   comparisonPath,
   comparisons,
 } from "@lictory/marketing/content/comparisons";
 import { roundups } from "@lictory/marketing/content/roundups";
-import { faqs } from "@lictory/marketing/components/landing/content";
+import {
+  faqs,
+  harnesses,
+  trustPrinciples,
+} from "@lictory/marketing/components/landing/content";
+import {
+  AutonomyLevels,
+  LoopDiagram,
+  ModuleGrid,
+  StackComparison,
+} from "@lictory/marketing/components/landing/factory-sections";
 import { StructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { MarketingFooter } from "@lictory/marketing/components/marketing/chrome";
 import { MarketingHeader } from "@lictory/marketing/components/marketing/header";
@@ -24,12 +26,13 @@ import {
   InstallServerLink,
   RepositoryCta,
 } from "@lictory/marketing/components/marketing/get-started-cta";
+import { FactoryScene } from "@lictory/marketing/components/landing/scenes/factory-scene";
+import { BranchesScene } from "@lictory/marketing/components/landing/scenes/branches-scene";
 import { ReviewScene } from "@lictory/marketing/components/landing/scenes/review-scene";
-import { HeroScene } from "@lictory/marketing/components/landing/scenes/hero-scene";
+import { RunnersScene } from "@lictory/marketing/components/landing/scenes/runners-scene";
 import { AgentsScene } from "@lictory/marketing/components/landing/scenes/agents-scene";
 import { ModelsScene } from "@lictory/marketing/components/landing/scenes/models-scene";
 import { SpacesEditorScene } from "@lictory/marketing/components/landing/scenes/spaces-editor-scene";
-import { SpacesReviewScene } from "@lictory/marketing/components/landing/scenes/spaces-review-scene";
 import {
   BoardStill,
   PublishStill,
@@ -43,15 +46,15 @@ export function Landing() {
       <MarketingHeader page="home" />
       <main id="main-content">
         <Hero />
-        <Shift />
-        <Workflow />
+        <Loop />
+        <Modules />
+        <Specifications />
+        <Factory />
         <Agents />
-        <Models />
-        <Disciplines />
         <Delivery />
         <Spaces />
+        <SelfHosted />
         <Comparison />
-        <OpenSource />
         <Faq />
         <FinalCta />
       </main>
@@ -65,12 +68,14 @@ function Hero() {
   return (
     <section aria-labelledby="hero-title" className="hero site-width">
       <div className="hero-copy">
-        <h1 id="hero-title">Agree on what to build before anyone builds it</h1>
+        <h1 id="hero-title">
+          From conversation to shipped code. People decide.
+        </h1>
         <div className="hero-side">
           <p className="hero-lead">
-            Lictory gives product requirements branches, pull requests and
-            checks. Product, engineering, QA and their agents refine the same
-            specification in parallel, then approve one reviewed result.
+            Lictory is the control plane of a software factory: your team and
+            its agents agree on what to build, and agents write the code on
+            machines you control.
           </p>
           <div className="hero-actions">
             <GetStartedCta placement="hero" page="home" />
@@ -83,7 +88,7 @@ function Hero() {
           />
         </div>
       </div>
-      <HeroScene />
+      <FactoryScene />
     </section>
   );
 }
@@ -116,141 +121,48 @@ function SectionHeading({
   );
 }
 
-function Shift() {
+function Loop() {
   return (
     <section
-      id="why-lictory"
-      aria-labelledby="why-lictory-title"
+      id="how-it-works"
+      aria-labelledby="how-it-works-title"
       className="section site-width"
     >
-      <div className="shift">
-        <SectionHeading
-          id="why-lictory"
-          label="Why Lictory"
-          title="Coding agents moved the bottleneck upstream"
-        >
-          Trackers were built around the part of a work item’s life that took
-          longest: implementation. Agents now write much of that code. What
-          takes the time is deciding exactly what the code should do, and that
-          still happens in scattered documents, threads and meetings.
-        </SectionHeading>
-        <ShiftChart />
-      </div>
-      <div className="principles">
-        <div>
-          <h3>Intent before assignment</h3>
-          <p>
-            Agree on the problem, the expected behavior and the constraints
-            before the item reaches a developer or an agent.
-          </p>
-        </div>
-        <div>
-          <h3>Questions before rework</h3>
-          <p>
-            Find failure cases, conflicting assumptions and missing criteria
-            while they cost a sentence to fix, not a sprint.
-          </p>
-        </div>
-        <div>
-          <h3>Evidence before ready</h3>
-          <p>
-            Ready means the checks passed: the revision that was reviewed, its
-            approvals, and no open blockers.
-          </p>
-        </div>
-      </div>
+      <SectionHeading
+        id="how-it-works"
+        label="How it works"
+        title="One loop, with a person at every gate"
+      >
+        Every piece of work moves from a conversation to shipped code through
+        the same five stages. Agents do the work inside each stage. Moving past
+        a gate is a recorded act by a person, or evidence that the work is done.
+      </SectionHeading>
+      <LoopDiagram />
     </section>
   );
 }
 
-function ShiftChart() {
-  const rows = [
-    {
-      era: "Before coding agents",
-      parts: [
-        ["Define", 22],
-        ["Build", 56],
-        ["Verify", 22],
-      ],
-      note: { part: 1, text: "What trackers were built for" },
-    },
-    {
-      era: "With coding agents",
-      parts: [
-        ["Define", 56],
-        ["Build", 22],
-        ["Verify", 22],
-      ],
-      note: { part: 0, text: "What Lictory is built for" },
-    },
-  ] as const;
+function Modules() {
   return (
-    <figure className="shift-chart">
-      <figcaption>
-        Where a work item spends its time{" "}
-        <span>Illustrative, not measured</span>
-      </figcaption>
-      {rows.map(({ era, parts, note }) => {
-        const offset = parts
-          .slice(0, note.part)
-          .reduce((sum, [, size]) => sum + size, 0);
-        return (
-          <div key={era} className="shift-row">
-            <p>{era}</p>
-            <div className="shift-bar">
-              {parts.map(([name, size], index) => (
-                <span
-                  key={name}
-                  data-part={name.toLowerCase()}
-                  data-noted={index === note.part || undefined}
-                  style={{ width: `${size}%` }}
-                >
-                  {name}
-                </span>
-              ))}
-            </div>
-            <p
-              className="shift-note"
-              style={{
-                marginLeft: `${offset}%`,
-                width: `${parts[note.part][1]}%`,
-              }}
-            >
-              {note.text}
-            </p>
-          </div>
-        );
-      })}
-    </figure>
+    <section
+      id="modules"
+      aria-labelledby="modules-title"
+      className="section site-width"
+    >
+      <SectionHeading
+        id="modules"
+        label="Modules"
+        title="The tools a software team runs on, in one product"
+      >
+        Chat, specifications, delivery, agents, code and knowledge share one
+        data model, one permission check and one history. A message links to the
+        proposal it became, the proposal to its pull requests, the pull request
+        to the revision it delivered.
+      </SectionHeading>
+      <ModuleGrid />
+    </section>
   );
 }
-
-const steps = [
-  {
-    tag: "Main",
-    icon: GitCommitHorizontal,
-    name: "Main holds the agreement",
-    body: "Every specification has a main line. Each material change to it creates an immutable revision, so you can always return to exactly what was approved.",
-  },
-  {
-    tag: "Branch",
-    icon: GitBranch,
-    name: "Branch to explore",
-    body: "Anyone can branch a specification to try a change. Collaborators and agents commit to it. Independent edits combine on their own; overlapping ones ask a person to choose.",
-  },
-  {
-    tag: "Review",
-    icon: GitPullRequest,
-    name: "Review the pull request",
-    body: "Reviewers from each discipline read the diff and discuss the exact sentence. Lictory Actions can check every new commit, like CI for requirements.",
-  },
-  {
-    tag: "Merge",
-    icon: GitMerge,
-    name: "Merge one result",
-    body: "Approvals record the exact content they covered, so a later change makes them stale. A merge needs every required approval, no blocking discussion and no conflict.",
-  },
-] as const;
 
 const reviewTools = [
   [
@@ -261,43 +173,30 @@ const reviewTools = [
   ["Anchored threads", "Discussions stay attached to the text they are about."],
   ["Actionable suggestions", "Inspect a proposed change before accepting it."],
   ["Revision-bound approvals", "Know which version each reviewer approved."],
-  ["Durable decisions", "Keep the conclusion long after the discussion ends."],
+  [
+    "Readiness checks",
+    "Ready means the checks passed, not that someone set a status.",
+  ],
 ] as const;
 
-function Workflow() {
+function Specifications() {
   return (
     <section
-      id="features"
-      aria-labelledby="features-title"
+      id="specifications"
+      aria-labelledby="specifications-title"
       className="section site-width"
     >
-      <div className="workflow">
-        <SectionHeading
-          id="features"
-          label="How it works"
-          title="Requirements get branches, pull requests and checks"
-        >
-          The model that lets many engineers change one codebase safely, applied
-          to the specification. Nobody overwrites the agreed version, and
-          nothing merges without review.
-        </SectionHeading>
-        <ol className="steps">
-          {steps.map(({ name, body, tag, icon: Icon }, index) => (
-            <li key={name}>
-              <div className="step-head">
-                <span className="step-icon">
-                  <Icon aria-hidden />
-                </span>
-                <span className="step-index">
-                  {String(index + 1).padStart(2, "0")} · {tag}
-                </span>
-              </div>
-              <h3>{name}</h3>
-              <p>{body}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <SectionHeading
+        id="specifications"
+        label="Specifications"
+        title="Agents build what the team agreed, not what someone typed"
+      >
+        The approved specification is the contract agents and people work
+        against. Product, engineering, QA and their agents propose changes on
+        branches, review them as pull requests and approve one result. Nobody
+        overwrites the agreed version, and nothing merges without review.
+      </SectionHeading>
+      <BranchesScene />
 
       <div className="review-stage">
         <div className="review-stage-copy">
@@ -308,7 +207,8 @@ function Workflow() {
           </h3>
           <p>
             A blocking question on one sentence, a revision that answers it, and
-            approvals that name the revision they cover.
+            approvals that name the revision they cover. A later change makes
+            them stale.
           </p>
         </div>
         <ReviewScene />
@@ -326,127 +226,92 @@ function Workflow() {
   );
 }
 
+function Factory() {
+  return (
+    <section
+      id="factory"
+      aria-labelledby="factory-title"
+      className="section site-width"
+    >
+      <SectionHeading
+        id="factory"
+        label="Factory"
+        title="Coding agents on machines you control"
+      >
+        Install <code>lictory-runner</code> on a server, a VPS, a laptop or a
+        Mac mini under a desk. It connects out to your Lictory server, needs no
+        open port, and runs {harnesses.slice(0, -1).join(", ")} or{" "}
+        {harnesses.at(-1)} in a separate git worktree for every session.
+      </SectionHeading>
+      <RunnersScene />
+
+      <div className="factory-detail">
+        <div className="factory-detail-copy">
+          <h3>Choose how much runs by itself</h3>
+          <p>
+            Each project sets its autonomy policy, and can turn it down at any
+            time without stranding work: sessions in flight finish or can be
+            canceled, and items return to the ready queue.
+          </p>
+        </div>
+        <AutonomyLevels />
+      </div>
+
+      <div className="factory-facts">
+        <div>
+          <h3>Credentials are issued, not stored</h3>
+          <p>
+            Each session gets a short-lived, repository-scoped code host token
+            and a Lictory token bound to its agent. The built-in agent’s model
+            calls go through your server, so model keys never reach the runner.
+          </p>
+        </div>
+        <div>
+          <h3>Steer every session from its thread</h3>
+          <p>
+            A session’s thread is where you answer its questions, approve what
+            it asks for and send it a message. The Factory view shows its full
+            log, its diff and controls to interrupt, cancel or retry.
+          </p>
+        </div>
+        <div>
+          <h3>Your code host stays the source</h3>
+          <p>
+            GitHub, GitLab or Bitbucket, cloud or self-managed. Webhooks are
+            verified and replayable, and Lictory writes to the host only through
+            explicit commands: create a branch, open, comment on or merge a pull
+            request.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Agents() {
   return (
     <section id="agents" aria-labelledby="agents-title" className="agents ink">
       <div className="site-width">
         <SectionHeading
           id="agents"
-          label="Agents"
-          title="Anything you can do in Lictory, an agent can do for you"
+          label="Agents you can trust"
+          title="Agents are members of the team, with an accountable person"
         >
           Every workspace action is a capability with one permission check.
           Click it, ask Litto, or call it from your own agent over MCP. There
-          are no human-only workflows and no agent-only shortcuts.
+          are no human-only workflows and no agent-only shortcuts, and nothing
+          moves because text said so.
         </SectionHeading>
         <AgentsScene />
-        <div className="agent-facts">
-          <div>
-            <h3>Same permissions</h3>
-            <p>
-              An agent can never do what its person could not do in the browser.
-              Credentials and account security stay with the person.
-            </p>
-          </div>
-          <div>
-            <h3>Decisions stay human</h3>
-            <p>
-              Approvals and merges are decisions. Litto asks before making one,
-              and Lictory Intelligence never approves, resolves or merges.
-            </p>
-          </div>
-          <div>
-            <h3>Every call on the record</h3>
-            <p>
-              History shows who changed what, on which revision. Calls made by
-              agents are audited too.
-            </p>
-          </div>
-        </div>
+        <dl className="trust-list">
+          {trustPrinciples.map(({ title, body }) => (
+            <div key={title}>
+              <dt>{title}</dt>
+              <dd>{body}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
-    </section>
-  );
-}
-
-function Models() {
-  return (
-    <section
-      id="models"
-      aria-labelledby="models-title"
-      className="models site-width"
-    >
-      <SectionHeading
-        id="models"
-        label="Your models"
-        title="Use the AI your company trusts, in the cloud or on your own hardware"
-      >
-        Connect OpenAI, Anthropic, Google Gemini or Vertex AI, Azure OpenAI,
-        Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter. Or run
-        open-weight models with Ollama, vLLM, LM Studio or llama.cpp, and
-        dictate through your own Whisper server. Lictory works without AI, too.
-      </SectionHeading>
-      <ModelsScene />
-      <div className="model-facts">
-        <div>
-          <h3>Set up in the admin console</h3>
-          <p>
-            Pick a provider, paste a key and test every feature before you save.
-            Keys stay encrypted on your server. Prefer the terminal?{" "}
-            <code>lictory ai setup</code> does the same.
-          </p>
-        </div>
-        <div>
-          <h3>Self-hosted means self-hosted</h3>
-          <p>
-            Choose a model server you run, and content goes there and nowhere
-            else. Nothing falls back to a cloud you did not choose.
-          </p>
-        </div>
-        <div>
-          <h3>Every organization decides</h3>
-          <p>
-            Instance administrators choose the provider. Each organization
-            chooses whether its content may be sent, and sees where it goes.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const disciplines = [
-  ["Product", "What outcome should the customer see?"],
-  ["Engineering", "What happens if the provider times out?"],
-  ["QA", "How do we prove a retry never charges twice?"],
-  ["Security", "Who is allowed to trigger another attempt?"],
-  ["Operations", "How will we know retries are failing?"],
-] as const;
-
-function Disciplines() {
-  return (
-    <section
-      id="collaboration"
-      aria-labelledby="collaboration-title"
-      className="section site-width split"
-    >
-      <SectionHeading
-        id="collaboration"
-        compact
-        label="Disciplines"
-        title="Every perspective, before the sprint"
-      >
-        Product, engineering, QA, security and operations review the same
-        specification, each from their own angle. Questions attach to the text
-        they are about, so nobody has to ask what a comment meant.
-      </SectionHeading>
-      <ul className="discipline-list">
-        {disciplines.map(([who, question]) => (
-          <li key={who}>
-            <span>{who}</span>
-            <p>{question}</p>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -462,7 +327,7 @@ function Delivery() {
         id="delivery"
         compact
         label="Delivery"
-        title="Agreed. Now ship it where your team works"
+        title="Deliver in Lictory, or publish to Jira"
       >
         Break the approved specification into stories and tasks that remember
         the revision they came from. Each project picks one system to own
@@ -474,8 +339,8 @@ function Delivery() {
           <h3>Deliver in Lictory</h3>
           <p>
             Boards, a ranked backlog, sprints or cycles, estimates, subtasks and
-            relations. Starting work can wait until the specification passes its
-            readiness checks.
+            relations. Agents claim only items the readiness policy allows to
+            start.
           </p>
         </article>
         <article>
@@ -503,28 +368,12 @@ const spaceFacts = [
     "Published versions never change. Compare any two word by word; restoring an old one adds a new version.",
   ],
   [
-    "Approvals for the exact result",
-    "A later change to the result makes an approval stale and tells the reviewer. Nobody approves their own change.",
-  ],
-  [
-    "Comments on the words",
-    "Discussions stay on the text they quote while people keep typing. A blocking comment holds back the merge.",
-  ],
-  [
-    "Access from where it lives",
-    "Members of the space’s organization, project or team edit it, and everyone else in the organization reads it. Restricted spaces open only to the people named.",
-  ],
-  [
     "Work items in the text",
     "Type # to mention PAY-142. Readers see its current status, refinement state and readiness.",
   ],
   [
     "Agents propose, people publish",
-    "Agents connected over MCP read pages and propose changes as pull requests. They never type into a live draft.",
-  ],
-  [
-    "On your own server",
-    "Live editing runs in your Lictory installation. If it stops, reading, history, comments and reviews keep working.",
+    "Agents read pages and propose changes as pull requests. They never type into a live draft.",
   ],
 ] as const;
 
@@ -538,33 +387,16 @@ function Spaces() {
     >
       <SectionHeading
         id="spaces"
+        compact
         label="Spaces"
-        title="Write down what the team knows"
+        title="Write down what the team and its agents know"
       >
-        Lictory Spaces keeps runbooks, architecture notes and team handbooks in
-        spaces of nested pages. Several people edit a page at once, and the
-        editor says Saved only once the server has stored every edit. Readers
-        see a change when it is published, through the same reviewed history as
-        a specification.
+        Runbooks, architecture notes and team handbooks live in spaces of nested
+        pages. Several people edit a page at once, and the editor says Saved
+        only once the server has stored every edit. Readers see a change when it
+        is published, through the same reviewed history as a specification.
       </SectionHeading>
       <SpacesEditorScene />
-
-      <div className="review-stage spaces-stage">
-        <div className="review-stage-copy">
-          <h3>
-            Change a page
-            <br />
-            the way you change a spec.
-          </h3>
-          <p>
-            A Reviewed space protects its published pages. Changes wait on a
-            branch, show the exact words that changed, and merge only after the
-            required reviewers approve that exact result.
-          </p>
-        </div>
-        <SpacesReviewScene />
-      </div>
-
       <dl
         className="review-tools spaces-facts"
         aria-label="Built into every space"
@@ -580,47 +412,88 @@ function Spaces() {
   );
 }
 
-function Comparison() {
+const hostingFacts = [
+  [
+    "On your server",
+    "One Linux server with Docker Compose and PostgreSQL, bundled or your own. There is no Lictory cloud: your data stays on the server you run and goes only to the services you connect.",
+  ],
+  [
+    "Company sign-in",
+    "Single sign-on through OpenID Connect: Okta, Microsoft Entra ID, Keycloak, Google Workspace and others. Sign-in grants nothing by itself; membership and roles stay in Lictory.",
+  ],
+  [
+    "Organizations kept apart",
+    "Every record belongs to one organization, and every query and synchronized view is authorized through membership on the server, never by hiding things in the browser.",
+  ],
+  [
+    "Your runners",
+    "Organization runners for shared work, personal runners for one person’s agents. A project can require its sessions to run in containers.",
+  ],
+] as const;
+
+function SelfHosted() {
   return (
     <section
-      id="compare"
-      aria-labelledby="compare-title"
+      id="self-hosted"
+      aria-labelledby="self-hosted-title"
       className="section site-width"
     >
       <SectionHeading
-        id="compare"
-        compact
-        label="Compared"
-        title="Your tracker starts with a task. Lictory starts with agreement"
+        id="self-hosted"
+        label="Self-hosted"
+        title="Your server, your runners, your models"
       >
-        Boards and sprints still matter, and Lictory has them. It puts the same
-        care into the work that makes an item ready for them.
+        Lictory runs where your code and your knowledge already are. Connect
+        OpenAI, Anthropic, Google Gemini or Vertex AI, Azure OpenAI, Amazon
+        Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter, or run open-weight
+        models with Ollama, vLLM, LM Studio or llama.cpp. Lictory works without
+        AI, too.
       </SectionHeading>
-      <ComparisonTable />
-      <div className="compare-links">
-        {comparisons.map((item) => (
-          <Link key={item.slug} href={comparisonPath(item)}>
-            Lictory vs {item.competitor}
-            <ArrowRight aria-hidden />
-          </Link>
+      <dl className="hosting-facts">
+        {hostingFacts.map(([title, body]) => (
+          <div key={title}>
+            <dt>{title}</dt>
+            <dd>{body}</dd>
+          </div>
         ))}
-        {roundups.map((item) => (
-          <Link key={item.path} href={item.path}>
-            {item.headline}
-            <ArrowRight aria-hidden />
-          </Link>
-        ))}
+      </dl>
+      <ModelsScene />
+      <div className="model-facts">
+        <div>
+          <h3>Set up in the admin console</h3>
+          <p>
+            Pick a provider, paste a key and test every feature before you save.
+            Keys stay encrypted on your server. Prefer the terminal?{" "}
+            <code>lictory ai setup</code> does the same.
+          </p>
+        </div>
+        <div>
+          <h3>Self-hosted means self-hosted</h3>
+          <p>
+            Choose a model server you run, and content goes there and nowhere
+            else. Nothing falls back to a cloud you did not choose.
+          </p>
+        </div>
+        <div>
+          <h3>Every organization decides</h3>
+          <p>
+            Instance administrators choose the provider. Each organization
+            chooses whether its content may be sent, and sees where it goes.
+          </p>
+        </div>
       </div>
+      <OpenSource />
     </section>
   );
 }
 
 function OpenSource() {
   return (
-    <section
+    <div
       id="open-source"
+      role="region"
       aria-labelledby="open-source-title"
-      className="open-source site-width"
+      className="open-source"
     >
       <div>
         <h2 id="open-source-title">Open source. Yours to shape.</h2>
@@ -635,6 +508,43 @@ function OpenSource() {
       >
         View on GitHub <ArrowUpRight aria-hidden />
       </TrackedLink>
+    </div>
+  );
+}
+
+function Comparison() {
+  return (
+    <section
+      id="compare"
+      aria-labelledby="compare-title"
+      className="section site-width"
+    >
+      <SectionHeading
+        id="compare"
+        compact
+        label="Compared"
+        title="One workspace instead of five tools and the glue between them"
+      >
+        Most teams stitch a chat app, a wiki, a tracker, a code host and their
+        agent tools together with integrations. Lictory keeps your code host and
+        can replace the rest with one product: fewer seats to buy, fewer
+        integrations to maintain, and one record of who decided what.
+      </SectionHeading>
+      <StackComparison />
+      <div className="compare-links">
+        {comparisons.map((item) => (
+          <Link key={item.slug} href={comparisonPath(item)}>
+            {item.headline}
+            <ArrowRight aria-hidden />
+          </Link>
+        ))}
+        {roundups.map((item) => (
+          <Link key={item.path} href={item.path}>
+            {item.headline}
+            <ArrowRight aria-hidden />
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }
@@ -671,10 +581,10 @@ function FinalCta() {
   return (
     <section aria-labelledby="start-title" className="final-cta site-width">
       <div>
-        <h2 id="start-title">Bring one rough idea</h2>
+        <h2 id="start-title">Start with one rough idea</h2>
         <p>
-          Invite the people who need to agree on it. Their agents are welcome
-          too.
+          Invite the people who need to agree on it. Register a runner when you
+          want agents to build it.
         </p>
       </div>
       <div>

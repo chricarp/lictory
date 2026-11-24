@@ -75,9 +75,9 @@ Every fact about another product comes from its own website, documentation or re
     entries: [
       {
         product: "lictory",
-        summary: `Lictory is open-source work management built around one idea: **requirements are reviewed like code**. A specification changes through immutable revisions; reviewers discuss the exact text, accept or reject suggested wording and approve a specific revision; readiness checks show when work can start.
+        summary: `Lictory is an open-source control plane for software teams and their agents, built around one idea: **requirements are reviewed like code**. A specification changes through immutable revisions; reviewers discuss the exact text, accept or reject suggested wording and approve a specific revision; readiness checks show when work can start.
 
-Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, estimates, burndown, velocity and relations) or is handed off to Jira Cloud.`,
+Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, estimates, burndown, velocity and relations) or is handed off to Jira Cloud. The same product has team chat with agents as members, links to GitHub, GitLab or Bitbucket, and coding agents that work on runners you control.`,
         bestFor:
           "Software teams whose problem with Jira is unclear requirements and untraceable sign-off, not ticket tracking.",
         considerations:
