@@ -123,8 +123,6 @@ const codeKinds = [
 ] as const;
 export const doneCheckKinds = [...codeKinds, "acceptance_verified"] as const;
 export type DoneCheckKind = (typeof doneCheckKinds)[number];
-export const isCodeCheck = (kind: DoneCheckKind) =>
-  (codeKinds as readonly string[]).includes(kind);
 
 export const doneCheckDefinitionSchema = z.discriminatedUnion("kind", [
   z.object({ id: checkId, kind: z.enum(codeKinds) }),
@@ -298,13 +296,6 @@ export type DefinitionOfDoneEntity = z.infer<
   typeof definitionOfDoneEntitySchema
 >;
 export type DoneEvaluationEntity = z.infer<typeof doneEvaluationEntitySchema>;
-
-// Entity types listed at organization level (boards, lists, the queue).
-export const claimOrganizationTypes = [
-  "claim",
-  "autonomyPolicy",
-  "definitionOfDone",
-] as const;
 
 // The policy that governs a project: its stored row or the defaults.
 export function effectiveAutonomy(

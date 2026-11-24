@@ -9,6 +9,7 @@ import {
   type SessionLaunchResult,
 } from "@lictory/core/claims/ports";
 import { claimOrganizationEntities } from "@lictory/core/claims/projections";
+import { followItemClaim } from "@lictory/core/claims/follow";
 import {
   CLAIM_LEASE_MS,
   STARTING_LEASE_MS,
@@ -365,6 +366,50 @@ async function settle(
   return outcome;
 }
 
+// Claims whose item left their reach without an item command (workflow
+// configuration moved it: a status archived or recategorized) end here, the
+// way `followItemClaim` ends them for every command.
+async function reconcileClaims(tx: Tx, organizationId: string, now: Date) {
+  const live = await tx
+    .select()
+    .from(s.workItemClaim)
+    .where(
+      and(
+        eq(s.workItemClaim.organizationId, organizationId),
+        inArray(s.workItemClaim.state, ["starting", "active", "waiting"]),
+      ),
+    );
+  let ended = 0;
+  for (const claim of live) {
+    const before = await claimOrganizationEntities(
+      tx,
+      organizationId,
+      claim.projectId,
+    );
+    const entries = await followItemClaim(tx, {
+      organizationId,
+      workItemId: claim.workItemId,
+      userId: claim.ownerId,
+      now,
+      automation: "dispatcher",
+    });
+    if (!entries.length) continue;
+    ended++;
+    for (const entry of entries)
+      await recordActivity(tx, {
+        organizationId,
+        projectId: claim.projectId,
+        workItemId: claim.workItemId,
+        actorId: claim.ownerId,
+        action: entry.action,
+        detail: { ...entry.detail, automation: "dispatcher" },
+        at: now,
+      });
+    await projectClaims(tx, organizationId, claim.projectId, before);
+  }
+  return ended;
+}
+
 export type DispatchResult = {
   organizations: number;
   expired: number;
@@ -408,6 +453,7 @@ export async function runDispatcher(
           roster,
           now,
         );
+        result.expired += await reconcileClaims(tx, organizationId, now);
         const claimed = await tx
           .select({ workItemId: s.workItemClaim.workItemId })
           .from(s.workItemClaim)

@@ -25,9 +25,6 @@ import type { Tx } from "@lictory/core/domain/service";
 // this module's own writers keep them in the same transaction as the
 // domain rows they show.
 
-export const isLiveState = (state: string) =>
-  (liveClaimStates as readonly string[]).includes(state);
-
 // Live claims, autonomy policies and Definitions of Done of an organization
 // (or one project). Only stored rows are projected: a project without a
 // policy shows Lictory's defaults in every client.

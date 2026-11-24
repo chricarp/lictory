@@ -206,6 +206,9 @@ specification opens a blocking discussion anchored on the text and asks the
 item's reviewers; a permission it lacks becomes an approval request in the
 session thread. The session waits; the answer resumes it.
 
+Claims, claimability, the autonomy policy, the Definition of Done and the
+dispatcher are specified in [claims](claims.md).
+
 ## Code
 
 Through the `CodeHostProvider` adapter (GitHub, GitLab, Bitbucket; cloud and

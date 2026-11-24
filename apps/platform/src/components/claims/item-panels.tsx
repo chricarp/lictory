@@ -48,7 +48,16 @@ export function ClaimPanel() {
   const { policy } = useAutonomy(project.id);
   const [releasing, setReleasing] = useState(false);
   if (project.deliveryMode !== "native") return null;
-  if (!claim && verdict.stage === "outside") return null;
+  // Work still being refined belongs to readiness and the delivery scope
+  // panel; the factory speaks up once only the scope decision, a blocker or
+  // a claim is left.
+  if (
+    !claim &&
+    !verdict.claimable &&
+    verdict.stage !== "blocked" &&
+    !(verdict.stage === "needs_agreement" && item.refinementState === "ready")
+  )
+    return null;
   const canRelease =
     !readOnly &&
     (claim?.ownerId === userId || canChangeProperties || canManage(project.id));

@@ -15,8 +15,8 @@ A status that a person (or an agent acting for one) moves is declared in
 `packages/core/src/contracts/state-machines.ts`: its states and what they
 mean, the steps between them, the states each step is allowed from, and the
 sentence a person reads when it is refused. Declared today: specification pull
-requests, page pull requests, suggestions, reviews, the refinement state and
-iterations.
+requests, page pull requests, suggestions, reviews, the refinement state,
+iterations and agents' claims on work items.
 
 Three readers use the same table, so they cannot disagree:
 

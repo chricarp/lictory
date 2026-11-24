@@ -96,6 +96,16 @@ Item activity records automatic refinement changes caused by a publication.
 These changes do not send notifications; a bulk configuration change would
 otherwise notify everyone involved in every affected item.
 
+## Definition of Done
+
+The delivery twin of the Definition of Ready, per project: checks such as a
+linked code pull request merged, required CI checks passed, a reviewer's
+approval of the head commit and people's acceptance sign-offs. Work in
+progress moves to Done by itself when every check passes, through the same
+completion path as a person's move, and records the delivered revision. An
+agent's report never moves it. See
+[claims, autonomy and the Definition of Done](claims.md#definition-of-done).
+
 ## Agreed and delivered scope
 
 Readiness qualifies a specification for selection; it is not a delivery
