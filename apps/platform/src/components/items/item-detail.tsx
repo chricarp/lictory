@@ -85,7 +85,6 @@ import {
   TypePicker,
 } from "@lictory/platform/components/items/delivery-properties";
 import {
-  AssigneePicker,
   IssuePriority,
   ParentPicker,
 } from "@lictory/platform/components/items/properties";
@@ -1151,7 +1150,8 @@ export function ItemDetail({
                       {native && (
                         // Shares the row with priority instead of taking a line.
                         <div className="min-w-40 flex-1">
-                          <AssigneePicker
+                          <OwnerField
+                            itemId={item.id}
                             assigneeId={item.assigneeId}
                             onChange={
                               canChange
