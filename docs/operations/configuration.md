@@ -40,20 +40,23 @@ outside production.
 
 ## Delivery credentials key
 
-`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens. Without it the key
-is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
+`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens and the Slack
+app's secrets and bot token. Without it the key is derived from
+`BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
-- **New installations** must set it before connecting Jira. In production,
-  connecting Jira is refused while the key is unset and no delivery
-  credentials are stored yet (no `delivery_connection` row exists, including
-  archived ones). The rest of Lictory works without it.
+- **New installations** must set it before connecting Jira or Slack. In
+  production, connecting Jira or saving a Slack app is refused while the key
+  is unset and no credentials are stored yet (no `delivery_connection` or
+  `slack_installation` row exists, including archived ones). The rest of
+  Lictory works without it.
 - **Existing installations** that already stored credentials with the derived
   key keep working unchanged. The API and the worker log a `config.warning` at
   startup. To decouple the two secrets without re-entering tokens, set
   `DELIVERY_CREDENTIALS_KEY` to the current `BETTER_AUTH_SECRET` value (it
   derives the same key); `BETTER_AUTH_SECRET` can then rotate on its own.
 - Never rotate `DELIVERY_CREDENTIALS_KEY` once credentials are stored: they
-  become unreadable and every Jira connection must be reconnected.
+  become unreadable and every Jira connection and the Slack app must be
+  reconnected.
 
 ## Services
 

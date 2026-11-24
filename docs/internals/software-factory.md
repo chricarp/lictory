@@ -110,7 +110,10 @@ notifies nobody by default.
 **Ownership with Slack.** Through the `ChatProvider` adapter a channel can be
 linked to a Slack channel. A message is owned by the system it was written
 in: edits and deletions flow only from that system. Lictory never rewrites a
-Slack-authored message.
+Slack-authored message. Slack people act in Lictory only when they map to a
+member by verified email; a Slack message never starts agent work, a
+promotion or any action by its text alone (see
+[Slack](channels.md#slack)).
 
 Details are in [Lictory Channels](channels.md).
 

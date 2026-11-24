@@ -19,6 +19,12 @@ the module's durable rules.
 | `channel_promotion`          | What a message became: a work item, decision or specification discussion                                    | yes                |
 | `channel_message_revision`   | Previous bodies of edited and deleted messages                                                              | no                 |
 | `channel_mention`            | Whom a message mentions, as the server resolved it                                                          | no                 |
+| `channel_external_link`      | A channel's link to a Slack channel: its name, URL and health (history kept after unlinking)                | yes                |
+| `channel_mirror`             | The outbox and mapping of Lictory messages and reactions sent to a linked Slack channel                     | failures only      |
+
+Slack's own state (`slack_installation` with its encrypted credentials,
+`slack_event`, the verified Events API inbox, and `slack_user`, Slack people
+as Lictory last saw them) is server-only; see [Slack](#slack).
 
 Every table carries its organization, and composite foreign keys keep a
 member, message, reaction or promotion inside its channel and organization.
@@ -90,7 +96,15 @@ the domain write rule, next to the live draft writer:
   synchronized shape and are authorized by channel access.
 
 It writes messages, reactions, read cursors, unread mention counts, thread
-participation and the message's notification event. Everything else about a
+participation, the message's notification event and, in channels linked to
+Slack, the message's `channel_mirror` outbox row.
+
+Messages from a linked Slack channel go through the same writer, with the
+same locks and counters, but without an actor: the authority is the
+verified delivery of the organization's Slack installation and the
+channel's active link to the Slack channel it names. A mapped author is
+re-checked as an organization member who can read the channel; anyone else
+is an external author with no permissions (see [Slack](#slack)). Everything else about a
 channel (creating it, membership, archive and restore, notification level,
 promotion) is an ordinary command through `applyMutation`, with its receipt
 and audit entries; those commands write the channel tables directly, because
@@ -196,16 +210,179 @@ to the object (live reference chips), and the object's page finds the
 conversation through `workItemConversations`, only for people who can read
 the channel, so a private channel never leaks that it discussed an item.
 
-## External chat
+## Slack
 
-`ChatProvider` (`packages/core/src/channels/chat-provider.ts`) is the boundary
-a Slack adapter implements; none ships yet. A channel can be linked to an
-external channel (`external_source`, `external_id`), and a message is owned
-by the system it was written in: rows written in Slack carry its source and
-id, only the provider's ingest edits or deletes them, and Lictory refuses to
-(kind `external_owner`). Messages written in Lictory are mirrored by the
-worker after commit, never inside the writer's transaction. No message is
-synchronized in both directions.
+Slack is the first `ChatProvider` (`packages/core/src/channels/slack/`). It
+exists so a team can adopt Lictory Channels without leaving Slack on day one:
+a channel is linked to a Slack channel, both sides see one conversation, and
+the link is removed later to consolidate.
+
+### Ownership
+
+A message is owned by the system it was written in.
+
+- Rows written in Slack carry `external_source = 'slack'` and the Slack
+  message `ts` as `external_id`. Only the Slack ingest edits or deletes them
+  (`appendExternalMessage`, `applyExternalEdit`, `applyExternalDelete` in the
+  conversation writer); Lictory's own edit and delete refuse them with kind
+  `external_owner`, for everyone, administrators included. They stay owned by
+  Slack after unlinking.
+- Rows written in Lictory never carry `external_source`. Their Slack copy is
+  the `channel_mirror` row's `external_id`. An edit or deletion in Slack of
+  such a copy (only Lictory's bot can make one) is ignored.
+- Nothing is synchronized in both directions for the same message. Reactions
+  are owned per reaction: a Slack person's reaction is stored with
+  `channel_reaction.external_source = 'slack'` (when they map to a member) or
+  counted by name in `channel_message.external_reactions` (when they do not),
+  and is never mirrored back; a Lictory reaction is mirrored as the bot's.
+
+### Connection
+
+One Slack app per organization, created by an administrator from a manifest
+Lictory generates (`slackAppManifest`: bot scopes, bot events, the Events
+API, interactivity and OAuth redirect URLs of this installation). Each
+installation is the customer's own internal app; Lictory never distributes
+one app to several workspaces. The app's client secret and signing secret,
+and the bot token from the OAuth v2 install, are encrypted with the delivery
+credentials key bound to the organization and never returned; saving and
+installing are web-only capabilities (`humanOnly: credentials`). The install
+`state` is a random value whose hash, person and ten-minute expiry are
+stored; the callback needs the same signed-in administrator.
+
+`slack_installation.status` moves as a consequence: `pending` (credentials
+saved), `connected` (installed), `invalid` (Slack refused the token, the app
+was uninstalled or its token revoked: links are marked failing until an
+administrator reinstalls) and `disconnected` (an administrator disconnected:
+the token is revoked and forgotten, every channel unlinked, the app's
+credentials kept). Installing in another workspace while channels are linked
+is refused.
+
+### Linking
+
+A person who manages a Lictory channel links it to a Slack channel the
+Lictory app is in (`linkSlackChannel`, a `decision`: agents link only when
+their person asked). Public links only to public and private only to
+private, so linking never widens who reads a conversation; direct
+conversations are never linked. The link row and `channel.external_source`
+/ `external_id` are written together under the exclusive organization lock,
+with a system line and an `audit_event` (`slack.channel_linked`). An
+optional backfill imports at most 200 of the latest Slack messages (and the
+replies of their latest threads) once, oldest first, through the same ingest;
+it is bounded and asked for by a person, never a bulk export. Unlinking
+clears the channel's external fields, keeps the link row with
+`unlinked_at`, stops queued sends and leaves both histories intact.
+
+### Inbound
+
+`POST /api/slack/events/{organizationId}` verifies `X-Slack-Signature` with
+that organization's signing secret: `v0=` and the HMAC-SHA256 of
+`v0:{timestamp}:{raw body}`, compared in constant time, refused when the
+timestamp is more than five minutes away (`signature.ts`). The URL
+verification challenge is answered only when signed. A verified
+`event_callback` must name the organization's app (`api_app_id`) and its
+installed workspace (`team_id`); then it is stored once in `slack_event`
+(unique by installation and Slack's `event_id`, so Slack's retries and
+replays inside the window store nothing new) and answered at once, within
+Slack's three seconds. Routing by organization in the URL plus that
+organization's secret is the tenant boundary: a delivery signed for one
+installation fails verification at another's URL, and processing only
+writes into channels of the event's organization linked to the Slack channel
+it names.
+
+The worker's `slack` job claims due events under a lease (fenced by the
+attempt) and processes them through the conversation writer:
+
+- `message` (and `thread_broadcast`, `file_share`, `bot_message`): appended,
+  idempotent by Slack `ts`; a reply joins the thread of the message its
+  `thread_ts` names (a Slack message or a Lictory message's Slack copy).
+- `message_changed` / `message_deleted`: an edit keeps the previous body as
+  a revision; a deletion leaves a tombstone. Messages Lictory owns are
+  ignored. An edit, deletion or reaction for a message not processed yet
+  waits a few attempts before it is dropped.
+- `reaction_added` / `reaction_removed`, `channel_rename`, the app leaving
+  or the channel being archived (link failing), `app_uninstalled` and
+  `tokens_revoked` (installation invalid).
+- Files are stored as name, type, size and Slack permalink
+  (`external_files`); Slack keeps checking who may open them. Downloading
+  them into Lictory storage is not implemented.
+
+Loop prevention: events caused by Lictory's own bot (its `bot_id`, bot user,
+app id, or the `lictory_message` metadata of its posts) are never ingested.
+
+### People
+
+A Slack person is a Lictory person only when Slack confirmed their email, a
+Lictory account with that address verified it too, and that account is a
+member of the organization (`people.ts`); the writer re-checks membership
+and, for private channels, channel membership in its transaction. Emails are
+compared, never stored. Everyone else (guests, people without an account,
+bots) is written with `author_kind = 'external'` and `external_author_name`,
+shown as "Name (Slack)", with no Lictory identity, notifications or
+permissions. `<@U…>` mentions of mapped people become Lictory mentions (and
+notify); Lictory mention tokens typed as text in Slack are broken
+(`neutralizeTokens`), so Slack text can never carry one.
+
+Text is information, never permission. A Slack `@handle` becomes an agent
+mention, reaching the Factory's `mentioned` hook, only when the author maps
+to a member who may address that agent (`addressableAgent`: the directory's
+`mayAddress`, by default the agent's owner only). Promotions and every other
+action need a Lictory person in Lictory; nothing in Slack text starts one.
+
+### Outbound
+
+The conversation writer calls `queueMirror` (`channels/mirror.ts`) in its
+own transaction when a Lictory-owned message is posted, edited or deleted,
+when a card is appended, or when a Lictory reaction changes, in a linked
+channel. It upserts one `channel_mirror` row per message (and per emoji),
+bumping `version` and `due_at`; system lines stay in Lictory. The worker
+claims due rows under a lease, reads the message as it is then and makes
+Slack match: `chat.postMessage` with the author's name and avatar
+(`chat:write.customize`; agents as "Forge (via Ada)", cards as Block Kit
+summaries with an **Open in Lictory** button), `chat.update`, `chat.delete`,
+`reactions.add` / `remove`. It settles only the version it sent, so an edit
+made while sending is sent next. Posting is idempotent by the Lictory message
+id: it travels as message metadata, and an attempt after an unanswered post
+looks for it in the channel's recent history before posting again. Replies
+wait for their thread root to reach Slack.
+
+HTTP 429 waits for `Retry-After` without counting an attempt; transient
+failures back off exponentially (5 s doubling, at most 10 minutes) and fail
+after six attempts; a refusal (message too long, channel gone, app removed,
+token revoked) fails at once. A failed row is synchronized
+(`channelMirrorFailures`), so the message shows "Not sent to Slack" with the
+reason and a Retry action (`retrySlackMessage`, its author or someone who
+manages the channel); a channel or token error also marks the link failing,
+which the header shows.
+
+### Slack data, AI providers and Slack's terms
+
+Lictory Intelligence reads messages written in Slack only when the
+organization's AI policy is on **and** an administrator allowed it
+(`setSlackIntelligenceReads`, web-only, `humanOnly: sharing`). Otherwise
+`readChannel`, `readChannelThread` and `searchChannelMessages` on the
+embedded agent's surface withhold their text and files (`ai-access.ts`), so
+Slack content never reaches the AI provider. A person's own MCP client reads
+what the person reads. Any new feature that sends channel text to an AI
+provider (summaries, the Factory's built-in harness) must apply
+`intelligenceMayReadSlack` to Slack-written rows.
+
+Lictory uses Slack's API as an internal app of the customer's workspace:
+only channels the app was invited to, only the bounded backfill a person
+asked for, no bulk export of history and no Slack data in data exports
+beyond the messages synchronized into Lictory.
+
+### Health and retention
+
+The header reads `channel_external_link.health` ("Synced with #x in Slack",
+red when failing, with the last error). Processed Slack events are kept a
+week and failed ones a month (`slack-prune`).
+
+### Contracts for other modules
+
+- `AgentDirectory.mayAddress` (Factory): whether a person may address an
+  agent; implement it as "active, and owned by the person or shared".
+- `queueMirror` is provider-agnostic; a second `ChatProvider` adds its own
+  worker and keeps the same rows.
 
 ## Agents and capabilities
 
@@ -231,7 +408,7 @@ members see what happened where it happened.
 
 ## Deferred
 
-Typing indicators, per-channel retention, Slack (the adapter), a message
-edit history view and agent mention autocomplete in the composer (agents are
+Typing indicators, per-channel retention, downloading Slack files into
+Lictory storage, a message edit history view and agent mention autocomplete in the composer (agents are
 mentioned by `@[handle](agent:ID)` tokens; people autocomplete) are not
 implemented yet.

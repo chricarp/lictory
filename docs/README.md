@@ -50,7 +50,8 @@ adding domain writes or synchronized entities.
   the collaboration service (in development)
 - [Lictory Channels](./internals/channels.md): channels, threads and direct
   conversations, the conversation writer, read cursors and unread counts,
-  notifications, promotion into proposals, decisions and discussions
+  notifications, promotion into proposals, decisions and discussions, and
+  Slack sync (ownership, signatures, people mapping, the outbox)
 - [Live drafts of specifications](./internals/specification-drafts.md):
   several people editing a specification line at once, and how only Save
   revision and Commit turn the shared draft into history
