@@ -64,6 +64,11 @@ export function ListRow({
     <span className="min-w-0 truncate">{title}</span>
   );
   const iso = typeof time === "string" ? time : time?.iso;
+  const timeLabel = typeof time === "string" ? relativeTime(time) : time?.label;
+  const timeProps = iso && {
+    dateTime: iso,
+    title: new Date(iso).toLocaleString(),
+  };
   return (
     <li
       data-list-row
@@ -88,8 +93,30 @@ export function ListRow({
           )}
           {titleNode}
         </span>
-        {meta && (
-          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground">
+        {(meta ?? timeProps) && (
+          // On phones the time leads this line, so the title above keeps the
+          // row's full width.
+          <span
+            className={cn(
+              "mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground",
+              !meta && "sm:hidden",
+            )}
+          >
+            {timeProps && (
+              <>
+                <time
+                  {...timeProps}
+                  className="shrink-0 tabular-nums sm:hidden"
+                >
+                  {timeLabel}
+                </time>
+                {meta && (
+                  <span aria-hidden className="sm:hidden">
+                    ·
+                  </span>
+                )}
+              </>
+            )}
             {meta}
           </span>
         )}
@@ -97,13 +124,12 @@ export function ListRow({
       {chips && (
         <span className="flex shrink-0 items-center gap-1.5">{chips}</span>
       )}
-      {iso && (
+      {timeProps && (
         <time
-          dateTime={iso}
-          title={new Date(iso).toLocaleString()}
-          className="shrink-0 text-xs text-muted-foreground tabular-nums"
+          {...timeProps}
+          className="shrink-0 text-xs text-muted-foreground tabular-nums max-sm:hidden"
         >
-          {typeof time === "string" ? relativeTime(time) : time?.label}
+          {timeLabel}
         </time>
       )}
       {actions && (

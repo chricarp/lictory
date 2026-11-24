@@ -10,6 +10,7 @@ import {
   inFlight,
   readyToStart,
   recentPages,
+  waitingOnYou,
 } from "@lictory/platform/components/shell/home/derive";
 
 const delivery = deliveryIndex({
@@ -152,4 +153,49 @@ void test("recent pages skip archived pages and pages of archived spaces", () =>
     ["b", "a"],
   );
   assert.equal(result.total, 2);
+});
+
+void test("waiting on you is one queue: agents' questions first, each thing once", () => {
+  const rows = waitingOnYou({
+    items: [
+      {
+        reason: "Changes requested",
+        weight: 1,
+        item: { id: "i1", updatedAt: "2026-11-05" },
+      },
+      {
+        reason: "Review requested",
+        weight: 0,
+        item: { id: "i2", updatedAt: "2026-11-01" },
+      },
+    ],
+    pages: [
+      {
+        reason: "ready_to_merge" as const,
+        pullRequest: { id: "p1", updatedAt: "2026-11-09" },
+      },
+      {
+        reason: "review_requested" as const,
+        pullRequest: { id: "p2", updatedAt: "2026-11-02" },
+      },
+    ],
+    requests: [
+      { approval: { id: "a1", createdAt: "2026-10-30" } },
+      { approval: { id: "a2", createdAt: "2026-10-31" } },
+    ],
+  });
+  // An agent waiting on a person is stopped: its questions lead, newest
+  // first; then reviews (items and pages by time), changes, merges.
+  assert.deepEqual(
+    rows.map((r) => r.key),
+    [
+      "agent:a2",
+      "agent:a1",
+      "page:p2",
+      "item:i2:Review requested",
+      "item:i1:Changes requested",
+      "page:p1",
+    ],
+  );
+  assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
 });

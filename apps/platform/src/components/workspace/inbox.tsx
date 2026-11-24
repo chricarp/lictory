@@ -14,31 +14,28 @@ import {
 } from "lucide-react";
 import { useUnreadNotifications } from "@lictory/platform/components/notifications/client";
 import { NotificationFeed } from "@lictory/platform/components/notifications/notifications";
-import { Badge, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
 import { paths } from "@lictory/core/lib/paths";
-import {
-  identifier,
-  statusOf,
-  needsMyReview,
-  relativeTime,
-  typeOf,
-} from "@lictory/core/lib/work-items";
+import { identifier, needsMyReview } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import {
-  deliveryCategory,
   externalLinksByItem,
   lifecycleStage,
   readyForSelection,
 } from "@lictory/core/lib/lifecycle";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
-import { StatusIcon } from "@lictory/platform/components/items/status";
-import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import {
   PageHeader,
   PageTabs,
 } from "@lictory/platform/components/shell/page-header";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
+import { waitingOnYou } from "@lictory/platform/components/shell/home/derive";
+import {
+  useFactory,
+  waitingOnMe,
+} from "@lictory/platform/components/factory/store";
 import {
   usePageAttention,
   type PageAttentionEntry,
@@ -51,6 +48,9 @@ type Entry = {
   icon: React.ReactNode;
   weight: number;
 };
+
+const blockingCount = (n: number) =>
+  `${n} blocking discussion${n > 1 ? "s" : ""} open`;
 
 // What needs my attention right now, derived from synchronized state.
 // Deliberately narrow: review requests, blocked items I own, requested changes
@@ -83,14 +83,18 @@ export function useAttention() {
             ),
         );
         const suggestion = item.suggestionReviewerIds.includes(userId);
+        // Blocking discussions on what I review wait on my answer too.
+        const blocking = item.blockingThreads
+          ? ` · ${blockingCount(item.blockingThreads)}`
+          : "";
         list.push({
           item,
           reason: pending.length
             ? "Review requested"
             : "Pull request to review",
           detail: pending.length
-            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}`
-            : "A pull request awaits your approval to be merged",
+            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}${blocking}`
+            : `A pull request awaits your approval to be merged${blocking}`,
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });
@@ -114,7 +118,7 @@ export function useAttention() {
         list.push({
           item,
           reason: "Blocked",
-          detail: `${item.blockingThreads} blocking discussion${item.blockingThreads > 1 ? "s" : ""} open`,
+          detail: blockingCount(item.blockingThreads),
           icon: <CircleAlert className="size-4 text-destructive" />,
           weight: 2,
         });
@@ -179,200 +183,162 @@ export function useAttention() {
 
 const pageReasons: Record<
   PageAttentionEntry["reason"],
-  { reason: string; detail: string; icon: React.ReactNode; weight: number }
+  { reason: string; detail: string; icon: React.ReactNode }
 > = {
   review_requested: {
     reason: "Review requested",
     detail: "A page change awaits your review",
     icon: <ShieldAlert className="size-4 text-primary" />,
-    weight: 0,
   },
   review_again: {
     reason: "Review again",
     detail: "The page change was updated after your review",
     icon: <ShieldAlert className="size-4 text-primary" />,
-    weight: 0,
   },
   changes_requested: {
     reason: "Changes requested",
     detail: "A reviewer asked for changes to your page change",
     icon: <MessageSquareWarning className="size-4 text-warning" />,
-    weight: 1,
   },
   ready_to_merge: {
     reason: "Ready to merge",
     detail: "Your page change is approved and nothing blocks it",
     icon: <CircleCheckBig className="size-4 text-success" />,
-    weight: 3,
   },
 };
 
-export function AttentionList({
-  entries,
-  pages = [],
-}: {
-  entries: Entry[];
-  // Page pull requests waiting on me (Lictory Spaces).
-  pages?: PageAttentionEntry[];
-}) {
-  const { projects, organization, delivery, directory, view } = useWorkspace();
-  const links = useMemo(
-    () =>
-      externalLinksByItem(
-        Object.values(view.entities),
-        directory.delivery.targets,
-      ),
-    [view.entities, directory.delivery.targets],
+// Everything waiting on me, as one queue (see `waitingOnYou`): Home's
+// "Waiting on you" and the Inbox's To do read this, so they never disagree.
+export function useWaitingOnYou() {
+  const { userId } = useWorkspace();
+  const items = useAttention();
+  const pages = usePageAttention();
+  const { sessions, agentById, runnerById } = useFactory();
+  return useMemo(() => {
+    const requests = waitingOnMe(sessions, agentById, userId).flatMap(
+      (session) =>
+        session.approvals.map((approval) => ({
+          session,
+          approval,
+          agent: agentById.get(session.agentId),
+          runner: session.runnerId
+            ? runnerById.get(session.runnerId)
+            : undefined,
+        })),
+    );
+    return waitingOnYou({ items, pages, requests });
+  }, [items, pages, sessions, agentById, runnerById, userId]);
+}
+
+export type WaitingRow = ReturnType<typeof useWaitingOnYou>[number];
+
+// One entry of the queue: a work item or a page change as a row, an agent's
+// question as a compact `ApprovalRequest` (reviewed in place before it can
+// be approved). The link names why the row is here, then what it is.
+export function WaitingRowView({ row }: { row: WaitingRow }) {
+  const { projects, organization } = useWorkspace();
+  if (row.kind === "agent") {
+    const { session, approval, agent, runner } = row.request;
+    return (
+      <ApprovalRequest
+        compact
+        session={session}
+        approval={approval}
+        agent={agent}
+        runner={runner}
+      />
+    );
+  }
+  if (row.kind === "page") {
+    const entry = row.entry;
+    const { reason, icon } = pageReasons[entry.reason];
+    const pr = entry.pullRequest;
+    return (
+      <ListRow
+        href={`${paths.spacePage(organization.slug, entry.space.slug, entry.page.id)}/history?view=pulls&pr=${pr.id}`}
+        leading={icon}
+        title={
+          <>
+            <span className="sr-only">{reason} · Page · </span>
+            {entry.page.title || "Untitled"}
+          </>
+        }
+        meta={
+          <>
+            <span className="shrink-0 font-medium text-foreground/80">
+              {reason}
+            </span>
+            <span aria-hidden>·</span>
+            <FileText aria-hidden className="size-3 shrink-0" />
+            <span className="truncate">
+              {pr.title} · {entry.space.name}
+            </span>
+          </>
+        }
+        time={pr.updatedAt}
+      />
+    );
+  }
+  const { item, reason, detail, icon } = row.entry;
+  const project = projects.find((p) => p.id === item.projectId);
+  const key = identifier(project, item.number);
+  return (
+    <ListRow
+      href={paths.item(organization.slug, project?.key ?? "", key)}
+      leading={icon}
+      identifier={key}
+      title={
+        <>
+          <span className="sr-only">{reason} · </span>
+          {item.title}
+        </>
+      }
+      meta={
+        <>
+          <span className="shrink-0 font-medium text-foreground/80">
+            {reason}
+          </span>
+          <span aria-hidden>·</span>
+          <span className="truncate">{detail}</span>
+        </>
+      }
+      time={item.updatedAt}
+    />
   );
+}
+
+export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
   const PAGE = 50;
   const [shown, setShown] = useState(PAGE);
-  // Work items and page pull requests in one queue: by urgency, then by
-  // what changed last.
-  const rows = useMemo(
-    () =>
-      [
-        ...entries.map((entry) => ({
-          kind: "item" as const,
-          entry,
-          weight: entry.weight,
-          at: entry.item.updatedAt,
-        })),
-        ...pages.map((entry) => ({
-          kind: "page" as const,
-          entry,
-          weight: pageReasons[entry.reason].weight,
-          at: entry.pullRequest.updatedAt,
-        })),
-      ].sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at)),
-    [entries, pages],
-  );
   return (
-    <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {rows.length === 0 ? (
-          <EmptyState illustration="inbox" title="Nothing needs your attention">
-            Review requests on items and pages, blocking discussions on your
-            items and requested changes appear here.
-          </EmptyState>
-        ) : (
-          <ul className="divide-y">
-            {rows.slice(0, shown).map((row) => {
-              if (row.kind === "page")
-                return (
-                  <PageAttentionRow
-                    key={row.entry.pullRequest.id}
-                    entry={row.entry}
-                  />
-                );
-              const { item, reason, detail, icon } = row.entry;
-              const project = projects.find((p) => p.id === item.projectId);
-              return (
-                <li key={`${item.id}-${reason}`}>
-                  <Link
-                    href={paths.item(
-                      organization.slug,
-                      project?.key ?? "",
-                      identifier(project, item.number),
-                    )}
-                    className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
-                  >
-                    <span className="mt-0.5">{icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 text-[13px]">
-                        <span className="font-medium">{reason}</span>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="truncate text-muted-foreground">
-                          {detail}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-[13px]">
-                        <StatusIcon
-                          category={
-                            project
-                              ? deliveryCategory(
-                                  item,
-                                  project,
-                                  delivery,
-                                  links.get(item.id),
-                                )
-                              : undefined
-                          }
-                          color={
-                            project?.deliveryMode === "external"
-                              ? undefined
-                              : statusOf(delivery, item)?.color
-                          }
-                        />
-                        <TypeIcon type={typeOf(delivery, item)} />
-                        <IssueIdentifier
-                          project={project}
-                          number={item.number}
-                        />
-                        <span className="truncate">{item.title}</span>
-                      </div>
-                    </div>
-                    <time className="shrink-0 text-xs text-muted-foreground">
-                      {relativeTime(item.updatedAt)}
-                    </time>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {rows.length > shown && (
-          <div className="flex items-center justify-center gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
-            Showing {shown} of {rows.length}
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setShown((n) => n + PAGE)}
-            >
-              Show {Math.min(PAGE, rows.length - shown)} more
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PageAttentionRow({ entry }: { entry: PageAttentionEntry }) {
-  const { organization } = useWorkspace();
-  const { reason, detail, icon } = pageReasons[entry.reason];
-  const pr = entry.pullRequest;
-  return (
-    <li>
-      <Link
-        href={`${paths.spacePage(organization.slug, entry.space.slug, entry.page.id)}/history?view=pulls&pr=${pr.id}`}
-        className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/60"
-      >
-        <span className="mt-0.5">{icon}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[13px]">
-            <span className="font-medium">{reason}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="truncate text-muted-foreground">{detail}</span>
-          </div>
-          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[13px]">
-            <Badge>Page</Badge>
-            <FileText
-              className="size-3.5 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            <span className="truncate">{entry.page.title}</span>
-            <span className="hidden min-w-0 truncate text-muted-foreground sm:inline">
-              {pr.title} · {entry.space.name}
-            </span>
-          </div>
+    <div className="h-full overflow-y-auto">
+      {rows.length === 0 ? (
+        <EmptyState illustration="inbox" title="Nothing needs your attention">
+          Review requests on items and pages, questions from agents, blocking
+          discussions on your items and requested changes appear here.
+        </EmptyState>
+      ) : (
+        <ul aria-label="Waiting on you" className="divide-y divide-border/70">
+          {rows.slice(0, shown).map((row) => (
+            <WaitingRowView key={row.key} row={row} />
+          ))}
+        </ul>
+      )}
+      {rows.length > shown && (
+        <div className="flex items-center justify-center gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+          Showing {shown} of {rows.length}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setShown((n) => n + PAGE)}
+          >
+            Show {Math.min(PAGE, rows.length - shown)} more
+          </Button>
         </div>
-        <time className="shrink-0 text-xs text-muted-foreground">
-          {relativeTime(pr.updatedAt)}
-        </time>
-      </Link>
-    </li>
+      )}
+    </div>
   );
 }
 
@@ -388,12 +354,11 @@ export function Inbox() {
   const searchParams = useSearchParams();
   const view: InboxView =
     searchParams.get("view") === "todo" ? "todo" : "updates";
-  const entries = useAttention();
-  const pages = usePageAttention();
+  const waiting = useWaitingOnYou();
   const unread = useUnreadNotifications(organization.id)[organization.id] ?? 0;
   const tabs: { value: InboxView; label: string; count: number }[] = [
     { value: "updates", label: "Updates", count: unread },
-    { value: "todo", label: "To do", count: entries.length + pages.length },
+    { value: "todo", label: "To do", count: waiting.length },
   ];
   return (
     <Tabs
@@ -414,12 +379,14 @@ export function Inbox() {
         tabs={<PageTabs label="Inbox view" tabs={tabs} />}
         actions={
           <>
+            {/* On phones the bar keeps its room for the tabs; the Updates
+                toolbar links the settings there. */}
             <Link
               href={paths.notificationSettings(organization.slug)}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+              className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground max-sm:hidden"
             >
-              <Settings2 className="size-3.5" />
-              <span className="max-sm:sr-only">Notification settings</span>
+              <Settings2 className="size-3.5" aria-hidden />
+              Notification settings
             </Link>
             <LittoLauncher />
           </>
@@ -429,7 +396,7 @@ export function Inbox() {
         <NotificationFeed />
       </TabsPanel>
       <TabsPanel value="todo" className="min-h-0 flex-1">
-        <AttentionList entries={entries} pages={pages} />
+        <AttentionList rows={waiting} />
       </TabsPanel>
     </Tabs>
   );

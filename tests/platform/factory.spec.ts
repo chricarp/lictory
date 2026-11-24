@@ -130,15 +130,15 @@ test("a person runs an agent on their own runner, steers it and approves what it
   // It asks for an approval; the session waits on the person.
   await expect(page.getByText("Waiting on a person")).toBeVisible();
   const session = page.url();
-  // The sidebar counts it, and Home lists the question; it opens the
-  // session, where it is answered.
+  // The sidebar counts it, and Home lists the question with everything else
+  // waiting on me; it opens the session, where it is answered.
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
       .getByRole("link", { name: "Overview" }),
   ).toHaveAccessibleDescription(/1 agent session waiting on you/);
   await page.goto(`/${seeded.slug}`);
-  const asks = page.getByRole("region", { name: "Agents ask you" });
+  const asks = page.getByRole("region", { name: "Waiting on you" });
   await expect(asks).toBeVisible();
   // The session is listed once: it waits on me, so it is not also "at work".
   await expect(

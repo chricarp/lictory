@@ -86,3 +86,69 @@ export function recentPages<P extends PageLike>(
     if (!page.archivedAt && activeSpaceIds.has(page.spaceId)) recent.push(page);
   return first(recent.sort(newest), limit);
 }
+
+// Everything waiting on me, in one queue: work items (reviews, requested
+// changes, blocking discussions), page changes, and the questions agents
+// ask me. Home's "Waiting on you" and the Inbox's To do show this same list,
+// so the greeting, the card and the tab always count the same things. An
+// agent waiting on a person is stopped, so its question comes first.
+
+type WaitingItem = { weight: number; item: { id: string; updatedAt: string } };
+type WaitingPage = {
+  reason: keyof typeof pageWeight;
+  pullRequest: { id: string; updatedAt: string };
+};
+type WaitingRequest = {
+  approval: { id: string; createdAt: string };
+};
+
+export const pageWeight = {
+  review_requested: 0,
+  review_again: 0,
+  changes_requested: 1,
+  ready_to_merge: 3,
+} as const;
+
+export type Waiting<I, P, R> =
+  | { kind: "agent"; key: string; weight: number; at: string; request: R }
+  | { kind: "item"; key: string; weight: number; at: string; entry: I }
+  | { kind: "page"; key: string; weight: number; at: string; entry: P };
+
+export function waitingOnYou<
+  I extends WaitingItem & { reason: string },
+  P extends WaitingPage,
+  R extends WaitingRequest,
+>({
+  items,
+  pages,
+  requests,
+}: {
+  items: readonly I[];
+  pages: readonly P[];
+  requests: readonly R[];
+}): Waiting<I, P, R>[] {
+  const rows: Waiting<I, P, R>[] = [
+    ...requests.map((request) => ({
+      kind: "agent" as const,
+      key: `agent:${request.approval.id}`,
+      weight: -1,
+      at: request.approval.createdAt,
+      request,
+    })),
+    ...items.map((entry) => ({
+      kind: "item" as const,
+      key: `item:${entry.item.id}:${entry.reason}`,
+      weight: entry.weight,
+      at: entry.item.updatedAt,
+      entry,
+    })),
+    ...pages.map((entry) => ({
+      kind: "page" as const,
+      key: `page:${entry.pullRequest.id}`,
+      weight: pageWeight[entry.reason],
+      at: entry.pullRequest.updatedAt,
+      entry,
+    })),
+  ];
+  return rows.sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at));
+}
