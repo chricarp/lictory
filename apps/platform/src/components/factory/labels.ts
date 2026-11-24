@@ -1,40 +1,13 @@
-import { agentSession } from "@lictory/core/contracts/state-machines";
-import type { SessionStatus } from "@lictory/core/factory/entities";
 import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
 
-export const statusLabels: Record<SessionStatus, string> = {
-  queued: "Queued",
-  assigned: "Starting",
-  running: "Running",
-  waiting: "Waiting on a person",
-  completed: "Completed",
-  failed: "Failed",
-  canceled: "Canceled",
-};
-
-export const statusTone: Record<
-  SessionStatus,
-  "neutral" | "good" | "warning" | "danger" | "info"
-> = {
-  queued: "neutral",
-  assigned: "info",
-  running: "info",
-  waiting: "warning",
-  completed: "good",
-  failed: "danger",
-  canceled: "neutral",
-};
-
-// The meaning of each status, from the declared state machine.
-export const statusMeaning = (status: SessionStatus) =>
-  agentSession.states[status];
-
-export const activeStatuses: SessionStatus[] = [
-  "queued",
-  "assigned",
-  "running",
-  "waiting",
-];
+// Session states moved to the shared vocabulary (lib/session-state.ts); these
+// re-exports keep the Factory's imports working.
+export {
+  activeStatuses,
+  statusLabels,
+  statusMeaning,
+  statusTone,
+} from "@lictory/platform/lib/session-state";
 
 export const harnessLabel = (harness: string | null) =>
   harness ? (harnessLabels[harness as HarnessId] ?? harness) : "External";
