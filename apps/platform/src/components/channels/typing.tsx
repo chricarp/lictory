@@ -50,7 +50,7 @@ export function TypingIndicator({ channelId }: { channelId: string }) {
   return (
     <p
       aria-live="polite"
-      className="h-4 truncate px-5 text-[11px] leading-4 text-muted-foreground sm:px-6"
+      className="h-4 truncate px-5 text-xs leading-4 text-muted-foreground sm:px-6"
     >
       {text}
     </p>

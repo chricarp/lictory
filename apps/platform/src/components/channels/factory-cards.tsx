@@ -1,37 +1,48 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowUpRight,
   Check,
   CircleHelp,
+  FileDiff,
   GitPullRequest,
+  MessageSquareText,
   ShieldQuestion,
+  SquareTerminal,
+  Wrench,
   X,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { paths } from "@lictory/core/lib/paths";
-import type { SessionStatus } from "@lictory/core/factory/entities";
+import { cn } from "@lictory/core/lib/utils";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import type {
   ApprovalCardPayload,
   QuestionCardPayload,
   SessionCardPayload,
 } from "@lictory/core/factory/session-cards";
 import { Button } from "@lictory/ui/button";
-import { Badge } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { ReferenceChip } from "@lictory/platform/components/references/chips";
-import { useSession } from "@lictory/platform/components/factory/store";
 import {
-  statusLabels,
-  statusMeaning,
-  statusTone,
-} from "@lictory/platform/components/factory/labels";
+  useFactory,
+  useSession,
+  useSessionEvents,
+} from "@lictory/platform/components/factory/store";
+import {
+  filesChangedLabel,
+  sessionProgress,
+} from "@lictory/platform/components/factory/progress";
+import { firstName, sessionState } from "@lictory/platform/lib/session-state";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
 
 // What the Factory writes into a channel thread
-// (docs/internals/factory.md#sessions-in-channels): a session's live card,
-// an approval request with Approve and Deny for the people who may decide,
-// and an agent's question pointing at the anchored discussion. The card's
+// (docs/internals/factory.md#sessions-in-channels): a session's live card
+// (which holds what the agent asks, answered there), a record of each
+// approval request, and an agent's question pointing at the anchored
+// discussion. The card's
 // payload is the server's snapshot; the session card reads the session's
 // own synchronized projection when it is in the browser's window, so it is
 // live without polling.
@@ -50,38 +61,56 @@ export function factoryCardOf(
     : undefined;
 }
 
-function StatusBadge({ status }: { status: SessionStatus }) {
-  return (
-    <span title={statusMeaning(status)}>
-      <Badge tone={statusTone[status]}>
-        {(status === "running" || status === "assigned") && (
-          <span
-            aria-hidden
-            className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none"
-          />
-        )}
-        {statusLabels[status]}
-      </Badge>
-    </span>
-  );
-}
-
 const cardClass =
-  "mt-0.5 max-w-xl rounded-lg border bg-card px-3 py-2 text-[13px] shadow-xs";
+  "mt-1 max-w-2xl rounded-xl bg-card text-[13px] shadow-(--shadow-border) [--actor-ring:var(--card)]";
 
-export function FactoryCard({ payload }: { payload: FactoryCardPayload }) {
-  if (payload.type === "agentSession") return <SessionCard card={payload} />;
+export function FactoryCard({
+  payload,
+  detailed = false,
+  root = false,
+}: {
+  payload: FactoryCardPayload;
+  // Shown in a thread panel: what the agent did, even once it finished.
+  detailed?: boolean;
+  // The card starts its thread (a dispatched session's report), so its
+  // title is the only place the work is named.
+  root?: boolean;
+}) {
+  if (payload.type === "agentSession")
+    return <SessionCard card={payload} detailed={detailed} root={root} />;
   if (payload.type === "agentApproval") return <ApprovalCard card={payload} />;
   return <QuestionCard card={payload} />;
 }
 
-function SessionCard({ card }: { card: SessionCardPayload }) {
-  const { organization } = useWorkspace();
+const LAST_EVENTS = 200;
+
+// A session's live card: its state, the item, the last thing the agent did
+// and the files it changed, the pull request once there is one, and what
+// it asks (answered right here). The prompt is the message above it, so it
+// is not repeated.
+function SessionCard({
+  card,
+  detailed,
+  root,
+}: {
+  card: SessionCardPayload;
+  detailed: boolean;
+  root: boolean;
+}) {
+  const { organization, userId, memberName } = useWorkspace();
   const { session } = useSession(card.sessionId);
+  const { agentById, runnerById } = useFactory();
+  const agent = agentById.get(card.agentId);
   const status = session?.status ?? card.status;
   const summary = session?.resultSummary ?? card.summary;
   const error = session?.error ?? card.error;
-  const title = session?.title ?? card.title;
+  const title = sessionTitle(session?.title ?? card.title);
+  const decider =
+    (session?.requestedById ?? card.requestedById) === userId ||
+    card.ownerId === userId
+      ? "you"
+      : memberName(session?.requestedById ?? card.requestedById);
+  const state = sessionState(session ?? { status }, { decider });
   // The session's own projection knows its pull request first; the card's
   // payload links Lictory's page.
   const pullRequest =
@@ -93,51 +122,149 @@ function SessionCard({ card }: { card: SessionCardPayload }) {
           url: session.pullRequestUrl,
         }
       : null);
+  const asks = session && status === "waiting" ? session.approvals : [];
   return (
-    <section aria-label={`${card.agentName} session`} className={cardClass}>
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={status} />
+    <section
+      aria-label={`${card.agentName} session`}
+      data-session-card={card.sessionId}
+      className={cardClass}
+    >
+      <div className="flex min-h-10 min-w-0 items-center gap-2 px-3 py-1.5">
+        <SessionStateChip state={state} />
         {card.workItemId && card.workItemKey && (
           <ReferenceChip
             target={{ kind: "item", id: card.workItemId }}
             label={card.workItemKey}
           />
         )}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto"
-          render={<Link href={card.path} />}
-        >
-          Open session <ArrowUpRight className="size-3.5" aria-hidden />
-        </Button>
-      </div>
-      <p className="mt-1 font-medium">{title}</p>
-      {pullRequest && (
-        <p className="mt-1">
+        {pullRequest && (
           <Link
             href={pullRequest.path}
-            className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md text-xs font-medium focus-ring outline-none hover:underline"
           >
             <GitPullRequest className="size-3.5" aria-hidden /> Pull request
           </Link>
+        )}
+        <Link
+          href={card.path}
+          className="ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
+        >
+          Open session <ArrowUpRight className="size-3.5" aria-hidden />
+        </Link>
+      </div>
+      {root && <p className="px-3 pb-2 font-medium">{title}</p>}
+      <Progress sessionId={card.sessionId} live={state.active || detailed} />
+      {status === "completed" && summary && (
+        <p className="line-clamp-3 border-t px-3 py-2 text-muted-foreground">
+          {summary}
         </p>
       )}
-      {status === "completed" && summary && (
-        <p className="mt-1 line-clamp-3 text-muted-foreground">{summary}</p>
-      )}
       {status === "failed" && error && (
-        <p className="mt-1 line-clamp-3 text-destructive">{error}</p>
+        <p className="line-clamp-3 border-t px-3 py-2 text-destructive">
+          {error}
+        </p>
       )}
+      {session &&
+        asks.map((approval) => (
+          <div key={approval.id} className="border-t p-2">
+            <ApprovalRequest
+              session={session}
+              approval={approval}
+              agent={agent}
+              runner={
+                session.runnerId ? runnerById.get(session.runnerId) : undefined
+              }
+              linkSession={false}
+            />
+          </div>
+        ))}
     </section>
   );
 }
 
+// What the agent did last and the files it changed, read from the event
+// log while the session moves (or when the card is read in its thread).
+function Progress({ sessionId, live }: { sessionId: string; live: boolean }) {
+  if (!live) return null;
+  return <LiveProgress sessionId={sessionId} />;
+}
+
+function LiveProgress({ sessionId }: { sessionId: string }) {
+  const { events } = useSessionEvents(sessionId, LAST_EVENTS);
+  const progress = useMemo(() => sessionProgress(events), [events]);
+  const { step } = progress;
+  if (!step && !progress.files.length) return null;
+  return (
+    <div className="space-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
+      {step && (
+        <p className="flex min-w-0 items-center gap-1.5">
+          <span aria-hidden className="shrink-0 [&_svg]:size-3.5">
+            {stepIcons[step.kind]}
+          </span>
+          <span className="sr-only">Last step: </span>
+          {step.kind === "command" ? (
+            <>
+              <span className="shrink-0">Ran</span>
+              <code className="min-w-0 truncate font-mono text-foreground">
+                {step.text}
+              </code>
+              {step.exitCode !== null && step.exitCode !== 0 && (
+                <span className="shrink-0 text-destructive tabular-nums">
+                  exit {step.exitCode}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="min-w-0 truncate text-foreground">
+              {step.text}
+            </span>
+          )}
+        </p>
+      )}
+      {progress.files.length > 0 && (
+        <p className="flex min-w-0 items-center gap-1.5">
+          <FileDiff aria-hidden className="size-3.5 shrink-0" />
+          <span className="shrink-0">{filesChangedLabel(progress)}</span>
+          {(progress.additions > 0 || progress.deletions > 0) && (
+            <span className="shrink-0 tabular-nums">
+              <span className="text-success">+{progress.additions}</span>{" "}
+              <span className="text-destructive">−{progress.deletions}</span>
+            </span>
+          )}
+          <span className="min-w-0 truncate font-mono">
+            {progress.files
+              .slice(0, 3)
+              .map((f) => f.path.split("/").pop())
+              .join(", ")}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+const stepIcons = {
+  command: <SquareTerminal />,
+  tool: <Wrench />,
+  message: <MessageSquareText />,
+  files: <FileDiff />,
+  approval: <ShieldQuestion />,
+} as const;
+
+// An agent's request in its thread. While the session card can show it, the
+// request is answered there (one card per session); this line records it
+// and leads to the card. Without the session (no access to the Factory),
+// it carries its own Approve and Deny.
 function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
   const { organization, userId, memberName } = useWorkspace();
+  const { session } = useSession(approval.sessionId);
   const [sent, setSent] = useState<"approve" | "deny" | null>(null);
   const pending = approval.status === "pending";
   const mayDecide = approval.deciderIds.includes(userId);
+  const onCard =
+    pending &&
+    session?.status === "waiting" &&
+    session.approvals.some((a) => a.id === approval.approvalId);
   const answer = async (decision: "approve" | "deny") => {
     setSent(decision);
     try {
@@ -156,62 +283,84 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
       });
     }
   };
-  const deciders = approval.deciderIds.map((id) => memberName(id));
+  const deciders = approval.deciderIds.map((id) => firstName(memberName(id)));
+  const toCard = () => {
+    const card = document.querySelector<HTMLElement>(
+      `[data-session-card="${approval.sessionId}"]`,
+    );
+    card?.scrollIntoView({ block: "center", behavior: "smooth" });
+    card?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  };
   return (
     <section
       aria-label={`${approval.agentName} asks for approval`}
-      className={cardClass}
+      className="mt-0.5 flex max-w-2xl items-start gap-2 text-[13px]"
     >
-      <div className="flex items-start gap-2">
-        <ShieldQuestion
-          className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Approval requested
-          </p>
-          <p className="font-medium">{approval.title}</p>
+      <ShieldQuestion
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          pending ? "text-warning" : "text-muted-foreground",
+        )}
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p>
+          <span className="text-muted-foreground">Asks to approve </span>
+          <span className="font-medium">{approval.title}</span>
           {approval.tool && (
-            <p className="text-[12px] text-muted-foreground">
-              Tool: <code className="font-mono">{approval.tool}</code>
-            </p>
+            <span className="text-muted-foreground">
+              {" "}
+              (<code className="font-mono text-xs">{approval.tool}</code>)
+            </span>
           )}
-          {pending ? (
-            mayDecide ? (
-              <div className="mt-2 flex gap-2">
-                <Button
-                  size="sm"
-                  disabled={sent !== null}
-                  onClick={() => void answer("approve")}
+        </p>
+        {pending ? (
+          onCard ? (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              {mayDecide
+                ? "Review it with its context on the session card."
+                : `${deciders.join(" or ")} decides.`}
+              {mayDecide && (
+                <button
+                  type="button"
+                  onClick={toCard}
+                  className="rounded-sm font-medium text-foreground underline-offset-2 focus-ring outline-none hover:underline"
                 >
-                  <Check className="size-3.5" aria-hidden /> Approve
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={sent !== null}
-                  onClick={() => void answer("deny")}
-                >
-                  <X className="size-3.5" aria-hidden /> Deny
-                </Button>
-              </div>
-            ) : (
-              <p className="mt-1 text-[12px] text-muted-foreground">
-                {deciders.join(" or ")} can decide.
-              </p>
-            )
+                  Go to the card
+                </button>
+              )}
+            </p>
+          ) : mayDecide ? (
+            <div className="mt-2 flex gap-2">
+              <Button
+                disabled={sent !== null}
+                onClick={() => void answer("approve")}
+              >
+                <Check className="size-3.5" aria-hidden /> Approve
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={sent !== null}
+                onClick={() => void answer("deny")}
+              >
+                <X className="size-3.5" aria-hidden /> Deny
+              </Button>
+            </div>
           ) : (
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              {approval.status === "approved"
-                ? `Approved by ${memberName(approval.decidedById)}`
-                : approval.status === "denied"
-                  ? `Denied by ${memberName(approval.decidedById)}`
-                  : "Expired: the session ended before anyone answered."}
-              {approval.note ? `: “${approval.note}”` : ""}
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {deciders.join(" or ")} decides.
             </p>
-          )}
-        </div>
+          )
+        ) : (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {approval.status === "approved"
+              ? `Approved by ${memberName(approval.decidedById)}`
+              : approval.status === "denied"
+                ? `Denied by ${memberName(approval.decidedById)}`
+                : "Expired: the session ended before anyone answered."}
+            {approval.note ? `: “${approval.note}”` : ""}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -223,7 +372,7 @@ function QuestionCard({ card: question }: { card: QuestionCardPayload }) {
   return (
     <section
       aria-label={`${question.agentName} asks a question`}
-      className={cardClass}
+      className={cn(cardClass, "px-3 py-2.5")}
     >
       <div className="flex items-start gap-2">
         <CircleHelp
@@ -231,7 +380,7 @@ function QuestionCard({ card: question }: { card: QuestionCardPayload }) {
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+          <p className="text-xs font-semibold text-muted-foreground">
             {resolved ? "Question resolved" : "Question"} ·{" "}
             <ReferenceChip
               target={{ kind: "item", id: question.questionItemId }}
@@ -239,14 +388,13 @@ function QuestionCard({ card: question }: { card: QuestionCardPayload }) {
             />
           </p>
           <p className="mt-0.5">{question.question}</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {resolved
               ? `Resolved by ${memberName(question.resolvedById)}; ${question.agentName} continues.`
               : `${question.itemKey} waits for the answer.`}
           </p>
           {!resolved && (
             <Button
-              size="sm"
               variant="secondary"
               className="mt-2"
               render={<Link href={question.path} />}

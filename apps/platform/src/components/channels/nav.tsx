@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { AtSign, Bot, Hash, Lock, MessagesSquare, Plus } from "lucide-react";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { Avatar } from "@lictory/ui/primitives";
+import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   SidebarAction,
@@ -126,11 +125,12 @@ function DirectMessagesSection({ badge }: NavSectionProps) {
               first?.kind === "agent" ? (
                 <Bot />
               ) : (
-                <Avatar
-                  name={first ? memberName(first.id) : "You"}
-                  userId={first?.id}
-                  size="xs"
-                  className={cn(c.others.length > 1 && "rounded")}
+                <PersonAvatar
+                  person={{
+                    id: first?.id ?? "you",
+                    name: first ? memberName(first.id) : "You",
+                  }}
+                  size={16}
                 />
               )
             }

@@ -1,10 +1,23 @@
 import { useId, useMemo, useState } from "react";
-import { Hash, Lock, MessageSquarePlus, Plus, Search } from "lucide-react";
+import {
+  Archive,
+  Check,
+  Hash,
+  Lock,
+  MessageSquarePlus,
+  Plus,
+  Search,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { normalizeChannelName } from "@lictory/core/channels/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { SectionCaption } from "@lictory/platform/components/shell/panel";
+import { Actor, Facepile } from "@lictory/platform/components/identity/actor";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Checkbox } from "@lictory/ui/checkbox";
@@ -24,7 +37,7 @@ import {
 } from "@lictory/platform/components/spaces/dialog";
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { Link, useRouter } from "@lictory/platform/lib/navigation";
+import { useRouter } from "@lictory/platform/lib/navigation";
 import { useChannels } from "@lictory/platform/components/channels/store";
 import {
   channelLabel,
@@ -39,9 +52,11 @@ import {
 // and the ways to start a conversation (a new channel, a direct message).
 
 export function ChannelBrowser() {
-  const { organization, memberName, mutateConfirmed } = useWorkspace();
+  const { organization, memberName, mutateConfirmed, directory } =
+    useWorkspace();
   const router = useRouter();
   const { list, loaded } = useChannels();
+  const directId = useId();
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [messaging, setMessaging] = useState(false);
@@ -80,149 +95,191 @@ export function ChannelBrowser() {
           description: e instanceof Error ? e.message : undefined,
         }),
       );
+  const archivedCount = list.filter(
+    (c) => c.kind !== "direct" && c.archivedAt,
+  ).length;
+  const shown = channels.length;
   return (
     <div className="flex h-full min-h-0">
-      <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-          <div className="mb-5 flex flex-wrap items-center gap-2">
-            <h1 className="mr-auto text-xl font-semibold tracking-tight">
-              Channels
-            </h1>
-            <Button variant="secondary" onClick={() => setSearching(true)}>
-              <Search className="size-3.5" aria-hidden /> Search messages
-            </Button>
-            <Button variant="secondary" onClick={() => setMessaging(true)}>
-              <MessageSquarePlus className="size-3.5" aria-hidden /> New message
-            </Button>
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="size-3.5" aria-hidden /> New channel
-            </Button>
-          </div>
-          <div className="relative mb-3">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              aria-label="Find a channel"
-              placeholder="Find a channel"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="h-9 pl-9 text-[14px]"
-            />
-          </div>
-          <label className="mb-4 flex w-fit items-center gap-2 text-[12px] text-muted-foreground">
-            <Checkbox
-              checked={showArchived}
-              onCheckedChange={(checked) => setShowArchived(checked === true)}
-            />
-            Show archived channels
-          </label>
-          {!loaded && !list.length ? null : channels.length ? (
-            <ul className="divide-y rounded-xl border bg-card">
-              {channels.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-                    {c.kind === "private" ? (
-                      <Lock className="size-4" aria-hidden />
-                    ) : (
-                      <Hash className="size-4" aria-hidden />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={paths.channel(organization.slug, c.id)}
-                      className="block truncate text-[14px] font-medium outline-none hover:underline focus-visible:underline"
-                    >
-                      {c.name}
-                      {c.archivedAt && (
-                        <span className="ml-2 text-[11px] font-normal text-muted-foreground">
-                          archived
-                        </span>
-                      )}
-                    </Link>
-                    <p className="truncate text-[12px] text-muted-foreground">
-                      {c.topic ||
-                        (c.kind === "private"
-                          ? "Private channel"
-                          : "Public channel")}
-                    </p>
-                  </div>
-                  {c.member ? (
-                    <span className="text-[12px] text-muted-foreground">
-                      Joined
-                    </span>
-                  ) : (
-                    !c.archivedAt && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => join(c)}
-                      >
-                        Join
-                      </Button>
-                    )
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState
-              illustration="inbox"
-              title={query ? "No channel matches" : "No channels yet"}
-              action={
-                <Button onClick={() => setCreating(true)}>
-                  <Plus className="size-3.5" aria-hidden /> New channel
-                </Button>
-              }
-            >
-              Channels are where conversations start. Promote what matters into
-              proposals, decisions and discussions.
-            </EmptyState>
-          )}
-          {direct.length > 0 && (
+      <div className="flex min-w-0 flex-1 flex-col">
+        <PageHeader
+          title="Channels"
+          icon={<Hash />}
+          meta={
+            loaded && (
+              <span>
+                {list.filter((c) => c.kind !== "direct" && c.member).length}{" "}
+                joined · {list.filter((c) => c.kind !== "direct").length} in all
+              </span>
+            )
+          }
+          actions={
             <>
-              <h2 className="mt-8 mb-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-                Direct messages
-              </h2>
-              <ul className="divide-y rounded-xl border bg-card">
-                {direct.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={paths.channel(organization.slug, c.id)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-[14px] outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
-                    >
-                      <span className="flex -space-x-1">
-                        {c.others.slice(0, 3).map((o) => (
-                          <Avatar
-                            key={o.id}
-                            name={memberName(o.id)}
-                            userId={o.kind === "user" ? o.id : null}
-                            size="md"
-                            className="ring-2 ring-card"
-                          />
-                        ))}
-                      </span>
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 truncate",
-                          c.unread > 0 && "font-semibold",
-                        )}
-                      >
-                        {channelLabel(c, memberName)}
-                      </span>
-                      {c.unread > 0 && (
-                        <span className="rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-white tabular-nums">
-                          {c.unread}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
+              <Button
+                variant="secondary"
+                aria-label="Search messages"
+                onClick={() => setSearching(true)}
+              >
+                <Search className="size-3.5" aria-hidden />
+                <span className="max-md:hidden">Search messages</span>
+              </Button>
+              <Button
+                variant="secondary"
+                aria-label="New message"
+                onClick={() => setMessaging(true)}
+              >
+                <MessageSquarePlus className="size-3.5" aria-hidden />
+                <span className="max-md:hidden">New message</span>
+              </Button>
+              <Button
+                aria-label="New channel"
+                onClick={() => setCreating(true)}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                <span className="max-sm:hidden">New channel</span>
+              </Button>
+            </>
+          }
+        />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="relative min-w-48 flex-1">
+                <Search
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  type="search"
+                  aria-label="Find a channel"
+                  placeholder="Find a channel"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-9 pl-9 text-[14px]"
+                />
+              </div>
+              {/* Only when there is something archived to show. */}
+              {archivedCount > 0 && (
+                <label className="flex min-h-6 w-fit items-center gap-2 text-[13px] text-muted-foreground">
+                  <Checkbox
+                    checked={showArchived}
+                    onCheckedChange={(checked) =>
+                      setShowArchived(checked === true)
+                    }
+                  />
+                  Show {archivedCount} archived
+                </label>
+              )}
+            </div>
+            {!loaded && !list.length ? null : shown ? (
+              <ul
+                aria-label="Channels"
+                className="divide-y divide-border/70 rounded-xl bg-card shadow-(--shadow-border)"
+              >
+                {channels.map((c) => (
+                  <ListRow
+                    key={c.id}
+                    href={paths.channel(organization.slug, c.id)}
+                    leading={
+                      c.kind === "private" ? (
+                        <Lock className="text-muted-foreground" aria-hidden />
+                      ) : (
+                        <Hash className="text-muted-foreground" aria-hidden />
+                      )
+                    }
+                    title={<span className="font-medium">{c.name}</span>}
+                    meta={
+                      c.topic ||
+                      (c.kind === "private"
+                        ? "Private channel"
+                        : "Public channel")
+                    }
+                    chips={
+                      c.archivedAt ? (
+                        <StatusChip tone="neutral" icon={<Archive />}>
+                          Archived
+                        </StatusChip>
+                      ) : c.member ? (
+                        <StatusChip tone="neutral" icon={<Check />}>
+                          Joined
+                        </StatusChip>
+                      ) : undefined
+                    }
+                    actions={
+                      !c.member && !c.archivedAt ? (
+                        <Button
+                          variant="secondary"
+                          aria-label={`Join #${c.name}`}
+                          onClick={() => join(c)}
+                        >
+                          Join
+                        </Button>
+                      ) : undefined
+                    }
+                  />
                 ))}
               </ul>
-            </>
-          )}
+            ) : (
+              <EmptyState
+                illustration="inbox"
+                title={query ? "No channel matches" : "No channels yet"}
+                action={
+                  <Button onClick={() => setCreating(true)}>
+                    <Plus className="size-3.5" aria-hidden /> New channel
+                  </Button>
+                }
+              >
+                Channels are where conversations start. Promote what matters
+                into proposals, decisions and discussions.
+              </EmptyState>
+            )}
+            {direct.length > 0 && (
+              <section aria-labelledby={directId}>
+                <SectionCaption as="h2" count={direct.length}>
+                  <span id={directId}>Direct messages</span>
+                </SectionCaption>
+                <ul className="divide-y divide-border/70 rounded-xl bg-card shadow-(--shadow-border)">
+                  {direct.map((c) => (
+                    <ListRow
+                      key={c.id}
+                      href={paths.channel(organization.slug, c.id)}
+                      leading={
+                        <Facepile
+                          people={c.others.map((o) => ({
+                            id: o.id,
+                            name: memberName(o.id),
+                            image:
+                              directory.members.find((m) => m.id === o.id)
+                                ?.image ?? null,
+                          }))}
+                          max={3}
+                          size={20}
+                        />
+                      }
+                      title={
+                        <span className={cn(c.unread > 0 && "font-semibold")}>
+                          {channelLabel(c, memberName)}
+                        </span>
+                      }
+                      chips={
+                        c.unread > 0 ? (
+                          <span className="rounded-full bg-destructive px-1.5 text-[11px] leading-[18px] font-semibold text-white tabular-nums">
+                            {c.unread}
+                            <span className="sr-only"> unread</span>
+                          </span>
+                        ) : undefined
+                      }
+                      time={
+                        c.lastMessageAt
+                          ? new Date(c.lastMessageAt).toISOString()
+                          : undefined
+                      }
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
         </div>
       </div>
       {searching && (
@@ -379,9 +436,9 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
             {memberIds.map((id) => (
               <span
                 key={id}
-                className="inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pr-2 pl-0.5 text-[12px]"
+                className="inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pr-2 pl-0.5 text-xs [--actor-ring:var(--muted)]"
               >
-                <Avatar name={memberName(id)} userId={id} size="sm" />
+                <Actor userId={id} size={20} label="none" />
                 {memberName(id)}
               </span>
             ))}
@@ -466,9 +523,9 @@ export function NewMessageDialog({ onClose }: { onClose: () => void }) {
           {people.map((id) => (
             <span
               key={id}
-              className="inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pr-2 pl-0.5 text-[12px]"
+              className="inline-flex items-center gap-1 rounded-full bg-muted py-0.5 pr-2 pl-0.5 text-xs [--actor-ring:var(--muted)]"
             >
-              <Avatar name={memberName(id)} userId={id} size="sm" />
+              <Actor userId={id} size={20} label="none" />
               {memberName(id)}
             </span>
           ))}

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Hash } from "lucide-react";
+import { Hash, Lock } from "lucide-react";
+import {
+  AgentAvatar,
+  Facepile,
+  PersonAvatar,
+  type AgentIdentity,
+  type Person,
+} from "@lictory/platform/components/identity/actor";
 import { paths } from "@lictory/core/lib/paths";
 import { EmptyState } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
@@ -113,6 +120,7 @@ function Conversation({ channel }: { channel: Channel }) {
           name: a.name,
           handle: a.handle,
           kind: "agent" as const,
+          avatar: a.avatar,
         })),
     ],
     [directory.members, factory.agents],
@@ -120,6 +128,11 @@ function Conversation({ channel }: { channel: Channel }) {
   const agentNameOf = useCallback(
     (id: string | null | undefined) =>
       (id ? factory.agentById.get(id)?.name : undefined) ?? "Agent",
+    [factory.agentById],
+  );
+  const agentOf = useCallback(
+    (id: string | null | undefined) =>
+      id ? factory.agentById.get(id) : undefined,
     [factory.agentById],
   );
   // A thread an agent session is working in: replies by its requester or
@@ -265,6 +278,7 @@ function Conversation({ channel }: { channel: Channel }) {
         onEditingChange={(on) => setEditingId(on ? message.id : undefined)}
         nameOf={memberName}
         agentNameOf={agentNameOf}
+        agentOf={agentOf}
         mentions={mentions}
         actions={actions}
         inThread={inThread}
@@ -273,6 +287,7 @@ function Conversation({ channel }: { channel: Channel }) {
     ),
     [
       agentNameOf,
+      agentOf,
       userId,
       isAdmin,
       canPost,
@@ -417,17 +432,54 @@ function Conversation({ channel }: { channel: Channel }) {
 }
 
 function ChannelStart({ channel, label }: { channel: Channel; label: string }) {
+  const { directory, memberName } = useWorkspace();
+  const { agentById } = useFactory();
+  const direct = channel.kind === "direct";
+  // A direct message starts with the people in it, not a channel's "#".
+  const others = channel.others.flatMap(
+    (o): (Person | (AgentIdentity & { agent: true }))[] => {
+      if (o.kind === "agent") {
+        const agent = agentById.get(o.id);
+        return agent ? [{ ...agent, agent: true as const }] : [];
+      }
+      return [
+        {
+          id: o.id,
+          name: memberName(o.id),
+          image: directory.members.find((m) => m.id === o.id)?.image ?? null,
+        },
+      ];
+    },
+  );
   return (
     <div className="space-y-1">
-      <div className="mb-3 grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
-        <Hash className="size-5" aria-hidden />
+      <div className="mb-3">
+        {direct && others.length === 1 ? (
+          "agent" in others[0]! ? (
+            <AgentAvatar agent={others[0]} size={36} />
+          ) : (
+            <PersonAvatar person={others[0]!} size={36} />
+          )
+        ) : direct && others.length > 1 ? (
+          <Facepile people={others} size={36} max={4} />
+        ) : (
+          <span className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
+            {channel.kind === "private" ? (
+              <Lock className="size-5" aria-hidden />
+            ) : (
+              <Hash className="size-5" aria-hidden />
+            )}
+          </span>
+        )}
       </div>
       <h2 className="text-lg font-semibold">
-        {channel.kind === "direct" ? label : `Welcome to #${label}`}
+        {direct ? label : `Welcome to #${label}`}
       </h2>
       <p className="text-[13px] text-muted-foreground">
-        {channel.kind === "direct"
-          ? "This is the start of your conversation."
+        {direct
+          ? others.length === 1
+            ? `This is the start of your conversation with ${others[0]!.name}.`
+            : "This is the start of your conversation."
           : channel.topic ||
             "This is the start of the channel. Start a conversation, then promote what matters into a proposal, a decision or a discussion on a specification."}
       </p>
