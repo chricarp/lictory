@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useState } from "react";
 import {
   Check,
@@ -158,11 +159,7 @@ export function ReviewPanel() {
                   {assigneesOf(review).map((a) => (
                     <span key={a.id} className="inline-flex items-center gap-1">
                       {a.userId ? (
-                        <Avatar
-                          userId={a.userId}
-                          name={memberName(a.userId)}
-                          size="xs"
-                        />
+                        <Actor userId={a.userId} label="none" size={16} />
                       ) : null}
                       {a.userId
                         ? memberName(a.userId)

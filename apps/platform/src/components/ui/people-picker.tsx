@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Combobox,
@@ -155,7 +156,7 @@ export function PersonTrigger({
   return (
     <>
       {name ? (
-        <Avatar userId={userId} name={name} size="sm" />
+        <Actor userId={userId} label="none" size={20} />
       ) : (
         <span className="grid size-5 place-items-center rounded-full border border-dashed text-muted-foreground">
           <UserRound className="size-3" />

@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -146,11 +147,7 @@ function SuggestionBody({
           {suggestion.title ?? suggestion.rationale ?? "Proposed change"}
         </h2>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <Avatar
-            userId={suggestion.authorId}
-            name={memberName(suggestion.authorId)}
-            size="xs"
-          />
+          <Actor userId={suggestion.authorId} label="none" size={16} />
           <span className="font-medium text-foreground">
             {memberName(suggestion.authorId)}
           </span>
@@ -509,11 +506,7 @@ function Reviewers({
                 ) : (
                   <span className="grid size-4 place-items-center rounded-full border border-dashed border-muted-foreground/60" />
                 )}
-                <Avatar
-                  userId={r.userId}
-                  name={memberName(r.userId)}
-                  size="xs"
-                />
+                <Actor userId={r.userId} label="none" size={16} />
                 <span className="font-medium">
                   {memberName(r.userId)}
                   {r.userId === userId ? " (me)" : ""}
