@@ -30,6 +30,7 @@ const routeFiles = [
   "routes/intelligence.ts",
   "routes/events.ts",
   "routes/admin.ts",
+  "routes/code.ts",
 ].map((file) => join(api, file));
 
 const registration =

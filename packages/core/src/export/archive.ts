@@ -108,6 +108,17 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.deliveryTarget },
   { table: s.workItemExternalLink },
   { table: s.deliveryPublication },
+  // Code: connections without their secrets, the repositories projects
+  // use and the links people, agents and key detection made. Mirrors
+  // (pull requests, branches, issues, checks) are the hosts' and are read
+  // there.
+  {
+    table: s.codeConnection,
+    omit: ["encryptedCredential", "encryptedWebhookSecret"],
+  },
+  { table: s.codeRepository },
+  { table: s.codeRepositoryProject },
+  { table: s.codeWorkLink },
   { table: s.organizationOnboarding },
   { table: s.organizationLogo, omit: ["content"] },
   { table: s.organizationBranding },

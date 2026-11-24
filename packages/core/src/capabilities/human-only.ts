@@ -268,6 +268,8 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Serves an organization logo to email clients, by its content hash.",
   "GET /api/users/:id/photo": "Serves a profile photo.",
   "ALL /api/*": "Unknown API path fallback.",
+  "POST /api/code/webhooks/:connectionId":
+    "Code host webhooks, authenticated by the host's signature (code/ingest.ts).",
 };
 
 export type HumanOnlyOperation = HumanOnly & {

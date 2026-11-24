@@ -14,6 +14,7 @@ import {
   type Surface,
 } from "@lictory/core/capabilities/core";
 import { deliveryCapabilities } from "@lictory/core/capabilities/delivery";
+import { codeCapabilities } from "@lictory/core/capabilities/code";
 import {
   assertHumanOnlyMetadata,
   humanOnlyCapability,
@@ -49,6 +50,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...organizationDeletionCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
+  ...codeCapabilities,
   humanOnlyCapability(() => capabilities),
 ];
 assertHumanOnlyMetadata(capabilities);

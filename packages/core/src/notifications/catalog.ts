@@ -299,6 +299,16 @@ export const notificationKinds = {
     email: true,
     required: true,
   },
+  // Code (docs/internals/code-hosts.md): a write Lictory sent to a code
+  // host for you (a branch, a pull request, a comment, a merge) failed.
+  code_write_failed: {
+    category: "delivery",
+    label: "Code host change failed",
+    description:
+      "A branch, pull request, comment or merge you asked for was refused by the code host or could not be sent.",
+    inApp: true,
+    email: true,
+  },
 } as const satisfies Record<string, Definition>;
 
 export type NotificationKind = keyof typeof notificationKinds;

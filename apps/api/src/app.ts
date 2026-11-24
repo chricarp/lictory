@@ -16,6 +16,7 @@ import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
 import { documentRoutes, relayRoutes } from "@lictory/api/routes/public";
 import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
+import { codeWebhookRoutes } from "@lictory/api/routes/code";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -142,6 +143,9 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     if (!userID) return c.json({ error: "unauthorized" }, 401);
     return c.json(await zero.mutate(c.req.raw, userID));
   });
+
+  // Code host webhooks: their own body limit, signature authentication.
+  app.route("/", codeWebhookRoutes());
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());

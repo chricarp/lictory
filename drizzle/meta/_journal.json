@@ -330,6 +330,20 @@
       "when": 1794474396561,
       "tag": "0046_organization_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795479750932,
+      "tag": "0047_code_hosts",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795479757512,
+      "tag": "0048_code_zero_publication",
+      "breakpoints": true
     }
   ]
 }

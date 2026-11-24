@@ -2,6 +2,7 @@ import { z } from "zod";
 import type * as s from "@lictory/core/db/schema";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DeliveryProviders } from "@lictory/core/delivery/registry";
+import type { CodeHostProviders } from "@lictory/core/code/registry";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 import type { ProposalDrafter } from "@lictory/core/ai/intake";
 
@@ -107,6 +108,8 @@ export type CapabilityContext = {
   storage?: () => ObjectStorage;
   // Delivery adapters; defaults to the configured providers.
   deliveryProviders?: DeliveryProviders;
+  // Code host adapters; defaults to the configured hosts.
+  codeHostProviders?: CodeHostProviders;
   // Lictory Intelligence adapter for proposal intake; defaults to the
   // configured provider. Tests substitute their own.
   proposalDrafter?: ProposalDrafter;
