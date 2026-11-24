@@ -37,6 +37,7 @@ export function describeNotification(
   const item = str(d.itemKey) ?? "an item";
   const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
   const excerpt = str(d.excerpt);
+  const count = typeof d.count === "number" ? d.count : 1;
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
     ? `“${str(d.suggestionTitle)}”`
@@ -243,11 +244,22 @@ export function describeNotification(
         headline: `${actor} mentioned you ${channelPlace(d)}`,
         body: excerpt,
       };
+    // Digested per conversation: `count` messages since the person last
+    // read it, the latest by `actor`.
     case "direct_message":
-      return { headline: `${actor} sent you a message`, body: excerpt };
+      return {
+        headline:
+          count > 1
+            ? `${count} new messages, the latest from ${actor}`
+            : `${actor} sent you a message`,
+        body: excerpt,
+      };
     case "channel_thread_reply":
       return {
-        headline: `${actor} replied to a thread ${channelPlace(d)}`,
+        headline:
+          count > 1
+            ? `${count} new replies to a thread ${channelPlace(d)}, the latest from ${actor}`
+            : `${actor} replied to a thread ${channelPlace(d)}`,
         body: excerpt,
       };
     case "channel_message":

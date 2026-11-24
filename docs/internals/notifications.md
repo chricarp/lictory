@@ -116,6 +116,10 @@ Always:
   specific one the person can receive wins (a mention beats "new discussion";
   a stale approval beats "revised"). A kind they turned off does not take the
   place of a broader one they kept on.
+- "Ready" is said once per person and revision (`item_ready` carries a
+  dedupe key of the item and revision): a revision that leaves ready (a
+  review requested after an approval) and returns does not announce itself
+  twice. To do shows the live state.
 
 Mentions are stored in message Markdown as `@[Name](mention:USER_ID)`. The
 label is display text; the server trusts only the ID after checking membership.
@@ -155,6 +159,13 @@ notification names its `channel_id`, and the fan-out, the Inbox, unread
 counts and email (`notificationReadable`) require that the recipient can
 still read the channel: it is public, or they are its member. See
 [Lictory Channels](channels.md#notifications).
+
+Conversation traffic is digested at fan-out: while a person has not read
+or archived the last direct message notification of a conversation (or the
+last reply notification of a thread), the next one updates it in place (who
+wrote last, the latest excerpt, a count, the time) instead of adding a row,
+and sends no further email. "3 new messages, the latest from Ben" reads as
+one entry; once read, the next message starts a new one.
 
 ## Preferences
 
