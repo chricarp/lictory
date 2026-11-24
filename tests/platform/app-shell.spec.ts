@@ -167,8 +167,8 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     rail.getByRole("link", { name: "Second floor", exact: true }),
   ).toBeVisible();
 
-  // Module sections link to their pages: Channels and the Factory are
-  // registered modules, Code is still a placeholder.
+  // Module sections link to their pages. Code, with no host connected yet,
+  // explains how to connect one.
   await sidebar(page).getByRole("link", { name: "All channels" }).click();
   await expect(page).toHaveURL(paths.channels(seeded.slug));
   await expect(
@@ -186,6 +186,7 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(
     page.getByRole("heading", { name: "Code", level: 1 }),
   ).toBeVisible();
+  await expect(page.getByText("Connect a code host")).toBeVisible();
 
   // The palette is keyboard first: open, type, choose.
   await page.keyboard.press("ControlOrMeta+k");

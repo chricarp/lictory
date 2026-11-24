@@ -60,26 +60,33 @@ export function CodePage() {
   const { connections, complete } = useCodeHosts();
   if (complete && connections.length === 0)
     return (
-      <div className="h-full overflow-y-auto">
-        <EmptyState
-          illustration="planning"
-          title="Connect a code host"
-          action={
-            isAdmin ? (
-              <Button
-                render={
-                  <Link href={paths.settings(organization.slug, "code")} />
-                }
-              >
-                Connect GitHub, GitLab or Bitbucket
-              </Button>
-            ) : undefined
-          }
-        >
-          Lictory shows your pull requests, checks and issues next to the work
-          they deliver once a code host is connected.
-          {!isAdmin && " Ask an organization administrator to connect one."}
-        </EmptyState>
+      <div className="flex h-full flex-col">
+        {/* The page keeps its heading before a host is connected, like every
+            module page. */}
+        <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
+          <h1 className="text-sm font-semibold">Code</h1>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <EmptyState
+            illustration="planning"
+            title="Connect a code host"
+            action={
+              isAdmin ? (
+                <Button
+                  render={
+                    <Link href={paths.settings(organization.slug, "code")} />
+                  }
+                >
+                  Connect GitHub, GitLab or Bitbucket
+                </Button>
+              ) : undefined
+            }
+          >
+            Lictory shows your pull requests, checks and issues next to the work
+            they deliver once a code host is connected.
+            {!isAdmin && " Ask an organization administrator to connect one."}
+          </EmptyState>
+        </div>
       </div>
     );
   return (
