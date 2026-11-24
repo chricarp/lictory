@@ -354,7 +354,9 @@ test("the sidebar stays put and reveals the current row only when it is hidden",
     page.getByRole("heading", { level: 1, name: "Rotate webhook secrets" }),
   ).toBeVisible();
   expect(await top()).toBe(0);
-  await expect(nav.getByRole("link", { name: "All channels" })).toBeInViewport();
+  await expect(
+    nav.getByRole("link", { name: "All channels" }),
+  ).toBeInViewport();
 });
 
 test("on a phone the navigation is a drawer with the rail", async ({

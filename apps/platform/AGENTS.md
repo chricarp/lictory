@@ -83,7 +83,11 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
   `EmptyState` (lists) or `MissingState` (whole pages) from `@lictory/ui`.
   A page with no data at all is one `MissingState` with one primary action:
   no zero stat cards, no empty sections beside it. Under a `PageHeader` pass
-  `headingLevel={2}`: the header's title is the page's h1.
+  `headingLevel={2}`: the header's title is the page's h1. One piece of
+  art per state: a module's or a page's empty state shows its
+  `illustration`; the `icon` well stands in only where no illustration
+  fits (a row, a panel), never under an illustration (`MissingState` and
+  `StatusPage` draw one or the other).
 
 ## Shared building blocks
 
