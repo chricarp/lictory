@@ -133,6 +133,12 @@ export async function deleteAccount(db: Database, userId: string) {
     await tx.delete(s.twoFactor).where(eq(s.twoFactor.userId, userId));
     await tx.delete(s.passkey).where(eq(s.passkey.userId, userId));
     await tx.delete(s.accessToken).where(eq(s.accessToken.userId, userId));
+    // Where their agents were woken (webhook destinations and MCP event
+    // subscriptions, with their secrets) and the events addressed to them.
+    await tx
+      .delete(s.agentEventSubscription)
+      .where(eq(s.agentEventSubscription.userId, userId));
+    await tx.delete(s.agentEvent).where(eq(s.agentEvent.userId, userId));
     // Records of what their agents called (docs/internals/audit.md).
     await tx
       .delete(s.capabilityInvocation)
