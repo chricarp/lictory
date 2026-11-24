@@ -17,6 +17,7 @@ import { documentRoutes, relayRoutes } from "@lictory/api/routes/public";
 import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
 import { runnerRoutes } from "@lictory/api/routes/runner";
+import { slackRoutes } from "@lictory/api/routes/slack";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -147,6 +148,8 @@ export function createApp(options: { draining?: () => boolean } = {}) {
 
   // The runner protocol: bearer runner credentials, its own body limits.
   app.route("/", runnerRoutes());
+  // Slack's Events API, interactivity and OAuth redirect: signed by Slack.
+  app.route("/", slackRoutes());
 
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());

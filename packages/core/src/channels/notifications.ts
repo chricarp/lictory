@@ -29,7 +29,8 @@ export async function queueChannelNotifications(
     channel: ChannelRow;
     message: MessageRow;
     root: MessageRow | null;
-    actorId: string;
+    // Null for authors with no Lictory identity (a Slack person).
+    actorId: string | null;
     mentionedUserIds: string[];
     participantIds: string[];
     // An edit: only newly mentioned people are told.

@@ -9,7 +9,11 @@ import {
   table,
   type ReadonlyJSONValue,
 } from "@rocicorp/zero";
-import type { ChannelAttachment } from "@lictory/core/db/channel-schema";
+import type {
+  ChannelAttachment,
+  ChannelExternalFile,
+  ChannelExternalReaction,
+} from "@lictory/core/db/channel-schema";
 
 // The Zero schema covers exactly the replicated publication `lictory_zero`
 // (drizzle/0018_zero_publication.sql, 0035_spaces_zero_publication.sql and
@@ -164,6 +168,11 @@ const channelMessage = table("channelMessage")
     editedAt: number().from("edited_at").optional(),
     deletedAt: number().from("deleted_at").optional(),
     externalSource: string().from("external_source").optional(),
+    externalAuthorName: string().from("external_author_name").optional(),
+    externalFiles:
+      json<readonly ChannelExternalFile[]>().from("external_files"),
+    externalReactions:
+      json<readonly ChannelExternalReaction[]>().from("external_reactions"),
     createdAt: number().from("created_at"),
   })
   .primaryKey("id");
@@ -179,6 +188,7 @@ const channelReaction = table("channelReaction")
     reactorKind: string().from("reactor_kind"),
     userId: string().from("user_id").optional(),
     agentId: string().from("agent_id").optional(),
+    externalSource: string().from("external_source").optional(),
     createdAt: number().from("created_at"),
   })
   .primaryKey("id");
@@ -210,6 +220,44 @@ const channelPromotion = table("channelPromotion")
     cardMessageId: string().from("card_message_id").optional(),
     createdById: string().from("created_by_id"),
     createdAt: number().from("created_at"),
+  })
+  .primaryKey("id");
+
+// A channel's link to an external chat channel (drizzle/0053), with its
+// health, and the outbound mirror state of Lictory messages (read only for
+// failures). No credential is in either.
+const channelExternalLink = table("channelExternalLink")
+  .from("channel_external_link")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    source: string(),
+    externalId: string().from("external_id"),
+    externalName: string().from("external_name"),
+    externalUrl: string().from("external_url").optional(),
+    health: string(),
+    lastError: string().from("last_error").optional(),
+    lastErrorAt: number().from("last_error_at").optional(),
+    lastSyncedAt: number().from("last_synced_at").optional(),
+    linkedById: string().from("linked_by_id"),
+    linkedAt: number().from("linked_at"),
+    unlinkedAt: number().from("unlinked_at").optional(),
+  })
+  .primaryKey("id");
+
+const channelMirror = table("channelMirror")
+  .from("channel_mirror")
+  .columns({
+    id: string(),
+    organizationId: string().from("organization_id"),
+    channelId: string().from("channel_id"),
+    messageId: string().from("message_id"),
+    target: string(),
+    emoji: string(),
+    attempts: number(),
+    failedAt: number().from("failed_at").optional(),
+    lastError: string().from("last_error").optional(),
   })
   .primaryKey("id");
 
@@ -289,6 +337,26 @@ const channelPromotionRelationships = relationships(
   }),
 );
 
+const toChannel = {
+  sourceField: ["channelId"],
+  destSchema: channel,
+  destField: ["id"],
+} as const;
+const channelExternalLinkRelationships = relationships(
+  channelExternalLink,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one(toChannel),
+  }),
+);
+const channelMirrorRelationships = relationships(
+  channelMirror,
+  ({ many, one }) => ({
+    orgMembers: many(toOrgMembers),
+    channel: one(toChannel),
+  }),
+);
+
 const memberRelationships = relationships(member, ({ many }) => ({
   // Filtered to the `organizationProfile` row by the memberships query.
   organization: many({
@@ -364,6 +432,8 @@ export const schema = createSchema({
     channelReaction,
     channelThreadParticipant,
     channelPromotion,
+    channelExternalLink,
+    channelMirror,
   ],
   relationships: [
     memberRelationships,
@@ -378,6 +448,8 @@ export const schema = createSchema({
     channelReactionRelationships,
     channelThreadParticipantRelationships,
     channelPromotionRelationships,
+    channelExternalLinkRelationships,
+    channelMirrorRelationships,
   ],
 });
 

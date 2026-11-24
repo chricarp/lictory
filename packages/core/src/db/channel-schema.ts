@@ -70,11 +70,15 @@ export const channelNotificationLevel = pgEnum("channel_notification_level", [
   "none",
 ]);
 // A system message is written by Lictory itself (channel archived, member
-// added); an agent message names the agent and the person it acts for.
+// added); an agent message names the agent and the person it acts for. An
+// external message was written in a linked external chat system (Slack) by
+// someone with no Lictory identity: it names them (`externalAuthorName`)
+// and carries no Lictory person or permission.
 export const channelAuthorKind = pgEnum("channel_author_kind", [
   "user",
   "agent",
   "system",
+  "external",
 ]);
 // A card renders an object (a promoted proposal, a decision, a discussion)
 // from `payload` with its live state.
@@ -228,6 +232,24 @@ export type ChannelAttachment = {
   size: number;
 };
 
+// A file shared in a linked external channel and not stored in Lictory:
+// its name, type, size and a link to it in the external system (which
+// enforces its own access).
+export type ChannelExternalFile = {
+  name: string;
+  mimeType: string;
+  size: number;
+  url: string;
+};
+
+// Reactions of people with no Lictory identity in a linked external
+// channel, counted per emoji (their names, for the tooltip).
+export type ChannelExternalReaction = {
+  emoji: string;
+  names: string[];
+  externalIds: string[];
+};
+
 // Synchronized. One message. `sequence` is unique and increasing in its
 // channel and assigned under the channel's transaction lock; replies point
 // at their thread root (threads are one level deep). Root messages carry
@@ -277,6 +299,19 @@ export const channelMessage = pgTable(
     deletedById: optionalActor("deleted_by_id"),
     externalSource: text("external_source"),
     externalId: text("external_id"),
+    // The external system's id of the author (a Slack user or bot id), for
+    // messages written there, and the name shown for authors with no
+    // Lictory identity ("Ines (Slack)").
+    externalAuthorId: text("external_author_id"),
+    externalAuthorName: text("external_author_name"),
+    externalFiles: jsonb("external_files")
+      .$type<ChannelExternalFile[]>()
+      .default([])
+      .notNull(),
+    externalReactions: jsonb("external_reactions")
+      .$type<ChannelExternalReaction[]>()
+      .default([])
+      .notNull(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -317,7 +352,9 @@ export const channelMessage = pgTable(
       "channel_message_author",
       sql`(${t.authorKind} = 'user' AND ${t.authorUserId} IS NOT NULL AND ${t.authorAgentId} IS NULL)
         OR (${t.authorKind} = 'agent' AND ${t.authorAgentId} IS NOT NULL AND ${t.onBehalfOfUserId} IS NOT NULL AND ${t.authorUserId} IS NULL)
-        OR (${t.authorKind} = 'system' AND ${t.authorAgentId} IS NULL)`,
+        OR (${t.authorKind} = 'system' AND ${t.authorAgentId} IS NULL)
+        OR (${t.authorKind}::text = 'external' AND ${t.authorUserId} IS NULL AND ${t.authorAgentId} IS NULL
+          AND ${t.externalSource} IS NOT NULL AND ${t.externalAuthorName} IS NOT NULL)`,
     ),
     check(
       "channel_message_deleted",
@@ -372,6 +409,9 @@ export const channelReaction = pgTable(
     reactorKind: channelMemberKind("reactor_kind").notNull(),
     userId: optionalActor("user_id"),
     agentId: text("agent_id"),
+    // Set when the reaction was made in a linked external chat system by a
+    // person mapped to this Lictory member: it is not mirrored back.
+    externalSource: text("external_source"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -493,5 +533,129 @@ export const channelPromotion = pgTable(
       sql`(${t.kind} <> 'decision' OR ${t.decisionId} IS NOT NULL)
         AND (${t.kind} <> 'discussion' OR ${t.threadId} IS NOT NULL)`,
     ),
+  ],
+);
+
+// Synchronized. A channel linked to a channel of an external chat system
+// (docs/internals/channels.md#slack). While linked, `channel.externalSource`
+// and `externalId` name the same external channel; unlinking clears them
+// and keeps this row (with `unlinkedAt`) and both histories. It carries the
+// link's health so the channel header can say "Synced with #x in Slack"
+// and whether that works. No credential lives here.
+export const channelExternalLink = pgTable(
+  "channel_external_link",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    channelId: text("channel_id").notNull(),
+    source: text("source").notNull(),
+    externalId: text("external_id").notNull(),
+    // `#payments` in the external system, kept current from rename events.
+    externalName: text("external_name").notNull(),
+    externalUrl: text("external_url"),
+    // `ok`, or `failing` with the last error people can act on.
+    health: text("health").default("ok").notNull(),
+    lastError: text("last_error"),
+    lastErrorAt: timestamp("last_error_at"),
+    lastSyncedAt: timestamp("last_synced_at"),
+    // Messages to import from before the link (0: none), and when that ran.
+    backfillLimit: integer("backfill_limit").default(0).notNull(),
+    backfilledAt: timestamp("backfilled_at"),
+    linkedById: optionalActor("linked_by_id").notNull(),
+    linkedAt: timestamp("linked_at").defaultNow().notNull(),
+    unlinkedById: optionalActor("unlinked_by_id"),
+    unlinkedAt: timestamp("unlinked_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("channel_external_link_org_id_unique").on(t.organizationId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.channelId],
+      foreignColumns: [channel.organizationId, channel.id],
+    }).onDelete("restrict"),
+    uniqueIndex("channel_external_link_active_channel")
+      .on(t.channelId)
+      .where(sql`${t.unlinkedAt} IS NULL`),
+    uniqueIndex("channel_external_link_active_external")
+      .on(t.organizationId, t.source, t.externalId)
+      .where(sql`${t.unlinkedAt} IS NULL`),
+    check(
+      "channel_external_link_health",
+      sql`${t.health} in ('ok', 'failing')`,
+    ),
+    check(
+      "channel_external_link_backfill",
+      sql`${t.backfillLimit} between 0 and 200`,
+    ),
+    check(
+      "channel_external_link_unlinked",
+      sql`(${t.unlinkedAt} IS NULL) = (${t.unlinkedById} IS NULL)`,
+    ),
+  ],
+);
+
+// Synchronized (failures only, by the synced query). How one Lictory-owned
+// message, or one emoji of Lictory reactions on a message, is mirrored to
+// the linked external channel: the outbox the worker works through after
+// commit, and the mapping it leaves (`externalId`, the posted message's id
+// there). The conversation writer bumps `version` and `dueAt` in its own
+// transaction; the worker claims due rows under a lease, makes the external
+// side match the message as it is then, and settles only the version it
+// sent, so a newer edit is never lost. Idempotent by message: one row per
+// message and target.
+export const channelMirror = pgTable(
+  "channel_mirror",
+  {
+    id: id(),
+    organizationId: organizationId(),
+    channelId: text("channel_id").notNull(),
+    messageId: text("message_id").notNull(),
+    linkId: text("link_id").notNull(),
+    // `message`, or `reaction` with its `emoji`.
+    target: text("target").notNull(),
+    emoji: text("emoji").default("").notNull(),
+    externalId: text("external_id"),
+    // Reactions: whether the bot's reaction is there now.
+    present: boolean("present").default(false).notNull(),
+    version: integer("version").default(1).notNull(),
+    syncedVersion: integer("synced_version").default(0).notNull(),
+    dueAt: timestamp("due_at"),
+    attempts: integer("attempts").default(0).notNull(),
+    leasedUntil: timestamp("leased_until"),
+    failedAt: timestamp("failed_at"),
+    lastError: text("last_error"),
+    syncedAt: timestamp("synced_at"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.messageId],
+      foreignColumns: [channelMessage.organizationId, channelMessage.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [t.organizationId, t.linkId],
+      foreignColumns: [
+        channelExternalLink.organizationId,
+        channelExternalLink.id,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("channel_mirror_target_unique").on(
+      t.messageId,
+      t.target,
+      t.emoji,
+    ),
+    index("channel_mirror_due_idx")
+      .on(t.dueAt)
+      .where(sql`${t.dueAt} IS NOT NULL AND ${t.failedAt} IS NULL`),
+    index("channel_mirror_failed_idx")
+      .on(t.channelId)
+      .where(sql`${t.failedAt} IS NOT NULL`),
+    check(
+      "channel_mirror_target",
+      sql`(${t.target} = 'message' AND ${t.emoji} = '') OR (${t.target} = 'reaction' AND length(${t.emoji}) between 1 and 64)`,
+    ),
+    check("channel_mirror_attempts", sql`${t.attempts} >= 0`),
   ],
 );

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LogoError } from "@lictory/core/branding/server";
 import { DeliveryError } from "@lictory/core/delivery/provider";
+import { SlackError } from "@lictory/core/channels/slack/api";
 import { ConversionError } from "@lictory/core/intelligence/convert";
 import { ContextError } from "@lictory/core/intelligence/server";
 import { StorageConfigurationError } from "@lictory/core/storage/errors";
@@ -35,6 +36,11 @@ export function toCapabilityError(error: unknown): CapabilityError {
     return new CapabilityError("external", error.message, {
       kind: error.kind,
       retryable: error.retryable,
+    });
+  if (error instanceof SlackError)
+    return new CapabilityError("external", error.message, {
+      kind: `slack_${error.kind}`,
+      retryable: error.kind === "rate_limited" || error.kind === "transient",
     });
   if (error instanceof ContextError || error instanceof LogoError)
     return new CapabilityError(fromStatus(error.status), error.message, {

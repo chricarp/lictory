@@ -290,6 +290,14 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Runner protocol: a runner shutting down returns the session to the queue.",
   "POST /api/runner/v1/sessions/:id/model":
     "Runner protocol: model calls of the built-in harness through the server's AI provider.",
+  // Slack (docs/internals/channels.md#slack): requests Slack signs, and the
+  // redirect that finishes an administrator's install (startSlackInstall).
+  "POST /api/slack/events/:organizationId":
+    "Slack Events API deliveries, verified by Slack's signature and processed by the worker.",
+  "POST /api/slack/interactivity/:organizationId":
+    "Slack interactivity payloads (link buttons on Lictory cards), verified and acknowledged.",
+  "GET /api/slack/oauth/callback":
+    "Slack's OAuth redirect finishing the install an administrator started with startSlackInstall.",
 };
 
 export type HumanOnlyOperation = HumanOnly & {

@@ -109,6 +109,22 @@ export const auditActions = {
     category: "access",
     label: "Removed someone from a private channel",
   },
+  // Slack: conversations leave Lictory for a workspace the organization
+  // controls, so connecting and linking are access events.
+  "slack.app_saved": {
+    category: "access",
+    label: "Saved the Slack app's credentials",
+  },
+  "slack.installed": { category: "access", label: "Installed the Slack app" },
+  "slack.disconnected": { category: "access", label: "Disconnected Slack" },
+  "slack.channel_linked": {
+    category: "access",
+    label: "Linked a channel to Slack",
+  },
+  "slack.channel_unlinked": {
+    category: "access",
+    label: "Unlinked a channel from Slack",
+  },
 } as const satisfies Record<
   string,
   { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }

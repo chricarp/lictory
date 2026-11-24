@@ -13,6 +13,13 @@ import {
 import type { Analyzer } from "@lictory/core/ai/analyzer";
 import { processChatRuns } from "@lictory/core/intelligence/chat/runner";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
+import { defaultSlackClient } from "@lictory/core/channels/slack/api";
+import {
+  processSlackBackfills,
+  processSlackEvents,
+  pruneSlackEvents,
+} from "@lictory/core/channels/slack/inbound";
+import { processChannelMirrors } from "@lictory/core/channels/slack/outbound";
 import type { Job } from "@lictory/worker/supervisor";
 
 export type WorkerConfig = ReturnType<typeof workerConfig>;
@@ -88,6 +95,11 @@ const DELETION_INTERVAL_MS = 5 * 60_000;
 // Leases last 90 seconds; checking twice a minute bounds the delay.
 const FACTORY_LEASE_INTERVAL_MS = 30_000;
 const FACTORY_LEASE_BATCH = 20;
+// Slack: woken by stored events and queued messages; polling picks up
+// retries whose backoff or Retry-After has passed.
+const SLACK_INTERVAL_MS = 15_000;
+const SLACK_BATCH = 25;
+const SLACK_PRUNE_INTERVAL_MS = 60 * 60_000;
 
 export function workerJobs(
   db: Database,
@@ -241,6 +253,49 @@ export function workerJobs(
           more: counts.requeued + counts.failed === FACTORY_LEASE_BATCH,
           counts,
         };
+      },
+    },
+    {
+      // Slack sync (docs/internals/channels.md#slack): stored Events API
+      // deliveries in, queued Lictory messages out, then bounded imports.
+      name: "slack",
+      kind: "slack",
+      intervalMs: SLACK_INTERVAL_MS,
+      async run({ stopping }) {
+        const client = defaultSlackClient(stopping);
+        const events = await processSlackEvents(db, client, {
+          limit: SLACK_BATCH,
+          signal: stopping,
+        });
+        const mirrors = await processChannelMirrors(db, client, {
+          limit: SLACK_BATCH,
+          signal: stopping,
+        });
+        const backfills = await processSlackBackfills(db, client, {
+          signal: stopping,
+        });
+        return {
+          more:
+            (events.claimed === SLACK_BATCH ||
+              mirrors.claimed === SLACK_BATCH) &&
+            !stopping.aborted,
+          counts: {
+            events: events.processed,
+            eventRetries: events.retried,
+            eventFailures: events.failed,
+            sent: mirrors.sent,
+            sendRetries: mirrors.retried,
+            sendFailures: mirrors.failed,
+            imported: backfills.imported,
+          },
+        };
+      },
+    },
+    {
+      name: "slack-prune",
+      intervalMs: SLACK_PRUNE_INTERVAL_MS,
+      async run() {
+        return { counts: { removed: await pruneSlackEvents(db) } };
       },
     },
     {

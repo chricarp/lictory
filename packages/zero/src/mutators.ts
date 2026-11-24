@@ -83,6 +83,9 @@ export const mutators = defineMutators({
         editedAt: null,
         deletedAt: null,
         externalSource: null,
+        externalAuthorName: null,
+        externalFiles: [],
+        externalReactions: [],
         createdAt: now,
       });
       await tx.mutate.channel.update({

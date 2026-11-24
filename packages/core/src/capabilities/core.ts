@@ -50,6 +50,8 @@ export const humanOnlyReasons = {
     "Taking a copy of all of an organization's data is an administrator's own decision; agents do not start or download organization exports.",
   deletion:
     "Deleting an organization, or cancelling its deletion, is its owners' own decision; agents never schedule or cancel it.",
+  sharing:
+    "What Lictory Intelligence may read from another system (such as Slack messages) is an organization administrator's own decision; agents never widen what they can read.",
   autonomy:
     "How much agents may do by themselves, and the evidence that their work is done, are people's decisions: an agent never changes its own autonomy, its Definition of Done, or signs off its own work.",
 } as const;
