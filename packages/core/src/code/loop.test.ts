@@ -409,7 +409,10 @@ async function fixture() {
           .from(s.syncEntity)
           .where(eq(s.syncEntity.key, `doneEvaluation:${workItemId}`))
       )[0]?.data as
-        | { passed: boolean; checks: { kind: string; passed: boolean }[] }
+        | {
+            passed: boolean;
+            checks: { kind: string; passed: boolean; detail: string }[];
+          }
         | undefined
     )?.checks ?? [];
   const passing = async (workItemId: string, kind: string) =>
@@ -763,6 +766,20 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
   assert.equal(
     (await f.sessions()).filter((x) => x.agentId === f.hawk.id).length,
     1,
+  );
+
+  // A connected host with a linked open pull request is evidence, never
+  // "no code host": the checks say what the pull request is waiting for.
+  await f.ci(f.repos.pay, pr.number, pr.headSha, "failure");
+  const open = await f.doneChecks(story.workItemId);
+  assert.ok(open.every((c) => !/No code host/.test(c.detail)));
+  assert.match(
+    open.find((c) => c.kind === "pull_request_merged")!.detail,
+    /^Waiting for .*#\d+ .* to be merged\.$/,
+  );
+  assert.match(
+    open.find((c) => c.kind === "checks_passed")!.detail,
+    /Failing: ci/,
   );
 
   // CI goes green on the host; ingest re-evaluates the Definition of Done.
