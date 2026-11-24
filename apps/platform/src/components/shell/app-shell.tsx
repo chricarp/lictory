@@ -440,6 +440,18 @@ function ShellFrame({
         <title>{title}</title>
         <OrganizationBrand organization={organization} />
         <div className="flex h-dvh overflow-clip bg-sidebar text-foreground">
+          {/* The first Tab stop skips the rail and sidebar (dozens of
+              links) to the page. Hidden until focused. */}
+          <a
+            href="#main"
+            onClick={(event) => {
+              event.preventDefault();
+              document.getElementById("main")?.focus();
+            }}
+            className="fixed top-2 left-2 z-[60] -translate-y-16 rounded-md bg-popover px-3 py-2 text-[13px] font-medium text-foreground shadow-(--shadow-panel) focus-ring outline-none focus:translate-y-0"
+          >
+            Skip to content
+          </a>
           {/* The left column: the organization rail and the sidebar. */}
           <div className="relative hidden shrink-0 lg:flex">
             {/* Wide windows only: on laptops the room goes to the work,

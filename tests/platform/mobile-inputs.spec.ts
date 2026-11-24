@@ -110,7 +110,13 @@ test.describe("touch devices", () => {
         }),
       ).toBeVisible();
 
-      await page.getByRole("button", { name: "Search", exact: true }).tap();
+      // The item's phone bar has no global search: the palette opens from
+      // the navigation drawer.
+      await page.getByRole("button", { name: "Open navigation" }).tap();
+      await page
+        .getByRole("dialog", { name: "Navigation" })
+        .getByRole("button", { name: /^Search…/ })
+        .tap();
       const search = page
         .getByRole("dialog", { name: "Command palette" })
         .getByRole("combobox", { name: "Search", exact: true });

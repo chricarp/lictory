@@ -3,11 +3,13 @@ import { test } from "node:test";
 import {
   channelLabel,
   groupReactions,
+  hiddenReplies,
   indexChannels,
   lastOwnMessage,
   listEntries,
   replyAuthors,
   sessionCardsIn,
+  shownReplyCount,
   sidebarChannels,
   sidebarDirect,
   titledByItem,
@@ -292,6 +294,43 @@ void test("a thread knows which sessions have their card in it", () => {
     message(4, "ada", start, { payload: { type: "agentSession" } }),
   ];
   assert.deepEqual([...sessionCardsIn(thread)], ["s1"]);
+});
+
+void test("reply counts leave out requests their session card shows", () => {
+  const session = (
+    over: Partial<{
+      channelId: string | null;
+      threadRootMessageId: string | null;
+      status: string;
+      approvals: unknown[];
+    }>,
+  ) => ({
+    channelId: "c1",
+    threadRootMessageId: "root",
+    status: "waiting",
+    approvals: [{ id: "a1" }],
+    ...over,
+  });
+  const hidden = hiddenReplies(
+    [
+      session({}),
+      // A second session in the same thread asking twice.
+      session({ approvals: [{ id: "a2" }, { id: "a3" }] }),
+      // Answered or running: its record lines show.
+      session({ threadRootMessageId: "other", status: "running" }),
+      session({ threadRootMessageId: "other", approvals: [] }),
+      // Another channel.
+      session({ channelId: "c2", threadRootMessageId: "elsewhere" }),
+    ],
+    "c1",
+  );
+  assert.deepEqual([...hidden], [["root", 3]]);
+  // "2 replies" with one request on the card reads "1 reply"; a dispatch
+  // card whose only reply is its pending request shows none.
+  assert.equal(shownReplyCount({ replyCount: 2 }, 1), 1);
+  assert.equal(shownReplyCount({ replyCount: 1 }, 1), 0);
+  assert.equal(shownReplyCount({ replyCount: 1 }, 2), 0);
+  assert.equal(shownReplyCount({ replyCount: 4 }), 4);
 });
 
 void test("a dispatched session's title repeats its item only when named after it", () => {

@@ -77,7 +77,8 @@ through the registry in `src/components/shell/nav-registry.tsx`; read
   your ui-sdk `Tabs` root, or `PageLinkTabs` for pages that are routes) and
   `actions`. One 44px bar; on phones it is 48px and also carries the
   navigation button and search, replacing the shell's top bar. A page with
-  its own search button passes `ownSearch`, and the global one gives way on
+  its own search button passes `ownSearch`, and one with its own create
+  (New proposal, New item) passes `ownCreate`: the global one gives way on
   phones. Never write
   an `<h1>` of your own: `components/shell/page-header.test.ts` fails on a
   new one, and its `knownOffenders` list only shrinks.

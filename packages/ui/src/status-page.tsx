@@ -96,11 +96,13 @@ export function MissingState({
   children,
   action,
   headingLevel = 1,
-}: {
-  icon: Icon;
+}: (
+  | { icon: Icon; illustration?: IllustrationKind }
+  // One piece of art: an illustration needs no icon well.
+  | { icon?: undefined; illustration: IllustrationKind }
+) & {
   tone?: keyof typeof wells;
   title: string;
-  illustration?: IllustrationKind;
   children?: ReactNode;
   action?: ReactNode;
   // 1 when the state is the whole page (not found, no access); 2 under a
@@ -114,14 +116,16 @@ export function MissingState({
         {illustration ? (
           <StateIllustration kind={illustration} />
         ) : (
-          <div
-            className={cn(
-              "mx-auto mb-4 grid size-10 place-items-center rounded-[10px]",
-              wells[tone],
-            )}
-          >
-            <Icon className="size-5" strokeWidth={1.75} />
-          </div>
+          Icon && (
+            <div
+              className={cn(
+                "mx-auto mb-4 grid size-10 place-items-center rounded-[10px]",
+                wells[tone],
+              )}
+            >
+              <Icon className="size-5" strokeWidth={1.75} />
+            </div>
+          )
         )}
         <Heading className="text-sm font-medium">{title}</Heading>
         {children && (

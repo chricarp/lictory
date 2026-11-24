@@ -175,9 +175,9 @@ export function AgentAvatar({
   const style: CSSProperties = {
     width: size,
     height: size,
-    background: `color-mix(in oklab, ${color} 16%, var(--card))`,
-    color: `color-mix(in oklab, ${color} 85%, var(--foreground))`,
-    boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${color} 30%, transparent)`,
+    background: `color-mix(in oklab, ${color} var(--identity-tile), var(--card))`,
+    color: `color-mix(in oklab, ${color} var(--identity-ink), var(--foreground))`,
+    boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${color} var(--identity-edge), transparent)`,
   };
   const avatar = (
     <span
@@ -360,10 +360,11 @@ export function Facepile({
 }) {
   const shown = people.slice(0, people.length > max ? max - 1 : max);
   const rest = people.length - shown.length;
-  // The next avatar starts 2px inside this one and its 2px ring covers 2px
-  // more: 4px of the disc's edge, while the (centered) initials take at
-  // most ~60% of its width.
-  const overlap = -2;
+  // Neighbours touch, and the next one's 2px ring (the surface color) is
+  // the only part over this disc: at 20–24px two initials fill ~60% of the
+  // width, so any deeper overlap cut the second letter ("BO" read "BC").
+  // Larger avatars have room for 4px.
+  const overlap = size <= 24 ? 0 : -2;
   return (
     <span
       role="group"

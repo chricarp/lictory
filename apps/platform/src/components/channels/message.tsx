@@ -37,6 +37,7 @@ import {
   formatTime,
   groupReactions,
   replyAuthors,
+  shownReplyCount,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
@@ -100,6 +101,9 @@ type Props = {
   inThread?: boolean;
   // Why a linked Slack channel never received this message.
   syncError?: string;
+  // Replies its thread holds but does not show (requests a session card
+  // shows): left out of the count.
+  hiddenReplies?: number;
 };
 
 const iconButton =
@@ -123,10 +127,12 @@ export const ChannelMessage = memo(function ChannelMessage({
   actions,
   inThread = false,
   syncError,
+  hiddenReplies = 0,
 }: Props) {
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
+  const replies = shownReplyCount(message, hiddenReplies);
   // The Factory's cards speak for their agent ("Forge via Ada").
   const factory =
     message.kind === "card" ? factoryCardOf(message.payload) : undefined;
@@ -341,41 +347,37 @@ export const ChannelMessage = memo(function ChannelMessage({
             }
           />
         )}
-        {isRoot &&
-          !inThread &&
-          message.replyCount > 0 &&
-          actions.openThread && (
-            <button
-              type="button"
-              onClick={() => actions.openThread?.(message)}
-              className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
-            >
-              <Facepile
-                people={replyAuthors(message).map((author) =>
-                  author.kind === "agent"
-                    ? {
-                        id: author.id,
-                        name: agentNameOf(author.id),
-                        avatar: agentOf(author.id)?.avatar,
-                        agent: true as const,
-                      }
-                    : { id: author.id, name: nameOf(author.id) },
-                )}
-                max={4}
-                size={20}
-                label="Replied"
-              />
-              <span className="font-medium text-primary">
-                {message.replyCount}{" "}
-                {message.replyCount === 1 ? "reply" : "replies"}
-              </span>
-              {message.lastReplyAt && (
-                <span className="text-muted-foreground">
-                  Last reply {formatTime(message.lastReplyAt)}
-                </span>
+        {isRoot && !inThread && replies > 0 && actions.openThread && (
+          <button
+            type="button"
+            onClick={() => actions.openThread?.(message)}
+            className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
+          >
+            <Facepile
+              people={replyAuthors(message).map((author) =>
+                author.kind === "agent"
+                  ? {
+                      id: author.id,
+                      name: agentNameOf(author.id),
+                      avatar: agentOf(author.id)?.avatar,
+                      agent: true as const,
+                    }
+                  : { id: author.id, name: nameOf(author.id) },
               )}
-            </button>
-          )}
+              max={4}
+              size={20}
+              label="Replied"
+            />
+            <span className="font-medium text-primary">
+              {replies} {replies === 1 ? "reply" : "replies"}
+            </span>
+            {message.lastReplyAt && (
+              <span className="text-muted-foreground">
+                Last reply {formatTime(message.lastReplyAt)}
+              </span>
+            )}
+          </button>
+        )}
       </div>
       {!deleted && !editing && (
         // One tab stop per message; arrow keys move between its actions.

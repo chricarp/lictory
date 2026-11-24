@@ -110,10 +110,21 @@
     0 20px 48px -24px rgb(17 18 20 / 0.18);
   --tracking-normal: -0.006em;
   --spacing: 0.25rem;
+  /* Tinted identity tiles (agent avatars): how much of the identity color
+     the tile, its glyph and its edge take. The glyph keeps >= 4.5:1 on its
+     tile in light and dark. */
+  --identity-tile: 16%;
+  --identity-ink: 85%;
+  --identity-edge: 30%;
 }
 
 .dark {
   color-scheme: dark;
+  /* On near-black the light theme's dark ink fades into its tile: the tile
+     takes more color and the glyph is drawn mostly in foreground. */
+  --identity-tile: 28%;
+  --identity-ink: 40%;
+  --identity-edge: 50%;
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;

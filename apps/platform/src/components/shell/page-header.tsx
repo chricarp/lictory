@@ -22,6 +22,7 @@ export type PhoneChrome = {
   leading: ReactNode;
   // The global search; a page with a search of its own leaves it out.
   search: ReactNode;
+  // The global create; a page with a create of its own leaves it out.
   trailing: ReactNode;
 };
 export const PhoneChromeContext = createContext<PhoneChrome | null>(null);
@@ -40,6 +41,7 @@ export function PageHeader({
   tabs,
   actions,
   ownSearch = false,
+  ownCreate = false,
   className,
 }: {
   // The page's heading (h1).
@@ -65,6 +67,10 @@ export function PageHeader({
   // in `actions`. On phones, one search icon is enough: the shell's global
   // search gives way (the palette stays on the navigation drawer and ⌘K).
   ownSearch?: boolean;
+  // The page has a create action of its own in `actions` (New proposal, New
+  // item). On phones the shell's global create gives way, so the bar never
+  // shows two "+" buttons side by side.
+  ownCreate?: boolean;
   className?: string;
 }) {
   const phone = useContext(PhoneChromeContext);
@@ -155,7 +161,7 @@ export function PageHeader({
           {phone && (
             <div className="contents lg:hidden">
               {!ownSearch && phone.search}
-              {phone.trailing}
+              {!ownCreate && phone.trailing}
             </div>
           )}
         </div>

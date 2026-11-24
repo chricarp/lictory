@@ -158,7 +158,8 @@ shell's top bar are one 48px bar: a mounted `PageHeader` claims the bar
 (`PhoneChromeContext`) and draws the navigation button before its title and
 search after its actions, and pages without one keep the shell's own bar.
 A page that searches its own content (a channel) says so (`ownSearch`) and
-the global search gives way on phones, so the bar has one search icon.
+the global search gives way on phones, so the bar has one search icon; a
+page with its own create (`ownCreate`) likewise has one "+".
 People, agents and policies are drawn by the identity components, states by
 `StatusChip` and `sessionState`, lists by `Panel` and `ListRow` (see
 `apps/platform/AGENTS.md` and the gallery at `/{org}/design-system`). The work sits in one framed surface on

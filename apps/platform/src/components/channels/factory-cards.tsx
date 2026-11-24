@@ -186,6 +186,8 @@ function SessionCard({
                 session.runnerId ? runnerById.get(session.runnerId) : undefined
               }
               linkSession={false}
+              // The card's header chip already names the item.
+              linkItem={!(card.workItemId && card.workItemKey)}
             />
           </div>
         ))}

@@ -87,7 +87,7 @@ test("@smoke an assignment reaches the desktop notification and badge", async ({
         title: `Owen Owner ${run} assigned DSK-1 to you`,
         body: "Retry failed payments",
         path: `/${seeded.slug}/items/DSK-1`,
-        tag: expect.any(String) as string,
+        tag: expect.any(String) as unknown as string,
       },
     ]);
   expect((await recorded(page)).badges.at(-1)).toBe(1);
