@@ -13,29 +13,31 @@ const password = "Local-test-password-123";
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": clientAddress() });
 });
+// One person per workflow, so each starts without an organization.
+const ownerEmail = "scout-owner@example.test";
+
 test.beforeAll(async () => {
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
-  const id = crypto.randomUUID();
-  const inserted = await db
-    .insert(s.user)
-    .values({
-      id,
-      name: "Avery Agent",
-      email,
-      emailVerified: true,
-      handle: "avery_agent",
-    })
-    .onConflictDoNothing()
-    .returning({ id: s.user.id });
-  if (inserted.length)
-    await db.insert(s.account).values({
-      id: crypto.randomUUID(),
-      userId: id,
-      accountId: id,
-      providerId: "credential",
-      password: await hashPassword(password),
-    });
+  for (const [address, name, handle] of [
+    [email, "Avery Agent", "avery_agent"],
+    [ownerEmail, "Sam Scout", "sam_scout"],
+  ] as const) {
+    const id = crypto.randomUUID();
+    const inserted = await db
+      .insert(s.user)
+      .values({ id, name, email: address, emailVerified: true, handle })
+      .onConflictDoNothing()
+      .returning({ id: s.user.id });
+    if (inserted.length)
+      await db.insert(s.account).values({
+        id: crypto.randomUUID(),
+        userId: id,
+        accountId: id,
+        providerId: "credential",
+        password: await hashPassword(password),
+      });
+  }
   await client.end();
 });
 
@@ -80,13 +82,11 @@ test("a person connects an MCP agent that works with their permissions", async (
   });
   const workspaceUrl = page.url();
 
-  // Create a token in account settings; the secret is shown once.
-  await page.goto("/account#agents");
-  const section = page.locator("#agents");
+  // Create a personal token in account settings; the secret is shown once.
+  await page.goto("/account#tokens");
+  const section = page.locator("#tokens");
   await section.getByRole("button", { name: "New token" }).click();
-  await section
-    .getByLabel("Agent name", { exact: true })
-    .fill("Playwright agent");
+  await section.getByLabel("Name", { exact: true }).fill("Playwright agent");
   await section.getByRole("button", { name: "Create token" }).click();
   const secret = (
     await page.getByTestId("access-token-secret").textContent()
@@ -153,12 +153,127 @@ test("a person connects an MCP agent that works with their permissions", async (
   await expect(page.getByText("Drafted by an agent")).toBeVisible();
 
   // Revoking disconnects the agent immediately.
-  await page.goto("/account#agents");
+  await page.goto("/account#tokens");
   await page
-    .locator("#agents")
+    .locator("#tokens")
     .getByRole("button", { name: "Revoke Playwright agent" })
     .click();
-  await expect(page.locator("#agents").getByText("Revoked")).toBeVisible();
+  await expect(page.locator("#tokens").getByText("Revoked")).toBeVisible();
+  expect((await call("tools/list")).status).toBe(401);
+  await request.dispose();
+});
+
+test("an external agent is connected and woken from its own page", async ({
+  page,
+  playwright,
+  baseURL,
+}) => {
+  await page.goto("/sign-in");
+  await page.getByLabel("Email", { exact: true }).fill(ownerEmail);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(inApp);
+  await page
+    .getByRole("button", { name: "Create a workspace", exact: false })
+    .click();
+  await createWorkspace(page, {
+    organization: "Scout Co",
+    project: "Scout project",
+    key: "SCT",
+  });
+  const slug = new URL(page.url()).pathname.split("/")[1]!;
+
+  // Creating an external agent opens its page on Connection, with its first
+  // token shown once and the MCP setup.
+  await page.goto(`/${slug}/factory/agents`);
+  await page.getByRole("button", { name: "New agent" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "New agent" });
+  await dialog.getByText("External MCP client").click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Scout");
+  await dialog.getByRole("button", { name: "Create agent" }).click();
+  await expect(page).toHaveURL(/\/factory\/agents\/[^/#]+#connection$/);
+  const connection = page.locator("#connection");
+  const secret = (
+    await connection.getByTestId("agent-token-secret").textContent()
+  )?.trim();
+  expect(secret).toMatch(/^lct_/);
+  await expect(connection.getByTestId("agent-mcp-url")).toHaveText(
+    `${new URL(page.url()).origin}/api/mcp`,
+  );
+  await expect(connection.getByLabel("Setup", { exact: true })).toContainText(
+    "claude mcp add",
+  );
+  await expect(connection.getByTestId("agent-token")).toHaveCount(1);
+
+  // The token authenticates as the agent: one organization, its own.
+  const request = await playwright.request.newContext({ baseURL });
+  const call = mcp(request, secret!);
+  const { body } = await call("tools/call", {
+    name: "listOrganizations",
+    arguments: {},
+  });
+  expect(body?.result?.isError, JSON.stringify(body)).toBe(false);
+  const { organizations } = body!.result!.structuredContent! as {
+    organizations: { slug: string }[];
+  };
+  expect(organizations.map((o) => o.slug)).toEqual([slug]);
+
+  // Shown once: the page no longer holds it after a reload.
+  await page.reload();
+  await expect(connection.getByTestId("agent-token")).toHaveCount(1);
+  await expect(connection.getByTestId("agent-token-secret")).toHaveCount(0);
+
+  // A wake-up added on the agent's page is listed there.
+  const wakeUps = page.locator("#wake-ups");
+  await wakeUps.getByRole("button", { name: "New webhook" }).click();
+  const form = wakeUps.getByRole("form", { name: "New webhook" });
+  await form.getByLabel("Name", { exact: true }).fill("Scout routine");
+  await form
+    .getByLabel("URL", { exact: true })
+    .fill("https://hooks.example.com/scout");
+  await form.getByLabel("Bearer secret", { exact: true }).fill("scout-secret");
+  await form.getByRole("button", { name: "Add webhook" }).click();
+  const hook = wakeUps.getByTestId("event-webhook");
+  await expect(hook.getByText("Scout routine")).toBeVisible();
+  await expect(hook.getByText("Active", { exact: true })).toBeVisible();
+
+  // Phones: the page fits the width.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(hook.getByText("Scout routine")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // Account settings lists neither the agent's token nor its webhook; it
+  // points to the agent's page instead.
+  await page.goto("/account#webhooks");
+  const webhooks = page.locator("#webhooks");
+  const link = webhooks.getByRole("link", { name: /Scout/ });
+  await expect(link).toBeVisible();
+  await expect(webhooks.getByText("Scout routine")).toHaveCount(0);
+  await expect(page.locator("#tokens").getByText("Scout")).toHaveCount(0);
+  await link.click();
+  await expect(page).toHaveURL(/\/factory\/agents\/[^/#]+#wake-ups$/);
+  await expect(
+    page.locator("#wake-ups").getByText("Scout routine"),
+  ).toBeVisible();
+
+  // Revoking on the agent's page disconnects its client at once.
+  await page
+    .locator("#connection")
+    .getByRole("button", { name: /^Revoke token/ })
+    .click();
+  await expect(
+    page.locator("#connection").getByTestId("agent-token"),
+  ).toHaveCount(0);
+  await expect(
+    page.locator("#connection").getByText("No active token."),
+  ).toBeVisible();
   expect((await call("tools/list")).status).toBe(401);
   await request.dispose();
 });

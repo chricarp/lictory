@@ -50,6 +50,7 @@ const actor = (ctx: CapabilityContext) => ({
 });
 
 const agentsWhere = "Factory → Agents";
+const connectionWhere = "Factory → Agents → the agent's Connection";
 const runnersWhere = "Factory → Runners";
 const sessionId = id.describe("Agent session id (see listAgentSessions).");
 const agentId = id.describe("Agent id (see listAgents).");
@@ -180,7 +181,7 @@ const listAgentTokensCapability = defineCapability({
   description: "Access tokens of an agent you own.",
   kind: "query",
   surfaces: webOnly,
-  humanOnly: { reason: "credentials", where: agentsWhere },
+  humanOnly: { reason: "credentials", where: connectionWhere },
   input: z.object({ organizationId, agentId }),
   async run(ctx, input) {
     return {
@@ -201,7 +202,7 @@ const createAgentTokenCapability = defineCapability({
     "Create an access token for an agent you own, for its MCP client. The secret is returned once.",
   kind: "command",
   surfaces: webOnly,
-  humanOnly: { reason: "credentials", where: agentsWhere },
+  humanOnly: { reason: "credentials", where: connectionWhere },
   input: z.object({
     organizationId,
     agentId,
@@ -227,7 +228,7 @@ const revokeAgentTokenCapability = defineCapability({
   description: "Revoke an agent's access token immediately.",
   kind: "command",
   surfaces: webOnly,
-  humanOnly: { reason: "credentials", where: agentsWhere },
+  humanOnly: { reason: "credentials", where: connectionWhere },
   destructive: true,
   idempotent: true,
   input: z.object({ organizationId, agentId, tokenId: id }),

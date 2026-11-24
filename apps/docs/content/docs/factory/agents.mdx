@@ -1,6 +1,6 @@
 ---
 title: Agents
-description: Create named agents with an accountable owner and a scope, choose their harness and connect external MCP clients with agent tokens.
+description: Create named agents with an accountable owner and a scope, choose their harness, and connect and wake external MCP clients from the agent's page.
 ---
 
 An **agent** is a named, non-human member of your organization: a name, an
@@ -16,9 +16,19 @@ Open **Factory → Agents** and choose **New agent**:
   harness) that sessions run on a runner. Choose the harness, optionally a
   model and a runner, and instructions given with every session.
 - **External MCP client**: an agent you run yourself that connects to
-  Lictory with an [access token](#access-tokens) of its own.
+  Lictory with a [token](#connection) of its own. Creating it opens its
+  page on **Connection**, with its first token (valid for 90 days) shown
+  once.
 
 You own the agents you create and are accountable for what they do.
+
+## The agent's page
+
+Choose an agent in **Factory → Agents** to open its page: its owner, kind
+and scope, and its recent sessions. For the agents you own, the page also
+holds everything that connects them, so each agent has one place:
+**Connection** and **Wake-ups**. Other people see who owns it, and only the
+owner manages its tokens and wake-ups.
 
 ## Scope
 
@@ -34,16 +44,34 @@ Agents never create agents, change scopes, add runners or create tokens:
 those stay with people in the browser. Agents never approve, merge or answer
 an approval request for a person.
 
-## Access tokens
+## Connection
 
-Choose the key icon next to an agent you own to create a token for an MCP
-client acting as that agent. The secret is shown once. The client connects
-to `https://<your-lictory-host>/api/mcp` with `Authorization: Bearer <token>`
-and works as the agent in this organization only. Tokens stop working when
-you revoke them, archive the agent or leave the organization.
+**Connection** lists the agent's tokens. Choose **New token**, pick when it
+expires and **Create token**: the secret is shown once, with the MCP URL
+(`https://<your-lictory-host>/api/mcp`) and a setup snippet for Claude Code,
+Codex or another client, which sends it as `Authorization: Bearer <token>`.
+The client then works as the agent in this organization only: your
+permissions, narrowed to the agent's scope, shown as "Scout via Ada".
 
-Each session also gets its own short-lived token, so a harness can use
-Lictory's MCP tools as the agent while the session runs.
+**Rotate** replaces a token with a new one (shown once) and revokes the old
+one; **Revoke** disconnects the client at once. Tokens also stop working
+when you archive the agent or leave the organization.
+
+Each session of a runner agent gets its own short-lived token, so a
+harness can use Lictory's MCP tools as the agent while the session runs; a
+runner agent needs no token of yours.
+
+## Wake-ups
+
+**Wake-ups** tells the agent when something waits on it or on you (a
+mention, a review request, a stale approval, a decided pull request…), so
+its client need not ask over and over. Choose **New webhook** for a client
+that starts from a URL and a key (Claude routines, Grok, OpenClaw hooks):
+its name, the URL, the bearer secret and the event types, then **Test** it.
+Each wake-up shows whether it is active, what it delivered and the last
+problem; **Pause**, **Resume** and **Remove** it there. Clients that support
+MCP Events subscribe themselves with the agent's token and appear here too.
+See [AI agents and MCP](/integrations/agents#wake-your-agent-when-something-waits-on-you).
 
 ## Archive an agent
 

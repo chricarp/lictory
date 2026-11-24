@@ -1,11 +1,19 @@
 import {
+  ArrowRight,
   BellRing,
   CircleAlert,
   CircleCheck,
   CirclePause,
   Clock,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { SubscriptionView } from "@lictory/core/agent-events/subscriptions";
 import {
   agentEventTypeList,
@@ -22,6 +30,8 @@ import {
 import { Input } from "@lictory/ui/input";
 import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { Switch } from "@lictory/ui/switch";
+import { Link } from "@lictory/platform/lib/navigation";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   InlineError,
   SettingsBody,
@@ -29,10 +39,19 @@ import {
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
 
-type Organization = { id: string; name: string };
+// Event webhooks wake an agent that cannot hold a connection open when
+// something waits on its person: a URL and a bearer secret (Grok, Claude
+// routines, OpenClaw hooks), or an MCP Events subscription an MCP client
+// created itself. A webhook bound to a Factory agent lives on that agent's
+// page (Wake-ups); Account settings keeps the person's own, for tools using a
+// personal access token. Creating one stays in the browser: it holds a
+// credential. The parts below serve both places.
+
+export type Organization = { id: string; name: string; slug: string };
 type TestOutcome =
   | { ok: true; status: number }
   | { ok: false; status: number | null; reason: string; detail: string };
+type Action = "test" | "pause" | "resume" | "remove";
 
 const ALL = "all";
 
@@ -75,29 +94,18 @@ function hostOf(url: string) {
   }
 }
 
-// Account settings → AI agents → Event webhooks. Agents that cannot hold a
-// connection open are woken by a webhook when something waits on you: a
-// URL and a bearer secret (Grok, Claude routines, OpenClaw hooks), or an MCP
-// Events subscription an MCP client created itself (listed here too, so you
-// see and can stop what receives your events). Creating one stays in the
-// browser: it holds a credential.
-export function EventWebhooksSection() {
+// The person's webhooks and MCP event subscriptions, and what they can do
+// with them. Everything is the person's own: the server lists and changes
+// only subscriptions they created (or their agents' clients did).
+export function useEventSubscriptions() {
   const [subscriptions, setSubscriptions] = useState<SubscriptionView[] | null>(
     null,
   );
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ id: string; text: string } | null>(
     null,
   );
-  const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const [secret, setSecret] = useState("");
-  const [organizationId, setOrganizationId] = useState(ALL);
-  const [allTypes, setAllTypes] = useState(true);
-  const [types, setTypes] = useState<AgentEventType[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -116,46 +124,32 @@ export function EventWebhooksSection() {
       (result) => setSubscriptions(result.subscriptions),
       (e: Error) => setError(e.message),
     );
-    callCapability<{ organizations: Organization[] }>("listOrganizations").then(
-      (result) => setOrganizations(result.organizations),
-      () => undefined,
-    );
   }, []);
 
-  async function create(event: React.FormEvent) {
-    event.preventDefault();
-    if (!allTypes && !types.length) {
-      setError("Choose at least one event type, or send every type.");
-      return;
-    }
+  // Adds a webhook; true when it was added.
+  const create = async (input: {
+    name: string;
+    url: string;
+    secret: string;
+    organizationId: string | null;
+    agentId?: string | null;
+    eventTypes: AgentEventType[];
+  }) => {
     setPending("create");
     setError(null);
     try {
-      await callCapability("createEventWebhook", {
-        name,
-        url,
-        secret,
-        organizationId: organizationId === ALL ? null : organizationId,
-        eventTypes: allTypes ? [] : types,
-      });
-      setCreating(false);
-      setName("");
-      setUrl("");
-      setSecret("");
-      setTypes([]);
-      setAllTypes(true);
+      await callCapability("createEventWebhook", input);
       await load();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setPending(null);
     }
-  }
+  };
 
-  async function act(
-    subscription: SubscriptionView,
-    action: "test" | "pause" | "resume" | "remove",
-  ) {
+  const act = async (subscription: SubscriptionView, action: Action) => {
     setPending(`${action}:${subscription.id}`);
     setError(null);
     setNotice(null);
@@ -185,12 +179,351 @@ export function EventWebhooksSection() {
     } finally {
       setPending(null);
     }
+  };
+
+  return {
+    subscriptions,
+    error,
+    setError,
+    notice,
+    pending,
+    create,
+    act,
+  };
+}
+
+// The form for a new webhook. With `organizations` the person chooses where
+// events come from; an agent's webhook takes its agent's organization.
+export function WebhookForm({
+  organizations,
+  placeholder = "Grok routine",
+  pending,
+  onSubmit,
+  onCancel,
+  onInvalid,
+}: {
+  organizations?: Organization[];
+  placeholder?: string;
+  pending: boolean;
+  onSubmit: (input: {
+    name: string;
+    url: string;
+    secret: string;
+    organizationId: string | null;
+    eventTypes: AgentEventType[];
+  }) => Promise<boolean>;
+  onCancel: () => void;
+  onInvalid: (message: string) => void;
+}) {
+  const organizationLabel = useId();
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [secret, setSecret] = useState("");
+  const [organizationId, setOrganizationId] = useState(ALL);
+  const [allTypes, setAllTypes] = useState(true);
+  const [types, setTypes] = useState<AgentEventType[]>([]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!allTypes && !types.length) {
+      onInvalid("Choose at least one event type, or send every type.");
+      return;
+    }
+    const added = await onSubmit({
+      name,
+      url,
+      secret,
+      organizationId: organizationId === ALL ? null : organizationId,
+      eventTypes: allTypes ? [] : types,
+    });
+    if (added) {
+      setName("");
+      setUrl("");
+      setSecret("");
+      setTypes([]);
+      setAllTypes(true);
+    }
   }
+
+  return (
+    <form
+      onSubmit={(e) => void submit(e)}
+      className="space-y-3"
+      aria-label="New webhook"
+    >
+      <div className={organizations ? "grid gap-3 sm:grid-cols-2" : undefined}>
+        <label className="block text-[13px] font-medium">
+          Name
+          <Input
+            autoFocus
+            required
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={placeholder}
+            className="mt-1.5 h-8 rounded-md text-sm"
+          />
+        </label>
+        {organizations && (
+          <div className="text-[13px] font-medium">
+            <span id={organizationLabel}>Events from</span>
+            <DropdownSelect
+              aria-labelledby={organizationLabel}
+              className="mt-1.5 w-full"
+              value={organizationId}
+              onValueChange={setOrganizationId}
+            >
+              <DropdownSelectOption value={ALL}>
+                All your organizations
+              </DropdownSelectOption>
+              {organizations.map((o) => (
+                <DropdownSelectOption key={o.id} value={o.id}>
+                  {o.name}
+                </DropdownSelectOption>
+              ))}
+            </DropdownSelect>
+          </div>
+        )}
+      </div>
+      <label className="block text-[13px] font-medium">
+        URL
+        <Input
+          required
+          type="url"
+          inputMode="url"
+          maxLength={2048}
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://hooks.example.com/agent"
+          className="mt-1.5 h-8 rounded-md font-mono text-xs"
+        />
+      </label>
+      <label className="block text-[13px] font-medium">
+        Bearer secret
+        <Input
+          required
+          type="password"
+          autoComplete="off"
+          maxLength={4096}
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
+          placeholder="Sent as Authorization: Bearer …"
+          className="mt-1.5 h-8 rounded-md font-mono text-xs"
+        />
+      </label>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-[13px] font-medium">
+          <Switch checked={allTypes} onCheckedChange={setAllTypes} />
+          Every event type
+        </label>
+        {!allTypes && (
+          <fieldset className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+            <legend className="sr-only">Event types</legend>
+            {agentEventTypeList.map((type) => (
+              <label
+                key={type}
+                className="flex items-center gap-2 text-[13px]"
+                title={agentEventTypes[type].description}
+              >
+                <Checkbox
+                  checked={types.includes(type)}
+                  onCheckedChange={(checked) =>
+                    setTypes((current) =>
+                      checked
+                        ? [...current, type]
+                        : current.filter((t) => t !== type),
+                    )
+                  }
+                />
+                {agentEventTypes[type].label}
+              </label>
+            ))}
+          </fieldset>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={pending}>
+          {pending ? "Adding…" : "Add webhook"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// One webhook or MCP subscription: its state, where it sends, what it
+// delivered, the last problem and its actions. `where` names the
+// organization it covers (Account settings); an agent's page omits it.
+export function SubscriptionDetails({
+  subscription,
+  where,
+  busy,
+  notice,
+  onAct,
+}: {
+  subscription: SubscriptionView;
+  where?: string;
+  busy: boolean;
+  notice: string | null;
+  onAct: (action: Action) => void;
+}) {
+  const typesText = subscription.eventTypes.length
+    ? subscription.eventTypes
+        .map((t) => agentEventTypes[t]?.label ?? t)
+        .join(", ")
+    : "Every event type";
+  return (
+    <div data-testid="event-webhook" className="space-y-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2 text-[13px]">
+          <span className="truncate font-medium">{subscription.name}</span>
+          <StatusChip
+            tone={statusTone[subscription.status]}
+            icon={statusIcon[subscription.status]}
+          >
+            {statusLabel[subscription.status]}
+          </StatusChip>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {subscription.kind === "webhook" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onAct("test")}
+              aria-label={`Send a test event to ${subscription.name}`}
+            >
+              Test
+            </Button>
+          )}
+          {subscription.steps.includes("pause") && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onAct("pause")}
+              aria-label={`Pause ${subscription.name}`}
+            >
+              Pause
+            </Button>
+          )}
+          {subscription.steps.includes("resume") && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onAct("resume")}
+              aria-label={`Resume ${subscription.name}`}
+            >
+              Resume
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => onAct("remove")}
+            aria-label={`Remove ${subscription.name}`}
+          >
+            Remove
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs break-words text-muted-foreground">
+        <code className="font-mono break-all">{hostOf(subscription.url)}</code>
+        {where ? ` · ${where}` : ""} · {typesText}
+      </p>
+      <p
+        className="text-xs text-muted-foreground tabular-nums"
+        data-testid="event-webhook-state"
+      >
+        {/* Events delivered, and when the receiver last accepted anything
+            (a test event counts there, not as delivered). */}
+        {subscription.deliveredCount === 0
+          ? "No events delivered yet"
+          : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
+        {subscription.lastSuccessAt
+          ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
+          : ""}
+        {subscription.pending
+          ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`
+          : ""}
+        {subscription.kind === "mcp" && subscription.refreshBefore
+          ? ` · renew before ${when(subscription.refreshBefore)}`
+          : ""}
+      </p>
+      {subscription.statusReason && subscription.status !== "active" && (
+        <p className="text-xs text-muted-foreground">
+          {subscription.statusReason}
+        </p>
+      )}
+      {subscription.lastErrorDetail && (
+        <p className="text-xs text-destructive" role="status">
+          Last problem
+          {subscription.lastAttemptAt
+            ? ` (${when(subscription.lastAttemptAt)})`
+            : ""}
+          : {subscription.lastErrorDetail}
+        </p>
+      )}
+      {notice && (
+        <p
+          role="status"
+          data-testid="event-webhook-test"
+          className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground"
+        >
+          {notice}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Account settings → Event webhooks: the person's own webhooks, which wake a
+// script or tool using a personal access token, and the MCP Events
+// subscriptions such tools created. A Factory agent's webhooks and
+// subscriptions are on the agent's page; they are only pointed to here, so
+// nothing is listed twice.
+export function EventWebhooksSection() {
+  const { subscriptions, error, setError, notice, pending, create, act } =
+    useEventSubscriptions();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    callCapability<{ organizations: Organization[] }>("listOrganizations").then(
+      (result) => setOrganizations(result.organizations),
+      () => undefined,
+    );
+  }, []);
 
   const organizationName = (id: string | null) =>
     id
       ? (organizations.find((o) => o.id === id)?.name ?? "One organization")
       : "All your organizations";
+  const own = subscriptions?.filter((s) => !s.agentId) ?? null;
+  // Agents with wake-ups, each once, linking to its page.
+  const agents = [
+    ...new Map(
+      (subscriptions ?? [])
+        .filter((s) => s.agentId)
+        .map((s) => [
+          s.agentId!,
+          {
+            id: s.agentId!,
+            name: s.agent?.name ?? "An agent",
+            organization: organizations.find(
+              (o) => o.id === (s.agent?.organizationId ?? s.organizationId),
+            ),
+            count: subscriptions!.filter((t) => t.agentId === s.agentId).length,
+          },
+        ]),
+    ).values(),
+  ];
 
   return (
     <SettingsSection
@@ -199,12 +532,13 @@ export function EventWebhooksSection() {
       title="Event webhooks"
       description={
         <>
-          Wake an agent when something waits on you: a mention, a review
-          request, a stale approval, an answered question, a decided pull
-          request. Lictory posts the event (identifiers and a short title, never
-          the content) to the agent&apos;s URL with its bearer secret. MCP
-          clients that support MCP Events subscribe on their own and appear here
-          too.
+          Wake a script or tool that uses one of your personal access tokens
+          when something waits on you: a mention, a review request, a stale
+          approval, an answered question, a decided pull request. Lictory posts
+          the event (identifiers and a short title, never the content) to its
+          URL with its bearer secret. MCP clients that support MCP Events
+          subscribe on their own and appear here too. To wake a Factory agent,
+          add the webhook on the agent&apos;s page.
         </>
       }
       action={
@@ -221,117 +555,21 @@ export function EventWebhooksSection() {
           </Button>
         ) : undefined
       }
-      footer="An event says what happened, never what to do; the agent reads the details with your permissions. Delivery retries a failing receiver with backoff and stops after five failures until you resume it."
+      footer="An event says what happened, never what to do; the tool reads the details with your permissions. Delivery retries a failing receiver with backoff and stops after five failures until you resume it."
     >
       {creating && (
         <SettingsBody>
-          <form
-            onSubmit={create}
-            className="space-y-3"
-            aria-label="New webhook"
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block text-[13px] font-medium">
-                Name
-                <Input
-                  autoFocus
-                  required
-                  maxLength={80}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Grok routine"
-                  className="mt-1.5 h-8 rounded-md text-sm"
-                />
-              </label>
-              <div className="text-[13px] font-medium">
-                <span id="webhook-organization-label">Events from</span>
-                <DropdownSelect
-                  aria-labelledby="webhook-organization-label"
-                  className="mt-1.5 w-full"
-                  value={organizationId}
-                  onValueChange={setOrganizationId}
-                >
-                  <DropdownSelectOption value={ALL}>
-                    All your organizations
-                  </DropdownSelectOption>
-                  {organizations.map((o) => (
-                    <DropdownSelectOption key={o.id} value={o.id}>
-                      {o.name}
-                    </DropdownSelectOption>
-                  ))}
-                </DropdownSelect>
-              </div>
-            </div>
-            <label className="block text-[13px] font-medium">
-              URL
-              <Input
-                required
-                type="url"
-                inputMode="url"
-                maxLength={2048}
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://hooks.example.com/agent"
-                className="mt-1.5 h-8 rounded-md font-mono text-xs"
-              />
-            </label>
-            <label className="block text-[13px] font-medium">
-              Bearer secret
-              <Input
-                required
-                type="password"
-                autoComplete="off"
-                maxLength={4096}
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                placeholder="Sent as Authorization: Bearer …"
-                className="mt-1.5 h-8 rounded-md font-mono text-xs"
-              />
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-[13px] font-medium">
-                <Switch checked={allTypes} onCheckedChange={setAllTypes} />
-                Every event type
-              </label>
-              {!allTypes && (
-                <fieldset className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
-                  <legend className="sr-only">Event types</legend>
-                  {agentEventTypeList.map((type) => (
-                    <label
-                      key={type}
-                      className="flex items-center gap-2 text-[13px]"
-                      title={agentEventTypes[type].description}
-                    >
-                      <Checkbox
-                        checked={types.includes(type)}
-                        onCheckedChange={(checked) =>
-                          setTypes((current) =>
-                            checked
-                              ? [...current, type]
-                              : current.filter((t) => t !== type),
-                          )
-                        }
-                      />
-                      {agentEventTypes[type].label}
-                    </label>
-                  ))}
-                </fieldset>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={pending === "create"}>
-                {pending === "create" ? "Adding…" : "Add webhook"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setCreating(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <WebhookForm
+            organizations={organizations}
+            pending={pending === "create"}
+            onSubmit={async (input) => {
+              const added = await create(input);
+              if (added) setCreating(false);
+              return added;
+            }}
+            onCancel={() => setCreating(false)}
+            onInvalid={setError}
+          />
         </SettingsBody>
       )}
       {error && (
@@ -340,135 +578,54 @@ export function EventWebhooksSection() {
         </SettingsBody>
       )}
       <SettingsList
-        isEmpty={subscriptions !== null && subscriptions.length === 0}
+        isEmpty={own !== null && own.length === 0}
         empty="No webhooks yet."
       >
-        {subscriptions?.map((subscription) => {
-          const busy = pending?.endsWith(`:${subscription.id}`) ?? false;
-          const typesText = subscription.eventTypes.length
-            ? subscription.eventTypes
-                .map((t) => agentEventTypes[t]?.label ?? t)
-                .join(", ")
-            : "Every event type";
-          return (
-            <div
-              key={subscription.id}
-              data-testid="event-webhook"
-              className="space-y-1.5 px-5 py-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2 text-[13px]">
-                  <span className="truncate font-medium">
-                    {subscription.name}
-                  </span>
-                  <StatusChip
-                    tone={statusTone[subscription.status]}
-                    icon={statusIcon[subscription.status]}
-                  >
-                    {statusLabel[subscription.status]}
-                  </StatusChip>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {subscription.kind === "webhook" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => void act(subscription, "test")}
-                      aria-label={`Send a test event to ${subscription.name}`}
-                    >
-                      Test
-                    </Button>
-                  )}
-                  {subscription.steps.includes("pause") && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => void act(subscription, "pause")}
-                      aria-label={`Pause ${subscription.name}`}
-                    >
-                      Pause
-                    </Button>
-                  )}
-                  {subscription.steps.includes("resume") && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => void act(subscription, "resume")}
-                      aria-label={`Resume ${subscription.name}`}
-                    >
-                      Resume
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => void act(subscription, "remove")}
-                    aria-label={`Remove ${subscription.name}`}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </div>
-              <p className="text-xs break-words text-muted-foreground">
-                <code className="font-mono break-all">
-                  {hostOf(subscription.url)}
-                </code>{" "}
-                · {organizationName(subscription.organizationId)} · {typesText}
-              </p>
-              <p
-                className="text-xs text-muted-foreground tabular-nums"
-                data-testid="event-webhook-state"
-              >
-                {/* Events delivered, and when the receiver last accepted
-                    anything (a test event counts there, not as delivered). */}
-                {subscription.deliveredCount === 0
-                  ? "No events delivered yet"
-                  : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
-                {subscription.lastSuccessAt
-                  ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
-                  : ""}
-                {subscription.pending
-                  ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`
-                  : ""}
-                {subscription.kind === "mcp" && subscription.refreshBefore
-                  ? ` · renew before ${when(subscription.refreshBefore)}`
-                  : ""}
-              </p>
-              {subscription.statusReason &&
-                subscription.status !== "active" && (
-                  <p className="text-xs text-muted-foreground">
-                    {subscription.statusReason}
-                  </p>
-                )}
-              {subscription.lastErrorDetail && (
-                <p className="text-xs text-destructive" role="status">
-                  Last problem
-                  {subscription.lastAttemptAt
-                    ? ` (${when(subscription.lastAttemptAt)})`
-                    : ""}
-                  : {subscription.lastErrorDetail}
-                </p>
-              )}
-              {notice?.id === subscription.id && (
-                <p
-                  role="status"
-                  data-testid="event-webhook-test"
-                  className="rounded-md bg-muted px-2.5 py-1.5 text-xs text-foreground"
-                >
-                  {notice.text}
-                </p>
-              )}
-            </div>
-          );
-        })}
+        {own?.map((subscription) => (
+          <div key={subscription.id} className="px-5 py-3">
+            <SubscriptionDetails
+              subscription={subscription}
+              where={organizationName(subscription.organizationId)}
+              busy={pending?.endsWith(`:${subscription.id}`) ?? false}
+              notice={notice?.id === subscription.id ? notice.text : null}
+              onAct={(action) => void act(subscription, action)}
+            />
+          </div>
+        ))}
       </SettingsList>
+      {agents.length > 0 && (
+        <SettingsBody className="space-y-1.5 border-t border-border">
+          <p className="text-xs text-muted-foreground">
+            Your agents&apos; wake-ups are on their pages:
+          </p>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1">
+            {agents.map((agent) => (
+              <li key={agent.id}>
+                {agent.organization ? (
+                  <Link
+                    href={factoryPaths.agent(
+                      agent.organization.slug,
+                      agent.id,
+                      "wake-ups",
+                    )}
+                    className="inline-flex items-center gap-1 rounded-sm text-[13px] font-medium focus-ring outline-none hover:underline"
+                  >
+                    {agent.name}
+                    <span className="font-normal text-muted-foreground">
+                      {agent.count === 1
+                        ? "1 wake-up"
+                        : `${agent.count} wake-ups`}
+                    </span>
+                    <ArrowRight aria-hidden className="size-3" />
+                  </Link>
+                ) : (
+                  <span className="text-[13px]">{agent.name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </SettingsBody>
+      )}
     </SettingsSection>
   );
 }

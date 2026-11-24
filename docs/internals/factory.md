@@ -51,6 +51,15 @@ audit name both: work item activity records `performedVia`, the agent's id,
 name and handle, and the UI reads "Forge via Ada"; `capability_invocation`
 records the token, which names the agent.
 
+An agent's page (`/{org}/factory/agents/{agent}`) is the one place for
+it: what it is, its recent sessions and, for its owner, its
+**Connection** (the tokens an external MCP client acts as it with) and
+its **Wake-ups** (the webhooks and MCP Events subscriptions bound to it,
+see [agent events](agent-events.md#where-people-manage-destinations)).
+Creating an external agent mints its first token (90 days) and opens its
+Connection, where the secret is shown once. Account settings holds only
+personal access tokens, which act as the person, not as an agent.
+
 Tokens bound to an agent (`access_token.agent_id`) stop working when the
 agent is archived or changes owner, or when the owner's account is
 deactivated. Their [agent events](agent-events.md) are the owner's feed seen
