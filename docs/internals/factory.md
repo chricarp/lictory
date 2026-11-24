@@ -267,6 +267,17 @@ mcp_servers.lictory.url`, `bearer_token_env_var`) is not verified against
 - A scripted test harness (`lictory-runner start --test-harness`) stands in
   for every harness in tests.
 
+## Distribution
+
+`bun apps/runner/scripts/build.ts [target…]` compiles single-file binaries
+with `bun build --compile` for linux, darwin and windows on x64 and arm64
+(`apps/runner/dist/lictory-runner-<os>-<arch>`). The install commands the
+add-runner dialog shows download them from the latest GitHub release, so the
+release workflow must attach them; until it does, run the runner from a
+checkout with `bun apps/runner/src/cli.ts`. The binary embeds the protocol
+schemas of the server it was built with; the protocol is versioned by its
+path (`/api/runner/v1`).
+
 ## Ports for other modules
 
 - `resolveAgentHandle(db, organizationId, handle)` for mention resolution.
