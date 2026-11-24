@@ -1,12 +1,6 @@
-import {
-  mkdir,
-  readdir,
-  readFile,
-  realpath,
-  stat,
-  writeFile,
-} from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { constants } from "node:fs";
+import { mkdir, open, readdir, realpath } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { isStepCount, streamText, tool, type ModelMessage } from "ai";
 import { z } from "zod";
 import { run } from "@lictory/runner/process";
@@ -39,8 +33,11 @@ export async function confined(root: string, path: string) {
   const inside = (p: string) => p === realRoot || p.startsWith(realRoot + sep);
   if (!inside(target))
     throw new OutsideWorktree(`${path} is outside the session's worktree.`);
-  // The nearest existing ancestor must not be a link leading outside.
+  // The nearest existing ancestor must not be a link leading outside. The
+  // path returned has its links resolved, so it is opened without following
+  // any (see openExisting).
   let existing = target;
+  let resolved = target;
   for (;;) {
     try {
       const real = await realpath(existing);
@@ -48,6 +45,7 @@ export async function confined(root: string, path: string) {
         throw new OutsideWorktree(
           `${path} leads outside the session's worktree.`,
         );
+      resolved = join(real, relative(existing, target));
       break;
     } catch (error) {
       if (error instanceof OutsideWorktree) throw error;
@@ -56,9 +54,49 @@ export async function confined(root: string, path: string) {
       existing = parent;
     }
   }
-  if (relative(realRoot, target).split(sep)[0] === ".git")
+  if (
+    [target, resolved].some(
+      (p) => relative(realRoot, p).split(sep)[0] === ".git",
+    )
+  )
     throw new OutsideWorktree("The repository's .git directory is off limits.");
-  return target;
+  return resolved;
+}
+
+// Files are opened once and used through the handle, never by name again,
+// at the path `confined` resolved, whose last component must then not be a
+// symbolic link: a link swapped in after the check cannot redirect the read
+// or the write
+// (O_NOFOLLOW does not exist on Windows, where creating links needs
+// privileges).
+const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
+
+async function openExisting(target: string, flags: number) {
+  try {
+    return await open(target, flags | NOFOLLOW);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOOP")
+      throw new OutsideWorktree("Symbolic links cannot be read or written.");
+    throw error;
+  }
+}
+
+// Creates the file, or truncates the existing one; says which.
+async function openForWrite(target: string) {
+  try {
+    const handle = await open(
+      target,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NOFOLLOW,
+    );
+    return { handle, existed: false };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    const handle = await openExisting(
+      target,
+      constants.O_WRONLY | constants.O_TRUNC,
+    );
+    return { handle, existed: true };
+  }
 }
 
 const cut = (text: string, max = OUTPUT) =>
@@ -95,10 +133,15 @@ export function worktreeTools(
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path }) => {
         const target = await confined(root, path);
-        const info = await stat(target);
-        if (info.size > MAX_FILE)
-          return `The file is ${info.size} bytes; read a smaller one or search it with run_command.`;
-        return cut(await readFile(target, "utf8"), MAX_FILE);
+        const handle = await openExisting(target, constants.O_RDONLY);
+        try {
+          const info = await handle.stat();
+          if (info.size > MAX_FILE)
+            return `The file is ${info.size} bytes; read a smaller one or search it with run_command.`;
+          return cut(await handle.readFile("utf8"), MAX_FILE);
+        } finally {
+          await handle.close();
+        }
       },
     }),
     write_file: tool({
@@ -110,12 +153,13 @@ export function worktreeTools(
       }),
       execute: async ({ path, content }) => {
         const target = await confined(root, path);
-        const existed = await stat(target).then(
-          () => true,
-          () => false,
-        );
         await mkdir(dirname(target), { recursive: true });
-        await writeFile(target, content);
+        const { handle, existed } = await openForWrite(target);
+        try {
+          await handle.writeFile(content);
+        } finally {
+          await handle.close();
+        }
         ctx.emit("file_change", {
           changes: [
             { path: relative(root, target), kind: existed ? "modify" : "add" },
@@ -134,16 +178,22 @@ export function worktreeTools(
       }),
       execute: async ({ path, find, replace }) => {
         const target = await confined(root, path);
-        const text = await readFile(target, "utf8");
-        const first = text.indexOf(find);
-        if (first < 0)
-          return "The text to replace was not found; read the file again.";
-        if (text.slice(first + 1).includes(find))
-          return "The text to replace occurs more than once; include more context.";
-        await writeFile(
-          target,
-          text.slice(0, first) + replace + text.slice(first + find.length),
-        );
+        const handle = await openExisting(target, constants.O_RDWR);
+        try {
+          const text = await handle.readFile("utf8");
+          const first = text.indexOf(find);
+          if (first < 0)
+            return "The text to replace was not found; read the file again.";
+          if (text.slice(first + 1).includes(find))
+            return "The text to replace occurs more than once; include more context.";
+          const edited = Buffer.from(
+            text.slice(0, first) + replace + text.slice(first + find.length),
+          );
+          await handle.truncate(0);
+          await handle.write(edited, 0, edited.length, 0);
+        } finally {
+          await handle.close();
+        }
         ctx.emit("file_change", {
           changes: [{ path: relative(root, target), kind: "modify" }],
         });

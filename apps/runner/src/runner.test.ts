@@ -108,6 +108,15 @@ void test("built-in tools stay inside the worktree", async () => {
   );
   for (const path of ["../outside/x", "/etc/passwd", "escape/x", ".git/config"])
     await assert.rejects(confined(root, path), OutsideWorktree, path);
+  // A link inside the worktree resolves to its target, and one to .git is
+  // refused like .git itself.
+  await symlink(join(root, "src"), join(root, "source"));
+  await symlink(join(root, ".git"), join(root, "repo"));
+  assert.equal(
+    await confined(root, "source/new.ts"),
+    join(await realRoot(root), "src", "new.ts"),
+  );
+  await assert.rejects(confined(root, "repo/config"), OutsideWorktree);
 });
 
 async function realRoot(path: string) {
