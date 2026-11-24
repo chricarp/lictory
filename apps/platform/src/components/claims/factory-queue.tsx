@@ -7,6 +7,7 @@ import {
   MessageCircleQuestion,
   OctagonPause,
   Settings2,
+  UsersRound,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { Claimability } from "@lictory/core/claims/claimability";
@@ -60,10 +61,10 @@ type Dispatch = {
 };
 
 // The factory's queue for one project (docs/internals/claims.md): what
-// agents hold, what waits on people, what can be claimed now and what is
-// blocked and why. Everything here is computed from synchronized facts with
-// the server's own claimability rule, so the queue never promises what a
-// claim would refuse.
+// agents hold, what waits on people, what can be claimed now, what is left
+// to people who already do it, and what is blocked and why. Everything here
+// is computed from synchronized facts with the server's own claimability
+// rule, so the queue never promises what a claim would refuse.
 export function FactoryQueue() {
   const project = useProject();
   const { organization } = useWorkspace();
@@ -171,6 +172,49 @@ function Queue({ project }: { project: Project }) {
     !implementerOwners.has(item.assigneeId)
       ? `Assigned to ${memberName(item.assigneeId)}: the ${autonomyLevelMeta[policy.level].label} policy leaves it to them.`
       : undefined;
+  // Work people already do, apart from what is blocked: an item the
+  // policy leaves to its assignee, or one a person's pull request covers.
+  // The strongest reason leads: whose it is, then the pull request, then
+  // anything else that would also have to clear.
+  const peopleOwn: { item: WorkItem; reason: string }[] = [];
+  const claimableNow: WorkItem[] = [];
+  const blockedNow: { item: WorkItem; reason: string }[] = [];
+  for (const item of groups.claimable) {
+    const why = leftTo(item);
+    if (why) peopleOwn.push({ item, reason: why });
+    else claimableNow.push(item);
+  }
+  for (const { item, verdict } of groups.blocked) {
+    const linked = verdict.reasons.filter(
+      (r) => r.code === "pull_request_linked",
+    );
+    if (!linked.length) {
+      blockedNow.push({
+        item,
+        reason: verdict.reasons.map((r) => r.message).join(" "),
+      });
+      continue;
+    }
+    peopleOwn.push({
+      item,
+      reason: [
+        ...(item.assigneeId
+          ? [`Assigned to ${memberName(item.assigneeId)}.`]
+          : []),
+        ...linked,
+        ...verdict.reasons.filter((r) => r.code !== "pull_request_linked"),
+      ]
+        .map((r) => (typeof r === "string" ? r : r.message))
+        .join(" "),
+    });
+  }
+  // Long reasons wrap to a second line on phones instead of being cut.
+  const reasonText = (reason?: string) =>
+    reason && (
+      <span className="min-w-0 truncate max-sm:line-clamp-2 max-sm:whitespace-normal">
+        {reason}
+      </span>
+    );
   const key = (item: WorkItem) => identifier(project, item.number);
   const href = (item: WorkItem) =>
     paths.item(organization.slug, project.key, key(item));
@@ -370,7 +414,7 @@ function Queue({ project }: { project: Project }) {
                 leading={typeIcon(item)}
                 identifier={key(item)}
                 title={item.title}
-                meta={verdict.reasons[0]?.message}
+                meta={reasonText(verdict.reasons[0]?.message)}
                 chips={<StatusChip tone="attention">Accept scope</StatusChip>}
               />
             ))}
@@ -421,9 +465,9 @@ function Queue({ project }: { project: Project }) {
           <Group
             title="Claimable now"
             icon={<CircleCheck />}
-            count={groups.claimable.length}
+            count={claimableNow.length}
           >
-            {groups.claimable.map((item) => {
+            {claimableNow.map((item) => {
               const held = dispatch.get(item.id);
               return (
                 <ListRow
@@ -433,9 +477,10 @@ function Queue({ project }: { project: Project }) {
                   identifier={key(item)}
                   title={item.title}
                   meta={
-                    held
-                      ? `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`
-                      : leftTo(item)
+                    held &&
+                    reasonText(
+                      `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`,
+                    )
                   }
                   chips={
                     held &&
@@ -464,18 +509,34 @@ function Queue({ project }: { project: Project }) {
             })}
           </Group>
           <Group
-            title="Blocked"
-            icon={<OctagonPause />}
-            count={groups.blocked.length}
+            title="Left to people"
+            icon={<UsersRound />}
+            count={peopleOwn.length}
           >
-            {groups.blocked.map(({ item, verdict }) => (
+            {peopleOwn.map(({ item, reason }) => (
               <ListRow
                 key={item.id}
                 href={href(item)}
                 leading={typeIcon(item)}
                 identifier={key(item)}
                 title={item.title}
-                meta={verdict.reasons.map((r) => r.message).join(" ")}
+                meta={reasonText(reason)}
+              />
+            ))}
+          </Group>
+          <Group
+            title="Blocked"
+            icon={<OctagonPause />}
+            count={blockedNow.length}
+          >
+            {blockedNow.map(({ item, reason }) => (
+              <ListRow
+                key={item.id}
+                href={href(item)}
+                leading={typeIcon(item)}
+                identifier={key(item)}
+                title={item.title}
+                meta={reasonText(reason)}
               />
             ))}
           </Group>

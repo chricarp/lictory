@@ -90,7 +90,10 @@ it.
 The result's `stage` buckets items for the queue: `claimable`, `claimed`,
 `needs_agreement` (a person accepts scope or selects the work), `blocked`
 (agreed, but something else must happen first) and `outside` (started,
-closed, external).
+closed, external). The queue lists work people already do apart from what
+is blocked, as "Left to people": a `blocked` item a person's pull request
+covers, and a claimable item the policy leaves to its assignee. Its reason
+leads with whose it is, then the pull request.
 
 ### Claims follow their item
 
