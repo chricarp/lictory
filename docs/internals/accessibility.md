@@ -42,6 +42,13 @@ rendered state with seeded data:
 - native delivery: the board with an active sprint, and the backlog
 - settings: account settings, every organization settings section and every
   project settings section
+- the shell and the factory loop, in light **and dark**: Home and the Inbox
+  holding an agent's request, the channels index, a channel whose thread
+  holds a live session card with its request, the Factory overview (with the
+  request opened), its agents and the session transcript; a real runner with
+  the scripted harness drives the session
+- Code: the code host settings, the pull request list, a pull request with
+  failing checks (conversation and files) and the item it delivers
 - Spaces (`tests/platform/spaces.spec.ts`, `tests/platform/spaces-editor.spec.ts`):
   a space home with a nested page tree, a published page, the live page
   editor, the editor with its comments panel, and the published page reader
@@ -53,6 +60,12 @@ minor findings are reported by axe but do not fail the suite. Use
 state being checked is on screen.
 
 ## Focus
+
+The first Tab stop on every organization page is "Skip to content", which
+moves focus past the rail and sidebar to the page (`#main`). Past the last
+control of a page (often a conversation's composer) the browser reports the
+document itself as focused before wrapping to the first stop; that is the
+browser's end of document, not a stop on the page.
 
 Focus is always visible from the keyboard: one 2px ring in the theme's
 focus color, offset from the control (`focus-ring`), or drawn inside a
@@ -135,10 +148,13 @@ Not covered automatically, and worth checking by hand when these areas change:
   pointer too; their alternative is "Move…" in a page's actions (Shift+F10
   on the focused page, or the page's own header), and Alt+Arrow reorders a
   focused page among its siblings.
-- **Dark mode and themes.** The browser checks run in the default light theme,
-  whose primary and destructive colors were darkened to reach 4.5:1. Dark mode
-  and the optional themes are not scanned; the default dark mode's destructive
-  buttons, for example, are below 4.5:1 and need a design pass.
+- **Dark mode and themes.** Most browser checks run in the default light
+  theme, whose primary and destructive colors were darkened to reach 4.5:1.
+  The shell, conversations and the Factory are also scanned in the default
+  dark mode; other dark pages and the optional themes are not. Tinted
+  identity tiles (agent avatars) take their mix from `--identity-tile`,
+  `--identity-ink` and `--identity-edge`, set per mode so the glyph keeps
+  4.5:1 on its tile.
 - **The website.** The marketing site is linted but not scanned in the browser
   suite.
 - **Screen reader announcements** for realtime changes (another person's edit,
