@@ -290,6 +290,10 @@ export const codePullRequestSummarySchema = z.object({
   url: z.string().nullable(),
   state: z.enum(["open", "merged", "closed"]),
   headSha: z.string().nullable(),
+  // The required checks on its head commit, as the code host last reported
+  // them: still running is not failing. Absent on evaluations projected
+  // before it existed.
+  checks: z.enum(["passing", "pending", "failing", "none"]).optional(),
 });
 
 // Where one work item stands against its project's Definition of Done
