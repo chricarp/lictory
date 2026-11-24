@@ -1059,6 +1059,188 @@ const pr = (
   mergeable: true,
 });
 
+void test("dispatcher: work with a person's linked pull request is not dispatched; an agent's earlier pull request is retried", async () => {
+  const f = await fixture();
+  const launched: SessionLaunch[] = [];
+  const human = await f.agreed();
+  const merged = await f.agreed();
+  const retried = await f.agreed();
+  const evidence = new Map<string, CodeEvidence>([
+    [
+      human,
+      {
+        connected: true,
+        pullRequests: [
+          { ...pr("open"), number: 12, openedByAgent: false, authorId: f.ada },
+        ],
+      },
+    ],
+    [
+      merged,
+      {
+        connected: true,
+        pullRequests: [
+          {
+            ...pr("merged"),
+            number: 14,
+            openedByAgent: false,
+            authorId: null,
+            authorLogin: "octo-bo",
+          },
+        ],
+      },
+    ],
+    [
+      retried,
+      {
+        connected: true,
+        // Opened by an agent session whose claim was released.
+        pullRequests: [{ ...pr("open"), number: 15, openedByAgent: true }],
+      },
+    ],
+  ]);
+  configureClaimPorts({
+    agents: { agents: () => Promise.resolve(agents(f)) },
+    launcher: {
+      launch: (request) => {
+        launched.push(request);
+        return Promise.resolve({
+          started: true,
+          sessionId: `session-${launched.length}`,
+        });
+      },
+    },
+    evidence: {
+      evidence: (_tx, _org, ids) =>
+        Promise.resolve(
+          new Map(
+            ids.map((id) => [
+              id,
+              evidence.get(id) ?? { connected: true, pullRequests: [] },
+            ]),
+          ),
+        ),
+    },
+  });
+  const open = await stageOf(f, human);
+  assert.equal(open?.stage, "blocked");
+  assert.deepEqual(
+    open?.reasons.map((r) => r.code),
+    ["pull_request_linked"],
+  );
+  assert.match(
+    open?.reasons[0]?.message ?? "",
+    /^A pull request is already linked: #12 by Ada\./,
+  );
+  const done = await stageOf(f, merged);
+  assert.deepEqual(
+    done?.reasons.map((r) => r.code),
+    ["pull_request_linked"],
+  );
+  assert.match(done?.reasons[0]?.message ?? "", /#14 by octo-bo \(merged\)/);
+  assert.equal((await stageOf(f, retried))?.stage, "claimable");
+  // An agent acting on its own is refused too.
+  await assert.rejects(
+    claimItem(db, f.agent(), {
+      organizationId: f.organizationId,
+      workItemId: human,
+    }),
+    /already linked: #12 by Ada/,
+  );
+  // A person may still start an agent on it: its session claims.
+  const agentId = crypto.randomUUID();
+  await db.insert(s.agent).values({
+    id: agentId,
+    organizationId: f.organizationId,
+    handle: "forge",
+    name: "Forge",
+    ownerId: f.ada,
+    kind: "runner",
+    createdById: f.ada,
+  });
+  const started = async (
+    sessionId: string,
+    workItemId: string,
+    policy: boolean,
+  ) =>
+    db.insert(s.agentSession).values({
+      id: sessionId,
+      organizationId: f.organizationId,
+      agentId,
+      requestedById: f.ada,
+      title: "Implement",
+      prompt: "Implement it",
+      workItemId,
+      ...(policy
+        ? { startedByPolicy: { level: "build", setById: f.ada } }
+        : {}),
+    } as typeof s.agentSession.$inferInsert);
+  await started("by-policy", human, true);
+  await assert.rejects(
+    claimItem(
+      db,
+      { ...f.agent(), agentSessionId: "by-policy" },
+      {
+        organizationId: f.organizationId,
+        workItemId: human,
+      },
+    ),
+    /already linked/,
+  );
+  await started("by-ada", human, false);
+  const explicit = await claimItem(
+    db,
+    { ...f.agent(), agentSessionId: "by-ada" },
+    { organizationId: f.organizationId, workItemId: human },
+  );
+  await releaseClaim(
+    db,
+    { ...f.agent(), agentSessionId: "by-ada" },
+    {
+      organizationId: f.organizationId,
+      claimId: explicit.claimId,
+    },
+  );
+  await setAutonomyPolicy(
+    db,
+    { userId: f.ada },
+    {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      policy: {
+        ...defaultAutonomyPolicy,
+        level: "build",
+        implementerAgentIds: ["forge"],
+        maxConcurrentSessions: 10,
+      },
+    },
+  );
+  await runDispatcher(db);
+  assert.deepEqual(
+    launched.map((l) => l.workItemId),
+    [retried],
+  );
+  assert.equal((await f.item(human)).statusId, f.statuses.Todo);
+  assert.equal((await f.item(merged)).statusId, f.statuses.Todo);
+  assert.deepEqual(await f.drift(), []);
+});
+
+void test("claimability: the reason for people names no command; agents still learn it", async () => {
+  const f = await fixture();
+  const spec = await f.create(f.types.Story);
+  const [reason] = (await stageOf(f, spec))?.reasons ?? [];
+  assert.equal(reason?.code, "scope_not_accepted");
+  assert.doesNotMatch(reason?.message ?? "", /acceptDeliveryScope/);
+  assert.equal(reason?.command, "acceptDeliveryScope");
+  await assert.rejects(
+    claimItem(db, f.agent(), {
+      organizationId: f.organizationId,
+      workItemId: spec,
+    }),
+    /\(acceptDeliveryScope\)/,
+  );
+});
+
 void test("Definition of Done: evidence completes the item and records the delivered revision", async () => {
   const f = await fixture();
   const spec = await f.agreed();

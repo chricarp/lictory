@@ -69,13 +69,24 @@ same function. An item is claimable when:
     specification ancestor's accepted scope, with the same readiness rule;
   - plain work with no specification ancestor needs a person to select it:
     an unstarted status (Todo), not the backlog;
+- no pull request a person opened is linked to it, open or merged: someone
+  already does that work (`pull_request_linked`, "A pull request is already
+  linked: #12 by Ada"). Pull requests an agent session of this factory
+  opened do not count, so work whose agent's claim ended can be taken
+  again. Only an agent whose session a person started on that very item
+  may claim it anyway: people can still start an agent explicitly. The
+  rule reads the Code module's mirror through the `DeliveryEvidenceSource`
+  port, only for items otherwise claimable;
 - the workflow has an active started status;
 - its type is not a container (`isTopLevel`, Epic by default): a container
   groups implementation work, and agents take its children. An agreed
   container is outside the queue; one whose scope still needs accepting
   stays in "Waiting on people".
 
-Each refusal has a code and a sentence that says what would make it pass.
+Each refusal has a code and a sentence in people's words that says what
+would make it pass; when a capability clears it, `command` names it for
+agents (`acceptDeliveryScope`), and the claim refusal agents receive quotes
+it.
 The result's `stage` buckets items for the queue: `claimable`, `claimed`,
 `needs_agreement` (a person accepts scope or selects the work), `blocked`
 (agreed, but something else must happen first) and `outside` (started,

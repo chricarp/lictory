@@ -53,7 +53,21 @@ export type ClaimabilityFacts = {
   ): { leaseExpiresAt: string; state: string; agentName: string } | undefined;
   // The project has an active status in the started category.
   hasStartedStatus: boolean;
+  // Open and merged pull requests linked to the item, from the Code
+  // module's mirror. Optional: a caller without code evidence leaves it
+  // out, and callers may supply it only for items otherwise claimable.
+  linkedPullRequests?(itemId: string): LinkedPullRequestFact[];
   now: Date;
+};
+
+export type LinkedPullRequestFact = {
+  number: number | null;
+  state: "open" | "merged" | "closed";
+  // Opened from an agent session of this factory: agent work the factory
+  // may take again once that session's claim ended (a retry).
+  openedByAgent: boolean;
+  // Who opened it, in words: a member's name or the host login.
+  author: string | null;
 };
 
 export const claimRefusalCodes = [
@@ -71,12 +85,16 @@ export const claimRefusalCodes = [
   "parent_closed",
   "not_selected",
   "no_started_status",
+  "pull_request_linked",
 ] as const;
 export type ClaimRefusalCode = (typeof claimRefusalCodes)[number];
 
 export type ClaimRefusal = {
   code: ClaimRefusalCode;
+  // In people's words: the browser shows it as it is.
   message: string;
+  // The capability that clears it, for agents (MCP), who act by name.
+  command?: string;
   // Items the reason names (blockers, the parent specification).
   itemIds?: string[];
 };
@@ -137,7 +155,14 @@ export function claimability(
     code: ClaimRefusalCode,
     message: string,
     itemIds?: string[],
-  ) => reasons.push(itemIds ? { code, message, itemIds } : { code, message });
+    command?: string,
+  ) =>
+    reasons.push({
+      code,
+      message,
+      ...(itemIds ? { itemIds } : {}),
+      ...(command ? { command } : {}),
+    });
 
   if (project.deliveryMode !== "native")
     refuse(
@@ -194,7 +219,9 @@ export function claimability(
     if (!item.committedRevisionId)
       refuse(
         "scope_not_accepted",
-        `${own} has no accepted delivery scope. A person accepts revision ${item.revisionNumber} for delivery (acceptDeliveryScope) before agents can claim it.`,
+        `${own} has no accepted delivery scope. A person accepts revision ${item.revisionNumber} for delivery before agents can claim it.`,
+        undefined,
+        "acceptDeliveryScope",
       );
     else if (!readinessHolds(item, project.readinessPolicy))
       refuse(
@@ -250,6 +277,17 @@ export function claimability(
         );
     }
   }
+  // Work someone is already doing: a pull request a person opened (not an
+  // agent session of this factory) is linked, open or merged. The
+  // dispatcher leaves it alone; a person can still start an agent on it.
+  const human = (facts.linkedPullRequests?.(item.id) ?? []).find(
+    (pr) => pr.state !== "closed" && !pr.openedByAgent,
+  );
+  if (human)
+    refuse(
+      "pull_request_linked",
+      `A pull request is already linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""}${human.state === "merged" ? " (merged)" : ""}. Someone is already doing this work; a person can still start an agent on it.`,
+    );
   if (!facts.hasStartedStatus)
     refuse(
       "no_started_status",
