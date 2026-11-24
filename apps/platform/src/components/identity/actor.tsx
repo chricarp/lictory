@@ -14,8 +14,9 @@ import { firstName } from "@lictory/platform/lib/session-state";
 // squares with a small robot badge, always named with the person they act
 // for, and automated acts as the policy and the person who set it.
 
-// Rendered sizes, in pixels. 16 is the smallest: below 20 initials would be
-// unreadable, so the avatar is a plain colored dot named by its tooltip.
+// Rendered sizes, in pixels. 16 is the smallest: below 20 a person's
+// initials would be unreadable, so their avatar is a plain colored dot named
+// by its tooltip. An agent's square keeps its one letter or emoji.
 export type ActorSize = 16 | 20 | 24 | 32 | 36;
 
 const text: Record<ActorSize, string> = {
@@ -176,20 +177,26 @@ export function AgentAvatar({
       style={style}
       className={cn(
         "relative inline-grid shrink-0 place-items-center rounded-[28%] leading-none font-semibold select-none",
-        text[size],
+        size === 16 ? "text-[8.5px]" : text[size],
         size >= 32 && "text-base",
         ring && "ring-2 ring-(--actor-ring,var(--background))",
         className,
       )}
     >
-      {size >= 20 &&
-        (mark ? (
-          <span aria-hidden className={size >= 32 ? "text-base" : "text-xs"}>
-            {mark}
-          </span>
-        ) : (
-          <span aria-hidden>{agent.name.slice(0, 1).toUpperCase()}</span>
-        ))}
+      {/* Never a blank square: the agent's emoji, else its initial, at
+          every size. */}
+      {mark ? (
+        <span
+          aria-hidden
+          className={
+            size >= 32 ? "text-base" : size >= 20 ? "text-xs" : "text-[10px]"
+          }
+        >
+          {mark}
+        </span>
+      ) : (
+        <span aria-hidden>{agent.name.slice(0, 1).toUpperCase()}</span>
+      )}
       {/* Below 24px the badge would be an unreadable blob: the shape and
           "via" the owner say "agent" there. */}
       {size >= 24 && (
