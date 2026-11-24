@@ -120,6 +120,15 @@ drawing your own; extend them here when a module needs more.
   `answerAgentApproval`. In lists its action is Review; Approve only appears
   with the context. Only the person who started the session or the agent's
   owner decides; others see who does.
+- **Pull requests** (`components/review/pull-request-header`,
+  `components/review/merge-box`). One pull request page for code and
+  specifications: `PullRequestHeader` (`title`, `number`, `state` draft |
+  open | merged | closed, `author` as an `Actor` or `AgentActor`,
+  `commits`, `base`, `head`, `meta`, `tabs` as `PullRequestTabs` inside a
+  ui-sdk `Tabs` root) under the page's `PageHeader`, and `MergeBox`
+  (`target`, `requirements` with a state and the reason in words,
+  `blocked`, `note` saying what merging does or why this person cannot,
+  `action` with the merge button; `MergedNotice` once merged).
 - **Focus.** Interactive elements use `focus-ring` (2px, offset) or
   `focus-ring-inset` for full-bleed rows in a clipping container, with
   `outline-none`. Do not use translucent `ring-ring/60` rings.
