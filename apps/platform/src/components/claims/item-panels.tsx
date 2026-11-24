@@ -3,6 +3,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
+  CircleMinus,
   ExternalLink,
   GitPullRequest,
 } from "lucide-react";
@@ -24,7 +25,10 @@ import { StatusChip } from "@lictory/ui/status-chip";
 import { firstName } from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { ClaimOwner } from "@lictory/platform/components/claims/claim-badge";
-import { claimState } from "@lictory/platform/components/claims/claim-state";
+import {
+  claimState,
+  doneCheckGlyph,
+} from "@lictory/platform/components/claims/claim-state";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -475,16 +479,37 @@ function DoneCheckRow({
       setPending(false);
     }
   };
+  const glyph = doneCheckGlyph(check, evaluation);
   return (
-    <li className="flex items-start gap-2 text-[13px] leading-5">
-      {check.passed ? (
-        <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+    <li
+      data-done-check={glyph}
+      className="flex items-start gap-2 text-[13px] leading-5"
+    >
+      {glyph === "passed" ? (
+        <CircleCheck
+          role="img"
+          aria-label="Passed"
+          className="mt-0.5 size-4 shrink-0 text-success"
+        />
+      ) : glyph === "no_checks" ? (
+        <CircleMinus
+          role="img"
+          aria-label="Passed: no checks reported"
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+        />
       ) : (
-        <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <CircleDashed
+          role="img"
+          aria-label="Not passed yet"
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+        />
       )}
       <div className="min-w-0 flex-1">
         <p className={cn(!check.passed && "text-foreground")}>{check.label}</p>
-        {!check.passed && check.detail && (
+        {/* The evidence behind the state, passed or not ("No required
+            checks reported on this branch."); a check passed by hand says
+            who did instead. */}
+        {check.detail && !check.override && (
           <p className="text-xs text-muted-foreground">{check.detail}</p>
         )}
         {check.override && (

@@ -104,7 +104,7 @@ function evaluateCode(
         passed: true,
         detail: required
           ? `${required} required check${required === 1 ? "" : "s"} passed.`
-          : "The code host requires no checks on this branch.",
+          : "No required checks reported on this branch.",
       };
     }
     case "code_review_approved": {

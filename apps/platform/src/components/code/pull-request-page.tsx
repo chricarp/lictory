@@ -342,7 +342,10 @@ function CheckRuns({
     <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
       {runs.map((run) => (
         <li key={run.name} className="inline-flex items-center gap-1">
-          <ChecksIcon state={run.state === "neutral" ? "none" : run.state} />
+          <ChecksIcon
+            state={run.state === "neutral" ? "none" : run.state}
+            label={run.state === "neutral" ? "Skipped" : undefined}
+          />
           {run.url ? (
             <a
               href={run.url}

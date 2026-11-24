@@ -6,6 +6,7 @@ import {
   claimShownState,
   claimState,
   claimWaitsOnPeople,
+  doneCheckGlyph,
   pullRequestStripPart,
 } from "@lictory/platform/components/claims/claim-state";
 
@@ -124,4 +125,51 @@ void test("the open pull request speaks before a merged one; closed ones are not
   );
   assert.equal(pullRequestStripPart(evaluated({ state: "closed" })), null);
   assert.equal(pullRequestStripPart(undefined), null);
+});
+
+void test("a CI check that passed with no checks reported is not drawn as a green tick", () => {
+  const ci = { kind: "checks_passed" as const, passed: true, override: null };
+  assert.equal(
+    doneCheckGlyph(ci, evaluated({ state: "open", checks: "none" })),
+    "no_checks",
+  );
+  assert.equal(
+    doneCheckGlyph(ci, evaluated({ state: "open", checks: "passing" })),
+    "passed",
+  );
+  // A merged pull request is what was delivered: its checks speak.
+  assert.equal(
+    doneCheckGlyph(
+      ci,
+      evaluated(
+        { state: "merged", checks: "passing" },
+        { state: "open", checks: "none" },
+      ),
+    ),
+    "passed",
+  );
+  // Evaluations projected before check states existed claim nothing.
+  assert.equal(doneCheckGlyph(ci, evaluated({ state: "open" })), "passed");
+  // Passed by hand stays passed; open stays open.
+  assert.equal(
+    doneCheckGlyph(
+      { ...ci, override: { by: "ada", at: "", reason: "flaky host" } },
+      evaluated({ state: "open", checks: "none" }),
+    ),
+    "passed",
+  );
+  assert.equal(
+    doneCheckGlyph(
+      { ...ci, passed: false },
+      evaluated({ state: "open", checks: "none" }),
+    ),
+    "open",
+  );
+  assert.equal(
+    doneCheckGlyph(
+      { kind: "pull_request_merged", passed: true, override: null },
+      evaluated({ state: "merged", checks: "none" }),
+    ),
+    "passed",
+  );
 });

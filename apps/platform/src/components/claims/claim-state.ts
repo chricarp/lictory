@@ -1,5 +1,6 @@
 import type {
   ClaimEntity,
+  DoneCheckResult,
   DoneEvaluationEntity,
 } from "@lictory/core/claims/contracts";
 import type { StatusTone } from "@lictory/ui/status-chip";
@@ -106,4 +107,28 @@ export function pullRequestStripPart(
     default:
       return { label: "PR open", tone: "info", title: pull.title };
   }
+}
+
+// How a Definition of Done check is drawn: passed, open, or passed with
+// nothing to check. The CI check passes when the code host reports no
+// required checks on the pull requests it looks at (the merged ones once
+// any merged, else the open ones); a green tick would read as "CI ran and
+// passed", so that case gets its own neutral glyph. A check a person passed
+// by hand is passed.
+export type DoneCheckGlyph = "passed" | "no_checks" | "open";
+
+export function doneCheckGlyph(
+  check: Pick<DoneCheckResult, "kind" | "passed" | "override">,
+  evaluation: Pick<DoneEvaluationEntity, "code"> | undefined,
+): DoneCheckGlyph {
+  if (!check.passed) return "open";
+  if (check.kind !== "checks_passed" || check.override) return "passed";
+  const pulls = (evaluation?.code.pullRequests ?? []).filter(
+    (p) => p.state !== "closed",
+  );
+  const merged = pulls.filter((p) => p.state === "merged");
+  const looked = merged.length ? merged : pulls;
+  return looked.length > 0 && looked.every((p) => p.checks === "none")
+    ? "no_checks"
+    : "passed";
 }
