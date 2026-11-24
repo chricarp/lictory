@@ -728,6 +728,77 @@ void test("a pushed branch becomes one pull request, linked to the item and the 
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });
 
+void test("a pull request Lictory cannot open is explained in the session's log and thread and on the item, once", async () => {
+  const f = await fixture();
+  const item = await f.task("Refunds over the API");
+  const started = await startSession(
+    db,
+    { userId: f.ada },
+    {
+      organizationId: f.organizationId,
+      agentId: f.forge.id,
+      prompt: "Implement the refund endpoint.",
+      workItemId: item,
+      channelId: f.channelId,
+    },
+  );
+  const row = await f.session(started.id);
+  // The branch landed in a repository that does not serve the item's
+  // project, so opening its pull request is refused.
+  const completion: SessionCompletion = {
+    organizationId: f.organizationId,
+    sessionId: row.id,
+    agentId: f.forge.id,
+    ownerId: f.ada,
+    agentName: "Forge",
+    agentHandle: f.forge.handle,
+    requestedById: f.ada,
+    projectId: f.projectId,
+    workItemId: item,
+    repositoryId: f.repositoryIds.ops,
+    repositoryUrl: null,
+    baseBranch: null,
+    branch: row.branch!,
+    title: row.title,
+    summary: "Done.",
+    attempt: row.attempts,
+  };
+  await sessionPushed(completion);
+  await sessionPushed(completion);
+  assert.equal((await f.pullRequests()).length, 0);
+  const errors = (
+    await db
+      .select()
+      .from(s.agentSessionEvent)
+      .where(eq(s.agentSessionEvent.sessionId, row.id))
+  ).filter((e) => e.type === "error");
+  assert.equal(errors.length, 1);
+  const message = (errors[0]!.data as { message: string }).message;
+  assert.match(message, /^Lictory could not open a pull request for /);
+  assert.match(message, new RegExp(row.branch!));
+  const notes = (
+    await db
+      .select()
+      .from(s.channelMessage)
+      .where(eq(s.channelMessage.channelId, f.channelId))
+  ).filter((m) => m.kind === "system" && m.body === message);
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0]!.threadRootId, row.threadRootMessageId);
+  const refused = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(
+        eq(s.activity.workItemId, item),
+        eq(s.activity.action, "code_pull_request_refused"),
+      ),
+    );
+  assert.equal(refused.length, 1);
+  assert.equal(refused[0]!.actorId, "system");
+  assert.equal(refused[0]!.detail?.agentName, "Forge");
+  assert.ok(String(refused[0]!.detail?.reason).length > 0);
+});
+
 void test("Build: the reviewer agent reviews each head, the Definition of Done follows ingest and a person's merge delivers the revision", async () => {
   const f = await fixture();
   const story = await f.agreedStory("Refund retries");

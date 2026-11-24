@@ -138,6 +138,31 @@ function threadOf(session: SessionRow) {
   };
 }
 
+// Lictory's own note in a session's thread (not the agent's words), once
+// per `key`: what happened that people must know, such as a pull request
+// Lictory could not open.
+export async function postSessionNotice(
+  tx: Tx,
+  session: SessionRow,
+  key: string,
+  body: string,
+) {
+  const thread = threadOf(session);
+  if (!thread) return null;
+  if (!(await activeChannel(tx, session.organizationId, thread.channelId)))
+    return null;
+  const message = await appendSystemMessage(tx, {
+    organizationId: session.organizationId,
+    channelId: thread.channelId,
+    actorId: session.requestedById,
+    kind: "system",
+    body,
+    threadRootId: thread.rootId,
+    messageId: stableId("notice", session.id, key),
+  });
+  return message.id;
+}
+
 /** Writes or refreshes the session's card in its thread. */
 export async function syncSessionCard(
   tx: Tx,

@@ -1684,6 +1684,43 @@ export async function recordSessionRepository(
   });
 }
 
+// Lictory could not open the pull request a completed session's branch
+// should become (the owner lost access to the project's code, the
+// repository stopped serving it): the session's log and thread say why, once
+// per attempt. The branch stays pushed.
+export async function recordSessionPullRequestRefused(
+  db: Database,
+  organizationId: string,
+  sessionId: string,
+  reason: string,
+) {
+  const event = await factoryWrite(db, organizationId, async (tx) => {
+    const session = await lockSession(tx, organizationId, sessionId);
+    const key = `pull-request-refused:${session.attempts}`;
+    const [seen] = await tx
+      .select({ sequence: s.agentSessionEvent.sequence })
+      .from(s.agentSessionEvent)
+      .where(
+        and(
+          eq(s.agentSessionEvent.sessionId, session.id),
+          eq(s.agentSessionEvent.type, "error"),
+          sql`${s.agentSessionEvent.data}->>'key' = ${key}`,
+        ),
+      );
+    if (seen) return null;
+    const message = `Lictory could not open a pull request for ${session.branch ?? "the session's branch"}: ${reason} The branch is pushed; open the pull request on the code host, or fix access and retry the session.`;
+    const sequence = await appendEvents(tx, session, [
+      { type: "error", data: { message, key } },
+    ]);
+    const row = await updateSession(tx, session.id, {
+      eventSequence: sequence,
+    });
+    await projectSession(tx, row);
+    return { ...threadEvent(row, "pull_request_refused"), reason: message };
+  });
+  if (event) await publishSessionEvent(event);
+}
+
 // After the pull request was recorded: the session's thread shows it (its
 // card and the agent's message).
 export async function publishSessionPullRequest(

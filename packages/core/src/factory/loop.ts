@@ -36,6 +36,7 @@ import {
 import {
   announceQuestion,
   postSessionMessage,
+  postSessionNotice,
   resolveQuestionCards,
   syncApprovalCard,
   syncApprovalCards,
@@ -915,6 +916,14 @@ async function publish(db: Database, event: SessionThreadEvent) {
               text,
             );
         }
+        // Lictory could not open it: its own note, once per attempt.
+        if (event.kind === "pull_request_refused" && event.reason)
+          await postSessionNotice(
+            tx,
+            session,
+            `pull-request-refused:${session.attempts}`,
+            event.reason,
+          );
         // The pull request the session's branch became, as the agent's
         // message, once.
         if (

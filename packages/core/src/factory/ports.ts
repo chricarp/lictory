@@ -23,7 +23,9 @@ export type SessionThreadEvent = {
     // The agent answered a person's steering message (`eventSequence`).
     | "agent_message"
     // The code pull request the session's branch became was opened.
-    | "pull_request";
+    | "pull_request"
+    // Lictory could not open it (`reason`): the thread says why.
+    | "pull_request_refused";
   status: SessionStatus;
   // For approval events.
   approvalId?: string;
@@ -31,6 +33,8 @@ export type SessionThreadEvent = {
   eventSequence?: number;
   // For pull requests: what the thread says.
   pullRequest?: { number: number; title: string; url: string };
+  // For a refused pull request: why, as people read it.
+  reason?: string;
 };
 export type SessionThreadPublisher = {
   publish(event: SessionThreadEvent): Promise<void>;

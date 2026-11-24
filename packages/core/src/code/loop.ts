@@ -1,9 +1,10 @@
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { configureClaimPorts } from "@lictory/core/claims/ports";
 import { codeReviewPolicy } from "@lictory/core/claims/service";
 import { DomainError } from "@lictory/core/domain/errors";
-import type { Actor, Database } from "@lictory/core/domain/service";
+import { lock, type Actor, type Database } from "@lictory/core/domain/service";
+import { SYSTEM_ACTOR } from "@lictory/core/domain/delivery";
 import {
   setSessionCompletionListener,
   setSessionRepositoryNamer,
@@ -14,6 +15,7 @@ import {
 import {
   publishSessionPullRequest,
   recordSessionPullRequest,
+  recordSessionPullRequestRefused,
   recordSessionRepository,
   startSession,
 } from "@lictory/core/factory/sessions";
@@ -21,6 +23,7 @@ import { stableId } from "@lictory/core/factory/thread-ids";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import { paths } from "@lictory/core/lib/paths";
 import { setCodeSessionHooks } from "@lictory/core/code/hooks";
+import { recordActivity } from "@lictory/core/code/store";
 import {
   chooseSessionRepository,
   createCodeEvidence,
@@ -178,13 +181,63 @@ async function openSessionPullRequest(
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     // The owner lost access, the repository stopped serving the project:
-    // the branch stays pushed and the session says why.
+    // the branch stays pushed, and the session (its log and thread) and the
+    // item say why, not only a log line.
     log("code.session_pull_request_refused", {
       organizationId: completion.organizationId,
       sessionId: completion.sessionId,
       reason: error.message,
     });
+    await recordSessionPullRequestRefused(
+      db,
+      completion.organizationId,
+      completion.sessionId,
+      error.message,
+    );
+    await noteRefusalOnItem(db, completion, error.message);
   }
+}
+
+// The item's history says that Lictory could not open the pull request for
+// the session's branch, once per attempt.
+async function noteRefusalOnItem(
+  db: Database,
+  completion: SessionCompletion,
+  reason: string,
+) {
+  const { organizationId, workItemId, projectId } = completion;
+  if (!workItemId || !projectId) return;
+  const key = `${completion.sessionId}:${completion.attempt}`;
+  await db.transaction(async (tx) => {
+    await lock(tx, organizationId);
+    const [seen] = await tx
+      .select({ id: s.activity.id })
+      .from(s.activity)
+      .where(
+        and(
+          eq(s.activity.organizationId, organizationId),
+          eq(s.activity.workItemId, workItemId),
+          eq(s.activity.action, "code_pull_request_refused"),
+          sql`${s.activity.detail}->>'key' = ${key}`,
+        ),
+      );
+    if (seen) return;
+    await recordActivity(tx, {
+      organizationId,
+      projectId,
+      workItemId,
+      actorId: SYSTEM_ACTOR,
+      action: "code_pull_request_refused",
+      detail: {
+        key,
+        agentName: completion.agentName,
+        agentSessionId: completion.sessionId,
+        branch: completion.branch,
+        reason,
+        performedVia: "runner",
+      },
+    });
+  });
 }
 
 // ------------------------------------------------- the reviewer's session
