@@ -114,6 +114,14 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.aiRun },
   { table: s.intelligenceContextEntry },
   { table: s.intelligenceContextVersion },
+  // The Factory. Credentials (runner credential hashes, registration
+  // tokens, session tokens) and lease tokens never leave the server.
+  { table: s.agent },
+  { table: s.runner, omit: ["credentialHash", "credentialPrefix"] },
+  { table: s.agentSession, omit: ["leaseToken", "accessTokenId"] },
+  { table: s.agentSessionEvent },
+  { table: s.agentSessionInput },
+  { table: s.agentApproval },
   { table: s.invitation },
   { table: s.configurationAudit },
   { table: s.auditEvent },

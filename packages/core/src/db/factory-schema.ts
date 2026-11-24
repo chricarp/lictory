@@ -66,7 +66,7 @@ export const agent = pgTable(
     // The accountable person. The agent never has more access than they do.
     ownerId: text("owner_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id),
     kind: agentKind("kind").notNull(),
     // Runner agents: which harness runs them and with which model.
     harness: text("harness"),
@@ -84,7 +84,7 @@ export const agent = pgTable(
     }),
     createdById: text("created_by_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -111,9 +111,7 @@ export const runner = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    ownerId: text("owner_id").references(() => user.id, {
-      onDelete: "cascade",
-    }),
+    ownerId: text("owner_id").references(() => user.id),
     name: text("name").notNull(),
     // SHA-256 of the runner credential; the secret is shown once.
     credentialHash: text("credential_hash").notNull(),
@@ -134,7 +132,7 @@ export const runner = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdById: text("created_by_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id),
     registeredAt: timestamp("registered_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -161,14 +159,12 @@ export const runnerRegistration = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     // Set for a personal runner.
-    ownerId: text("owner_id").references(() => user.id, {
-      onDelete: "cascade",
-    }),
+    ownerId: text("owner_id").references(() => user.id),
     tokenHash: text("token_hash").notNull(),
     prefix: text("prefix").notNull(),
     createdById: text("created_by_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -183,6 +179,9 @@ export const runnerRegistration = pgTable(
     index("runner_registration_organization_idx").on(t.organizationId),
   ],
 );
+
+// People are referenced without cascades: accounts are anonymized, never
+// deleted (docs/internals/account-deletion.md), and history keeps them.
 
 // One run of an agent on one task. Its lease (`lease_token`, renewed by the
 // runner) fences every write from the runner that claimed it.
@@ -206,7 +205,7 @@ export const agentSession = pgTable(
     }),
     requestedById: text("requested_by_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => user.id),
     status: agentSessionStatus("status").notNull().default("queued"),
     title: text("title").notNull(),
     prompt: text("prompt").notNull(),
