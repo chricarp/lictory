@@ -88,6 +88,7 @@ function fakeSession(
     runnerId: "r-1",
     requestedRunnerId: null,
     requestedById: "p-ada",
+    startedByPolicy: null,
     status,
     title: "PAY-6: Duplicate charge when the provider times out",
     prompt: "",

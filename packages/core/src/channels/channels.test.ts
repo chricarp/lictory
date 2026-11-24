@@ -16,6 +16,7 @@ import {
 } from "@lictory/core/capabilities/core";
 import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
 import { createNotificationService } from "@lictory/core/notifications/service";
+import { describeNotification } from "@lictory/core/notifications/format";
 import {
   deleteMessage,
   editMessage,
@@ -741,6 +742,38 @@ void test("notifications go to mentions, direct messages and thread participants
   ).items;
   assert.equal(latest?.kind, "direct_message");
   assert.equal(latest?.detail.excerpt, "Lunch?");
+
+  // Conversations digest: unread messages of one conversation are one
+  // notification (the latest excerpt, how many); once read, the next starts
+  // a new one.
+  await f.post(f.cy, dm, "Or coffee?");
+  await f.post(f.cy, dm, "Noon works.");
+  await drainNotifications(db);
+  const dms = async () =>
+    (
+      await inbox.list(f.ada, { organizationId: f.organizationId })
+    ).items.filter((n) => n.kind === "direct_message");
+  const [digest, ...others] = await dms();
+  assert.equal(others.length, 0);
+  assert.equal(digest?.detail.excerpt, "Noon works.");
+  assert.equal(digest?.detail.count, 3);
+  assert.equal(
+    describeNotification(digest, "Cy").headline,
+    "3 new messages, the latest from Cy",
+  );
+  await inbox.act(f.ada, { action: "markRead", ids: [digest.id] });
+  await f.post(f.cy, dm, "See you there.");
+  await drainNotifications(db);
+  assert.equal((await dms()).length, 2);
+  // Thread replies digest per thread.
+  await f.post(f.bo, room, "Done.", { threadRootId: root.id });
+  await drainNotifications(db);
+  const replies = (
+    await inbox.list(f.ada, { organizationId: f.organizationId })
+  ).items.filter((n) => n.kind === "channel_thread_reply");
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0]?.detail.count, 2);
+  assert.equal(replies[0]?.detail.excerpt, "Done.");
 });
 
 void test("promotion creates the object, links both ways and replays", async () => {

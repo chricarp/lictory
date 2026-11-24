@@ -35,6 +35,17 @@ export const autonomyLevelMeta: Record<
   },
 };
 
+// "Build policy (set by Ada Lovelace)": who started what an autonomy policy
+// started (a dispatched session, a claim). The agent's owner stays
+// accountable; only the attribution differs
+// (docs/internals/software-factory.md).
+export function policyStarter(
+  policy: { level: AutonomyLevel; setById: string },
+  setByName: string,
+) {
+  return `${autonomyLevelMeta[policy.level].label} policy (set by ${setByName})`;
+}
+
 // What must pass before Autopilot requests a merge. CI is always required.
 export const autopilotRequirements = [
   "checks_passed",
@@ -218,6 +229,10 @@ export const claimEntitySchema = z.object({
   waitingThreadIds: z.array(id),
   lastProgress: z.string().nullable(),
   lastProgressAt: z.string().nullable(),
+  // Since when the session working under the claim waits on a person (an
+  // approval request); null while it works. Absent in projections written
+  // before it existed.
+  sessionWaitingSince: z.string().nullable().optional(),
 });
 
 // A project's autonomy policy; absent means Lictory's defaults (Assist).

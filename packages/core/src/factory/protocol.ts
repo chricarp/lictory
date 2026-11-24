@@ -59,7 +59,9 @@ export type Isolation = (typeof isolationModes)[number];
 // ---------------------------------------------------------------- events
 
 // What a session's log holds. Runners write the first group; the server
-// writes `status`, `user_message` and `approval_answer`.
+// writes `status`, `user_message`, `approval_answer` and `context` (what
+// Lictory told the agent besides a person's words: where it was asked, the
+// quoted conversation, a policy's task).
 export const sessionEventTypes = [
   "message",
   "reasoning",
@@ -73,6 +75,7 @@ export const sessionEventTypes = [
   "status",
   "user_message",
   "approval_answer",
+  "context",
 ] as const;
 export type SessionEventType = (typeof sessionEventTypes)[number];
 export const runnerEventTypes = [

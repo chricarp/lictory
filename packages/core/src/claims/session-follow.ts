@@ -109,6 +109,81 @@ export async function renewSessionClaims(
   });
 }
 
+/**
+ * The session a claim works under started or stopped waiting on a person
+ * (an approval request). The claim carries it (`sessionWaitingSince`), so
+ * the queue, the item and the board say "waiting on a person", never
+ * "working", while the agent is blocked. Reads the session's status under
+ * the lock rather than trusting the caller's, so status changes published
+ * out of order settle on the truth. Idempotent.
+ */
+export async function followSessionWaiting(
+  db: Database,
+  organizationId: string,
+  sessionId: string,
+  now = new Date(),
+) {
+  const session = async (tx: Database | Tx) =>
+    (
+      await tx
+        .select({ status: s.agentSession.status })
+        .from(s.agentSession)
+        .where(
+          and(
+            eq(s.agentSession.organizationId, organizationId),
+            eq(s.agentSession.id, sessionId),
+          ),
+        )
+    )[0];
+  const differs = (claim: ClaimRow, waiting: boolean) =>
+    (claim.sessionWaitingSince !== null) !== waiting;
+  // Cheap check outside the lock: most status changes change no claim.
+  const current = await session(db);
+  if (!current) return 0;
+  const stale = (await sessionClaims(db, organizationId, [sessionId])).filter(
+    (c) => differs(c, current.status === "waiting"),
+  );
+  if (!stale.length) return 0;
+  return db.transaction(async (tx) => {
+    await lock(tx, organizationId);
+    const status = (await session(tx))?.status;
+    const waiting = status === "waiting";
+    const claims = (
+      await tx
+        .select()
+        .from(s.workItemClaim)
+        .where(
+          and(
+            eq(s.workItemClaim.organizationId, organizationId),
+            eq(s.workItemClaim.agentSessionId, sessionId),
+            inArray(s.workItemClaim.state, ["starting", "active", "waiting"]),
+          ),
+        )
+    ).filter((c) => differs(c, waiting));
+    for (const projectId of new Set(claims.map((c) => c.projectId))) {
+      const before = await claimOrganizationEntities(
+        tx,
+        organizationId,
+        projectId,
+      );
+      await tx
+        .update(s.workItemClaim)
+        .set({ sessionWaitingSince: waiting ? now : null })
+        .where(
+          and(
+            eq(s.workItemClaim.organizationId, organizationId),
+            inArray(
+              s.workItemClaim.id,
+              claims.filter((c) => c.projectId === projectId).map((c) => c.id),
+            ),
+          ),
+        );
+      await projectClaims(tx, organizationId, projectId, before);
+    }
+    return claims.length;
+  });
+}
+
 export type SessionEnd = {
   organizationId: string;
   sessionId: string;
@@ -182,7 +257,12 @@ async function holdForDelivery(
   const note = `The session completed; the claim holds the item until its Definition of Done passes${end.detail ? `: ${end.detail.slice(0, 300)}` : "."}`;
   await tx
     .update(s.workItemClaim)
-    .set({ leaseExpiresAt: holdUntil, lastProgress: note, lastProgressAt: now })
+    .set({
+      leaseExpiresAt: holdUntil,
+      lastProgress: note,
+      lastProgressAt: now,
+      sessionWaitingSince: null,
+    })
     .where(
       and(
         eq(s.workItemClaim.organizationId, claim.organizationId),

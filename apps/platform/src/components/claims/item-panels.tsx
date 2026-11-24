@@ -25,7 +25,9 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  claimShownState,
   claimStateLabel,
+  claimWaitsOnPeople,
   leaseLeft,
   useAgentLabel,
   useAutonomy,
@@ -87,12 +89,33 @@ export function ClaimPanel() {
               <Bot className="size-3.5" />
             </span>
             <p className="min-w-0 flex-1 truncate font-medium">
-              {label(claim)}
+              {label(claim, item.assigneeId)}
             </p>
-            <Badge tone={claim.state === "waiting" ? "warning" : "info"}>
-              {claimStateLabel[claim.state]}
+            <Badge tone={claimWaitsOnPeople(claim) ? "warning" : "info"}>
+              {claimStateLabel[claimShownState(claim)]}
             </Badge>
           </div>
+          {claim.sessionWaitingSince && claim.agentSessionId && (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <MessageCircleQuestion
+                aria-hidden
+                className="mt-0.5 size-3.5 shrink-0 text-warning"
+              />
+              <span>
+                Its session has waited on a person&apos;s answer since{" "}
+                {relativeTime(claim.sessionWaitingSince)}.{" "}
+                <Link
+                  href={paths.factorySession(
+                    organization.slug,
+                    claim.agentSessionId,
+                  )}
+                  className="text-foreground underline-offset-2 hover:underline"
+                >
+                  Open the session
+                </Link>
+              </span>
+            </p>
+          )}
           {claim.state === "waiting" ? (
             <div className="space-y-1">
               {claim.waitingThreadIds.length > 0 && (
@@ -112,7 +135,7 @@ export function ClaimPanel() {
                 </p>
               )}
             </div>
-          ) : (
+          ) : claim.sessionWaitingSince ? null : (
             <p className="text-xs text-muted-foreground">
               {claim.state === "starting"
                 ? "A session is starting for it."

@@ -92,7 +92,14 @@ An **agent session** (`agent_session`) is one run of an agent on one task:
 the agent, the runner, the person who started it, an optional work item, a
 repository and branch, the steering thread (`channel_id`,
 `thread_root_message_id`: text, owned by Channels), the result summary, the
-code pull request (text, owned by Code) and timestamps. Its status is the
+code pull request (text, owned by Code) and timestamps. A session an
+autonomy policy started (the dispatcher, Code's reviewer dispatch) records
+it (`started_by_policy`: the level and the administrator who set it) and
+reads "Build policy (set by Ada)" wherever the Factory says who started it,
+in its log and on the claim's activity; the agent's owner is still the
+requester, so authority, steering and approvals are unchanged. Its task is
+then the policy's, shown as context rather than as anyone's message. Its
+status is the
 declared machine `agentSession` in `contracts/state-machines.ts`:
 
 ```text
@@ -338,6 +345,9 @@ conversation's lock after either.
 ### Claims follow their session
 
 - **Alive**: heartbeats renew the claim the session works under.
+- **Waiting**: while the session waits on a person's answer, its claim
+  says so (`sessionWaitingSince`) and the project's queue counts it as
+  waiting on people.
 - **Failed or canceled**: the claim is released (`session_failed`,
   `session_canceled`) and the item returns where it was; a dispatcher claim
   backs off after a failure and is held after a person's cancel.
@@ -361,11 +371,16 @@ takes its card as the thread: the card's id is stable
 **Mentions.** `@[forge](agent:ID)` in a person's own message (no agent, no
 token, no Litto) starts a session for each runner agent mentioned (at most
 three) that the person may use: its owner, or anyone for a shared agent.
-The session is requested by that person and acts as the owner. Its prompt
-is the message (mentions as `@handle`), the thread it belongs to and, in
-public channels only, the earlier thread quoted between delimiters as
-information, never instruction; private conversations are not copied into a
-session every member can read in the Factory. A message linking exactly one
+The session is requested by that person and acts as the owner. Its task
+(`prompt`) is the message (mentions as `@handle`), in the person's words
+only. Lictory's **context** (`context`) is stored apart: where it was asked
+(the channel by name, never raw identifiers) and, in public channels only,
+the earlier thread quoted between delimiters as information, never
+instruction; private conversations are not copied into a session every
+member can read in the Factory. The harness receives the task, then the
+context; the transcript shows the task as the person's message and the
+context as a folded "Context Forge received" event (`context`), so no text
+is attributed to someone who did not write it. A message linking exactly one
 work item in the agent's scope names it, and a repository it names
 (`acme/payments` or its address) that the Code module mirrors, for that
 item's project when there is one, is the session's repository

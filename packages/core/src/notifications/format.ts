@@ -1,4 +1,5 @@
 import { paths } from "@lictory/core/lib/paths";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import {
   notificationKinds,
   type NotificationKind,
@@ -12,6 +13,11 @@ export type NotificationView = {
 };
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+// Agent session titles stored before the mention fix read "@@forge".
+const titled = (v: unknown) => {
+  const title = str(v);
+  return title && sessionTitle(title);
+};
 const num = (v: unknown) =>
   typeof v === "number" || typeof v === "string" ? String(v) : "?";
 
@@ -31,6 +37,7 @@ export function describeNotification(
   const item = str(d.itemKey) ?? "an item";
   const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
   const excerpt = str(d.excerpt);
+  const count = typeof d.count === "number" ? d.count : 1;
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
     ? `“${str(d.suggestionTitle)}”`
@@ -225,11 +232,11 @@ export function describeNotification(
     case "agent_approval_requested":
       return {
         headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
-        body: str(d.sessionTitle),
+        body: titled(d.sessionTitle),
       };
     case "agent_session_finished":
       return {
-        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${str(d.sessionTitle) ?? "a session"}`,
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
         body: str(d.error) ?? str(d.summary),
       };
     case "channel_mentioned":
@@ -237,11 +244,22 @@ export function describeNotification(
         headline: `${actor} mentioned you ${channelPlace(d)}`,
         body: excerpt,
       };
+    // Digested per conversation: `count` messages since the person last
+    // read it, the latest by `actor`.
     case "direct_message":
-      return { headline: `${actor} sent you a message`, body: excerpt };
+      return {
+        headline:
+          count > 1
+            ? `${count} new messages, the latest from ${actor}`
+            : `${actor} sent you a message`,
+        body: excerpt,
+      };
     case "channel_thread_reply":
       return {
-        headline: `${actor} replied to a thread ${channelPlace(d)}`,
+        headline:
+          count > 1
+            ? `${count} new replies to a thread ${channelPlace(d)}, the latest from ${actor}`
+            : `${actor} replied to a thread ${channelPlace(d)}`,
         body: excerpt,
       };
     case "channel_message":

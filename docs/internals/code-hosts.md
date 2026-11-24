@@ -299,7 +299,10 @@ the body is the session's summary and a link to it), through the outbox:
   its thread, once (stable message id).
 
 A refusal (the owner lost "Change properties", the repository stopped
-serving the project) leaves the branch pushed and is logged; a person can
+serving the project) leaves the branch pushed and says why where people
+look, once per attempt: an error in the session's log
+(`recordSessionPullRequestRefused`), Lictory's note in the session's thread
+and a `code_pull_request_refused` entry in the item's history. A person can
 open the pull request from the item.
 
 ### Reviews recorded in Lictory

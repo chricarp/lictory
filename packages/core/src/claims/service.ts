@@ -44,6 +44,7 @@ import {
   recordActivity,
   type ClaimRow,
 } from "@lictory/core/claims/records";
+import { isTopLevel } from "@lictory/core/lib/work-items";
 import { mentionToken } from "@lictory/core/notifications/mentions";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
 import { writeProjections } from "@lictory/core/domain/projections";
@@ -359,6 +360,10 @@ export async function projectFacts(
       category: (id) => statuses.get(id)?.category,
       statusName: (id) => statuses.get(id)?.name,
       hasSpecification: (id) => types.get(id)?.hasSpecification ?? false,
+      container: (id) => {
+        const type = types.get(id);
+        return type ? isTopLevel(type) : false;
+      },
       blockers: (id) => blockersOf.get(id) ?? [],
       liveClaim: (id) => live.get(id),
       hasStartedStatus: roster.statuses.some(
@@ -1452,6 +1457,8 @@ export async function codeReviewPolicy(
   if (agent.projectIds && !agent.projectIds.includes(projectId)) return null;
   return {
     level: policy.level,
+    // The administrator who set it: automated acts are attributed to them.
+    setById: stored!.updatedById,
     reviewer: agent,
     reportingChannelId: policy.reportingChannelId ?? null,
   };

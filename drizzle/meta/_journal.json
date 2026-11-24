@@ -414,6 +414,13 @@
       "when": 1795495871098,
       "tag": "0058_code_factory_loop",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795498275406,
+      "tag": "0059_factory_correctness",
+      "breakpoints": true
     }
   ]
 }

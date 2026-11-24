@@ -13,6 +13,12 @@ type ApprovalRow = typeof s.agentApproval.$inferSelect;
 
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
 
+// A session title as people read it. Titles stored before the mention fix
+// could start with "@@forge"; one "@" is what was typed.
+export function sessionTitle(title: string) {
+  return title.replace(/(^|\s)@@+(?=[\w-])/g, "$1@");
+}
+
 export type AgentKind = "runner" | "external" | "intelligence";
 export type AgentAccess = "read" | "write";
 
@@ -100,6 +106,8 @@ export function sessionEntity(row: SessionRow, approvals: ApprovalRow[]) {
     runnerId: row.runnerId,
     requestedRunnerId: row.requestedRunnerId,
     requestedById: row.requestedById,
+    // An autonomy policy started it: shown as "Build policy (set by Ada)".
+    startedByPolicy: row.startedByPolicy ?? null,
     status: row.status,
     title: row.title,
     prompt:

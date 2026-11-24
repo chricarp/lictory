@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { Factory, MessageCircleQuestion } from "lucide-react";
-import type { SessionStatus } from "@lictory/core/factory/entities";
+import {
+  sessionTitle,
+  type SessionStatus,
+} from "@lictory/core/factory/entities";
 import { identifier } from "@lictory/core/lib/work-items";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -105,7 +108,7 @@ function RunningSessionsCard() {
             identifier={
               item && project ? identifier(project, item.number) : undefined
             }
-            title={session.title}
+            title={sessionTitle(session.title)}
             meta={
               <AgentActor
                 agent={agent}

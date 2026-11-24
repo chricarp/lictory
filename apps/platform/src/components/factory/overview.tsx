@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bot, Play, Server } from "lucide-react";
-import { runnerOnline } from "@lictory/core/factory/entities";
+import { runnerOnline, sessionTitle } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -88,7 +88,7 @@ export function FactoryOverview() {
                       className="mt-0.5 block truncate text-xs text-muted-foreground hover:text-foreground"
                     >
                       {agentById.get(session.agentId)?.name ?? "Agent"} ·{" "}
-                      {session.title}
+                      {sessionTitle(session.title)}
                     </Link>
                   </div>
                   <ApprovalActions

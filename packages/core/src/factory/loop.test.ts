@@ -263,8 +263,32 @@ void test("a mention by the owner starts one session in the thread, with a live 
   assert.equal(session!.requestedById, f.ada);
   assert.equal(session!.channelId, f.channelId);
   assert.equal(session!.threadRootMessageId, messageId);
-  assert.match(session!.prompt, /add a changelog for refunds/);
+  // The person's words are the task, stored and shown as theirs; what
+  // Lictory adds is its own event, naming the channel, never raw ids.
+  assert.equal(
+    session!.prompt,
+    `@${f.agent.handle} add a changelog for refunds`,
+  );
   assert.doesNotMatch(session!.prompt, /agent:/);
+  const log = await db
+    .select()
+    .from(s.agentSessionEvent)
+    .where(eq(s.agentSessionEvent.sessionId, session!.id))
+    .orderBy(asc(s.agentSessionEvent.sequence));
+  const mine = log.filter((e) => e.type === "user_message");
+  assert.equal(mine.length, 1);
+  assert.equal(
+    (mine[0]!.data as { text: string }).text,
+    `@${f.agent.handle} add a changelog for refunds`,
+  );
+  assert.equal((mine[0]!.data as { authorId: string }).authorId, f.ada);
+  const context = log.find((e) => e.type === "context");
+  assert.ok(context, "the channel context is Lictory's own event");
+  const contextText = (context.data as { text: string }).text;
+  assert.match(contextText, /#builds-/);
+  assert.doesNotMatch(contextText, new RegExp(f.channelId));
+  assert.doesNotMatch(contextText, new RegExp(messageId));
+  assert.equal(session!.context, contextText);
   const [card] = await f.thread(messageId);
   assert.equal(card!.id, sessionCardId(session!.id));
   assert.equal(card!.kind, "card");
@@ -274,8 +298,13 @@ void test("a mention by the owner starts one session in the thread, with a live 
   );
   assert.equal((card!.payload as { status: string }).status, "queued");
 
-  // The card follows the session: claimed, then canceled.
-  await claimAndStart(f.runner);
+  // The card follows the session: claimed, then canceled. The harness
+  // receives the task, then the context.
+  const { assignment } = await claimAndStart(f.runner);
+  assert.equal(
+    assignment.prompt,
+    `${session!.prompt}\n\n---\n${session!.context}`,
+  );
   const [running] = await f.thread(messageId);
   assert.equal((running!.payload as { status: string }).status, "running");
   await cancelSession(
@@ -372,11 +401,13 @@ void test("people in linked channels address agents by the Factory's rule; Slack
   });
   const [session] = await f.sessions();
   assert.match(session!.prompt, /draft the rotation runbook/);
+  // The quoted thread is Lictory's context, never the person's task.
+  assert.doesNotMatch(session!.prompt, /Guest/);
   assert.match(
-    session!.prompt,
+    session!.context ?? "",
     /Guest \(Slack\): \(written in Slack; withheld/,
   );
-  assert.doesNotMatch(session!.prompt, /vendor secret rotation/);
+  assert.doesNotMatch(session!.context ?? "", /vendor secret rotation/);
 });
 
 void test("replies steer only for the requester and the owner; approvals only they answer", async () => {
@@ -582,6 +613,28 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
   assert.equal(session!.workItemId, story);
   assert.equal(session!.projectId, f.projectId);
   assert.match(session!.prompt, new RegExp(claim.id));
+  // The policy started it, set by Ada; Ada stays accountable (requester).
+  assert.equal(session!.requestedById, f.ada);
+  assert.deepEqual(session!.startedByPolicy, {
+    level: "build",
+    setById: f.ada,
+  });
+  const started = await db
+    .select()
+    .from(s.agentSessionEvent)
+    .where(eq(s.agentSessionEvent.sessionId, session!.id))
+    .orderBy(asc(s.agentSessionEvent.sequence));
+  assert.ok(started.every((e) => e.type !== "user_message"));
+  assert.equal(started[0]!.type, "context");
+  assert.match(
+    (started[0]!.data as { summary: string }).summary,
+    /^The Build policy \(set by Ada\) dispatched this task\.$/,
+  );
+  assert.equal(
+    (started.find((e) => e.type === "status")!.data as { message: string })
+      .message,
+    "The Build policy (set by Ada) started the session.",
+  );
   // Its card is the thread, at the top of the reporting channel.
   assert.equal(session!.threadRootMessageId, sessionCardId(session!.id));
   const [card] = await db
@@ -722,6 +775,64 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
   assert.ok(
     held.leaseExpiresAt.getTime() > Date.now() + DELIVERY_HOLD_MS - 60 * 60_000,
   );
+});
+
+void test("a claim waits on people while its session waits on a person's approval, and works again after the answer", async () => {
+  const f = await fixture();
+  const story = await agreedStory(f);
+  await setAutonomyPolicy(
+    db,
+    { userId: f.ada },
+    {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      policy: {
+        ...defaultAutonomyPolicy,
+        level: "build",
+        implementerAgentIds: [f.agent.id],
+      },
+    },
+  );
+  assert.equal((await runDispatcher(db)).started, 1);
+  const { assignment } = await claimAndStart(f.runner);
+  const [session] = await f.sessions();
+  const projected = async () =>
+    (
+      await db
+        .select({ data: s.syncEntity.data })
+        .from(s.syncEntity)
+        .where(eq(s.syncEntity.key, `claim:${(await claimOf(story)).id}`))
+    )[0]?.data as { state: string; sessionWaitingSince?: string | null };
+  assert.equal((await claimOf(story)).sessionWaitingSince, null);
+  assert.equal((await projected()).sessionWaitingSince, null);
+
+  await appendRunnerEvents(db, f.runner, session!.id, assignment.leaseToken, [
+    {
+      seq: 1,
+      type: "approval_request",
+      data: { requestId: "r1", title: "Run the migration on staging" },
+    },
+  ]);
+  const [waiting] = await f.sessions();
+  assert.equal(waiting!.status, "waiting");
+  // The claim says the agent is blocked on a person, in the row and in
+  // what browsers read; its own state (questions) is unchanged.
+  assert.ok((await claimOf(story)).sessionWaitingSince);
+  assert.equal((await projected()).state, "active");
+  assert.ok((await projected()).sessionWaitingSince);
+
+  const [approval] = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.sessionId, session!.id));
+  await invoke(web(f.ada), "answerAgentApproval", {
+    organizationId: f.organizationId,
+    sessionId: session!.id,
+    approvalId: approval!.id,
+    decision: "approve",
+  });
+  assert.equal((await claimOf(story)).sessionWaitingSince, null);
+  assert.equal((await projected()).sessionWaitingSince, null);
 });
 
 void test("a failed or canceled session releases its claim and returns the item", async () => {

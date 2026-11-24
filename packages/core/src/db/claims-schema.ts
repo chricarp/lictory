@@ -86,6 +86,13 @@ export const workItemClaim = pgTable(
     startedStatusId: text("started_status_id"),
     lastProgress: text("last_progress"),
     lastProgressAt: timestamp("last_progress_at", { withTimezone: true }),
+    // Since when the agent session working under the claim waits on a
+    // person (an approval request), mirrored from the Factory's session
+    // after each of its status changes; null while it works. Not a claim
+    // state: the session's own machine moves it.
+    sessionWaitingSince: timestamp("session_waiting_since", {
+      withTimezone: true,
+    }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     endedById: optionalActor("ended_by_id"),
     // released: agent, person, expired, launch_failed; completed: done.

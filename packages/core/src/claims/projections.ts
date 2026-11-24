@@ -105,6 +105,7 @@ export async function claimOrganizationEntities(
             .map((q) => q.threadId),
           lastProgress: c.lastProgress,
           lastProgressAt: c.lastProgressAt?.toISOString() ?? null,
+          sessionWaitingSince: c.sessionWaitingSince?.toISOString() ?? null,
         }) satisfies Entity,
     ),
     ...policies.map(

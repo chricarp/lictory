@@ -89,6 +89,16 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
     // Register the agent's webhook in Account settings.
     await page.goto("/account#webhooks");
     const section = page.locator("#webhooks");
+    // The section nav marks the section the link opened, not the one above.
+    const sections = page.getByRole("navigation", {
+      name: "Settings sections",
+    });
+    await expect(
+      sections.getByRole("link", { name: "Event webhooks" }),
+    ).toHaveAttribute("aria-current", "location");
+    await expect(
+      sections.getByRole("link", { name: "AI agents" }),
+    ).not.toHaveAttribute("aria-current", "location");
     await section.getByRole("button", { name: "New webhook" }).click();
     const form = section.getByRole("form", { name: "New webhook" });
     await form.getByLabel("Name", { exact: true }).fill("Grok routine");
@@ -108,6 +118,11 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
     await expect(row.getByTestId("event-webhook-test")).toContainText(
       "accepted the test event (200)",
     );
+    // A test is not a delivered event: the row says so, not "0 delivered,
+    // last …".
+    const state = row.getByTestId("event-webhook-state");
+    await expect(state).toContainText("No events delivered yet");
+    await expect(state).toContainText("receiver last accepted");
     expect(receiver.received).toHaveLength(1);
     expect(receiver.received[0]!.headers.authorization).toBe(
       "Bearer grok-bearer-secret",
@@ -208,7 +223,7 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
     // The person sees what was delivered.
     await page.reload();
     await expect(row.getByTestId("event-webhook-state")).toContainText(
-      "1 delivered",
+      "1 event delivered",
     );
 
     // Pausing stops delivery; removing it ends it.

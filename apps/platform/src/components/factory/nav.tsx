@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Bot, Factory, Server } from "lucide-react";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   SidebarGroup,
@@ -97,7 +98,7 @@ export const factoryPalette: PaletteProvider = {
       );
       const entries: PaletteEntry[] = ordered.map((s) => ({
         id: `session-${s.id}`,
-        label: s.title,
+        label: sessionTitle(s.title),
         hint: `${agentById.get(s.agentId)?.name ?? "Agent"} · ${statusLabels[s.status]}`,
         icon: <Bot className="size-4" />,
         keywords: `agent session ${agentById.get(s.agentId)?.name ?? ""}`,

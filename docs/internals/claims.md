@@ -69,7 +69,11 @@ same function. An item is claimable when:
     specification ancestor's accepted scope, with the same readiness rule;
   - plain work with no specification ancestor needs a person to select it:
     an unstarted status (Todo), not the backlog;
-- the workflow has an active started status.
+- the workflow has an active started status;
+- its type is not a container (`isTopLevel`, Epic by default): a container
+  groups implementation work, and agents take its children. An agreed
+  container is outside the queue; one whose scope still needs accepting
+  stays in "Waiting on people".
 
 Each refusal has a code and a sentence that says what would make it pass.
 The result's `stage` buckets items for the queue: `claimable`, `claimed`,
@@ -214,13 +218,19 @@ claims or a project on Build or Autopilot. Per organization, under its lock:
    merges).
 3. For each Build or Autopilot project: reserve claimable items in rank
    order up to `maxConcurrentSessions`, each for the least busy implementer,
-   as `starting` claims.
+   as `starting` claims. Work a person owns stays theirs: an item assigned
+   to someone goes only to an implementer acting for that person, so the
+   dispatcher never takes a colleague's assigned work (a person can still
+   start a session on any item they may work on). Unassigned children of an
+   accepted specification are the intended work.
 
 Then, outside any transaction, it asks the `AgentSessionLauncher` to start a
 session per reservation (idempotency key: the claim id), and settles each
 answer in its own locked transaction: a started session activates its claim
 and moves the item to started (attributed to the agent, `performedVia:
-runner`, `automation: dispatcher`), unless the item stopped being claimable
+runner`, `automation: dispatcher`; the `claimed` activity names the policy
+and the administrator who set it, "dispatched by the Build policy (set by
+Ada)"), unless the item stopped being claimable
 meanwhile; a refusal releases the reservation (`launch_failed`) and backs the
 item off.
 
@@ -285,6 +295,11 @@ a failed (`session_failed`, a failed dispatch attempt) or canceled
 item; a completed session's claim stays, with a seven-day delivery hold
 (`DELIVERY_HOLD_MS`), until the Definition of Done completes it. Both are
 idempotent; a lost call falls back to the lease.
+`followSessionWaiting` mirrors whether the session waits on a person (an
+approval request) onto its claim (`sessionWaitingSince`) after every
+status change, reading the session's status under the lock, so the queue,
+the item and the board show such a claim as waiting on a person, never as
+working. It is not a claim state: the session's own machine moves it.
 
 ## Projections
 

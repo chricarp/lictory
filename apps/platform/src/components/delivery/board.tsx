@@ -209,7 +209,10 @@ function ProjectBoard({ project }: { project: Project }) {
   const claims = useLiveClaims();
   const agentLabel = useAgentLabel();
   const claimLabels = new Map(
-    [...claims.values()].map((c) => [c.workItemId, agentLabel(c)]),
+    [...claims.values()].map((c) => [
+      c.workItemId,
+      agentLabel(c, items.find((i) => i.id === c.workItemId)?.assigneeId),
+    ]),
   );
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;

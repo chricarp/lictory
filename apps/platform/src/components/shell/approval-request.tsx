@@ -1,3 +1,4 @@
+import { sessionTitle } from "@lictory/core/factory/entities";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
@@ -114,7 +115,9 @@ export function ApprovalRequest({
               className="shrink-0"
             />
             <span aria-hidden>·</span>
-            <span className="min-w-0 truncate">{session.title}</span>
+            <span className="min-w-0 truncate">
+              {sessionTitle(session.title)}
+            </span>
           </span>
         </span>
         <time
@@ -287,7 +290,7 @@ function Context({
               href={paths.factorySession(org, session.id)}
               className="truncate font-medium text-foreground underline-offset-2 focus-ring outline-none hover:underline"
             >
-              {session.title}
+              {sessionTitle(session.title)}
             </Link>
           </Fact>
         )}

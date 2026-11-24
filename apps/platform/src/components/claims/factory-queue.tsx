@@ -32,7 +32,9 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import {
+  claimShownState,
   claimStateLabel,
+  claimWaitsOnPeople,
   leaseLeft,
   useAgentLabel,
   useAutonomy,
@@ -40,6 +42,7 @@ import {
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
 import { ReleaseDialog } from "@lictory/platform/components/claims/item-panels";
+import { useFactory } from "@lictory/platform/components/factory/store";
 
 type Dispatch = {
   workItemId: string;
@@ -84,8 +87,16 @@ export function FactoryQueue() {
 const PAGE = 50;
 
 function Queue({ project }: { project: Project }) {
-  const { items, view, organization, capabilitiesIn, canManage, userId } =
-    useWorkspace();
+  const {
+    items,
+    view,
+    organization,
+    capabilitiesIn,
+    canManage,
+    userId,
+    memberName,
+  } = useWorkspace();
+  const { agentById } = useFactory();
   const claims = useLiveClaims();
   const verdictOf = useClaimability();
   const label = useAgentLabel();
@@ -123,7 +134,7 @@ function Queue({ project }: { project: Project }) {
       if (item.projectId !== project.id || item.archivedAt) continue;
       const claim = claims.get(item.id);
       if (claim) {
-        (claim.state === "waiting" ? waiting : claimed).push({ item, claim });
+        (claimWaitsOnPeople(claim) ? waiting : claimed).push({ item, claim });
         continue;
       }
       const verdict = verdictOf(item);
@@ -141,6 +152,17 @@ function Queue({ project }: { project: Project }) {
     return { claimed, waiting, agreement, claimable, blocked };
   }, [items, claims, verdictOf, project.id]);
   const live = groups.claimed.length + groups.waiting.length;
+  // Work a person owns stays theirs: the dispatcher gives an assigned item
+  // only to an implementer acting for its assignee.
+  const implementerOwners = new Set(
+    policy.implementerAgentIds.map((id) => agentById.get(id)?.ownerId),
+  );
+  const leftTo = (item: WorkItem) =>
+    policy.level !== "assist" &&
+    item.assigneeId &&
+    !implementerOwners.has(item.assigneeId)
+      ? `Assigned to ${memberName(item.assigneeId)}: the ${autonomyLevelMeta[policy.level].label} policy leaves it to them.`
+      : undefined;
   const key = (item: WorkItem) => identifier(project, item.number);
   const href = (item: WorkItem) =>
     paths.item(organization.slug, project.key, key(item));
@@ -206,11 +228,16 @@ function Queue({ project }: { project: Project }) {
                   item={item}
                   label={key(item)}
                   href={href(item)}
-                  meta={<ClaimBadge claim={claim} label={label(claim)} />}
+                  meta={
+                    <ClaimBadge
+                      claim={claim}
+                      label={label(claim, item.assigneeId)}
+                    />
+                  }
                   detail={
                     claim.lastProgress
                       ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
-                      : `${label(claim)} · ${claimStateLabel[claim.state]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
+                      : `${label(claim, item.assigneeId)} · ${claimStateLabel[claimShownState(claim)]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
                   }
                   action={
                     (canAct || claim.ownerId === userId) && (
@@ -238,8 +265,35 @@ function Queue({ project }: { project: Project }) {
                   item={item}
                   label={key(item)}
                   href={href(item)}
-                  meta={<ClaimBadge claim={claim} label={label(claim)} />}
-                  detail={`${label(claim)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`}
+                  meta={
+                    <ClaimBadge
+                      claim={claim}
+                      label={label(claim, item.assigneeId)}
+                    />
+                  }
+                  detail={
+                    claim.state === "waiting"
+                      ? `${label(claim, item.assigneeId)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
+                      : `${label(claim, item.assigneeId)} waits on a person's answer in its session since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
+                  }
+                  action={
+                    claim.agentSessionId && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        render={
+                          <Link
+                            href={paths.factorySession(
+                              organization.slug,
+                              claim.agentSessionId,
+                            )}
+                          />
+                        }
+                      >
+                        Open session
+                      </Button>
+                    )
+                  }
                 />
               ))}
               {groups.agreement.map(({ item, verdict }) => (
@@ -280,7 +334,7 @@ function Queue({ project }: { project: Project }) {
                     detail={
                       held
                         ? `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`
-                        : undefined
+                        : leftTo(item)
                     }
                     action={
                       held &&

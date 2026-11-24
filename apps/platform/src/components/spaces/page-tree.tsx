@@ -135,16 +135,29 @@ export function PageTree({
   );
   // The whole hierarchy, so the tree knows levels and positions of rows
   // that are collapsed or outside the window.
+  const hrefOf = useCallback(
+    (page: SpacePage) =>
+      paths.spacePage(organization.slug, space.slug, page.id),
+    [organization.slug, space.slug],
+  );
   const items = useMemo(() => {
     const build = (parentId: string | null): TreeItemData[] =>
       (tree.children.get(parentId) ?? []).map((page) => {
         const children = tree.children.get(page.id);
+        // Every page is a link (navigation tree): it opens in a new tab,
+        // copies and shows its address like any link.
+        const href = hrefOf(page);
         return children?.length
-          ? { value: page.id, label: page.title, children: build(page.id) }
-          : { value: page.id, label: page.title };
+          ? {
+              value: page.id,
+              label: page.title,
+              href,
+              children: build(page.id),
+            }
+          : { value: page.id, label: page.title, href };
       });
     return build(null);
-  }, [tree]);
+  }, [tree, hrefOf]);
   const expandedIds = useMemo(() => [...expanded], [expanded]);
   // One actions menu for the tree: each row's button opens it for its page,
   // and so does Shift+F10 on the row.
@@ -378,9 +391,20 @@ export function PageTree({
             expanded={expandedIds}
             onExpandedChange={(next) => setExpanded(new Set(next))}
             expandOnPress={false}
-            onAction={(value) => {
+            onAction={(value, { event }) => {
               const page = tree.byId.get(value);
-              if (page) open(page);
+              if (!page) return;
+              // A modified click (new tab, new window) is the browser's.
+              if (
+                event instanceof MouseEvent &&
+                (event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey)
+              )
+                return;
+              event?.preventDefault();
+              open(page);
             }}
             onHighlight={(_value, { index }) => scrollToRow(index)}
             aria-label={label}
@@ -392,6 +416,7 @@ export function PageTree({
               <PageRow
                 key={row.page.id}
                 row={row}
+                href={hrefOf(row.page)}
                 top={windowed ? (start + offset) * rowHeight : undefined}
                 canEdit={canEdit}
                 menu={menu}
@@ -467,6 +492,7 @@ export function PageTree({
 
 function PageRow({
   row,
+  href,
   top,
   canEdit,
   menu,
@@ -480,6 +506,7 @@ function PageRow({
   onDrop,
 }: {
   row: TreeRow;
+  href: string;
   top?: number;
   canEdit: boolean;
   menu: ReturnType<typeof createMenuController<SpacePage>>;
@@ -540,7 +567,13 @@ function PageRow({
           className="absolute right-1 -bottom-px left-2 h-0.5 rounded-full bg-primary"
         />
       )}
-      <TreeItemLabel className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-none bg-transparent p-0 outline-none">
+      <TreeItemLabel
+        // The row drags (moving the page), not the link. The label's
+        // content becomes the link's children.
+        // eslint-disable-next-line jsx-a11y/anchor-has-content
+        render={<a href={href} draggable={false} />}
+        className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-none bg-transparent p-0 text-inherit no-underline outline-none"
+      >
         {hasChildren ? (
           // Pointer shortcut; keyboards use Right and Left on the tree item.
           <TreeItemIndicator className="grid size-6 shrink-0 rotate-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground max-sm:-mr-1.5 max-sm:size-11 touch:-mr-1.5 touch:size-11">

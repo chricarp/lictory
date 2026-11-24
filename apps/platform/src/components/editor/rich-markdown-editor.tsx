@@ -133,7 +133,15 @@ const MarkdownEditing = Extension.create<{
           const handle = match[1]!.toLowerCase();
           const person = options.handles().find((p) => p.handle === handle);
           if (!person) return null;
-          const start = range.to - match[1]!.length - 1;
+          // From the match's start, past any leading space, to the "@":
+          // Tiptap may already have inserted the typed delimiter (range.to
+          // then ends after it), so never count back from range.to.
+          const start =
+            range.from +
+            match[0].length -
+            match[1]!.length -
+            match[2]!.length -
+            1;
           chain()
             .deleteRange({ from: start, to: range.to })
             .insertContentAt(start, [

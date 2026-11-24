@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import type { QueuedNotice } from "@lictory/core/db/notification-schema";
@@ -96,6 +96,58 @@ type Draft = Omit<QueuedNotice, "userIds" | "kind"> & {
   // One event tells a person at most once per slot (item and group).
   slot: string;
 };
+
+// Conversation traffic is digested (docs/internals/notifications.md#lictory-channels):
+// while a person has not read the last direct message or thread reply of a
+// conversation, the next one updates that notification (who wrote last, the
+// latest excerpt, how many, when) instead of adding another row. Returns
+// the ids of the rows it folded into existing ones.
+const digestKinds: ReadonlySet<string> = new Set([
+  "direct_message",
+  "channel_thread_reply",
+]);
+async function digestConversations(
+  tx: Tx,
+  organizationId: string,
+  rows: (typeof s.notification.$inferInsert)[],
+) {
+  const folded = new Set<string>();
+  for (const row of rows) {
+    if (!digestKinds.has(row.kind) || !row.channelId) continue;
+    const root = row.detail?.threadRootId;
+    const [open] = await tx
+      .select({ id: s.notification.id, detail: s.notification.detail })
+      .from(s.notification)
+      .where(
+        and(
+          eq(s.notification.organizationId, organizationId),
+          eq(s.notification.userId, row.userId),
+          eq(s.notification.kind, row.kind),
+          eq(s.notification.channelId, row.channelId),
+          isNull(s.notification.readAt),
+          isNull(s.notification.archivedAt),
+          ...(row.kind === "channel_thread_reply"
+            ? [sql`${s.notification.detail}->>'threadRootId' = ${String(root)}`]
+            : []),
+        ),
+      )
+      .orderBy(desc(s.notification.createdAt))
+      .limit(1)
+      .for("update");
+    if (!open) continue;
+    const count = typeof open.detail.count === "number" ? open.detail.count : 1;
+    await tx
+      .update(s.notification)
+      .set({
+        actorId: row.actorId,
+        detail: { ...row.detail, count: count + 1 },
+        createdAt: row.createdAt,
+      })
+      .where(eq(s.notification.id, open.id));
+    folded.add(row.id!);
+  }
+  return folded;
+}
 
 // Rows per insert statement: PostgreSQL binds at most 65,535 values in one.
 const INSERT_CHUNK = 1000;
@@ -303,7 +355,16 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
     if (channels.email) emailIds.add(id);
   }
   const agentEvents = await writeAgentEvents(tx, event, addressed);
-  if (!rows.length) return { notifications: 0, emails: 0, agentEvents };
+  // Folded into an unread notification of the same conversation: no new
+  // row and no new email, but the person's inbox refreshes.
+  const digested = await digestConversations(tx, organizationId, rows);
+  const digestedUsers = rows
+    .filter((r) => digested.has(r.id!))
+    .map((r) => r.userId);
+  for (const id of digested) emailIds.delete(id);
+  rows.splice(0, rows.length, ...rows.filter((r) => !digested.has(r.id!)));
+  if (!rows.length && !digestedUsers.length)
+    return { notifications: 0, emails: 0, agentEvents };
   const inserted: { id: string; userId: string }[] = [];
   for (let i = 0; i < rows.length; i += INSERT_CHUNK)
     inserted.push(
@@ -323,7 +384,9 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       })),
     );
   // Delivered on commit; carries only who should refetch, never content.
-  const recipients = [...new Set(inserted.map((r) => r.userId))];
+  const recipients = [
+    ...new Set([...inserted.map((r) => r.userId), ...digestedUsers]),
+  ];
   for (let i = 0; i < recipients.length; i += 100) {
     const payload = JSON.stringify({
       organizationId,

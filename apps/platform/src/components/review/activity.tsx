@@ -548,6 +548,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     }
+    case "code_pull_request_refused":
+      body = (
+        <>
+          could not open {str(d.agentName) ?? "the agent"}&apos;s pull request
+          for <b>{str(d.branch)}</b>: {str(d.reason)}
+        </>
+      );
+      break;
     case "external_linked":
       body = (
         <>
