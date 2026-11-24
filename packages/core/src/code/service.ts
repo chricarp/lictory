@@ -934,6 +934,94 @@ export function createCodeService(
       );
     },
 
+    // Mirrored branches (those that name a work item, were created by
+    // Lictory or are a linked pull request's head) of a repository, or of
+    // the repositories serving a project, with the items each is linked to.
+    async listBranches(
+      actor: Actor,
+      input: {
+        organizationId: string;
+        repositoryId?: string;
+        projectId?: string;
+        includeDeleted?: boolean;
+      },
+    ) {
+      const { organizationId } = input;
+      return db.transaction(async (tx) => {
+        await codeAccess(tx, actor.userId, organizationId);
+        const repositoryIds = input.repositoryId
+          ? [input.repositoryId]
+          : input.projectId
+            ? (
+                await tx
+                  .select({ id: s.codeRepositoryProject.repositoryId })
+                  .from(s.codeRepositoryProject)
+                  .where(
+                    and(
+                      eq(
+                        s.codeRepositoryProject.organizationId,
+                        organizationId,
+                      ),
+                      eq(s.codeRepositoryProject.projectId, input.projectId),
+                    ),
+                  )
+              ).map((r) => r.id)
+            : undefined;
+        if (repositoryIds && !repositoryIds.length) return [];
+        const rows = await tx
+          .select({ branch: s.codeBranch, repository: s.codeRepository })
+          .from(s.codeBranch)
+          .innerJoin(
+            s.codeRepository,
+            and(
+              eq(s.codeRepository.organizationId, s.codeBranch.organizationId),
+              eq(s.codeRepository.id, s.codeBranch.repositoryId),
+            ),
+          )
+          .where(
+            and(
+              eq(s.codeBranch.organizationId, organizationId),
+              repositoryIds
+                ? inArray(s.codeBranch.repositoryId, repositoryIds)
+                : undefined,
+              input.includeDeleted ? undefined : isNull(s.codeBranch.deletedAt),
+            ),
+          )
+          .orderBy(desc(s.codeBranch.updatedAt))
+          .limit(300);
+        const links = rows.length
+          ? await tx
+              .select({
+                targetId: s.codeWorkLink.targetId,
+                workItemId: s.codeWorkLink.workItemId,
+              })
+              .from(s.codeWorkLink)
+              .where(
+                and(
+                  eq(s.codeWorkLink.organizationId, organizationId),
+                  eq(s.codeWorkLink.target, "branch"),
+                  isNull(s.codeWorkLink.unlinkedAt),
+                  inArray(
+                    s.codeWorkLink.targetId,
+                    rows.map((r) => r.branch.id),
+                  ),
+                ),
+              )
+          : [];
+        return rows.map(({ branch, repository }) => ({
+          branchId: branch.id,
+          repositoryId: repository.id,
+          repositoryFullName: repository.fullName,
+          name: branch.name,
+          headSha: branch.headSha,
+          deleted: !!branch.deletedAt,
+          workItemIds: links
+            .filter((l) => l.targetId === branch.id)
+            .map((l) => l.workItemId),
+        }));
+      });
+    },
+
     // Branches, pull requests, issues and commits linked to one item, and
     // the writes queued for it.
     async workItemCode(

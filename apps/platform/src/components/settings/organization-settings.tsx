@@ -8,6 +8,7 @@ import {
   type SettingsNavItem,
 } from "@lictory/platform/components/workspace/settings-section";
 import { JiraConnections } from "@lictory/platform/components/delivery/delivery-settings";
+import { CodeHostSettings } from "@lictory/platform/components/code/code-settings";
 import { paths } from "@lictory/core/lib/paths";
 import { OrganizationGeneral } from "@lictory/platform/components/settings/org-general";
 import { OrganizationProjects } from "@lictory/platform/components/settings/org-projects";
@@ -28,6 +29,7 @@ const sections = [
   { id: "delete", label: "Delete organization", group: "Organization" },
   { id: "types", label: "Work item types", group: "Shared" },
   { id: "integrations", label: "Integrations", group: "Shared" },
+  { id: "code", label: "Code hosts", group: "Shared" },
   { id: "intelligence", label: "Lictory Intelligence", group: "Shared" },
 ] as const;
 type Section = (typeof sections)[number]["id"];
@@ -92,6 +94,7 @@ export function OrganizationSettingsSection({ section }: { section: string }) {
       {active === "delete" && <OrganizationDeletion />}
       {active === "types" && <OrganizationTypes />}
       {active === "integrations" && <Integrations />}
+      {active === "code" && <CodeHostSettings />}
       {active === "intelligence" && <OrganizationIntelligence />}
     </>
   );

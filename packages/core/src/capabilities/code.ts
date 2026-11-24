@@ -301,6 +301,22 @@ const listCodeIssues = defineCapability({
   run: (ctx, input) => service(ctx).listIssues(actor(ctx), input),
 });
 
+const listCodeBranches = defineCapability({
+  name: "listCodeBranches",
+  title: "List branches",
+  description:
+    "Branches Lictory mirrors (those that name a work item key, were created from Lictory or head a linked pull request) of one repository or of the repositories serving a project, with the work items each is linked to. For one item's branches use getWorkItemCode.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({
+    organizationId,
+    repositoryId: id.optional(),
+    projectId: id.optional(),
+    includeDeleted: z.boolean().optional(),
+  }),
+  run: (ctx, input) => service(ctx).listBranches(actor(ctx), input),
+});
+
 const getWorkItemCode = defineCapability({
   name: "getWorkItemCode",
   title: "Code of a work item",
@@ -579,6 +595,7 @@ export const codeCapabilities = [
   getCodePullRequest,
   getCodePullRequestFiles,
   listCodeIssues,
+  listCodeBranches,
   getWorkItemCode,
   suggestCodeBranchName,
   linkCodeToWorkItem,

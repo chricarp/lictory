@@ -32,6 +32,10 @@ adding domain writes or synchronized entities.
   delivery modes
 - [Workspace synchronization and review invariants](./internals/synchronization.md)
 - [Delivery model](./internals/delivery.md)
+- [Code hosts](./internals/code-hosts.md): GitHub, GitLab and Bitbucket
+  connections, read-only mirrors, links between code and work, verified
+  webhook ingest, the outbox of writes, merge rules and the ports the
+  Definition of Done, Autopilot and agent sessions use
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)

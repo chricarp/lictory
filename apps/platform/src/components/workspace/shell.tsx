@@ -3,6 +3,7 @@ import {
   CollapsiblePanel,
   CollapsibleTrigger,
 } from "@ui-sdk/react/collapsible";
+import { CodeNavSection } from "@lictory/platform/components/code/code-nav";
 import { Link, useLinkStatus } from "@lictory/platform/lib/navigation";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
@@ -731,6 +732,8 @@ function Sidebar({
           >
             Litto
           </NavLink>
+          {/* The Code module's entry (S3); moves into the nav registry. */}
+          <CodeNavSection collapsed={collapsed} />
         </div>
         <SpacesNav
           organizationId={organization.id}

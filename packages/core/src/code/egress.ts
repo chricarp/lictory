@@ -24,9 +24,9 @@ import { CodeHostError } from "@lictory/core/code/provider";
 // - Redirects are never followed, so a response cannot steer a request
 //   elsewhere.
 
-function allowlist(environment = process.env) {
+function allowlist() {
   return new Set(
-    (environment.CODE_HOST_PRIVATE_HOSTS ?? "")
+    (process.env.CODE_HOST_PRIVATE_HOSTS ?? "")
       .split(",")
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),

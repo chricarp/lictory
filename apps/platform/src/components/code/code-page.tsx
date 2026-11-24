@@ -1,0 +1,534 @@
+import { useMemo, useState } from "react";
+import { ArrowUpRight, FolderGit2, Settings2 } from "lucide-react";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
+import { callCapability } from "@lictory/core/capabilities/client";
+import type {
+  CodeIssueEntity,
+  CodeLinkRef,
+  CodePullRequestEntity,
+} from "@lictory/core/code/entities";
+import { paths } from "@lictory/core/lib/paths";
+import { identifier, relativeTime } from "@lictory/core/lib/work-items";
+import { Button } from "@lictory/ui/button";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
+import { Badge, EmptyState } from "@lictory/ui/primitives";
+import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
+import { LoadingState } from "@lictory/ui/spinner";
+import { toast } from "@lictory/ui/toast";
+import {
+  Link,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import {
+  useCodeHosts,
+  useCodeList,
+  useCodeWrites,
+} from "@lictory/platform/components/code/store";
+import {
+  ChecksIcon,
+  PullRequestIcon,
+  ReviewBadge,
+  TargetIcon,
+  codePaths,
+  message,
+  providerLabels,
+} from "@lictory/platform/components/code/parts";
+import { WriteStatus } from "@lictory/platform/components/code/write-status";
+
+// /$org/code: pull requests, issues and repositories from the connected
+// code hosts, live. The hosts own all of it; Lictory adds the links to
+// work items and the people behind agent-authored changes.
+
+type Tab = "pull-requests" | "issues" | "repositories";
+type Who = "all" | "mine" | "review" | "agents";
+
+export function CodePage() {
+  const { organization, isAdmin } = useWorkspace();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab: Tab =
+    searchParams.get("tab") === "issues"
+      ? "issues"
+      : searchParams.get("tab") === "repositories"
+        ? "repositories"
+        : "pull-requests";
+  const { connections, complete } = useCodeHosts();
+  if (complete && connections.length === 0)
+    return (
+      <div className="h-full overflow-y-auto">
+        <EmptyState
+          illustration="planning"
+          title="Connect a code host"
+          action={
+            isAdmin ? (
+              <Button
+                render={
+                  <Link href={paths.settings(organization.slug, "code")} />
+                }
+              >
+                Connect GitHub, GitLab or Bitbucket
+              </Button>
+            ) : undefined
+          }
+        >
+          Lictory shows your pull requests, checks and issues next to the work
+          they deliver once a code host is connected.
+          {!isAdmin && " Ask an organization administrator to connect one."}
+        </EmptyState>
+      </div>
+    );
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(next) => {
+        if (next === null || next === tab) return;
+        router.replace(codePaths.index(organization.slug, next));
+      }}
+      className="flex h-full flex-col"
+    >
+      <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
+        <h1 className="text-sm font-semibold">Code</h1>
+        <TabsList aria-label="Code view" className="flex items-center gap-0.5">
+          {(
+            [
+              ["pull-requests", "Pull requests"],
+              ["issues", "Issues"],
+              ["repositories", "Repositories"],
+            ] as const
+          ).map(([id, label]) => (
+            <TabsTab
+              key={id}
+              value={id}
+              className="inline-flex h-7 items-center rounded-md px-2 text-[13px] text-muted-foreground hover:text-foreground data-selected:bg-muted data-selected:font-medium data-selected:text-foreground"
+            >
+              {label}
+            </TabsTab>
+          ))}
+        </TabsList>
+        <Link
+          href={paths.settings(organization.slug, "code")}
+          className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Settings2 className="size-3.5" /> Code hosts
+        </Link>
+      </header>
+      <TabsPanel value="pull-requests" className="min-h-0 flex-1">
+        {tab === "pull-requests" && <PullRequests />}
+      </TabsPanel>
+      <TabsPanel value="issues" className="min-h-0 flex-1">
+        {tab === "issues" && <Issues />}
+      </TabsPanel>
+      <TabsPanel value="repositories" className="min-h-0 flex-1">
+        {tab === "repositories" && <Repositories />}
+      </TabsPanel>
+    </Tabs>
+  );
+}
+
+function useItemKeys() {
+  const { items, projects } = useWorkspace();
+  return useMemo(() => {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const projectById = new Map(projects.map((p) => [p.id, p]));
+    return (link: CodeLinkRef) => {
+      const item = byId.get(link.workItemId);
+      return item
+        ? {
+            key: identifier(projectById.get(item.projectId), item.number),
+            title: item.title,
+            project: projectById.get(item.projectId),
+            id: item.id,
+          }
+        : undefined;
+    };
+  }, [items, projects]);
+}
+
+function ItemChips({ links }: { links: CodeLinkRef[] }) {
+  const { organization } = useWorkspace();
+  const keyOf = useItemKeys();
+  const shown = links.flatMap((l) => {
+    const k = keyOf(l);
+    return k?.project ? [k] : [];
+  });
+  if (!shown.length) return null;
+  return (
+    <span className="flex shrink-0 gap-1">
+      {shown.slice(0, 3).map((k) => (
+        <Link
+          key={k.id}
+          href={paths.item(organization.slug, k.project!.key, k.id)}
+          title={k.title}
+          className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+        >
+          {k.key}
+        </Link>
+      ))}
+      {shown.length > 3 && (
+        <span className="text-[11px] text-muted-foreground">
+          +{shown.length - 3}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Toolbar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
+      {children}
+    </div>
+  );
+}
+
+function PullRequests() {
+  const { userId, projects } = useWorkspace();
+  const { repositories, myLogins } = useCodeHosts();
+  const [state, setState] = useState<"open" | "merged" | "closed">("open");
+  const [who, setWho] = useState<Who>("all");
+  const [repositoryId, setRepositoryId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const { rows, complete } = useCodeList("codePullRequest", state);
+  const writes = useCodeWrites();
+  const failed = writes.filter(
+    (w) => w.status === "failed" && w.requestedById === userId,
+  );
+  const shown = rows
+    .filter(
+      (p) =>
+        (!repositoryId || p.repositoryId === repositoryId) &&
+        (!projectId || p.links.some((l) => l.projectId === projectId)) &&
+        (who === "all" ||
+          (who === "mine" &&
+            (p.openedById === userId ||
+              (!!p.authorLogin &&
+                myLogins.has(p.authorLogin.toLowerCase())))) ||
+          (who === "review" &&
+            p.requestedReviewers.some((r) => myLogins.has(r.toLowerCase()))) ||
+          (who === "agents" && (!!p.openedVia || p.authorIsBot))),
+    )
+    .sort((a, b) => b.hostUpdatedAt.localeCompare(a.hostUpdatedAt));
+  return (
+    <div className="flex h-full flex-col">
+      <Toolbar>
+        <Segmented aria-label="State" value={state} onValueChange={setState}>
+          <SegmentedItem value="open">Open</SegmentedItem>
+          <SegmentedItem value="merged">Merged</SegmentedItem>
+          <SegmentedItem value="closed">Closed</SegmentedItem>
+        </Segmented>
+        <Segmented aria-label="Whose" value={who} onValueChange={setWho}>
+          <SegmentedItem value="all">All</SegmentedItem>
+          <SegmentedItem value="mine">Mine</SegmentedItem>
+          <SegmentedItem value="review">Review requested</SegmentedItem>
+          <SegmentedItem value="agents">Agent-authored</SegmentedItem>
+        </Segmented>
+        <span className="ml-auto flex gap-1.5">
+          <DropdownSelect
+            aria-label="Repository"
+            value={repositoryId}
+            onValueChange={setRepositoryId}
+            placeholder="All repositories"
+            size="sm"
+          >
+            <DropdownSelectOption value="">
+              All repositories
+            </DropdownSelectOption>
+            {repositories.map((r) => (
+              <DropdownSelectOption key={r.id} value={r.id}>
+                {r.fullName}
+              </DropdownSelectOption>
+            ))}
+          </DropdownSelect>
+          <DropdownSelect
+            aria-label="Project"
+            value={projectId}
+            onValueChange={setProjectId}
+            placeholder="All projects"
+            size="sm"
+          >
+            <DropdownSelectOption value="">All projects</DropdownSelectOption>
+            {projects
+              .filter((p) => !p.archivedAt)
+              .map((p) => (
+                <DropdownSelectOption key={p.id} value={p.id}>
+                  {p.name}
+                </DropdownSelectOption>
+              ))}
+          </DropdownSelect>
+        </span>
+      </Toolbar>
+      {failed.length > 0 && (
+        <div className="space-y-1 border-b px-4 py-2">
+          {failed.slice(0, 5).map((w) => (
+            <WriteStatus key={w.id} write={w} />
+          ))}
+        </div>
+      )}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {!complete && rows.length === 0 ? (
+          <LoadingState label="Loading pull requests" />
+        ) : shown.length === 0 ? (
+          <EmptyState title={`No ${state} pull requests`}>
+            {who === "mine" || who === "review"
+              ? "Set your code host login in organization settings → Code hosts so Lictory knows which are yours."
+              : "Pull requests of linked repositories appear here as soon as the host reports them."}
+          </EmptyState>
+        ) : (
+          <ul aria-label="Pull requests" className="divide-y">
+            {shown.map((p) => (
+              <PullRequestRow key={p.id} pullRequest={p} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PullRequestRow({
+  pullRequest: p,
+}: {
+  pullRequest: CodePullRequestEntity;
+}) {
+  const { organization, memberName } = useWorkspace();
+  return (
+    <li className="flex items-center gap-3 px-4 py-2.5 [contain-intrinsic-size:auto_56px] [content-visibility:auto] hover:bg-muted/50">
+      <PullRequestIcon state={p.state} draft={p.draft} />
+      <div className="min-w-0 flex-1">
+        <Link
+          href={codePaths.pullRequest(organization.slug, p.id)}
+          className="block truncate text-[13px] font-medium underline-offset-2 hover:underline"
+        >
+          {p.title}
+        </Link>
+        <p className="truncate text-xs text-muted-foreground">
+          {p.repositoryFullName}#{p.number} ·{" "}
+          {p.openedVia
+            ? `${p.openedVia} via ${memberName(p.openedById)}`
+            : (p.authorLogin ?? "unknown")}{" "}
+          · {p.headBranch} → {p.baseBranch} · updated{" "}
+          {relativeTime(p.hostUpdatedAt)}
+        </p>
+      </div>
+      <ItemChips links={p.links} />
+      <ChecksIcon state={p.checks.state} />
+      <span className="max-sm:hidden">
+        {p.state === "open" && <ReviewBadge decision={p.reviewDecision} />}
+      </span>
+    </li>
+  );
+}
+
+function Issues() {
+  const [state, setState] = useState<"open" | "closed">("open");
+  const { rows, complete } = useCodeList("codeIssue", state);
+  const shown = [...rows].sort((a, b) =>
+    b.hostUpdatedAt.localeCompare(a.hostUpdatedAt),
+  );
+  return (
+    <div className="flex h-full flex-col">
+      <Toolbar>
+        <Segmented aria-label="State" value={state} onValueChange={setState}>
+          <SegmentedItem value="open">Open</SegmentedItem>
+          <SegmentedItem value="closed">Closed</SegmentedItem>
+        </Segmented>
+        <p className="text-xs text-muted-foreground">
+          Issues stay the host’s until someone imports one; the work item is
+          then Lictory’s and the issue stays linked.
+        </p>
+      </Toolbar>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {!complete && rows.length === 0 ? (
+          <LoadingState label="Loading issues" />
+        ) : shown.length === 0 ? (
+          <EmptyState title={`No ${state} issues`}>
+            Issues of linked repositories appear here.
+          </EmptyState>
+        ) : (
+          <ul aria-label="Issues" className="divide-y">
+            {shown.map((i) => (
+              <IssueRow key={i.id} issue={i} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IssueRow({ issue }: { issue: CodeIssueEntity }) {
+  const { organization, projects, capabilitiesIn, items } = useWorkspace();
+  const { repositories } = useCodeHosts();
+  const router = useRouter();
+  const serving = (
+    repositories.find((r) => r.id === issue.repositoryId)?.projectIds ?? []
+  )
+    .map((id) => projects.find((p) => p.id === id))
+    .filter(
+      (p): p is NonNullable<typeof p> =>
+        !!p && !p.archivedAt && capabilitiesIn(p.id).changeProperties,
+    );
+  const [projectId, setProjectId] = useState(serving[0]?.id ?? "");
+  const imported = issue.importedWorkItemId
+    ? items.find((i) => i.id === issue.importedWorkItemId)
+    : undefined;
+  const importedProject =
+    imported && projects.find((p) => p.id === imported.projectId);
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-2.5 [contain-intrinsic-size:auto_56px] [content-visibility:auto] hover:bg-muted/50">
+      <TargetIcon
+        target="issue"
+        className={issue.state === "open" ? "text-success" : ""}
+      />
+      <div className="min-w-0 flex-1">
+        <a
+          href={issue.webUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex max-w-full items-center gap-1 truncate text-[13px] font-medium underline-offset-2 hover:underline"
+        >
+          <span className="truncate">{issue.title}</span>
+          <ArrowUpRight className="size-3 shrink-0" />
+        </a>
+        <p className="truncate text-xs text-muted-foreground">
+          {issue.repositoryFullName}#{issue.number} ·{" "}
+          {issue.authorLogin ?? "unknown"} · updated{" "}
+          {relativeTime(issue.hostUpdatedAt)}
+          {issue.labels.length > 0 && ` · ${issue.labels.join(", ")}`}
+        </p>
+      </div>
+      <ItemChips links={issue.links} />
+      {imported && importedProject ? (
+        <Link
+          href={paths.item(organization.slug, importedProject.key, imported.id)}
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Imported as {identifier(importedProject, imported.number)}
+        </Link>
+      ) : (
+        serving.length > 0 && (
+          <span className="flex items-center gap-1.5">
+            {serving.length > 1 && (
+              <DropdownSelect
+                aria-label="Import into project"
+                value={projectId}
+                onValueChange={setProjectId}
+                size="sm"
+              >
+                {serving.map((p) => (
+                  <DropdownSelectOption key={p.id} value={p.id}>
+                    {p.name}
+                  </DropdownSelectOption>
+                ))}
+              </DropdownSelect>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  const result = await callCapability<{ workItemId: string }>(
+                    "importCodeIssue",
+                    {
+                      organizationId: organization.id,
+                      issueId: issue.id,
+                      projectId,
+                      mutationId: crypto.randomUUID(),
+                    },
+                  );
+                  const project = projects.find((p) => p.id === projectId)!;
+                  router.push(
+                    paths.item(
+                      organization.slug,
+                      project.key,
+                      result.workItemId,
+                    ),
+                  );
+                } catch (e) {
+                  toast({
+                    title: "Not imported",
+                    description: message(e),
+                    type: "error",
+                  });
+                }
+              }}
+            >
+              Import as work item
+            </Button>
+          </span>
+        )
+      )}
+    </li>
+  );
+}
+
+function Repositories() {
+  const { organization, projects } = useWorkspace();
+  const { repositories, connections } = useCodeHosts();
+  if (!repositories.length)
+    return (
+      <EmptyState
+        title="No repository serves a project yet"
+        action={
+          <Button
+            variant="secondary"
+            render={<Link href={paths.settings(organization.slug, "code")} />}
+          >
+            <FolderGit2 className="size-3.5" /> Link a repository
+          </Button>
+        }
+      >
+        Project administrators link repositories to their projects in
+        organization settings → Code hosts.
+      </EmptyState>
+    );
+  return (
+    <ul aria-label="Repositories" className="h-full divide-y overflow-y-auto">
+      {repositories.map((r) => {
+        const connection = connections.find((c) => c.id === r.connectionId);
+        return (
+          <li
+            key={r.id}
+            className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]"
+          >
+            <FolderGit2 aria-hidden className="size-4 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <a
+                href={r.webUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
+              >
+                {r.fullName} <ArrowUpRight className="size-3" />
+              </a>
+              <p className="text-xs text-muted-foreground">
+                {providerLabels[r.provider]}
+                {connection && ` · ${connection.name}`} · {r.visibility} ·
+                default {r.defaultBranch} ·{" "}
+                {r.lastSyncedAt
+                  ? `read ${relativeTime(r.lastSyncedAt)}`
+                  : "reading…"}
+              </p>
+              {r.lastSyncError && (
+                <p className="text-xs text-destructive">{r.lastSyncError}</p>
+              )}
+            </div>
+            <span className="flex flex-wrap gap-1">
+              {r.projectIds.map((id) => (
+                <Badge key={id} tone="info">
+                  {projects.find((p) => p.id === id)?.name ??
+                    "Archived project"}
+                </Badge>
+              ))}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

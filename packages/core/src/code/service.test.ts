@@ -865,6 +865,15 @@ void test("reconciliation backfills a linked repository and repairs missed event
       (l) => l.summary.target === "branch" && l.summary.name === "unrelated",
     ),
   );
+  // Only branches that name an item are mirrored.
+  const branches = await f.service.listBranches(
+    { userId: f.outsider },
+    { organizationId: f.organizationId, projectId: f.pay },
+  );
+  assert.deepEqual(
+    branches.map((b) => [b.name, b.workItemIds]),
+    [["pay-1-backfill", [f.pay1]]],
+  );
   assert.equal((await f.prEntity(pr.number))?.state, "open");
   // Not due again until its interval passes.
   const [synced] = await db

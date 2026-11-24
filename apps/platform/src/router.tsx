@@ -392,6 +392,27 @@ const spaceSettingsRoute = createRoute({
   pendingComponent: SettingsSectionSkeleton,
 });
 
+// The Code module: pull requests, issues and repositories of the connected
+// code hosts. A static segment, so it never resolves as a project key.
+const codeRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/code"),
+    "CodeRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const codePullRequestRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code/pull-requests/$pr",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/code"),
+    "CodePullRequestRoute",
+  ),
+  pendingComponent: () => <DocumentSkeleton />,
+});
+
 const projectRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/$project",
@@ -600,6 +621,8 @@ const routeTree = rootRoute.addChildren([
         spacePullRequestsRoute,
         spaceSettingsRoute,
       ]),
+      codeRoute,
+      codePullRequestRoute,
       projectRoute.addChildren([
         projectIndexRoute,
         itemsRoute.addChildren([itemsIndexRoute, itemRoute]),

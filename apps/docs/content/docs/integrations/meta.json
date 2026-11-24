@@ -1,4 +1,8 @@
 {
   "title": "Integrations",
-  "pages": ["jira", "agents"]
+  "pages": [
+    "jira",
+    "code-hosts",
+    "agents"
+  ]
 }

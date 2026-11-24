@@ -11,6 +11,8 @@ import type {
 // `${type}:${id}`. Built by code/projections.ts from the domain tables;
 // never a credential, a webhook secret, a payload or a host token.
 
+export type { CodeLinkTarget };
+
 export type CodeChecks = {
   state: "pending" | "success" | "failure" | "none";
   runs: CodeCheckRun[];
