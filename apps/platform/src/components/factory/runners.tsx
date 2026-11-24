@@ -72,9 +72,9 @@ export function FactoryRunners() {
         )
       }
       actions={
-        <Button onClick={() => setAdding(true)} aria-label="Add runner">
+        <Button onClick={() => setAdding(true)}>
           <Plus className="size-3.5" aria-hidden />
-          <span className="max-sm:hidden">Add runner</span>
+          Add runner
         </Button>
       }
     >

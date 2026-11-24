@@ -87,9 +87,9 @@ export function FactoryAgents() {
     />
   );
   const create = (
-    <Button onClick={() => setEditing("new")} aria-label="New agent">
+    <Button onClick={() => setEditing("new")}>
       <Plus className="size-3.5" aria-hidden />
-      <span className="max-sm:hidden">New agent</span>
+      New agent
     </Button>
   );
   return (

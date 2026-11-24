@@ -71,13 +71,9 @@ export function FactoryOverview() {
   const description =
     "Agents working on your team’s tasks, on runners you control. People start, steer and approve; agents do the work in between.";
   const start = (
-    <Button
-      onClick={() => setStarting(true)}
-      disabled={!runnable.length}
-      aria-label="Start session"
-    >
+    <Button onClick={() => setStarting(true)} disabled={!runnable.length}>
       <Play className="size-3.5" aria-hidden />
-      <span className="max-sm:hidden">Start session</span>
+      Start session
     </Button>
   );
 

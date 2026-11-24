@@ -20,6 +20,8 @@ type Crumb = { label: string; href: string };
 export type PhoneChrome = {
   claim: () => () => void;
   leading: ReactNode;
+  // The global search; a page with a search of its own leaves it out.
+  search: ReactNode;
   trailing: ReactNode;
 };
 export const PhoneChromeContext = createContext<PhoneChrome | null>(null);
@@ -37,6 +39,7 @@ export function PageHeader({
   description,
   tabs,
   actions,
+  ownSearch = false,
   className,
 }: {
   // The page's heading (h1).
@@ -58,6 +61,10 @@ export function PageHeader({
   tabs?: ReactNode;
   // Trailing buttons; the most important one last.
   actions?: ReactNode;
+  // The page searches its own content (a channel's messages) from a button
+  // in `actions`. On phones, one search icon is enough: the shell's global
+  // search gives way (the palette stays on the navigation drawer and ⌘K).
+  ownSearch?: boolean;
   className?: string;
 }) {
   const phone = useContext(PhoneChromeContext);
@@ -145,7 +152,12 @@ export function PageHeader({
       {(actions ?? phone) && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {actions}
-          {phone && <div className="contents lg:hidden">{phone.trailing}</div>}
+          {phone && (
+            <div className="contents lg:hidden">
+              {!ownSearch && phone.search}
+              {phone.trailing}
+            </div>
+          )}
         </div>
       )}
     </header>
