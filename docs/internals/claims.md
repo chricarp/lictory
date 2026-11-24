@@ -301,6 +301,13 @@ status change, reading the session's status under the lock, so the queue,
 the item and the board show such a claim as waiting on a person, never as
 working. It is not a claim state: the session's own machine moves it.
 
+Every surface reads a live claim in the one state vocabulary of the
+Factory (`sessionState`): "Running", "Waiting on Ada" when its session waits
+on the owner's approval, "Waiting on people" when its questions on the
+specification are open. An item has one owner on screen: while an agent
+holds it, the agent's line ("Forge via Ada", and ", for Ben" when the item is
+assigned to someone else) takes the place of the assignee's avatar.
+
 ## Projections
 
 Organization level (boards, lists, the queue): live `claim` rows (with the

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bot,
   CircleCheck,
   KanbanSquare,
+  ListChecks,
   MessageCircleQuestion,
   OctagonPause,
+  Settings2,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { Claimability } from "@lictory/core/claims/claimability";
@@ -13,7 +15,6 @@ import {
   type ClaimEntity,
 } from "@lictory/core/claims/contracts";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
-import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
   byRank,
@@ -23,17 +24,23 @@ import {
   type Project,
 } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
-import { Badge } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { MissingState } from "@lictory/ui/status-page";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
+import { firstName } from "@lictory/platform/lib/session-state";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
-import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
 import {
-  claimShownState,
-  claimStateLabel,
+  ClaimBadge,
+  ClaimOwner,
+} from "@lictory/platform/components/claims/claim-badge";
+import {
   claimWaitsOnPeople,
   leaseLeft,
   useAgentLabel,
@@ -95,8 +102,9 @@ function Queue({ project }: { project: Project }) {
     canManage,
     userId,
     memberName,
+    delivery,
   } = useWorkspace();
-  const { agentById } = useFactory();
+  const { agentById, runnerById, sessions } = useFactory();
   const claims = useLiveClaims();
   const verdictOf = useClaimability();
   const label = useAgentLabel();
@@ -179,104 +187,160 @@ function Queue({ project }: { project: Project }) {
     project.key,
     "autonomy",
   );
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
-        <header className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight">
-            {project.name} · Factory queue
-          </h1>
-          <Badge tone={policy.level === "assist" ? "neutral" : "info"}>
-            {autonomyLevelMeta[policy.level].label}
-          </Badge>
+  const sessionById = new Map(sessions.map((x) => [x.id, x]));
+  const level = autonomyLevelMeta[policy.level];
+  const nothing =
+    live +
+      groups.agreement.length +
+      groups.claimable.length +
+      groups.blocked.length ===
+    0;
+  const header = (
+    <PageHeader
+      title="Factory queue"
+      icon={<ListChecks />}
+      breadcrumbs={[
+        {
+          label: project.name,
+          href: paths.project(organization.slug, project.key),
+        },
+      ]}
+      description={`${level.summary}${stored ? ` Set ${relativeTime(stored.updatedAt)} by ${memberName(stored.updatedById)}.` : ""}`}
+      meta={
+        <>
+          <StatusChip tone={policy.level === "assist" ? "neutral" : "info"}>
+            {level.label}
+          </StatusChip>
           {policy.level !== "assist" && (
-            <span className="text-xs text-muted-foreground tabular-nums">
+            <span className="tabular-nums">
               {live} of {policy.maxConcurrentSessions} sessions
             </span>
           )}
-          <Link
-            href={settings}
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-          >
-            Autonomy settings
-          </Link>
-        </header>
-        <p className="text-[13px] text-muted-foreground">
-          {autonomyLevelMeta[policy.level].summary}
-          {stored && (
-            <>
-              {" "}
-              Set {relativeTime(stored.updatedAt)} by{" "}
-              {/* The accountable administrator. */}
-              <PersonName id={stored.updatedById} />.
-            </>
+        </>
+      }
+      actions={
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href={settings} />}
+          aria-label="Autonomy settings"
+        >
+          <Settings2 className="size-3.5" />
+          <span className="max-sm:hidden">Autonomy settings</span>
+        </Button>
+      }
+    />
+  );
+  if (loading)
+    return (
+      <div className="flex h-full flex-col">
+        {header}
+        <LoadingState label="Opening the factory queue" />
+      </div>
+    );
+  if (nothing)
+    return (
+      <div className="flex h-full flex-col">
+        {header}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {policy.level === "assist" ? (
+            <MissingState
+              illustration="planning"
+              icon={Bot}
+              title="Agents work here when asked"
+              action={
+                <Button variant="secondary" render={<Link href={settings} />}>
+                  Autonomy settings
+                </Button>
+              }
+            >
+              {project.name} is on Assist: agents claim work only when a person
+              asks them. With Build, Lictory dispatches ready work to
+              implementer agents in rank order and people merge their pull
+              requests; Autopilot also merges them when every required check
+              passes.
+            </MissingState>
+          ) : (
+            <MissingState
+              illustration="planning"
+              icon={Bot}
+              title="Nothing to dispatch yet"
+              action={
+                <Button
+                  variant="secondary"
+                  render={
+                    <Link
+                      href={paths.backlog(organization.slug, project.key)}
+                    />
+                  }
+                >
+                  Open the backlog
+                </Button>
+              }
+            >
+              Work appears here once its specification is ready and its scope is
+              accepted; {level.label} then dispatches it to{" "}
+              {policy.implementerAgentIds.length === 1
+                ? "the implementer agent"
+                : "implementer agents"}{" "}
+              in rank order.
+            </MissingState>
           )}
-        </p>
-        {loading ? (
-          <LoadingState label="Opening the factory queue" />
-        ) : (
-          <>
-            <Group
-              title="Claimed"
-              count={groups.claimed.length}
-              icon={<Bot className="size-3.5 text-muted-foreground" />}
-              empty="No agent holds work in this project."
-            >
-              {groups.claimed.map(({ item, claim }) => (
-                <Row
+        </div>
+      </div>
+    );
+  const typeIcon = (item: WorkItem) => (
+    <TypeIcon type={typeOf(delivery, item)} />
+  );
+  return (
+    <div className="flex h-full flex-col">
+      {header}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
+          <Group
+            title="Waiting on people"
+            icon={<MessageCircleQuestion />}
+            count={groups.waiting.length + groups.agreement.length}
+          >
+            {groups.waiting.map(({ item, claim }) => {
+              const session = claim.agentSessionId
+                ? sessionById.get(claim.agentSessionId)
+                : undefined;
+              const approval = session?.approvals[0];
+              // An approval request reads the same as on Home and in the
+              // Factory: what is asked, by whom, with Review to open the
+              // evidence before deciding.
+              if (session && approval && claim.sessionWaitingSince)
+                return (
+                  <ApprovalRequest
+                    key={item.id}
+                    compact
+                    session={session}
+                    approval={approval}
+                    agent={agentById.get(session.agentId)}
+                    runner={
+                      session.runnerId
+                        ? runnerById.get(session.runnerId)
+                        : undefined
+                    }
+                  />
+                );
+              return (
+                <ListRow
                   key={item.id}
-                  item={item}
-                  label={key(item)}
                   href={href(item)}
+                  leading={typeIcon(item)}
+                  identifier={key(item)}
+                  title={item.title}
                   meta={
-                    <ClaimBadge
-                      claim={claim}
-                      label={label(claim, item.assigneeId)}
-                    />
+                    claim.state === "waiting" || claim.waitingThreadIds.length
+                      ? `${claim.agentName} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
+                      : `${claim.agentName} waits on ${firstName(memberName(claim.ownerId))}'s answer since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
                   }
-                  detail={
-                    claim.lastProgress
-                      ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
-                      : `${label(claim, item.assigneeId)} · ${claimStateLabel[claimShownState(claim)]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
+                  chips={
+                    <ClaimBadge claim={claim} assigneeId={item.assigneeId} />
                   }
-                  action={
-                    (canAct || claim.ownerId === userId) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setReleasing(claim)}
-                      >
-                        Release
-                      </Button>
-                    )
-                  }
-                />
-              ))}
-            </Group>
-            <Group
-              title="Waiting on people"
-              count={groups.waiting.length + groups.agreement.length}
-              icon={<MessageCircleQuestion className="size-3.5 text-warning" />}
-              empty="Nothing waits on a person's answer or decision."
-            >
-              {groups.waiting.map(({ item, claim }) => (
-                <Row
-                  key={item.id}
-                  item={item}
-                  label={key(item)}
-                  href={href(item)}
-                  meta={
-                    <ClaimBadge
-                      claim={claim}
-                      label={label(claim, item.assigneeId)}
-                    />
-                  }
-                  detail={
-                    claim.state === "waiting"
-                      ? `${label(claim, item.assigneeId)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
-                      : `${label(claim, item.assigneeId)} waits on a person's answer in its session since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
-                  }
-                  action={
+                  actions={
                     claim.agentSessionId && (
                       <Button
                         size="sm"
@@ -295,81 +359,125 @@ function Queue({ project }: { project: Project }) {
                     )
                   }
                 />
-              ))}
-              {groups.agreement.map(({ item, verdict }) => (
-                <Row
+              );
+            })}
+            {groups.agreement.map(({ item, verdict }) => (
+              <ListRow
+                key={item.id}
+                href={href(item)}
+                leading={typeIcon(item)}
+                identifier={key(item)}
+                title={item.title}
+                meta={verdict.reasons[0]?.message}
+                chips={<StatusChip tone="attention">Accept scope</StatusChip>}
+              />
+            ))}
+          </Group>
+          <Group title="Claimed" icon={<Bot />} count={groups.claimed.length}>
+            {groups.claimed.map(({ item, claim }) => (
+              <ListRow
+                key={item.id}
+                href={href(item)}
+                leading={typeIcon(item)}
+                identifier={key(item)}
+                title={item.title}
+                meta={
+                  <>
+                    <ClaimOwner
+                      claim={claim}
+                      agent={agentById.get(claim.agentId)}
+                      assigneeId={item.assigneeId}
+                      className="shrink-0"
+                    />
+                    <span aria-hidden>·</span>
+                    <span className="min-w-0 truncate">
+                      {claim.lastProgress
+                        ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
+                        : claim.state === "active"
+                          ? `Lease ends in ${Math.max(leaseLeft(claim), 0)} min`
+                          : `Claimed ${relativeTime(claim.claimedAt)}`}
+                    </span>
+                  </>
+                }
+                chips={
+                  <ClaimBadge claim={claim} assigneeId={item.assigneeId} />
+                }
+                actions={
+                  (canAct || claim.ownerId === userId) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setReleasing(claim)}
+                    >
+                      Release
+                    </Button>
+                  )
+                }
+              />
+            ))}
+          </Group>
+          <Group
+            title="Claimable now"
+            icon={<CircleCheck />}
+            count={groups.claimable.length}
+          >
+            {groups.claimable.map((item) => {
+              const held = dispatch.get(item.id);
+              return (
+                <ListRow
                   key={item.id}
-                  item={item}
-                  label={key(item)}
                   href={href(item)}
-                  meta={<Badge tone="warning">Accept scope</Badge>}
-                  detail={verdict.reasons[0]?.message}
+                  leading={typeIcon(item)}
+                  identifier={key(item)}
+                  title={item.title}
+                  meta={
+                    held
+                      ? `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`
+                      : leftTo(item)
+                  }
+                  chips={
+                    held &&
+                    (held.held ? (
+                      <StatusChip tone="attention">Dispatch held</StatusChip>
+                    ) : (
+                      <StatusChip>
+                        Retrying {relativeTime(held.nextAttemptAt)}
+                      </StatusChip>
+                    ))
+                  }
+                  actions={
+                    held &&
+                    canAct && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void retry(item.id)}
+                      >
+                        Retry
+                      </Button>
+                    )
+                  }
                 />
-              ))}
-            </Group>
-            <Group
-              title="Claimable now"
-              count={groups.claimable.length}
-              icon={<CircleCheck className="size-3.5 text-success" />}
-              empty="Nothing is claimable: work appears here once its scope is accepted and nothing blocks it."
-            >
-              {groups.claimable.map((item) => {
-                const held = dispatch.get(item.id);
-                return (
-                  <Row
-                    key={item.id}
-                    item={item}
-                    label={key(item)}
-                    href={href(item)}
-                    meta={
-                      held &&
-                      (held.held ? (
-                        <Badge tone="warning">Dispatch held</Badge>
-                      ) : (
-                        <Badge>
-                          Retrying {relativeTime(held.nextAttemptAt)}
-                        </Badge>
-                      ))
-                    }
-                    detail={
-                      held
-                        ? `${held.lastError} (${held.failures} failed ${held.failures === 1 ? "start" : "starts"})`
-                        : leftTo(item)
-                    }
-                    action={
-                      held &&
-                      canAct && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void retry(item.id)}
-                        >
-                          Retry
-                        </Button>
-                      )
-                    }
-                  />
-                );
-              })}
-            </Group>
-            <Group
-              title="Blocked"
-              count={groups.blocked.length}
-              icon={<OctagonPause className="size-3.5 text-muted-foreground" />}
-              empty="Nothing agreed is blocked."
-            >
-              {groups.blocked.map(({ item, verdict }) => (
-                <Row
-                  key={item.id}
-                  item={item}
-                  label={key(item)}
-                  href={href(item)}
-                  detail={verdict.reasons.map((r) => r.message).join(" ")}
-                />
-              ))}
-            </Group>
-          </>
-        )}
+              );
+            })}
+          </Group>
+          <Group
+            title="Blocked"
+            icon={<OctagonPause />}
+            count={groups.blocked.length}
+          >
+            {groups.blocked.map(({ item, verdict }) => (
+              <ListRow
+                key={item.id}
+                href={href(item)}
+                leading={typeIcon(item)}
+                identifier={key(item)}
+                title={item.title}
+                meta={verdict.reasons.map((r) => r.message).join(" ")}
+              />
+            ))}
+          </Group>
+        </div>
       </div>
       {releasing && (
         <ReleaseDialog
@@ -382,98 +490,32 @@ function Queue({ project }: { project: Project }) {
   );
 }
 
-function PersonName({ id }: { id: string }) {
-  const { memberName } = useWorkspace();
-  return <span className="text-foreground">{memberName(id)}</span>;
-}
-
+// A panel of the queue. Empty groups are not shown (the page says when
+// nothing at all is queued); long ones show the first page of rows.
 function Group({
   title,
-  count,
   icon,
-  empty,
+  count,
   children,
 }: {
   title: string;
-  count: number;
   icon: ReactNode;
-  empty: string;
-  children: ReactNode[];
+  count: number;
+  children: ReactNode;
 }) {
   const [all, setAll] = useState(false);
-  const shown = all ? children : children.slice(0, PAGE);
+  const rows = Children.toArray(children);
+  const shown = all ? rows : rows.slice(0, PAGE);
   return (
-    <section
-      aria-label={title}
-      className="rounded-xl bg-card shadow-(--shadow-border)"
-    >
-      <div className="flex items-center gap-2 px-4 py-3">
-        {icon}
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {count}
-        </span>
-      </div>
-      <div className="divide-y border-t">
-        {count === 0 ? (
-          <p className="px-4 py-4 text-[13px] text-muted-foreground">{empty}</p>
-        ) : (
-          shown
-        )}
-        {children.length > shown.length && (
-          <div className="px-4 py-2">
-            <Button size="sm" variant="ghost" onClick={() => setAll(true)}>
-              Show all {children.length}
-            </Button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Row({
-  item,
-  label,
-  href,
-  meta,
-  detail,
-  action,
-}: {
-  item: WorkItem;
-  label: string;
-  href: string;
-  meta?: ReactNode;
-  detail?: string;
-  action?: ReactNode;
-}) {
-  const { delivery } = useWorkspace();
-  return (
-    <div
-      data-queue-item={item.id}
-      className="relative flex items-center gap-2 px-4 py-2 text-[13px] hover:bg-muted/50"
-    >
-      <TypeIcon type={typeOf(delivery, item)} />
-      <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
-        {label}
-      </span>
-      <div className="min-w-0 flex-1">
-        <Link
-          href={href}
-          className="block truncate after:absolute after:inset-0"
-        >
-          {item.title}
-        </Link>
-        {detail && (
-          <p className={cn("text-xs text-muted-foreground", "line-clamp-2")}>
-            {detail}
-          </p>
-        )}
-      </div>
-      {meta && (
-        <span className="flex shrink-0 items-center gap-1.5">{meta}</span>
+    <Panel title={title} icon={icon} count={count}>
+      {rows.length > 0 && shown}
+      {rows.length > shown.length && (
+        <li className="px-3.5 py-2">
+          <Button size="sm" variant="ghost" onClick={() => setAll(true)}>
+            Show all {rows.length}
+          </Button>
+        </li>
       )}
-      {action && <span className="relative z-10 shrink-0">{action}</span>}
-    </div>
+    </Panel>
   );
 }

@@ -265,6 +265,7 @@ export function AgentActor({
     >
       {avatar && <AgentAvatar agent={agent} size={size} />}
       <span className="shrink-0 font-medium text-foreground">{agent.name}</span>
+      {/* Read as words ("Forge via Ada"); a flex gap draws the space. */}{" "}
       <Tooltip label={`Acts for ${person.name}`}>
         <span className="min-w-0 truncate text-muted-foreground">
           via {firstName(person.name)}
@@ -311,7 +312,7 @@ export function PolicyActor({
       </span>
       <span className="shrink-0 font-medium text-foreground">
         {policyNames[level]}
-      </span>
+      </span>{" "}
       <Tooltip label={`Set by ${person.name}`}>
         <span className="min-w-0 truncate text-muted-foreground">
           (set by {firstName(person.name)})

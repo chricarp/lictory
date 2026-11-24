@@ -1,17 +1,16 @@
 import { useState } from "react";
 import {
-  Bot,
   CircleAlert,
   CircleCheck,
   CircleDashed,
   ExternalLink,
   GitPullRequest,
-  MessageCircleQuestion,
 } from "lucide-react";
 import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   autonomyLevelMeta,
+  type ClaimEntity,
   type DoneCheckResult,
   type DoneEvaluationEntity,
 } from "@lictory/core/claims/contracts";
@@ -20,16 +19,19 @@ import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Dialog } from "@lictory/ui/dialog";
-import { Badge, SectionLabel } from "@lictory/ui/primitives";
+import { SectionLabel } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
+import { firstName } from "@lictory/platform/lib/session-state";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import { ClaimOwner } from "@lictory/platform/components/claims/claim-badge";
+import { claimState } from "@lictory/platform/components/claims/claim-state";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
-  claimShownState,
-  claimStateLabel,
-  claimWaitsOnPeople,
   leaseLeft,
   useAgentLabel,
+  useAgents,
   useAutonomy,
   useClaimability,
   useLiveClaims,
@@ -43,7 +45,8 @@ const textareaClass =
 // and why not. Native delivery only: external tools own execution.
 export function ClaimPanel() {
   const { item, project, userId, canChangeProperties, readOnly } = useItem();
-  const { organization, canManage, items, directory } = useWorkspace();
+  const { organization, canManage, items, directory, memberName } =
+    useWorkspace();
   const claim = useLiveClaims().get(item.id);
   const label = useAgentLabel();
   const verdict = useClaimability()(item);
@@ -68,81 +71,70 @@ export function ClaimPanel() {
     const key = directory.projects.find((p) => p.id === other?.projectId)?.key;
     return other && key ? `${key}-${other.number}` : undefined;
   };
+  const owner = claim ? memberName(claim.ownerId) : "";
+  const state = claim ? claimState(claim, owner) : null;
   return (
-    <section aria-label="Agent claim">
+    <section
+      aria-label="Agent claim"
+      data-rail-section="claim"
+      className="scroll-mt-4"
+    >
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Factory</SectionLabel>
+        <span className="text-xs text-muted-foreground">
+          {autonomyLevelMeta[policy.level].label}
+        </span>
         <Link
           href={paths.factoryQueue(organization.slug, project.key)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="ml-auto rounded-sm text-xs text-muted-foreground focus-ring outline-none hover:text-foreground"
         >
-          {autonomyLevelMeta[policy.level].label}
+          Queue
         </Link>
       </div>
-      {claim ? (
-        <div className="space-y-2 rounded-lg border bg-card p-3 text-[13px]">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden
-              className="grid size-6 shrink-0 place-items-center rounded-full bg-ring/10 text-[color-mix(in_oklab,var(--ring)_80%,var(--foreground))]"
-            >
-              <Bot className="size-3.5" />
+      {claim && state ? (
+        <div className="space-y-2 text-[13px]">
+          {/* One owner line: the agent, the person it acts for and, when
+              the item is someone else's, whose work it is. It wraps rather
+              than truncating the agent's name. */}
+          <ClaimOwnerWithAgent claim={claim} assigneeId={item.assigneeId} />
+          <div className="flex flex-wrap items-center gap-2">
+            <SessionStateChip state={state} />
+            <span className="text-xs text-muted-foreground">
+              {claim.sessionWaitingSince
+                ? `since ${relativeTime(claim.sessionWaitingSince)}`
+                : `claimed ${relativeTime(claim.claimedAt)}`}
             </span>
-            <p className="min-w-0 flex-1 truncate font-medium">
-              {label(claim, item.assigneeId)}
-            </p>
-            <Badge tone={claimWaitsOnPeople(claim) ? "warning" : "info"}>
-              {claimStateLabel[claimShownState(claim)]}
-            </Badge>
           </div>
-          {claim.sessionWaitingSince && claim.agentSessionId && (
-            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-              <MessageCircleQuestion
-                aria-hidden
-                className="mt-0.5 size-3.5 shrink-0 text-warning"
-              />
-              <span>
-                Its session has waited on a person&apos;s answer since{" "}
-                {relativeTime(claim.sessionWaitingSince)}.{" "}
-                <Link
-                  href={paths.factorySession(
-                    organization.slug,
-                    claim.agentSessionId,
-                  )}
-                  className="text-foreground underline-offset-2 hover:underline"
-                >
-                  Open the session
-                </Link>
-              </span>
+          {claim.sessionWaitingSince && claim.agentSessionId ? (
+            <p className="text-xs text-muted-foreground">
+              Its session waits on {firstName(owner)}&apos;s answer to an
+              approval request.{" "}
+              <Link
+                href={paths.factorySession(
+                  organization.slug,
+                  claim.agentSessionId,
+                )}
+                className="rounded-sm text-foreground underline underline-offset-2 focus-ring outline-none"
+              >
+                Open the session
+              </Link>
             </p>
-          )}
-          {claim.state === "waiting" ? (
-            <div className="space-y-1">
-              {claim.waitingThreadIds.length > 0 && (
-                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <MessageCircleQuestion
-                    aria-hidden
-                    className="mt-0.5 size-3.5 shrink-0 text-warning"
-                  />
-                  <span>
-                    Asked{" "}
-                    {claim.waitingThreadIds.length === 1
-                      ? "a question"
-                      : `${claim.waitingThreadIds.length} questions`}{" "}
-                    about the specification. It resumes when people resolve{" "}
-                    {claim.waitingThreadIds.length === 1 ? "it" : "them"}.
-                  </span>
-                </p>
-              )}
-            </div>
-          ) : claim.sessionWaitingSince ? null : (
+          ) : claim.state === "waiting" || claim.waitingThreadIds.length ? (
+            <p className="text-xs text-muted-foreground">
+              Asked{" "}
+              {claim.waitingThreadIds.length === 1
+                ? "a question"
+                : `${claim.waitingThreadIds.length} questions`}{" "}
+              about the specification. It resumes when people resolve{" "}
+              {claim.waitingThreadIds.length === 1 ? "it" : "them"}.
+            </p>
+          ) : (
             <p className="text-xs text-muted-foreground">
               {claim.state === "starting"
                 ? "A session is starting for it."
                 : leaseLeft(claim) > 0
                   ? `Lease ends in ${leaseLeft(claim)} min unless the agent renews it.`
-                  : "Lease ended; the next sweep returns it to the queue."}{" "}
-              Claimed {relativeTime(claim.claimedAt)}.
+                  : "Lease ended; the next sweep returns it to the queue."}
             </p>
           )}
           {claim.lastProgress && (
@@ -155,7 +147,7 @@ export function ClaimPanel() {
               )}
             </blockquote>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Done follows from the Definition of Done, never from the
             agent&apos;s report.
           </p>
@@ -227,6 +219,27 @@ export function ClaimPanel() {
   );
 }
 
+// The claim's owner line with the agent's avatar (read only for a claimed
+// item, so unclaimed items subscribe to nothing more).
+function ClaimOwnerWithAgent({
+  claim,
+  assigneeId,
+}: {
+  claim: ClaimEntity;
+  assigneeId: string | null;
+}) {
+  const agent = useAgents().get(claim.agentId);
+  return (
+    <ClaimOwner
+      claim={claim}
+      agent={agent}
+      assigneeId={assigneeId}
+      size={20}
+      className="flex-wrap text-[13px]"
+    />
+  );
+}
+
 export function ReleaseDialog({
   claimId,
   agent,
@@ -293,6 +306,12 @@ export function ReleaseDialog({
   );
 }
 
+const pullRequestStateLabel: Record<"open" | "merged" | "closed", string> = {
+  open: "Open",
+  merged: "Merged",
+  closed: "Closed",
+};
+
 // The delivery twin of readiness: what must be true before the item is
 // Done, from evidence. Shown while work is in progress or claimed.
 export function DefinitionOfDonePanel() {
@@ -306,7 +325,11 @@ export function DefinitionOfDonePanel() {
   const { checks } = evaluation;
   const passed = checks.filter((c) => c.passed).length;
   return (
-    <section aria-label="Definition of Done">
+    <section
+      aria-label="Definition of Done"
+      data-rail-section="done"
+      className="scroll-mt-4"
+    >
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Definition of Done</SectionLabel>
         {checks.length > 0 && (
@@ -372,17 +395,18 @@ export function DefinitionOfDonePanel() {
               ) : (
                 <span className="truncate">{pr.title}</span>
               )}
-              <Badge
+              <StatusChip
                 tone={
                   pr.state === "merged"
-                    ? "good"
+                    ? "success"
                     : pr.state === "open"
                       ? "info"
                       : "neutral"
                 }
+                className="ml-auto"
               >
-                {pr.state}
-              </Badge>
+                {pullRequestStateLabel[pr.state]}
+              </StatusChip>
             </li>
           ))}
         </ul>

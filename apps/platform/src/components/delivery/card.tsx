@@ -14,9 +14,15 @@ import {
   estimateOptions,
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
-import { Avatar } from "@lictory/ui/primitives";
 import type { ClaimEntity } from "@lictory/core/claims/contracts";
-import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
+import {
+  ClaimBadge,
+  ClaimOwner,
+} from "@lictory/platform/components/claims/claim-badge";
+import {
+  Actor,
+  type AgentIdentity,
+} from "@lictory/platform/components/identity/actor";
 import {
   PriorityIcon,
   TypeIcon,
@@ -25,6 +31,16 @@ import {
   RefinementIcon,
   StatusIcon,
 } from "@lictory/platform/components/items/status";
+
+// How an estimate is read aloud: "5 points", "Estimate M".
+export function estimateSpoken(
+  project: Pick<Project, "estimateScale"> | undefined,
+  label: string,
+) {
+  return project?.estimateScale === "tshirt"
+    ? `Estimate ${label}`
+    : `${label} ${label === "1" ? "point" : "points"}`;
+}
 
 export function estimateLabel(
   project: Pick<Project, "estimateScale"> | undefined,
@@ -69,7 +85,6 @@ export const ItemCard = memo(function ItemCard({
   teamName,
   delivery,
   orgSlug,
-  memberName,
   showStatus,
   dragging,
   draggable,
@@ -78,7 +93,7 @@ export const ItemCard = memo(function ItemCard({
   onDragStart,
   onDragEnd,
   claim,
-  claimLabel,
+  claimAgent,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -86,7 +101,6 @@ export const ItemCard = memo(function ItemCard({
   teamName?: string;
   delivery: Delivery;
   orgSlug: string;
-  memberName: (id: string | null) => string;
   showStatus?: boolean;
   dragging?: boolean;
   draggable: boolean;
@@ -96,9 +110,9 @@ export const ItemCard = memo(function ItemCard({
   onOpen?: (event: React.MouseEvent, id: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
-  // The agent claim holding the item, and "Forge via Ada".
+  // The agent claim holding the item, and the agent's identity.
   claim?: ClaimEntity;
-  claimLabel?: string;
+  claimAgent?: AgentIdentity;
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -127,19 +141,18 @@ export const ItemCard = memo(function ItemCard({
             {status.name}
           </span>
         )}
+        {/* One owner: an agent holding the item replaces the assignee's
+            avatar with its own line below the title. */}
+        {item.assigneeId && !claim && (
+          <span className="ml-auto">
+            <PersonAvatarById userId={item.assigneeId} />
+          </span>
+        )}
         {claim && (
           <ClaimBadge
             claim={claim}
-            label={claimLabel ?? claim.agentName}
+            assigneeId={item.assigneeId}
             className="ml-auto"
-          />
-        )}
-        {item.assigneeId && (
-          <Avatar
-            userId={item.assigneeId}
-            name={memberName(item.assigneeId)}
-            size="xs"
-            className={claim ? undefined : "ml-auto"}
           />
         )}
       </div>
@@ -154,6 +167,16 @@ export const ItemCard = memo(function ItemCard({
           {item.title}
         </Link>
       )}
+      {claim && (
+        <div className="mt-1.5 flex min-w-0">
+          <ClaimOwner
+            claim={claim}
+            agent={claimAgent}
+            assigneeId={item.assigneeId}
+            className="max-w-full"
+          />
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {item.priority !== "none" && <PriorityIcon priority={item.priority} />}
         {teamName && (
@@ -162,8 +185,12 @@ export const ItemCard = memo(function ItemCard({
           </span>
         )}
         {estimate && (
-          <span className="rounded-full bg-muted px-2 font-mono text-[11px] tabular-nums">
-            {estimate}
+          <span
+            title={estimateSpoken(project, estimate)}
+            className="rounded-full bg-muted px-2 text-[11px] font-medium tabular-nums"
+          >
+            <span aria-hidden>{estimate}</span>
+            <span className="sr-only">{estimateSpoken(project, estimate)}</span>
           </span>
         )}
         {item.refinementState && (
@@ -207,3 +234,8 @@ export const ItemCard = memo(function ItemCard({
     </div>
   );
 });
+
+// The assignee's avatar on a card: their color or photo, named on hover.
+function PersonAvatarById({ userId }: { userId: string }) {
+  return <Actor userId={userId} label="none" size={20} />;
+}
