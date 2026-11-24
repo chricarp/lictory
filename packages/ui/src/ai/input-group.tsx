@@ -64,7 +64,7 @@ export function InputGroupTextarea({
 }
 
 const buttonClass =
-  "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full transition-[background-color,color,transform,opacity] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring/60 active:scale-95 disabled:cursor-not-allowed touch:size-11";
+  "relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full transition-[background-color,color,transform,opacity] duration-150 ease-out outline-none focus-ring active:scale-95 disabled:cursor-not-allowed touch:size-11";
 const ghostClass =
   "text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50";
 

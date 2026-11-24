@@ -20,7 +20,7 @@ export function Checkbox({
   return (
     <CheckboxPrimitive
       className={cn(
-        "m-0 inline-grid size-[13px] shrink-0 cursor-default place-items-center rounded-[3px] border border-foreground/50 bg-card p-0 text-primary-foreground transition-colors duration-100 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:border-primary data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-50 data-indeterminate:border-primary data-indeterminate:bg-primary",
+        "m-0 inline-grid size-[13px] shrink-0 cursor-default place-items-center rounded-[3px] border border-foreground/50 bg-card p-0 text-primary-foreground focus-ring transition-colors duration-100 outline-none data-checked:border-primary data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-50 data-indeterminate:border-primary data-indeterminate:bg-primary",
         lastInFlow,
         className,
       )}

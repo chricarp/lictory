@@ -295,7 +295,7 @@ export function MessageScrollerButton({
   return (
     <ScrollAreaScrollToEnd
       className={cn(
-        "absolute bottom-3 left-1/2 z-10 inline-flex h-8 -translate-x-1/2 scale-100 items-center gap-1.5 rounded-full border bg-background/95 px-3 text-[12px] font-medium text-foreground opacity-100 shadow-[0_6px_20px_-8px_oklch(0_0_0/0.3)] backdrop-blur transition-[translate,scale,opacity] duration-200 not-data-visible:pointer-events-none not-data-visible:translate-y-2 not-data-visible:scale-95 not-data-visible:opacity-0 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+        "absolute bottom-3 left-1/2 z-10 inline-flex h-8 -translate-x-1/2 scale-100 items-center gap-1.5 rounded-full border bg-background/95 px-3 text-[12px] font-medium text-foreground opacity-100 shadow-[0_6px_20px_-8px_oklch(0_0_0/0.3)] focus-ring backdrop-blur transition-[translate,scale,opacity] duration-200 not-data-visible:pointer-events-none not-data-visible:translate-y-2 not-data-visible:scale-95 not-data-visible:opacity-0 hover:bg-muted",
         className,
       )}
       {...props}

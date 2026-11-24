@@ -85,8 +85,9 @@ export function SectionLabel({
   return (
     <h3
       className={cn(
-        // Metadata labels: small mono capitals, like an instrument panel.
-        "font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase",
+        // Section captions: sans 12px semibold, muted. Mono is for
+        // identifiers (keys, SHAs, branches, handles) and code only.
+        "text-xs font-semibold text-muted-foreground",
         className,
       )}
     >

@@ -69,7 +69,7 @@ export function Dialog({
         </div>
         <DialogClose
           aria-label="Close"
-          className="rounded-md bg-transparent p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
+          className="rounded-md bg-transparent p-1 text-muted-foreground focus-ring outline-none hover:bg-muted"
         >
           <X className="size-4" aria-hidden />
         </DialogClose>

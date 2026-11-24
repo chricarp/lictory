@@ -36,7 +36,7 @@ type Look = Pick<ButtonProps, "variant" | "size">;
 export const buttonClass = ({ variant = "primary", size = "md" }: Look = {}) =>
   cn(
     // Pills: the shape of every action, from the sidebar to the website.
-    "inline-flex shrink-0 cursor-default items-center justify-center gap-1.5 rounded-full border-0 font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 not-data-disabled:active:scale-[0.96] data-disabled:cursor-not-allowed data-disabled:opacity-50 data-pending:cursor-progress",
+    "inline-flex shrink-0 cursor-default items-center justify-center gap-1.5 rounded-full border-0 font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-ring not-data-disabled:active:scale-[0.96] data-disabled:cursor-not-allowed data-disabled:opacity-50 data-pending:cursor-progress",
     size === "sm" && "h-7 px-3 text-xs",
     size === "md" && "h-8 px-3.5 text-[13px]",
     size === "lg" && "h-10 px-5 text-sm",

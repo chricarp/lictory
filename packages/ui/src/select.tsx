@@ -175,7 +175,7 @@ function SelectTrigger({
     <SelectTriggerPrimitive
       data-size={size}
       className={cn(
-        "inline-flex w-fit min-w-0 cursor-default items-center justify-between gap-2 text-foreground transition-[background-color,color,box-shadow] duration-100 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-[placeholder]:text-muted-foreground/70 [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "inline-flex w-fit min-w-0 cursor-default items-center justify-between gap-2 text-foreground focus-ring transition-[background-color,color,box-shadow] duration-100 ease-out outline-none select-none aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-[placeholder]:text-muted-foreground/70 [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
         variant === "field" &&
           "border border-input bg-card font-normal shadow-[0_1px_2px_oklch(0_0_0/0.03)] hover:bg-muted/50 aria-invalid:border-destructive",
         variant === "secondary" &&
