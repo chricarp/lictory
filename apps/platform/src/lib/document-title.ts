@@ -74,6 +74,7 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
       else if (second === "board") parts.push("Board", context);
       else if (second === "backlog") parts.push("Backlog", context);
       else if (second === "handoff") parts.push("Hand-off", context);
+      else if (second === "queue") parts.push("Factory queue", context);
       else if (second === "reviews") parts.push("Needs my review", context);
       else if (second === "views" && third) {
         const view = views.find((v) => v.id === third);

@@ -247,19 +247,20 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Worker
 
-| Variable                              | Required | Default     | Read by | Secret | Description                                                   |
-| ------------------------------------- | -------- | ----------- | ------- | ------ | ------------------------------------------------------------- |
-| `WORKER_AI_INTERVAL_MS`               | No       | `30000`     | worker  | No     | Polling interval for AI runs.                                 |
-| `WORKER_EMAIL_INTERVAL_MS`            | No       | `30000`     | worker  | No     | Polling interval for notification email.                      |
-| `WORKER_DELIVERY_INTERVAL_MS`         | No       | `30000`     | worker  | No     | Polling interval for delivery exports.                        |
-| `WORKER_DELIVERY_REFRESH_INTERVAL_MS` | No       | `600000`    | worker  | No     | How often delivery status is refreshed from external systems. |
-| `WORKER_DELIVERY_REFRESH_LIMIT`       | No       | `200`       | worker  | No     | Items refreshed per delivery status run.                      |
-| `WORKER_SCHEDULES_INTERVAL_MS`        | No       | `300000`    | worker  | No     | How often automatic cycles are advanced.                      |
-| `WORKER_SHUTDOWN_TIMEOUT_MS`          | No       | `25000`     | worker  | No     | How long running jobs may finish after SIGTERM.               |
-| `WORKER_STUCK_MS`                     | No       | `1800000`   | worker  | No     | A job run longer than this marks the worker unhealthy.        |
-| `WORKER_HEALTH_PORT`                  | No       | `3003`      | worker  | No     | Port of the loopback health endpoint (`/healthz`).            |
-| `WORKER_DB_POOL_MAX`                  | No       | `4`         | worker  | No     | Maximum database connections of the worker.                   |
-| `WORKER_HEALTH_HOST`                  | No       | `127.0.0.1` | worker  | No     | Interface of the health endpoint.                             |
+| Variable                              | Required | Default     | Read by | Secret | Description                                                                |
+| ------------------------------------- | -------- | ----------- | ------- | ------ | -------------------------------------------------------------------------- |
+| `WORKER_AI_INTERVAL_MS`               | No       | `30000`     | worker  | No     | Polling interval for AI runs.                                              |
+| `WORKER_EMAIL_INTERVAL_MS`            | No       | `30000`     | worker  | No     | Polling interval for notification email.                                   |
+| `WORKER_DELIVERY_INTERVAL_MS`         | No       | `30000`     | worker  | No     | Polling interval for delivery exports.                                     |
+| `WORKER_DELIVERY_REFRESH_INTERVAL_MS` | No       | `600000`    | worker  | No     | How often delivery status is refreshed from external systems.              |
+| `WORKER_DELIVERY_REFRESH_LIMIT`       | No       | `200`       | worker  | No     | Items refreshed per delivery status run.                                   |
+| `WORKER_SCHEDULES_INTERVAL_MS`        | No       | `300000`    | worker  | No     | How often automatic cycles are advanced.                                   |
+| `WORKER_FACTORY_INTERVAL_MS`          | No       | `60000`     | worker  | No     | How often the factory dispatcher expires claims and starts claimable work. |
+| `WORKER_SHUTDOWN_TIMEOUT_MS`          | No       | `25000`     | worker  | No     | How long running jobs may finish after SIGTERM.                            |
+| `WORKER_STUCK_MS`                     | No       | `1800000`   | worker  | No     | A job run longer than this marks the worker unhealthy.                     |
+| `WORKER_HEALTH_PORT`                  | No       | `3003`      | worker  | No     | Port of the loopback health endpoint (`/healthz`).                         |
+| `WORKER_DB_POOL_MAX`                  | No       | `4`         | worker  | No     | Maximum database connections of the worker.                                |
+| `WORKER_HEALTH_HOST`                  | No       | `127.0.0.1` | worker  | No     | Interface of the health endpoint.                                          |
 
 ## Collaboration service
 

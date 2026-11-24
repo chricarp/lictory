@@ -34,6 +34,11 @@ import { Input } from "@lictory/ui/input";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Avatar, EmptyState } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
+import {
+  useAgentLabel,
+  useLiveClaims,
+} from "@lictory/platform/components/claims/claims";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import {
@@ -806,6 +811,8 @@ export function BacklogRow({
 }) {
   const { delivery } = useWorkspace();
   const status = delivery.statuses.get(item.statusId);
+  const claim = useLiveClaims().get(item.id);
+  const agentLabel = useAgentLabel();
   return (
     <div
       data-row={item.id}
@@ -843,6 +850,7 @@ export function BacklogRow({
           {teamName}
         </span>
       )}
+      {claim && <ClaimBadge claim={claim} label={agentLabel(claim)} />}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read

@@ -20,6 +20,7 @@ import {
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";
+import { claimActivity } from "@lictory/platform/components/claims/activity";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -28,6 +29,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 // back to the self-reported client.
 function agentLabel(d: Record<string, unknown>) {
   if (d.performedVia === "agent") return "Litto";
+  // A runner agent's session the factory dispatcher started.
+  if (d.performedVia === "runner") return str(d.agentName) ?? "a runner agent";
   const name = str(d.agentName);
   if (name) return `${name} (MCP)`;
   const client = str(d.agentClient);
@@ -707,7 +710,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       body = <>committed a Lictory Intelligence suggestion</>;
       break;
     default:
-      body = <>{entry.action.replaceAll("_", " ")}</>;
+      body = claimActivity(entry.action, d) ?? (
+        <>{entry.action.replaceAll("_", " ")}</>
+      );
   }
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
@@ -719,7 +724,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       />
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
-        {(d.performedVia === "agent" || d.performedVia === "mcp") && (
+        {(d.performedVia === "agent" ||
+          d.performedVia === "mcp" ||
+          d.performedVia === "runner") && (
           <span
             className="ml-1 text-xs text-muted-foreground"
             title={
@@ -727,6 +734,13 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
             }
           >
             via {agentLabel(d)}
+          </span>
+        )}
+        {/* Lictory acted by itself for the person (the dispatcher, the
+            Definition of Done, an expired lease). */}
+        {str(d.automation) && (
+          <span className="ml-1 text-xs text-muted-foreground">
+            · automatically
           </span>
         )}
       </p>

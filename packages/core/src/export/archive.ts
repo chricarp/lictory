@@ -112,6 +112,14 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.organizationLogo, omit: ["content"] },
   { table: s.organizationBranding },
   { table: s.aiRun },
+  // Claims, autonomy policy and the Definition of Done
+  // (docs/internals/claims.md). Dispatcher backoff is operational state.
+  { table: s.workItemClaim },
+  { table: s.claimQuestion },
+  { table: s.autonomyPolicy },
+  { table: s.definitionOfDone },
+  { table: s.doneSignOff },
+  { table: s.autopilotMerge },
   { table: s.intelligenceContextEntry },
   { table: s.intelligenceContextVersion },
   { table: s.invitation },

@@ -27,6 +27,10 @@ adding domain writes or synchronized entities.
 - [The software factory](./internals/software-factory.md): channels, agents,
   agent sessions, runners, claims, autonomy policy, code hosts and the
   desktop app, and what text and agents can never do
+- [Claims, autonomy and the Definition of Done](./internals/claims.md):
+  which work agents may claim, leases, agent questions, the autonomy
+  policy, evidence-based Done, the dispatcher and the ports the Factory and
+  Code modules implement
 - [Organizations, projects and teams](./internals/organization-model.md):
   what each scope owns, application roles, project roles and disciplines,
   delivery modes

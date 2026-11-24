@@ -493,6 +493,13 @@ const handoffRoute = projectPage(
   () => import("@lictory/platform/components/delivery/handoff"),
   "Handoff",
 );
+// The factory queue (docs/internals/claims.md).
+const factoryQueueRoute = projectPage(
+  "/queue",
+  () => import("@lictory/platform/components/claims/factory-queue"),
+  "FactoryQueue",
+  ListSkeleton,
+);
 const proposalsRoute = projectPage(
   "/proposals",
   () => import("@lictory/platform/routes/items"),
@@ -607,6 +614,7 @@ const routeTree = rootRoute.addChildren([
         boardRoute,
         backlogRoute,
         handoffRoute,
+        factoryQueueRoute,
         proposalsRoute,
         refinementRoute,
         reviewsRoute,

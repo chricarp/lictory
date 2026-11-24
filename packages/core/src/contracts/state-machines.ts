@@ -365,6 +365,83 @@ export const iteration = stateMachine({
   },
 });
 
+// --------------------------------------------------------------- claims
+
+// A lease by an agent session on one native delivery item
+// (docs/internals/claims.md). The lease is renewed while the agent works;
+// a question to people pauses it. Released and completed claims are history.
+export const claim = stateMachine({
+  name: "claim",
+  states: {
+    starting:
+      "Reserved by the dispatcher while a session is being started for it.",
+    active: "An agent session is working on the item and renews its lease.",
+    waiting:
+      "The agent asked people a question; the claim holds the item until it is resolved.",
+    released: "Given back without completing the item. History.",
+    completed: "The item reached Done through its Definition of Done.",
+  },
+  steps: {
+    activate: {
+      does: "Start working once the session runs",
+      from: ["starting"],
+      to: "active",
+      automatic: true,
+      refused: "This claim is not waiting for its session to start.",
+    },
+    renew: {
+      does: "Renew the lease",
+      from: ["starting", "active", "waiting"],
+      refused: (state) =>
+        `This claim is ${state}. Claim the item again if it is still claimable.`,
+    },
+    report: {
+      does: "Report progress",
+      from: ["active", "waiting"],
+      refused: (state) =>
+        state === "starting"
+          ? "This claim's session has not started yet."
+          : `This claim is ${state}; report progress on a live claim.`,
+    },
+    ask: {
+      does: "Ask people a question",
+      from: ["active", "waiting"],
+      to: "waiting",
+      refused: (state) =>
+        state === "starting"
+          ? "This claim's session has not started yet."
+          : `This claim is ${state}; only a live claim can ask.`,
+    },
+    resume: {
+      does: "Resume when every question is resolved",
+      from: ["waiting"],
+      to: "active",
+      automatic: true,
+      refused: "This claim is not waiting on a question.",
+    },
+    release: {
+      does: "Release",
+      from: ["starting", "active", "waiting"],
+      to: "released",
+      refused: (state) => `This claim is already ${state}.`,
+    },
+    expire: {
+      does: "Expire when its lease runs out",
+      from: ["starting", "active"],
+      to: "released",
+      automatic: true,
+      refused: "A waiting or ended claim does not expire.",
+    },
+    complete: {
+      does: "Complete when the item passes its Definition of Done",
+      from: ["starting", "active", "waiting"],
+      to: "completed",
+      automatic: true,
+      refused: (state) => `This claim is already ${state}.`,
+    },
+  },
+});
+
 // --------------------------------------------------------------- spaces
 
 // A proposal to merge one line of a page into another. Closing keeps the
@@ -481,6 +558,7 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
   iteration_state: declared(iteration),
   page_pull_request_status: declared(pagePullRequest),
   "specification_pull_request.status": declared(specificationPullRequest),
+  claim_state: declared(claim),
   thread_status: {
     moves: "toggle",
     owner: "updateThread in domain/service.ts",

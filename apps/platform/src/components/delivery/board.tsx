@@ -64,6 +64,10 @@ import {
 } from "@lictory/platform/components/delivery/item-peek";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  useAgentLabel,
+  useLiveClaims,
+} from "@lictory/platform/components/claims/claims";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -201,6 +205,12 @@ function ProjectBoard({ project }: { project: Project }) {
   } = useWorkspace();
   const capabilities = capabilitiesIn(project.id);
   const { openCreate, toast } = useShell();
+  // Agent claims, as a compact mark on each claimed card.
+  const claims = useLiveClaims();
+  const agentLabel = useAgentLabel();
+  const claimLabels = new Map(
+    [...claims.values()].map((c) => [c.workItemId, agentLabel(c)]),
+  );
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
   const peek = useItemPeek();
@@ -706,6 +716,8 @@ function ProjectBoard({ project }: { project: Project }) {
                                   identifier(project, item.number)
                                 }
                                 onOpen={peek.onLinkClick}
+                                claim={claims.get(item.id)}
+                                claimLabel={claimLabels.get(item.id)}
                                 onDragStart={(e) => {
                                   setDrag(item.id);
                                   e.dataTransfer.effectAllowed = "move";

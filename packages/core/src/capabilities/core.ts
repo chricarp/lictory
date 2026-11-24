@@ -49,6 +49,8 @@ export const humanOnlyReasons = {
     "Taking a copy of all of an organization's data is an administrator's own decision; agents do not start or download organization exports.",
   deletion:
     "Deleting an organization, or cancelling its deletion, is its owners' own decision; agents never schedule or cancel it.",
+  autonomy:
+    "How much agents may do by themselves, and the evidence that their work is done, are people's decisions: an agent never changes its own autonomy, its Definition of Done, or signs off its own work.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 
@@ -72,6 +74,10 @@ export type Principal = {
   // The agent's name: the access token's name for MCP, Litto for the
   // embedded agent. Each token is one named agent acting for its person.
   agentName?: string | null;
+  // A Factory agent's identity and session, when the call comes from one
+  // (runner sessions); MCP tokens use `tokenId` as the agent id.
+  agentId?: string | null;
+  agentSessionId?: string | null;
 };
 
 // Process-level side effects owned by the hosting runtime (API, tests,

@@ -29,6 +29,7 @@ import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
 import { knowledgeCapabilities } from "@lictory/core/capabilities/knowledge";
 import { decisionCapabilities } from "@lictory/core/capabilities/decisions";
 import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
+import { claimCapabilities } from "@lictory/core/capabilities/claims";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
 // routes, the MCP server, the embedded agent) lists and invokes from here.
@@ -49,6 +50,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...organizationDeletionCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
+  ...claimCapabilities,
   humanOnlyCapability(() => capabilities),
 ];
 assertHumanOnlyMetadata(capabilities);

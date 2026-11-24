@@ -330,6 +330,13 @@
       "when": 1794474396561,
       "tag": "0046_organization_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795479473432,
+      "tag": "0047_claims_autonomy_definition_of_done",
+      "breakpoints": true
     }
   ]
 }

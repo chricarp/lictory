@@ -15,6 +15,8 @@ import {
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
 import { Avatar } from "@lictory/ui/primitives";
+import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import {
   PriorityIcon,
   TypeIcon,
@@ -75,6 +77,8 @@ export const ItemCard = memo(function ItemCard({
   onOpen,
   onDragStart,
   onDragEnd,
+  claim,
+  claimLabel,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -92,6 +96,9 @@ export const ItemCard = memo(function ItemCard({
   onOpen?: (event: React.MouseEvent, id: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
+  // The agent claim holding the item, and "Forge via Ada".
+  claim?: ClaimEntity;
+  claimLabel?: string;
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -120,12 +127,19 @@ export const ItemCard = memo(function ItemCard({
             {status.name}
           </span>
         )}
+        {claim && (
+          <ClaimBadge
+            claim={claim}
+            label={claimLabel ?? claim.agentName}
+            className="ml-auto"
+          />
+        )}
         {item.assigneeId && (
           <Avatar
             userId={item.assigneeId}
             name={memberName(item.assigneeId)}
             size="xs"
-            className="ml-auto"
+            className={claim ? undefined : "ml-auto"}
           />
         )}
       </div>

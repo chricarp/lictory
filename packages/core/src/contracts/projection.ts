@@ -17,6 +17,10 @@ export const organizationLevelTypes: ReadonlySet<Entity["type"]> = new Set([
   "workItem",
   "relation",
   "externalLink",
+  // Live claims, autonomy policies, Definitions of Done.
+  "claim",
+  "autonomyPolicy",
+  "definitionOfDone",
 ]);
 
 // The organization's shared directory, without the per-user organization list

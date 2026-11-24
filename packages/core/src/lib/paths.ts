@@ -74,6 +74,10 @@ export const paths = {
   // what Jira reports back.
   handoff: (org: string, project: string) =>
     `/${org}/${project.toLowerCase()}/handoff`,
+  // The factory queue: what agents can claim, hold, wait on and why work is
+  // blocked (docs/internals/claims.md).
+  factoryQueue: (org: string, project: string) =>
+    `/${org}/${project.toLowerCase()}/queue`,
   // Project settings: general, members, disciplines, teams, workflow,
   // planning, delivery, labels, context.
   projectSettings: (org: string, project: string, section?: string) =>

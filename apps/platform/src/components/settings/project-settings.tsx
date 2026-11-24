@@ -18,6 +18,8 @@ import { ProjectReadiness } from "@lictory/platform/components/settings/project-
 import { ProjectPlanning } from "@lictory/platform/components/settings/project-planning";
 import { ProjectDelivery } from "@lictory/platform/components/settings/project-delivery";
 import { plural } from "@lictory/platform/components/settings/project-shared";
+import { ProjectAutonomy } from "@lictory/platform/components/claims/project-autonomy";
+import { ProjectDefinitionOfDone } from "@lictory/platform/components/claims/project-done";
 
 const sections = [
   { id: "general", label: "General", group: "Project" },
@@ -26,9 +28,11 @@ const sections = [
   { id: "teams", label: "Teams", group: "People" },
   { id: "workflow", label: "Workflow & types", group: "Work" },
   { id: "readiness", label: "Readiness", group: "Work" },
+  { id: "done", label: "Definition of Done", group: "Work" },
   { id: "planning", label: "Planning", group: "Work" },
   { id: "delivery", label: "Delivery", group: "Work" },
   { id: "labels", label: "Labels & milestones", group: "Work" },
+  { id: "autonomy", label: "Autonomy", group: "Factory" },
   {
     id: "context",
     label: "Intelligence context",
@@ -105,6 +109,12 @@ export function ProjectSettingsSection({ section }: { section: string }) {
       )}
       {active === "readiness" && (
         <ProjectReadiness project={project} canEdit={canEdit} />
+      )}
+      {active === "done" && (
+        <ProjectDefinitionOfDone project={project} canEdit={canEdit} />
+      )}
+      {active === "autonomy" && (
+        <ProjectAutonomy project={project} canEdit={canEdit} />
       )}
       {active === "planning" && (
         <ProjectPlanning project={project} canEdit={canEdit} />
