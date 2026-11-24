@@ -42,7 +42,10 @@ import {
   MAX_DELIVERY_ATTEMPTS,
   processAgentEventDeliveries,
 } from "@lictory/core/agent-events/delivery";
-import { queueClaimEvent } from "@lictory/core/agent-events/producers";
+import {
+  queueClaimEvent,
+  queueCodePullRequestEvent,
+} from "@lictory/core/agent-events/producers";
 import {
   checkDestinationUrl,
   classifyAddress,
@@ -480,6 +483,48 @@ void test("claim events wake the claiming agent, also when its own person acted,
   // Another agent of the same person does not see it.
   const scout = await f.agent(f.bo, "scout");
   assert.equal((await events(f.bo, scout)).length, 0);
+});
+
+void test("the Code module's pull request events keep identifiers and titles only", async () => {
+  const f = await fixture();
+  const pr = crypto.randomUUID();
+  for (let i = 0; i < 2; i++)
+    await db.transaction((tx) =>
+      queueCodePullRequestEvent(tx, {
+        organizationId: f.organizationId,
+        kind: "code_pull_request_unmergeable",
+        userIds: [f.bo],
+        actorId: null,
+        projectId: f.projectId,
+        detail: {
+          codePullRequestId: pr,
+          number: 42,
+          pullRequestTitle: "Retry refunds",
+          provider: "github",
+          reason: "conflicts",
+          excerpt: "diff --git a/secret.ts",
+        },
+        // Retried by the host's webhook: delivered once.
+        dedupeKey: `${pr}:abc123:unmergeable`,
+      }),
+    );
+  await drainNotifications(db);
+  const found = await events(f.bo);
+  assert.equal(found.length, 1);
+  assert.equal(found[0]!.type, "pull_request.unmergeable");
+  assert.deepEqual(found[0]!.subject, {
+    codePullRequestId: pr,
+    pullRequestTitle: "Retry refunds",
+    reason: "conflicts",
+    number: 42,
+    provider: "github",
+  });
+  // No inbox notification for agent-only kinds.
+  const inbox = await db
+    .select()
+    .from(s.notification)
+    .where(eq(s.notification.userId, f.bo));
+  assert.equal(inbox.length, 0);
 });
 
 // ------------------------------------------------------------ the cursor
