@@ -42,13 +42,7 @@ export function BreakdownProposal({
   const types = enabledTypes(delivery, item.projectId).filter(
     (child) => child.level < type.level,
   );
-  // The next level down by default: a Story breaks into Tasks, an Epic into
-  // Stories (lower levels stay a choice away).
-  const nextLevel = types.reduce<(typeof types)[number] | undefined>(
-    (best, t) => (!best || t.level > best.level ? t : best),
-    undefined,
-  );
-  const [typeId, setTypeId] = useState(nextLevel?.id ?? "");
+  const [typeId, setTypeId] = useState(types[0]?.id ?? "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const existing = new Set(items.map((child) => child.id));
