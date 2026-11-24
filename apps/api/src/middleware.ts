@@ -24,9 +24,15 @@ export function limit(
 }
 
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
-// Better Auth checks its own origins, MCP authenticates with bearer tokens and
-// the Zero endpoints are internal (API key, cookies forwarded by zero-cache).
-const ownOriginPolicy = [/^\/api\/auth\//, /^\/api\/mcp$/, /^\/api\/zero\//];
+// Better Auth checks its own origins, MCP and runners authenticate with bearer
+// tokens and the Zero endpoints are internal (API key, cookies forwarded by
+// zero-cache).
+const ownOriginPolicy = [
+  /^\/api\/auth\//,
+  /^\/api\/mcp$/,
+  /^\/api\/zero\//,
+  /^\/api\/runner\//,
+];
 
 // Cookie-authenticated writes must come from the platform's exact origin.
 export const sameOriginWrites: MiddlewareHandler = async (c, next) => {

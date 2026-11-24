@@ -28,7 +28,15 @@ import { securityCapabilities } from "@lictory/core/capabilities/security";
 import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
 import { knowledgeCapabilities } from "@lictory/core/capabilities/knowledge";
 import { decisionCapabilities } from "@lictory/core/capabilities/decisions";
-import { workspaceCapabilities } from "@lictory/core/capabilities/workspace";
+import {
+  commandCapabilities,
+  workspaceCapabilities,
+} from "@lictory/core/capabilities/workspace";
+import { factoryCapabilities } from "@lictory/core/capabilities/factory";
+import {
+  assertAgentOrganization,
+  assertAgentProject,
+} from "@lictory/core/factory/authority";
 
 // The catalog of everything a person can do in Lictory. Each surface (web
 // routes, the MCP server, the embedded agent) lists and invokes from here.
@@ -49,6 +57,7 @@ export const capabilities: readonly AnyCapability[] = [
   ...organizationDeletionCapabilities,
   ...productKnowledgeCapabilities,
   ...intakeCapabilities,
+  ...factoryCapabilities,
   humanOnlyCapability(() => capabilities),
 ];
 assertHumanOnlyMetadata(capabilities);
@@ -196,6 +205,62 @@ async function audit(
   }
 }
 
+// A Factory agent acts only in its organization and, with a project
+// allowlist, only where its scope can be shown (docs/internals/factory.md).
+// Capabilities an agent may call without naming its organization:
+const agentGlobal = new Set(["listOrganizations", "listHumanOnlyOperations"]);
+// Capabilities that check a project-limited agent's scope themselves: every
+// workspace command (`applyMutation`) and the Factory's own.
+const agentScoped = new Set([
+  ...agentGlobal,
+  ...commandCapabilities.map((c) => c.name),
+  ...factoryCapabilities.map((c) => c.name),
+]);
+async function assertAgentScope(
+  ctx: CapabilityContext,
+  capability: AnyCapability,
+  input: unknown,
+) {
+  const agent = ctx.principal.agent;
+  if (!agent) return;
+  const organizationId = organizationOf(input);
+  if (!agentGlobal.has(capability.name))
+    assertAgentOrganization(agent, organizationId);
+  if (!agent.projectIds || !organizationId) return;
+  const fields = (input ?? {}) as Record<string, unknown>;
+  if (typeof fields.projectId === "string")
+    return assertAgentProject(agent, fields.projectId);
+  if (typeof fields.workItemId === "string") {
+    const [item] = await ctx.db
+      .select({ projectId: s.workItem.projectId })
+      .from(s.workItem)
+      .where(
+        and(
+          eq(s.workItem.organizationId, organizationId),
+          eq(s.workItem.id, fields.workItemId),
+        ),
+      );
+    return assertAgentProject(agent, item?.projectId ?? null);
+  }
+  const key =
+    typeof fields.key === "string"
+      ? /^([A-Z][A-Z0-9]{1,9})-\d+$/.exec(fields.key)?.[1]
+      : undefined;
+  if (key) {
+    const [project] = await ctx.db
+      .select({ id: s.project.id })
+      .from(s.project)
+      .where(
+        and(
+          eq(s.project.organizationId, organizationId),
+          eq(s.project.key, key),
+        ),
+      );
+    return assertAgentProject(agent, project?.id ?? null);
+  }
+  if (!agentScoped.has(capability.name)) assertAgentProject(agent, null);
+}
+
 // Validates, authorizes the surface and token, runs the capability and
 // normalizes every failure to a CapabilityError. Domain authorization
 // (membership, application role, organization-role capabilities) happens in
@@ -227,6 +292,7 @@ export async function invoke(
         ? await resolveMcpOrganization(ctx, parsed)
         : parsed;
     organizationId = organizationOf(input);
+    await assertAgentScope(ctx, capability, input);
     // An organization that requires two-factor holds members without it,
     // and one scheduled for deletion holds everyone but its owners in the
     // few capabilities that allow it, on every surface, before any

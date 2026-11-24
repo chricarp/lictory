@@ -76,8 +76,11 @@ export async function executeMutation(
       userId: ctx.principal.userId,
       surface: ctx.principal.surface,
       client: ctx.principal.client,
-      agentId: ctx.principal.tokenId ?? null,
+      // A Factory agent is named by its own id; other MCP agents by their
+      // access token's.
+      agentId: ctx.principal.agent?.id ?? ctx.principal.tokenId ?? null,
       agentName: ctx.principal.agentName ?? null,
+      agentScope: ctx.principal.agent ?? null,
     },
     mutation,
     {
@@ -737,13 +740,17 @@ const listOrganizations = defineCapability({
   input: z.object({}),
   async run(ctx) {
     const roster = await directory(ctx.db, ctx.principal.userId);
+    const agent = ctx.principal.agent;
     return {
-      organizations: roster.organizations.map((o) => ({
-        id: o.id,
-        name: o.name,
-        slug: o.slug,
-        role: applicationRoleOf(o.role),
-      })),
+      organizations: roster.organizations
+        // A Factory agent belongs to one organization.
+        .filter((o) => !agent || o.id === agent.organizationId)
+        .map((o) => ({
+          id: o.id,
+          name: o.name,
+          slug: o.slug,
+          role: applicationRoleOf(o.role),
+        })),
     };
   },
 });

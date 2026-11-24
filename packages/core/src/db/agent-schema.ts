@@ -9,9 +9,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "@lictory/core/db/auth-schema";
+import { agent, agentSession } from "@lictory/core/db/factory-schema";
 
 // A personal access token lets an external agent (an MCP client) act as the
-// user who created it. It grants no capability of its own: every call is
+// user who created it (or, bound to a Factory agent, as that agent). It grants no capability of its own: every call is
 // authorized exactly like the user's web session, and `read` tokens are further
 // limited to read-only capabilities. Only a SHA-256 hash of the secret is kept.
 export const accessToken = pgTable(
@@ -33,9 +34,19 @@ export const accessToken = pgTable(
     lastUsedAt: timestamp("last_used_at"),
     revokedAt: timestamp("revoked_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Bound to a Factory agent: the token acts as that agent (its owner's
+    // permissions narrowed by the agent's scope) in the agent's organization.
+    agentId: text("agent_id").references(() => agent.id, {
+      onDelete: "cascade",
+    }),
+    // Issued to one agent session; works only while the session is active.
+    agentSessionId: text("agent_session_id").references(() => agentSession.id, {
+      onDelete: "cascade",
+    }),
   },
   (t) => [
     uniqueIndex("access_token_hash_idx").on(t.tokenHash),
+    index("access_token_agent_idx").on(t.agentId),
     index("access_token_user_idx").on(t.userId, t.createdAt),
     check("access_token_scope", sql`${t.scope} in ('read', 'write')`),
     check("access_token_name_present", sql`length(trim(${t.name})) > 0`),

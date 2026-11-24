@@ -437,6 +437,134 @@ export const pagePullRequest = stateMachine({
   },
 });
 
+// -------------------------------------------------------------- factory
+
+// One run of an agent on one task (docs/internals/factory.md). Runners take
+// the automatic steps under their lease; people steer, cancel and retry.
+// `waiting` means the agent asked a person something: it keeps its lease but
+// does not count against the runner's session slots.
+export const agentSession = stateMachine({
+  name: "agent session",
+  states: {
+    queued: "Waiting for a runner that may run its agent.",
+    assigned: "Claimed by a runner, which is preparing the workspace.",
+    running: "The agent is working.",
+    waiting: "The agent asked a person to decide something.",
+    completed: "The agent finished; its result is a claim, not proof.",
+    failed: "Stopped by an error or after its runner was lost too often.",
+    canceled: "Stopped by a person.",
+  },
+  steps: {
+    assign: {
+      does: "Be claimed by a runner",
+      from: ["queued"],
+      to: "assigned",
+      automatic: true,
+      refused: "This session is not waiting for a runner.",
+    },
+    start: {
+      does: "Start working",
+      from: ["assigned"],
+      to: "running",
+      idempotent: true,
+      automatic: true,
+      refused: "This session is not assigned to a runner.",
+    },
+    wait: {
+      does: "Wait for a person's answer",
+      from: ["running"],
+      to: "waiting",
+      idempotent: true,
+      automatic: true,
+      refused: "Only a running session can ask a person something.",
+    },
+    resume: {
+      does: "Resume after every question was answered",
+      from: ["waiting"],
+      to: "running",
+      idempotent: true,
+      automatic: true,
+      refused: "This session is not waiting.",
+    },
+    finish: {
+      does: "Report its result",
+      from: ["assigned", "running", "waiting"],
+      to: ["completed", "failed"],
+      automatic: true,
+      refused: "This session is no longer active.",
+    },
+    requeue: {
+      does: "Return to the queue when its runner is lost",
+      from: ["assigned", "running", "waiting"],
+      to: ["queued", "failed"],
+      automatic: true,
+      refused: "This session is not held by a runner.",
+    },
+    sendMessage: {
+      does: "Send a message to the agent",
+      from: ["queued", "assigned", "running", "waiting"],
+      refused: (state) =>
+        `This session is ${state}. Retry it or start a new session to continue.`,
+    },
+    interrupt: {
+      does: "Interrupt the agent's current turn",
+      from: ["running", "waiting"],
+      refused: (state) =>
+        state === "queued" || state === "assigned"
+          ? "The agent has not started yet. Cancel the session instead."
+          : `This session is ${state}.`,
+    },
+    answerApproval: {
+      does: "Approve or deny what the agent asked for",
+      from: ["waiting"],
+      refused: (state) =>
+        `This session is ${state}; nothing is waiting for an answer.`,
+    },
+    cancel: {
+      does: "Cancel",
+      from: ["queued", "assigned", "running", "waiting"],
+      to: "canceled",
+      idempotent: true,
+      refused: (state) => `This session is already ${state}.`,
+    },
+    retry: {
+      does: "Retry from the start",
+      from: ["failed", "canceled"],
+      to: "queued",
+      refused: (state) =>
+        state === "completed"
+          ? "A completed session is history. Start a new session instead."
+          : "Only a failed or canceled session can be retried.",
+    },
+  },
+});
+
+// A question an agent session asked a person. Answering it is a decision.
+export const agentApproval = stateMachine({
+  name: "approval request",
+  states: {
+    pending: "Waiting for the requester or the agent's owner.",
+    approved: "Approved by a person.",
+    denied: "Denied by a person.",
+    expired: "The session ended before anyone answered.",
+  },
+  steps: {
+    answer: {
+      does: "Approve or deny",
+      from: ["pending"],
+      to: ["approved", "denied"],
+      refused: (state) => `This request was already ${state}.`,
+    },
+    expire: {
+      does: "Expire when its session ends",
+      from: ["pending"],
+      to: "expired",
+      automatic: true,
+      refused: "This request was already answered.",
+    },
+  },
+});
+
 // The state of a pull request row: closing is recorded as a deletion time
 // beside the stored status.
 export function pullRequestState<S extends string>(row: {
@@ -537,6 +665,8 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
     moves: "job",
     owner: "intelligence/chat/runs.ts",
   },
+  agent_session_status: declared(agentSession),
+  agent_approval_status: declared(agentApproval),
   "invitation.status": {
     moves: "external",
     owner: "Better Auth's organization plugin",

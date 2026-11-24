@@ -7,6 +7,7 @@ import { processNotificationEvents } from "@lictory/core/notifications/events";
 import { processOrganizationExports } from "@lictory/core/export/service";
 import { processOrganizationDeletions } from "@lictory/core/domain/organization-deletion";
 import { storage } from "@lictory/core/storage";
+import { recoverExpiredSessions } from "@lictory/core/factory/sessions";
 
 export {
   WORK_CHANNEL,
@@ -18,6 +19,7 @@ export {
   processAiRuns,
   dispatchNotificationEmails,
   processNotificationEvents,
+  recoverExpiredSessions,
 };
 export { rebuildProjections } from "@lictory/core/domain/projections";
 export {

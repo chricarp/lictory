@@ -10,7 +10,8 @@ import {
 } from "@rocicorp/zero";
 
 // The Zero schema covers exactly the replicated publication `lictory_zero`
-// (drizzle/0018_zero_publication.sql, 0035_spaces_zero_publication.sql): read
+// (drizzle/0018_zero_publication.sql, 0035_spaces_zero_publication.sql and
+// the Factory's publication migration): read
 // projections, the membership columns that authorize every synced query, and
 // Lictory Spaces' projections and effective access. Domain tables are never
 // synced.
@@ -69,6 +70,33 @@ const spaceReader = table("spaceReader")
   })
   .primaryKey("spaceId", "userId");
 
+// Factory projections (agents, runners, session summaries) and the agent
+// session event log, an append-only table shaped for synchronization
+// (docs/internals/factory.md#synchronization). Every member of the
+// organization reads them.
+const factoryEntity = table("factoryEntity")
+  .from("factory_entity")
+  .columns({
+    key: string(),
+    organizationId: string().from("organization_id"),
+    type: string(),
+    data: json<Readonly<Record<string, ReadonlyJSONValue>>>(),
+    updatedAt: number().from("updated_at"),
+  })
+  .primaryKey("key");
+
+const agentSessionEvent = table("agentSessionEvent")
+  .from("agent_session_event")
+  .columns({
+    organizationId: string().from("organization_id"),
+    sessionId: string().from("session_id"),
+    sequence: number(),
+    type: string(),
+    data: json<Readonly<Record<string, ReadonlyJSONValue>>>(),
+    createdAt: number().from("created_at"),
+  })
+  .primaryKey("sessionId", "sequence");
+
 const memberRelationships = relationships(member, ({ many }) => ({
   // Filtered to the `organizationProfile` row by the memberships query.
   organization: many({
@@ -111,13 +139,41 @@ const spaceReaderRelationships = relationships(spaceReader, ({ many }) => ({
   }),
 }));
 
+const factoryEntityRelationships = relationships(factoryEntity, ({ many }) => ({
+  members: many({
+    sourceField: ["organizationId"],
+    destSchema: member,
+    destField: ["organizationId"],
+  }),
+}));
+
+const agentSessionEventRelationships = relationships(
+  agentSessionEvent,
+  ({ many }) => ({
+    members: many({
+      sourceField: ["organizationId"],
+      destSchema: member,
+      destField: ["organizationId"],
+    }),
+  }),
+);
+
 export const schema = createSchema({
-  tables: [member, syncEntity, spaceEntity, spaceReader],
+  tables: [
+    member,
+    syncEntity,
+    spaceEntity,
+    spaceReader,
+    factoryEntity,
+    agentSessionEvent,
+  ],
   relationships: [
     memberRelationships,
     syncEntityRelationships,
     spaceEntityRelationships,
     spaceReaderRelationships,
+    factoryEntityRelationships,
+    agentSessionEventRelationships,
   ],
 });
 
