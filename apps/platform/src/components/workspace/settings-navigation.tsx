@@ -31,15 +31,28 @@ export function SettingsNavigation({
   const row = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = row.current;
-    const current = container?.querySelector<HTMLElement>(
-      '[aria-current="page"]',
-    );
-    // Only the narrow layout scrolls sideways.
-    if (!container || !current) return;
-    if (container.scrollWidth <= container.clientWidth) return;
-    const left =
-      current.offsetLeft - (container.clientWidth - current.offsetWidth) / 2;
-    container.scrollTo({ left: Math.max(0, left) });
+    if (!container) return;
+    const reveal = () => {
+      const current = container.querySelector<HTMLElement>(
+        '[aria-current="page"]',
+      );
+      // Only the narrow layout scrolls sideways.
+      if (!current || container.scrollWidth <= container.clientWidth) return;
+      const left =
+        current.offsetLeft - (container.clientWidth - current.offsetWidth) / 2;
+      container.scrollTo({ left: Math.max(0, left) });
+    };
+    reveal();
+    // Also when the layout turns narrow (a rotated phone, a resized window).
+    if (typeof ResizeObserver === "undefined") return;
+    let width = container.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (container.clientWidth === width) return;
+      width = container.clientWidth;
+      reveal();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
   }, [selected]);
   const groups: { group?: string; items: SettingsNavItem[] }[] = [];
   for (const item of nav) {

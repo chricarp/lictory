@@ -116,3 +116,14 @@ export function useWorkItemCode(workItemId: string) {
     };
   }, [rows, result.type]);
 }
+
+// The member behind a code host login, when they told Lictory their login
+// (Settings → Code hosts), so host-authored work shows the person.
+export function useLoginOwner(login: string | null | undefined) {
+  const { identities } = useCodeHosts();
+  if (!login) return null;
+  const lower = login.toLowerCase();
+  return (
+    identities.find((i) => i.login.toLowerCase() === lower)?.userId ?? null
+  );
+}

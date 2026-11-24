@@ -50,6 +50,7 @@ import {
   useCodeHosts,
   useCodePullRequest,
   useCodeWrites,
+  useLoginOwner,
 } from "@lictory/platform/components/code/store";
 import {
   ChecksIcon,
@@ -112,6 +113,7 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
   const noun = changeNoun(pr.provider);
   const [tab, setTab] = useState<"conversation" | "files">("conversation");
   const agent = pr.agentId ? agentById.get(pr.agentId) : undefined;
+  const author = useLoginOwner(pr.authorLogin);
   const state = pr.state === "open" && pr.draft ? ("draft" as const) : pr.state;
   return (
     <div className="flex h-full flex-col">
@@ -154,8 +156,8 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
               author={
                 agent ? (
                   <AgentActor agent={agent} ownerId={pr.openedById} size={20} />
-                ) : pr.openedById ? (
-                  <Actor userId={pr.openedById} size={20} />
+                ) : (author ?? pr.openedById) ? (
+                  <Actor userId={author ?? pr.openedById} size={20} />
                 ) : (
                   <span>{pr.authorLogin ?? "unknown"}</span>
                 )
@@ -551,6 +553,8 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
         onSubmit={() => void send()}
         references={false}
         compact
+        // At rest the field is one quiet box; the toolbar comes with text.
+        toolbar={comment.trim() !== ""}
         minHeight="4.5rem"
         maxHeight="20rem"
         placeholder="Leave a comment"

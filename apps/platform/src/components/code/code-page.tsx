@@ -207,7 +207,11 @@ function Toolbar({ children }: { children: React.ReactNode }) {
 
 function PullRequests() {
   const { userId, projects } = useWorkspace();
-  const { repositories, myLogins } = useCodeHosts();
+  const { repositories, myLogins, identities } = useCodeHosts();
+  const owners = useMemo(
+    () => new Map(identities.map((i) => [i.login.toLowerCase(), i.userId])),
+    [identities],
+  );
   const [state, setState] = useState<"open" | "merged" | "closed">("open");
   const [who, setWho] = useState<Who>("all");
   const [repositoryId, setRepositoryId] = useState("");
@@ -300,7 +304,7 @@ function PullRequests() {
         ) : (
           <ul aria-label="Pull requests" className="divide-y divide-border/70">
             {shown.map((p) => (
-              <PullRequestRow key={p.id} pullRequest={p} />
+              <PullRequestRow key={p.id} pullRequest={p} owners={owners} />
             ))}
           </ul>
         )}
@@ -311,12 +315,16 @@ function PullRequests() {
 
 function PullRequestRow({
   pullRequest: p,
+  owners,
 }: {
   pullRequest: CodePullRequestEntity;
+  // Members by their code host login (lowercase).
+  owners: ReadonlyMap<string, string>;
 }) {
   const { organization } = useWorkspace();
   const { agentById } = useFactory();
   const agent = p.agentId ? agentById.get(p.agentId) : undefined;
+  const author = owners.get(p.authorLogin?.toLowerCase() ?? "") ?? p.openedById;
   return (
     <ListRow
       href={codePaths.pullRequest(organization.slug, p.id)}
@@ -332,8 +340,8 @@ function PullRequestRow({
               size={16}
               className="shrink-0"
             />
-          ) : p.openedById ? (
-            <Actor userId={p.openedById} size={16} className="shrink-0" />
+          ) : author ? (
+            <Actor userId={author} size={16} className="shrink-0" />
           ) : (
             <span className="shrink-0">{p.authorLogin ?? "unknown"}</span>
           )}
