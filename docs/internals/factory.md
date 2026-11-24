@@ -403,10 +403,18 @@ only what they need; the full log stays in the Factory:
 
 - the live **session card** (agent via owner, status, work item, Factory
   link), updated in place on every status change; the browser renders it
-  from the session's synchronized projection when it has it;
+  from the session's synchronized projection when it has it, with the last
+  step the agent took, the files it changed, its pull request and, while
+  it waits, each pending request as the shared approval request (what is
+  asked, where, the evidence, then Approve and Deny for the people who may
+  decide). One card per session: the prompt is the message above it and is
+  not repeated;
 - an **approval card** per request, naming the people who may decide (the
-  requester and the owner) and calling `answerAgentApproval` from Approve
-  and Deny; it shows the answer once given;
+  requester and the owner); it shows the answer once given. While the
+  browser can read the session, it is a record that leads to the session
+  card, where the request is answered; without the session (for MCP readers
+  and people who cannot read the Factory) it carries Approve and Deny
+  itself, calling `answerAgentApproval`;
 - the agent's **first message after each steering message** (its answer to
   the person) and its **summary**, as messages authored by the agent on
   behalf of its owner (`postAgentMessage`); progress messages, tool calls

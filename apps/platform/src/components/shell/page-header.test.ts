@@ -29,8 +29,6 @@ const allowed = new Set([
 // `PageHeader` and removes its entries; the list only shrinks.
 const knownOffenders = new Set([
   "components/app/account-page.tsx",
-  "components/channels/browser.tsx",
-  "components/channels/header.tsx",
   "components/claims/factory-queue.tsx",
   "components/code/code-page.tsx",
   "components/code/pull-request-page.tsx",
@@ -39,8 +37,6 @@ const knownOffenders = new Set([
   "components/delivery/handoff.tsx",
   "components/delivery/iteration-report.tsx",
   "components/delivery/team-backlog.tsx",
-  "components/factory/parts.tsx",
-  "components/factory/session-view.tsx",
   "components/intelligence/chat/intelligence.tsx",
   "components/items/issue-list.tsx",
   "components/review/ai-review.tsx",
