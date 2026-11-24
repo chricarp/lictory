@@ -6,7 +6,7 @@ import {
 } from "electron";
 import type { Shell } from "./shell";
 
-const DOCS_URL = "https://docs.lictory.com/getting-started/desktop";
+const DOCS_URL = "https://docs.lictory.com/basics/desktop";
 const ISSUES_URL = "https://github.com/chricarp/lictory/issues";
 
 // The application menu with the standard shortcuts. ⌘1…⌘9 switch servers

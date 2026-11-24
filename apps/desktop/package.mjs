@@ -63,7 +63,7 @@ const config = {
   appId: "com.lictory.desktop",
   productName: "Lictory",
   copyright: "Copyright © Lictory contributors. MIT License.",
-  directories: { output: "out", buildResources: "resources" },
+  directories: { output: "out", buildResources: "static" },
   // Everything the app runs is bundled into dist/; no node_modules ship.
   files: ["dist/**", "package.json"],
   asar: true,
@@ -104,8 +104,8 @@ const config = {
       { target: "zip", arch: ["universal"] },
     ],
     hardenedRuntime: true,
-    entitlements: "resources/entitlements.mac.plist",
-    entitlementsInherit: "resources/entitlements.mac.plist",
+    entitlements: "static/entitlements.mac.plist",
+    entitlementsInherit: "static/entitlements.mac.plist",
     // Without a certificate the app is left unsigned rather than signed
     // with whatever identity the build machine's keychain holds.
     ...(macSigned ? {} : { identity: null }),

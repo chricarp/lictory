@@ -1,4 +1,4 @@
-// Renders the app and tray icons in resources/ from the Lictory mark
+// Renders the app and tray icons in static/ from the Lictory mark
 // (apps/platform/static/icon.svg). The PNGs are committed; run this again
 // only when the mark changes: `node icons.mjs`.
 import { readFile, writeFile } from "node:fs/promises";
@@ -43,11 +43,11 @@ async function png(svg, size, inset = 0) {
 }
 
 /** @param {string} name */
-const out = (name) => new URL(`resources/${name}`, import.meta.url);
+const out = (name) => new URL(`static/${name}`, import.meta.url);
 // The macOS icon grid leaves a margin around the tile; the same file serves
 // Windows and Linux.
 await writeFile(out("icon.png"), await png(tile, 1024, 100));
 await writeFile(out("tray.png"), await png(tile, 32, 1));
 await writeFile(out("trayTemplate.png"), await png(mark, 16, 1));
 await writeFile(out("trayTemplate@2x.png"), await png(mark, 32, 2));
-console.log("Wrote resources/icon.png, tray.png, trayTemplate(@2x).png");
+console.log("Wrote static/icon.png, tray.png, trayTemplate(@2x).png");

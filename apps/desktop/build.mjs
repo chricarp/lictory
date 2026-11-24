@@ -75,8 +75,8 @@ await Promise.all([
   cp("src/renderer/index.html", `${dist}/shell/index.html`),
   cp("src/renderer/shell.css", `${dist}/shell/shell.css`),
   cp(font, `${dist}/shell/geist-latin-wght-normal.woff2`),
-  cp("resources/tray.png", `${dist}/assets/tray.png`),
-  cp("resources/trayTemplate.png", `${dist}/assets/trayTemplate.png`),
-  cp("resources/trayTemplate@2x.png", `${dist}/assets/trayTemplate@2x.png`),
-  cp("resources/icon.png", `${dist}/assets/icon.png`),
+  cp("static/tray.png", `${dist}/assets/tray.png`),
+  cp("static/trayTemplate.png", `${dist}/assets/trayTemplate.png`),
+  cp("static/trayTemplate@2x.png", `${dist}/assets/trayTemplate@2x.png`),
+  cp("static/icon.png", `${dist}/assets/icon.png`),
 ]);
