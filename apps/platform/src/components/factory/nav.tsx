@@ -50,7 +50,7 @@ function FactorySection({ badge }: NavSectionProps) {
         icon={<Factory />}
         badge={badge}
       >
-        Factory floor
+        Overview
       </SidebarLink>
       <SidebarLink href={agents} active={active(agents)} icon={<Bot />}>
         Agents
