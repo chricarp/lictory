@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 const tryUrl = "https://docs.lictory.com/self-hosting/try";
 const installUrl = "https://docs.lictory.com/self-hosting/install";
 const repositoryUrl = "https://github.com/chricarp/lictory";
-const hero = "From conversation to shipped code. People decide.";
+const heroTitle = "From conversation to shipped code. People decide.";
 
 for (const width of [320, 390]) {
   test(`mobile landing makes getting started visible and tells the factory story at ${width}px`, async ({
@@ -15,7 +15,7 @@ for (const width of [320, 390]) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 
-    const heroRegion = page.getByRole("region", { name: hero });
+    const heroRegion = page.getByRole("region", { name: heroTitle });
     const start = heroRegion.getByRole("link", { name: "Get started" });
     // Geometry snapshots can race with rendering, even after a visibility check.
     await expect(async () => {
@@ -72,7 +72,9 @@ for (const width of [320, 390]) {
     // A person answers the agent's request; the scene rests on that answer.
     const runners = page.getByRole("img", { name: /Theo approves/ });
     await runners.scrollIntoViewIfNeeded();
-    await expect(runners.getByText("Approved", { exact: true })).toBeVisible();
+    await expect(
+      runners.locator(".ss-states__item[data-on]", { hasText: /Approved$/ }),
+    ).toBeVisible();
     await expect(page.getByRole("img", { name: /same history/ })).toBeVisible();
 
     // The review tools are listed, not hidden behind a disclosure.
@@ -114,14 +116,14 @@ test("desktop landing shows the stack comparison and plays the hero story", asyn
     heroScene.locator(".ss-states__item[data-on]", {
       hasText: new RegExp(`^${text}$`),
     });
-  await expect(heroScene.getByText("Merged by Priya Shah")).toHaveCount(0);
+  await expect(state("Open")).toHaveCount(1);
   await expect(state("Merged").first()).toBeVisible({ timeout: 25_000 });
   await expect(heroScene.getByText(/Delivered revision 4/)).toBeVisible();
   await page
     .locator(".hero-scene")
     .getByRole("button", { name: "Replay" })
     .click();
-  await expect(state("Merged")).toHaveCount(0);
+  await expect(state("Open")).toHaveCount(1);
   await expect(state("Merged").first()).toBeVisible({ timeout: 25_000 });
 });
 
@@ -158,7 +160,7 @@ test("calls to action lead to the laptop trial, the server installation and the 
     repositoryUrl,
   );
   const hero = page.getByRole("region", {
-    name: hero,
+    name: heroTitle,
   });
   await expect(hero.getByRole("link", { name: "GitHub" })).toHaveAttribute(
     "href",
@@ -273,7 +275,7 @@ test("mobile navigation dismisses outside, stays closed after resizing and respe
   await expect(
     page
       .getByRole("region", {
-        name: hero,
+        name: heroTitle,
       })
       .getByRole("link", { name: "Get started" }),
   ).toBeFocused();
