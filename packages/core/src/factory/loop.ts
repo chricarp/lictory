@@ -169,7 +169,11 @@ const launcher = (db: Database): AgentSessionLauncher => ({
         ),
       );
     const [policy] = await db
-      .select({ channelId: s.autonomyPolicy.reportingChannelId })
+      .select({
+        channelId: s.autonomyPolicy.reportingChannelId,
+        level: s.autonomyPolicy.level,
+        setById: s.autonomyPolicy.updatedById,
+      })
       .from(s.autonomyPolicy)
       .where(
         and(
@@ -202,6 +206,13 @@ const launcher = (db: Database): AgentSessionLauncher => ({
           workItemId: request.workItemId,
           sessionId,
           channelId,
+          // Started by the policy; the owner stays accountable.
+          startedByPolicy: policy
+            ? {
+                level: policy.level === "autopilot" ? "autopilot" : "build",
+                setById: policy.setById,
+              }
+            : null,
         },
         { trustedChannel: true },
       );
@@ -449,6 +460,17 @@ const channelAgent = (a: AgentRow): ChannelAgent => ({
 // Public channels only: a private conversation's earlier messages are not
 // copied into a session every member of the organization can read in the
 // Factory.
+// "#payments", or "a direct conversation": where a person asked an agent.
+async function askedIn(tx: Tx, channelId: string) {
+  const [channel] = await tx
+    .select({ kind: s.channel.kind, name: s.channel.name })
+    .from(s.channel)
+    .where(eq(s.channel.id, channelId));
+  return channel?.kind === "direct" || !channel?.name
+    ? "a direct conversation"
+    : `#${channel.name}`;
+}
+
 async function threadContext(
   tx: Tx,
   event: AgentMentionEvent,
@@ -615,6 +637,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
   );
   const prompt = plainMessage(event.body);
   let context: string | null | undefined;
+  let asked: string | undefined;
   let started = 0;
   for (const agent of agents) {
     const running = live.find((l) => l.agent.id === agent.id);
@@ -664,11 +687,12 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
       projectId,
       text: plainMessage(event.body),
     });
-    const text = [
-      prompt,
-      "",
-      "---",
-      `You were asked in a Lictory channel thread (channel ${event.channelId}, thread ${threadRootId}). Your answers to people are posted there; the person who asked and your owner can steer you by replying in it.`,
+    // The person's words are the task; where they asked and the quoted
+    // conversation are Lictory's context, stored and shown apart from
+    // them (named, never as raw identifiers).
+    asked ??= await askedIn(tx, event.channelId);
+    const sessionContext = [
+      `You were asked in a thread of ${asked}, a Lictory conversation. Your answers to people are posted in that thread; the person who asked and your owner can steer you by replying in it.`,
       ...(context
         ? [
             "",
@@ -689,7 +713,8 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
           {
             organizationId: event.organizationId,
             agentId: agent.id,
-            prompt: text,
+            prompt,
+            context: sessionContext,
             title: prompt.split("\n")[0]!.slice(0, 200) || `Asked in a thread`,
             workItemId,
             repositoryId,
@@ -828,16 +853,13 @@ async function publish(db: Database, event: SessionThreadEvent) {
     event.kind === "approval_requested" ||
     event.kind === "approval_answered"
   )
-    await followSessionWaiting(
-      db,
-      event.organizationId,
-      event.sessionId,
-    ).catch((error: unknown) =>
-      log("factory.claim_waiting_follow_failed", {
-        organizationId: event.organizationId,
-        sessionId: event.sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      }),
+    await followSessionWaiting(db, event.organizationId, event.sessionId).catch(
+      (error: unknown) =>
+        log("factory.claim_waiting_follow_failed", {
+          organizationId: event.organizationId,
+          sessionId: event.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
     );
   if (!event.channelId && !ended) return;
   const [session] = await db

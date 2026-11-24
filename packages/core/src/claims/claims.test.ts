@@ -899,6 +899,80 @@ void test("dispatcher: rank order up to the concurrency limit, never two session
   assert.deepEqual(await f.drift(), []);
 });
 
+void test("dispatcher: never takes a person's assigned work or a container, and attributes the start to the policy", async () => {
+  const f = await fixture();
+  const launched: SessionLaunch[] = [];
+  configureClaimPorts({
+    agents: { agents: () => Promise.resolve(agents(f)) },
+    launcher: {
+      launch: (request) => {
+        launched.push(request);
+        return Promise.resolve({
+          started: true,
+          sessionId: `session-${launched.length}`,
+        });
+      },
+    },
+  });
+  // Bo's bug-like work, Ada's own work, unassigned work.
+  const bos = await f.agreed();
+  await f.run({ type: "updateWorkItem", workItemId: bos, assigneeId: f.bo });
+  const adas = await f.agreed();
+  await f.run({ type: "updateWorkItem", workItemId: adas, assigneeId: f.ada });
+  const open = await f.agreed();
+  // An agreed Epic: its unassigned children are the work, never the Epic.
+  const epic = await f.create(f.types.Epic);
+  await f.makeReady(epic);
+  await f.accept(epic);
+  const child = await f.create(f.types.Task, { parentId: epic });
+  // An agreed container is outside the factory's queue.
+  assert.equal(await stageOf(f, epic), undefined);
+  await assert.rejects(
+    claimItem(db, f.agent(), {
+      organizationId: f.organizationId,
+      workItemId: epic,
+    }),
+    /groups implementation work/,
+  );
+  assert.equal((await stageOf(f, child))?.stage, "claimable");
+  await setAutonomyPolicy(
+    db,
+    { userId: f.ada },
+    {
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      policy: {
+        ...defaultAutonomyPolicy,
+        level: "build",
+        implementerAgentIds: ["forge"],
+        maxConcurrentSessions: 10,
+      },
+    },
+  );
+  await runDispatcher(db);
+  // Forge acts for Ada: Ada's own work and unassigned work only.
+  assert.deepEqual(
+    new Set(launched.map((l) => l.workItemId)),
+    new Set([adas, open, child]),
+  );
+  assert.equal((await f.item(bos)).statusId, f.statuses.Todo);
+  // The policy started it; Ada, who set it, is named, and stays the
+  // accountable actor.
+  const [claimed] = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(eq(s.activity.workItemId, open), eq(s.activity.action, "claimed")),
+    );
+  assert.equal(claimed!.actorId, f.ada);
+  assert.equal(claimed!.detail?.policyLabel, "Build policy (set by Ada)");
+  assert.deepEqual(claimed!.detail?.policy, {
+    level: "build",
+    setById: f.ada,
+  });
+  assert.deepEqual(await f.drift(), []);
+});
+
 void test("dispatcher: failed starts back off, then hold until a person retries", async () => {
   const f = await fixture();
   let attempts = 0;

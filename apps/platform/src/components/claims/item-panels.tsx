@@ -89,7 +89,7 @@ export function ClaimPanel() {
               <Bot className="size-3.5" />
             </span>
             <p className="min-w-0 flex-1 truncate font-medium">
-              {label(claim)}
+              {label(claim, item.assigneeId)}
             </p>
             <Badge tone={claimWaitsOnPeople(claim) ? "warning" : "info"}>
               {claimStateLabel[claimShownState(claim)]}

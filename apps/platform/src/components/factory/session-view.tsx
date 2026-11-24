@@ -19,6 +19,7 @@ import {
 import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import { cn } from "@lictory/core/lib/utils";
 import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { paths } from "@lictory/core/lib/paths";
@@ -36,6 +37,7 @@ import {
   AgentName,
   SessionStatusBadge,
   canAnswerSession,
+  useSessionStarter,
 } from "@lictory/platform/components/factory/parts";
 import {
   useFactory,
@@ -53,6 +55,7 @@ const MAX_WINDOW = 2000;
 
 export function SessionView() {
   const { session: sessionId = "" } = useParams<{ session: string }>();
+  const starter = useSessionStarter();
   const { organization, userId, isAdmin, memberName, items, projects } =
     useWorkspace();
   const { agentById, runnerById } = useFactory();
@@ -127,7 +130,7 @@ export function SessionView() {
           <div className="min-w-0 flex-1 basis-72">
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="truncate text-[15px] font-semibold">
-                {session.title}
+                {sessionTitle(session.title)}
               </h1>
               <SessionStatusBadge session={session} />
             </div>
@@ -137,7 +140,7 @@ export function SessionView() {
                 <AgentName agent={agent} />
                 {agent && <span>· {harnessLabel(agent.harness)}</span>}
               </span>
-              <span>Started by {memberName(session.requestedById)}</span>
+              <span>Started by {starter(session)}</span>
               {runner && (
                 <span className="flex items-center gap-1">
                   <Server className="size-3" aria-hidden /> {runner.name}

@@ -6,6 +6,7 @@ import {
   FileMinus,
   FilePen,
   FilePlus,
+  Info,
   ShieldQuestion,
   Sparkles,
   SquareTerminal,
@@ -103,6 +104,33 @@ export const TranscriptRow = memo(function TranscriptRow({
             className="mt-1"
           />
         </div>
+      );
+    case "context":
+      // What Lictory told the agent besides a person's words: where it was
+      // asked and the quoted conversation, or a policy's task. Lictory's
+      // text, never shown as anyone's message.
+      return (
+        <Fold
+          icon={<Info className="size-3.5" />}
+          title={`Context ${agent?.name ?? "the agent"} received`}
+          detail={
+            str(data.summary) ? (
+              <span className="hidden min-w-0 truncate text-muted-foreground sm:block">
+                {str(data.summary)}
+              </span>
+            ) : undefined
+          }
+          tone="muted"
+        >
+          {str(data.summary) && (
+            <p className="mb-1.5 text-xs text-muted-foreground sm:hidden">
+              {str(data.summary)}
+            </p>
+          )}
+          <p className="text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
+            {str(data.text)}
+          </p>
+        </Fold>
       );
     case "message":
       return (

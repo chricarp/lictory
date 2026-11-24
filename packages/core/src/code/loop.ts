@@ -306,6 +306,7 @@ async function dispatchReviews(
           branch: pr.headBranch,
           baseBranch: pr.baseBranch,
           channelId: policy.reportingChannelId,
+          startedByPolicy: { level: policy.level, setById: policy.setById },
         },
         { trustedChannel: true },
       );

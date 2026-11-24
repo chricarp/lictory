@@ -203,12 +203,27 @@ export const agentSession = pgTable(
     requestedRunnerId: text("requested_runner_id").references(() => runner.id, {
       onDelete: "set null",
     }),
+    // The accountable person: authority (the agent acts as its owner) and
+    // who may steer and answer. For a session an autonomy policy started,
+    // the agent's owner; `startedByPolicy` says who started it.
     requestedById: text("requested_by_id")
       .notNull()
       .references(() => user.id),
+    // Set when an autonomy policy started the session (the dispatcher, or
+    // Code's reviewer dispatch): the policy level and the administrator who
+    // set it, to whom the start is attributed.
+    startedByPolicy: jsonb("started_by_policy").$type<{
+      level: "build" | "autopilot";
+      setById: string;
+    }>(),
     status: agentSessionStatus("status").notNull().default("queued"),
     title: text("title").notNull(),
+    // The task in the words of whoever gave it (a person, or the policy).
     prompt: text("prompt").notNull(),
+    // What Lictory told the agent besides the task (where it was asked, the
+    // conversation quoted as information). The harness receives it after
+    // the task; the transcript shows it as Lictory's, never as a person's.
+    context: text("context"),
     workItemId: text("work_item_id").references(() => workItem.id, {
       onDelete: "set null",
     }),

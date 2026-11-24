@@ -1,5 +1,5 @@
 {
-  "id": "65d5d5ec-21b2-4f43-884c-8c38931e2b44",
+  "id": "268ce853-19a6-483d-a8f5-41f7d66615d6",
   "prevId": "12814e46-8239-4472-90e9-712f5f0e750f",
   "version": "7",
   "dialect": "postgresql",
@@ -17851,6 +17851,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "started_by_policy": {
+          "name": "started_by_policy",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "agent_session_status",
@@ -17870,6 +17876,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "context": {
+          "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "work_item_id": {
           "name": "work_item_id",

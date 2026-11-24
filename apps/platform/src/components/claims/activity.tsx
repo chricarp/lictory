@@ -30,7 +30,11 @@ export function claimActivity(
       return (
         <>
           · {agent} claimed this
-          {d.automation === "dispatcher" ? " (dispatched)" : ""}
+          {d.automation === "dispatcher"
+            ? str(d.policyLabel)
+              ? `, dispatched by the ${str(d.policyLabel)}`
+              : " (dispatched)"
+            : ""}
         </>
       );
     case "claim_released":

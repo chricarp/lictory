@@ -12,7 +12,7 @@ import {
   type DefinitionOfDoneEntity,
 } from "@lictory/core/claims/contracts";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
-import { byType } from "@lictory/core/lib/work-items";
+import { byType, isTopLevel } from "@lictory/core/lib/work-items";
 import {
   useDelivery,
   useWorkspace,
@@ -63,11 +63,20 @@ export function useDefinitionOfDone(projectId: string) {
   }, [view.entities, projectId]);
 }
 
-// "Forge via Ada": the agent and the accountable person it acts for.
+// "Forge via Ada": the agent and the accountable person it acts for. When
+// the item is assigned to someone else (an agent claimed it explicitly),
+// whose work it is too: "Forge via Ada, for Ben".
 export function useAgentLabel() {
   const { memberName } = useWorkspace();
-  return (claim: Pick<ClaimEntity, "agentName" | "ownerId">) =>
-    `${claim.agentName} via ${memberName(claim.ownerId)}`;
+  return (
+    claim: Pick<ClaimEntity, "agentName" | "ownerId">,
+    assigneeId?: string | null,
+  ) =>
+    `${claim.agentName} via ${memberName(claim.ownerId)}${
+      assigneeId && assigneeId !== claim.ownerId
+        ? `, for ${memberName(assigneeId)}`
+        : ""
+    }`;
 }
 
 // Claimability of any item of the organization, from synchronized facts.
@@ -108,6 +117,10 @@ export function useClaimability(): (item: WorkItem) => Claimability {
         statusName: (id) => delivery.statuses.get(id)?.name,
         hasSpecification: (id) =>
           delivery.types.get(id)?.hasSpecification ?? false,
+        container: (id) => {
+          const type = delivery.types.get(id);
+          return type ? isTopLevel(type) : false;
+        },
         blockers: (id) => blockers.get(id) ?? [],
         liveClaim: (id) => claims.get(id),
         hasStartedStatus: started.has(item.projectId),

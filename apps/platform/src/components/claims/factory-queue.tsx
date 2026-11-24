@@ -208,11 +208,16 @@ function Queue({ project }: { project: Project }) {
                   item={item}
                   label={key(item)}
                   href={href(item)}
-                  meta={<ClaimBadge claim={claim} label={label(claim)} />}
+                  meta={
+                    <ClaimBadge
+                      claim={claim}
+                      label={label(claim, item.assigneeId)}
+                    />
+                  }
                   detail={
                     claim.lastProgress
                       ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
-                      : `${label(claim)} · ${claimStateLabel[claimShownState(claim)]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
+                      : `${label(claim, item.assigneeId)} · ${claimStateLabel[claimShownState(claim)]}${claim.state === "active" ? ` · lease ends in ${Math.max(leaseLeft(claim), 0)} min` : ""}`
                   }
                   action={
                     (canAct || claim.ownerId === userId) && (
@@ -240,11 +245,16 @@ function Queue({ project }: { project: Project }) {
                   item={item}
                   label={key(item)}
                   href={href(item)}
-                  meta={<ClaimBadge claim={claim} label={label(claim)} />}
+                  meta={
+                    <ClaimBadge
+                      claim={claim}
+                      label={label(claim, item.assigneeId)}
+                    />
+                  }
                   detail={
                     claim.state === "waiting"
-                      ? `${label(claim)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
-                      : `${label(claim)} waits on a person's answer in its session since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
+                      ? `${label(claim, item.assigneeId)} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
+                      : `${label(claim, item.assigneeId)} waits on a person's answer in its session since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
                   }
                   action={
                     claim.agentSessionId && (

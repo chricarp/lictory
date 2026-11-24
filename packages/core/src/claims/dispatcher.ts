@@ -3,7 +3,10 @@ import * as s from "@lictory/core/db/schema";
 import { capabilitiesOf } from "@lictory/core/contracts/protocol";
 import { claim as claimMachine } from "@lictory/core/contracts/state-machines";
 import { claimability } from "@lictory/core/claims/claimability";
-import { effectiveAutonomy } from "@lictory/core/claims/contracts";
+import {
+  effectiveAutonomy,
+  policyStarter,
+} from "@lictory/core/claims/contracts";
 import {
   claimPorts,
   type SessionLaunchResult,
@@ -54,6 +57,9 @@ type Reservation = {
   itemKey: string;
   agentId: string;
   ownerId: string;
+  // The policy that dispatched it and the administrator who set it: the
+  // start is attributed to them, the owner stays accountable.
+  policy: { level: "build" | "autopilot"; setById: string; label: string };
 };
 
 // Organizations with something for the dispatcher to do: live claims, or a
@@ -102,6 +108,17 @@ async function reserve(
             .changeProperties,
       );
     if (!implementers.length) continue;
+    const level = row.level === "autopilot" ? "autopilot" : "build";
+    const dispatchedBy = {
+      level,
+      setById: row.updatedById,
+      label: policyStarter(
+        { level, setById: row.updatedById },
+        roster.members.find((m) => m.id === row.updatedById)?.name ??
+          roster.formerMembers.find((m) => m.id === row.updatedById)?.name ??
+          "a former member",
+      ),
+    } as const;
     const facts = await projectFacts(
       tx,
       organizationId,
@@ -143,8 +160,16 @@ async function reserve(
       });
     for (const item of candidates) {
       if (capacity <= 0) break;
+      // Work a person owns stays theirs: an item assigned to someone goes
+      // only to an implementer acting for that person (their own agent);
+      // unassigned work goes to anyone. People still start sessions on
+      // assigned work themselves.
+      const eligible = item.assigneeId
+        ? implementers.filter((a) => a.ownerId === item.assigneeId)
+        : implementers;
+      if (!eligible.length) continue;
       // The least busy implementer; ties go to the policy's order.
-      const agent = [...implementers].sort(
+      const agent = [...eligible].sort(
         (a, b) => (load.get(a.id) ?? 0) - (load.get(b.id) ?? 0),
       )[0]!;
       const [claim] = await tx
@@ -173,6 +198,7 @@ async function reserve(
         itemKey: facts.key(item),
         agentId: agent.id,
         ownerId: agent.ownerId,
+        policy: dispatchedBy,
       });
     }
     await projectClaims(tx, organizationId, project.id, facts.entities);
@@ -342,6 +368,12 @@ async function settle(
               leaseExpiresAt: leaseExpiresAt.toISOString(),
               automation: "dispatcher",
               performedVia: "runner",
+              // "dispatched by the Build policy (set by Ada)".
+              policy: {
+                level: reservation.policy.level,
+                setById: reservation.policy.setById,
+              },
+              policyLabel: reservation.policy.label,
             },
             at: now,
           });

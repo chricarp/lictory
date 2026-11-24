@@ -1,10 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { Bot, Check, X } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
-import type {
-  AgentEntity,
-  ApprovalEntity,
-  SessionEntity,
+import { policyStarter } from "@lictory/core/claims/contracts";
+import {
+  sessionTitle,
+  type AgentEntity,
+  type ApprovalEntity,
+  type SessionEntity,
 } from "@lictory/core/factory/entities";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
@@ -21,6 +23,19 @@ import {
 } from "@lictory/platform/components/factory/labels";
 
 // Pieces shared by the Factory's pages.
+
+// Who started a session: the person, or "Build policy (set by Ada)" for a
+// session an autonomy policy started (its owner stays accountable).
+export function useSessionStarter() {
+  const { memberName } = useWorkspace();
+  return (session: Pick<SessionEntity, "requestedById" | "startedByPolicy">) =>
+    session.startedByPolicy
+      ? policyStarter(
+          session.startedByPolicy,
+          memberName(session.startedByPolicy.setById),
+        )
+      : memberName(session.requestedById);
+}
 
 export function FactoryPage({
   title,
@@ -140,7 +155,8 @@ export function SessionRow({
   session: SessionEntity;
   agent: AgentEntity | undefined;
 }) {
-  const { organization, memberName } = useWorkspace();
+  const { organization } = useWorkspace();
+  const starter = useSessionStarter();
   return (
     <li>
       <Link
@@ -150,12 +166,11 @@ export function SessionRow({
         <AgentMark agent={agent} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-medium">
-            {session.title}
+            {sessionTitle(session.title)}
           </div>
           <div className="mt-0.5 flex min-w-0 gap-1 text-xs text-muted-foreground">
             <span className="truncate">
-              {agent?.name ?? "Agent"} · started by{" "}
-              {memberName(session.requestedById)}
+              {agent?.name ?? "Agent"} · started by {starter(session)}
             </span>
           </div>
         </div>

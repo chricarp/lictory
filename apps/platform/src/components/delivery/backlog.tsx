@@ -850,7 +850,9 @@ export function BacklogRow({
           {teamName}
         </span>
       )}
-      {claim && <ClaimBadge claim={claim} label={agentLabel(claim)} />}
+      {claim && (
+        <ClaimBadge claim={claim} label={agentLabel(claim, item.assigneeId)} />
+      )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read

@@ -35,6 +35,17 @@ export const autonomyLevelMeta: Record<
   },
 };
 
+// "Build policy (set by Ada Lovelace)": who started what an autonomy policy
+// started (a dispatched session, a claim). The agent's owner stays
+// accountable; only the attribution differs
+// (docs/internals/software-factory.md).
+export function policyStarter(
+  policy: { level: AutonomyLevel; setById: string },
+  setByName: string,
+) {
+  return `${autonomyLevelMeta[policy.level].label} policy (set by ${setByName})`;
+}
+
 // What must pass before Autopilot requests a merge. CI is always required.
 export const autopilotRequirements = [
   "checks_passed",

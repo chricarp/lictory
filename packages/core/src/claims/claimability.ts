@@ -42,6 +42,9 @@ export type ClaimabilityFacts = {
   category(statusId: string): StatusCategory | undefined;
   statusName(statusId: string): string | undefined;
   hasSpecification(typeId: string): boolean;
+  // A container type (Epic by default, `isTopLevel`): it groups
+  // implementation work; agents take its children, never the container.
+  container(typeId: string): boolean;
   // Items with a `blocks` relation to this item.
   blockers(itemId: string): string[];
   // The item's live claim, if any (expired leases do not hold).
@@ -58,6 +61,7 @@ export const claimRefusalCodes = [
   "project_archived",
   "archived",
   "status_not_claimable",
+  "container",
   "claimed",
   "blocked_by",
   "scope_not_accepted",
@@ -83,7 +87,7 @@ export type ClaimRefusal = {
 // - needs_agreement: a person has to accept scope or select the work.
 // - blocked: agreed, but something else must happen first.
 // - outside: not delivery the factory takes (external, started, closed,
-//   archived).
+//   archived, an agreed container such as an Epic).
 export type ClaimStage =
   "claimable" | "claimed" | "needs_agreement" | "blocked" | "outside";
 
@@ -148,6 +152,11 @@ export function claimability(
     refuse(
       "status_not_claimable",
       `${own} is ${facts.statusName(item.statusId) ?? "in an unknown status"}${category ? ` (${category})` : ""}. Only work that has not started can be claimed.`,
+    );
+  if (facts.container(item.typeId))
+    refuse(
+      "container",
+      `${own} groups implementation work. Agents claim the work under it, never the container itself.`,
     );
   const claim = facts.liveClaim(item.id);
   // A waiting claim holds the item without a lease; others until it ends.
@@ -256,6 +265,9 @@ export function claimability(
         ? "outside"
         : agreementCodes.some((c) => codes.has(c))
           ? "needs_agreement"
-          : "blocked";
+          : // An agreed container is not the factory's work; its children are.
+            codes.has("container")
+            ? "outside"
+            : "blocked";
   return { claimable: reasons.length === 0, stage, reasons };
 }

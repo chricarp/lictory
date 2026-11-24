@@ -29,6 +29,7 @@ import {
   assertPerson,
   type AgentScope,
 } from "@lictory/core/factory/authority";
+import { policyStarter } from "@lictory/core/claims/contracts";
 import {
   sessionEntity,
   type SessionStatus,
@@ -285,6 +286,10 @@ export type StartSessionInput = {
   sessionId?: string;
   mutationId?: string;
   maxAttempts?: number;
+  // Server callers only (never a capability's input): what Lictory tells
+  // the agent besides the task, and the autonomy policy that started it.
+  context?: string | null;
+  startedByPolicy?: { level: "build" | "autopilot"; setById: string } | null;
 };
 
 // Checks that `userId` may start a session with this agent now.
@@ -521,6 +526,8 @@ export async function startSessionIn(
         status: "queued",
         title,
         prompt,
+        context: present(input.context),
+        startedByPolicy: input.startedByPolicy ?? null,
         workItemId: item?.id ?? null,
         projectId: item?.projectId ?? null,
         repositoryUrl,
@@ -533,18 +540,48 @@ export async function startSessionIn(
       })
       .returning();
     const requester = await memberName(tx, actor.userId);
+    const policy = input.startedByPolicy ?? null;
+    const starter = policy
+      ? policyStarter(policy, await memberName(tx, policy.setById))
+      : requester;
+    const context = present(input.context);
+    // The task is a person's message only when a person wrote it; what
+    // Lictory adds (where it was asked, a policy's instructions) is its own
+    // event, never attributed to someone who did not write it.
     const sequence = await appendEvents(tx, row!, [
-      {
-        type: "user_message",
-        data: { text: prompt, authorId: actor.userId, authorName: requester },
-      },
+      policy
+        ? {
+            type: "context",
+            data: {
+              source: "policy",
+              summary: `The ${starter} dispatched this task.`,
+              text: [prompt, ...(context ? ["", context] : [])].join("\n"),
+            },
+          }
+        : {
+            type: "user_message",
+            data: {
+              text: prompt,
+              authorId: actor.userId,
+              authorName: requester,
+            },
+          },
+      ...(context && !policy
+        ? [
+            {
+              type: "context" as const,
+              data: { source: "lictory", text: context },
+            },
+          ]
+        : []),
       {
         type: "status",
         data: {
           phase: "queued",
           status: "queued",
-          message: `${requester} started the session.`,
-          byId: actor.userId,
+          message: `${policy ? `The ${starter}` : requester} started the session.`,
+          byId: policy ? policy.setById : actor.userId,
+          ...(policy ? { policy } : {}),
         },
       },
     ]);
@@ -1174,7 +1211,10 @@ export async function claimSession(
           attempt: attemptNumber,
           organizationId: row.organizationId,
           title: row.title,
-          prompt: row.prompt,
+          // The task, then what Lictory adds to it.
+          prompt: row.context
+            ? `${row.prompt}\n\n---\n${row.context}`
+            : row.prompt,
           agent: {
             id: agent.id,
             name: agent.name,
@@ -1342,7 +1382,10 @@ export async function appendRunnerEvents(
     const replies: number[] = [];
     if (session.channelId && stored.some((e) => e.type === "message")) {
       const [last] = await tx
-        .select({ type: s.agentSessionEvent.type })
+        .select({
+          type: s.agentSessionEvent.type,
+          sequence: s.agentSessionEvent.sequence,
+        })
         .from(s.agentSessionEvent)
         .where(
           and(
@@ -1352,18 +1395,10 @@ export async function appendRunnerEvents(
         )
         .orderBy(desc(s.agentSessionEvent.sequence))
         .limit(1);
-      // The prompt itself is the first user message; the session card
-      // already answers it.
-      const [prompts] = await tx
-        .select({ count: sql<number>`count(*)::int` })
-        .from(s.agentSessionEvent)
-        .where(
-          and(
-            eq(s.agentSessionEvent.sessionId, session.id),
-            eq(s.agentSessionEvent.type, "user_message"),
-          ),
-        );
-      let awaiting = last?.type === "user_message" && (prompts?.count ?? 0) > 1;
+      // The task is the session's first event (a person's message or the
+      // policy's context); the session card already answers it, so only a
+      // later steering message awaits an answer.
+      let awaiting = last?.type === "user_message" && last.sequence > 1;
       stored.forEach((event, index) => {
         if (event.type !== "message") return;
         if (awaiting) replies.push(session.eventSequence + 1 + index);
