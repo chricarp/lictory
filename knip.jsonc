@@ -65,6 +65,19 @@
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
+    "apps/desktop": {
+      // esbuild bundles these (build.mjs); package.mjs and icons.mjs are run
+      // by hand or by a release job.
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/*.ts",
+        "src/renderer/shell.ts",
+        "src/**/*.test.ts",
+        "tests/*.spec.ts",
+        "*.mjs",
+      ],
+      "project": ["src/**/*.ts", "tests/**/*.ts", "*.{ts,mjs}"],
+    },
     "apps/collaboration": {
       "entry": ["src/index.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
