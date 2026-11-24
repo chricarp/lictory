@@ -64,6 +64,20 @@ test.beforeAll(async () => {
         status.projectId === seeded.projectId && status.category === "started",
     )!.id,
   });
+  // A space with a page: Home lists the page, the palette writes new ones.
+  const spaceId = crypto.randomUUID();
+  await seeded.command({
+    type: "createSpace",
+    spaceId,
+    name: "Runbooks",
+    slug: `runbooks-${spaceId.slice(0, 8)}`,
+  });
+  await seeded.command({
+    type: "createPage",
+    spaceId,
+    pageId: crypto.randomUUID(),
+    title: "Rotate webhook secrets",
+  });
   // A second organization Ada belongs to.
   other = await seedWorkspace({
     name: "Second floor",
@@ -116,7 +130,9 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     page.getByRole("region", { name: "Ready to start" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Recently edited pages" }),
+    page
+      .getByRole("region", { name: "Recently edited pages" })
+      .getByRole("link", { name: /Rotate webhook secrets/ }),
   ).toBeVisible();
   await snapshot(page, "Home");
   await expect(
@@ -197,6 +213,15 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
       `${paths.project(seeded.slug, "FLR")}/(refinement|board|items)$`,
     ),
   );
+
+  // Write a page in a space from the palette.
+  await page.keyboard.press("ControlOrMeta+k");
+  await search.fill("new page");
+  await palette.getByRole("option", { name: "New page in Runbooks" }).click();
+  const newPage = page.getByRole("dialog", { name: "New page" });
+  await expect(newPage).toBeVisible();
+  await expect(page).not.toHaveURL(/new=page/);
+  await newPage.getByRole("button", { name: "Cancel" }).click();
 
   // Switch the appearance from the palette.
   await page.keyboard.press("ControlOrMeta+k");
