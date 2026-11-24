@@ -221,6 +221,7 @@ export async function syncSessionCard(
     payload,
     threadRootId: thread.topLevel ? null : thread.rootId,
     messageId: thread.cardId,
+    replyAgentId: agent.id,
   });
   if (JSON.stringify(message.payload) !== JSON.stringify(payload))
     await updateCardPayload(tx, {
@@ -281,6 +282,7 @@ export async function syncApprovalCard(
     payload,
     threadRootId: thread.rootId,
     messageId: id,
+    replyAgentId: agent.id,
   });
   if (JSON.stringify(message.payload) !== JSON.stringify(payload))
     await updateCardPayload(tx, {
@@ -434,6 +436,7 @@ export async function announceQuestion(
       payload,
       threadRootId: thread.rootId,
       messageId: inSession,
+      replyAgentId: places.agent.id,
     });
     posted.push(inSession!);
   }

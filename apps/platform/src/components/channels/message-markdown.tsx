@@ -8,6 +8,7 @@ import { FileText } from "lucide-react";
 import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { cn } from "@lictory/core/lib/utils";
 import { ReferenceChip } from "@lictory/platform/components/references/chips";
+import { remarkMentionAt } from "@lictory/platform/components/channels/mention-at";
 
 // Chat Markdown: compact typography, mentions of people and agents as
 // highlighted names (my own mentions stronger), work items, pages and
@@ -159,7 +160,7 @@ function components(userId: string): Components {
 }
 
 const cache = new Map<string, Components>();
-const plugins = [remarkGfm];
+const plugins = [remarkGfm, remarkMentionAt];
 
 export const MessageMarkdown = memo(function MessageMarkdown({
   source,

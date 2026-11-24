@@ -14,10 +14,9 @@ import type {
   PaletteProvider,
 } from "@lictory/platform/components/shell/nav-registry";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import {
-  activeStatuses,
-  statusLabels,
-} from "@lictory/platform/components/factory/labels";
+import { activeStatuses } from "@lictory/platform/components/factory/labels";
+import { useSessionStateOf } from "@lictory/platform/components/factory/parts";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import {
   useFactory,
   waitingOnMe,
@@ -89,6 +88,7 @@ export const factoryPalette: PaletteProvider = {
   useEntries: () => {
     const { organization } = useWorkspace();
     const { sessions, agents, agentById } = useFactory();
+    const stateOf = useSessionStateOf();
     return useMemo(() => {
       const org = organization.slug;
       const active = new Set(activeStatuses);
@@ -100,7 +100,8 @@ export const factoryPalette: PaletteProvider = {
       const entries: PaletteEntry[] = ordered.map((s) => ({
         id: `session-${s.id}`,
         label: sessionTitle(s.title),
-        hint: `${agentById.get(s.agentId)?.name ?? "Agent"} · ${statusLabels[s.status]}`,
+        hint: agentById.get(s.agentId)?.name ?? "Agent",
+        chip: <SessionStateChip state={stateOf(s, agentById.get(s.agentId))} />,
         icon: <Bot className="size-4" />,
         keywords: `agent session ${agentById.get(s.agentId)?.name ?? ""}`,
         href: factoryPaths.session(org, s.id),
@@ -116,6 +117,6 @@ export const factoryPalette: PaletteProvider = {
             href: factoryPaths.agents(org),
           });
       return entries;
-    }, [sessions, agents, agentById, organization.slug]);
+    }, [sessions, agents, agentById, organization.slug, stateOf]);
   },
 };

@@ -57,7 +57,10 @@ export function SlackSyncStatus({ channel }: { channel: Channel }) {
         {failing ? "Slack sync failing" : `#${link.externalName}`}
       </span>
       {link.externalUrl && (
-        <ArrowUpRight className="ml-0.5 inline size-3" aria-hidden />
+        <ArrowUpRight
+          className="ml-0.5 inline size-3 max-sm:hidden"
+          aria-hidden
+        />
       )}
     </StatusChip>
   );

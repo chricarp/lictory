@@ -297,6 +297,12 @@ void test("a mention by the owner starts one session in the thread, with a live 
     "agentSession",
   );
   assert.equal((card!.payload as { status: string }).status, "queued");
+  // The card is the agent's reply: the thread's summary shows the agent.
+  const [root] = await db
+    .select()
+    .from(s.channelMessage)
+    .where(eq(s.channelMessage.id, messageId));
+  assert.deepEqual(root!.replyAuthors, [`a:${f.agent.id}`]);
 
   // The card follows the session: claimed, then canceled. The harness
   // receives the task, then the context.

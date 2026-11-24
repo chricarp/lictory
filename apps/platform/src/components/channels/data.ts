@@ -309,12 +309,53 @@ export function groupReactions(
   return [...groups.values()].filter((g) => g.count > 0);
 }
 
-/** The repliers shown on a thread root, people first by recency. */
-export function replyAuthorIds(message: Pick<MessageRow, "replyAuthors">) {
+/**
+ * The repliers shown on a thread root, most recent first: people and agents
+ * (an agent's replies show its avatar like a person's). Slack people have no
+ * avatar here and are left out.
+ */
+export function replyAuthors(
+  message: Pick<MessageRow, "replyAuthors">,
+): { kind: "user" | "agent"; id: string }[] {
   return message.replyAuthors.flatMap((key) => {
     const parsed = parseParticipantKey(key);
-    return parsed?.kind === "user" ? [parsed.id] : [];
+    return parsed ? [parsed] : [];
   });
+}
+
+/**
+ * Sessions whose live card is among these messages (a thread's root and
+ * replies): their pending requests are answered on the card.
+ */
+export function sessionCardsIn(
+  messages: readonly Pick<MessageRow, "kind" | "payload">[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    const sessionId = m.payload?.sessionId;
+    if (
+      m.kind === "card" &&
+      m.payload?.type === "agentSession" &&
+      typeof sessionId === "string"
+    )
+      ids.add(sessionId);
+  }
+  return ids;
+}
+
+/**
+ * A session card's title only repeats its item when the session is named
+ * after it ("PAY-10: Refund button…" under the PAY-10 chip).
+ */
+export function titledByItem(
+  card: { workItemId: string | null; workItemKey: string | null },
+  title: string,
+): boolean {
+  return Boolean(
+    card.workItemId &&
+    card.workItemKey &&
+    title.trim().startsWith(card.workItemKey),
+  );
 }
 
 /** The last message the person wrote in the list, for ↑ to edit it. */

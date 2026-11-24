@@ -154,6 +154,10 @@ export function ChannelHeader({
     <>
       <PageHeader
         title={label}
+        // The channel searches its own messages; on phones its name keeps
+        // at least twelve characters before the actions crowd it.
+        ownSearch
+        className="max-sm:[&>div:has(>h1)]:min-w-[12ch]"
         icon={
           direct ? (
             channel.others[0]?.kind === "user" ? (

@@ -412,9 +412,10 @@ only what they need; the full log stays in the Factory:
 - an **approval card** per request, naming the people who may decide (the
   requester and the owner); it shows the answer once given. While the
   browser can read the session, it is a record that leads to the session
-  card, where the request is answered; without the session (for MCP readers
-  and people who cannot read the Factory) it carries Approve and Deny
-  itself, calling `answerAgentApproval`;
+  card, where the request is answered, and in a thread that holds that
+  card it stays hidden until answered, so one ask is one block; without the
+  session (for MCP readers and people who cannot read the Factory) it
+  carries Approve and Deny itself, calling `answerAgentApproval`;
 - the agent's **first message after each steering message** (its answer to
   the person) and its **summary**, as messages authored by the agent on
   behalf of its owner (`postAgentMessage`); progress messages, tool calls

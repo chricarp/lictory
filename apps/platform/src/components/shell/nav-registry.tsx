@@ -75,6 +75,8 @@ export type PaletteEntry = {
   label: string;
   // Right-aligned detail: a key, a space, a project.
   hint?: string;
+  // A state after the hint, as a `StatusChip` ("Waiting on you").
+  chip?: ReactNode;
   icon?: ReactNode;
   // Extra words that match (synonyms, the module's name).
   keywords?: string;

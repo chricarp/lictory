@@ -10,6 +10,7 @@ import {
   GitBranch,
   GitPullRequest,
   Hand,
+  MoreHorizontal,
   RotateCcw,
   Server,
   SquareTerminal,
@@ -25,6 +26,7 @@ import {
 } from "@lictory/core/lib/work-items";
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
@@ -41,6 +43,7 @@ import { Composer } from "@lictory/platform/components/channels/composer";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
+  MiddleTruncate,
   SessionStarter,
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
@@ -149,6 +152,10 @@ export function SessionView() {
   const truncated =
     events.length >= limit && limit < MAX_WINDOW && events[0]?.sequence !== 1;
   const state = stateOf(session, agent);
+  const canInterrupt = steer && allows("interrupt");
+  const canCancel = (steer || isAdmin) && allows("cancel");
+  const interrupt = act("interruptAgentSession", "Interrupting");
+  const cancel = act("cancelAgentSession", "Canceling");
   const asks = session.status === "waiting" ? session.approvals : [];
   const itemKey = item && project ? identifier(project, item.number) : null;
 
@@ -160,25 +167,55 @@ export function SessionView() {
         actions={
           <>
             <SessionStateChip state={state} className="max-sm:hidden" />
-            {steer && allows("interrupt") && (
+            {/* Laptops: labelled buttons. Phones: one labelled menu, so
+                the title keeps the bar. */}
+            {canInterrupt && (
               <Button
                 variant="secondary"
-                aria-label="Interrupt"
-                onClick={act("interruptAgentSession", "Interrupting")}
+                className="max-md:hidden"
+                onClick={interrupt}
               >
-                <Hand className="size-3.5" aria-hidden />
-                <span className="max-md:hidden">Interrupt</span>
+                <Hand className="size-3.5" aria-hidden /> Interrupt
               </Button>
             )}
-            {(steer || isAdmin) && allows("cancel") && (
+            {canCancel && (
               <Button
                 variant="secondary"
-                aria-label="Cancel"
-                onClick={act("cancelAgentSession", "Canceling")}
+                className="max-md:hidden"
+                onClick={cancel}
               >
-                <CircleStop className="size-3.5" aria-hidden />
-                <span className="max-md:hidden">Cancel</span>
+                <CircleStop className="size-3.5" aria-hidden /> Cancel
               </Button>
+            )}
+            {(canInterrupt || canCancel) && (
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Session actions"
+                      className="size-8 md:hidden"
+                    />
+                  }
+                >
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </MenuTrigger>
+                <MenuContent align="end" width={200}>
+                  {canInterrupt && (
+                    <MenuItem onSelect={() => void interrupt()}>
+                      <Hand className="size-3.5 text-muted-foreground" />{" "}
+                      Interrupt
+                    </MenuItem>
+                  )}
+                  {canCancel && (
+                    <MenuItem onSelect={() => void cancel()}>
+                      <CircleStop className="size-3.5 text-muted-foreground" />{" "}
+                      Cancel session
+                    </MenuItem>
+                  )}
+                </MenuContent>
+              </Menu>
             )}
             {steer && allows("retry") && (
               <Button onClick={act("retryAgentSession", "Retrying")}>
@@ -188,10 +225,12 @@ export function SessionView() {
           </>
         }
       />
-      {/* Who and where, on one line (it scrolls sideways on phones). */}
+      {/* Who and where, on one line (it scrolls sideways on phones). The
+          branch gives way first, cut in the middle, so who started the
+          session and when stay in view. */}
       <div
         data-session-meta
-        className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*]:shrink-0"
+        className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*:not([data-shrink])]:shrink-0"
       >
         <SessionStateChip state={state} className="sm:hidden" />
         <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />
@@ -210,8 +249,8 @@ export function SessionView() {
           </Link>
         )}
         {session.branch && (
-          <Meta icon={<GitBranch />} label="Branch">
-            <span className="font-mono">{session.branch}</span>
+          <Meta icon={<GitBranch />} label="Branch" shrink>
+            <MiddleTruncate text={session.branch} className="font-mono" />
           </Meta>
         )}
         {session.pullRequestId ? (
@@ -366,17 +405,23 @@ export function SessionView() {
 function Meta({
   icon,
   label,
+  shrink = false,
   children,
 }: {
   icon?: ReactNode;
   // Names the icon for people who cannot see it.
   label?: string;
+  // Gives way when the line is full (down to about eight characters).
+  shrink?: boolean;
   children: ReactNode;
 }) {
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    <span
+      data-shrink={shrink || undefined}
+      className={cn("flex min-w-0 items-center gap-1", shrink && "min-w-24")}
+    >
       {icon && (
-        <span aria-hidden className="[&_svg]:size-3.5">
+        <span aria-hidden className="shrink-0 [&_svg]:size-3.5">
           {icon}
         </span>
       )}

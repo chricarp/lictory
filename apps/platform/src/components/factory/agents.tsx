@@ -87,9 +87,9 @@ export function FactoryAgents() {
     />
   );
   const create = (
-    <Button onClick={() => setEditing("new")} aria-label="New agent">
+    <Button onClick={() => setEditing("new")}>
       <Plus className="size-3.5" aria-hidden />
-      <span className="max-sm:hidden">New agent</span>
+      New agent
     </Button>
   );
   return (
@@ -259,10 +259,47 @@ function AgentRow({
       Idle
     </StatusChip>
   );
+  const lastActive = activity.lastActive;
+  const actions = (
+    <>
+      {canStart && (
+        <Button size="md" variant="secondary" onClick={onStart}>
+          <Play className="size-3.5" aria-hidden /> Start
+        </Button>
+      )}
+      {mine && !agent.archivedAt && (
+        <>
+          <IconAction label={`Edit ${agent.name}`} onClick={onEdit}>
+            <Pencil className="size-3.5" aria-hidden />
+          </IconAction>
+          {agent.kind !== "intelligence" && (
+            <IconAction
+              label={`Access tokens of ${agent.name}`}
+              onClick={onTokens}
+            >
+              <KeyRound className="size-3.5" aria-hidden />
+            </IconAction>
+          )}
+        </>
+      )}
+      {canArchive && (
+        <IconAction
+          label={
+            agent.archivedAt ? `Restore ${agent.name}` : `Archive ${agent.name}`
+          }
+          onClick={() => void archive()}
+        >
+          {agent.archivedAt ? (
+            <RotateCcw className="size-3.5" aria-hidden />
+          ) : (
+            <Archive className="size-3.5" aria-hidden />
+          )}
+        </IconAction>
+      )}
+    </>
+  );
   return (
     <ListRow
-      // Phones keep the name: the time gives way.
-      className="max-sm:[&>time]:hidden"
       href={
         current
           ? factoryPaths.session(organization.slug, current.id)
@@ -307,53 +344,26 @@ function AgentRow({
           </span>
         </>
       }
-      chips={status}
-      time={
-        activity.lastActive
-          ? {
-              iso: activity.lastActive,
-              label: `Active ${relativeTime(activity.lastActive)}`,
-            }
-          : undefined
-      }
-      actions={
+      // The row's actions (on hover or focus), then one fixed column for
+      // the state and the last activity, so every row's state lines up.
+      chips={
         <>
-          {canStart && (
-            <Button size="md" variant="secondary" onClick={onStart}>
-              <Play className="size-3.5" aria-hidden /> Start
-            </Button>
-          )}
-          {mine && !agent.archivedAt && (
-            <>
-              <IconAction label={`Edit ${agent.name}`} onClick={onEdit}>
-                <Pencil className="size-3.5" aria-hidden />
-              </IconAction>
-              {agent.kind !== "intelligence" && (
-                <IconAction
-                  label={`Access tokens of ${agent.name}`}
-                  onClick={onTokens}
+          <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none touch:opacity-100">
+            {actions}
+          </span>
+          <span className="flex items-center justify-end gap-3 sm:w-60">
+            {status}
+            <span className="w-24 text-right text-xs text-muted-foreground tabular-nums max-sm:hidden">
+              {lastActive && (
+                <time
+                  dateTime={lastActive}
+                  title={new Date(lastActive).toLocaleString()}
                 >
-                  <KeyRound className="size-3.5" aria-hidden />
-                </IconAction>
+                  Active {relativeTime(lastActive)}
+                </time>
               )}
-            </>
-          )}
-          {canArchive && (
-            <IconAction
-              label={
-                agent.archivedAt
-                  ? `Restore ${agent.name}`
-                  : `Archive ${agent.name}`
-              }
-              onClick={() => void archive()}
-            >
-              {agent.archivedAt ? (
-                <RotateCcw className="size-3.5" aria-hidden />
-              ) : (
-                <Archive className="size-3.5" aria-hidden />
-              )}
-            </IconAction>
-          )}
+            </span>
+          </span>
         </>
       }
     />

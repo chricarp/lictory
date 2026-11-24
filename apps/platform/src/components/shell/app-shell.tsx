@@ -412,12 +412,10 @@ function ShellFrame({
         return () => setHeaders((n) => n - 1);
       },
       leading: <PhoneMenuButton onMenu={() => setDrawer(true)} />,
-      trailing: (
-        <PhoneTrailing
-          onSearch={() => openPalette()}
-          onCreate={createHere ? () => openCreate() : undefined}
-        />
-      ),
+      search: <PhoneSearch onSearch={() => openPalette()} />,
+      trailing: createHere ? (
+        <PhoneCreate onCreate={() => openCreate()} />
+      ) : null,
     }),
     [openPalette, openCreate, createHere],
   );
@@ -604,7 +602,8 @@ function PhoneBar({
       <PhoneMenuButton onMenu={onMenu} />
       {place}
       <div className="ml-auto flex items-center gap-1">
-        <PhoneTrailing onSearch={onSearch} onCreate={onCreate} />
+        <PhoneSearch onSearch={onSearch} />
+        {onCreate && <PhoneCreate onCreate={onCreate} />}
         <LittoLauncher compact />
       </div>
     </div>
@@ -641,35 +640,30 @@ function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
   );
 }
 
-function PhoneTrailing({
-  onSearch,
-  onCreate,
-}: {
-  onSearch: () => void;
-  onCreate?: () => void;
-}) {
+function PhoneSearch({ onSearch }: { onSearch: () => void }) {
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Search"
-        className="size-8"
-        onClick={onSearch}
-      >
-        <Search className="size-4" />
-      </Button>
-      {onCreate && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Create"
-          className="size-8"
-          onClick={onCreate}
-        >
-          <Plus className="size-4" />
-        </Button>
-      )}
-    </>
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Search"
+      className="size-8"
+      onClick={onSearch}
+    >
+      <Search className="size-4" />
+    </Button>
+  );
+}
+
+function PhoneCreate({ onCreate }: { onCreate: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Create"
+      className="size-8"
+      onClick={onCreate}
+    >
+      <Plus className="size-4" />
+    </Button>
   );
 }
