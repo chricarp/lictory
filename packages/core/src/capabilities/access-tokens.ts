@@ -13,9 +13,10 @@ import {
 import { recordAccountAuditEvent } from "@lictory/core/domain/audit";
 import type { AgentScope } from "@lictory/core/factory/authority";
 
-// Personal access tokens for external agents (MCP clients). A token is one
-// named agent acting for its owner: its name and id identify the agent in
-// activity history. It is a bearer credential for its owner: it grants exactly the owner's current
+// Personal access tokens: a script or tool (an MCP client) acting as the
+// person, in every organization they belong to. A token's name and id
+// identify it in activity history. An agent with a name, scope and wake-ups
+// of its own is a Factory agent; its tokens live on its page. It is a bearer credential for its owner: it grants exactly the owner's current
 // permissions, never more, and `read` tokens only reach queries. Tokens are
 // created, listed and revoked by the signed-in person in the browser; agents
 // cannot manage credentials.
@@ -140,7 +141,7 @@ const listAccessTokens = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Integrations → Personal access tokens",
   },
   input: z.object({}),
   async run(ctx) {
@@ -168,7 +169,7 @@ const createAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Integrations → Personal access tokens",
   },
   input: z.object({
     name: z.string().trim().min(1, "Name the token.").max(80),
@@ -257,7 +258,7 @@ const revokeAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Integrations → Personal access tokens",
   },
   destructive: true,
   idempotent: true,

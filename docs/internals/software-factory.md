@@ -138,7 +138,7 @@ optional project allowlist). It is one of three kinds:
 - **runner agent:** a coding harness (Claude Code, Codex, OpenCode, Gemini
   CLI or Lictory's built-in harness) executed on a runner;
 - **external agent:** an MCP client using an access token bound to this
-  agent identity;
+  agent identity, connected and woken from the agent's page;
 - **Lictory Intelligence:** the built-in, organization-level reviewer and
   planner (`lictory-ai`), as today.
 

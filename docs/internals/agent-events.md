@@ -130,8 +130,10 @@ Two kinds of destination share one delivery engine
 `active ⇄ paused`, `active → suspended → active`, MCP subscriptions also
 `→ expired`):
 
-- **Bearer webhooks**: a URL and a secret a person registers in Account
-  settings → AI agents → Event webhooks (Grok, Claude routines' `/fire`,
+- **Bearer webhooks**: a URL and a secret a person registers for one of
+  their Factory agents on the agent's page (Factory → Agents → Wake-ups,
+  bound to the agent, `agent_id`), or for their own tools in Account
+  settings → Event webhooks (unbound) (Grok, Claude routines' `/fire`,
   OpenClaw's `/hooks/agent`). The body carries `text` and `message` (one
   sentence for receivers that start an agent run from a text field) and
   `event` (id, type, time, cursor, data), with
@@ -203,9 +205,25 @@ v1,<base64 HMAC-SHA256>`) plus `X-MCP-Subscription-Id`. `eventId` (and
   modern era (`MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`) answer
   `400 -32020` on mismatch; an unknown version `400 -32022`.
 
-Read tokens may subscribe: receiving events is a read. Subscriptions are
-listed next to webhooks in Account settings, where the person can pause or
-remove them.
+Read tokens may subscribe: receiving events is a read. A subscription made
+with an agent's token is bound to that agent and listed under its
+Wake-ups; one made with a personal token is listed in Account settings →
+Event webhooks. The person can pause or remove either there.
+
+## Where people manage destinations
+
+One place per agent: a Factory agent's page holds everything that connects
+it, its Connection (its MCP tokens, shown once, with the endpoint and a
+setup snippet) and its Wake-ups (its webhooks and MCP subscriptions, with
+their delivery state). Only the agent's owner sees and manages them: the
+owner's tokens and subscriptions are the only ones the server lists or
+changes for them, and an organization administrator gets nothing more.
+Account settings keeps the person's personal access tokens and unbound
+webhooks, for scripts and tools acting as the person (possibly across
+organizations, which no agent page can hold), and only points to the
+pages of agents that have wake-ups, so nothing is listed twice. This is
+presentation: tokens and subscriptions were already bound to their agent
+(`access_token.agent_id`, `agent_event_subscription.agent_id`).
 
 ## Egress
 

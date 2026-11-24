@@ -154,10 +154,11 @@ common problems.
 
 ## Work with your coding agent
 
-Connect an MCP client to your installation's `https://<host>/api/mcp` using a
-personal access token from **Account settings → AI agents (MCP)**. Give each
-agent its own name, access level and expiry. The agent works with your current
-permissions, and its actions are attributed to you and its token's name.
+Create an external agent in **Factory → Agents**: it gets a name, a scope
+and, on its page, a token for your MCP client (`https://<host>/api/mcp`) and
+webhooks that wake it. The agent works with your current permissions, narrowed
+to its scope, and its actions read as the agent via you. For a script acting
+as you, use a personal access token from **Account settings**.
 
 For example, ask your terminal's coding agent:
 

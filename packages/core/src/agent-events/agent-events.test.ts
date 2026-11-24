@@ -31,6 +31,7 @@ import {
 import {
   createWebhook,
   expireSubscriptions,
+  listSubscriptions,
   setAgentEventPolicy,
   setSubscriptionState,
   subscribeMcp,
@@ -1183,6 +1184,50 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
   } finally {
     hook.stop();
   }
+});
+
+void test("a webhook bound to an agent is listed with its agent; only the owner can bind one", async () => {
+  const f = await fixture();
+  const forge = await f.agent(f.bo, "forge");
+  await withPrivateNetworks(async () => {
+    const own = await createWebhook(db, f.bo, {
+      name: "Bo's script",
+      url: "https://hooks.example.com/bo",
+      secret: "script-secret",
+      organizationId: null,
+      eventTypes: [],
+    });
+    const bound = await createWebhook(db, f.bo, {
+      name: "Forge routine",
+      url: "https://hooks.example.com/forge",
+      secret: "forge-secret",
+      organizationId: null,
+      agentId: forge.id,
+      eventTypes: [],
+    });
+    // Bound to the agent's organization whatever the form said.
+    assert.equal(bound.organizationId, f.organizationId);
+    const listed = await listSubscriptions(db, f.bo);
+    // The agent's page lists it; Account settings links to that page.
+    assert.deepEqual(listed.find((v) => v.id === bound.id)!.agent, {
+      name: "forge",
+      organizationId: f.organizationId,
+    });
+    assert.equal(listed.find((v) => v.id === own.id)!.agent, null);
+    // Ada cannot wake Bo's agent, and sees none of Bo's destinations.
+    await assert.rejects(
+      createWebhook(db, f.ada, {
+        name: "Not mine",
+        url: "https://hooks.example.com/ada",
+        secret: "ada-secret",
+        organizationId: null,
+        agentId: forge.id,
+        eventTypes: [],
+      }),
+      /not one of yours/,
+    );
+    assert.equal((await listSubscriptions(db, f.ada)).length, 0);
+  });
 });
 
 void test("the organization policy decides whether and where its events may go", async () => {

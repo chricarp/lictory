@@ -35,7 +35,8 @@ import { authorize } from "@lictory/core/domain/service";
 // The agent event feed and its destinations (docs/internals/agent-events.md).
 // Agents read their person's addressed events (`listEvents`, and
 // `waitForEvents` to be woken instead of polling); people register webhook
-// destinations in Account settings and administrators decide whether an
+// destinations on their agent's page (or in Account settings for their own
+// tokens) and administrators decide whether an
 // organization's events may leave Lictory at all. MCP clients that consume
 // MCP Events subscribe with `events/subscribe` (mcp/server.ts).
 
@@ -157,7 +158,8 @@ const setAgentEventPolicyCapability = defineCapability({
 
 // ---------------------------------------------------------------- webhooks
 
-const where = "Account settings → AI agents → Event webhooks";
+const where =
+  "Factory → Agents → the agent's Wake-ups, or Account settings → Integrations → Event webhooks";
 const credentials = { reason: "credentials" as const, where };
 
 const listEventSubscriptions = defineCapability({

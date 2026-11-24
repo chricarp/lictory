@@ -1,16 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import {
   Archive,
   Bot,
-  Copy,
-  KeyRound,
   Moon,
   Pencil,
   Play,
@@ -20,7 +11,6 @@ import {
 import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { AgentEntity } from "@lictory/core/factory/entities";
-import type { AgentTokenSummary } from "@lictory/core/factory/agents";
 import { harnessIds, harnessLabels } from "@lictory/core/factory/protocol";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
@@ -55,6 +45,8 @@ import {
 } from "@lictory/platform/components/identity/actor";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { handOverSecret } from "@lictory/platform/components/factory/agent-connection";
+import { useRouter } from "@lictory/platform/lib/navigation";
 
 // Agents: named members with an accountable owner and a scope. Anyone can
 // create agents they own; the owner changes them; the owner or an
@@ -63,7 +55,6 @@ export function FactoryAgents() {
   const { userId, isAdmin } = useWorkspace();
   const { agents } = useFactory();
   const [editing, setEditing] = useState<AgentEntity | "new" | null>(null);
-  const [tokens, setTokens] = useState<AgentEntity | null>(null);
   const [starting, setStarting] = useState<AgentEntity | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const active = agents.filter((a) => !a.archivedAt);
@@ -82,7 +73,6 @@ export function FactoryAgents() {
         (agent.ownerId === userId || agent.shared)
       }
       onEdit={() => setEditing(agent)}
-      onTokens={() => setTokens(agent)}
       onStart={() => setStarting(agent)}
     />
   );
@@ -117,8 +107,9 @@ export function FactoryAgents() {
           }
         >
           A runner agent runs a coding harness (Claude Code, Codex or the
-          built-in one) on a runner. An external agent is an MCP client with a
-          token of its own. You are accountable for the agents you create.
+          built-in one) on a runner. An external agent is an MCP client you
+          connect with a token of its own, and wake with webhooks, on its page.
+          You are accountable for the agents you create.
         </MissingState>
       ) : (
         <>
@@ -159,9 +150,6 @@ export function FactoryAgents() {
           onClose={() => setEditing(null)}
         />
       )}
-      {tokens && (
-        <TokensDialog agent={tokens} onClose={() => setTokens(null)} />
-      )}
       {starting && (
         <StartSessionDialog
           agentId={starting.id}
@@ -173,7 +161,7 @@ export function FactoryAgents() {
 }
 
 // 32px icon buttons, each named and with a tooltip.
-function IconAction({
+export function IconAction({
   label,
   onClick,
   children,
@@ -197,13 +185,41 @@ function IconAction({
   );
 }
 
+// Archives an agent, or restores an archived one.
+export async function toggleArchived(
+  organizationId: string,
+  agent: AgentEntity,
+) {
+  try {
+    await callCapability("setAgentArchived", {
+      organizationId,
+      agentId: agent.id,
+      archived: !agent.archivedAt,
+    });
+  } catch (error) {
+    toast({
+      type: "error",
+      title: "The agent was not changed",
+      description: (error as Error).message,
+    });
+  }
+}
+
+// What kind of agent, in a word or two.
+export function agentKindLabel(agent: AgentEntity) {
+  return agent.kind === "runner"
+    ? harnessLabel(agent.harness)
+    : agent.kind === "intelligence"
+      ? "Lictory Intelligence"
+      : "External (MCP)";
+}
+
 function AgentRow({
   agent,
   mine,
   canArchive,
   canStart,
   onEdit,
-  onTokens,
   onStart,
 }: {
   agent: AgentEntity;
@@ -211,7 +227,6 @@ function AgentRow({
   canArchive: boolean;
   canStart: boolean;
   onEdit: () => void;
-  onTokens: () => void;
   onStart: () => void;
 }) {
   const { organization, directory } = useWorkspace();
@@ -225,21 +240,7 @@ function AgentRow({
   const projects = agent.projectIds
     ?.map((id) => directory.projects.find((p) => p.id === id)?.key)
     .filter(Boolean);
-  const archive = async () => {
-    try {
-      await callCapability("setAgentArchived", {
-        organizationId: organization.id,
-        agentId: agent.id,
-        archived: !agent.archivedAt,
-      });
-    } catch (error) {
-      toast({
-        type: "error",
-        title: "The agent was not changed",
-        description: (error as Error).message,
-      });
-    }
-  };
+  const archive = () => toggleArchived(organization.id, agent);
   const current = activity.current;
   const key = current ? itemKey(current.workItemId) : undefined;
   const status = agent.archivedAt ? (
@@ -268,19 +269,9 @@ function AgentRow({
         </Button>
       )}
       {mine && !agent.archivedAt && (
-        <>
-          <IconAction label={`Edit ${agent.name}`} onClick={onEdit}>
-            <Pencil className="size-3.5" aria-hidden />
-          </IconAction>
-          {agent.kind !== "intelligence" && (
-            <IconAction
-              label={`Access tokens of ${agent.name}`}
-              onClick={onTokens}
-            >
-              <KeyRound className="size-3.5" aria-hidden />
-            </IconAction>
-          )}
-        </>
+        <IconAction label={`Edit ${agent.name}`} onClick={onEdit}>
+          <Pencil className="size-3.5" aria-hidden />
+        </IconAction>
       )}
       {canArchive && (
         <IconAction
@@ -300,11 +291,9 @@ function AgentRow({
   );
   return (
     <ListRow
-      href={
-        current
-          ? factoryPaths.session(organization.slug, current.id)
-          : undefined
-      }
+      // The agent's page: what it is doing, its sessions and, for its
+      // owner, its connection and wake-ups.
+      href={factoryPaths.agent(organization.slug, agent.id)}
       leading={<AgentAvatar agent={agent} size={24} />}
       title={
         <>
@@ -323,13 +312,7 @@ function AgentRow({
             className="shrink-0"
           />
           <span aria-hidden>·</span>
-          <span className="shrink-0">
-            {agent.kind === "runner"
-              ? harnessLabel(agent.harness)
-              : agent.kind === "intelligence"
-                ? "Lictory Intelligence"
-                : "External (MCP)"}
-          </span>
+          <span className="shrink-0">{agentKindLabel(agent)}</span>
           {agent.model && (
             <span className="truncate font-mono">{agent.model}</span>
           )}
@@ -379,7 +362,9 @@ const handleOf = (name: string) =>
     .replace(/_+$/, "")
     .slice(0, 30);
 
-function AgentDialog({
+// Creates or edits an agent. A new external agent gets its first token at
+// once and opens on its page, where the token is shown once with the setup.
+export function AgentDialog({
   agent,
   onClose,
 }: {
@@ -388,6 +373,7 @@ function AgentDialog({
 }) {
   const { organization, directory } = useWorkspace();
   const { runners } = useFactory();
+  const router = useRouter();
   const [kind, setKind] = useState<"runner" | "external">(
     agent?.kind === "external" ? "external" : "runner",
   );
@@ -453,13 +439,32 @@ function AgentDialog({
           agentId: agent.id,
           ...fields,
         });
-      else
+      else {
         await callCapability("createAgent", {
           organizationId: organization.id,
           agentId,
           kind,
           ...fields,
         });
+        if (kind === "external") {
+          try {
+            const token = await callCapability<{ secret: string }>(
+              "createAgentToken",
+              { organizationId: organization.id, agentId, expiresInDays: 90 },
+            );
+            handOverSecret(agentId, token.secret);
+          } catch (e) {
+            toast({
+              type: "error",
+              title: "The agent has no token yet",
+              description: `${(e as Error).message} Create one in its Connection section.`,
+            });
+          }
+          router.push(
+            factoryPaths.agent(organization.slug, agentId, "connection"),
+          );
+        }
+      }
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -748,158 +753,5 @@ function ProjectToggle({
     >
       {label}
     </button>
-  );
-}
-
-function TokensDialog({
-  agent,
-  onClose,
-}: {
-  agent: AgentEntity;
-  onClose: () => void;
-}) {
-  const { organization } = useWorkspace();
-  const [tokens, setTokens] = useState<AgentTokenSummary[] | null>(null);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [expiry, setExpiry] = useState("90");
-  const endpoint = `${window.location.origin}/api/mcp`;
-  const load = useCallback(
-    () =>
-      callCapability<{ tokens: AgentTokenSummary[] }>("listAgentTokens", {
-        organizationId: organization.id,
-        agentId: agent.id,
-      }).then(
-        (r) => setTokens(r.tokens),
-        (e: Error) => setError(e.message),
-      ),
-    [organization.id, agent.id],
-  );
-  useEffect(() => void load(), [load]);
-  const create = async () => {
-    setError(null);
-    try {
-      const result = await callCapability<{ secret: string }>(
-        "createAgentToken",
-        {
-          organizationId: organization.id,
-          agentId: agent.id,
-          expiresInDays: expiry === "never" ? null : Number(expiry),
-        },
-      );
-      setSecret(result.secret);
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  const revoke = async (tokenId: string) => {
-    try {
-      await callCapability("revokeAgentToken", {
-        organizationId: organization.id,
-        agentId: agent.id,
-        tokenId,
-      });
-      await load();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  const active =
-    tokens?.filter(
-      (t) =>
-        !t.revokedAt && (!t.expiresAt || new Date(t.expiresAt) > new Date()),
-    ) ?? [];
-  return (
-    <Dialog
-      title={`Access tokens of ${agent.name}`}
-      description={
-        <>
-          An MCP client using one of these tokens acts as {agent.name}: your
-          permissions, narrowed to its scope, in this organization only.
-          Endpoint:{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            {endpoint}
-          </code>
-        </>
-      }
-      onClose={onClose}
-    >
-      <div className="space-y-4">
-        {secret && (
-          <div className="space-y-2 rounded-lg bg-muted/50 p-3">
-            <p className="text-[13px] font-medium">
-              Copy this token now. It will not be shown again.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded bg-card px-2 py-1.5 font-mono text-xs">
-                {secret}
-              </code>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  void navigator.clipboard.writeText(secret);
-                  toast({ title: "Token copied" });
-                }}
-              >
-                <Copy className="size-3.5" aria-hidden /> Copy
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <DropdownSelect
-            value={expiry}
-            onValueChange={setExpiry}
-            aria-label="Expires after"
-            className="w-36"
-          >
-            <DropdownSelectOption value="30">30 days</DropdownSelectOption>
-            <DropdownSelectOption value="90">90 days</DropdownSelectOption>
-            <DropdownSelectOption value="365">1 year</DropdownSelectOption>
-            <DropdownSelectOption value="never">No expiry</DropdownSelectOption>
-          </DropdownSelect>
-          <Button onClick={create}>
-            <KeyRound className="size-3.5" aria-hidden /> Create token
-          </Button>
-        </div>
-        {tokens && !active.length && (
-          <p className="text-[13px] text-muted-foreground">No active tokens.</p>
-        )}
-        {active.length > 0 && (
-          <ul className="divide-y rounded-lg border">
-            {active.map((token) => (
-              <li
-                key={token.id}
-                className="flex items-center gap-3 px-3 py-2 text-[13px]"
-              >
-                <code className="font-mono text-xs">{token.prefix}…</code>
-                <span className="flex-1 text-xs text-muted-foreground">
-                  {token.lastUsedAt
-                    ? `Used ${new Date(token.lastUsedAt).toLocaleDateString()}`
-                    : "Never used"}
-                  {token.expiresAt
-                    ? ` · expires ${new Date(token.expiresAt).toLocaleDateString()}`
-                    : ""}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => revoke(token.id)}
-                >
-                  Revoke
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {error && (
-          <p role="alert" className="text-[13px] text-destructive">
-            {error}
-          </p>
-        )}
-      </div>
-    </Dialog>
   );
 }

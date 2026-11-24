@@ -86,7 +86,8 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
       key: "WHK",
     });
 
-    // Register the agent's webhook in Account settings.
+    // Register a webhook for a tool using Wren's personal token in Account
+    // settings (a Factory agent's webhooks are on its page: agents.spec.ts).
     await page.goto("/account#webhooks");
     const section = page.locator("#webhooks");
     // The section nav marks the section the link opened, not the one above.
@@ -97,7 +98,7 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
       sections.getByRole("link", { name: "Event webhooks" }),
     ).toHaveAttribute("aria-current", "location");
     await expect(
-      sections.getByRole("link", { name: "AI agents" }),
+      sections.getByRole("link", { name: "Access tokens" }),
     ).not.toHaveAttribute("aria-current", "location");
     await section.getByRole("button", { name: "New webhook" }).click();
     const form = section.getByRole("form", { name: "New webhook" });

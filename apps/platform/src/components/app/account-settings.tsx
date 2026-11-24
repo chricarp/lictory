@@ -163,7 +163,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     ...(props.signIn.password ? [{ id: "passkeys", label: "Passkeys" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
-    { id: "agents", label: "AI agents" },
+    { id: "tokens", label: "Access tokens" },
     { id: "webhooks", label: "Event webhooks" },
     { id: "delete", label: "Delete account" },
   ];
@@ -240,7 +240,7 @@ export function AccountSettings(props: AccountSettingsProps) {
 
         <SettingsGroup
           title="Integrations"
-          description="AI agents that work in Lictory on your behalf."
+          description="Scripts and tools that work in Lictory as you. AI agents with a name and scope of their own are connected in each organization's Factory › Agents."
         >
           <AgentAccessSection />
           <EventWebhooksSection />

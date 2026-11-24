@@ -13,14 +13,16 @@ The `lictory` server administration command is a separate tool. Use the
 
 ## Connect your agent
 
-1. In Lictory, open **Account settings → AI agents (MCP)**.
-2. Choose **New token**, give it an **Agent name**, select **Read & write** or
-   **Read only**, and choose when it **Expires** (7, 30 or 90 days, 1 year,
-   or no expiry). A token is a named agent: create one per agent so activity
-   is attributable.
-3. Copy the token immediately; it is shown only once.
-4. In your MCP client's remote-server settings, use your installation's endpoint
-   and a bearer header:
+1. In Lictory, open **Factory → Agents**, choose **New agent** and
+   **External MCP client**. Give it a name and a scope (**Read and write**
+   or **Read only**, every project or some). It acts as you, narrowed to
+   that scope, in this organization, and history shows it as "Scout via
+   Ada".
+2. Creating it opens its page on **Connection** with its first token. Copy
+   it immediately; it is shown only once. **New token** there makes another
+   (7, 30 or 90 days, 1 year, or no expiry).
+3. In your MCP client's remote-server settings, use your installation's endpoint
+   and a bearer header (the page shows a snippet for your client):
 
 | Setting   | Value                                 |
 | --------- | ------------------------------------- |
@@ -28,15 +30,19 @@ The `lictory` server administration command is a separate tool. Use the
 | URL       | `https://<your-lictory-host>/api/mcp` |
 | Header    | `Authorization: Bearer <your-token>`  |
 
-The endpoint is also displayed in Account settings. Store the token in the
-client's private credential configuration, outside version control. It can
-access the organizations you belong to, subject to your current permissions
-and the token's access level. It is not an organization-scoped credential.
+Store the token in the client's private credential configuration, outside
+version control.
+
+**A script acting as you.** For a script or tool that should work as you,
+across every organization you belong to, with your full permissions, create
+a personal access token instead in **Account settings → Personal access
+tokens** (**New token**, a name, the access and the expiry). Prefer an
+agent for anything that works on its own: it has a name, a scope and
+wake-ups of its own, and you can see and stop it in one place.
 
 Client configuration formats differ. Choose a client that supports a remote
-Streamable HTTP server and custom authorization headers. Lictory uses personal
-tokens for this connection; signing into Lictory in a browser does not authorize
-your terminal client.
+Streamable HTTP server and custom authorization headers. Signing into
+Lictory in a browser does not authorize your terminal client.
 
 ### Client examples
 
@@ -77,7 +83,7 @@ bearer_token_env_var = "LICTORY_TOKEN"
     {
       "id": "lictory-token",
       "type": "promptString",
-      "description": "Lictory personal token",
+      "description": "Lictory token",
       "password": true
     }
   ]
@@ -191,7 +197,8 @@ they contributed to, and that includes an agent acting for them.
 
 ## Permissions and human decisions
 
-An agent acts as the person who created its token. Project disciplines determine
+An agent acts as its owner (the person who created its token), narrowed to
+the agent's scope. Project disciplines determine
 work item permissions; organization or project administrator roles do not grant
 them. Space access (view, comment or edit) determines what it can do in Spaces. A read-only token exposes queries only. Changing memberships or revoking
 the token takes effect on subsequent requests.
@@ -225,11 +232,11 @@ happened, never what to do.
 
 Pick the way your agent can listen:
 
-| Your agent                                                    | How it is woken                                            |
-| ------------------------------------------------------------- | ---------------------------------------------------------- |
-| Keeps a connection open (a terminal agent, a script)          | `waitForEvents` in a loop                                  |
-| Supports MCP Events webhooks (ChatGPT dots, OpenClaw, Hermes) | It subscribes itself with `events/subscribe`               |
-| Runs from a webhook URL and key (Grok, Claude routines)       | A webhook you add in **Account settings → Event webhooks** |
+| Your agent                                                    | How it is woken                               |
+| ------------------------------------------------------------- | --------------------------------------------- |
+| Keeps a connection open (a terminal agent, a script)          | `waitForEvents` in a loop                     |
+| Supports MCP Events webhooks (ChatGPT dots, OpenClaw, Hermes) | It subscribes itself with `events/subscribe`  |
+| Runs from a webhook URL and key (Grok, Claude routines)       | A webhook you add in the agent's **Wake-ups** |
 
 **Waiting over MCP.** Call `listEvents` with `after: "latest"` once to get a
 cursor, then `waitForEvents` with that cursor: it returns as soon as an
@@ -239,13 +246,15 @@ for the next call. `listEvents` without a cursor reads the last 30 days.
 **MCP Events.** Clients that support the MCP Events extension find the
 event types with `events/list` and subscribe on their own; Lictory verifies
 the callback once and signs every delivery (Standard Webhooks). Their
-subscriptions appear under **Account settings → Event webhooks**, where you
-can pause or remove them.
+subscriptions appear under the agent's **Wake-ups** (or, for a personal
+token, under **Account settings → Event webhooks**), where you can pause or
+remove them.
 
-**A webhook.** In **Account settings → Event webhooks**, choose **New
+**A webhook.** On the agent's page, under **Wake-ups**, choose **New
 webhook**, enter a name, the URL your agent gave you and its secret (sent as
-`Authorization: Bearer <secret>`), choose the organization and the event
-types, then **Test** it. Each delivery's body has `text` (one sentence
+`Authorization: Bearer <secret>`) and the event types, then **Test** it. A
+script using a personal token is woken the same way from **Account
+settings → Event webhooks**, where you also choose the organization. Each delivery's body has `text` (one sentence
 describing the event) and `event` (its type, identifiers and a link). A
 failing receiver is retried with backoff and paused after five failures;
 **Resume** it once it works again.
@@ -261,8 +270,9 @@ organization's events may be sent to webhooks at all, and to which hosts.
 Activity attributes changes to the person and named agent. Organization
 administrators can inspect agent calls and their outcomes in the
 [audit log](/organization/audit) (**Agent calls**). Token settings show
-expiry and last use. Choose **Revoke** beside a token to
-disconnect its agent immediately; create a new token to reconnect.
+expiry and last use. Choose **Revoke** beside a token (on the agent's page,
+or in Account settings for a personal token) to disconnect it immediately;
+create a new token to reconnect.
 
 Connecting a model client gives that client access to the content it reads.
 Apply your organization's policy for sending product data to that provider.
@@ -277,7 +287,7 @@ Apply your organization's policy for sending product data to that provider.
 | Organization not found     | Rediscover with `listOrganizations`; use its exact ID or slug.                                                      |
 | Revision conflict          | Read the latest item and branch heads, then reconcile before retrying.                                              |
 | Client cannot connect      | Use `/api/mcp`, remote Streamable HTTP and a reachable HTTPS address; check your reverse proxy and custom CA trust. |
-| Webhook gets no events     | Check its state in Account settings (suspended, last problem) and the organization's webhook policy.                |
+| Webhook gets no events     | Check its state in the agent's Wake-ups (suspended, last problem) and the organization's webhook policy.            |
 
 For server diagnostics, use `lictory doctor` and `lictory logs api` on the
 installation's host. See [reverse proxies](/self-hosting/reverse-proxy) if

@@ -230,6 +230,8 @@ export type SubscriptionView = {
   url: string;
   organizationId: string | null;
   agentId: string | null;
+  // The bound agent, when listed (Account settings links to its page).
+  agent?: { name: string; organizationId: string } | null;
   accessTokenId: string | null;
   eventTypes: AgentEventType[];
   projectIds: string[] | null;
@@ -297,12 +299,24 @@ async function pendingCount(db: Database | Tx, row: Row) {
 
 export async function listSubscriptions(db: Database, userId: string) {
   const rows = await db
-    .select()
+    .select({
+      row: s.agentEventSubscription,
+      agentName: s.agent.name,
+      agentOrganizationId: s.agent.organizationId,
+    })
     .from(s.agentEventSubscription)
+    .leftJoin(s.agent, eq(s.agent.id, s.agentEventSubscription.agentId))
     .where(eq(s.agentEventSubscription.userId, userId))
     .orderBy(desc(s.agentEventSubscription.createdAt));
   const views: SubscriptionView[] = [];
-  for (const row of rows) views.push(viewOf(row, await pendingCount(db, row)));
+  for (const { row, agentName, agentOrganizationId } of rows)
+    views.push({
+      ...viewOf(row, await pendingCount(db, row)),
+      agent:
+        row.agentId && agentName && agentOrganizationId
+          ? { name: agentName, organizationId: agentOrganizationId }
+          : null,
+    });
   return views;
 }
 
@@ -675,7 +689,7 @@ export async function testWebhook(
       cursor: "",
       data: { test: true },
     },
-    "a test event sent from Account settings to check this webhook.",
+    "a test event a person sent to check this webhook.",
   );
   const outcome = await deliverWebhook(row, eventId, body, options);
   await db

@@ -411,6 +411,7 @@ const factoryRoute = (path: string, name: string) =>
 const factoryRoutes = [
   factoryRoute("/factory", "FactoryRoute"),
   factoryRoute("/factory/agents", "FactoryAgentsRoute"),
+  factoryRoute("/factory/agents/$agent", "FactoryAgentRoute"),
   factoryRoute("/factory/runners", "FactoryRunnersRoute"),
   factoryRoute("/factory/sessions/$session", "FactorySessionRoute"),
 ];
