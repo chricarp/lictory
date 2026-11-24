@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Archive,
+  Bot,
   Copy,
   KeyRound,
+  Moon,
   Pencil,
   Play,
   Plus,
@@ -21,17 +30,29 @@ import {
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { Input, inputClass } from "@lictory/ui/input";
-import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { Switch } from "@lictory/ui/switch";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import {
-  AgentMark,
   FactoryPage,
-  Section,
+  useItemKey,
+  useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
+import { agentActivity } from "@lictory/platform/components/factory/overview-blocks";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { relativeTime } from "@lictory/core/lib/work-items";
+import { MissingState } from "@lictory/ui/status-page";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
+import { Tooltip } from "@lictory/ui/tooltip";
+import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import {
+  Actor,
+  AgentAvatar,
+} from "@lictory/platform/components/identity/actor";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import { useFactory } from "@lictory/platform/components/factory/store";
 
@@ -39,7 +60,7 @@ import { useFactory } from "@lictory/platform/components/factory/store";
 // create agents they own; the owner changes them; the owner or an
 // administrator archives them.
 export function FactoryAgents() {
-  const { userId, isAdmin, memberName } = useWorkspace();
+  const { userId, isAdmin } = useWorkspace();
   const { agents } = useFactory();
   const [editing, setEditing] = useState<AgentEntity | "new" | null>(null);
   const [tokens, setTokens] = useState<AgentEntity | null>(null);
@@ -49,39 +70,44 @@ export function FactoryAgents() {
   const archived = agents.filter((a) => a.archivedAt);
   const mine = active.filter((a) => a.ownerId === userId);
   const others = active.filter((a) => a.ownerId !== userId);
-  const list = (shown: AgentEntity[]) => (
-    <ul className="divide-y divide-border/60 rounded-xl bg-card shadow-(--shadow-border)">
-      {shown.map((agent) => (
-        <AgentRow
-          key={agent.id}
-          agent={agent}
-          owner={memberName(agent.ownerId)}
-          mine={agent.ownerId === userId}
-          canArchive={agent.ownerId === userId || isAdmin}
-          canStart={
-            agent.kind === "runner" &&
-            !agent.archivedAt &&
-            (agent.ownerId === userId || agent.shared)
-          }
-          onEdit={() => setEditing(agent)}
-          onTokens={() => setTokens(agent)}
-          onStart={() => setStarting(agent)}
-        />
-      ))}
-    </ul>
+  const row = (agent: AgentEntity) => (
+    <AgentRow
+      key={agent.id}
+      agent={agent}
+      mine={agent.ownerId === userId}
+      canArchive={agent.ownerId === userId || isAdmin}
+      canStart={
+        agent.kind === "runner" &&
+        !agent.archivedAt &&
+        (agent.ownerId === userId || agent.shared)
+      }
+      onEdit={() => setEditing(agent)}
+      onTokens={() => setTokens(agent)}
+      onStart={() => setStarting(agent)}
+    />
+  );
+  const create = (
+    <Button onClick={() => setEditing("new")} aria-label="New agent">
+      <Plus className="size-3.5" aria-hidden />
+      <span className="max-sm:hidden">New agent</span>
+    </Button>
   );
   return (
     <FactoryPage
-      title="Agents"
       description="Each agent acts with its owner’s permissions, narrowed by its scope, and is shown as acting via its owner."
-      actions={
-        <Button onClick={() => setEditing("new")}>
-          <Plus className="size-3.5" aria-hidden /> New agent
-        </Button>
+      meta={
+        agents.length > 0 && (
+          <span>
+            {active.length} {active.length === 1 ? "agent" : "agents"}
+            {mine.length > 0 && ` · ${mine.length} yours`}
+          </span>
+        )
       }
+      actions={create}
     >
       {!agents.length ? (
-        <EmptyState
+        <MissingState
+          icon={Bot}
           title="No agents yet"
           action={
             <Button onClick={() => setEditing("new")}>
@@ -92,39 +118,37 @@ export function FactoryAgents() {
           A runner agent runs a coding harness (Claude Code, Codex or the
           built-in one) on a runner. An external agent is an MCP client with a
           token of its own. You are accountable for the agents you create.
-        </EmptyState>
+        </MissingState>
       ) : (
         <>
-          <Section title="Yours" count={mine.length}>
-            {mine.length ? (
-              list(mine)
-            ) : (
-              <p className="px-3 text-[13px] text-muted-foreground">
-                You own no agent.
-              </p>
-            )}
-          </Section>
-          {others.length > 0 && (
-            <Section title="Others in the organization" count={others.length}>
-              {list(others)}
-            </Section>
-          )}
+          <Panel
+            title="Yours"
+            count={mine.length}
+            empty="You own no agent. Create one to start sessions with it."
+          >
+            {mine.map(row)}
+          </Panel>
+          <Panel title="Others in the organization" count={others.length}>
+            {others.map(row)}
+          </Panel>
           {archived.length > 0 && (
-            <Section
+            <Panel
               title="Archived"
               count={archived.length}
-              action={
+              actions={
                 <Button
                   size="sm"
                   variant="ghost"
+                  aria-expanded={showArchived}
                   onClick={() => setShowArchived((v) => !v)}
                 >
                   {showArchived ? "Hide" : "Show"}
                 </Button>
               }
+              empty={showArchived ? undefined : `${archived.length} archived.`}
             >
-              {showArchived && list(archived)}
-            </Section>
+              {showArchived && archived.map(row)}
+            </Panel>
           )}
         </>
       )}
@@ -147,9 +171,33 @@ export function FactoryAgents() {
   );
 }
 
+// 32px icon buttons, each named and with a tooltip.
+function IconAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip label={label}>
+      <Button
+        size="icon"
+        variant="ghost"
+        aria-label={label}
+        onClick={onClick}
+        className="size-8"
+      >
+        {children}
+      </Button>
+    </Tooltip>
+  );
+}
+
 function AgentRow({
   agent,
-  owner,
   mine,
   canArchive,
   canStart,
@@ -158,7 +206,6 @@ function AgentRow({
   onStart,
 }: {
   agent: AgentEntity;
-  owner: string;
   mine: boolean;
   canArchive: boolean;
   canStart: boolean;
@@ -167,6 +214,13 @@ function AgentRow({
   onStart: () => void;
 }) {
   const { organization, directory } = useWorkspace();
+  const { sessions } = useFactory();
+  const stateOf = useSessionStateOf();
+  const itemKey = useItemKey();
+  const activity = useMemo(
+    () => agentActivity(agent.id, sessions),
+    [agent.id, sessions],
+  );
   const projects = agent.projectIds
     ?.map((id) => directory.projects.find((p) => p.id === id)?.key)
     .filter(Boolean);
@@ -185,95 +239,121 @@ function AgentRow({
       });
     }
   };
+  const current = activity.current;
+  const key = current ? itemKey(current.workItemId) : undefined;
+  const status = agent.archivedAt ? (
+    <StatusChip tone="neutral" icon={<Archive />}>
+      Archived
+    </StatusChip>
+  ) : current ? (
+    current.status === "running" || current.status === "assigned" ? (
+      <StatusChip tone="info" icon={<StatusDot pulse />}>
+        {key ? `Working on ${key}` : "Working"}
+      </StatusChip>
+    ) : (
+      <SessionStateChip state={stateOf(current, agent)} />
+    )
+  ) : (
+    <StatusChip tone="neutral" icon={<Moon />}>
+      Idle
+    </StatusChip>
+  );
   return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
-      <AgentMark agent={agent} className="size-8 text-base" />
-      <div className="min-w-0 flex-1 basis-56">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[13px] font-medium">{agent.name}</span>
-          <span className="truncate font-mono text-xs text-muted-foreground">
+    <ListRow
+      href={
+        current
+          ? factoryPaths.session(organization.slug, current.id)
+          : undefined
+      }
+      leading={<AgentAvatar agent={agent} size={24} />}
+      title={
+        <>
+          <span className="font-medium">{agent.name}</span>{" "}
+          <span className="font-mono text-xs text-muted-foreground">
             @{agent.handle}
           </span>
-          {agent.archivedAt && <Badge>Archived</Badge>}
-        </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-          <span>Via {owner}</span>
-          <span>·</span>
-          <span>
+        </>
+      }
+      meta={
+        <>
+          <Actor
+            userId={agent.ownerId}
+            size={16}
+            label="first"
+            className="shrink-0"
+          />
+          <span aria-hidden>·</span>
+          <span className="shrink-0">
             {agent.kind === "runner"
               ? harnessLabel(agent.harness)
-              : "External (MCP)"}
+              : agent.kind === "intelligence"
+                ? "Lictory Intelligence"
+                : "External (MCP)"}
           </span>
-          {agent.model && <span className="font-mono">{agent.model}</span>}
-          <span>·</span>
-          <span>
+          {agent.model && (
+            <span className="truncate font-mono">{agent.model}</span>
+          )}
+          <span aria-hidden>·</span>
+          <span className="shrink-0">
             {agent.access === "read" ? "Read only" : "Read and write"}
           </span>
-          <span>·</span>
-          <span>
+          <span aria-hidden>·</span>
+          <span className="truncate">
             {projects?.length ? projects.join(", ") : "Every project"}
+            {agent.shared && " · Shared"}
           </span>
-          {agent.shared && (
+        </>
+      }
+      chips={status}
+      time={
+        activity.lastActive
+          ? {
+              iso: activity.lastActive,
+              label: `Active ${relativeTime(activity.lastActive)}`,
+            }
+          : undefined
+      }
+      actions={
+        <>
+          {canStart && (
+            <Button size="md" variant="secondary" onClick={onStart}>
+              <Play className="size-3.5" aria-hidden /> Start
+            </Button>
+          )}
+          {mine && !agent.archivedAt && (
             <>
-              <span>·</span>
-              <span>Shared</span>
+              <IconAction label={`Edit ${agent.name}`} onClick={onEdit}>
+                <Pencil className="size-3.5" aria-hidden />
+              </IconAction>
+              {agent.kind !== "intelligence" && (
+                <IconAction
+                  label={`Access tokens of ${agent.name}`}
+                  onClick={onTokens}
+                >
+                  <KeyRound className="size-3.5" aria-hidden />
+                </IconAction>
+              )}
             </>
           )}
-        </div>
-        {agent.description && (
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-            {agent.description}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center gap-1">
-        {canStart && (
-          <Button size="sm" variant="secondary" onClick={onStart}>
-            <Play className="size-3.5" aria-hidden /> Start
-          </Button>
-        )}
-        {mine && !agent.archivedAt && (
-          <>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={`Edit ${agent.name}`}
-              onClick={onEdit}
+          {canArchive && (
+            <IconAction
+              label={
+                agent.archivedAt
+                  ? `Restore ${agent.name}`
+                  : `Archive ${agent.name}`
+              }
+              onClick={() => void archive()}
             >
-              <Pencil className="size-3.5" aria-hidden />
-            </Button>
-            {agent.kind !== "intelligence" && (
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={`Access tokens of ${agent.name}`}
-                onClick={onTokens}
-              >
-                <KeyRound className="size-3.5" aria-hidden />
-              </Button>
-            )}
-          </>
-        )}
-        {canArchive && (
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={
-              agent.archivedAt
-                ? `Restore ${agent.name}`
-                : `Archive ${agent.name}`
-            }
-            onClick={archive}
-          >
-            {agent.archivedAt ? (
-              <RotateCcw className="size-3.5" aria-hidden />
-            ) : (
-              <Archive className="size-3.5" aria-hidden />
-            )}
-          </Button>
-        )}
-      </div>
-    </li>
+              {agent.archivedAt ? (
+                <RotateCcw className="size-3.5" aria-hidden />
+              ) : (
+                <Archive className="size-3.5" aria-hidden />
+              )}
+            </IconAction>
+          )}
+        </>
+      }
+    />
   );
 }
 

@@ -2,7 +2,9 @@ import { memo, type ReactNode } from "react";
 import {
   AlertTriangle,
   Brain,
+  Check,
   ChevronRight,
+  Dot,
   FileMinus,
   FilePen,
   FilePlus,
@@ -11,6 +13,7 @@ import {
   Sparkles,
   SquareTerminal,
   Wrench,
+  X,
 } from "lucide-react";
 import {
   Collapsible,
@@ -23,16 +26,18 @@ import type {
   SessionEventRow,
 } from "@lictory/core/factory/entities";
 import { cn } from "@lictory/core/lib/utils";
-import { Avatar, Badge } from "@lictory/ui/primitives";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import {
-  AgentMark,
-  ApprovalActions,
-} from "@lictory/platform/components/factory/parts";
+  AgentAvatar,
+  PersonAvatar,
+} from "@lictory/platform/components/identity/actor";
 
 // A session's event log rendered like a coding agent's transcript: people's
 // messages and the agent's answers in full, tool calls and commands folded
-// to one line each, file changes as a list, questions as cards.
+// to one line each, file changes as a list, requests and status as quiet
+// lines. Every row sits on one grid: 8px steps, a 24px icon column, then
+// the text.
 
 type Data = Record<string, unknown>;
 const str = (value: unknown) => (typeof value === "string" ? value : "");
@@ -72,47 +77,47 @@ export const TranscriptRow = memo(function TranscriptRow({
   session,
   agent,
   memberName,
-  canAnswer,
 }: {
   item: TranscriptItem;
   session: SessionEntity;
   agent: AgentEntity | undefined;
   memberName: (id: string | null | undefined) => string;
-  canAnswer: boolean;
 }) {
   if (item.kind === "tool")
     return <ToolRow call={item.call} result={item.result} />;
   const { event } = item;
   const data = event.data as Data;
   switch (event.type) {
-    case "user_message":
+    case "user_message": {
+      const name = str(data.authorName) || memberName(str(data.authorId));
       return (
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 py-1">
           <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-muted px-3.5 py-2">
-            <div className="mb-0.5 text-[11px] font-medium text-muted-foreground">
-              {str(data.authorName) || memberName(str(data.authorId))}
+            <div className="mb-0.5 text-xs font-medium text-muted-foreground">
+              {name}
               {str(data.viaAgent) && ` via ${str(data.viaAgent)}`}
             </div>
             <div className="text-[13px] leading-6 whitespace-pre-wrap">
               {str(data.text)}
             </div>
           </div>
-          <Avatar
-            userId={str(data.authorId)}
-            name={str(data.authorName)}
-            size="xs"
+          <PersonAvatar
+            person={{ id: str(data.authorId) || name, name }}
+            size={24}
             className="mt-1"
           />
         </div>
       );
+    }
     case "context":
       // What Lictory told the agent besides a person's words: where it was
       // asked and the quoted conversation, or a policy's task. Lictory's
       // text, never shown as anyone's message.
       return (
         <Fold
-          icon={<Info className="size-3.5" />}
+          icon={<Info />}
           title={`Context ${agent?.name ?? "the agent"} received`}
+          sans
           detail={
             str(data.summary) ? (
               <span className="hidden min-w-0 truncate text-muted-foreground sm:block">
@@ -120,22 +125,27 @@ export const TranscriptRow = memo(function TranscriptRow({
               </span>
             ) : undefined
           }
-          tone="muted"
         >
           {str(data.summary) && (
             <p className="mb-1.5 text-xs text-muted-foreground sm:hidden">
               {str(data.summary)}
             </p>
           )}
-          <p className="text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
+          <p className="rounded-lg bg-muted/60 p-2.5 text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
             {str(data.text)}
           </p>
         </Fold>
       );
     case "message":
       return (
-        <div className="flex gap-2.5">
-          <AgentMark agent={agent} className="mt-0.5" />
+        <div className="flex gap-2 py-1">
+          <span className="grid w-6 shrink-0 justify-items-center pt-0.5">
+            {agent ? (
+              <AgentAvatar agent={agent} size={20} />
+            ) : (
+              <Sparkles className="size-4 text-muted-foreground" aria-hidden />
+            )}
+          </span>
           <div className="min-w-0 flex-1 text-[13px] leading-6">
             <Markdown source={str(data.text)} answer />
           </div>
@@ -143,11 +153,7 @@ export const TranscriptRow = memo(function TranscriptRow({
       );
     case "reasoning":
       return (
-        <Fold
-          icon={<Brain className="size-3.5" />}
-          title="Thinking"
-          tone="muted"
-        >
+        <Fold icon={<Brain />} title="Thinking" sans>
           <p className="text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
             {str(data.text)}
           </p>
@@ -158,78 +164,66 @@ export const TranscriptRow = memo(function TranscriptRow({
     case "file_change":
       return <FileChanges data={data} />;
     case "approval_request": {
-      const pending = session.approvals.find(
+      // The request is answered in the banner above the composer; here it
+      // stays as a record of what was asked.
+      const pending = session.approvals.some(
         (a) =>
           a.id === str(data.approvalId) || a.requestKey === str(data.requestId),
       );
       return (
-        <div
-          className={cn(
-            "rounded-xl px-4 py-3 shadow-(--shadow-border)",
-            pending ? "bg-warning/8 ring-1 ring-warning/25" : "bg-card",
+        <Line icon={<ShieldQuestion className="text-warning" />}>
+          <span className="text-foreground">
+            {agent?.name ?? "The agent"} asked to approve{" "}
+            <span className="font-medium">{str(data.title)}</span>
+          </span>
+          {str(data.reason) && (
+            <span className="block text-muted-foreground">
+              {str(data.reason)}
+            </span>
           )}
-        >
-          <div className="flex items-start gap-2.5">
-            <ShieldQuestion
-              className="mt-0.5 size-4 shrink-0 text-warning"
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium">{str(data.title)}</div>
-              {str(data.reason) && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {str(data.reason)}
-                </p>
-              )}
-              {data.input !== undefined && data.input !== null && (
-                <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-4">
-                  {JSON.stringify(data.input, null, 2)}
-                </pre>
-              )}
-              {pending && (
-                <div className="mt-3">
-                  <ApprovalActions
-                    session={session}
-                    approval={pending}
-                    canAnswer={canAnswer}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+          {pending && session.status === "waiting" && (
+            <span className="block text-muted-foreground">
+              Waiting for an answer below.
+            </span>
+          )}
+        </Line>
       );
     }
     case "approval_answer":
       return (
-        <p className="text-center text-xs text-muted-foreground">
+        <Line
+          icon={
+            data.decision === "approve" ? (
+              <Check className="text-success" />
+            ) : (
+              <X className="text-destructive" />
+            )
+          }
+        >
           <span className="font-medium text-foreground">
             {str(data.byName)}
           </span>{" "}
           {data.decision === "approve" ? "approved" : "denied"} “
           {str(data.title)}”{str(data.note) && `: ${str(data.note)}`}
-        </p>
+        </Line>
       );
     case "status":
       return str(data.message) ? (
-        <p className="text-center text-xs text-muted-foreground">
-          {str(data.message)}
-        </p>
+        <Line icon={<Dot />}>{str(data.message)}</Line>
       ) : null;
     case "error":
       return (
-        <div className="flex gap-2 rounded-lg bg-destructive/8 px-3 py-2 text-[13px] ring-1 ring-destructive/20">
-          <AlertTriangle
-            className="mt-0.5 size-3.5 shrink-0 text-destructive"
-            aria-hidden
-          />
+        <div className="flex gap-2 rounded-lg bg-destructive/8 px-2 py-2 text-[13px] ring-1 ring-destructive/20">
+          <span className="grid w-6 shrink-0 justify-items-center pt-0.5">
+            <AlertTriangle className="size-3.5 text-destructive" aria-hidden />
+          </span>
           <p className="min-w-0 whitespace-pre-wrap">{str(data.message)}</p>
         </div>
       );
     case "summary":
       return (
         <div className="rounded-xl bg-card px-4 py-3 shadow-(--shadow-border)">
-          <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
             <Sparkles className="size-3.5" aria-hidden /> Summary from the agent
           </div>
           <div className="text-[13px] leading-6">
@@ -244,40 +238,69 @@ export const TranscriptRow = memo(function TranscriptRow({
   }
 });
 
+// A quiet line of the log in the same columns as every row: a 24px icon
+// column, then the text.
+function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex min-h-8 items-start gap-2 py-1.5 text-xs leading-5 text-muted-foreground">
+      <span
+        aria-hidden
+        className="grid h-5 w-6 shrink-0 place-items-center [&_svg]:size-3.5"
+      >
+        {icon}
+      </span>
+      <p className="min-w-0 flex-1">{children}</p>
+    </div>
+  );
+}
+
 function Fold({
   icon,
   title,
   detail,
   tone,
+  sans = false,
   children,
 }: {
   icon: ReactNode;
   title: ReactNode;
   detail?: ReactNode;
-  tone?: "muted" | "danger";
+  tone?: "danger";
+  // Lictory's words (context, thinking) rather than a command or a tool.
+  sans?: boolean;
   children: ReactNode;
 }) {
   return (
     <Collapsible>
       <CollapsibleTrigger
         className={cn(
-          "group flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60",
+          "group flex h-8 w-full min-w-0 items-center gap-2 rounded-md pr-2 text-left text-xs focus-ring-inset outline-none hover:bg-muted/60",
           tone === "danger" ? "text-destructive" : "text-muted-foreground",
         )}
       >
-        <ChevronRight
+        <span
           aria-hidden
-          className="size-3 shrink-0 transition-transform duration-150 group-data-open:rotate-90"
-        />
-        <span className="shrink-0" aria-hidden>
+          className="grid w-6 shrink-0 place-items-center [&_svg]:size-3.5"
+        >
           {icon}
         </span>
-        <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground/80">
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            sans
+              ? "text-[13px] text-muted-foreground"
+              : "font-mono text-[12px] text-foreground/85",
+          )}
+        >
           {title}
         </span>
         {detail}
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 transition-transform duration-150 group-data-open:rotate-90 motion-reduce:transition-none"
+        />
       </CollapsibleTrigger>
-      <CollapsiblePanel className="mt-1 ml-6">{children}</CollapsiblePanel>
+      <CollapsiblePanel className="mt-1 mb-2 ml-8">{children}</CollapsiblePanel>
     </Collapsible>
   );
 }
@@ -304,14 +327,14 @@ function ToolRow({
   const title = str(c.summary) || str(c.name) || "Tool result";
   return (
     <Fold
-      icon={<Wrench className="size-3.5" />}
+      icon={<Wrench />}
       title={title}
       tone={failed ? "danger" : undefined}
       detail={
         !result ? (
-          <span className="shrink-0 text-[11px]">running…</span>
+          <span className="shrink-0 text-xs">running…</span>
         ) : failed ? (
-          <Badge tone="danger">failed</Badge>
+          <StatusChip tone="danger">Failed</StatusChip>
         ) : null
       }
     >
@@ -330,11 +353,11 @@ function CommandRow({ data }: { data: Data }) {
   const duration = num(data.durationMs);
   return (
     <Fold
-      icon={<SquareTerminal className="size-3.5" />}
+      icon={<SquareTerminal />}
       title={`$ ${str(data.command).split("\n")[0]}`}
       tone={exit !== null && exit !== 0 ? "danger" : undefined}
       detail={
-        <span className="shrink-0 text-[11px] tabular-nums">
+        <span className="shrink-0 text-xs tabular-nums">
           {exit === null ? "" : exit === 0 ? "exit 0" : `exit ${exit}`}
           {duration !== null && ` · ${(duration / 1000).toFixed(1)} s`}
         </span>
@@ -358,13 +381,16 @@ function FileChanges({ data }: { data: Data }) {
     : [];
   if (!changes.length) return null;
   return (
-    <ul className="space-y-0.5 rounded-lg bg-card px-2.5 py-1.5 shadow-(--shadow-border)">
+    <ul
+      aria-label="Files changed"
+      className="ml-8 rounded-lg bg-card py-1 shadow-(--shadow-border)"
+    >
       {changes.map((change, index) => {
         const Icon = fileIcons[change.kind ?? "modify"] ?? FilePen;
         return (
           <li
             key={`${change.path}-${index}`}
-            className="flex items-center gap-2 text-xs"
+            className="flex h-7 items-center gap-2 px-2.5 text-xs"
           >
             <Icon
               aria-hidden

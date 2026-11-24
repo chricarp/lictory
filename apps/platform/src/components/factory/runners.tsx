@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Box, Copy, Laptop, Plus, Server, Trash2 } from "lucide-react";
+import {
+  Box,
+  CircleOff,
+  Copy,
+  Laptop,
+  Plus,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   runnerOnline,
@@ -11,15 +19,15 @@ import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Dialog } from "@lictory/ui/dialog";
-import { Badge, EmptyState } from "@lictory/ui/primitives";
+import { MissingState } from "@lictory/ui/status-page";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { osLabel } from "@lictory/platform/components/factory/labels";
-import {
-  FactoryPage,
-  Section,
-} from "@lictory/platform/components/factory/parts";
+import { FactoryPage } from "@lictory/platform/components/factory/parts";
+import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   runnerInstallCommand,
@@ -41,33 +49,38 @@ export function FactoryRunners() {
     ).length;
   const organization = active.filter((r) => !r.personal);
   const personal = active.filter((r) => r.personal);
-  const list = (shown: RunnerEntity[]) => (
-    <ul className="divide-y divide-border/60 rounded-xl bg-card shadow-(--shadow-border)">
-      {shown.map((runner) => (
-        <RunnerRow
-          key={runner.id}
-          runner={runner}
-          sessions={busy(runner)}
-          owner={runner.ownerId ? memberName(runner.ownerId) : null}
-          canRevoke={
-            runner.ownerId ? runner.ownerId === userId || isAdmin : isAdmin
-          }
-        />
-      ))}
-    </ul>
+  const online = active.filter((r) => runnerOnline(r)).length;
+  const row = (runner: RunnerEntity) => (
+    <RunnerRow
+      key={runner.id}
+      runner={runner}
+      sessions={busy(runner)}
+      owner={runner.ownerId ? memberName(runner.ownerId) : null}
+      canRevoke={
+        runner.ownerId ? runner.ownerId === userId || isAdmin : isAdmin
+      }
+    />
   );
   return (
     <FactoryPage
-      title="Runners"
       description="Machines you control that run agent sessions, each in its own git worktree. Organization runners run anyone’s agents; personal runners only their owner’s."
+      meta={
+        active.length > 0 && (
+          <span>
+            {online} of {active.length} online
+          </span>
+        )
+      }
       actions={
-        <Button onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" aria-hidden /> Add runner
+        <Button onClick={() => setAdding(true)} aria-label="Add runner">
+          <Plus className="size-3.5" aria-hidden />
+          <span className="max-sm:hidden">Add runner</span>
         </Button>
       }
     >
       {!active.length ? (
-        <EmptyState
+        <MissingState
+          icon={Server}
           title="No runners yet"
           action={
             <Button onClick={() => setAdding(true)}>
@@ -78,27 +91,52 @@ export function FactoryRunners() {
           Install <code className="font-mono text-xs">lictory-runner</code> on a
           server, a VPS, a laptop or a Mac and register it with a one-time
           token. It connects out over HTTPS and works behind NAT.
-        </EmptyState>
+        </MissingState>
       ) : (
         <>
-          <Section title="Organization runners" count={organization.length}>
-            {organization.length ? (
-              list(organization)
-            ) : (
-              <p className="px-3 text-[13px] text-muted-foreground">
-                None. An administrator adds runners everyone’s agents can use.
-              </p>
-            )}
-          </Section>
-          {personal.length > 0 && (
-            <Section title="Personal runners" count={personal.length}>
-              {list(personal)}
-            </Section>
-          )}
+          <Panel
+            title="Organization runners"
+            count={organization.length}
+            empty="None. An administrator adds runners everyone’s agents can use."
+          >
+            {organization.map(row)}
+          </Panel>
+          <Panel title="Personal runners" count={personal.length}>
+            {personal.map(row)}
+          </Panel>
         </>
       )}
       {adding && <AddRunnerDialog onClose={() => setAdding(false)} />}
     </FactoryPage>
+  );
+}
+
+// "3 of 6 sessions" as a short bar, so a full runner reads at a glance.
+function Capacity({ used, max }: { used: number; max: number }) {
+  const share = max > 0 ? Math.min(1, used / max) : 0;
+  return (
+    <span className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
+      <span
+        role="meter"
+        aria-label="Sessions running"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={used}
+        aria-valuetext={`${used} of ${max} sessions`}
+        className="relative h-1.5 w-14 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/8 ring-inset max-sm:hidden"
+      >
+        <span
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full",
+            share >= 1 ? "bg-warning" : "bg-ring",
+          )}
+          style={{ width: `${share * 100}%` }}
+        />
+      </span>
+      <span>
+        {used} of {max} sessions
+      </span>
+    </span>
   );
 }
 
@@ -126,94 +164,99 @@ function RunnerRow({
     } catch (error) {
       toast({
         type: "error",
-        title: "The runner was not revoked",
+        title: "The runner was not removed",
         description: (error as Error).message,
       });
     }
   };
   const Icon = runner.personal ? Laptop : Server;
   return (
-    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
-      <span className="relative grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-        <Icon className="size-4" aria-hidden />
-        <span
-          aria-hidden
-          className={cn(
-            "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-card",
-            online ? "bg-success" : "bg-muted-foreground/40",
-          )}
-        />
-      </span>
-      <div className="min-w-0 flex-1 basis-56">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[13px] font-medium">
-            {runner.name}
-          </span>
-          <Badge tone={online ? "good" : "neutral"}>
-            {online ? "Online" : "Offline"}
-          </Badge>
-          {runner.isolation === "container" && (
-            <Badge tone="info">
-              <Box className="size-3" aria-hidden /> Containers
-            </Badge>
-          )}
-        </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-          {owner && <span>{owner}’s</span>}
-          <span>
-            {osLabel(runner.os)} {runner.arch}
-          </span>
-          <span>·</span>
-          <span>
-            {runner.harnesses.length
-              ? runner.harnesses
-                  .map((h) => harnessLabels[h.id as HarnessId] ?? h.id)
-                  .join(", ")
-              : "No harness found"}
-          </span>
-          <span>·</span>
-          <span className="tabular-nums">
-            {sessions} of {runner.maxSessions} sessions
-          </span>
-          <span>·</span>
-          <span>
-            {runner.lastSeenAt
-              ? `Seen ${relativeTime(runner.lastSeenAt)}`
-              : "Never connected"}
-          </span>
-          {runner.version && (
-            <span className="font-mono">v{runner.version}</span>
-          )}
-        </div>
-      </div>
-      {canRevoke &&
-        (confirming ? (
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">
-              Its sessions return to the queue.
+    <>
+      <ListRow
+        leading={<Icon aria-hidden className="text-muted-foreground" />}
+        title={<span className="font-medium">{runner.name}</span>}
+        meta={
+          <>
+            {owner && <span className="shrink-0">{owner}’s</span>}
+            {owner && <span aria-hidden>·</span>}
+            <span className="shrink-0">
+              {osLabel(runner.os)} {runner.arch}
             </span>
-            <Button size="sm" variant="danger" onClick={revoke}>
-              Revoke
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setConfirming(false)}
+            <span aria-hidden>·</span>
+            <span className="truncate">
+              {runner.harnesses.length
+                ? runner.harnesses
+                    .map((h) => harnessLabels[h.id as HarnessId] ?? h.id)
+                    .join(", ")
+                : "No harness found"}
+            </span>
+            {runner.version && (
+              <span className="shrink-0 font-mono">v{runner.version}</span>
+            )}
+          </>
+        }
+        chips={
+          <>
+            <Capacity used={sessions} max={runner.maxSessions} />
+            {runner.isolation === "container" && (
+              <StatusChip tone="neutral" icon={<Box />}>
+                Containers
+              </StatusChip>
+            )}
+            <StatusChip
+              tone={online ? "success" : "neutral"}
+              icon={online ? <StatusDot /> : <CircleOff />}
+              title={
+                runner.lastSeenAt
+                  ? `Last seen ${new Date(runner.lastSeenAt).toLocaleString()}`
+                  : "It has never connected."
+              }
             >
-              Keep
+              {online ? "Online" : "Offline"}
+            </StatusChip>
+          </>
+        }
+        time={
+          runner.lastSeenAt
+            ? {
+                iso: runner.lastSeenAt,
+                label: online
+                  ? `Seen ${relativeTime(runner.lastSeenAt)}`
+                  : `Last seen ${relativeTime(runner.lastSeenAt)}`,
+              }
+            : undefined
+        }
+        actions={
+          canRevoke && !confirming ? (
+            <Button
+              variant="ghost"
+              onClick={() => setConfirming(true)}
+              aria-label={`Remove ${runner.name}…`}
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+              <span className="max-sm:hidden">Remove runner…</span>
             </Button>
-          </div>
-        ) : (
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={`Revoke ${runner.name}`}
-            onClick={() => setConfirming(true)}
-          >
-            <Trash2 className="size-3.5" aria-hidden />
+          ) : undefined
+        }
+      />
+      {confirming && (
+        <li
+          role="alert"
+          className="flex flex-wrap items-center gap-2 bg-destructive/5 px-3.5 py-2.5 text-[13px]"
+        >
+          <span className="mr-auto">
+            Remove <span className="font-medium">{runner.name}</span>? Its
+            credential stops working and its sessions return to the queue.
+          </span>
+          <Button variant="ghost" onClick={() => setConfirming(false)}>
+            Keep
           </Button>
-        ))}
-    </li>
+          <Button variant="danger" onClick={revoke}>
+            Remove runner
+          </Button>
+        </li>
+      )}
+    </>
   );
 }
 

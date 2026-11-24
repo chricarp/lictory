@@ -1,171 +1,198 @@
-import { useState } from "react";
-import { Bot, Play, Server } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  Bot,
+  Check,
+  Factory,
+  Hand,
+  History,
+  Play,
+  Server,
+  Zap,
+} from "lucide-react";
+import { cn } from "@lictory/core/lib/utils";
 import { runnerOnline, sessionTitle } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
-import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
-import { Link } from "@lictory/platform/lib/navigation";
+import { MissingState } from "@lictory/ui/status-page";
+import {
+  Link,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
+import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
-  ApprovalActions,
   FactoryPage,
-  Section,
-  SessionList,
+  SessionRow,
+  useItemKey,
+  useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
-import {
-  useFactory,
-  waitingOnMe,
-} from "@lictory/platform/components/factory/store";
+import { useFactory } from "@lictory/platform/components/factory/store";
+import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
 
-// What the factory is doing and what is waiting on people: questions
-// agents asked me first, then sessions at work, queued and finished.
+// What the factory is doing, in three blocks, each session in exactly one:
+// what needs me (an agent's request, reviewed with its context), what is
+// running, and what finished recently with what it changed. The counts sit
+// in the header; a new organization sees one setup path instead.
+
+const RECENT = 20;
+
 export function FactoryOverview() {
   const { organization, userId } = useWorkspace();
-  const { agents, agentById, runners, sessions, complete } = useFactory();
-  const [starting, setStarting] = useState(false);
+  const { agents, agentById, runners, runnerById, sessions, complete } =
+    useFactory();
+  // `?start=<work item id>` opens the dialog for that item (an item's page
+  // links here); `?start=new` opens it empty.
+  const search = useSearchParams();
+  const router = useRouter();
+  const startParam = search.get("start");
+  const [starting, setStarting] = useState(Boolean(startParam));
+  const close = () => {
+    setStarting(false);
+    if (startParam) router.replace(factoryPaths.overview(organization.slug));
+  };
+  const stateOf = useSessionStateOf();
+  const itemKey = useItemKey();
   const org = organization.slug;
-  const waiting = waitingOnMe(sessions, agentById, userId);
-  const working = sessions.filter((s) =>
-    ["assigned", "running", "waiting"].includes(s.status),
+  const blocks = useMemo(
+    () => overviewBlocks(sessions, agentById, userId),
+    [sessions, agentById, userId],
   );
-  const queued = sessions.filter((s) => s.status === "queued");
-  const finished = sessions
-    .filter((s) => ["completed", "failed", "canceled"].includes(s.status))
-    .slice(0, 20);
-  const online = runners.filter((r) => runnerOnline(r)).length;
+  const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;
+  const active = runners.filter((r) => !r.revokedAt).length;
   const runnable = agents.filter((a) => a.kind === "runner" && !a.archivedAt);
+  const description =
+    "Agents working on your team’s tasks, on runners you control. People start, steer and approve; agents do the work in between.";
+  const start = (
+    <Button
+      onClick={() => setStarting(true)}
+      disabled={!runnable.length}
+      aria-label="Start session"
+    >
+      <Play className="size-3.5" aria-hidden />
+      <span className="max-sm:hidden">Start session</span>
+    </Button>
+  );
+
+  if (!complete && !sessions.length && !agents.length)
+    return (
+      <FactoryPage description={description}>
+        <LoadingState label="Loading the factory" />
+      </FactoryPage>
+    );
+  // A factory needs a runner and an agent before anything can happen.
+  if (!sessions.length && (!runnable.length || !active))
+    return (
+      <FactoryPage description={description}>
+        <Setup hasAgents={runnable.length > 0} hasRunners={active > 0} />
+      </FactoryPage>
+    );
+
+  const counts = [
+    blocks.needsYou.length > 0 && `${blocks.needsYou.length} need you`,
+    `${blocks.running.filter((s) => s.status !== "queued").length} running`,
+    blocks.queued > 0 && `${blocks.queued} queued`,
+    `${online} of ${active} ${active === 1 ? "runner" : "runners"} online`,
+  ].filter(Boolean);
+  const recent = blocks.recent.slice(0, RECENT);
   return (
     <FactoryPage
-      title="Factory"
-      description="Agents working on your team’s tasks, on runners you control. People start, steer and approve; agents do the work in between."
-      actions={
-        <Button onClick={() => setStarting(true)} disabled={!runnable.length}>
-          <Play className="size-3.5" aria-hidden /> Start session
-        </Button>
-      }
+      description={description}
+      meta={<span data-factory-counts>{counts.join(" · ")}</span>}
+      actions={start}
     >
-      <dl className="grid grid-cols-3 gap-3">
-        <Stat
-          label="Working"
-          value={working.length}
-          detail={`${queued.length} queued`}
-        />
-        <Stat
-          label="Runners online"
-          value={online}
-          detail={`of ${runners.length}`}
-          href={factoryPaths.runners(org)}
-        />
-        <Stat
-          label="Agents"
-          value={agents.filter((a) => !a.archivedAt).length}
-          detail={`${runnable.length} run on runners`}
-          href={factoryPaths.agents(org)}
-        />
-      </dl>
-      {!complete && !sessions.length ? (
-        <LoadingState label="Loading the factory" />
-      ) : !agents.length || !runners.length ? (
-        <Setup hasAgents={agents.length > 0} hasRunners={runners.length > 0} />
-      ) : null}
-      {waiting.length > 0 && (
-        <Section title="Waiting on you" count={waiting.length}>
-          <ul className="space-y-2">
-            {waiting.flatMap((session) =>
-              session.approvals.map((approval) => (
-                <li
-                  key={approval.id}
-                  className="flex flex-wrap items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-(--shadow-border)"
-                >
-                  <div className="min-w-0 flex-1 basis-60">
-                    <div className="text-[13px] font-medium">
-                      {approval.title}
-                    </div>
-                    <Link
-                      href={factoryPaths.session(org, session.id)}
-                      className="mt-0.5 block truncate text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      {agentById.get(session.agentId)?.name ?? "Agent"} ·{" "}
-                      {sessionTitle(session.title)}
-                    </Link>
-                  </div>
-                  <ApprovalActions
-                    session={session}
-                    approval={approval}
-                    canAnswer
-                  />
-                </li>
-              )),
-            )}
-          </ul>
-        </Section>
-      )}
-      <Section title="Working now" count={working.length}>
-        <SessionList
-          sessions={working}
-          agentById={agentById}
-          empty={
-            queued.length
-              ? online
-                ? "Sessions are queued; a runner will claim them shortly."
-                : "Sessions are queued, but no runner is online to claim them."
-              : "No agent is working right now."
+      <Panel
+        title="Needs you"
+        icon={<Hand />}
+        count={blocks.needsYou.length}
+        empty="Nothing waits on you. Agents ask here when they need a decision."
+      >
+        {blocks.needsYou.flatMap((session) => {
+          const agent = agentById.get(session.agentId);
+          if (!session.approvals.length)
+            // Waiting for my next message, not for a decision.
+            return [
+              <ListRow
+                key={session.id}
+                href={factoryPaths.session(org, session.id)}
+                leading={
+                  agent ? <AgentAvatar agent={agent} size={20} /> : undefined
+                }
+                identifier={itemKey(session.workItemId)}
+                title={sessionTitle(session.title)}
+                meta="Waiting for your next message"
+                chips={<SessionStateChip state={stateOf(session, agent)} />}
+                time={session.updatedAt}
+              />,
+            ];
+          return session.approvals.map((approval) => (
+            <ApprovalRequest
+              key={approval.id}
+              compact
+              session={session}
+              approval={approval}
+              agent={agent}
+              runner={
+                session.runnerId ? runnerById.get(session.runnerId) : undefined
+              }
+            />
+          ));
+        })}
+      </Panel>
+      <Panel
+        title="Running"
+        icon={<Zap />}
+        count={blocks.running.length}
+        empty={
+          blocks.queued
+            ? online
+              ? "Sessions are queued; a runner will claim them shortly."
+              : "Sessions are queued, but no runner is online to claim them."
+            : "No agent is working right now."
+        }
+      >
+        {blocks.running.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            agent={agentById.get(session.agentId)}
+          />
+        ))}
+      </Panel>
+      <Panel
+        title="Recent"
+        icon={<History />}
+        count={blocks.recent.length}
+        empty="Finished sessions appear here, with what they changed."
+      >
+        {recent.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            agent={agentById.get(session.agentId)}
+            showOutcome
+          />
+        ))}
+      </Panel>
+      {starting && (
+        <StartSessionDialog
+          onClose={close}
+          workItemId={
+            startParam && startParam !== "new" ? startParam : undefined
           }
         />
-      </Section>
-      {queued.length > 0 && (
-        <Section title="Queued" count={queued.length}>
-          <SessionList sessions={queued} agentById={agentById} />
-        </Section>
       )}
-      <Section title="Recent" count={finished.length}>
-        <SessionList
-          sessions={finished}
-          agentById={agentById}
-          empty="Finished sessions appear here, with what they changed."
-        />
-      </Section>
-      {starting && <StartSessionDialog onClose={() => setStarting(false)} />}
     </FactoryPage>
   );
 }
 
-function Stat({
-  label,
-  value,
-  detail,
-  href,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  href?: string;
-}) {
-  const body = (
-    <>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 flex items-baseline gap-1.5">
-        <span className="text-xl font-semibold tabular-nums">{value}</span>
-        <span className="truncate text-xs text-muted-foreground">{detail}</span>
-      </dd>
-    </>
-  );
-  const className =
-    "block rounded-xl bg-card px-4 py-3 shadow-(--shadow-border) outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
-  return href ? (
-    <div>
-      <Link href={href} className={`${className} hover:bg-muted/50`}>
-        {body}
-      </Link>
-    </div>
-  ) : (
-    <div className={className}>{body}</div>
-  );
-}
-
-// First use: what to connect, in order.
+// First use: one path, in order (a runner, then an agent).
 function Setup({
   hasAgents,
   hasRunners,
@@ -176,30 +203,64 @@ function Setup({
   const { organization } = useWorkspace();
   const org = organization.slug;
   return (
-    <EmptyState
+    <MissingState
+      icon={Factory}
       title="Set up the factory"
       action={
-        <div className="flex flex-wrap justify-center gap-2">
-          {!hasRunners && (
-            <Button render={<Link href={factoryPaths.runners(org)} />}>
-              <Server className="size-3.5" aria-hidden /> Add a runner
-            </Button>
-          )}
-          {!hasAgents && (
-            <Button
-              variant={hasRunners ? "primary" : "secondary"}
-              render={<Link href={factoryPaths.agents(org)} />}
-            >
-              <Bot className="size-3.5" aria-hidden /> Create an agent
-            </Button>
-          )}
-        </div>
+        !hasRunners ? (
+          <Button render={<Link href={factoryPaths.runners(org)} />}>
+            <Server className="size-3.5" aria-hidden /> Add a runner
+          </Button>
+        ) : (
+          <Button render={<Link href={factoryPaths.agents(org)} />}>
+            <Bot className="size-3.5" aria-hidden /> Create an agent
+          </Button>
+        )
       }
     >
-      A runner is a machine you control (a server, a laptop, a Mac mini) that
-      runs coding agents such as Claude Code or Codex. An agent is a named
-      member with an owner who is accountable for it. Add one of each to start
-      sessions.
-    </EmptyState>
+      <ol className="mt-2 space-y-2 text-left">
+        <SetupStep n={1} done={hasRunners}>
+          Add a runner: a machine you control (a server, a laptop, a Mac mini)
+          that runs coding agents such as Claude Code or Codex.
+        </SetupStep>
+        <SetupStep n={2} done={hasAgents}>
+          Create an agent: a named member with an owner who is accountable for
+          it.
+        </SetupStep>
+        <SetupStep n={3} done={false}>
+          Start a session, or mention the agent in a channel.
+        </SetupStep>
+      </ol>
+    </MissingState>
+  );
+}
+
+function SetupStep({
+  n,
+  done,
+  children,
+}: {
+  n: number;
+  done: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <li className="flex gap-2.5">
+      <span
+        aria-hidden
+        className={cn(
+          "mt-px grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums",
+          done
+            ? "bg-success/12 text-success"
+            : "bg-muted text-muted-foreground",
+        )}
+      >
+        {done ? <Check className="size-3" /> : n}
+      </span>
+      <span className={done ? "text-muted-foreground" : "text-foreground"}>
+        {done && <span className="sr-only">Done: </span>}
+        {children}
+      </span>
+    </li>
   );
 }
