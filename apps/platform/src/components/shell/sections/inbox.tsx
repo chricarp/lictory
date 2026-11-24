@@ -1,10 +1,9 @@
-import { useMemo } from "react";
 import { Inbox } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
-import { needsMyReview } from "@lictory/core/lib/work-items";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useUnread } from "@lictory/platform/components/shell/unread";
+import { useWaitingOnYou } from "@lictory/platform/components/workspace/inbox";
 import {
   SidebarLink,
   useNavActive,
@@ -15,18 +14,22 @@ import type {
   NavSectionProps,
 } from "@lictory/platform/components/shell/nav-registry";
 
-// Unread notifications take the badge; otherwise the count of open reviews
-// waiting on me.
+// The Inbox's badge counts what waits on me (To do: the same queue as
+// Home's "Waiting on you"), strongly; unread updates are news, not asks, and
+// show as a quiet dot beside it.
 function useInboxBadge(): NavBadge | null {
-  const { organization, items, userId, disciplineIds } = useWorkspace();
+  const { organization } = useWorkspace();
   const unread = useUnread()[organization.id] ?? 0;
-  const todo = useMemo(
-    () => items.filter((i) => needsMyReview(i, userId, disciplineIds)).length,
-    [items, userId, disciplineIds],
-  );
-  if (unread > 0) return { count: unread, label: "unread", tone: "strong" };
-  if (todo > 0) return { count: todo, label: "to do", tone: "quiet" };
-  return null;
+  const todo = useWaitingOnYou().length;
+  if (todo === 0 && unread === 0) return null;
+  return {
+    count: todo,
+    label: "to do",
+    // Unread updates alone wait on nobody (the phone's menu button marks
+    // strong badges only).
+    tone: todo > 0 ? "strong" : "quiet",
+    ...(unread > 0 ? { dot: "unread updates" } : {}),
+  };
 }
 
 // What is addressed to me, and my assistant.

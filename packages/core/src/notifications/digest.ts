@@ -1,7 +1,12 @@
 // The Inbox's Updates digest repeated traffic so it never buries a review
 // request or a blocking discussion:
-// - conversation traffic: messages in one channel or direct conversation
-//   become one row ("Ben Ortiz · 2 messages") instead of one per message.
+// - conversation traffic, per conversation: a direct conversation, a
+//   thread (its replies) or a channel (its top-level messages) is one row
+//   ("Ben Ortiz · 2 messages", "3 replies to a thread in #payments from …")
+//   instead of one per message. The fan-out already folds unread direct
+//   messages and thread replies into one notification by the same rule
+//   (`detail.count`, notifications/events.ts); this groups what it did not
+//   fold (read rows, channel messages) and counts the messages folded in.
 //   Mentions stay their own rows: they are addressed to the person.
 // - an agent's failed sessions: one row per agent ("Forge failed 3
 //   sessions"), the newest failure's reason under it, instead of one row
@@ -29,7 +34,7 @@ type Groupable = {
 // (`latest` is the first of `items`).
 export type FeedRow<N> = {
   key: string;
-  group?: "conversation" | "agent_failures";
+  group?: "conversation" | "thread" | "agent_failures";
   latest: N;
   items: N[];
 };
@@ -39,6 +44,12 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 // Which group a notification joins, if any.
 function groupOf(n: Groupable) {
   const channelId = str(n.detail.channelId);
+  const root = str(n.detail.threadRootId);
+  if (n.kind === "channel_thread_reply" && channelId && root)
+    return {
+      group: "thread" as const,
+      key: `thread:${n.organizationId}:${channelId}:${root}`,
+    };
   if (conversationKinds.has(n.kind) && channelId)
     return {
       group: "conversation" as const,
@@ -77,6 +88,15 @@ export function digestFeed<N extends Groupable>(
   return rows;
 }
 
+// How many messages a row stands for: a notification the fan-out folded
+// counts every message folded into it.
+export function messageCount<N extends Groupable>(row: FeedRow<N>) {
+  return row.items.reduce(
+    (sum, n) => sum + (typeof n.detail.count === "number" ? n.detail.count : 1),
+    0,
+  );
+}
+
 // "Ada Lovelace", "Ada Lovelace and Ben Ortiz", "Ada Lovelace, Ben Ortiz
 // and 2 others", most recent first.
 function people(names: string[]) {
@@ -96,10 +116,14 @@ export function describeDigest<N extends Groupable>(
     return `${agent} failed ${row.items.length} sessions`;
   }
   const names = [...new Set(row.items.map((n) => n.actorName ?? formerMember))];
-  const count = `${row.items.length} message${row.items.length > 1 ? "s" : ""}`;
+  const total = messageCount(row);
   const d = row.latest.detail;
   const name = str(d.channelName);
-  if (d.channelKind === "direct" || !name) return `${people(names)} · ${count}`;
+  const direct = d.channelKind === "direct" || !name;
+  if (row.group === "thread")
+    return `${total} ${total > 1 ? "replies" : "reply"} to a thread ${direct ? "in a direct message" : `in #${name}`} from ${people(names)}`;
+  const count = `${total} message${total > 1 ? "s" : ""}`;
+  if (direct) return `${people(names)} · ${count}`;
   return `#${name} · ${count} from ${people(names)}`;
 }
 

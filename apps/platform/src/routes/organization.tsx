@@ -248,7 +248,7 @@ export function NotificationsRedirect() {
   const { organization } = useWorkspace();
   const router = useRouter();
   useEffect(() => {
-    router.replace(paths.inbox(organization.slug));
+    router.replace(paths.inbox(organization.slug, "updates"));
   }, [router, organization.slug]);
   return null;
 }

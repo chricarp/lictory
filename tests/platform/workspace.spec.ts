@@ -735,15 +735,15 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // reviewer about the review request and the mention (not also a reply).
   const orgPath = storyUrl.replace(/\/pay\/items\/PAY-2$/, "");
   const ownerInbox = await page.context().newPage();
-  await ownerInbox.goto(`${orgPath}/inbox`);
+  await ownerInbox.goto(`${orgPath}/inbox?view=updates`);
   await expect(
     ownerInbox.getByText("Riley Chen opened a blocking discussion on PAY-2"),
   ).toBeVisible();
   await ownerInbox.close();
   const reviewerInbox = await reviewerContext.newPage();
-  // The old notifications URL lands in the Inbox.
+  // The old notifications URL lands in the Inbox's Updates.
   await reviewerInbox.goto(`${orgPath}/notifications`);
-  await expect(reviewerInbox).toHaveURL(/\/inbox$/);
+  await expect(reviewerInbox).toHaveURL(/\/inbox\?view=updates$/);
   await expect(
     reviewerInbox.getByText("Alex Morgan mentioned you on PAY-2"),
   ).toBeVisible();
@@ -755,9 +755,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewerInbox.getByText("Alex Morgan replied on PAY-2"),
   ).toHaveCount(0);
+  // The sidebar counts what waits on the reviewer (the review), with a
+  // quiet dot for the unread updates.
   await expect(
     reviewerInbox.getByRole("link", { name: /^Inbox/ }),
-  ).toContainText("2");
+  ).toHaveAccessibleDescription("1 to do, unread updates");
   // The same review request is also current work in "To do".
   await reviewerInbox.getByRole("tab", { name: /^To do/ }).click();
   await expect(
@@ -766,9 +768,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewerInbox.getByRole("tab", { name: /^Updates/ }).click();
   await reviewerInbox.getByRole("button", { name: "Mark all read" }).click();
   await expect(reviewerInbox.getByText("You're all caught up")).toBeVisible();
+  // Read updates drop the dot; the review still waits.
   await expect(
     reviewerInbox.getByRole("link", { name: /^Inbox/ }),
-  ).not.toContainText("2");
+  ).toHaveAccessibleDescription("1 to do");
   // Preferences: email is an option of an enabled notification only.
   await reviewerInbox
     .getByRole("link", { name: "Notification settings" })

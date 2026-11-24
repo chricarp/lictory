@@ -5,6 +5,7 @@ import {
   inArray,
   isNull,
   lt,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -17,6 +18,7 @@ import type { Database } from "@lictory/core/domain/service";
 import {
   isNotificationKind,
   notificationKindList,
+  toDoKinds,
 } from "@lictory/core/notifications/catalog";
 
 const kind = z
@@ -154,7 +156,10 @@ export function createNotificationService(db: Database) {
         where.push(eq(s.notification.organizationId, q.organizationId));
       if (q.projectId) where.push(eq(s.notification.projectId, q.projectId));
       if (q.teamId) where.push(eq(s.notification.teamId, q.teamId));
+      // Asked-for kinds are listed as asked; otherwise the To do kinds stay
+      // in To do (`toDoKinds`).
       if (q.kinds?.length) where.push(inArray(s.notification.kind, q.kinds));
+      else where.push(notInArray(s.notification.kind, [...toDoKinds]));
       if (q.status === "archived")
         where.push(sql`${s.notification.archivedAt} is not null`);
       else where.push(isNull(s.notification.archivedAt));
@@ -219,7 +224,8 @@ export function createNotificationService(db: Database) {
         unread: await this.unread(userId),
       };
     },
-    // Unread counts per organization, for badges.
+    // Unread counts per organization, for badges. To do kinds are counted
+    // by To do, from live state, not here.
     async unread(userId: string) {
       const rows = await db
         .select({
@@ -233,6 +239,7 @@ export function createNotificationService(db: Database) {
             eq(s.notification.userId, userId),
             isNull(s.notification.readAt),
             isNull(s.notification.archivedAt),
+            notInArray(s.notification.kind, [...toDoKinds]),
             notificationReadable,
           ),
         )

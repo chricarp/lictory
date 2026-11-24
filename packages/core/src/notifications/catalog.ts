@@ -292,7 +292,7 @@ export const notificationKinds = {
     category: "agents",
     label: "An agent asks for your decision",
     description:
-      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something.",
+      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something. The question waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
     inApp: true,
     email: true,
   },
@@ -371,6 +371,17 @@ export const notificationKindList = Object.keys(
 export function isNotificationKind(kind: string): kind is NotificationKind {
   return kind in notificationKinds;
 }
+
+// Kinds whose live state is an entry of the Inbox's To do: an agent's
+// question waits there, with its Approve and Deny, until someone answers it.
+// Their notifications still email and wake agents, but the Updates feed
+// neither lists nor counts them, so one ask is never two rows and never a
+// stale unread dot. Updates keeps the outcome (the session finished or
+// failed). See docs/internals/notifications.md#inbox.
+export const toDoKinds: readonly NotificationKind[] = [
+  "agent_approval_requested",
+];
+
 const isRequired = (kind: NotificationKind) =>
   (notificationKinds[kind] as Definition).required === true;
 // Kinds a person can turn on or off in notification settings.

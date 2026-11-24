@@ -168,7 +168,7 @@ function Home() {
                 count={waiting.length}
                 more={{
                   label: "Open Inbox",
-                  href: `${paths.inbox(org)}?view=todo`,
+                  href: paths.inbox(org, "todo"),
                 }}
                 // A new organization's Home is its setup, not empty boxes.
                 empty={

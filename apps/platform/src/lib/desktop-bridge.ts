@@ -3,6 +3,7 @@ import { paths, safeCallbackPath } from "@lictory/core/lib/paths";
 import {
   notificationKindList,
   notificationKinds,
+  toDoKinds,
   type NotificationKind,
 } from "@lictory/core/notifications/catalog";
 import {
@@ -51,8 +52,12 @@ const channelKinds = new Set<string>(
     (kind) => notificationKinds[kind].category === "channels",
   ),
 );
+// An agent's question (`toDoKinds`) waits in the Inbox's To do, where
+// nothing marks its notification read; counting it would keep the badge
+// after it is answered. It is still forwarded as a native notification.
+const liveKinds = new Set<string>(toDoKinds);
 export const badgeCounts = (n: Pick<NotificationItem, "kind">) =>
-  !channelKinds.has(n.kind);
+  !channelKinds.has(n.kind) && !liveKinds.has(n.kind);
 
 const PAGE = 100;
 // Native notifications per refresh; the rest are summed up in one.
@@ -168,7 +173,7 @@ export function toDesktopNotifications(
     {
       title: `${rest} more notifications need you`,
       body: "Open your inbox to see them all.",
-      path: paths.inbox(newest.organizationSlug),
+      path: paths.inbox(newest.organizationSlug, "updates"),
       tag: "lictory-summary",
     },
     ...shown.map(desktopNotification),

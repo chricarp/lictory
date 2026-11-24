@@ -23,6 +23,7 @@ import { codeSection } from "@lictory/platform/components/code/code-nav";
 
 // A count shown beside a section in the sidebar.
 export type NavBadge = {
+  // 0 with a `dot` shows the dot alone.
   count: number;
   // What the number counts, read by assistive technology after the section's
   // name: "unread mentions", "to do".
@@ -34,6 +35,9 @@ export type NavBadge = {
   // direct messages do (the desktop contract); the shell adds them to the
   // desktop bridge as one source (lib/desktop-bridge.ts).
   dock?: boolean;
+  // A quiet dot after the count for lesser news, named for assistive
+  // technology: the Inbox counts what waits on me and dots unread updates.
+  dot?: string;
 };
 
 export type NavSectionProps = {

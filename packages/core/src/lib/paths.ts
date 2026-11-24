@@ -16,7 +16,10 @@ export const paths = {
     `/${org}/intelligence/${chat}`,
   // Resolves any work item identifier (PAY-142) to its project route.
   itemByKey: (org: string, key: string) => `/${org}/items/${key}`,
-  inbox: (org: string) => `/${org}/inbox`,
+  // The Inbox opens on To do when something waits on me, else on Updates;
+  // `view` names one.
+  inbox: (org: string, view?: "todo" | "updates") =>
+    `/${org}/inbox${view ? `?view=${view}` : ""}`,
   // Content search results: `q`, and optionally `kind` and `project`.
   search: (org: string, params: Record<string, string>) =>
     withSearchParams(`/${org}/search`, new URLSearchParams(params)),

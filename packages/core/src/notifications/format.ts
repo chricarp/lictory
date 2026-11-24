@@ -322,5 +322,5 @@ export function notificationHref(
   const iterationId = str(d.iterationId);
   if (projectKey && iterationId)
     return paths.iteration(orgSlug, projectKey, iterationId);
-  return paths.inbox(orgSlug);
+  return paths.inbox(orgSlug, "updates");
 }
