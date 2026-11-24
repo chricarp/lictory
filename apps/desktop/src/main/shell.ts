@@ -132,6 +132,13 @@ export class Shell {
   constructor(private readonly options: ShellOptions) {
     this.servers = options.stores.servers.read();
     this.settings = options.stores.settings.read();
+    powerMonitor.on("resume", () => this.retryFailed());
+    powerMonitor.on("unlock-screen", () => this.retryFailed());
+    nativeTheme.on("updated", () => {
+      const win = this.window;
+      if (process.platform === "win32" && win && !win.isDestroyed())
+        win.setTitleBarOverlay(this.titleBarOverlay());
+    });
   }
 
   // ------------------------------------------------------------ window
@@ -203,7 +210,7 @@ export class Shell {
       "leave-full-screen",
     ] as const)
       win.on(event as "maximize", () => this.saveWindow());
-    win.on("focus", () => this.activeView()?.contents.focus());
+    win.on("focus", () => this.focusContent());
     win.on("close", (event) => {
       this.options.stores.window.flush();
       if (this.quitting) return;
@@ -224,17 +231,10 @@ export class Shell {
       for (const view of this.views.values()) view.destroy();
       this.views.clear();
     });
-    powerMonitor.on("resume", () => this.retryFailed());
-    powerMonitor.on("unlock-screen", () => this.retryFailed());
-    nativeTheme.on("updated", () => {
-      if (process.platform === "win32" && !win.isDestroyed())
-        win.setTitleBarOverlay(this.titleBarOverlay());
-    });
-
     chrome.webContents.once("did-finish-load", () => {
       if (saved.maximized) win.maximize();
       if (!this.options.startHidden) win.show();
-      this.activeView()?.contents.focus();
+      this.focusContent();
       for (const link of this.pendingLinks.splice(0))
         void this.openDeepLink(link);
     });
@@ -260,6 +260,13 @@ export class Shell {
       maximized: win.isMaximized(),
       fullScreen: win.isFullScreen(),
     });
+  }
+
+  // Keyboard focus goes to what is shown: the server's page or the shell's
+  // own screen.
+  private focusContent() {
+    if (this.screen().kind === "server") this.activeView()?.contents.focus();
+    else this.chrome?.webContents.focus();
   }
 
   show() {
@@ -369,7 +376,9 @@ export class Shell {
     next: ServersState,
     options: { save?: "now" | "soon" } = {},
   ) {
+    // The menu lists the servers and marks the active one.
     const listChanged =
+      next.activeId !== this.servers.activeId ||
       next.servers.length !== this.servers.servers.length ||
       next.servers.some(
         (s, i) =>
@@ -480,7 +489,7 @@ export class Shell {
     if (!this.servers.servers.some((s) => s.id === id)) return;
     this.overlay = null;
     this.setServers(selectServer(this.servers, id), { save: "soon" });
-    this.activeView()?.contents.focus();
+    this.focusContent();
   }
 
   selectShortcut(digit: number) {
@@ -497,8 +506,7 @@ export class Shell {
     this.show();
     this.layout();
     this.changed();
-    if (screen === "server") this.activeView()?.contents.focus();
-    else this.chrome?.webContents.focus();
+    this.focusContent();
   }
 
   // A server that cannot be loaded keeps its error screen while it is tried
