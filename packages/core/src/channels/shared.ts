@@ -1,10 +1,8 @@
 // Lictory Channels rules shared by the server, the browser's predictions and
 // agents (docs/internals/channels.md). Pure: no database, no React.
 
-const channelKinds = ["public", "private", "direct"] as const;
-export type ChannelKind = (typeof channelKinds)[number];
-const channelPromotionKinds = ["proposal", "decision", "discussion"] as const;
-export type ChannelPromotionKind = (typeof channelPromotionKinds)[number];
+export type ChannelKind = "public" | "private" | "direct";
+export type ChannelPromotionKind = "proposal" | "decision" | "discussion";
 
 // A message body is Markdown of at most this many characters (Slack's limit
 // is 40,000; long text belongs in a page or a specification).

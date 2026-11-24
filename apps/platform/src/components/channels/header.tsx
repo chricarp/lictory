@@ -436,7 +436,7 @@ function EditChannelDialog({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!normalized} onClick={save}>
+          <Button type="submit" disabled={!normalized}>
             Save
           </Button>
         </>

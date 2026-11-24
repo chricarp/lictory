@@ -107,7 +107,8 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
   // The card in the thread links the new proposal; Ben sees it too.
   await adaMessage.getByRole("button", { name: /2 replies/ }).click();
   const adaThread = page.getByRole("complementary", { name: "Thread" });
-  await expect(adaThread.getByText("Proposal created")).toBeVisible();
+  // Exactly one proposal, however the dialog was submitted.
+  await expect(adaThread.getByText("Proposal created")).toHaveCount(1);
   await expect(adaThread.getByText(/CHN-1/)).toBeVisible();
   await expect(
     second.page

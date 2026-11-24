@@ -255,10 +255,13 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
   const [projectId, setProjectId] = useState("");
   const [error, setError] = useState("");
   const normalized = normalizeChannelName(name);
+  // One channel per dialog, however often it is submitted.
+  const [channelId] = useState(() => crypto.randomUUID());
+  const [sending, setSending] = useState(false);
   const create = () => {
-    if (!normalized) return;
+    if (!normalized || sending) return;
     setError("");
-    const channelId = crypto.randomUUID();
+    setSending(true);
     mutateConfirmed({
       type: "createChannel",
       channelId,
@@ -272,11 +275,12 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
         onClose();
         router.push(paths.channel(organization.slug, channelId));
       })
-      .catch((e: unknown) =>
+      .catch((e: unknown) => {
+        setSending(false);
         setError(
           e instanceof Error ? e.message : "The channel was not created.",
-        ),
-      );
+        );
+      });
   };
   return (
     <Dialog
@@ -289,7 +293,7 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!normalized} onClick={create}>
+          <Button type="submit" disabled={!normalized || sending}>
             Create channel
           </Button>
         </>
@@ -419,22 +423,26 @@ export function NewMessageDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [people, setPeople] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
   const open = () => {
+    if (!people.length || sending) return;
     setError("");
+    setSending(true);
+    // Opening the same people again returns the same conversation.
     callCapability<{ channelId: string }>("openDirectConversation", {
       organizationId: organization.id,
       userIds: people,
-      mutationId: crypto.randomUUID(),
     })
       .then(({ channelId }) => {
         onClose();
         router.push(paths.channel(organization.slug, channelId));
       })
-      .catch((e: unknown) =>
+      .catch((e: unknown) => {
+        setSending(false);
         setError(
           e instanceof Error ? e.message : "The conversation did not open.",
-        ),
-      );
+        );
+      });
   };
   return (
     <Dialog
@@ -447,7 +455,7 @@ export function NewMessageDialog({ onClose }: { onClose: () => void }) {
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!people.length} onClick={open}>
+          <Button type="submit" disabled={!people.length || sending}>
             Open conversation
           </Button>
         </>

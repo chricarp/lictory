@@ -1,4 +1,4 @@
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { DomainError } from "@lictory/core/domain/errors";
 import type { Database, Tx } from "@lictory/core/domain/service";

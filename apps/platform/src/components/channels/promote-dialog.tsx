@@ -77,15 +77,21 @@ export function PromoteDialog({
   );
   const [workItemId, setWorkItemId] = useState("");
   const [error, setError] = useState("");
+  // One promotion per dialog: a repeated submit replays the first (a
+  // refused one wrote nothing, so a corrected retry is new).
+  const [mutationId] = useState(() => crypto.randomUUID());
+  const [sending, setSending] = useState(false);
   const projectOf = (id: string) => projects.find((p) => p.id === id);
   const submit = async () => {
+    if (sending) return;
     setError("");
+    setSending(true);
     const source = {
       organizationId: organization.id,
       channelId,
       messageId: message.id,
       includeThread,
-      mutationId: crypto.randomUUID(),
+      mutationId,
     };
     try {
       const result =
@@ -139,6 +145,7 @@ export function PromoteDialog({
       });
       onClose();
     } catch (e) {
+      setSending(false);
       setError(e instanceof Error ? e.message : "Promotion failed.");
     }
   };
@@ -161,7 +168,7 @@ export function PromoteDialog({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!ready} onClick={() => submit()}>
+          <Button type="submit" disabled={!ready || sending}>
             {kind === "proposal"
               ? "Create proposal"
               : kind === "decision"
