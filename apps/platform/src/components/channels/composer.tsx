@@ -14,7 +14,8 @@ import {
 // Markdown source view), with chat keys: Enter sends, Shift+Enter breaks the
 // line, ↑ in an empty composer edits your last message, Escape leaves.
 // Unsent text is kept per conversation in this tab (callers key the
-// composer by its draft key).
+// composer by its draft key). The Factory's steering composer is this one
+// too, without a channel (no files) and without references.
 
 const drafts = new Map<string, string>();
 
@@ -32,10 +33,15 @@ export function Composer({
   autoFocus,
   label,
   onTyping,
+  references = true,
+  hint = "Enter to send · Shift+Enter for a new line · @ to mention · # for work items",
+  maxLength = CHANNEL_MESSAGE_MAX,
+  className,
 }: {
   draftKey: string;
   organizationId: string;
-  channelId: string;
+  // Files attach to the channel's messages; without one, no files.
+  channelId?: string;
   placeholder: string;
   mentions: Mentionable[];
   disabled?: boolean;
@@ -47,6 +53,13 @@ export function Composer({
   onTyping?: () => void;
   autoFocus?: boolean;
   label: string;
+  // "#" work items, "[[" pages and decisions (default on).
+  references?: boolean;
+  // The line under the field; the chat keys by default.
+  hint?: string;
+  // The longest message the field accepts.
+  maxLength?: number;
+  className?: string;
 }) {
   const [body, setBody] = useState(() => drafts.get(draftKey) ?? "");
   const editor = useRef<MarkdownEditorHandle>(null);
@@ -56,7 +69,7 @@ export function Composer({
     if (value.trim()) drafts.set(draftKey, value);
     else drafts.delete(draftKey);
   };
-  const tooLong = body.length > CHANNEL_MESSAGE_MAX;
+  const tooLong = body.length > maxLength;
   const send = () => {
     const text = body.trim();
     if (!text || tooLong || disabled) return;
@@ -78,19 +91,24 @@ export function Composer({
   };
   if (disabled && disabledReason)
     return (
-      <div className="mx-3 mb-3 rounded-xl border bg-muted/40 px-4 py-3 text-center text-[13px] text-muted-foreground sm:mx-4">
+      <div
+        className={cn(
+          "mx-3 mb-3 rounded-xl border bg-muted/40 px-4 py-3 text-center text-[13px] text-muted-foreground sm:mx-4",
+          className,
+        )}
+      >
         {disabledReason}
       </div>
     );
   return (
     <div
-      className="mx-3 mb-3 sm:mx-4"
+      className={cn("mx-3 mb-3 sm:mx-4", className)}
       onKeyDownCapture={onKeyDownCapture}
       data-composer={draftKey}
     >
       <div
         className={cn(
-          "flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:ring-2 focus-within:ring-primary/25",
+          "flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10",
           tooLong && "ring-2 ring-destructive/40",
         )}
       >
@@ -100,7 +118,8 @@ export function Composer({
             value={body}
             onValueChange={change}
             mentions={mentions}
-            fileContext={{ organizationId, channelId }}
+            fileContext={channelId ? { organizationId, channelId } : undefined}
+            references={references}
             onSubmit={send}
             onEscape={onEscape}
             enterSubmits
@@ -123,10 +142,15 @@ export function Composer({
           <SendHorizontal className="size-3.5" aria-hidden />
         </Button>
       </div>
-      <p className="mt-1 hidden px-1 text-[11px] text-muted-foreground sm:block">
+      <p
+        className={cn(
+          "mt-1 hidden px-1 text-xs text-muted-foreground sm:block",
+          tooLong && "block text-destructive",
+        )}
+      >
         {tooLong
-          ? `Messages are at most ${CHANNEL_MESSAGE_MAX.toLocaleString()} characters; put longer text in a page.`
-          : "Enter to send · Shift+Enter for a new line · @ to mention · # for work items"}
+          ? `Messages are at most ${maxLength.toLocaleString()} characters; put longer text in a page.`
+          : hint}
       </p>
     </div>
   );
