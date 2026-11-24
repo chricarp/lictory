@@ -12,6 +12,7 @@ import { paths } from "@lictory/core/lib/paths";
 import { OrganizationGeneral } from "@lictory/platform/components/settings/org-general";
 import { OrganizationProjects } from "@lictory/platform/components/settings/org-projects";
 import { OrganizationSecurity } from "@lictory/platform/components/settings/org-security";
+import { OrganizationWebhookPolicy } from "@lictory/platform/components/settings/org-webhook-policy";
 import { OrganizationTypes } from "@lictory/platform/components/settings/org-types";
 import { OrganizationIntelligence } from "@lictory/platform/components/settings/org-intelligence";
 import { OrganizationAudit } from "@lictory/platform/components/settings/org-audit";
@@ -79,6 +80,7 @@ export function OrganizationSettingsLayout({
 }
 
 export function OrganizationSettingsSection({ section }: { section: string }) {
+  const { isAdmin } = useWorkspace();
   const active: Section =
     sections.find((s) => s.id === section)?.id ?? "general";
   return (
@@ -86,7 +88,12 @@ export function OrganizationSettingsSection({ section }: { section: string }) {
       {active === "general" && <OrganizationGeneral />}
       {active === "members" && <People />}
       {active === "projects" && <OrganizationProjects />}
-      {active === "security" && <OrganizationSecurity />}
+      {active === "security" && (
+        <>
+          <OrganizationSecurity />
+          {isAdmin && <OrganizationWebhookPolicy />}
+        </>
+      )}
       {active === "audit" && <OrganizationAudit />}
       {active === "export" && <OrganizationExport />}
       {active === "delete" && <OrganizationDeletion />}
