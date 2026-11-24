@@ -22,6 +22,7 @@ import {
 } from "@lictory/core/capabilities/core";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { registerAgentDirectory } from "@lictory/core/channels/agents";
+import { postMessage } from "@lictory/core/channels/writer";
 import { claimPorts, resetClaimPorts } from "@lictory/core/claims/ports";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
 import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
@@ -45,6 +46,7 @@ import {
 import {
   sessionPushed,
   setSessionCompletionListener,
+  setSessionRepositoryNamer,
   setSessionLeaseListener,
   setSessionThreadPublisher,
   setSessionWorkspaceResolver,
@@ -110,6 +112,7 @@ after(async () => {
   setSessionLeaseListener(null);
   setSessionWorkspaceResolver(null);
   setSessionCompletionListener(null);
+  setSessionRepositoryNamer(null);
   setCodeSessionHooks(null);
   await client.end();
   if (created) await admin`DROP DATABASE ${admin(databaseName)} WITH (FORCE)`;
@@ -564,7 +567,7 @@ void test("the workspace is the session's repository, else the project's default
       projectId: f.projectId,
       repositoryId: f.repositoryIds.web,
     }),
-    (error: Error) => error.message.includes('administrators'),
+    (error: Error) => error.message.includes("administrators"),
   );
   await invoke(web(f.ada), "setDefaultCodeRepository", {
     organizationId: f.organizationId,
@@ -805,7 +808,7 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
       decision: "approve",
       expectedHeadSha: "f".repeat(40),
     }),
-    (error: Error) => error.message.includes('new commits'),
+    (error: Error) => error.message.includes("new commits"),
   );
   await invoke(context(principal), "reviewCodePullRequest", {
     organizationId: f.organizationId,
@@ -821,7 +824,8 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
     host
       .comments(f.repos.pay.externalId, pr.number)
       .some(
-        (c) => c.body.includes('**Approved** at') && c.body.includes('Hawk via Bo'),
+        (c) =>
+          c.body.includes("**Approved** at") && c.body.includes("Hawk via Bo"),
       ),
   );
   const entity = await f.prEntity(pr.id);
@@ -942,7 +946,7 @@ void test("Autopilot merges once per head, attributed to the policy, and refuses
   assert.ok(
     host
       .comments(f.repos.pay.externalId, pr!.number)
-      .some((c) => c.body.includes('Autopilot · policy set by Bo Engineer')),
+      .some((c) => c.body.includes("Autopilot · policy set by Bo Engineer")),
   );
   const [merged] = await f.pullRequests();
   assert.equal(merged!.state, "merged");
@@ -1059,5 +1063,48 @@ void test("nothing crosses organizations: evidence, workspaces and reviews stay 
       },
     ),
     refusal("forbidden"),
+  );
+});
+
+void test("a person who names a repository when asking an agent in a channel gets a session there", async () => {
+  const f = await fixture();
+  const ask = (body: string) =>
+    db.transaction((tx) =>
+      postMessage(
+        tx,
+        { userId: f.ada },
+        {
+          organizationId: f.organizationId,
+          channelId: f.channelId,
+          messageId: crypto.randomUUID(),
+          threadRootId: null,
+          body,
+        },
+      ),
+    );
+  const mention = `@[${f.forge.handle}](agent:${f.forge.id})`;
+  await ask(`${mention} fix the retry in ${f.repos.web.fullName}.`);
+  await ask(
+    `${mention} look at https://github.example/${f.repos.ops.fullName}/pull/3 please`,
+  );
+  await ask(`${mention} summarize the thread`);
+  const started = await f.sessions();
+  assert.deepEqual(
+    started.map((x) => x.repositoryId),
+    [f.repositoryIds.web, f.repositoryIds.ops, null],
+  );
+  // Text only chooses where; the workspace still checks the owner's access
+  // to the repository (Ada works in Operations too).
+  await claimAndStart(f.runner);
+  const { assignment } = await claimAndStart(f.runner);
+  const { repository } = await sessionWorkspace(
+    db,
+    f.runner,
+    assignment.sessionId,
+    assignment.leaseToken,
+  );
+  assert.equal(
+    repository?.url,
+    `https://github.example/${f.repos.ops.fullName}.git`,
   );
 });

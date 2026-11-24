@@ -26,6 +26,7 @@ import { parseReferenceTarget } from "@lictory/core/contracts/references";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
 import type { Actor, Database, Tx } from "@lictory/core/domain/service";
 import {
+  sessionRepositoryNamed,
   setSessionLeaseListener,
   setSessionThreadPublisher,
   type SessionThreadEvent,
@@ -619,6 +620,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
     context ??= await threadContext(tx, event);
     const itemId = referencedItem(event.body);
     let workItemId: string | null = null;
+    let projectId: string | null = null;
     if (itemId) {
       const [item] = await tx
         .select({ projectId: s.workItem.projectId })
@@ -633,9 +635,18 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
       if (
         item &&
         (!agent.projectIds || agent.projectIds.includes(item.projectId))
-      )
+      ) {
         workItemId = itemId;
+        projectId = item.projectId;
+      }
     }
+    // "… in acme/payments": the repository the person names, if Code
+    // knows it (for the item's project, when there is one).
+    const repositoryId = await sessionRepositoryNamed(tx, {
+      organizationId: event.organizationId,
+      projectId,
+      text: plainMessage(event.body),
+    });
     const text = [
       prompt,
       "",
@@ -664,6 +675,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
             prompt: text,
             title: prompt.split("\n")[0]!.slice(0, 200) || `Asked in a thread`,
             workItemId,
+            repositoryId,
             sessionId: stableId("mention", event.messageId, agent.id),
             channelId: event.channelId,
             threadRootMessageId: threadRootId,

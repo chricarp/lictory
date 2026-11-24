@@ -254,7 +254,8 @@ ready item ─dispatch─▶ session ─workspace─▶ runner clones the item's
 ### Agent sessions
 
 A session works in **the repository it names** (`repositoryId`, which must
-serve the item's project), else **the one whose clone address it states**,
+serve the item's project; a person asking an agent in a channel names one by
+its full name or address, `repositoryNamedIn`), else **the one whose clone address it states**,
 else **its project's default** (`code_repository_project.is_default`, set
 by a project administrator with `setDefaultCodeRepository`, one per
 project), else **the project's first linked repository**. A session without

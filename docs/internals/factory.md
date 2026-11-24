@@ -364,7 +364,11 @@ is the message (mentions as `@handle`), the thread it belongs to and, in
 public channels only, the earlier thread quoted between delimiters as
 information, never instruction; private conversations are not copied into a
 session every member can read in the Factory. A message linking exactly one
-work item in the agent's scope names it. The session starts in the
+work item in the agent's scope names it, and a repository it names
+(`acme/payments` or its address) that the Code module mirrors, for that
+item's project when there is one, is the session's repository
+(`SessionRepositoryNamer`; the workspace resolver still checks the owner's
+access). The session starts in the
 message's own transaction (`startSessionIn`, under the writer's shared
 organization lock), each in a savepoint, and its card is written there too;
 a refusal (a private agent, an archived one) becomes a short system reply

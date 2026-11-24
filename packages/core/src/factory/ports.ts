@@ -1,3 +1,4 @@
+import type { Tx } from "@lictory/core/domain/service";
 import type { SessionStatus } from "@lictory/core/factory/entities";
 
 // Boundaries other modules plug into. Factory owns sessions; Channels owns
@@ -110,6 +111,31 @@ export function resolveSessionWorkspace(
 ) {
   return workspaceResolver.resolve(session);
 }
+
+// A repository a person names in their own words when they ask an agent
+// (`@forge fix the retry in acme/payments`): the Code module says which of
+// its repositories that is, in the message's transaction (reads only). Text
+// only chooses where the session works; the workspace resolver still checks
+// that the agent's owner may work with it. None by default.
+export type SessionRepositoryNamer = {
+  named(
+    tx: Tx,
+    input: { organizationId: string; projectId: string | null; text: string },
+  ): Promise<string | null>;
+};
+const noNamer: SessionRepositoryNamer = { named: async () => null };
+let repositoryNamer: SessionRepositoryNamer = noNamer;
+
+export function setSessionRepositoryNamer(
+  namer: SessionRepositoryNamer | null,
+) {
+  repositoryNamer = namer ?? noNamer;
+}
+
+export const sessionRepositoryNamed = (
+  tx: Tx,
+  input: Parameters<SessionRepositoryNamer["named"]>[1],
+) => repositoryNamer.named(tx, input);
 
 // Runners renew their sessions' leases with every heartbeat. Called after
 // the heartbeat committed, with the sessions whose lease was renewed, so the

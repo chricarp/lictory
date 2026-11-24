@@ -677,3 +677,72 @@ function sameRepository(
     normalized(row.cloneUrl) === stated || normalized(row.webUrl) === stated
   );
 }
+
+// A repository a person names in a message ("in acme/payments", or its web
+// address): one of the organization's mirrored repositories, serving the
+// project when there is one. Several named, or none known: null.
+export async function repositoryNamedIn(
+  db: Database | Tx,
+  input: { organizationId: string; projectId: string | null; text: string },
+) {
+  const candidates = new Set<string>();
+  for (const token of input.text.split(/\s+/)) {
+    let name = token.replace(/^[(`'"<]+|[)`'".,;:!?>]+$/g, "");
+    // A web or clone address names the repository in its path, before
+    // anything after it (`/pull/3`, `/-/merge_requests/3`).
+    const address = /^(?:https?|ssh):\/\/[^/]+\/(.+)$/i.exec(name);
+    name = (address ? address[1]! : name)
+      .replace(/\.git$/i, "")
+      .replace(/\/+$/, "");
+    if (!/^[\w.-]+(?:\/[\w.-]+)+$/.test(name)) continue;
+    const parts = name.toLowerCase().split("/");
+    if (!address) candidates.add(parts.join("/"));
+    else
+      for (let n = 2; n <= parts.length; n++)
+        candidates.add(parts.slice(0, n).join("/"));
+  }
+  if (!candidates.size) return null;
+  const rows = await db
+    .select({
+      id: s.codeRepository.id,
+      fullName: s.codeRepository.fullName,
+    })
+    .from(s.codeRepository)
+    .innerJoin(
+      s.codeConnection,
+      and(
+        eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+        eq(s.codeConnection.id, s.codeRepository.connectionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.codeRepository.organizationId, input.organizationId),
+        isNull(s.codeConnection.archivedAt),
+      ),
+    );
+  const serving = input.projectId
+    ? new Set(
+        (
+          await db
+            .select({ repositoryId: s.codeRepositoryProject.repositoryId })
+            .from(s.codeRepositoryProject)
+            .where(
+              and(
+                eq(
+                  s.codeRepositoryProject.organizationId,
+                  input.organizationId,
+                ),
+                eq(s.codeRepositoryProject.projectId, input.projectId),
+              ),
+            )
+        ).map((r) => r.repositoryId),
+      )
+    : null;
+  const named = rows.filter(
+    (r) =>
+      candidates.has(r.fullName.toLowerCase()) &&
+      (!serving || serving.has(r.id)),
+  );
+  return named.length === 1 ? named[0]!.id : null;
+}

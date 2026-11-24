@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { configureClaimPorts } from "@lictory/core/claims/ports";
 import { codeReviewPolicy } from "@lictory/core/claims/service";
@@ -6,6 +6,7 @@ import { DomainError } from "@lictory/core/domain/errors";
 import type { Actor, Database } from "@lictory/core/domain/service";
 import {
   setSessionCompletionListener,
+  setSessionRepositoryNamer,
   setSessionWorkspaceResolver,
   type SessionCompletion,
   type SessionWorkspaceResolver,
@@ -24,6 +25,7 @@ import {
   chooseSessionRepository,
   createCodeEvidence,
   createCodeMergeExecutor,
+  repositoryNamedIn,
   resolveSessionWorkspace,
 } from "@lictory/core/code/ports";
 import {
@@ -229,11 +231,12 @@ async function dispatchReviews(
         inArray(s.codePullRequest.id, [...new Set(pullRequestIds)]),
         eq(s.codePullRequest.state, "open"),
         eq(s.codePullRequest.draft, false),
+        // Only agents' pull requests get an agent's review.
+        isNotNull(s.codePullRequest.agentSessionId),
       ),
     );
   for (const { pr, fullName } of prs) {
-    // Only agents' pull requests get an agent's review.
-    if (!pr.agentSessionId || !pr.headSha) continue;
+    if (!pr.headSha) continue;
     const [link] = await db
       .select({
         workItemId: s.codeWorkLink.workItemId,
@@ -329,6 +332,9 @@ export function installCodeLoop(
     merges: { requestMerge: (tx, request) => merges.requestMerge(tx, request) },
   });
   setSessionWorkspaceResolver(workspaceResolver(db, options));
+  setSessionRepositoryNamer({
+    named: (tx, input) => repositoryNamedIn(tx, input),
+  });
   setSessionCompletionListener({
     pushed: (completion) => openSessionPullRequest(db, options, completion),
   });
