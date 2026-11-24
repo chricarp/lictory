@@ -9,6 +9,7 @@ import {
   withDb,
 } from "../helpers/seed";
 import { clientAddress } from "../helpers/client-address";
+import { createAgent } from "@lictory/core/factory/agents";
 
 // The factory loop as a team meets it (docs/internals/claims.md): an
 // approved specification's accepted scope makes its children claimable, an
@@ -192,4 +193,47 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
     page.getByText("Taking this one myself.", { exact: false }),
   ).toBeVisible();
   await request.dispose();
+});
+
+test("a person starts an agent from an item, told what it works from and that the readiness policy holds it back", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({
+    name: "Start Works",
+    key: "STW",
+    users: ["Ada Start"],
+  });
+  await withDb((db) =>
+    createAgent(db, seeded.owner.id, seeded.organizationId, {
+      name: "Forge",
+      handle: `forge${crypto.randomUUID().slice(0, 6)}`,
+      kind: "runner",
+      harness: "claude-code",
+      access: "write",
+    }),
+  );
+  await seedItem(seeded, {
+    title: "Partial refunds",
+    description: "## Behavior\n\nRefund part of a charge.",
+  });
+  await signIn(page, seeded.owner.email);
+  await page.goto(seeded.itemPath(1));
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "Start agent…" }).click();
+
+  // The dialog has the item filled in and says what the agent reads: a
+  // draft, which agents would not take on their own.
+  const start = page.getByRole("dialog", { name: "Start an agent session" });
+  const worksFrom = start.locator("[data-works-from]");
+  await expect(worksFrom).toContainText(
+    "Forge works from revision 1 of STW-1, still draft",
+  );
+  await expect(worksFrom).toContainText(
+    "Agents would not take it on their own",
+  );
+  await expect(worksFrom).toContainText("You can still start one yourself.");
+  await start.getByLabel("What should it do?").fill("Sketch the endpoint.");
+  await start.getByRole("button", { name: "Start session" }).click();
+  await expect(page).toHaveURL(/\/factory\/sessions\//);
+  await expect(page.getByText("Sketch the endpoint.").first()).toBeVisible();
 });
