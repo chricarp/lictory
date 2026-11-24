@@ -19,6 +19,7 @@ import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
   BadgeCheck,
+  Bot,
   BookOpen,
   BookOpenCheck,
   FileText,
@@ -322,6 +323,14 @@ export function CommandPalette({
             icon: <ListOrdered className="size-4" />,
             keywords: "sprints cycles iterations planning",
             run: () => go(paths.backlog(org, p.key)),
+          },
+          {
+            id: `queue-${p.id}`,
+            label: `${p.name} · Factory queue`,
+            group: "Navigate",
+            icon: <Bot className="size-4" />,
+            keywords: "agents claims claimable autonomy dispatch",
+            run: () => go(paths.factoryQueue(org, p.key)),
           },
         );
       for (const t of [...delivery.teams.values()].filter(
