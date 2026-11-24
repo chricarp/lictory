@@ -62,7 +62,8 @@ export const factorySection: NavSection = {
   label: "Factory",
   icon: Factory,
   href: factoryPaths.overview,
-  // Sessions whose agent asks me (its owner, or who started it) something.
+  // Sessions waiting on me (I started them or own their agent) for a
+  // decision or my next message: the overview's "Needs you", same count.
   useBadge: () => {
     const { userId } = useWorkspace();
     const { sessions, agentById } = useFactory();

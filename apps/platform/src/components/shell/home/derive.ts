@@ -98,8 +98,11 @@ type WaitingPage = {
   reason: keyof typeof pageWeight;
   pullRequest: { id: string; updatedAt: string };
 };
+// An agent's session waiting on me: one entry per question it asks, or one
+// for the session when it waits for my next message.
 type WaitingRequest = {
-  approval: { id: string; createdAt: string };
+  session: { id: string; updatedAt: string };
+  approval?: { id: string; createdAt: string };
 };
 
 export const pageWeight = {
@@ -130,9 +133,11 @@ export function waitingOnYou<
   const rows: Waiting<I, P, R>[] = [
     ...requests.map((request) => ({
       kind: "agent" as const,
-      key: `agent:${request.approval.id}`,
+      key: request.approval
+        ? `agent:${request.approval.id}`
+        : `agent:session:${request.session.id}`,
       weight: -1,
-      at: request.approval.createdAt,
+      at: request.approval?.createdAt ?? request.session.updatedAt,
       request,
     })),
     ...items.map((entry) => ({

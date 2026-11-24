@@ -30,6 +30,14 @@ import {
   PageTabs,
 } from "@lictory/platform/components/shell/page-header";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { AgentAvatar } from "@lictory/platform/components/identity/actor";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import {
+  sessionTitle,
+  type AgentEntity,
+  type RunnerEntity,
+  type SessionEntity,
+} from "@lictory/core/factory/entities";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
 import { waitingOnYou } from "@lictory/platform/components/shell/home/derive";
 import {
@@ -207,6 +215,15 @@ const pageReasons: Record<
   },
 };
 
+// An agent's session waiting on me: one per question, or the session itself
+// when it waits for my next message.
+type AgentRequest = {
+  session: SessionEntity;
+  approval?: SessionEntity["approvals"][number];
+  agent?: AgentEntity;
+  runner?: RunnerEntity;
+};
+
 // Everything waiting on me, as one queue (see `waitingOnYou`): Home's
 // "Waiting on you" and the Inbox's To do read this, so they never disagree.
 export function useWaitingOnYou() {
@@ -216,15 +233,19 @@ export function useWaitingOnYou() {
   const { sessions, agentById, runnerById } = useFactory();
   return useMemo(() => {
     const requests = waitingOnMe(sessions, agentById, userId).flatMap(
-      (session) =>
-        session.approvals.map((approval) => ({
+      (session): AgentRequest[] => {
+        const context = {
           session,
-          approval,
           agent: agentById.get(session.agentId),
           runner: session.runnerId
             ? runnerById.get(session.runnerId)
             : undefined,
-        })),
+        };
+        // Without a question, it waits for my next message.
+        return session.approvals.length
+          ? session.approvals.map((approval) => ({ ...context, approval }))
+          : [{ ...context, approval: undefined }];
+      },
     );
     return waitingOnYou({ items, pages, requests });
   }, [items, pages, sessions, agentById, runnerById, userId]);
@@ -239,6 +260,16 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
   const { projects, organization } = useWorkspace();
   if (row.kind === "agent") {
     const { session, approval, agent, runner } = row.request;
+    if (!approval)
+      return (
+        <ListRow
+          href={factoryPaths.session(organization.slug, session.id)}
+          leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
+          title={sessionTitle(session.title)}
+          meta={`${agent?.name ?? "An agent"} is waiting for your next message`}
+          time={session.updatedAt}
+        />
+      );
     return (
       <ApprovalRequest
         compact
