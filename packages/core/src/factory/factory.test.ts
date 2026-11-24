@@ -20,6 +20,8 @@ import { postMessage } from "@lictory/core/channels/writer";
 import { PROTOCOL } from "@lictory/core/contracts/protocol";
 import { executeMutation } from "@lictory/core/domain/service";
 import { decodeWire } from "@lictory/core/factory/model-wire";
+import { sessionTitle } from "@lictory/core/factory/entities";
+import { describeNotification } from "@lictory/core/notifications/format";
 import { proxyModelStream } from "@lictory/core/factory/model-proxy";
 import {
   authenticateRunner,
@@ -1081,4 +1083,32 @@ void test("organizations are isolated: members, runners and agents of one never 
       ),
     );
   assert.equal(rows.length, 0);
+});
+
+void test("session titles stored with a doubled mention read with one @, wherever they are shown", () => {
+  assert.equal(
+    sessionTitle("@@forge draft the refund webhook payload docs"),
+    "@forge draft the refund webhook payload docs",
+  );
+  assert.equal(sessionTitle("ask @@forge and @@@hawk"), "ask @forge and @hawk");
+  // An address and a plain title are left alone.
+  assert.equal(sessionTitle("mail bo@@example.test"), "mail bo@@example.test");
+  assert.equal(
+    sessionTitle("PAY-6: Duplicate charge"),
+    "PAY-6: Duplicate charge",
+  );
+  assert.equal(
+    describeNotification(
+      {
+        kind: "agent_session_finished",
+        detail: {
+          agentName: "Forge",
+          status: "completed",
+          sessionTitle: "@@forge draft docs",
+        },
+      },
+      "Ada",
+    ).headline,
+    "Forge finished: @forge draft docs",
+  );
 });

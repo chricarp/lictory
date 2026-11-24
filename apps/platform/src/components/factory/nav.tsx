@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { Bot, Factory, MessageCircleQuestion, Server } from "lucide-react";
 import { relativeTime } from "@lictory/core/lib/work-items";
-import type { SessionStatus } from "@lictory/core/factory/entities";
+import {
+  sessionTitle,
+  type SessionStatus,
+} from "@lictory/core/factory/entities";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   SidebarGroup,
@@ -103,7 +106,7 @@ export const factoryPalette: PaletteProvider = {
       );
       const entries: PaletteEntry[] = ordered.map((s) => ({
         id: `session-${s.id}`,
-        label: s.title,
+        label: sessionTitle(s.title),
         hint: `${agentById.get(s.agentId)?.name ?? "Agent"} · ${statusLabels[s.status]}`,
         icon: <Bot className="size-4" />,
         keywords: `agent session ${agentById.get(s.agentId)?.name ?? ""}`,
@@ -149,7 +152,7 @@ function AgentRequestsCard() {
           href={factoryPaths.session(org, session.id)}
           icon={<MessageCircleQuestion className="text-warning" />}
           title={approval.title}
-          reason={`${agentById.get(session.agentId)?.name ?? "Agent"} · ${session.title}`}
+          reason={`${agentById.get(session.agentId)?.name ?? "Agent"} · ${sessionTitle(session.title)}`}
           time={relativeTime(approval.createdAt)}
         />
       ))}
@@ -187,7 +190,7 @@ function RunningSessionsCard() {
           key={session.id}
           href={factoryPaths.session(org, session.id)}
           icon={<Bot className="text-muted-foreground" />}
-          title={session.title}
+          title={sessionTitle(session.title)}
           reason={`${agentById.get(session.agentId)?.name ?? "Agent"} · ${statusLabels[session.status]}`}
           time={relativeTime(session.updatedAt)}
         />

@@ -1,4 +1,5 @@
 import { paths } from "@lictory/core/lib/paths";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import {
   notificationKinds,
   type NotificationKind,
@@ -12,6 +13,11 @@ export type NotificationView = {
 };
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+// Agent session titles stored before the mention fix read "@@forge".
+const titled = (v: unknown) => {
+  const title = str(v);
+  return title && sessionTitle(title);
+};
 const num = (v: unknown) =>
   typeof v === "number" || typeof v === "string" ? String(v) : "?";
 
@@ -225,11 +231,11 @@ export function describeNotification(
     case "agent_approval_requested":
       return {
         headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
-        body: str(d.sessionTitle),
+        body: titled(d.sessionTitle),
       };
     case "agent_session_finished":
       return {
-        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${str(d.sessionTitle) ?? "a session"}`,
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
         body: str(d.error) ?? str(d.summary),
       };
     case "channel_mentioned":
