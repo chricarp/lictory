@@ -27,7 +27,11 @@ export function Switch({
     >
       <SwitchThumb
         className={cn(
-          "inline-block translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out",
+          // On, the thumb takes the primary's foreground: white on the
+          // near-black track in light themes, near-black on the near-white
+          // track in dark ones, the brand's own pair under a brand theme.
+          // Knob and track always differ by well over 3:1.
+          "inline-block translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out data-checked:bg-primary-foreground",
           size === "md"
             ? "size-4 data-checked:translate-x-4.5"
             : "size-3 data-checked:translate-x-3.5",
