@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, FolderGit2, Settings2 } from "lucide-react";
-import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
+import {
+  ArrowUpRight,
+  FolderGit2,
+  GitPullRequest,
+  Settings2,
+} from "lucide-react";
+import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
   CodeIssueEntity,
@@ -39,6 +44,13 @@ import {
   providerLabels,
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
+import {
+  PageHeader,
+  PageTabs,
+} from "@lictory/platform/components/shell/page-header";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { Actor, AgentActor } from "@lictory/platform/components/identity/actor";
+import { useFactory } from "@lictory/platform/components/factory/store";
 
 // /$org/code: pull requests, issues and repositories from the connected
 // code hosts, live. The hosts own all of it; Lictory adds the links to
@@ -58,14 +70,30 @@ export function CodePage() {
         ? "repositories"
         : "pull-requests";
   const { connections, complete } = useCodeHosts();
+  const header = (tabs?: React.ReactNode) => (
+    <PageHeader
+      title="Code"
+      icon={<GitPullRequest />}
+      tabs={tabs}
+      actions={
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href={paths.settings(organization.slug, "code")} />}
+          aria-label="Code hosts"
+        >
+          <Settings2 className="size-3.5" aria-hidden />
+          <span className="max-sm:hidden">Code hosts</span>
+        </Button>
+      }
+    />
+  );
   if (complete && connections.length === 0)
     return (
       <div className="flex h-full flex-col">
         {/* The page keeps its heading before a host is connected, like every
             module page. */}
-        <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-          <h1 className="text-sm font-semibold">Code</h1>
-        </header>
+        {header()}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <EmptyState
             illustration="planning"
@@ -98,32 +126,16 @@ export function CodePage() {
       }}
       className="flex h-full flex-col"
     >
-      <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-        <h1 className="text-sm font-semibold">Code</h1>
-        <TabsList aria-label="Code view" className="flex items-center gap-0.5">
-          {(
-            [
-              ["pull-requests", "Pull requests"],
-              ["issues", "Issues"],
-              ["repositories", "Repositories"],
-            ] as const
-          ).map(([id, label]) => (
-            <TabsTab
-              key={id}
-              value={id}
-              className="inline-flex h-7 items-center rounded-md px-2 text-[13px] text-muted-foreground hover:text-foreground data-selected:bg-muted data-selected:font-medium data-selected:text-foreground"
-            >
-              {label}
-            </TabsTab>
-          ))}
-        </TabsList>
-        <Link
-          href={paths.settings(organization.slug, "code")}
-          className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Settings2 className="size-3.5" /> Code hosts
-        </Link>
-      </header>
+      {header(
+        <PageTabs
+          label="Code view"
+          tabs={[
+            { value: "pull-requests", label: "Pull requests" },
+            { value: "issues", label: "Issues" },
+            { value: "repositories", label: "Repositories" },
+          ]}
+        />,
+      )}
       <TabsPanel value="pull-requests" className="min-h-0 flex-1">
         {tab === "pull-requests" && <PullRequests />}
       </TabsPanel>
@@ -171,7 +183,7 @@ function ItemChips({ links }: { links: CodeLinkRef[] }) {
           key={k.id}
           href={paths.item(organization.slug, k.project!.key, k.id)}
           title={k.title}
-          className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+          className="relative z-10 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground focus-ring outline-none hover:text-foreground"
         >
           {k.key}
         </Link>
@@ -286,7 +298,7 @@ function PullRequests() {
               : "Pull requests of linked repositories appear here as soon as the host reports them."}
           </EmptyState>
         ) : (
-          <ul aria-label="Pull requests" className="divide-y">
+          <ul aria-label="Pull requests" className="divide-y divide-border/70">
             {shown.map((p) => (
               <PullRequestRow key={p.id} pullRequest={p} />
             ))}
@@ -302,32 +314,53 @@ function PullRequestRow({
 }: {
   pullRequest: CodePullRequestEntity;
 }) {
-  const { organization, memberName } = useWorkspace();
+  const { organization } = useWorkspace();
+  const { agentById } = useFactory();
+  const agent = p.agentId ? agentById.get(p.agentId) : undefined;
   return (
-    <li className="flex items-center gap-3 px-4 py-2.5 [contain-intrinsic-size:auto_56px] [content-visibility:auto] hover:bg-muted/50">
-      <PullRequestIcon state={p.state} draft={p.draft} />
-      <div className="min-w-0 flex-1">
-        <Link
-          href={codePaths.pullRequest(organization.slug, p.id)}
-          className="block truncate text-[13px] font-medium underline-offset-2 hover:underline"
-        >
-          {p.title}
-        </Link>
-        <p className="truncate text-xs text-muted-foreground">
-          {p.repositoryFullName}#{p.number} ·{" "}
-          {p.openedVia
-            ? `${p.openedVia} via ${memberName(p.openedById)}`
-            : (p.authorLogin ?? "unknown")}{" "}
-          · {p.headBranch} → {p.baseBranch} · updated{" "}
-          {relativeTime(p.hostUpdatedAt)}
-        </p>
-      </div>
-      <ItemChips links={p.links} />
-      <ChecksIcon state={p.checks.state} />
-      <span className="max-sm:hidden">
-        {p.state === "open" && <ReviewBadge decision={p.reviewDecision} />}
-      </span>
-    </li>
+    <ListRow
+      href={codePaths.pullRequest(organization.slug, p.id)}
+      className="[contain-intrinsic-size:auto_52px] [content-visibility:auto]"
+      leading={<PullRequestIcon state={p.state} draft={p.draft} />}
+      title={p.title}
+      meta={
+        <>
+          {agent ? (
+            <AgentActor
+              agent={agent}
+              ownerId={p.openedById}
+              size={16}
+              className="shrink-0"
+            />
+          ) : p.openedById ? (
+            <Actor userId={p.openedById} size={16} className="shrink-0" />
+          ) : (
+            <span className="shrink-0">{p.authorLogin ?? "unknown"}</span>
+          )}
+          <span aria-hidden>·</span>
+          <span className="truncate">
+            <span className="font-mono">
+              {p.repositoryFullName.split("/").pop()}#{p.number}
+            </span>{" "}
+            · <span className="font-mono">{p.headBranch}</span> →{" "}
+            <span className="font-mono">{p.baseBranch}</span>
+          </span>
+        </>
+      }
+      chips={
+        <>
+          <ItemChips links={p.links} />
+          <span className="max-md:hidden">
+            {p.state === "open" && <ReviewBadge decision={p.reviewDecision} />}
+          </span>
+          {/* A fixed column, so the checks line up down the list. */}
+          <span className="grid w-5 place-items-center">
+            <ChecksIcon state={p.checks.state} />
+          </span>
+        </>
+      }
+      time={p.hostUpdatedAt}
+    />
   );
 }
 

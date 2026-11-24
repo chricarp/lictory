@@ -138,8 +138,7 @@ export function BranchChip({
   const className = cn(
     "inline-flex max-w-full min-w-0 items-center gap-1 rounded-md bg-primary/8 px-1.5 py-0.5 font-mono text-[12px] text-primary",
     muted && "bg-muted text-muted-foreground line-through",
-    onClick &&
-      "hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+    onClick && "focus-ring outline-none hover:bg-primary/15",
   );
   const content = (
     <>

@@ -32,8 +32,6 @@ const knownOffenders = new Set([
   "components/channels/browser.tsx",
   "components/channels/header.tsx",
   "components/claims/factory-queue.tsx",
-  "components/code/code-page.tsx",
-  "components/code/pull-request-page.tsx",
   "components/delivery/backlog.tsx",
   "components/delivery/board.tsx",
   "components/delivery/handoff.tsx",
