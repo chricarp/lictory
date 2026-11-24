@@ -22,6 +22,12 @@ import {
   type RepositoryRow,
 } from "@lictory/core/code/store";
 import { notifyCodeWriteFailed } from "@lictory/core/code/notifications";
+import { followCodeEvidence } from "@lictory/core/code/follow";
+import {
+  afterCommit,
+  codeSessionHooks,
+  type SessionPullRequestEvent,
+} from "@lictory/core/code/hooks";
 
 // The outbox: writes to code hosts queued by commands in their domain
 // transaction (`code_write`) and sent here, outside any transaction.
@@ -41,8 +47,7 @@ const MAX_ATTEMPTS = 5;
 
 type WriteRow = typeof s.codeWrite.$inferSelect;
 
-const commentMarker = (writeId: string) =>
-  `<!-- lictory:write:${writeId} -->`;
+const commentMarker = (writeId: string) => `<!-- lictory:write:${writeId} -->`;
 
 export function createCodeOutbox(
   db: Database,
@@ -309,9 +314,11 @@ export function createCodeOutbox(
     done: { repository: RepositoryRow; result: Performed } | null,
     error: unknown,
   ) {
-    const settled: { outcome: "succeeded" | "failed" | "retrying" | "lost" } = {
-      outcome: "lost",
-    };
+    const settled: {
+      outcome: "succeeded" | "failed" | "retrying" | "lost";
+      opened: SessionPullRequestEvent[];
+      changed: string[];
+    } = { outcome: "lost", opened: [], changed: [] };
     await db.transaction(async (tx) => {
       await lock(tx, write.organizationId);
       const [own] = await tx
@@ -331,7 +338,14 @@ export function createCodeOutbox(
       touched.writeIds.add(write.id);
       if (write.workItemId) touched.workItemIds.add(write.workItemId);
       if (done) {
-        await record(tx, write, done.repository, done.result, touched);
+        settled.opened = await record(
+          tx,
+          write,
+          done.repository,
+          done.result,
+          touched,
+        );
+        settled.changed = [...touched.pullRequestIds];
         await tx
           .update(s.codeWrite)
           .set({
@@ -378,7 +392,20 @@ export function createCodeOutbox(
         }
       }
       await writeCodeProjections(tx, write.organizationId, touched.toTouch());
+      // A merge, an opened pull request or a refreshed one is evidence.
+      if (done) await followCodeEvidence(tx, write.organizationId, touched);
     });
+    for (const event of settled.opened)
+      await afterCommit("session_pull_request", () =>
+        codeSessionHooks().afterPullRequestOpened(event),
+      );
+    if (settled.changed.length)
+      await afterCommit("pull_requests_changed", () =>
+        codeSessionHooks().pullRequestsChanged(
+          write.organizationId,
+          settled.changed,
+        ),
+      );
     return settled.outcome;
   }
 
@@ -390,7 +417,7 @@ export function createCodeOutbox(
     repository: RepositoryRow,
     performed: Performed,
     touched: Touched,
-  ) {
+  ): Promise<SessionPullRequestEvent[]> {
     const item = write.workItemId
       ? (
           await tx
@@ -420,21 +447,23 @@ export function createCodeOutbox(
               repositoryId: repository.id,
               target,
               targetId,
-              source: "lictory",
+              source: write.agentSessionId ? "agent_session" : "lictory",
               createdById: write.requestedById,
               performedVia: write.performedVia,
+              agentSessionId: write.agentSessionId,
               ref: label,
               url,
             },
             touched,
           )
         : undefined;
+    const opened: SessionPullRequestEvent[] = [];
     if (performed.kind === "branch") {
       const id = await upsertBranch(tx, repository, performed.branch, touched);
       if (id) await link("branch", id, performed.branch.name, null);
-      return;
+      return opened;
     }
-    if (performed.kind !== "pull_request") return;
+    if (performed.kind !== "pull_request") return opened;
     if (performed.opened) {
       // Provenance first, so the mirror row records who opened it.
       const { id } = await upsertPullRequest(
@@ -445,6 +474,8 @@ export function createCodeOutbox(
         {
           openedById: write.requestedById,
           openedVia: write.performedVia,
+          agentId: write.agentId,
+          agentSessionId: write.agentSessionId,
         },
       );
       await link(
@@ -460,6 +491,19 @@ export function createCodeOutbox(
         touched,
       );
       if (branch) await link("branch", branch, performed.info.headBranch, null);
+      if (write.agentSessionId) {
+        const event: SessionPullRequestEvent = {
+          organizationId: write.organizationId,
+          sessionId: write.agentSessionId,
+          pullRequestId: id,
+          number: performed.info.number,
+          title: performed.info.title,
+          url: performed.info.webUrl,
+          workItemId: item?.id ?? null,
+        };
+        await codeSessionHooks().pullRequestOpened(tx, event);
+        opened.push(event);
+      }
     }
     await apply(
       tx,
@@ -472,6 +516,22 @@ export function createCodeOutbox(
       },
       touched,
     );
+    // The merge Lictory sent: who asked and how, on the mirror (Lictory's
+    // provenance next to the host's own merged_by login).
+    if (write.kind === "merge" && write.pullRequestId)
+      await tx
+        .update(s.codePullRequest)
+        .set({
+          mergeRequestedById: write.requestedById,
+          mergedVia: write.performedVia,
+        })
+        .where(
+          and(
+            eq(s.codePullRequest.organizationId, write.organizationId),
+            eq(s.codePullRequest.id, write.pullRequestId),
+          ),
+        );
+    return opened;
   }
 }
 

@@ -1425,6 +1425,38 @@ async function requireReportingChannel(
 
 // The project's policy with what an administrator needs to set it: the
 // agents the Factory module offers and the policy's history.
+// Who reviews agents' code in a project, for the Code module's review
+// dispatch (docs/internals/claims.md#autonomy-policy): the policy's
+// reviewer agent (with its owner, from the Factory's directory) when the
+// project is on Build or Autopilot. Lictory's own read, no person's.
+export async function codeReviewPolicy(
+  tx: Tx,
+  organizationId: string,
+  projectId: string,
+) {
+  const [stored] = await tx
+    .select()
+    .from(s.autonomyPolicy)
+    .where(
+      and(
+        eq(s.autonomyPolicy.organizationId, organizationId),
+        eq(s.autonomyPolicy.projectId, projectId),
+      ),
+    );
+  const policy = effectiveAutonomy(stored);
+  if (policy.level === "assist" || !policy.reviewerAgentId) return null;
+  const agent = (await claimPorts().agents.agents(tx, organizationId)).find(
+    (a) => a.id === policy.reviewerAgentId,
+  );
+  if (!agent?.dispatchable) return null;
+  if (agent.projectIds && !agent.projectIds.includes(projectId)) return null;
+  return {
+    level: policy.level,
+    reviewer: agent,
+    reportingChannelId: policy.reportingChannelId ?? null,
+  };
+}
+
 export async function autonomyPolicyOf(
   db: Database,
   userId: string,

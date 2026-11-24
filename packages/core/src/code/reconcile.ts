@@ -4,6 +4,8 @@ import { lock, type Database } from "@lictory/core/domain/service";
 import { createConnections } from "@lictory/core/code/connections";
 import { apply, type Fetched } from "@lictory/core/code/ingest";
 import { writeCodeProjections } from "@lictory/core/code/projections";
+import { followCodeEvidence } from "@lictory/core/code/follow";
+import { afterCommit, codeSessionHooks } from "@lictory/core/code/hooks";
 import { CodeHostError } from "@lictory/core/code/provider";
 import type { CodeHostProviders } from "@lictory/core/code/registry";
 import { detectKeys } from "@lictory/core/code/keys";
@@ -217,6 +219,7 @@ export function createCodeReconciler(
         });
         return "failed" as const;
       }
+      const changed: string[] = [];
       await db.transaction(async (tx) => {
         await lock(tx, claimed.organizationId);
         const [own] = await tx
@@ -282,7 +285,17 @@ export function createCodeReconciler(
           claimed.organizationId,
           touched.toTouch(),
         );
+        // What a missed webhook would have moved, the reconciliation does.
+        await followCodeEvidence(tx, claimed.organizationId, touched);
+        changed.push(...touched.pullRequestIds);
       });
+      if (changed.length)
+        await afterCommit("pull_requests_changed", () =>
+          codeSessionHooks().pullRequestsChanged(
+            claimed.organizationId,
+            changed,
+          ),
+        );
       return "synced" as const;
     },
   };

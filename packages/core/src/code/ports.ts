@@ -1,8 +1,12 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
-import { canManageProject } from "@lictory/core/contracts/protocol";
+import type {
+  CodeEvidence as ClaimsCodeEvidence,
+  CodeMergeExecutor as ClaimsCodeMergeExecutor,
+  CodePullRequestEvidence,
+} from "@lictory/core/claims/ports";
 import { DomainError } from "@lictory/core/domain/errors";
-import type { Database } from "@lictory/core/domain/service";
+import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import {
   canWorkWithCode,
   codeAccess,
@@ -43,6 +47,8 @@ export type CheckEvidence = {
   // Whether the host told Lictory which checks are required; when it did
   // not, every reported check counts as required.
   requiredKnown: boolean;
+  // How many checks count (required ones, or every reported one).
+  counted: number;
 };
 
 export type PullRequestEvidence = {
@@ -64,6 +70,11 @@ export type PullRequestEvidence = {
   // Opened through Lictory: by whom and via which agent.
   openedById: string | null;
   openedVia: string | null;
+  // Opened from this Factory agent session, by this agent.
+  agentId: string | null;
+  agentSessionId: string | null;
+  mergeable: boolean | null;
+  connectionId: string;
   checks: CheckEvidence;
 };
 
@@ -87,10 +98,67 @@ function checkEvidence(
     failing,
     pending,
     requiredKnown,
+    counted: counted.length,
   };
 }
 
-export function createCodeEvidence(db: Database) {
+// The mirror as Definition of Done evidence (claims/ports.ts), read with the
+// caller's transaction so the claims transaction sees what ingest just
+// wrote. Approvals of the head commit come from reviews recorded in Lictory
+// (agents and people) and from the host's approving logins, mapped to the
+// people who set them as their login (`code_host_identity`).
+const noConnection =
+  "No code host is connected, so Lictory cannot see this item's pull requests or checks. An organization administrator connects GitHub, GitLab or Bitbucket under Code.";
+
+function claimsEvidence(
+  pr: PullRequestEvidence,
+  context: {
+    reviews: (typeof s.codeReview.$inferSelect)[];
+    identities: Map<string, string>;
+    connectionId: string;
+  },
+): CodePullRequestEvidence {
+  const lictory = context.reviews
+    .filter(
+      (r) =>
+        r.pullRequestId === pr.pullRequestId &&
+        r.headSha === pr.headSha &&
+        r.decision === "approve",
+    )
+    .map((r) => ({ agentId: r.agentId, userId: r.reviewerId, login: null }));
+  const host = pr.approvedBy.map((login) => ({
+    agentId: null,
+    userId:
+      context.identities.get(
+        `${context.connectionId}:${login.toLowerCase()}`,
+      ) ?? null,
+    login,
+  }));
+  const counted = pr.checks;
+  return {
+    id: pr.pullRequestId,
+    title: `${pr.repositoryFullName}#${pr.number} ${pr.title}`,
+    url: pr.webUrl,
+    state: pr.state,
+    headSha: pr.headSha || null,
+    checks: {
+      required: counted.counted,
+      failing: counted.failing,
+      pending: counted.pending,
+    },
+    approvals: [...lictory, ...host],
+    // What the host would refuse besides checks: a draft, requested
+    // changes, conflicts (null while the host has not computed it).
+    mergeable:
+      pr.state !== "open"
+        ? null
+        : pr.draft || pr.reviewDecision === "changes_requested"
+          ? false
+          : pr.mergeable,
+  };
+}
+
+export function createCodeEvidence(db: Database | Tx) {
   const checksFor = async (
     organizationId: string,
     pairs: { repositoryId: string; sha: string }[],
@@ -115,6 +183,7 @@ export function createCodeEvidence(db: Database) {
     organizationId: string,
     prs: (typeof s.codePullRequest.$inferSelect & {
       repositoryFullName: string;
+      connectionId: string;
     })[],
   ): Promise<PullRequestEvidence[]> => {
     const checks = await checksFor(
@@ -139,6 +208,10 @@ export function createCodeEvidence(db: Database) {
       authorLogin: p.authorLogin,
       openedById: p.openedById,
       openedVia: p.openedVia,
+      agentId: p.agentId,
+      agentSessionId: p.agentSessionId,
+      mergeable: p.mergeable,
+      connectionId: p.connectionId,
       checks: checkEvidence(
         p.headSha,
         checks.get(`${p.repositoryId}:${p.headSha}`),
@@ -162,7 +235,11 @@ export function createCodeEvidence(db: Database) {
         );
       if (!links.length) return [];
       const rows = await db
-        .select({ pr: s.codePullRequest, fullName: s.codeRepository.fullName })
+        .select({
+          pr: s.codePullRequest,
+          fullName: s.codeRepository.fullName,
+          connectionId: s.codeRepository.connectionId,
+        })
         .from(s.codePullRequest)
         .innerJoin(
           s.codeRepository,
@@ -185,8 +262,82 @@ export function createCodeEvidence(db: Database) {
         );
       return evidenceOf(
         organizationId,
-        rows.map((r) => ({ ...r.pr, repositoryFullName: r.fullName })),
+        rows.map((r) => ({
+          ...r.pr,
+          repositoryFullName: r.fullName,
+          connectionId: r.connectionId,
+        })),
       );
+    },
+
+    // The Definition of Done's port (claims/ports.ts): every item's
+    // currently linked pull requests, in the claims transaction.
+    async evidence(
+      tx: Tx,
+      organizationId: string,
+      workItemIds: string[],
+    ): Promise<Map<string, ClaimsCodeEvidence>> {
+      const result = new Map<string, ClaimsCodeEvidence>();
+      if (!workItemIds.length) return result;
+      const read = createCodeEvidence(tx);
+      const [connection] = await tx
+        .select({ id: s.codeConnection.id })
+        .from(s.codeConnection)
+        .where(
+          and(
+            eq(s.codeConnection.organizationId, organizationId),
+            isNull(s.codeConnection.archivedAt),
+          ),
+        )
+        .limit(1);
+      if (!connection) {
+        for (const id of workItemIds)
+          result.set(id, { connected: false, explanation: noConnection });
+        return result;
+      }
+      const perItem = new Map<string, PullRequestEvidence[]>();
+      for (const id of workItemIds)
+        perItem.set(id, await read.linkedPullRequests(organizationId, id));
+      const all = [...perItem.values()].flat();
+      const pullRequestIds = [...new Set(all.map((p) => p.pullRequestId))];
+      const [reviews, identities] = await Promise.all([
+        pullRequestIds.length
+          ? tx
+              .select()
+              .from(s.codeReview)
+              .where(
+                and(
+                  eq(s.codeReview.organizationId, organizationId),
+                  inArray(s.codeReview.pullRequestId, pullRequestIds),
+                  isNull(s.codeReview.supersededAt),
+                ),
+              )
+          : Promise.resolve([]),
+        all.some((p) => p.approvedBy.length)
+          ? tx
+              .select()
+              .from(s.codeHostIdentity)
+              .where(eq(s.codeHostIdentity.organizationId, organizationId))
+          : Promise.resolve([]),
+      ]);
+      const byLogin = new Map(
+        identities.map((i) => [
+          `${i.connectionId}:${i.login.toLowerCase()}`,
+          i.userId,
+        ]),
+      );
+      for (const [id, prs] of perItem)
+        result.set(id, {
+          connected: true,
+          pullRequests: prs.map((pr) =>
+            claimsEvidence(pr, {
+              reviews,
+              identities: byLogin,
+              connectionId: pr.connectionId,
+            }),
+          ),
+        });
+      return result;
     },
 
     // Whether the checks of one commit passed.
@@ -201,7 +352,11 @@ export function createCodeEvidence(db: Database) {
 
     async pullRequest(organizationId: string, pullRequestId: string) {
       const [row] = await db
-        .select({ pr: s.codePullRequest, fullName: s.codeRepository.fullName })
+        .select({
+          pr: s.codePullRequest,
+          fullName: s.codeRepository.fullName,
+          connectionId: s.codeRepository.connectionId,
+        })
         .from(s.codePullRequest)
         .innerJoin(
           s.codeRepository,
@@ -221,7 +376,11 @@ export function createCodeEvidence(db: Database) {
         );
       if (!row) return null;
       const [evidence] = await evidenceOf(organizationId, [
-        { ...row.pr, repositoryFullName: row.fullName },
+        {
+          ...row.pr,
+          repositoryFullName: row.fullName,
+          connectionId: row.connectionId,
+        },
       ]);
       return evidence!;
     },
@@ -231,85 +390,101 @@ export function createCodeEvidence(db: Database) {
 export type CodeEvidence = ReturnType<typeof createCodeEvidence>;
 
 // The autopilot's merge: queued like a person's merge, attributed to the
-// policy ("Autopilot") and the administrator who configured it, and refused
-// for the same reasons (state, draft, failing or pending checks, requested
-// changes, conflicts, a head that moved). The Definition of Done is the
-// caller's to check first.
+// policy ("Autopilot · policy set by Ada") and the administrator who
+// configured it, who must still administer the project the repository
+// serves, and refused for the same reasons (state, draft, failing or
+// pending checks, requested changes, conflicts, a head that moved). The
+// Definition of Done is the caller's to check first.
 export function createCodeMergeExecutor(
   db: Database,
   options: CodeServiceOptions = {},
 ) {
   const service = createCodeService(db, options);
-  return {
-    async enqueueMerge(input: {
+  const explain = async (
+    tx: Tx,
+    organizationId: string,
+    workItemId: string,
+    headSha: string,
+  ) => {
+    const [item] = await tx
+      .select({ number: s.workItem.number, key: s.project.key })
+      .from(s.workItem)
+      .innerJoin(
+        s.project,
+        and(
+          eq(s.project.organizationId, s.workItem.organizationId),
+          eq(s.project.id, s.workItem.projectId),
+        ),
+      )
+      .where(
+        and(
+          eq(s.workItem.organizationId, organizationId),
+          eq(s.workItem.id, workItemId),
+        ),
+      );
+    const key = item ? ` for ${item.key}-${item.number}` : "";
+    return `Autopilot merges this pull request${key} at ${headSha.slice(0, 7)}: the required checks passed on this commit, the reviewer agent approved it and every other Definition of Done check passed.`;
+  };
+  const executor: ClaimsCodeMergeExecutor & {
+    enqueueMerge: (input: {
       organizationId: string;
       pullRequestId: string;
       expectedHeadSha: string;
       method?: CodeMergeMethod;
-      // The project whose autonomy policy merges, and who configured it.
-      policy: { projectId: string; configuredById: string; label?: string };
-      // One merge per policy decision: retries reuse it.
+      policy: {
+        projectId: string;
+        configuredById: string;
+        version?: number;
+        label?: string;
+      };
       idempotencyKey: string;
-    }) {
-      // The configuring administrator must still administer the project,
-      // and the repository must serve it.
-      await db.transaction(async (tx) => {
-        const access = await codeAccess(
+    }) => Promise<{ writeId: string | null }>;
+    mergeBlockers: typeof mergeBlockers;
+  } = {
+    // The claims port (docs/internals/claims.md#ports): in the claims
+    // transaction, under the organization lock, once per pull request head.
+    async requestMerge(tx, request) {
+      const result = await service.mergeForPolicyIn(tx, {
+        organizationId: request.organizationId,
+        pullRequestId: request.pullRequestId,
+        expectedHeadSha: request.headSha,
+        idempotencyKey: request.idempotencyKey,
+        policy: {
+          projectId: request.projectId,
+          configuredById: request.authorizedById,
+          version: request.policyVersion,
+        },
+        explanation: await explain(
           tx,
-          input.policy.configuredById,
-          input.organizationId,
-        );
-        if (
-          !canManageProject(
-            access.roster,
-            input.policy.configuredById,
-            access.admin,
-            input.policy.projectId,
-          )
-        )
-          throw new DomainError(
-            "forbidden",
-            "The administrator who set this project's autonomy policy no longer administers it; Autopilot does not merge until a current administrator confirms the policy.",
-          );
-        const [pr] = await tx
-          .select({ repositoryId: s.codePullRequest.repositoryId })
-          .from(s.codePullRequest)
-          .where(
-            and(
-              eq(s.codePullRequest.organizationId, input.organizationId),
-              eq(s.codePullRequest.id, input.pullRequestId),
-            ),
-          );
-        if (!pr)
-          throw new DomainError(
-            "not_found",
-            "This pull request is unavailable.",
-          );
-        const projects = await linkedProjectIds(
-          tx,
-          input.organizationId,
-          pr.repositoryId,
-        );
-        if (!projects.includes(input.policy.projectId))
-          throw new DomainError(
-            "forbidden",
-            "This pull request's repository does not serve the project whose policy would merge it.",
-          );
+          request.organizationId,
+          request.workItemId,
+          request.headSha,
+        ),
       });
-      return service.merge(
-        { userId: input.policy.configuredById },
-        {
+      return result.requested
+        ? { requested: true }
+        : { requested: false, reason: result.reason };
+    },
+    // The same outside a transaction (tests, tools): refusals throw.
+    async enqueueMerge(input) {
+      const result = await db.transaction(async (tx) => {
+        await lock(tx, input.organizationId);
+        return service.mergeForPolicyIn(tx, {
           organizationId: input.organizationId,
           pullRequestId: input.pullRequestId,
           expectedHeadSha: input.expectedHeadSha,
           method: input.method,
-          mutationId: input.idempotencyKey,
-        },
-        { performedVia: input.policy.label ?? "Autopilot" },
-      );
+          idempotencyKey: input.idempotencyKey,
+          policy: { version: 0, ...input.policy },
+        });
+      });
+      if (!result.requested)
+        throw new DomainError(result.category, result.reason);
+      return { writeId: result.writeId };
     },
     mergeBlockers,
   };
+  return executor;
 }
 
 export type CodeMergeExecutor = ReturnType<typeof createCodeMergeExecutor>;
@@ -390,4 +565,115 @@ export async function resolveSessionWorkspace(
     await connections.markFailure(row, error);
     throw error;
   }
+}
+
+// Which repository an agent session works in
+// (docs/internals/code-hosts.md#agent-sessions): the one the session names,
+// else the one whose clone address the session states, else its project's
+// default, else the project's first linked repository. Only repositories
+// that serve the project count (or, for a session without a project, any
+// of the organization's that the person can work with). Null when none.
+export async function chooseSessionRepository(
+  db: Database | Tx,
+  input: {
+    organizationId: string;
+    projectId: string | null;
+    repositoryId: string | null;
+    repositoryUrl: string | null;
+  },
+) {
+  const active = and(
+    eq(s.codeRepository.organizationId, input.organizationId),
+    isNull(s.codeConnection.archivedAt),
+  );
+  const joined = () =>
+    db
+      .select({
+        id: s.codeRepository.id,
+        cloneUrl: s.codeRepository.cloneUrl,
+        webUrl: s.codeRepository.webUrl,
+      })
+      .from(s.codeRepository)
+      .innerJoin(
+        s.codeConnection,
+        and(
+          eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+          eq(s.codeConnection.id, s.codeRepository.connectionId),
+        ),
+      );
+  if (!input.projectId) {
+    if (input.repositoryId) {
+      const [named] = await joined().where(
+        and(active, eq(s.codeRepository.id, input.repositoryId)),
+      );
+      return named?.id ?? null;
+    }
+    if (!input.repositoryUrl) return null;
+    const rows = await joined().where(active);
+    return (
+      rows.find((r) => sameRepository(r, input.repositoryUrl!))?.id ?? null
+    );
+  }
+  const rows = await db
+    .select({
+      id: s.codeRepository.id,
+      cloneUrl: s.codeRepository.cloneUrl,
+      webUrl: s.codeRepository.webUrl,
+      isDefault: s.codeRepositoryProject.isDefault,
+    })
+    .from(s.codeRepositoryProject)
+    .innerJoin(
+      s.codeRepository,
+      and(
+        eq(
+          s.codeRepository.organizationId,
+          s.codeRepositoryProject.organizationId,
+        ),
+        eq(s.codeRepository.id, s.codeRepositoryProject.repositoryId),
+      ),
+    )
+    .innerJoin(
+      s.codeConnection,
+      and(
+        eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+        eq(s.codeConnection.id, s.codeRepository.connectionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.codeRepositoryProject.organizationId, input.organizationId),
+        eq(s.codeRepositoryProject.projectId, input.projectId),
+        isNull(s.codeConnection.archivedAt),
+      ),
+    )
+    .orderBy(
+      desc(s.codeRepositoryProject.isDefault),
+      asc(s.codeRepositoryProject.createdAt),
+      asc(s.codeRepository.fullName),
+    );
+  if (input.repositoryId)
+    return rows.find((r) => r.id === input.repositoryId)?.id ?? null;
+  if (input.repositoryUrl) {
+    const stated = rows.find((r) => sameRepository(r, input.repositoryUrl!));
+    // A stated address that is not one of the project's repositories is
+    // the session's own (cloned without brokered credentials).
+    return stated?.id ?? null;
+  }
+  return rows[0]?.id ?? null;
+}
+
+const normalized = (url: string) =>
+  url
+    .trim()
+    .toLowerCase()
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
+function sameRepository(
+  row: { cloneUrl: string; webUrl: string },
+  url: string,
+) {
+  const stated = normalized(url);
+  return (
+    normalized(row.cloneUrl) === stated || normalized(row.webUrl) === stated
+  );
 }

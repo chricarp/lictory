@@ -37,6 +37,9 @@ export const paths = {
   // The Factory: agents, runners and one agent session.
   factorySession: (org: string, session: string) =>
     `/${org}/factory/sessions/${session}`,
+  // One code pull request of the Code module.
+  codePullRequest: (org: string, pullRequest: string) =>
+    `/${org}/code/pull-requests/${pullRequest}`,
   // Lictory Channels: the channel browser and one conversation (addressed
   // by its id, which never changes when it is renamed).
   channels: (org: string) => `/${org}/channels`,

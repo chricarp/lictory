@@ -20,12 +20,16 @@ export type SessionThreadEvent = {
     | "approval_requested"
     | "approval_answered"
     // The agent answered a person's steering message (`eventSequence`).
-    | "agent_message";
+    | "agent_message"
+    // The code pull request the session's branch became was opened.
+    | "pull_request";
   status: SessionStatus;
   // For approval events.
   approvalId?: string;
   // For agent messages: the event in the session's log.
   eventSequence?: number;
+  // For pull requests: what the thread says.
+  pullRequest?: { number: number; title: string; url: string };
 };
 export type SessionThreadPublisher = {
   publish(event: SessionThreadEvent): Promise<void>;
@@ -70,8 +74,12 @@ export type SessionWorkspaceResolver = {
     id: string;
     organizationId: string;
     agentId: string;
+    // The agent's owner, whose access the session has.
+    ownerId: string;
     projectId: string | null;
     workItemId: string | null;
+    // The Code module's repository the session names, if any.
+    repositoryId: string | null;
     repositoryUrl: string | null;
     baseBranch: string | null;
     branch: string | null;
@@ -131,6 +139,56 @@ export async function sessionLeasesRenewed(
       JSON.stringify({
         event: "factory.lease_listener_failed",
         organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+}
+
+// A session completed after its runner pushed its branch. Called after the
+// completion committed, never inside a transaction; failures are logged.
+// The Code module opens the code pull request the branch becomes. No-op by
+// default (a session without the Code module only reports its branch).
+export type SessionCompletion = {
+  organizationId: string;
+  sessionId: string;
+  agentId: string;
+  ownerId: string;
+  agentName: string;
+  agentHandle: string;
+  requestedById: string;
+  projectId: string | null;
+  workItemId: string | null;
+  repositoryId: string | null;
+  repositoryUrl: string | null;
+  baseBranch: string | null;
+  branch: string;
+  title: string;
+  summary: string | null;
+  attempt: number;
+};
+export type SessionCompletionListener = {
+  pushed(completion: SessionCompletion): Promise<void>;
+};
+const noCompletionListener: SessionCompletionListener = {
+  pushed: async () => undefined,
+};
+let completionListener: SessionCompletionListener = noCompletionListener;
+
+export function setSessionCompletionListener(
+  listener: SessionCompletionListener | null,
+) {
+  completionListener = listener ?? noCompletionListener;
+}
+
+export async function sessionPushed(completion: SessionCompletion) {
+  try {
+    await completionListener.pushed(completion);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "factory.completion_listener_failed",
+        sessionId: completion.sessionId,
         error: error instanceof Error ? error.message : String(error),
       }),
     );

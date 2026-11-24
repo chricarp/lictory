@@ -25,12 +25,17 @@ function service(ctx: CapabilityContext) {
   return createCodeService(ctx.db, { providers: ctx.codeHostProviders });
 }
 function actor(ctx: CapabilityContext): Actor {
+  const p = ctx.principal;
   return {
-    userId: ctx.principal.userId,
-    surface: ctx.principal.surface,
-    client: ctx.principal.client,
-    agentId: ctx.principal.tokenId ?? null,
-    agentName: ctx.principal.agentName ?? null,
+    userId: p.userId,
+    surface: p.surface,
+    client: p.client,
+    // A Factory agent is named by its own id (its pull requests and reviews
+    // are recorded as its); other MCP agents by their access token's.
+    agentId: p.agent?.id ?? p.tokenId ?? null,
+    agentName: p.agent?.name ?? p.agentName ?? null,
+    agentSessionId: p.agent?.sessionId ?? null,
+    agentScope: p.agent ?? null,
   };
 }
 function track(
@@ -506,6 +511,47 @@ const setCodePullRequestState = defineCapability({
   run: (ctx, input) => service(ctx).setPullRequestState(actor(ctx), input),
 });
 
+const reviewCodePullRequest = defineCapability({
+  name: "reviewCodePullRequest",
+  title: "Review a pull request",
+  description: `Record your review of a pull request's head commit in Lictory: \`approve\` or \`request_changes\`, with a body saying what you checked. The review belongs to that commit: new commits need a new review, and \`expectedHeadSha\` (the head you read) refuses the review if it moved. The project's Definition of Done counts the reviewer agent's approval of the head (or any approval when the policy names no reviewer agent). A comment on the host shows the verdict, signed. An agent never reviews its own pull request. ${codePullRequest.rule("review")} Needs “Change properties” in a project the repository serves.`,
+  kind: "command",
+  surfaces: everywhere,
+  external: true,
+  input: z.object({
+    organizationId,
+    pullRequestId: id,
+    decision: z.enum(["approve", "request_changes"]),
+    body: z.string().max(20_000).optional(),
+    expectedHeadSha: z.string().trim().min(7).max(64).optional(),
+    mutationId,
+  }),
+  async run(ctx, input) {
+    const result = await service(ctx).reviewPullRequest(actor(ctx), input);
+    track(ctx, "code_review_recorded", {
+      organization_id: input.organizationId,
+      decision: input.decision,
+    });
+    return result;
+  },
+});
+
+const setDefaultCodeRepository = defineCapability({
+  name: "setDefaultCodeRepository",
+  title: "Choose a project's default repository",
+  description:
+    "Project administrators: the repository agent sessions of the project work in (and Lictory opens their pull requests in) when a session names none. Without one, sessions use the project's first linked repository. `repositoryId` null clears the choice.",
+  kind: "command",
+  surfaces: everywhere,
+  idempotent: true,
+  input: z.object({
+    organizationId,
+    projectId: id,
+    repositoryId: id.nullable(),
+  }),
+  run: (ctx, input) => service(ctx).setDefaultRepository(actor(ctx), input),
+});
+
 const getCodeWrite = defineCapability({
   name: "getCodeWrite",
   title: "Get a code host write",
@@ -606,6 +652,8 @@ export const codeCapabilities = [
   requestCodeReview,
   mergeCodePullRequest,
   setCodePullRequestState,
+  reviewCodePullRequest,
+  setDefaultCodeRepository,
   getCodeWrite,
   retryCodeWrite,
   cancelCodeWrite,

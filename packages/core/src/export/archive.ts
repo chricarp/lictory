@@ -129,6 +129,8 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.codeRepository },
   { table: s.codeRepositoryProject },
   { table: s.codeWorkLink },
+  // Reviews recorded in Lictory (an agent's approval of a head commit).
+  { table: s.codeReview },
   { table: s.organizationOnboarding },
   { table: s.organizationLogo, omit: ["content"] },
   { table: s.organizationBranding },

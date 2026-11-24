@@ -36,8 +36,11 @@ import {
 import {
   publishSessionEvent,
   resolveSessionWorkspace,
+  sessionPushed,
+  type SessionCompletion,
   type SessionThreadEvent,
 } from "@lictory/core/factory/ports";
+import { suggestBranchName } from "@lictory/core/code/keys";
 import {
   LEASE_SECONDS,
   boundEvent,
@@ -118,14 +121,16 @@ export function repositoryProblem(url: string) {
 const branchShape =
   /^(?!\/)(?!.*\/\/)(?!.*\.\.)(?!.*@\{)[\w./-]{1,200}(?<![./])$/;
 
+// A branch named for the item (its key and title, as Code suggests, so key
+// detection links it) and the session, so two sessions never share one.
 function defaultBranch(
   agent: { handle: string },
   sessionId: string,
-  itemKey: string | null,
+  item: { key: string; title: string } | null,
 ) {
   const short = sessionId.replaceAll("-", "").slice(0, 8);
-  return itemKey
-    ? `lictory/${itemKey.toLowerCase()}-${short}`
+  return item
+    ? `${suggestBranchName(item.key, item.title, "lictory").slice(0, 160)}-${short}`
     : `lictory/${agent.handle.replaceAll("_", "-")}-${short}`;
 }
 
@@ -269,6 +274,9 @@ export type StartSessionInput = {
   title?: string;
   workItemId?: string | null;
   repositoryUrl?: string | null;
+  // A repository of the Code module (its id); the workspace resolver
+  // checks that it serves the item's project and the owner may use it.
+  repositoryId?: string | null;
   baseBranch?: string | null;
   branch?: string | null;
   runnerId?: string | null;
@@ -433,8 +441,7 @@ export async function startSessionIn(
       if (problem) throw new DomainError("validation", problem);
     }
     const branch =
-      present(input.branch) ??
-      defaultBranch(agent, sessionId, item?.key ?? null);
+      present(input.branch) ?? defaultBranch(agent, sessionId, item ?? null);
     if (!branchShape.test(branch))
       throw new DomainError("validation", "That branch name is not valid.");
     const baseBranch = present(input.baseBranch);
@@ -517,6 +524,7 @@ export async function startSessionIn(
         workItemId: item?.id ?? null,
         projectId: item?.projectId ?? null,
         repositoryUrl,
+        repositoryId: present(input.repositoryId),
         baseBranch,
         branch,
         channelId,
@@ -1488,48 +1496,77 @@ export async function completeRun(
   },
   now = new Date(),
 ) {
-  return writeAndPublish(db, runner.organizationId, async (tx, publish) => {
-    const session = await leased(tx, runner, sessionId, body.leaseToken, now);
-    if (body.lastSeq !== session.runnerSequence)
-      throw new SequenceGap(session.runnerSequence);
-    requireStep(agentSession, session.status, "finish");
-    if (body.branch && !branchShape.test(body.branch))
-      throw new DomainError("validation", "That branch name is not valid.");
-    const summary =
-      body.summary?.slice(0, limits.text) ?? session.resultSummary;
-    const error =
-      body.outcome === "failed"
-        ? (body.error?.slice(0, 4000) ?? "The agent stopped with an error.")
-        : null;
-    const eventSequence = await appendEvents(tx, session, [
-      ...(body.summary && body.summary !== session.resultSummary
-        ? [{ type: "summary" as const, data: { text: body.summary } }]
-        : []),
-      {
-        type: "status",
-        data: {
-          phase: body.outcome,
-          status: body.outcome,
-          ...(error ? { message: error } : {}),
+  let pushed: SessionCompletion | undefined;
+  const result = await writeAndPublish(
+    db,
+    runner.organizationId,
+    async (tx, publish) => {
+      const session = await leased(tx, runner, sessionId, body.leaseToken, now);
+      if (body.lastSeq !== session.runnerSequence)
+        throw new SequenceGap(session.runnerSequence);
+      requireStep(agentSession, session.status, "finish");
+      if (body.branch && !branchShape.test(body.branch))
+        throw new DomainError("validation", "That branch name is not valid.");
+      const summary =
+        body.summary?.slice(0, limits.text) ?? session.resultSummary;
+      const error =
+        body.outcome === "failed"
+          ? (body.error?.slice(0, 4000) ?? "The agent stopped with an error.")
+          : null;
+      const eventSequence = await appendEvents(tx, session, [
+        ...(body.summary && body.summary !== session.resultSummary
+          ? [{ type: "summary" as const, data: { text: body.summary } }]
+          : []),
+        {
+          type: "status",
+          data: {
+            phase: body.outcome,
+            status: body.outcome,
+            ...(error ? { message: error } : {}),
+          },
         },
-      },
-    ]);
-    await endRun(tx, session);
-    const row = await updateSession(tx, session.id, {
-      status: body.outcome,
-      resultSummary: summary,
-      error,
-      branch: body.branch ?? session.branch,
-      eventSequence,
-      leaseToken: null,
-      leaseExpiresAt: null,
-      completedAt: now,
-    });
-    await projectSession(tx, row);
-    await notifyFinished(tx, row);
-    publish(threadEvent(row, "status"));
-    return sessionEntity(row, []);
-  });
+      ]);
+      await endRun(tx, session);
+      const row = await updateSession(tx, session.id, {
+        status: body.outcome,
+        resultSummary: summary,
+        error,
+        branch: body.branch ?? session.branch,
+        eventSequence,
+        leaseToken: null,
+        leaseExpiresAt: null,
+        completedAt: now,
+      });
+      await projectSession(tx, row);
+      await notifyFinished(tx, row);
+      publish(threadEvent(row, "status"));
+      if (row.status === "completed" && body.branch) {
+        const agent = await agentOf(tx, row);
+        pushed = {
+          organizationId: row.organizationId,
+          sessionId: row.id,
+          agentId: row.agentId,
+          ownerId: agent?.ownerId ?? row.requestedById,
+          agentName: agent?.name ?? "An agent",
+          agentHandle: agent?.handle ?? "agent",
+          requestedById: row.requestedById,
+          projectId: row.projectId,
+          workItemId: row.workItemId,
+          repositoryId: row.repositoryId,
+          repositoryUrl: row.repositoryUrl,
+          baseBranch: row.baseBranch,
+          branch: body.branch,
+          title: row.title,
+          summary: row.resultSummary,
+          attempt: row.attempts,
+        };
+      }
+      return sessionEntity(row, []);
+    },
+  );
+  // After commit: the branch becomes a code pull request (Code module).
+  if (pushed) await sessionPushed(pushed);
+  return result;
 }
 
 // A runner shutting down hands a session back at once instead of letting
@@ -1582,11 +1619,95 @@ export async function sessionWorkspace(
   leaseToken: string,
   now = new Date(),
 ) {
-  const session = await factoryWrite(db, runner.organizationId, (tx) =>
-    leased(tx, runner, sessionId, leaseToken, now),
+  const { session, ownerId } = await factoryWrite(
+    db,
+    runner.organizationId,
+    async (tx) => {
+      const session = await leased(tx, runner, sessionId, leaseToken, now);
+      return { session, ownerId: (await agentOf(tx, session)).ownerId };
+    },
   );
-  const repository = await resolveSessionWorkspace(session);
+  const repository = await resolveSessionWorkspace({ ...session, ownerId });
   return { repository };
+}
+
+// The Code module chose the repository a session works in (its workspace
+// resolver): recorded on the session so its pull request opens there, and
+// kept once set.
+export async function recordSessionRepository(
+  db: Database,
+  organizationId: string,
+  sessionId: string,
+  repositoryId: string,
+) {
+  await factoryWrite(db, organizationId, async (tx) => {
+    const session = await lockSession(tx, organizationId, sessionId);
+    if (!session || session.repositoryId === repositoryId) return;
+    if (session.repositoryId) return;
+    const row = await updateSession(tx, session.id, { repositoryId });
+    await projectSession(tx, row);
+  });
+}
+
+// After the pull request was recorded: the session's thread shows it (its
+// card and the agent's message).
+export async function publishSessionPullRequest(
+  db: Database,
+  organizationId: string,
+  sessionId: string,
+  pullRequest: { number: number; title: string; url: string },
+) {
+  const [row] = await db
+    .select()
+    .from(s.agentSession)
+    .where(
+      and(
+        eq(s.agentSession.organizationId, organizationId),
+        eq(s.agentSession.id, sessionId),
+      ),
+    );
+  if (!row?.pullRequestId) return;
+  await publishSessionEvent({
+    ...threadEvent(row, "pull_request"),
+    pullRequest,
+  });
+}
+
+// The code pull request the session's branch became (Code's outbox, in its
+// transaction: it holds the organization lock exclusively, so no Factory
+// writer runs). The session's projection shows it; the first one stays.
+export async function recordSessionPullRequest(
+  tx: Tx,
+  input: {
+    organizationId: string;
+    sessionId: string;
+    pullRequestId: string;
+    url: string;
+    title: string;
+    number: number;
+  },
+) {
+  const session = await lockSession(tx, input.organizationId, input.sessionId);
+  if (!session || session.pullRequestId) return null;
+  const eventSequence = await appendEvents(tx, session, [
+    {
+      type: "status",
+      data: {
+        phase: "pull_request",
+        status: session.status,
+        message: `Opened pull request #${input.number}: ${input.title}`,
+        url: input.url,
+        pullRequestId: input.pullRequestId,
+      },
+    },
+  ]);
+  const row = await updateSession(tx, session.id, {
+    pullRequestId: input.pullRequestId,
+    pullRequestUrl: input.url,
+    eventSequence,
+  });
+  await projectSession(tx, row);
+  return threadEvent(row, "pull_request");
 }
 
 // The model proxy may serve this lease: the session is running, its agent

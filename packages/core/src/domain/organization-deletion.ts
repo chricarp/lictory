@@ -244,6 +244,7 @@ export const deletionOrder: readonly PgTable[] = [
   s.codeCommitChecks,
   s.codeCommit,
   s.codeIssue,
+  s.codeReview,
   s.codePullRequest,
   s.codeBranch,
   s.codeRepositoryProject,

@@ -708,6 +708,12 @@ export const codePullRequest = stateMachine({
       refused: (state) =>
         `This pull request is ${state}; reviews can only be requested on an open pull request.`,
     },
+    review: {
+      does: "Review",
+      from: ["open"],
+      refused: (state) =>
+        `This pull request is ${state}; only an open pull request can be reviewed.`,
+    },
   },
 });
 

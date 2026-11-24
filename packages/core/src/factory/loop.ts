@@ -55,6 +55,8 @@ import {
   type SessionRow,
 } from "@lictory/core/factory/store";
 import { stableId } from "@lictory/core/factory/thread-ids";
+import { platformUrl } from "@lictory/core/lib/auth-base-url";
+import { paths } from "@lictory/core/lib/paths";
 
 // The factory loop, joined up (docs/internals/factory.md#the-factory-loop):
 // the Factory installs the implementations of the boundaries Claims and
@@ -833,6 +835,26 @@ async function publish(db: Database, event: SessionThreadEvent) {
               `event:${event.eventSequence}`,
               text,
             );
+        }
+        // The pull request the session's branch became, as the agent's
+        // message, once.
+        if (
+          event.kind === "pull_request" &&
+          session.pullRequestId &&
+          event.pullRequest
+        ) {
+          const [org] = await tx
+            .select({ slug: s.organization.slug })
+            .from(s.organization)
+            .where(eq(s.organization.id, session.organizationId));
+          const page = `${platformUrl().replace(/\/$/, "")}${paths.codePullRequest(org?.slug ?? "", session.pullRequestId)}`;
+          await postSessionMessage(
+            tx,
+            session,
+            agent,
+            `pull-request:${session.pullRequestId}`,
+            `Opened pull request [#${event.pullRequest.number} ${event.pullRequest.title.replaceAll("]", "")}](${page}) for review ([on the code host](${event.pullRequest.url})).`,
+          );
         }
         if (
           event.kind === "status" &&
