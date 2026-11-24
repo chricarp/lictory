@@ -19,8 +19,14 @@ import {
   type Principal,
 } from "@lictory/core/capabilities/core";
 import { invoke } from "@lictory/core/capabilities/registry";
-import { postMessage } from "@lictory/core/channels/writer";
-import { registerAgentDirectory } from "@lictory/core/channels/agents";
+import {
+  appendExternalMessage,
+  postMessage,
+} from "@lictory/core/channels/writer";
+import {
+  addressableAgent,
+  registerAgentDirectory,
+} from "@lictory/core/channels/agents";
 import { claimPorts, resetClaimPorts } from "@lictory/core/claims/ports";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
 import { DELIVERY_HOLD_MS } from "@lictory/core/claims/session-follow";
@@ -312,6 +318,65 @@ void test("a mention by someone who may not use the agent gets a polite reply, n
   await f.post(f.bo, `${f.mention} please deploy`);
   const [session] = await f.sessions();
   assert.equal(session!.requestedById, f.bo);
+});
+
+void test("people in linked channels address agents by the Factory's rule; Slack text in the quoted thread is withheld", async () => {
+  const f = await fixture();
+  const addressable = (userId: string) =>
+    db.transaction((tx) =>
+      addressableAgent(tx, f.organizationId, userId, f.agent.handle),
+    );
+  // A private agent answers only its owner.
+  assert.equal((await addressable(f.ada))?.id, f.agent.id);
+  assert.equal(await addressable(f.bo), null);
+  await invoke(web(f.ada), "updateAgent", {
+    organizationId: f.organizationId,
+    agentId: f.agent.id,
+    shared: true,
+  });
+  assert.equal((await addressable(f.bo))?.id, f.agent.id);
+  await invoke(web(f.ada), "setAgentArchived", {
+    organizationId: f.organizationId,
+    agentId: f.agent.id,
+    archived: true,
+  });
+  assert.equal(await addressable(f.ada), null);
+  await invoke(web(f.ada), "setAgentArchived", {
+    organizationId: f.organizationId,
+    agentId: f.agent.id,
+    archived: false,
+  });
+
+  // A thread started in the linked Slack channel: the Factory quotes it to
+  // the agent without the Slack text (the organization has not allowed
+  // Lictory Intelligence to read Slack).
+  await db
+    .update(s.channel)
+    .set({ externalSource: "slack", externalId: "C0SLACK" })
+    .where(eq(s.channel.id, f.channelId));
+  const root = await db.transaction((tx) =>
+    appendExternalMessage(tx, {
+      organizationId: f.organizationId,
+      channelId: f.channelId,
+      source: "slack",
+      externalChannelId: "C0SLACK",
+      externalId: "1700000000.0001",
+      author: { kind: "external", externalId: "U0GUEST", name: "Guest" },
+      body: "the vendor secret rotation is due friday",
+      createdAt: new Date(),
+    }),
+  );
+  assert.ok("message" in root);
+  await f.post(f.ada, `${f.mention} draft the rotation runbook`, {
+    threadRootId: root.message.id,
+  });
+  const [session] = await f.sessions();
+  assert.match(session!.prompt, /draft the rotation runbook/);
+  assert.match(
+    session!.prompt,
+    /Guest \(Slack\): \(written in Slack; withheld/,
+  );
+  assert.doesNotMatch(session!.prompt, /vendor secret rotation/);
 });
 
 void test("replies steer only for the requester and the owner; approvals only they answer", async () => {

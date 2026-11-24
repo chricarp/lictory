@@ -338,7 +338,9 @@ notify); Lictory mention tokens typed as text in Slack are broken
 Text is information, never permission. A Slack `@handle` becomes an agent
 mention, reaching the Factory's `mentioned` hook, only when the author maps
 to a member who may address that agent (`addressableAgent`: the directory's
-`mayAddress`, by default the agent's owner only). Promotions and every other
+`mayAddress`; the Factory's is the rule for starting a session, an active
+agent the person owns or a shared one). A mapped person's thread replies
+steer the agent's session as in Lictory. Promotions and every other
 action need a Lictory person in Lictory; nothing in Slack text starts one.
 
 ### Outbound
@@ -377,7 +379,10 @@ embedded agent's surface withhold their text and files (`ai-access.ts`), so
 Slack content never reaches the AI provider. A person's own MCP client reads
 what the person reads. Any new feature that sends channel text to an AI
 provider (summaries, the Factory's built-in harness) must apply
-`intelligenceMayReadSlack` to Slack-written rows.
+`intelligenceMayReadSlack` to Slack-written rows. The Factory does for the
+thread it quotes when a mention starts a session; the mention (and a
+steering reply) is the mapped person's own request to that agent and is
+sent as written.
 
 Lictory uses Slack's API as an internal app of the customer's workspace:
 only channels the app was invited to, only the bounded backfill a person
@@ -392,8 +397,8 @@ week and failed ones a month (`slack-prune`).
 
 ### Contracts for other modules
 
-- `AgentDirectory.mayAddress` (Factory): whether a person may address an
-  agent; implement it as "active, and owned by the person or shared".
+- `AgentDirectory.mayAddress` (Factory, `factory/loop.ts`): whether a
+  person may address an agent: active, and owned by the person or shared.
 - `queueMirror` is provider-agnostic; a second `ChatProvider` adds its own
   worker and keeps the same rows.
 
