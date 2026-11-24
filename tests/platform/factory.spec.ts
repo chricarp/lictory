@@ -140,10 +140,18 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await page.goto(`/${seeded.slug}`);
   const asks = page.getByRole("region", { name: "Agents ask you" });
   await expect(asks).toBeVisible();
+  // The session is listed once: it waits on me, so it is not also "at work".
   await expect(
     page.getByRole("region", { name: "Agents at work" }),
-  ).toBeVisible();
-  await asks.getByRole("link", { name: /Run the database migration/ }).click();
+  ).toBeHidden();
+  // A request is reviewed with its context before it can be approved.
+  await expect(asks.getByText(/Run the database migration/)).toBeVisible();
+  await expect(asks.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await asks.getByRole("button", { name: "Review" }).click();
+  await expect(asks.getByRole("button", { name: "Approve" })).toBeVisible();
+  await asks
+    .getByRole("link", { name: "Add a changelog for refunds." })
+    .click();
   await expect(page).toHaveURL(session);
   await transcript.getByRole("button", { name: "Approve" }).click();
   await expect(

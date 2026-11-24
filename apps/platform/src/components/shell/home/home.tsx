@@ -10,7 +10,6 @@ import {
 import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
-  relativeTime,
   statusOf,
   typeOf,
   type Project,
@@ -38,11 +37,17 @@ import {
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { homeCards } from "@lictory/platform/components/shell/nav-registry";
+import { HomeCardBoundary } from "@lictory/platform/components/shell/home/panel";
+import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
 import {
-  HomeCardBoundary,
-  HomePanel,
-  HomeRow,
-} from "@lictory/platform/components/shell/home/panel";
+  SetupChecklist,
+  useSetup,
+} from "@lictory/platform/components/shell/home/setup-checklist";
+import {
+  useFactory,
+  waitingOnMe,
+} from "@lictory/platform/components/factory/store";
 import {
   inFlight,
   readyToStart,
@@ -112,7 +117,16 @@ function Home() {
     [projects],
   );
   const org = organization.slug;
+  const setup = useSetup();
+  const factory = useFactory();
+  // What agents ask me counts as waiting on me, like reviews and approvals.
+  const agentAsks = waitingOnMe(
+    factory.sessions,
+    factory.agentById,
+    userId,
+  ).reduce((n, s) => n + s.approvals.length, 0);
   const waitingTotal = attention.length + pages.length;
+  const showSetup = setup.ready && !setup.complete;
   const capabilities = capabilitiesIn(project?.id);
   const canCreate =
     !!project &&
@@ -149,12 +163,17 @@ function Home() {
               {firstName ? `, ${firstName}` : ""}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {summary(waitingTotal, flight.total, ready.total)}
+              {summary(waitingTotal + agentAsks, flight.total, ready.total)}
             </p>
           </div>
+          {showSetup && (
+            <div className="mb-4">
+              <SetupChecklist setup={setup} />
+            </div>
+          )}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
             <div className="flex min-w-0 flex-col gap-4">
-              <HomePanel
+              <Panel
                 title="Waiting on you"
                 icon={<Inbox />}
                 count={waitingTotal}
@@ -162,7 +181,12 @@ function Home() {
                   label: "Open Inbox",
                   href: `${paths.inbox(org)}?view=todo`,
                 }}
-                empty="Nothing waits on you. Review requests, approvals and pull requests to merge appear here."
+                // A new organization's Home is its setup, not empty boxes.
+                empty={
+                  showSetup
+                    ? undefined
+                    : "Nothing waits on you. Review requests, approvals and pull requests to merge appear here."
+                }
               >
                 {attention.slice(0, SHOWN).map((entry) => {
                   const p = projectById.get(entry.item.projectId);
@@ -179,24 +203,22 @@ function Home() {
                 {pages
                   .slice(0, Math.max(0, SHOWN - attention.length))
                   .map((entry) => (
-                    <HomeRow
+                    <ListRow
                       key={entry.pullRequest.id}
                       href={`${paths.spacePage(org, entry.space.slug, entry.page.id)}/history?view=pulls&pr=${entry.pullRequest.id}`}
-                      icon={
+                      leading={
                         <FileText className="size-4 text-muted-foreground" />
                       }
-                      meta={entry.space.name}
                       title={entry.page.title}
-                      reason={pageReason[entry.reason]}
-                      time={relativeTime(entry.pullRequest.updatedAt)}
+                      meta={`${pageReason[entry.reason]} · ${entry.space.name}`}
+                      time={entry.pullRequest.updatedAt}
                     />
                   ))}
-              </HomePanel>
-              <HomePanel
+              </Panel>
+              <Panel
                 title="In flight"
                 icon={<CircleDot />}
                 count={flight.total}
-                empty="Nothing of yours has started. Work assigned to you appears here once it is underway."
               >
                 {flight.rows.map((item) => (
                   <ItemRow
@@ -206,8 +228,8 @@ function Home() {
                     links={links}
                   />
                 ))}
-              </HomePanel>
-              <HomePanel
+              </Panel>
+              <Panel
                 title="Ready to start"
                 icon={<CircleCheckBig />}
                 count={ready.total}
@@ -219,7 +241,6 @@ function Home() {
                       }
                     : undefined
                 }
-                empty="No approved work is waiting to start. Specifications appear here once their readiness checks pass."
               >
                 {ready.rows.map((item) => (
                   <ItemRow
@@ -233,7 +254,7 @@ function Home() {
                     }
                   />
                 ))}
-              </HomePanel>
+              </Panel>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               {homeCards.map(({ id, label, Card }) => (
@@ -241,30 +262,29 @@ function Home() {
                   <Card />
                 </HomeCardBoundary>
               ))}
-              <HomePanel
+              <Panel
                 title="Recently edited pages"
                 icon={<FileText />}
                 count={recent.total}
                 more={{ label: "All spaces", href: paths.spaces(org) }}
-                empty="No pages yet. Pages published in your spaces appear here."
               >
                 {recent.rows.map((page) => {
                   const space = index.spaceById.get(page.spaceId);
                   if (!space) return null;
                   return (
-                    <HomeRow
+                    <ListRow
                       key={page.id}
                       href={paths.spacePage(org, space.slug, page.id)}
-                      icon={
+                      leading={
                         <FileText className="size-4 text-muted-foreground" />
                       }
                       title={page.title || "Untitled"}
-                      reason={space.name}
-                      time={relativeTime(page.updatedAt)}
+                      meta={space.name}
+                      time={page.updatedAt}
                     />
                   );
                 })}
-              </HomePanel>
+              </Panel>
             </div>
           </div>
         </div>
@@ -306,15 +326,15 @@ function ItemRow({
   const id = identifier(project, item.number);
   const status = statusOf(delivery, item);
   return (
-    <HomeRow
+    <ListRow
       href={paths.item(organization.slug, project?.key ?? "", id)}
-      icon={reasonIcon ?? <TypeIcon type={typeOf(delivery, item)} />}
-      meta={<span className="font-mono text-xs">{id}</span>}
+      leading={reasonIcon ?? <TypeIcon type={typeOf(delivery, item)} />}
+      identifier={id}
       title={item.title}
-      reason={
+      meta={
         reason ??
         (project && (
-          <span className="inline-flex items-center gap-1.5">
+          <>
             <StatusIcon
               category={deliveryCategory(
                 item,
@@ -330,11 +350,11 @@ function ItemRow({
               ? (links?.get(item.id)?.externalStatus ?? "In progress")
               : (status?.name ?? "Started")}
             <span aria-hidden>·</span>
-            {project.name}
-          </span>
+            <span className="truncate">{project.name}</span>
+          </>
         ))
       }
-      time={relativeTime(item.updatedAt)}
+      time={item.updatedAt}
     />
   );
 }
