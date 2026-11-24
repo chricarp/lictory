@@ -183,6 +183,11 @@ export type QueuedNotice = {
   watchers?: boolean;
   // Ambient update: people who unwatched `workItemId` are left out.
   skipUnwatched?: boolean;
+  // Agent events (docs/internals/agent-events.md): addressed to one of the
+  // person's agents rather than the person, and the agent that acted (an
+  // agent is not woken by its own action, but is by its person's).
+  agentId?: string | null;
+  actorAgentId?: string | null;
 };
 
 // Queue of notification events awaiting fan-out. A command writes one row in

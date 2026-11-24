@@ -30,7 +30,12 @@ export async function queueChannelNotifications(
     message: MessageRow;
     root: MessageRow | null;
     actorId: string;
+    // The agent that wrote it, when one did: it is not woken by its own
+    // message (agent events, docs/internals/agent-events.md).
+    actorAgentId?: string | null;
     mentionedUserIds: string[];
+    // Agents it mentions, each addressed through its accountable person.
+    mentionedAgents?: { id: string; ownerId: string }[];
     participantIds: string[];
     // An edit: only newly mentioned people are told.
     mentionsOnly?: boolean;
@@ -82,6 +87,17 @@ export async function queueChannelNotifications(
       userIds: keep(input.mentionedUserIds),
     },
   ];
+  // An agent mentioned by name is woken through its person's feed,
+  // narrowed to it (no inbox notification: the person was not mentioned).
+  for (const agent of input.mentionedAgents ?? [])
+    if (agent.id !== input.actorAgentId)
+      notices.push({
+        ...base,
+        kind: "agent_mentioned",
+        userIds: [agent.ownerId],
+        agentId: agent.id,
+        actorAgentId: input.actorAgentId ?? null,
+      });
   if (!input.mentionsOnly) {
     if (direct)
       notices.push({

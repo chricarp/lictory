@@ -14,6 +14,7 @@ export const workKinds = [
   "chat",
   "export",
   "factory",
+  "agent-events",
 ] as const;
 export type WorkKind = (typeof workKinds)[number];
 

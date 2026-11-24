@@ -96,6 +96,24 @@ export const auditActions = {
     category: "access",
     label: "Reset a member's two-factor authentication",
   },
+  // Agent events (docs/internals/agent-events.md): where a person's events
+  // leave Lictory.
+  "event_webhook.created": {
+    category: "access",
+    label: "Added an agent event webhook",
+  },
+  "event_webhook.deleted": {
+    category: "access",
+    label: "Removed an agent event webhook",
+  },
+  "event_subscription.created": {
+    category: "access",
+    label: "An MCP client subscribed to agent events",
+  },
+  "event_subscription.deleted": {
+    category: "access",
+    label: "An MCP event subscription ended",
+  },
   // Lictory Channels: who can read a conversation. Public channel joins and
   // direct conversations are not security events and are not recorded.
   "channel.created": { category: "access", label: "Created a channel" },

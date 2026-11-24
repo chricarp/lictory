@@ -65,6 +65,7 @@ import {
 } from "@lictory/core/spaces/history-state";
 import {
   notifyPageApprovalInvalidated,
+  notifyPagePullRequestDecided,
   notifyPageReviewRequested,
 } from "@lictory/core/spaces/notifications";
 import {
@@ -1742,6 +1743,16 @@ export async function applyPageHistoryCommand(
           resultHash: evaluation.resultHash!,
           sourceHeadId: evaluation.source.headCommitId,
           targetHeadId: evaluation.target.headCommitId,
+        });
+      if (c.decision !== "revoke")
+        await notifyPagePullRequestDecided(tx, {
+          organizationId,
+          pageId: pr.pageId,
+          actorId: userId,
+          recipientIds: [pr.authorId, ...evaluation.contributorIds],
+          pullRequestId: pr.id,
+          pullRequestTitle: pr.title,
+          decision: c.decision === "approve" ? "approved" : "changes_requested",
         });
       await record(pr.pageId, "review_decided", {
         pullRequestId: pr.id,

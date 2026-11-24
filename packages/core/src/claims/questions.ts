@@ -9,6 +9,7 @@ import {
 } from "@lictory/core/claims/records";
 import { requireStep } from "@lictory/core/domain/errors";
 import type { Tx } from "@lictory/core/domain/service";
+import { queueClaimEvent } from "@lictory/core/agent-events/producers";
 
 // The hook `applyMutation` calls when a discussion is resolved: when it was
 // an agent's question, the claim that asked resumes once every question it
@@ -85,6 +86,11 @@ export async function claimQuestionResolved(
       resumed,
     },
     at: now,
+  });
+  await queueClaimEvent(tx, claim, {
+    kind: "claim_question_resolved",
+    threadId,
+    byId: userId,
   });
   await claimPorts().resumer.resume(tx, {
     kind: "question_resolved",

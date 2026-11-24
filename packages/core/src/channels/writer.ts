@@ -172,7 +172,11 @@ async function resolveMentions(
   tx: Tx,
   channel: ChannelRow,
   body: string,
-): Promise<{ userIds: string[]; agentIds: string[] }> {
+): Promise<{
+  userIds: string[];
+  agentIds: string[];
+  agents: { id: string; ownerId: string }[];
+}> {
   const mentioned = channelMentions(body);
   let userIds: string[] = [];
   if (mentioned.userIds.length) {
@@ -200,16 +204,18 @@ async function resolveMentions(
       userIds = userIds.filter((id) => readers.has(id));
     }
   }
-  const agentIds = mentioned.agentIds.length
-    ? (
-        await agentDirectory().agents(
-          tx,
-          channel.organizationId,
-          mentioned.agentIds.slice(0, 50),
-        )
-      ).map((a) => a.id)
+  const agents = mentioned.agentIds.length
+    ? await agentDirectory().agents(
+        tx,
+        channel.organizationId,
+        mentioned.agentIds.slice(0, 50),
+      )
     : [];
-  return { userIds, agentIds };
+  return {
+    userIds,
+    agentIds: agents.map((a) => a.id),
+    agents: agents.map((a) => ({ id: a.id, ownerId: a.ownerId })),
+  };
 }
 
 async function recordMentions(
@@ -374,7 +380,9 @@ export async function postMessage(
     message: message!,
     root: root ?? null,
     actorId: author.kind === "user" ? author.userId : author.onBehalfOf,
+    actorAgentId: author.kind === "agent" ? author.agentId : null,
     mentionedUserIds: mentions.userIds,
+    mentionedAgents: mentions.agents,
     participantIds: participants,
   });
   if (mentions.agentIds.length)
@@ -585,13 +593,18 @@ export async function editMessage(
   const mentions = await resolveMentions(tx, access.channel, input.body);
   const added = await recordMentions(tx, edited!, access.channel, mentions);
   const addedUsers = added.filter((m) => m.kind === "user").map((m) => m.id);
-  if (addedUsers.length)
+  const addedAgents = new Set(
+    added.filter((m) => m.kind === "agent").map((m) => m.id),
+  );
+  if (addedUsers.length || addedAgents.size)
     await queueChannelNotifications(tx, {
       channel: access.channel,
       message: edited!,
       root: null,
       actorId: actor.userId,
+      actorAgentId: author.kind === "agent" ? author.agentId : null,
       mentionedUserIds: addedUsers,
+      mentionedAgents: mentions.agents.filter((a) => addedAgents.has(a.id)),
       participantIds: [],
       mentionsOnly: true,
     });

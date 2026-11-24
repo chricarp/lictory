@@ -130,6 +130,9 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.definitionOfDone },
   { table: s.doneSignOff },
   { table: s.autopilotMerge },
+  // Agent events: the organization's webhook policy. The events and the
+  // destinations (secrets) are personal operational state.
+  { table: s.agentEventPolicy },
   { table: s.intelligenceContextEntry },
   { table: s.intelligenceContextVersion },
   // The Factory. Credentials (runner credential hashes, registration
