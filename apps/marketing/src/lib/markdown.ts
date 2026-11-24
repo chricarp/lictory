@@ -1,6 +1,8 @@
 import {
   capabilityCellText,
   capabilityRows,
+  comparisonProfiles,
+  comparisonReviewed,
   comparisonPath,
   comparisons,
   type Comparison,
@@ -85,9 +87,7 @@ ${guide.body.trim()}`;
 
 /** The comparison as one Markdown document, headings starting at level 1. */
 export function comparisonMarkdown(item: Comparison) {
-  const profiles = item.product
-    ? [product("lictory"), product(item.product)]
-    : [];
+  const profiles = comparisonProfiles(item);
   const table = [
     `| Capability | Lictory | ${item.competitor} |`,
     "| --- | --- | --- |",
@@ -96,9 +96,8 @@ export function comparisonMarkdown(item: Comparison) {
         `| ${row.feature}${row.note ? ` (${row.note})` : ""} | ${capabilityCellText[row.lictory]} | ${capabilityCellText[row.competitor]} |`,
     ),
   ].join("\n");
-  const reviewed = profiles[1]
-    ? ` Last reviewed: ${profiles[1].reviewed}.`
-    : "";
+  const lastReviewed = comparisonReviewed(item);
+  const reviewed = lastReviewed ? ` Last reviewed: ${lastReviewed}.` : "";
   return `${header(comparisonPath(item), item.headline, item.description)}
 Updated: ${item.updated}.${reviewed}
 

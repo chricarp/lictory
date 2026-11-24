@@ -2,10 +2,10 @@
   <img src="packages/ui/public/brand/lictory-logo.svg" alt="Lictory" width="240" />
 </p>
 
-<h1 align="center">Agree on what to build. Then ship it.</h1>
+<h1 align="center">From conversation to shipped code. People decide.</h1>
 
 <p align="center">
-  Open-source work management for software teams, with requirements reviewed like code.
+  The open-source control plane of a software factory: your team and its agents in one self-hosted product.
 </p>
 
 <p align="center">
@@ -17,12 +17,39 @@
   <a href="https://github.com/chricarp/lictory/discussions">Discussions</a>
 </p>
 
-Lictory helps Product, Engineering and QA turn rough proposals into specifications
-that a team can safely commit to. Review the behavior, discuss the exact text,
-propose changes on branches and approve a specific revision. Then deliver the
-work in Lictory or hand it off to Jira Cloud.
+Lictory is where a software team and its agents talk, agree on what to build,
+plan it, write and review the code, and ship it, with people making the
+decisions. Every piece of work follows one loop:
 
-Self-hosted. MIT licensed. Core collaboration works without AI or analytics.
+```text
+Conversation → Specification → Agents → Code → Shipped
+   promote      approve a        claim ready   merge (a person,   Definition
+   (a person)   revision         work, ask     or Autopilot when  of Done
+                (people only)    when unsure   every check passes) (evidence)
+```
+
+- **Channels:** team chat with channels, threads and direct messages, and
+  agents as members. What matters is promoted into a proposal, a decision or a
+  discussion on the specification.
+- **Work:** specifications reviewed like code (revisions, diffs, anchored
+  discussions, approvals that belong to a revision, readiness checks), then
+  delivery on native boards, backlogs and sprints, or published to Jira Cloud.
+- **Factory:** coding agents (Claude Code, Codex, OpenCode, Gemini CLI or a
+  built-in agent) run on runners you control, each with an accountable owner,
+  under a per-project autonomy policy: Assist, Build or Autopilot.
+- **Code:** branches, pull requests, issues and checks from GitHub, GitLab or
+  Bitbucket, linked to the work items they deliver.
+- **Spaces:** knowledge pages written together and changed through reviewed
+  history.
+- **Desktop:** an app for macOS, Windows and Linux with native notifications
+  and links.
+
+Text is never permission: a message, issue or model output cannot authorize an
+action, specification approvals always stay human, and an item is done when the
+evidence says so, not when an agent reports it.
+
+Self-hosted. MIT licensed. Chat, specifications, delivery and Spaces work
+without AI, agents or a code host connected.
 
 ## See how it works
 

@@ -44,6 +44,7 @@ void describe("comparison and alternatives pages", () => {
       "/compare/lictory-vs-plane",
       "/compare/lictory-vs-openproject",
       "/compare/lictory-vs-taiga",
+      "/compare/slack-and-jira",
       "/best-requirements-management-tools",
     ])
       assert.ok(comparisonPaths.includes(path), path);
@@ -128,7 +129,9 @@ void describe("comparison and alternatives pages", () => {
   void test("every fact about another product names its sources and when they were checked", () => {
     const used = new Set([
       ...roundups.flatMap((item) => roundupProducts(item).map((p) => p.id)),
-      ...comparisons.flatMap((item) => (item.product ? [item.product] : [])),
+      ...comparisons.flatMap((item) =>
+        item.product ? [item.product, ...(item.alsoProducts ?? [])] : [],
+      ),
     ]);
     for (const id of used) {
       const profile = products[id];

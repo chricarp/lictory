@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import sitemap from "@lictory/marketing/app/sitemap";
 import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
+import {
+  modules,
+  trustPrinciples,
+} from "@lictory/marketing/components/landing/content";
 import { landingMetadata } from "@lictory/marketing/components/landing/metadata";
 import { landingStructuredData } from "@lictory/marketing/components/landing/structured-data";
 import { installUrl } from "@lictory/marketing/lib/get-started";
@@ -107,6 +111,17 @@ void describe("search discoverability", () => {
       itemListElement: Array<{ item?: string }>;
     };
     assert.equal(breadcrumb.itemListElement.length, 2);
+  });
+
+  void test("structured data names only features the landing page shows", () => {
+    const application = landingStructuredData["@graph"].find(
+      (node) => node["@type"] === "SoftwareApplication",
+    ) as { featureList: readonly string[] };
+    const shown = [
+      ...modules.map((module) => `${module.name}: ${module.summary}`),
+      ...trustPrinciples.map((principle) => principle.title),
+    ];
+    assert.deepEqual(application.featureList, shown);
   });
 
   void test("JSON-LD can never close its script element", () => {

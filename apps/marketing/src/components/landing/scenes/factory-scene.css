@@ -1,0 +1,497 @@
+/* The hero scene: a channel window, the thread in the middle and the item's
+   loop on the right. Wide: the window a gutter in from the column's edges,
+   fading out at its foot. Compact: the thread alone at the phone column's
+   width. */
+
+.fs .ss-stage {
+  overflow: hidden;
+}
+
+.fs-window {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  width: 1136px;
+  height: 580px;
+  box-shadow: var(--ss-shadow-hero);
+  -webkit-mask-image: linear-gradient(to bottom, #000 470px, transparent 540px);
+  mask-image: linear-gradient(to bottom, #000 470px, transparent 540px);
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-window {
+  top: 12px;
+  left: 16px;
+  width: 358px;
+  height: 520px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 452px, transparent 488px);
+  mask-image: linear-gradient(to bottom, #000 452px, transparent 488px);
+}
+
+/* ---- The sidebar: channels, direct messages, agents ---- */
+
+.fs-side {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.fs-side-label {
+  margin: 14px 8px 4px;
+  color: var(--ss-text-faint);
+  font-family: var(--ss-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fs-side-label:first-child {
+  margin-top: 2px;
+}
+
+.fs-side-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding-inline: 8px;
+  border-radius: var(--ss-radius-sm);
+  color: var(--ss-text);
+}
+
+.fs-side-item svg.lucide {
+  width: 14px;
+  height: 14px;
+  color: var(--ss-text-faint);
+}
+
+.fs-side-item[data-active] {
+  background: var(--ss-ink-2);
+  color: var(--ss-text-strong);
+  font-weight: 500;
+}
+
+.fs-side-agent {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--lx-litto) 16%, transparent);
+}
+
+.fs-side-agent svg.lucide {
+  width: 11px;
+  height: 11px;
+  color: var(--lx-litto);
+}
+
+.fs-side-owner {
+  margin-left: auto;
+  color: var(--ss-text-faint);
+  font-size: 11.5px;
+}
+
+/* ---- The body: thread and rail ---- */
+
+.fs-body {
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  height: 100%;
+  background: var(--ss-surface);
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fs-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 28px;
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-thread {
+  gap: 10px;
+  padding: 14px 14px;
+}
+
+.fs-message {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.fs-message-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.fs-who {
+  color: var(--ss-text-strong);
+  font-weight: 600;
+}
+
+.fs-via,
+.fs-time {
+  color: var(--ss-text-faint);
+  font-size: 12px;
+}
+
+.fs-agent-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+
+.fs .ss-stage[data-layout="compact"] :is(.fs-via, .fs-time) {
+  display: none;
+}
+
+.fs-agent-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--lx-litto) 16%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--lx-litto) 28%, transparent);
+}
+
+.fs-agent-avatar svg.lucide {
+  width: 16px;
+  height: 16px;
+  color: var(--lx-litto);
+}
+
+.fs-text {
+  margin-top: 2px;
+  color: var(--ss-text-strong);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.fs-key,
+.fs-mono {
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 12px;
+}
+
+/* Live cards: what a promotion, an approval or a pull request left in the
+   thread, indented under the conversation they came from. */
+.fs-card {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  margin-left: 40px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--ss-raised);
+  box-shadow:
+    inset 0 0 0 1px var(--ss-line),
+    0 1px 2px rgb(17 18 20 / 0.04);
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-card {
+  margin-left: 0;
+  padding: 9px 12px;
+}
+
+.fs-card-icon {
+  width: 16px !important;
+  height: 16px !important;
+  margin-top: 2px;
+  color: var(--ss-text);
+}
+
+.fs-card-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fs-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ss-text-strong);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fs-card-meta {
+  color: var(--ss-text);
+  font-size: 12px;
+}
+
+.fs-revision {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ss-chrome);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.fs-approvals,
+.fs-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fs-approval {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  background: var(--ss-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--ss-success) 24%, transparent);
+  color: var(--ss-success-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.fs-approval svg.lucide {
+  width: 12px;
+  height: 12px;
+}
+
+.fs-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding-inline: 8px 10px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text);
+  font-size: 12px;
+}
+
+.fs-pr-state {
+  margin-left: auto;
+}
+
+.fs-merged {
+  background: color-mix(in srgb, var(--lx-merged) 14%, transparent);
+  color: var(--lx-merged);
+}
+
+.fs-pr-foot {
+  margin-top: 6px;
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-pr-foot {
+  margin-top: 2px;
+}
+
+.fs-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 96px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--ss-ink-2);
+  color: var(--ss-text-faint);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    transform 120ms ease;
+}
+
+.fs-button svg.lucide {
+  width: 14px;
+  height: 14px;
+}
+
+.fs-button[data-ready] {
+  background: var(--ss-accent);
+  color: var(--lx-on-accent);
+}
+
+.fs-button[data-pressed] {
+  transform: scale(0.97);
+}
+
+.fs-merged-by {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  color: var(--ss-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.fs-shipped {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 40px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  background: var(--ss-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--ss-success) 22%, transparent);
+  color: var(--ss-success-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fs .ss-stage[data-layout="compact"] .fs-shipped {
+  margin-left: 0;
+}
+
+.fs-shipped svg.lucide {
+  width: 16px;
+  height: 16px;
+}
+
+.fs-shipped .fs-key {
+  color: inherit;
+}
+
+/* ---- The rail: the item's loop, a stepper ---- */
+
+.fs-rail {
+  position: relative;
+  padding: 20px 22px;
+  border-left: 1px solid var(--ss-line);
+  background: var(--ss-chrome);
+}
+
+.fs-rail-head {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ss-line);
+}
+
+.fs-rail-title {
+  color: var(--ss-text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fs-stages {
+  display: grid;
+  gap: 0;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 60px;
+}
+
+/* The line from one stage to the next */
+.fs-stage:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 32px;
+  bottom: 4px;
+  left: 13.5px;
+  width: 1px;
+  background: var(--ss-line);
+}
+
+.fs-stage-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--ss-surface);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-text-faint);
+  transition:
+    background-color 300ms ease,
+    color 300ms ease;
+}
+
+.fs-stage-icon svg.lucide {
+  width: 14px;
+  height: 14px;
+}
+
+.fs-stage[data-state="current"] .fs-stage-icon {
+  color: var(--ss-text-strong);
+  box-shadow: inset 0 0 0 1.5px var(--ss-text-strong);
+}
+
+.fs-stage[data-state="done"] .fs-stage-icon {
+  background: var(--ss-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--ss-success) 26%, transparent);
+  color: var(--ss-success-text);
+}
+
+.fs-stage-text {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding-top: 4px;
+}
+
+.fs-stage-name {
+  color: var(--ss-text-faint);
+  font-family: var(--ss-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fs-stage:not([data-state="next"]) .fs-stage-name {
+  color: var(--ss-text-strong);
+}
+
+.fs-stage-gate {
+  color: var(--ss-text);
+  font-size: 12.5px;
+}
+
+.fs-rail-note {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ss-line);
+  color: var(--ss-text-faint);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.fs-rest {
+  position: absolute;
+  right: 40px;
+  bottom: 60px;
+  width: 40px;
+  height: 20px;
+  pointer-events: none;
+}

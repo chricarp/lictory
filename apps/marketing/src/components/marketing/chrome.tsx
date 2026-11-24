@@ -22,17 +22,23 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
         <Logo className="text-foreground [&>span]:h-6" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-12 gap-y-6">
           <div className="flex flex-col gap-2">
-            <Link href={`${sections}#features`} className={footerLinkClass}>
-              Features
+            <Link href={`${sections}#how-it-works`} className={footerLinkClass}>
+              How it works
             </Link>
-            <Link href={`${sections}#open-source`} className={footerLinkClass}>
-              Open source
+            <Link href={`${sections}#modules`} className={footerLinkClass}>
+              Modules
             </Link>
-            <Link href={`${sections}#delivery`} className={footerLinkClass}>
-              Delivery
+            <Link href={`${sections}#factory`} className={footerLinkClass}>
+              Factory
+            </Link>
+            <Link href={`${sections}#agents`} className={footerLinkClass}>
+              Agents
             </Link>
             <Link href={`${sections}#spaces`} className={footerLinkClass}>
               Spaces
+            </Link>
+            <Link href={`${sections}#open-source`} className={footerLinkClass}>
+              Open source
             </Link>
             <Link href={`${sections}#faq`} className={footerLinkClass}>
               FAQ

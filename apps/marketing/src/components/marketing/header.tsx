@@ -21,10 +21,10 @@ export function MarketingHeader({
   const links = useMemo(
     () =>
       [
-        ["Workflow", `${sections}#features`],
+        ["How it works", `${sections}#how-it-works`],
+        ["Modules", `${sections}#modules`],
+        ["Factory", `${sections}#factory`],
         ["Agents", `${sections}#agents`],
-        ["Delivery", `${sections}#delivery`],
-        ["Spaces", `${sections}#spaces`],
         ["Open source", `${sections}#open-source`],
         ["Guides", "/guides"],
       ] as const,
@@ -50,7 +50,7 @@ export function MarketingHeader({
           ? "/guides"
           : null;
       // Read only the navigation targets, once per frame. Nested sections
-      // (Agents inside Workflow) win once their heading clears the dock.
+      // (Open source inside Self-hosted) win once their heading clears the dock.
       for (const { href, element } of targets) {
         if (element.getBoundingClientRect().top <= 160) nextHref = href;
       }

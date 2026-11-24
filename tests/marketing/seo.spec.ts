@@ -41,8 +41,11 @@ test("search engines and AI assistants can discover the public website", async (
   expect(overview).toContain("/guides/definition-of-ready.md)");
   const full = await (await request.get("/llms-full.txt")).text();
   expect(full).toContain("| Approvals bound to a specific revision | Yes |");
-  expect(full).toContain("### Do we have to leave Jira or Linear?");
+  expect(full).toContain("### Do we have to leave Slack, Jira or GitHub?");
   expect(full).toContain("### Lictory vs Jira");
+  expect(full).toContain("### Lictory vs Slack + Jira");
+  expect(full).toContain("| Run coding agents |");
+  expect(full).toContain("- **Autopilot**:");
 });
 
 test("guides and comparisons have Markdown versions for AI assistants", async ({
@@ -111,12 +114,16 @@ test("the landing page describes itself with structured data", async ({
       page.getByRole("heading", { name, exact: true }),
     ).toBeAttached();
 
-  // The full comparison is in the page for crawlers, even while collapsed.
+  // The stack comparison is in the page for crawlers at every width: the
+  // table on wide screens, the cards on phones.
   await expect(
     page.getByRole("rowheader", {
-      name: "Estimates, burndown, velocity",
+      name: "Permissions and audit",
       includeHidden: true,
     }),
+  ).toBeAttached();
+  await expect(
+    page.locator(".stack-cards").getByText("Permissions and audit"),
   ).toBeAttached();
 });
 
@@ -244,7 +251,64 @@ test("guides and comparisons are linked, indexable and described", async ({
   for (const path of [
     "/guides",
     "/guides/definition-of-ready",
+    "/guides/coding-agents-on-your-own-runners",
     "/compare/linear",
+    "/compare/slack-and-jira",
   ])
     expect(sitemap).toContain(`${path}</loc>`);
+});
+
+test("the stack comparison and the runners guide are pages of their own", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/compare/slack-and-jira");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Lictory vs Slack + Jira" }),
+  ).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    /\/compare\/slack-and-jira$/,
+  );
+  // Where the stack is stronger, the table says so.
+  const hosted = page.getByRole("row", {
+    name: /A service the vendor hosts for you/,
+  });
+  await expect(hosted.getByRole("img", { name: "No" })).toBeVisible();
+  await expect(hosted.getByRole("img", { name: "Yes" })).toBeVisible();
+  // Facts about Slack and Jira name their sources.
+  for (const name of ["Slack", "Jira"])
+    await expect(
+      page
+        .getByRole("table", {
+          name: /Licensing, hosting and pricing/,
+        })
+        .getByRole("columnheader", { name, exact: true }),
+    ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Data residency" }),
+  ).toHaveAttribute("href", "https://slack.com/help/articles/360035633934");
+
+  const markdown = await request.get("/compare/slack-and-jira.md");
+  expect(markdown.status()).toBe(200);
+  expect(await markdown.text()).toContain(
+    "| A service the vendor hosts for you | No | Yes |",
+  );
+
+  await page.goto("/guides/coding-agents-on-your-own-runners");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Running coding agents on your own runners",
+  );
+  await expect(
+    page.getByRole("heading", {
+      level: 2,
+      name: "Treat text as data, not instructions",
+    }),
+  ).toBeVisible();
+  const guide = await request.get(
+    "/guides/coding-agents-on-your-own-runners.md",
+  );
+  expect(guide.headers().link).toMatch(
+    /^<https?:\/\/[^/]+\/guides\/coding-agents-on-your-own-runners>; rel="canonical"$/,
+  );
 });
