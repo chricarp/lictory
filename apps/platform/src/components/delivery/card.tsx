@@ -134,7 +134,7 @@ export const ItemCard = memo(function ItemCard({
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <TypeIcon type={type} className="size-3.5 rounded-[3px]" />
-        <span className="font-mono">{id}</span>
+        <span className="shrink-0 font-mono">{id}</span>
         {showStatus && status && (
           <span className="ml-1 inline-flex items-center gap-1">
             <StatusIcon category={status.category} color={status.color} />
@@ -152,6 +152,7 @@ export const ItemCard = memo(function ItemCard({
           <ClaimBadge
             claim={claim}
             assigneeId={item.assigneeId}
+            withAgent={false}
             className="ml-auto"
           />
         )}

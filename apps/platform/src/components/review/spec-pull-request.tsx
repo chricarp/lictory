@@ -180,7 +180,7 @@ export function SpecMergeBox({
         ))}
       </ul>
       {children}
-      <div className="flex flex-wrap items-center gap-3 border-t bg-muted/20 px-4 py-3">
+      <div className="flex items-center gap-3 border-t bg-muted/20 px-4 py-3 max-sm:flex-col max-sm:items-stretch">
         <div className="min-w-0 flex-1 text-xs text-muted-foreground">
           {refusal ? (
             <p>{refusal}</p>

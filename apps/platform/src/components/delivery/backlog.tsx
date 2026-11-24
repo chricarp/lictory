@@ -4,6 +4,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  CalendarPlus,
   CircleAlert,
   CirclePlay,
   Flag,
@@ -341,7 +342,8 @@ function ProjectBacklog({ project }: { project: Project }) {
                 onClick={createSprint}
                 aria-label="New sprint"
               >
-                <Plus className="size-3.5" />
+                <Plus className="size-3.5 max-sm:hidden" />
+                <CalendarPlus className="size-3.5 sm:hidden" />
                 <span className="max-sm:hidden">New sprint</span>
               </Button>
             )}
@@ -349,6 +351,8 @@ function ProjectBacklog({ project }: { project: Project }) {
               <Button
                 size="sm"
                 aria-label="New item"
+                // Phones create from the bar's own button.
+                className="max-sm:hidden"
                 onClick={() =>
                   openCreate({
                     intent: "work",
@@ -875,7 +879,13 @@ export function BacklogRow({
           {teamName}
         </span>
       )}
-      {claim && <ClaimBadge claim={claim} assigneeId={item.assigneeId} />}
+      {claim && (
+        <ClaimBadge
+          claim={claim}
+          assigneeId={item.assigneeId}
+          className="max-sm:max-w-24"
+        />
+      )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read

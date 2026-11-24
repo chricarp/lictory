@@ -21,22 +21,26 @@ import {
 export function ClaimBadge({
   claim,
   assigneeId,
+  withAgent = true,
   className,
 }: {
   claim: ClaimEntity;
   // Whose item it is, when an agent holds work assigned to someone else.
   assigneeId?: string | null;
+  // Name the agent ("Forge · waiting on Ada"); off where an owner line
+  // beside the badge already names it ("Waiting on Ada").
+  withAgent?: boolean;
   className?: string;
 }) {
   const { memberName } = useWorkspace();
   const owner = memberName(claim.ownerId);
   const state = claimState(claim, owner);
   const forWhom = claimFor(claim, assigneeId, memberName);
-  const label = claimBadgeLabel(claim, owner);
+  const label = withAgent ? claimBadgeLabel(claim, owner) : state.label;
   return (
     <span
       data-claim={claimShownState(claim)}
-      className={cn("inline-flex min-w-0", className)}
+      className={cn("inline-flex max-w-48 min-w-0", className)}
     >
       <SessionStateChip
         state={{
@@ -44,7 +48,7 @@ export function ClaimBadge({
           label,
           meaning: `${claim.agentName} via ${owner}${forWhom ? `, ${forWhom}` : ""}. ${state.label}: ${state.meaning}`,
         }}
-        className="max-w-48"
+        className="max-w-full min-w-0 shrink"
       />
     </span>
   );

@@ -904,23 +904,29 @@ function BoardScroller({
   startAt?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  // Once, when the board first has work: on a phone, show the first column
-  // that holds some instead of an empty one.
+  // On a phone (also one the window narrows to), open at the first column
+  // that holds work instead of an empty one, once, unless the person has
+  // already scrolled.
   const started = useRef(false);
   useEffect(() => {
     const el = ref.current;
-    if (!el || !startAt || started.current) return;
-    started.current = true;
-    if (!window.matchMedia("(max-width: 639px)").matches) return;
-    const column = el.querySelector<HTMLElement>(
-      `[data-board-column="${CSS.escape(startAt)}"]`,
-    );
-    if (column)
+    if (!el || !startAt) return;
+    const phone = window.matchMedia("(max-width: 639px)");
+    const apply = () => {
+      if (started.current || !phone.matches || el.scrollLeft > 0) return;
+      const column = el.querySelector<HTMLElement>(
+        `[data-board-column="${CSS.escape(startAt)}"]`,
+      );
+      if (!column) return;
+      started.current = true;
       el.scrollLeft =
         column.getBoundingClientRect().left -
-        el.getBoundingClientRect().left +
-        el.scrollLeft -
+        el.getBoundingClientRect().left -
         12;
+    };
+    apply();
+    phone.addEventListener("change", apply);
+    return () => phone.removeEventListener("change", apply);
   }, [startAt]);
   const [more, setMore] = useState({ left: false, right: false });
   useEffect(() => {
