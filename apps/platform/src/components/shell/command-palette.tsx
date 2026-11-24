@@ -86,7 +86,12 @@ import type { KnowledgeResult } from "@lictory/core/capabilities/product-knowled
 type Item = {
   id: string;
   label: string;
+  // Right-aligned detail in words: a space, "approved r1", an agent.
   hint?: string;
+  // A key before the hint, in mono: "PAY-5".
+  identifier?: string;
+  // A state, as a `StatusChip`.
+  chip?: ReactNode;
   icon?: ReactNode;
   group: string;
   keywords?: string;
@@ -387,7 +392,7 @@ export function CommandPalette({
       list.push({
         id: "new-proposal",
         label: "New proposal",
-        hint: currentProject.key,
+        identifier: currentProject.key,
         group: "Create",
         icon: <Lightbulb className="size-4" />,
         keywords: "create proposal idea feature specification",
@@ -447,7 +452,7 @@ export function CommandPalette({
       list.push({
         id: `project-${p.id}`,
         label: p.name,
-        hint: p.key,
+        identifier: p.key,
         group: "Projects",
         icon: <FolderKanban className="size-4" />,
         keywords: `project open ${p.key.toLowerCase()}`,
@@ -606,7 +611,7 @@ export function CommandPalette({
       .map<Item>(({ item, project }) => ({
         id: item.id,
         label: item.title,
-        hint: identifier(project, item.number),
+        identifier: identifier(project, item.number),
         group: "Items",
         icon: <TypeIcon type={typeOf(delivery, item)} />,
         run: () =>
@@ -660,7 +665,8 @@ export function CommandPalette({
           hint:
             r.kind === "page"
               ? [r.space.name, version].filter(Boolean).join(" · ")
-              : [r.key, version].filter(Boolean).join(" · "),
+              : (version ?? undefined),
+          identifier: r.kind === "page" ? undefined : r.key,
           excerpt: r.snippet.text ? (
             <Highlighted
               text={r.snippet.text}
@@ -774,6 +780,7 @@ export function CommandPalette({
             id: `provider-${group}-${e.id}`,
             label: e.label,
             hint: e.hint,
+            chip: e.chip,
             icon: e.icon,
             group,
             run: () => {
@@ -869,7 +876,7 @@ export function CommandPalette({
           <CommandList className="max-h-none min-h-0 overflow-y-auto p-1.5">
             {groups.map((group) => (
               <CommandGroup key={group}>
-                <CommandGroupLabel className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
+                <CommandGroupLabel className="px-2 pt-2 pb-1 text-xs font-semibold text-muted-foreground">
                   {group}
                 </CommandGroupLabel>
                 {results
@@ -898,11 +905,7 @@ export function CommandPalette({
                             <span className="min-w-0 flex-1 truncate">
                               {r.title ?? r.label}
                             </span>
-                            {r.hint && (
-                              <span className="max-w-[45%] shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                                {r.hint}
-                              </span>
-                            )}
+                            <Detail item={r} excerpt />
                           </span>
                           <span className="mt-0.5 line-clamp-2 text-[12px] leading-[1.45] text-muted-foreground">
                             {r.excerpt}
@@ -913,11 +916,7 @@ export function CommandPalette({
                           <span className="min-w-0 flex-1 truncate">
                             {r.title ?? r.label}
                           </span>
-                          {r.hint && (
-                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                              {r.hint}
-                            </span>
-                          )}
+                          <Detail item={r} />
                         </>
                       )}
                       <ArrowRight
@@ -973,5 +972,28 @@ export function CommandPalette({
         </Command>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// What follows a result's title: its key in mono, then words in the
+// interface's sans (a space, "approved r1", an agent), then its state.
+function Detail({ item, excerpt = false }: { item: Item; excerpt?: boolean }) {
+  if (!item.identifier && !item.hint && !item.chip) return null;
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground",
+        excerpt && "max-w-[45%]",
+      )}
+    >
+      {item.identifier && (
+        <span className="shrink-0 font-mono text-[11px]">
+          {item.identifier}
+        </span>
+      )}
+      {item.identifier && item.hint && <span aria-hidden>·</span>}
+      {item.hint && <span className="min-w-0 truncate">{item.hint}</span>}
+      {item.chip}
+    </span>
   );
 }
