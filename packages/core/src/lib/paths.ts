@@ -78,6 +78,11 @@ export const paths = {
   // planning, delivery, labels, context.
   projectSettings: (org: string, project: string, section?: string) =>
     `/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
+  // Software factory modules: team chat, agents and runners, code hosts.
+  // Home is the organization's own address (`org`).
+  channels: (org: string) => `/${org}/channels`,
+  factory: (org: string) => `/${org}/factory`,
+  code: (org: string) => `/${org}/code`,
 };
 
 // Top-level segments that are not workspace pages.

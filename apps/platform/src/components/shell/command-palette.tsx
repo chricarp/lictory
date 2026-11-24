@@ -19,19 +19,28 @@ import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
   BadgeCheck,
+  Bell,
   BookOpen,
   BookOpenCheck,
+  FilePlus,
   FileText,
-  Inbox,
+  FolderKanban,
   KanbanSquare,
   Library,
+  Lightbulb,
   ListOrdered,
+  Monitor,
+  Moon,
   Search,
   Send,
   Settings,
   Settings2,
+  Sun,
   UserRound,
 } from "lucide-react";
+import type { Appearance } from "@lictory/core/lib/appearance";
+import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
+import { toast } from "@lictory/ui/toast";
 import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
 import { popupContainer } from "@lictory/ui/popup";
@@ -47,6 +56,14 @@ import {
   views,
 } from "@lictory/core/lib/work-items";
 import { Kbd } from "@lictory/ui/primitives";
+import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
+import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
+import { saveAppearance } from "@lictory/platform/lib/appearance-save";
+import {
+  navSections,
+  paletteProviders,
+  type PaletteEntry,
+} from "@lictory/platform/components/shell/nav-registry";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -84,6 +101,37 @@ const contentGroups = {
   decision: "Decisions",
 } as const;
 
+// Before typing: what I can do with the open item, a few ways to create,
+// then the modules.
+function suggested(commands: Item[]) {
+  const current = commands.filter((c) => c.group === "Current item");
+  const create = commands
+    .filter((c) => c.group === "Create")
+    .sort(
+      (a, b) =>
+        Number(b.id === "new-proposal") - Number(a.id === "new-proposal"),
+    )
+    .slice(0, 3);
+  const navigate = commands.filter((c) => c.id.startsWith("nav-"));
+  return [...current.slice(0, 4), ...create, ...navigate];
+}
+
+const navKeywords: Record<string, string> = {
+  home: "home dashboard overview start waiting",
+  inbox: "inbox notifications updates to do reviews",
+  channels: "channels chat messages conversations team",
+  "direct-messages": "direct messages dm chat people",
+  factory: "factory agents sessions runners automation",
+  code: "code repositories pull requests branches checks github gitlab bitbucket",
+  spaces: "spaces pages knowledge handbook docs wiki",
+};
+
+const appearanceLabels: Record<Appearance, string> = {
+  light: "Switch to light appearance",
+  dark: "Switch to dark appearance",
+  system: "Match the system appearance",
+};
+
 const versionLabel = (r: KnowledgeResult) =>
   r.kind === "page"
     ? `v${r.version}`
@@ -118,7 +166,8 @@ export function CommandPalette({
     directory,
   } = useWorkspace();
   const { openCreate, currentItem, project: shellProject } = useShell();
-  const { spaces, index: spaceIndex, openCreateSpace } = useSpaces();
+  const { spaces, index: spaceIndex, openCreateSpace, levelOf } = useSpaces();
+  const { appearance, setAppearance } = useAppearance();
   // The dock is absent on the Intelligence page itself.
   const pathname = usePathname();
   const dockStore = useDock();
@@ -258,14 +307,6 @@ export function CommandPalette({
         run: () => go(paths.intelligence(org)),
       },
       {
-        id: "spaces",
-        label: "Go to Spaces",
-        group: "Navigate",
-        icon: <Library className="size-4" />,
-        keywords: "spaces pages knowledge handbook docs wiki",
-        run: () => go(paths.spaces(org)),
-      },
-      {
         id: "create-space",
         label: "Create space",
         group: "Create",
@@ -279,13 +320,6 @@ export function CommandPalette({
         },
       },
       {
-        id: "inbox",
-        label: "Go to Inbox",
-        group: "Navigate",
-        icon: <Inbox className="size-4" />,
-        run: () => go(paths.inbox(org)),
-      },
-      {
         id: "settings",
         label: "Organization settings",
         group: "Navigate",
@@ -293,7 +327,111 @@ export function CommandPalette({
         keywords: "settings members projects types integrations",
         run: () => go(paths.settings(org)),
       },
+      {
+        id: "account-settings",
+        label: "Account settings",
+        group: "Navigate",
+        icon: <UserRound className="size-4" />,
+        keywords: "profile password security two-factor appearance theme",
+        run: () => go(paths.account(pathname)),
+      },
+      {
+        id: "notification-settings",
+        label: "Notification settings",
+        group: "Navigate",
+        icon: <Bell className="size-4" />,
+        keywords: "email notifications digest inbox",
+        run: () => go(paths.notificationSettings(org)),
+      },
     );
+    // Every module in the sidebar, by name.
+    for (const section of navSections) {
+      if (section.id === "projects") continue;
+      const Icon = section.icon;
+      list.push({
+        id: `nav-${section.id}`,
+        label: `Go to ${section.label}`,
+        group: "Navigate",
+        icon: <Icon className="size-4" />,
+        keywords: navKeywords[section.id],
+        run: () => go(section.href(org)),
+      });
+    }
+    // A proposal in the project in context, when I may write one.
+    if (
+      currentProject &&
+      capabilities.editSpecifications &&
+      enabledTypes(delivery, currentProject.id).some((t) => t.hasSpecification)
+    )
+      list.push({
+        id: "new-proposal",
+        label: "New proposal",
+        hint: currentProject.key,
+        group: "Create",
+        icon: <Lightbulb className="size-4" />,
+        keywords: "create proposal idea feature specification",
+        run: () => {
+          onClose();
+          openCreate({ intent: "proposal", projectId: currentProject.id });
+        },
+      });
+    // A page in a space I may edit: the space opens with its new page dialog.
+    for (const space of spaces)
+      if (!space.archivedAt && spaceLevelAtLeast(levelOf(space.id), "edit"))
+        list.push({
+          id: `new-page-${space.id}`,
+          label: `New page in ${space.name}`,
+          group: "Create",
+          icon: <FilePlus className="size-4" />,
+          keywords: "create page document doc wiki write",
+          run: () => go(`${paths.space(org, space.slug)}?new=page`),
+        });
+    for (const mode of ["light", "dark", "system"] as const)
+      if (mode !== appearance)
+        list.push({
+          id: `appearance-${mode}`,
+          label: appearanceLabels[mode],
+          group: "Preferences",
+          icon:
+            mode === "light" ? (
+              <Sun className="size-4" />
+            ) : mode === "dark" ? (
+              <Moon className="size-4" />
+            ) : (
+              <Monitor className="size-4" />
+            ),
+          keywords: "theme appearance mode dark light system colors",
+          run: () => {
+            onClose();
+            const previous = appearance;
+            setAppearance(mode);
+            void saveAppearance({ appearance: mode }).then((failed) => {
+              if (!failed) return;
+              setAppearance(previous);
+              toast({ title: failed, type: "error" });
+            });
+          },
+        });
+    for (const other of directory.organizations)
+      if (other.id !== organization.id)
+        list.push({
+          id: `organization-${other.id}`,
+          label: `Switch to ${other.name}`,
+          group: "Organizations",
+          icon: <OrganizationMark organization={other} className="size-4" />,
+          keywords: "organization workspace switch company",
+          run: () => go(paths.org(other.slug)),
+        });
+    for (const p of projects)
+      list.push({
+        id: `project-${p.id}`,
+        label: p.name,
+        hint: p.key,
+        group: "Projects",
+        icon: <FolderKanban className="size-4" />,
+        keywords: `project open ${p.key.toLowerCase()}`,
+        run: () => go(paths.project(org, p.key)),
+      });
     if (currentProject) {
       const p = currentProject;
       if (p.deliveryMode === "external")
@@ -412,11 +550,17 @@ export function CommandPalette({
     dock,
     spaces,
     openCreateSpace,
+    levelOf,
+    appearance,
+    setAppearance,
+    directory.organizations,
+    organization.id,
+    pathname,
   ]);
   const q = query.trim().toLowerCase();
   const parsed = parseIdentifier(query);
   const content = useContentSearch(userId, organization.id, query, !parsed);
-  const results = useMemo<Item[]>(() => {
+  const matched = useMemo(() => {
     const matchedItems = items
       .filter((i) => !i.archivedAt)
       .map((i) => ({ item: i, project: projectOf(i.projectId) }))
@@ -541,14 +685,15 @@ export function CommandPalette({
             },
           ]
         : [];
-    return [
-      ...matchedItems,
-      ...matchedPages,
-      ...fromContent,
-      ...seeAll,
-      ...(q ? matchedCommands : commands.slice(0, 8)),
-      ...ask,
-    ];
+    return {
+      titles: [...matchedItems, ...matchedPages],
+      rest: [
+        ...fromContent,
+        ...seeAll,
+        ...(q ? matchedCommands : suggested(commands)),
+        ...ask,
+      ],
+    };
   }, [
     items,
     q,
@@ -565,6 +710,38 @@ export function CommandPalette({
     onClose,
     spaceIndex,
   ]);
+  // Results modules register (channels, agents), matched like commands.
+  const provided: { group: string; entries: readonly PaletteEntry[] }[] = [];
+  for (const provider of paletteProviders)
+    provided.push({
+      group: provider.group,
+      entries: provider.useEntries(query.trim()),
+    });
+  const fromProviders: Item[] = parsed
+    ? []
+    : provided.flatMap(({ group, entries }) =>
+        entries
+          .filter(
+            (e) =>
+              !q ||
+              e.label.toLowerCase().includes(q) ||
+              e.keywords?.toLowerCase().includes(q),
+          )
+          .slice(0, q ? 5 : 3)
+          .map<Item>((e) => ({
+            id: `provider-${group}-${e.id}`,
+            label: e.label,
+            hint: e.hint,
+            icon: e.icon,
+            group,
+            run: () => {
+              if (e.href !== undefined) return go(e.href);
+              onClose();
+              e.run();
+            },
+          })),
+      );
+  const results = [...matched.titles, ...fromProviders, ...matched.rest];
   // The highlight follows the first result, also as content results arrive
   // above it, until the person moves it. Typing starts over.
   const [moved, setMoved] = useState<string | null>(null);

@@ -22,6 +22,7 @@ import {
 } from "@lictory/platform/components/app/security-settings";
 import { ProfilePhoto } from "@lictory/platform/components/app/profile-photo";
 import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
+import { saveAppearance } from "@lictory/platform/lib/appearance-save";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
 import {
   ProviderIcon,
@@ -712,20 +713,10 @@ function AppearanceSection() {
     revert: () => void,
   ) {
     setError(null);
-    const response = await fetch("/api/appearance", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => null);
-    if (!response?.ok) {
+    const failed = await saveAppearance(body);
+    if (failed) {
       revert();
-      const result = (await response?.json().catch(() => null)) as {
-        error?: { message?: string };
-      } | null;
-      setError(
-        result?.error?.message ??
-          "Appearance was not saved. Check your connection and try again.",
-      );
+      setError(failed);
     }
   }
 

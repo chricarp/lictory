@@ -28,7 +28,6 @@ import {
 } from "@lictory/platform/routes/app";
 import {
   NotificationsRedirect,
-  OrganizationIndex,
   OrganizationLayout,
   OrganizationNotFound,
   ProjectIndexRedirect,
@@ -229,10 +228,15 @@ const orgRoute = createRoute({
   notFoundComponent: OrganizationNotFound,
   pendingComponent: () => <DocumentSkeleton headerBar />,
 });
+// Home: what waits on me and what the factory is doing.
 const orgIndexRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/",
-  component: OrganizationIndex,
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/home/home"),
+    "HomeRoute",
+  ),
+  pendingComponent: ListSkeleton,
 });
 const orgAccountRoute = createRoute({
   getParentRoute: () => orgRoute,
@@ -327,6 +331,41 @@ const orgSettingsSectionRoute = createRoute({
     "OrganizationSettingsPage",
   ),
   pendingComponent: SettingsSectionSkeleton,
+});
+
+// Software factory modules. Static segments rank above `$project`; their
+// names are reserved project keys. Each module replaces its placeholder page
+// (components/shell/placeholders) with its own and adds child routes.
+const channelsRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/channels",
+  component: lazyRouteComponent(
+    () =>
+      import("@lictory/platform/components/shell/placeholders/channels-page"),
+    "ChannelsPage",
+  ),
+  pendingComponent: ListSkeleton,
+});
+
+const factoryRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/factory",
+  component: lazyRouteComponent(
+    () =>
+      import("@lictory/platform/components/shell/placeholders/factory-page"),
+    "FactoryPage",
+  ),
+  pendingComponent: ListSkeleton,
+});
+
+const codeRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/placeholders/code-page"),
+    "CodePage",
+  ),
+  pendingComponent: ListSkeleton,
 });
 
 // Lictory Spaces. Static segments rank above `$project`, so these addresses
@@ -592,6 +631,9 @@ const routeTree = rootRoute.addChildren([
         orgSettingsIndexRoute,
         orgSettingsSectionRoute,
       ]),
+      channelsRoute,
+      factoryRoute,
+      codeRoute,
       spacesRoute,
       spaceRoute.addChildren([
         spaceHomeRoute,
