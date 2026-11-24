@@ -41,6 +41,20 @@ export function FactoryPage({
 }) {
   const { organization } = useWorkspace();
   const org = organization.slug;
+  const tabs = (
+    <PageLinkTabs
+      label="Factory"
+      tabs={[
+        {
+          href: factoryPaths.overview(org),
+          label: "Overview",
+          exact: true,
+        },
+        { href: factoryPaths.agents(org), label: "Agents" },
+        { href: factoryPaths.runners(org), label: "Runners" },
+      ]}
+    />
+  );
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader
@@ -48,22 +62,13 @@ export function FactoryPage({
         icon={<Factory />}
         description={description}
         meta={meta}
-        tabs={
-          <PageLinkTabs
-            label="Factory"
-            tabs={[
-              {
-                href: factoryPaths.overview(org),
-                label: "Overview",
-                exact: true,
-              },
-              { href: factoryPaths.agents(org), label: "Agents" },
-              { href: factoryPaths.runners(org), label: "Runners" },
-            ]}
-          />
-        }
+        tabs={<div className="max-sm:hidden">{tabs}</div>}
         actions={actions}
       />
+      {/* Phones: the header keeps the title; the tabs get their own row. */}
+      <div className="flex h-10 shrink-0 items-center border-b px-2 sm:hidden">
+        {tabs}
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl space-y-6 px-4 pt-6 pb-16 sm:px-8">
           {children}
@@ -137,6 +142,13 @@ export function useItemKey() {
   );
 }
 
+// A session's title without the item key its row already shows
+// ("PAY-6: Refund retries" beside PAY-6 reads "Refund retries").
+export function titleBeside(title: string, key: string | undefined) {
+  const text = sessionTitle(title);
+  return key && text.startsWith(`${key}: `) ? text.slice(key.length + 2) : text;
+}
+
 // What a finished session changed, in one line: its summary or why it
 // failed, and its pull request.
 export function sessionOutcome(
@@ -168,12 +180,15 @@ export function SessionRow({
   const stateOf = useSessionStateOf();
   const itemKey = useItemKey();
   const pullRequest = Boolean(session.pullRequestId ?? session.pullRequestUrl);
+  const key = itemKey(session.workItemId);
   return (
     <ListRow
+      // Phones keep the title: the time gives way.
+      className="max-sm:[&>time]:hidden"
       href={factoryPaths.session(organization.slug, session.id)}
       leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
-      identifier={itemKey(session.workItemId)}
-      title={sessionTitle(session.title)}
+      identifier={key}
+      title={titleBeside(session.title, key)}
       meta={
         showOutcome ? (
           <>

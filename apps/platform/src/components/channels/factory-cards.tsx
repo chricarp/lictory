@@ -149,11 +149,17 @@ function SessionCard({
           href={card.path}
           className="ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
         >
-          Open session <ArrowUpRight className="size-3.5" aria-hidden />
+          <span className="max-sm:sr-only">Open session</span>
+          <ArrowUpRight className="size-3.5" aria-hidden />
         </Link>
       </div>
       {root && <p className="px-3 pb-2 font-medium">{title}</p>}
-      <Progress sessionId={card.sessionId} live={state.active || detailed} />
+      <Progress
+        sessionId={card.sessionId}
+        live={state.active || detailed}
+        // The request itself is below; its title is not repeated as a step.
+        asking={asks.length > 0}
+      />
       {status === "completed" && summary && (
         <p className="line-clamp-3 border-t px-3 py-2 text-muted-foreground">
           {summary}
@@ -184,15 +190,30 @@ function SessionCard({
 
 // What the agent did last and the files it changed, read from the event
 // log while the session moves (or when the card is read in its thread).
-function Progress({ sessionId, live }: { sessionId: string; live: boolean }) {
+function Progress({
+  sessionId,
+  live,
+  asking,
+}: {
+  sessionId: string;
+  live: boolean;
+  asking: boolean;
+}) {
   if (!live) return null;
-  return <LiveProgress sessionId={sessionId} />;
+  return <LiveProgress sessionId={sessionId} asking={asking} />;
 }
 
-function LiveProgress({ sessionId }: { sessionId: string }) {
+function LiveProgress({
+  sessionId,
+  asking,
+}: {
+  sessionId: string;
+  asking: boolean;
+}) {
   const { events } = useSessionEvents(sessionId, LAST_EVENTS);
   const progress = useMemo(() => sessionProgress(events), [events]);
-  const { step } = progress;
+  const step =
+    asking && progress.step?.kind === "approval" ? null : progress.step;
   if (!step && !progress.files.length) return null;
   return (
     <div className="space-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
@@ -227,8 +248,7 @@ function LiveProgress({ sessionId }: { sessionId: string }) {
           <span className="shrink-0">{filesChangedLabel(progress)}</span>
           {(progress.additions > 0 || progress.deletions > 0) && (
             <span className="shrink-0 tabular-nums">
-              <span className="text-success">+{progress.additions}</span>{" "}
-              <span className="text-destructive">−{progress.deletions}</span>
+              +{progress.additions} −{progress.deletions}
             </span>
           )}
           <span className="min-w-0 truncate font-mono">

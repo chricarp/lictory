@@ -247,7 +247,11 @@ test("channels and the factory meet WCAG 2.2 AA automated checks", async ({
   );
 
   await page.goto(paths.channels(seeded.slug));
-  await expect(page.getByRole("link", { name: "payments" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("list", { name: "Channels" })
+      .getByRole("link", { name: "payments" }),
+  ).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "channels index");
 

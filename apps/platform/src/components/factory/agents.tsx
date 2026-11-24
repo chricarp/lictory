@@ -260,6 +260,8 @@ function AgentRow({
   );
   return (
     <ListRow
+      // Phones keep the name: the time gives way.
+      className="max-sm:[&>time]:hidden"
       href={
         current
           ? factoryPaths.session(organization.slug, current.id)
@@ -268,8 +270,8 @@ function AgentRow({
       leading={<AgentAvatar agent={agent} size={24} />}
       title={
         <>
-          <span className="font-medium">{agent.name}</span>{" "}
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-medium">{agent.name}</span>
+          <span className="ml-1.5 font-mono text-xs text-muted-foreground">
             @{agent.handle}
           </span>
         </>

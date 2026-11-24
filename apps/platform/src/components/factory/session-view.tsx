@@ -76,6 +76,19 @@ export function SessionView() {
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
+  // Errors the log already shows, so the outcome does not repeat them.
+  const shownErrors = useMemo(
+    () =>
+      new Set(
+        events.flatMap((e) => {
+          const message = (e.data as { message?: unknown } | null)?.message;
+          return e.type === "error" && typeof message === "string"
+            ? [message.trim()]
+            : [];
+        }),
+      ),
+    [events],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const back = {
@@ -181,7 +194,7 @@ export function SessionView() {
         className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*]:shrink-0"
       >
         <SessionStateChip state={state} className="sm:hidden" />
-        <AgentActor agent={agent} ownerId={agent?.ownerId} size={16} />
+        <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />
         {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
         {runner && (
           <Meta icon={<Server />} label="Runner">
@@ -258,7 +271,7 @@ export function SessionView() {
               </Button>
             </div>
           )}
-          <ol aria-label="Session transcript" className="space-y-2">
+          <ol aria-label="Session transcript" className="space-y-1">
             {transcript.map((entry) => {
               const key =
                 entry.kind === "tool"
@@ -279,8 +292,10 @@ export function SessionView() {
               );
             })}
           </ol>
+          {/* The outcome, unless the log already ends with the same error. */}
           {Boolean(session.resultSummary ?? session.error) &&
-            ["completed", "failed"].includes(session.status) && (
+            ["completed", "failed"].includes(session.status) &&
+            !(session.error && shownErrors.has(session.error.trim())) && (
               <Result summary={session.resultSummary} error={session.error} />
             )}
         </div>

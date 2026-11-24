@@ -162,7 +162,9 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   });
   await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(card.getByText("Waiting on you")).toBeVisible();
-  await expect(card.getByText("Write CHANGES.md")).toBeVisible();
+  await expect(
+    card.getByText("Write CHANGES.md", { exact: true }),
+  ).toBeVisible();
   await card.getByRole("button", { name: "Approve" }).click();
   await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
 

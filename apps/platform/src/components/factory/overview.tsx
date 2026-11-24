@@ -10,7 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { runnerOnline, sessionTitle } from "@lictory/core/factory/entities";
+import { runnerOnline } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { LoadingState } from "@lictory/ui/spinner";
 import { MissingState } from "@lictory/ui/status-page";
@@ -29,6 +29,7 @@ import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
   SessionRow,
+  titleBeside,
   useItemKey,
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
@@ -95,7 +96,8 @@ export function FactoryOverview() {
     );
 
   const counts = [
-    blocks.needsYou.length > 0 && `${blocks.needsYou.length} need you`,
+    blocks.needsYou.length > 0 &&
+      `${blocks.needsYou.length} ${blocks.needsYou.length === 1 ? "needs" : "need"} you`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,
     blocks.queued > 0 && `${blocks.queued} queued`,
     `${online} of ${active} ${active === 1 ? "runner" : "runners"} online`,
@@ -125,7 +127,7 @@ export function FactoryOverview() {
                   agent ? <AgentAvatar agent={agent} size={20} /> : undefined
                 }
                 identifier={itemKey(session.workItemId)}
-                title={sessionTitle(session.title)}
+                title={titleBeside(session.title, itemKey(session.workItemId))}
                 meta="Waiting for your next message"
                 chips={<SessionStateChip state={stateOf(session, agent)} />}
                 time={session.updatedAt}

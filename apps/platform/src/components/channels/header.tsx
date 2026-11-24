@@ -220,7 +220,16 @@ export function ChannelHeader({
                     className="max-sm:hidden"
                   />
                   <Users className="size-4 sm:hidden" aria-hidden />
-                  <span className="tabular-nums">{memberCount}</span>
+                  {/* The facepile counts beyond three; phones show the
+                      number alone. */}
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      facepile.length > 3 && "sm:hidden",
+                    )}
+                  >
+                    {memberCount}
+                  </span>
                 </button>
               )}
             >

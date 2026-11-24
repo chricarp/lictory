@@ -173,7 +173,9 @@ test("a person runs an agent on their own runner, steers it and approves what it
   ).toBeVisible();
 
   // It completes with its summary; nothing is left to steer.
-  await expect(page.getByText("Completed", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("[data-page-header]").getByText("Completed", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Added CHANGES.md describing refunds over the API.").first(),
   ).toBeVisible();

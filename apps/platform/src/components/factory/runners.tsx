@@ -123,7 +123,7 @@ function Capacity({ used, max }: { used: number; max: number }) {
         aria-valuemax={max}
         aria-valuenow={used}
         aria-valuetext={`${used} of ${max} sessions`}
-        className="relative h-1.5 w-14 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/8 ring-inset max-sm:hidden"
+        className="relative h-1.5 w-14 overflow-hidden rounded-full bg-muted ring-1 ring-foreground/8 ring-inset max-md:hidden"
       >
         <span
           className={cn(
@@ -133,8 +133,11 @@ function Capacity({ used, max }: { used: number; max: number }) {
           style={{ width: `${share * 100}%` }}
         />
       </span>
-      <span>
+      <span className="max-sm:hidden">
         {used} of {max} sessions
+      </span>
+      <span className="sm:hidden" aria-hidden>
+        {used}/{max}
       </span>
     </span>
   );
@@ -173,6 +176,8 @@ function RunnerRow({
   return (
     <>
       <ListRow
+        // Phones keep the name: the time gives way.
+        className="max-sm:[&>time]:hidden"
         leading={<Icon aria-hidden className="text-muted-foreground" />}
         title={<span className="font-medium">{runner.name}</span>}
         meta={
