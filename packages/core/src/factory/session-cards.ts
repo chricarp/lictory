@@ -25,7 +25,7 @@ import { sessionCardId, stableId } from "@lictory/core/factory/thread-ids";
 type AgentRow = typeof s.agent.$inferSelect;
 type ApprovalRow = typeof s.agentApproval.$inferSelect;
 
-export const sessionStatusLabels: Record<SessionRow["status"], string> = {
+const sessionStatusLabels: Record<SessionRow["status"], string> = {
   queued: "Queued for a runner",
   assigned: "Starting",
   running: "Working",
@@ -61,6 +61,7 @@ export type ApprovalCardPayload = {
   approvalId: string;
   agentId: string;
   agentName: string;
+  ownerId: string;
   title: string;
   tool: string | null;
   reason: string | null;
@@ -219,6 +220,7 @@ export async function syncApprovalCard(
     approvalId: approval.id,
     agentId: agent.id,
     agentName: agent.name,
+    ownerId: agent.ownerId,
     title: approval.title,
     tool: detail.tool ?? null,
     reason: detail.reason ?? null,
@@ -315,7 +317,7 @@ export async function postSessionMessage(
   return posted?.message.id ?? null;
 }
 
-export type QuestionAnnouncement = {
+type QuestionAnnouncement = {
   organizationId: string;
   claimId: string;
   sessionId: string | null;

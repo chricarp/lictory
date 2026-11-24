@@ -97,7 +97,12 @@ const MarkdownEditing = Extension.create<{
   enterSubmits: () => boolean;
   escape: () => boolean;
   upload: (editor: Editor, files: File[], at?: number) => boolean;
-  handles: () => { id: string; name: string; handle?: string | null }[];
+  handles: () => {
+    id: string;
+    name: string;
+    handle?: string | null;
+    kind?: "agent";
+  }[];
 }>({
   name: "markdownEditing",
   priority: 1000,
@@ -134,7 +139,11 @@ const MarkdownEditing = Extension.create<{
             .insertContentAt(start, [
               {
                 type: "mention",
-                attrs: { id: person.id, label: person.handle ?? person.name },
+                attrs: {
+                  id: person.id,
+                  label: person.handle ?? person.name,
+                  ...(person.kind === "agent" ? { kind: "agent" } : {}),
+                },
               },
               { type: "text", text: match[2]! },
             ])

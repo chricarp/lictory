@@ -207,7 +207,7 @@ async function endRun(tx: Tx, session: SessionRow) {
   await revokeSessionTokens(tx, session.id);
 }
 
-export function threadEvent(
+function threadEvent(
   session: SessionRow,
   kind: SessionThreadEvent["kind"],
   approvalId?: string,

@@ -368,7 +368,7 @@ function inline(
         if (
           value.endsWith("@") &&
           next?.type === "link" &&
-          /^mention:[A-Za-z0-9_-]+$/.test(next.url)
+          /^(mention|agent):[A-Za-z0-9_-]+$/.test(next.url)
         )
           value = value.slice(0, -1);
         out.push(...legacyPageLinks(value, marks));
@@ -418,7 +418,7 @@ function inline(
         return;
       case "link": {
         const previous = nodes[index - 1];
-        const mention = /^mention:([A-Za-z0-9_-]+)$/.exec(node.url);
+        const mention = /^(mention|agent):([A-Za-z0-9_-]+)$/.exec(node.url);
         if (
           mention &&
           previous?.type === "text" &&
@@ -428,7 +428,11 @@ function inline(
             withMarks(
               {
                 type: "mention",
-                attrs: { id: mention[1]!, label: plain(node) },
+                attrs: {
+                  id: mention[2]!,
+                  label: plain(node),
+                  ...(mention[1] === "agent" ? { kind: "agent" } : {}),
+                },
               },
               marks,
             ),
@@ -788,7 +792,7 @@ function renderLeaf(
         str(a.label)
           .replace(/[[\]\n]/g, "")
           .trim() || "member";
-      return `@[${label}](mention:${String(a.id)})`;
+      return `@[${label}](${a.kind === "agent" ? "agent" : "mention"}:${String(a.id)})`;
     }
     case "workItemRef":
       return formatReference(

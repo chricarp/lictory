@@ -21,6 +21,7 @@ import {
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useChannels } from "@lictory/platform/components/channels/store";
 import {
   InlineError,
   SettingsBody,
@@ -69,6 +70,15 @@ export function ProjectAutonomy({
   canEdit: boolean;
 }) {
   const { organization, memberName } = useWorkspace();
+  const channels = useChannels();
+  // Channels people in the project can follow: public ones, and private
+  // ones I am in (the server checks the same).
+  const reportable = channels.list.filter(
+    (c) =>
+      c.kind !== "direct" &&
+      !c.archivedAt &&
+      (c.kind === "public" || Boolean(c.member)),
+  );
   const [loaded, setLoaded] = useState<Loaded>();
   const [draft, setDraft] = useState<AutonomyPolicyInput>();
   const [error, setError] = useState<string>();
@@ -259,6 +269,30 @@ export function ProjectAutonomy({
                   </DropdownSelectOption>
                 ))}
               </DropdownSelect>
+            </label>
+            <label className="text-[13px]">
+              <span className="font-medium">Report to channel</span>
+              <DropdownSelect
+                disabled={!editable}
+                className="mt-1 w-56"
+                aria-label="Report to channel"
+                value={draft.reportingChannelId ?? ""}
+                placeholder="None"
+                onValueChange={(value) =>
+                  set({ reportingChannelId: value ? value : null })
+                }
+              >
+                <DropdownSelectOption value="">None</DropdownSelectOption>
+                {reportable.map((channel) => (
+                  <DropdownSelectOption key={channel.id} value={channel.id}>
+                    #{channel.name}
+                  </DropdownSelectOption>
+                ))}
+              </DropdownSelect>
+              <span className="mt-1 block max-w-56 text-[12px] text-muted-foreground">
+                Dispatched sessions post their live card there; agents’
+                questions are announced there.
+              </span>
             </label>
           </div>
           {draft.level === "autopilot" && (

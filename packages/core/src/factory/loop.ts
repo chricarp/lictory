@@ -101,7 +101,7 @@ async function memberNames(tx: Tx | Database, ids: string[]) {
 }
 
 // Chat Markdown as an agent reads it: mention tokens become `@label`.
-export function plainMessage(body: string) {
+function plainMessage(body: string) {
   return body
     .replace(
       /@\[([^\]\n]{1,120})\]\((?:mention|agent):[A-Za-z0-9_-]{1,160}\)/g,

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Editor, Range } from "@tiptap/core";
 import {
+  Bot,
   FileText,
   Hash,
   Heading1,
@@ -381,6 +382,8 @@ export type Mentionable = {
   name: string;
   email?: string;
   handle?: string | null;
+  // An agent (channels): written as `@[handle](agent:ID)`.
+  kind?: "agent";
 };
 
 export function mentionItems(
@@ -400,8 +403,15 @@ export function mentionItems(
       .map((person) => ({
         id: person.id,
         label: person.name,
-        hint: person.handle ? `@${person.handle}` : person.email,
-        icon: <Avatar userId={person.id} name={person.name} size="xs" />,
+        hint: person.handle
+          ? `@${person.handle}${person.kind === "agent" ? " · agent" : ""}`
+          : person.email,
+        icon:
+          person.kind === "agent" ? (
+            <Bot className="size-4 text-primary" aria-hidden />
+          ) : (
+            <Avatar userId={person.id} name={person.name} size="xs" />
+          ),
         run: (editor, range) => insertMention(editor, range, person),
       }))
   );
@@ -416,6 +426,7 @@ export function insertMention(
     id: person.id,
     label:
       (person.handle ?? person.name).replace(/[[\]\n]/g, "").trim() || "member",
+    ...(person.kind === "agent" ? { kind: "agent" } : {}),
   });
 }
 
