@@ -16,7 +16,7 @@ import type { UpdateState } from "../shared/ipc";
 const CHECK_EVERY_MS = 6 * 60 * 60_000;
 const FIRST_CHECK_MS = 30_000;
 
-type BuildInfo = { signed?: boolean };
+type BuildInfo = { updatable?: boolean };
 
 function buildInfo(): BuildInfo {
   try {
@@ -52,7 +52,7 @@ export function updateSupport():
       supported: false,
       reason: "Update Lictory with your package manager.",
     };
-  if (process.platform !== "linux" && buildInfo().signed !== true)
+  if (buildInfo().updatable !== true)
     return {
       supported: false,
       reason:

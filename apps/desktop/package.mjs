@@ -40,6 +40,7 @@ const version = /** @type {{ version: string }} */ (
     readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
   )
 ).version;
+/** @param {string[]} names */
 const has = (...names) => names.every((name) => !!env[name]);
 const macSigned = has("CSC_LINK") || has("CSC_NAME");
 const macNotarized =
@@ -50,7 +51,7 @@ const winSigned = has("WIN_CSC_LINK") || has("CSC_LINK");
 // Whether this build may update itself: only a signed (and on macOS
 // notarized) build. Linux AppImages are checked against the release's
 // SHA-512 instead.
-const signed =
+const updatable =
   platform === Platform.MAC
     ? macNotarized
     : platform === Platform.WINDOWS
@@ -69,8 +70,13 @@ const config = {
   extraMetadata: {
     main: "dist/main.cjs",
     version,
-    lictory: { signed },
+    // The window's WM_CLASS / app id, matching the installed .desktop file.
+    desktopName: "lictory.desktop",
+    lictory: { updatable },
   },
+  // The static AppImage runtime: runs without libfuse2 (absent from current
+  // Ubuntu and Fedora) and links nothing from the system.
+  toolsets: { appimage: "1.0.3" },
   protocols: [{ name: "Lictory link", schemes: ["lictory"] }],
   // Hardening of the Electron binary itself (@electron/fuses).
   electronFuses: {
@@ -134,7 +140,7 @@ const config = {
       "The Lictory desktop app: your team's Lictory servers with native notifications, a badge and lictory:// links.",
     maintainer: "Lictory contributors",
     vendor: "Lictory",
-    desktop: { entry: { StartupWMClass: "Lictory" } },
+    syncDesktopName: true,
   },
 };
 
@@ -153,5 +159,5 @@ const outputs = await build({
   publish: "never",
 });
 console.log(
-  `Packaged (${signed ? "signed" : "unsigned"}):\n${outputs.join("\n")}`,
+  `Packaged (${updatable ? "updates itself" : "does not update itself"}):\n${outputs.join("\n")}`,
 );

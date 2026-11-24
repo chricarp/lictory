@@ -29,7 +29,8 @@ const dist = __dirname;
 if (isDev && process.env.LICTORY_DESKTOP_USER_DATA)
   app.setPath("userData", process.env.LICTORY_DESKTOP_USER_DATA);
 
-app.setName("Lictory");
+// Development keeps its own user data directory (Lictory Dev).
+app.setName(isDev ? "Lictory Dev" : "Lictory");
 // Every renderer runs in the Chromium sandbox, whatever a view asks for.
 app.enableSandbox();
 registerAppScheme();
