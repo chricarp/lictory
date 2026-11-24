@@ -70,8 +70,8 @@ export class GitHubFixture {
   releases: Release[] = [];
   tags = new Map<string, string>();
   assets = new Map<number, Manifest>();
-  /** Text assets such as release.env, by asset id. */
-  files = new Map<number, string>();
+  /** Assets other than manifests (release.env, binaries), by asset id. */
+  files = new Map<number, string | Uint8Array<ArrayBuffer>>();
   responses = new Map<string, unknown>();
   writes: string[] = [];
   latestTag: string | undefined;
@@ -209,6 +209,13 @@ export class GitHubFixture {
           ? { sha: this.tags.get(decodeURIComponent(path.slice(9))) }
           : undefined,
       );
+    if (path.startsWith("/releases/assets/") && method === "DELETE") {
+      const id = Number(path.split("/").at(-1));
+      this.files.delete(id);
+      for (const release of this.releases)
+        release.assets = release.assets.filter((asset) => asset.id !== id);
+      return new Response(null, { status: 204 });
+    }
     if (path.startsWith("/releases/assets/")) {
       const id = Number(path.split("/").at(-1));
       if (this.files.has(id)) return new Response(this.files.get(id));
@@ -221,7 +228,13 @@ export class GitHubFixture {
       // Release manifests are parsed; every other asset keeps its bytes.
       if (json && name === "release-manifest.json")
         this.assets.set(assetId, body as unknown as Manifest);
-      else this.files.set(assetId, raw ?? "");
+      else
+        this.files.set(
+          assetId,
+          init?.body instanceof Uint8Array
+            ? new Uint8Array(init.body)
+            : (raw ?? ""),
+        );
       this.releases
         .find((value) => value.id === id)!
         .assets.push({

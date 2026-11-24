@@ -182,13 +182,34 @@ jobs:
           retention-days: 2
           overwrite: true
 
+  # The runner binaries with their installers and the desktop app for every
+  # operating system, from the same source with the same version, in
+  # parallel with the images. The publish job checks, signs and attaches
+  # them; a release never ships without them, or installed desktop apps
+  # would find no update metadata.
+  clients:
+    name: Runner and desktop downloads
+    needs: plan
+    if: needs.plan.outputs.platform == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-clients.yml
+    # The desktop-signing environment's certificates resolve empty on
+    # workflow_call unless the caller passes secrets; this workflow names none.
+    secrets: inherit # zizmor: ignore[secrets-inherit]
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+      version: ${{ needs.plan.outputs.version }}
+      signing: true
+
   # The release environment holds no secrets: its required reviewers (a
   # person or a team) approve publication, if configured.
   publish:
     name: Publish the stable release
-    needs: [plan, verify, build]
+    needs: [plan, verify, build, clients]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Uploads about 1.5 GB of runner and desktop downloads.
+    timeout-minutes: 45
     environment:
       name: release
       url: https://github.com/${{ github.repository }}/releases/tag/${{ needs.plan.outputs.stable_tag }}
@@ -233,6 +254,11 @@ jobs:
           pattern: native-*
           merge-multiple: true
           path: ${{ runner.temp }}/native
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: clients-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/clients
       - run: bun install --frozen-lockfile
         working-directory: control
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
@@ -265,12 +291,21 @@ jobs:
           env -i PATH="$PATH" HOME="$HOME" \
             bun --config=../control/bunfig.toml --no-env-file \
             ../control/scripts/license-report.ts "$RUNNER_TEMP/licenses"
+      # The control checkout's code reads the downloads; nothing they contain
+      # runs here. Signed before the release is reserved, like the images.
+      - name: Check the runner and desktop downloads and write SHA256SUMS
+        working-directory: control
+        run: bun run release clients "$RUNNER_TEMP/plan/release-plan.json" "$RUNNER_TEMP/clients"
+      - uses: ./control/.github/actions/sign-clients
+        with:
+          directory: ${{ runner.temp }}/clients
       - name: Publish the stable images and GitHub Release
         working-directory: control
         env:
           RELEASE_IMAGES: ${{ steps.assemble.outputs.images }}
           LICENSE_REPORT_DIRECTORY: ${{ runner.temp }}/licenses
           NATIVE_BUILDS_DIRECTORY: ${{ runner.temp }}/native
+          CLIENT_ASSETS_DIRECTORY: ${{ runner.temp }}/clients
         # Images and a GitHub Release, not a package registry upload.
         run: bun run release publish "$RUNNER_TEMP/plan/release-plan.json" ../source # zizmor: ignore[use-trusted-publishing]
 

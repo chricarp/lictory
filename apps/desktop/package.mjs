@@ -99,6 +99,9 @@ const config = {
   ],
   mac: {
     category: "public.app-category.productivity",
+    // The DMG and the ZIP (what updates download, named in latest-mac.yml).
+    // Release assets keep these names: no spaces, which GitHub renames.
+    artifactName: "Lictory-${version}-mac-${arch}.${ext}",
     target: [
       { target: "dmg", arch: ["universal"] },
       { target: "zip", arch: ["universal"] },
@@ -106,9 +109,11 @@ const config = {
     hardenedRuntime: true,
     entitlements: "static/entitlements.mac.plist",
     entitlementsInherit: "static/entitlements.mac.plist",
-    // Without a certificate the app is left unsigned rather than signed
-    // with whatever identity the build machine's keychain holds.
-    ...(macSigned ? {} : { identity: null }),
+    // Without a certificate the app is signed ad hoc ("-"), never with
+    // whatever identity the build machine's keychain holds: Apple silicon
+    // runs no unsigned code, and an ad hoc signature names nobody, so such
+    // a build still does not update itself.
+    ...(macSigned ? {} : { identity: "-" }),
     notarize: macNotarized,
     extendInfo: {
       NSMicrophoneUsageDescription:
@@ -122,6 +127,9 @@ const config = {
     target: [{ target: "nsis", arch: ["x64", "arm64"] }],
   },
   nsis: {
+    // One installer for x64 and arm64 (it installs the computer's own), so
+    // latest.yml names a single file. No spaces: GitHub renames them.
+    artifactName: "Lictory-${version}-windows-setup.${ext}",
     // Per-user install without administrator rights, like Slack.
     oneClick: true,
     perMachine: false,
@@ -142,6 +150,8 @@ const config = {
     vendor: "Lictory",
     syncDesktopName: true,
   },
+  appImage: { artifactName: "Lictory-${version}-linux-${arch}.${ext}" },
+  deb: { artifactName: "lictory_${version}_${arch}.${ext}" },
 };
 
 const arch = archNames.filter(Boolean).map((name) => {

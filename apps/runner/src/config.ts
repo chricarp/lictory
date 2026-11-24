@@ -3,12 +3,15 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { harnessIds, isolationModes } from "@lictory/core/factory/protocol";
+// The product version, which release builds set in the root package.json
+// (scripts/inject-release-version.ts) before compiling the binaries.
+import { version } from "../../../package.json" with { type: "json" };
 
 // The runner's configuration and its credential, in one file readable only
 // by the account running it. The credential is the only secret the runner
 // keeps; per-session credentials are fetched and never written to disk.
 
-export const RUNNER_VERSION = "0.1.0";
+export const RUNNER_VERSION: string = version;
 
 export function homeDirectory(env = process.env) {
   if (env.LICTORY_RUNNER_HOME) return env.LICTORY_RUNNER_HOME;

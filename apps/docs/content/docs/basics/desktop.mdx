@@ -18,14 +18,24 @@ browser tab does not do well:
 ## Install it
 
 Download the app for your system from the
-[Lictory releases page](https://github.com/chricarp/lictory/releases):
+[latest Lictory release](https://github.com/chricarp/lictory/releases/latest):
 
-- **macOS:** the `.dmg` (one download for Intel and Apple silicon). Open it
-  and drag Lictory to Applications.
-- **Windows:** the `.exe` installer for x64 or arm64. It installs for your
-  account only and needs no administrator rights.
-- **Linux:** the `.AppImage` (make it executable and run it; it needs no
-  installation) or the `.deb` for Debian and Ubuntu.
+- **macOS:** `Lictory-…-mac-universal.dmg` (one download for Intel and Apple
+  silicon). Open it and drag Lictory to Applications.
+- **Windows:** `Lictory-…-windows-setup.exe`, for x64 and arm64. It installs
+  for your account only and needs no administrator rights.
+- **Linux:** `Lictory-…-linux-x86_64.AppImage` or `…-linux-arm64.AppImage`
+  (make it executable and run it; it needs no installation and updates
+  itself), or `lictory_…_amd64.deb` / `…_arm64.deb` for Debian and Ubuntu.
+
+`SHA256SUMS` in the same release lists the checksum of every file
+(`sha256sum --check --ignore-missing SHA256SUMS`).
+
+If a release was built without the project's signing certificates, macOS
+says the app is from an unidentified developer (Control-click the app, then
+**Open**) and Windows SmartScreen asks before running it (**More info › Run
+anyway**). Such a build does not update itself; **Settings › Updates** says
+so and links to the releases page.
 
 ## Connect to your server
 

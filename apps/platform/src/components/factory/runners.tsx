@@ -6,6 +6,7 @@ import {
   type RunnerEntity,
 } from "@lictory/core/factory/entities";
 import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
+import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
@@ -20,6 +21,10 @@ import {
   Section,
 } from "@lictory/platform/components/factory/parts";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import {
+  runnerInstallCommand,
+  type RunnerSystem,
+} from "@lictory/platform/components/factory/runner-install";
 
 // Runners: machines the team controls that execute agent sessions. They
 // connect out to Lictory, so they need no open port.
@@ -212,33 +217,6 @@ function RunnerRow({
   );
 }
 
-const RELEASES = "https://github.com/chricarp/lictory/releases/latest/download";
-
-// The commands that install and register a runner on each system.
-function installCommands(server: string, token: string) {
-  const register = (binary: string) =>
-    `${binary} register --url ${server} --token ${token}`;
-  return {
-    linux: [
-      `curl -fsSLo lictory-runner ${RELEASES}/lictory-runner-linux-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')`,
-      "chmod +x lictory-runner && sudo mv lictory-runner /usr/local/bin/",
-      register("lictory-runner"),
-      "lictory-runner install-service --enable",
-    ].join("\n"),
-    macos: [
-      `curl -fsSLo lictory-runner ${RELEASES}/lictory-runner-darwin-$(uname -m | sed 's/x86_64/x64/')`,
-      "chmod +x lictory-runner && sudo mv lictory-runner /usr/local/bin/",
-      register("lictory-runner"),
-      "lictory-runner install-service --enable",
-    ].join("\n"),
-    windows: [
-      `Invoke-WebRequest -Uri ${RELEASES}/lictory-runner-windows-x64.exe -OutFile lictory-runner.exe`,
-      register(".\\lictory-runner.exe"),
-      ".\\lictory-runner.exe install-service",
-    ].join("\n"),
-  };
-}
-
 function AddRunnerDialog({ onClose }: { onClose: () => void }) {
   const { organization, isAdmin } = useWorkspace();
   const [personal, setPersonal] = useState(!isAdmin);
@@ -246,7 +224,7 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
     token: string;
     expiresAt: string;
   } | null>(null);
-  const [system, setSystem] = useState<"linux" | "macos" | "windows">(() =>
+  const [system, setSystem] = useState<RunnerSystem>(() =>
     navigator.platform.startsWith("Mac")
       ? "macos"
       : navigator.platform.startsWith("Win")
@@ -275,7 +253,12 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
     }
   };
   const commands = token
-    ? installCommands(window.location.origin, token.token)[system]
+    ? runnerInstallCommand(
+        system,
+        window.location.origin,
+        token.token,
+        APP_VERSION,
+      )
     : "";
   return (
     <Dialog
@@ -357,6 +340,8 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
           </div>
           <p className="text-xs text-muted-foreground">
             The token works once and expires {relativeTime(token.expiresAt)}.
+            The installer checks the download against the release&apos;s
+            checksums, registers the runner and keeps it running as a service.
             Install Claude Code or Codex on the machine for those agents;{" "}
             <code className="font-mono">lictory-runner doctor</code> checks the
             setup. The runner appears here as soon as it registers.
