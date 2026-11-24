@@ -507,11 +507,13 @@ function DoneCheckRow({
       <div className="min-w-0 flex-1">
         <p className={cn(!check.passed && "text-foreground")}>{check.label}</p>
         {/* The evidence behind the state, passed or not ("No required
-            checks reported on this branch."); a check passed by hand says
-            who did instead. */}
-        {check.detail && !check.override && (
-          <p className="text-xs text-muted-foreground">{check.detail}</p>
-        )}
+            checks reported on this branch."), unless it only repeats the
+            label; a check passed by hand says who did instead. */}
+        {check.detail &&
+          !check.override &&
+          check.detail.replace(/\.$/, "") !== check.label && (
+            <p className="text-xs text-muted-foreground">{check.detail}</p>
+          )}
         {check.override && (
           <p className="text-xs text-muted-foreground">
             Passed by hand by {memberName(check.override.by)} ·{" "}
