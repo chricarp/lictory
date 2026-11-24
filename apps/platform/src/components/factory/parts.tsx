@@ -6,6 +6,8 @@ import {
   type SessionEntity,
 } from "@lictory/core/factory/entities";
 import { identifier } from "@lictory/core/lib/work-items";
+import { cn } from "@lictory/core/lib/utils";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useLiveClaims } from "@lictory/platform/components/claims/claims";
 import {
@@ -218,5 +220,31 @@ export function SessionRow({
       chips={<SessionStateChip state={stateOf(session, agent)} />}
       time={session.completedAt ?? session.updatedAt}
     />
+  );
+}
+
+// A long identifier (a branch) cut in the middle, so its distinctive end
+// stays: "lictory/pay-10-refund-b…6ecca6ae". The whole text is on hover and
+// is what assistive technology reads.
+export function MiddleTruncate({
+  text,
+  tail = 10,
+  className,
+}: {
+  text: string;
+  // Characters always shown at the end.
+  tail?: number;
+  className?: string;
+}) {
+  const cut = text.length > tail * 2 ? text.length - tail : text.length;
+  return (
+    <Tooltip label={text}>
+      <span className={cn("flex min-w-0", className)}>
+        <span className="min-w-0 truncate">{text.slice(0, cut)}</span>
+        {cut < text.length && (
+          <span className="shrink-0">{text.slice(cut)}</span>
+        )}
+      </span>
+    </Tooltip>
   );
 }
