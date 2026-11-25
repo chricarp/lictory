@@ -41,8 +41,11 @@ export const buttonClass = ({ variant = "primary", size = "md" }: Look = {}) =>
     size === "md" && "h-8 px-3.5 text-[13px]",
     size === "lg" && "h-10 px-5 text-sm",
     size === "icon" && "size-7 p-0 text-xs",
+    // Disabled, the primary action recedes to a quiet well with muted text
+    // instead of a half-transparent fill: a grey solid reads as another
+    // active button.
     variant === "primary" &&
-      "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover)",
+      "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover) data-disabled:bg-muted data-disabled:text-muted-foreground data-disabled:opacity-100 data-disabled:shadow-(--shadow-border) data-disabled:hover:bg-muted",
     variant === "secondary" &&
       "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted hover:shadow-(--shadow-border-hover)",
     variant === "outline" &&
