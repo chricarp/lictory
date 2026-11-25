@@ -36,10 +36,19 @@ encrypted and never shown again.
 ### Add the webhook
 
 After connecting, Lictory shows the **webhook URL** and **webhook secret**
-once. Add them to the host (the app's settings on GitHub, the group or project
-webhooks on GitLab, each repository's webhooks on Bitbucket) with the events
-listed in **How to set up**. Without a webhook Lictory still reads every
-linked repository every ten minutes, so updates arrive more slowly.
+once. Add them to the host with the events listed in **How to set up**:
+
+- **GitHub App**: on the app's settings (one webhook for every repository the
+  app is installed on).
+- **GitHub fine-grained token**: one organization webhook (Organization
+  settings → Webhooks, added by an organization owner) covers every
+  repository; on a personal account, add it to each repository.
+- **GitLab**: the group's webhooks (one for every project in the group) or
+  each project's.
+- **Bitbucket**: each repository's webhooks.
+
+Without a webhook Lictory still reads every linked repository every ten
+minutes, so updates arrive more slowly.
 
 </Step>
 <Step>
