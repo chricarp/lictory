@@ -2287,6 +2287,11 @@ summary() {
     lines+=("$(row "Admin console" "$url/admin")")
     lines+=("$(row "Accounts" "$(signup_words "$mode")")")
     lines+=("$(row "Organizations" "$(organization_words "$(setting LICTORY_ORGANIZATION_CREATION)")")")
+    if [ "$(current_email)" = none ]; then
+      lines+=("$(row "Email" "${c_yellow}off: invitations, verification and password reset are not sent${c_reset}")")
+    else
+      lines+=("$(row "Email" "$(current_email)")")
+    fi
     [ -z "$(current_version)" ] || lines+=("$(row "Release" "$(current_version) ($(channel_of_environment))")")
     box "${lines[@]}"
   fi

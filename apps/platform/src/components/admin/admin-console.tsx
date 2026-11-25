@@ -311,6 +311,11 @@ function AdminOverview() {
           <PolicyRow
             label="Outbound email"
             value={data.email ? "Configured" : "Not configured"}
+            detail={
+              data.email
+                ? undefined
+                : "Invitations, sign-up verification, password reset and notification email are not sent, so new people cannot finish a password sign-up. Create their accounts with a password here, or have an operator configure SMTP or Resend (sudo lictory install --email smtp)."
+            }
           />
         </div>
       </SettingsSection>
