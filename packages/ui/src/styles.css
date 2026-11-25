@@ -616,6 +616,12 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+    /* Fractional glyph advances. Without it Chromium on Linux rounds each
+       advance to a whole pixel at UI sizes: Geist's word space shrinks with
+       weight (about 3.4px in 14px semibold) and rounds down while the wider
+       letters round up, so medium and semibold words run together
+       ("BrunoLind"). Other platforms already position glyphs this way. */
+    text-rendering: geometricPrecision;
   }
   button,
   a {
