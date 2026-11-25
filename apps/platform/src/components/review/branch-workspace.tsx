@@ -1409,7 +1409,9 @@ function CommitBox({
     <form
       aria-label="Commit changes"
       className={cn(
-        "sticky bottom-3 z-10 space-y-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel)",
+        // Sticky where there is room beside the fields; on phones the bar
+        // would cover the field being edited, so it ends the form instead.
+        "sticky bottom-3 z-10 space-y-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel) max-sm:static max-sm:shadow-none",
         !changed && "shadow-none",
       )}
       onSubmit={(e) => {

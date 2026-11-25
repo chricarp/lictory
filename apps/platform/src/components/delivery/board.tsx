@@ -731,8 +731,10 @@ function ProjectBoard({ project }: { project: Project }) {
                         data-board-column={status.id}
                         className={cn(
                           "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
-                          // Phones: one column per screen, snapping.
-                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-3rem)] max-sm:snap-start",
+                          // Phones: one column per screen, snapping, with
+                          // the next one showing at the edge so the flow
+                          // reads as a row of columns.
+                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-5.5rem)] max-sm:snap-start",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
