@@ -24,15 +24,21 @@ worktree; a runner can also run each session in a Docker container.
 
 ```sh
 curl -fsSL https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.sh | sh -s -- \
-  --version 0.27.0 --url https://lictory.example.com --token lrt_… --service
+  --version <server release> --url https://lictory.example.com --token lrt_… --service
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
 & ([scriptblock]::Create((irm https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.ps1))) `
-  -Version 0.27.0 -Url https://lictory.example.com -Token lrt_… -Service
+  -Version <server release> -Url https://lictory.example.com -Token lrt_… -Service
 ```
+
+The dialog fills in your server's release, address and token. A release
+published before runner downloads existed carries none of these files, and
+`curl` then reports a 404: build the runner from source instead
+([lictory.com/download](https://lictory.com/download#runner-source) lists the
+three commands) and register it with `lictory-runner register`.
 
 The installer puts `lictory-runner` in `/usr/local/bin` when it can write
 there and in `~/.local/bin` otherwise (`--dir` chooses another directory);
@@ -67,7 +73,8 @@ organization's Lictory Intelligence model through the server.
 | `lictory-runner install-service` | A systemd unit (Linux) or launchd agent (macOS); `--enable` starts it |
 
 `register` accepts `--name`, `--max-sessions <n>` (default 2),
-`--isolation host|container` and `--label <label>`. On Linux a user service
+`--isolation host|container`, `--container-image <image>` and
+`--label <label>`. On Linux a user service
 stops when you log out unless lingering is on (`loginctl enable-linger`);
 `--system` installs a system service instead. On Windows,
 `install-service` prints the Task Scheduler commands.
@@ -79,6 +86,40 @@ it), readable only by your account. `config.json` also holds
 `claudePermissionMode` (what Claude Code may do without asking, default
 `acceptEdits`), `codexSandbox` (default `workspace-write`),
 `containerImage` and `keepWorktrees`.
+
+### Container isolation
+
+With `--isolation container` each session runs in its own Docker container
+with only its worktree mounted. Lictory publishes no sandbox image: build one
+that contains git and the harnesses your agents use, push it to a registry
+you trust and register with
+`--container-image registry.example.com/runner-sandbox@sha256:…`. Pin it by
+digest: a tag can be moved to other contents, a digest cannot.
+`lictory-runner doctor` warns about an image that is not pinned.
+
+## Operate many runners
+
+- **Capacity:** `--max-sessions` sets how many sessions run at once (default
+  2). Sessions waiting for a person's answer keep their lease without taking
+  a slot. Add runners rather than raising the number on one machine.
+- **Which agents run where:** a session can name a runner, an agent can have
+  a default runner, and a personal runner runs only its owner's agents.
+  Labels describe the machine; they do not route sessions.
+- **Updates:** run the installer again on each machine without a token (see
+  below), then restart the service. Keep runners on the server's release:
+  the add-runner command pins it.
+- **Maintenance:** stop the service (`systemctl stop lictory-runner`, or
+  Ctrl-C). The runner stops claiming, hands its running sessions back to the
+  queue and exits; another runner picks them up. Start it again afterwards.
+  To retire a machine for good, revoke it.
+- **Monitoring:** the server's monitor alerts when an organization runner has
+  been offline for ten minutes, when sessions wait 15 minutes with no online
+  runner that can take them, and when every capable runner is busy for an
+  hour ([monitoring](/self-hosting/monitoring)). Personal runners are not
+  alerted on.
+- **Revoked runners:** a revoked runner exits with status 2. The systemd unit
+  that `install-service` writes does not restart it; register it again to
+  bring it back.
 
 ## Update a runner
 
@@ -92,8 +133,8 @@ restarts (`systemctl --user restart lictory-runner` on Linux,
 
 Every release lists the SHA-256 of each file in `SHA256SUMS`, which the
 installers check. The files are also signed by the release workflow:
-`gh attestation verify lictory-runner-linux-x64 --repo chricarp/lictory`
-checks a downloaded binary, and `cosign verify-blob` checks `SHA256SUMS`
+`gh attestation verify <downloaded file> --repo chricarp/lictory` (for
+example `lictory-runner-linux-x64`) checks a downloaded binary, and `cosign verify-blob` checks `SHA256SUMS`
 against `SHA256SUMS.sigstore.json` (see the
 [release documentation](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#runner-and-desktop-app)).
 

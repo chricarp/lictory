@@ -48,6 +48,8 @@ export function systemdUnit(options: {
     ...(options.system ? [`User=${options.user}`] : []),
     "Restart=always",
     "RestartSec=5",
+    // Exit 2: the server revoked the credential. Restarting cannot help.
+    "RestartPreventExitStatus=2",
     // Sessions get time to hand back their work.
     "TimeoutStopSec=30",
     "KillSignal=SIGTERM",

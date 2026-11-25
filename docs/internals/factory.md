@@ -260,7 +260,9 @@ Code links it), pushes the branch and reports it; a failed push keeps the
 worktree and fails the session with the path.
 
 A runner registered with container isolation starts one Docker container per
-session (`containerImage`, `containerNetwork`) with the worktree mounted at
+session (`containerImage`, which the operator chooses and should pin by
+digest: Lictory publishes no sandbox image and has no default;
+`containerNetwork`) with the worktree mounted at
 `/workspace` and runs the harness and its commands inside it; the runner
 reports its isolation and the UI shows it. The built-in harness's file tools
 resolve every path inside the worktree (symbolic links included) and refuse

@@ -287,6 +287,8 @@ void test("service definitions run `start` with the runner's home", () => {
   );
   assert.match(unit, /WantedBy=default.target/);
   assert.doesNotMatch(unit, /^User=/m);
+  // A revoked runner (exit 2) stays stopped instead of restart-looping.
+  assert.match(unit, /^RestartPreventExitStatus=2$/m);
   assert.match(
     systemdUnit({ system: true, home: "/srv/runner", user: "runner" }),
     /^User=runner$/m,
