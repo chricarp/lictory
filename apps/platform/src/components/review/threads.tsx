@@ -1034,7 +1034,7 @@ export function ThreadComposer({
       ref={formRef}
       aria-busy={sending || undefined}
       className={cn(
-        "scroll-mt-16 scroll-mb-4 rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow",
+        "scroll-mt-16 scroll-mb-4 rounded-xl bg-card ring-1 ring-input transition-shadow",
         active && "ring-2 ring-primary/25",
       )}
       onFocus={() => setFocused(true)}

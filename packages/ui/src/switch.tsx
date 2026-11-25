@@ -6,7 +6,8 @@ import { cn } from "@lictory/core/lib/utils";
 import { lastInFlow } from "@lictory/ui/last-in-flow";
 
 // An on/off setting that applies at once. Name it with `aria-label`, or wrap
-// it and its text in a label.
+// it and its text in a label. Off, the track is the control edge color
+// (`--input`), 3:1 on any surface, so an off switch never fades into a card.
 export function Switch({
   className,
   size = "md",
@@ -18,7 +19,7 @@ export function Switch({
   return (
     <SwitchPrimitive
       className={cn(
-        "relative m-0 inline-flex shrink-0 cursor-default items-center rounded-full border-0 bg-muted-foreground/25 p-0 focus-ring outline-none data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-40",
+        "relative m-0 inline-flex shrink-0 cursor-default items-center rounded-full border-0 bg-input p-0 focus-ring outline-none data-checked:bg-primary data-disabled:cursor-not-allowed data-disabled:opacity-40",
         size === "md" ? "h-5 w-9" : "h-4 w-7",
         lastInFlow,
         className,

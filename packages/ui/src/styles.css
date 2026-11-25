@@ -53,8 +53,14 @@
   --accent-foreground: #111214;
   --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
+  /* Hairlines between regions: decoration, not a boundary anyone needs to
+     find. */
   --border: #e7e8eb;
-  --input: #dcdee2;
+  /* The edge of a field or control (text fields, selects, radios, the off
+     track of a switch, the selected segment). >= 3:1 on background, card,
+     popover and muted in every theme and mode (WCAG 1.4.11; checked by
+     identity/color.test.ts). */
+  --input: #898a8e;
   --ring: #3b5bdb;
   --chart-1: #4f6ef7;
   --chart-2: #2f9e8f;
@@ -147,7 +153,7 @@
   --destructive: #f87171;
   --destructive-foreground: #1a0b0b;
   --border: #25272c;
-  --input: #303237;
+  --input: #6c6e73;
   --ring: #7c93ff;
   --chart-1: #7c93ff;
   --chart-2: #4fc2ad;
@@ -238,7 +244,7 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e4e4e7;
-  --input: #e4e4e7;
+  --input: #8a8a8d;
   --ring: #71717a;
   --sidebar: #fafafa;
   --sidebar-foreground: #18181b;
@@ -269,7 +275,7 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #232326;
-  --input: #2e2e32;
+  --input: #6d6d70;
   --ring: #a1a1aa;
   --sidebar: #111113;
   --sidebar-foreground: #e4e4e7;
@@ -302,7 +308,7 @@
   --destructive: #d1242f;
   --destructive-foreground: #ffffff;
   --border: #d1d9e0;
-  --input: #d1d9e0;
+  --input: #888e95;
   --ring: #0969da;
   --sidebar: #f6f8fa;
   --sidebar-foreground: #1f2328;
@@ -333,7 +339,7 @@
   --destructive: #f85149;
   --destructive-foreground: #ffffff;
   --border: #30363d;
-  --input: #3d444d;
+  --input: #6d747c;
   --ring: #1f6feb;
   --sidebar: #010409;
   --sidebar-foreground: #f0f6fc;
@@ -366,7 +372,7 @@
   --destructive: #d20f39;
   --destructive-foreground: #eff1f5;
   --border: #ccd0da;
-  --input: #bcc0cc;
+  --input: #7e8296;
   --ring: #8839ef;
   --sidebar: #e6e9ef;
   --sidebar-foreground: #4c4f69;
@@ -397,7 +403,7 @@
   --destructive: #f38ba8;
   --destructive-foreground: #11111b;
   --border: #313244;
-  --input: #45475a;
+  --input: #797d95;
   --ring: #cba6f7;
   --sidebar: #11111b;
   --sidebar-foreground: #cdd6f4;
@@ -430,7 +436,7 @@
   --destructive: #b4637a;
   --destructive-foreground: #fffaf3;
   --border: #dfdad9;
-  --input: #cecacd;
+  --input: #85819a;
   --ring: #286983;
   --sidebar: #f4ede8;
   --sidebar-foreground: #575279;
@@ -461,7 +467,7 @@
   --destructive: #eb6f92;
   --destructive-foreground: #191724;
   --border: #2a273f;
-  --input: #403d52;
+  --input: #726f84;
   --ring: #ebbcba;
   --sidebar: #16141f;
   --sidebar-foreground: #e0def4;
@@ -494,7 +500,7 @@
   --destructive: #bf616a;
   --destructive-foreground: #ffffff;
   --border: #d8dee9;
-  --input: #d8dee9;
+  --input: #7c828e;
   --ring: #5e81ac;
   --sidebar: #e5e9f0;
   --sidebar-foreground: #2e3440;
@@ -525,7 +531,7 @@
   --destructive: #bf616a;
   --destructive-foreground: #eceff4;
   --border: #434c5e;
-  --input: #4c566a;
+  --input: #969ca9;
   --ring: #88c0d0;
   --sidebar: #292e39;
   --sidebar-foreground: #e5e9f0;

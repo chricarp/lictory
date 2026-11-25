@@ -108,7 +108,7 @@ export function Composer({
     >
       <div
         className={cn(
-          "flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10",
+          "flex items-end gap-1 rounded-xl border border-input bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10",
           tooLong && "ring-2 ring-destructive/40",
         )}
       >

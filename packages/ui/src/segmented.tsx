@@ -8,7 +8,9 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 
 // One of a few views or filters, all visible in a compact row. Arrow keys
-// move the choice; name the control with `aria-label`.
+// move the choice; name the control with `aria-label`. The chosen segment is
+// a raised chip with a control edge (`--input`, 3:1 on the track), so the
+// choice does not rest on a white-on-grey difference alone.
 export function Segmented<T extends string>({
   value,
   onValueChange,
@@ -62,7 +64,7 @@ export function SegmentedItem({
       value={value}
       disabled={disabled}
       className={cn(
-        "inline-flex h-6 cursor-default items-center justify-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-xs font-medium whitespace-nowrap text-muted-foreground focus-ring outline-none select-none hover:text-foreground data-checked:bg-card data-checked:text-foreground data-checked:shadow-(--shadow-border) data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        "inline-flex h-6 cursor-default items-center justify-center gap-1.5 rounded-lg border-0 bg-transparent px-2.5 text-xs font-medium whitespace-nowrap text-muted-foreground focus-ring outline-none select-none hover:text-foreground data-checked:bg-card data-checked:text-foreground data-checked:inset-ring data-checked:inset-ring-input data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}
