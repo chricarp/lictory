@@ -1,0 +1,67 @@
+---
+title: Accessibility
+description: What Lictory aims for (WCAG 2.2 AA), how to use it with a keyboard and a screen reader, what is checked and the gaps we know about.
+---
+
+Lictory aims to meet **WCAG 2.2 level AA** in the application, the desktop
+app, the documentation and the website. Reviewing specifications means long
+sessions of reading, commenting and deciding, and keyboard, screen reader and
+low-vision users must be able to do all of it.
+
+This page states what is true today, including what is not yet good enough.
+Report an accessibility problem as a
+[GitHub issue](https://github.com/chricarp/lictory/issues) with the page, what
+you did and the assistive technology you used.
+
+## Keyboard
+
+- Everything can be reached with the keyboard. The first Tab stop on every
+  page is **Skip to content**, which moves past the sidebar.
+- Focus is always visible: one ring in the theme's focus color, at 3:1 or
+  more against every surface.
+- Dialogs, popovers and inline editors take focus when they open and give it
+  back when they close.
+- Single-letter shortcuts never fire while you type. Every shortcut is listed
+  in [keyboard shortcuts](/basics/shortcuts).
+- Editor toolbars are one Tab stop; arrow keys move between their controls.
+  The inline pickers (`/`, `#`, `[[`, `@`) are listboxes driven by the arrow
+  keys while focus stays in the text.
+- Discussions on a specification are reached with Alt+Arrow Up/Down from the
+  discussion panel, and Mod+Alt+M comments on the selected text.
+
+## Screen readers
+
+- Rich text fields are labelled multi-line text boxes. The page editor's save
+  state is a polite status, so "Saved" is announced.
+- Changed discussion anchors, stale approvals and readiness say what they mean
+  in words, never only by color.
+- Other people's carets are hidden from screen readers; who is editing is
+  stated next to the save state.
+
+## What is checked automatically
+
+Every change to Lictory runs lint rules for accessible React code and
+[axe-core](https://github.com/dequelabs/axe-core) on the main workflows in the
+browser suite: sign-in and sign-up, specification review, the board and
+backlog, settings, Home, the Inbox, channels, the Factory, Code and Spaces,
+several of them in light and dark mode. The suite fails on any serious or
+critical violation. Tools find roughly a third to a half of accessibility
+problems, so the rest depends on people testing by hand.
+
+## Known gaps
+
+- **Drag and drop.** Board cards and backlog ranking are dragged with a
+  pointer. A card's status and iteration can also be changed from the item's
+  properties, stories reorder with Alt+Arrow keys from their grip, and space
+  pages move with **Move…**, but not every drag has been audited for a
+  single-pointer alternative.
+- **Selecting published text.** Readers are read-only, so selecting a passage
+  to comment on needs a pointer or the browser's caret browsing. Without a
+  selection, Mod+Alt+M opens a comment on the whole page or specification.
+- **Live changes by other people** (another person's edit, sync state) and
+  Lictory Intelligence's answers are not announced as they happen.
+- **Themes.** Light mode and the default dark mode are checked; the optional
+  color themes are not.
+
+The [internal accessibility notes](https://github.com/chricarp/lictory/blob/main/docs/internals/accessibility.md)
+describe the checks and the keyboard model in more detail.
