@@ -10,15 +10,18 @@ export type StatusTone =
 
 export const statusToneClass: Record<StatusTone, string> = {
   // Text leans a fifth toward the foreground, so 12px labels keep 4.5:1 on
-  // their tint and on hovered rows in every theme.
-  neutral: "bg-muted text-muted-foreground ring-foreground/8",
-  info: "bg-ring/8 text-[color-mix(in_oklab,var(--ring)_80%,var(--foreground))] ring-ring/25",
+  // their tint and on hovered rows in every theme. On near-black a light
+  // tint all but disappears, so dark themes take about twice the tint and a
+  // stronger edge: chips stay recognizable at a glance in both modes.
+  neutral:
+    "bg-muted text-muted-foreground ring-foreground/8 dark:ring-foreground/15",
+  info: "bg-ring/8 text-[color-mix(in_oklab,var(--ring)_80%,var(--foreground))] ring-ring/25 dark:bg-ring/15 dark:ring-ring/40",
   attention:
-    "bg-warning/10 text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))] ring-warning/30",
+    "bg-warning/10 text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))] ring-warning/30 dark:bg-warning/15 dark:ring-warning/45",
   success:
-    "bg-success/8 text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))] ring-success/20",
+    "bg-success/8 text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))] ring-success/20 dark:bg-success/14 dark:ring-success/40",
   danger:
-    "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/20",
+    "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/20 dark:bg-destructive/14 dark:ring-destructive/40",
 };
 
 // One shape for every state: 20px tall, 6px corners, sans 12px medium, an
