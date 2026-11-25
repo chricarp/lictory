@@ -1061,6 +1061,39 @@ void test("Autopilot merges once per head, attributed to the policy, and refuses
   const done = await f.item(story.workItemId);
   assert.equal(done.category, "done");
   assert.equal(done.deliveredRevisionId, story.revisionId);
+  // The organization's audit log records the merge, attributed to Bo's
+  // policy, once.
+  const audited = await db
+    .select()
+    .from(s.auditEvent)
+    .where(
+      and(
+        eq(s.auditEvent.organizationId, f.organizationId),
+        eq(s.auditEvent.action, "autopilot.merged"),
+      ),
+    );
+  assert.equal(audited.length, 1);
+  assert.equal(audited[0]!.actorId, f.bo);
+  assert.equal(audited[0]!.targetId, pr!.id);
+  assert.equal(audited[0]!.detail?.headSha, moved);
+  // The Done item keeps the evidence it was delivered on.
+  const record = (
+    await db
+      .select()
+      .from(s.activity)
+      .where(
+        and(
+          eq(s.activity.workItemId, story.workItemId),
+          eq(s.activity.action, "definition_of_done_passed"),
+        ),
+      )
+  )[0];
+  const recorded = record?.detail as {
+    checks: { detail?: string }[];
+    pullRequests: { state: string }[];
+  };
+  assert.ok(recorded.checks.every((c) => typeof c.detail === "string"));
+  assert.ok(recorded.pullRequests.length > 0);
 
   // A second item: lowering autonomy to Build stops Autopilot.
   const second = await f.agreedStory("Partial refunds");

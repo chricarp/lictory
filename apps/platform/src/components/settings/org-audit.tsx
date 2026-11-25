@@ -26,10 +26,12 @@ import {
 const categories: { value: AuditCategory | "all"; label: string }[] = [
   { value: "all", label: "All activity" },
   { value: "membership", label: "Members & roles" },
-  { value: "access", label: "Access tokens" },
+  // Who and what can act or read: tokens, agents, runners, private
+  // channels, Slack and event webhooks.
+  { value: "access", label: "Access" },
   { value: "organization", label: "Organization" },
   { value: "configuration", label: "Configuration" },
-  { value: "agent", label: "Agent calls" },
+  { value: "agent", label: "Agents & Autopilot" },
 ];
 const categoryLabel = Object.fromEntries(
   categories.map((c) => [c.value, c.label]),

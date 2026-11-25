@@ -24,12 +24,20 @@ Three append-only tables, all scoped to one organization, are read together:
   invitation), `member.removed`, `member.left`, `member.account_deleted`,
   `member.role_changed` (with the previous and new role),
   `invitation.created`, `invitation.cancelled`, `invitation.rejected`.
-- **Access tokens**: `access_token.created` (access, prefix, expiry) and
-  `access_token.revoked`. A token acts for its owner in every organization the
-  owner belongs to, so each of those organizations records it.
+- **Access** (who and what can act or read): `access_token.created`
+  (access, prefix, expiry) and `access_token.revoked` (a token acts for its
+  owner in every organization the owner belongs to, so each of those
+  organizations records it); agents, their scope and archive; runner
+  registration and revocation; private channels and their members; Slack
+  connections and channel links; agent event webhooks and subscriptions.
 - **Two-factor**: `two_factor.requirement_changed` (with the previous value)
   and `two_factor.member_reset` (an administrator removed a member's
   authenticator; see [two-factor authentication](two-factor-authentication.md)).
+- **Agents & Autopilot**: `autopilot.merged`, written when the code host
+  confirms a merge Autopilot requested, attributed to the administrator
+  whose autonomy policy authorized it (target: the pull request; detail: the
+  head commit, the policy version and the work item). The same category
+  lists agents' capability calls from `capability_invocation`.
 - **Organization**: `organization.created`, `organization.updated` (name or
   handle), `audit_log.exported`, `data_export.requested` and
   `data_export.downloaded` ([data export](data-export.md)),

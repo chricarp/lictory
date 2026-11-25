@@ -143,9 +143,16 @@ export const auditActions = {
     category: "access",
     label: "Unlinked a channel from Slack",
   },
+  // Autopilot (docs/internals/claims.md#the-dispatcher): Lictory merged an
+  // agent's pull request under a project's autonomy policy. The actor is
+  // the administrator whose policy authorized it.
+  "autopilot.merged": {
+    category: "agent",
+    label: "Autopilot merged a pull request",
+  },
 } as const satisfies Record<
   string,
-  { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }
+  { category: Exclude<AuditCategory, "configuration">; label: string }
 >;
 export type AuditAction = keyof typeof auditActions;
 
