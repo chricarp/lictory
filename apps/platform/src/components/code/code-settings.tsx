@@ -1,10 +1,8 @@
 import { useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
-  Check,
   CircleAlert,
   CircleCheck,
-  Copy,
   FolderGit2,
   Info,
   Loader2,
@@ -25,6 +23,7 @@ import type {
 } from "@lictory/core/code/entities";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
+import { CopyValue } from "@lictory/ui/command-block";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -141,31 +140,10 @@ export function CodeHostSettings() {
 }
 
 function Copyable({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
   return (
-    <div className="grid gap-1 text-[13px]">
+    <div className="grid min-w-0 gap-1 text-[13px]">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1 font-mono text-xs">
-          {value}
-        </code>
-        <Button
-          size="icon"
-          variant="ghost"
-          aria-label={`Copy ${label.toLowerCase()}`}
-          onClick={async () => {
-            await navigator.clipboard?.writeText(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? (
-            <Check className="size-3.5" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
-        </Button>
-      </div>
+      <CopyValue label={label} value={value} />
     </div>
   );
 }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
-  Copy,
   Loader2,
   MessagesSquare,
   MoreHorizontal,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
+import { CommandBlock } from "@lictory/ui/command-block";
 import { Input } from "@lictory/ui/input";
 import { Switch } from "@lictory/ui/switch";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
@@ -381,29 +381,13 @@ function AppSetup({
           once the signing secret is saved.
         </li>
       </ol>
-      <div className="relative">
-        {/* Focusable so the manifest scrolls from the keyboard too. */}
-        <pre
-          aria-label="Slack app manifest"
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
-          tabIndex={0}
-          className="max-h-64 overflow-auto rounded-lg border bg-card p-3 font-mono text-[11.5px] leading-5 focus-ring outline-none"
-        >
-          {manifest}
-        </pre>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="absolute top-2 right-2"
-          onClick={() =>
-            void navigator.clipboard
-              .writeText(manifest)
-              .then(() => toast({ title: "Manifest copied", duration: 2500 }))
-          }
-        >
-          <Copy className="size-3.5" /> Copy
-        </Button>
-      </div>
+      <CommandBlock
+        label="Slack app manifest"
+        copyLabel="Copy the manifest"
+        maxHeight="md"
+      >
+        {manifest}
+      </CommandBlock>
       <form
         className="grid gap-3 sm:grid-cols-2"
         onSubmit={(e) => {
