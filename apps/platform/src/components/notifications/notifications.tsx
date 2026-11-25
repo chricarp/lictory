@@ -223,135 +223,137 @@ export function NotificationFeed() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-        <Segmented
-          aria-label="Show notifications"
-          className="gap-0"
-          value={filters.status}
-          onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
-        >
-          {(["unread", "all", "archived"] as const).map((s) => (
-            <SegmentedItem key={s} value={s} className="flex-none capitalize">
-              {s}
-            </SegmentedItem>
-          ))}
-        </Segmented>
-        <FilterMenu
-          label={filters.everywhere ? "All organizations" : organization.name}
-          active={filters.everywhere}
-          title="Organization"
-          options={[
-            {
-              value: "here",
-              label: organization.name,
-              hint: "This organization",
-            },
-            { value: "all", label: "All organizations" },
-          ]}
-          value={filters.everywhere ? "all" : "here"}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              everywhere: v === "all",
-              projectId: null,
-              teamId: null,
-            }))
-          }
-        />
-        {!filters.everywhere && (
-          <>
-            <FilterMenu
-              label={projectName(filters.projectId) ?? "Any project"}
-              active={!!filters.projectId}
-              title="Project"
-              options={[
-                { value: "", label: "Any project" },
-                ...projects.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  hint: p.key,
-                })),
-              ]}
-              value={filters.projectId ?? ""}
-              onSelect={(v) =>
-                setFilters((f) => ({ ...f, projectId: v || null }))
-              }
-            />
-            {teams.length > 0 && (
+      <div className="border-b">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 py-2">
+          <Segmented
+            aria-label="Show notifications"
+            className="gap-0"
+            value={filters.status}
+            onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
+          >
+            {(["unread", "all", "archived"] as const).map((s) => (
+              <SegmentedItem key={s} value={s} className="flex-none capitalize">
+                {s}
+              </SegmentedItem>
+            ))}
+          </Segmented>
+          <FilterMenu
+            label={filters.everywhere ? "All organizations" : organization.name}
+            active={filters.everywhere}
+            title="Organization"
+            options={[
+              {
+                value: "here",
+                label: organization.name,
+                hint: "This organization",
+              },
+              { value: "all", label: "All organizations" },
+            ]}
+            value={filters.everywhere ? "all" : "here"}
+            onSelect={(v) =>
+              setFilters((f) => ({
+                ...f,
+                everywhere: v === "all",
+                projectId: null,
+                teamId: null,
+              }))
+            }
+          />
+          {!filters.everywhere && (
+            <>
               <FilterMenu
-                label={teamName(filters.teamId) ?? "Any team"}
-                active={!!filters.teamId}
-                title="Team"
+                label={projectName(filters.projectId) ?? "Any project"}
+                active={!!filters.projectId}
+                title="Project"
                 options={[
-                  { value: "", label: "Any team" },
-                  ...teams.map((t) => ({
-                    value: t.id,
-                    label: teamName(t.id) ?? t.name,
+                  { value: "", label: "Any project" },
+                  ...projects.map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    hint: p.key,
                   })),
                 ]}
-                value={filters.teamId ?? ""}
+                value={filters.projectId ?? ""}
                 onSelect={(v) =>
-                  setFilters((f) => ({ ...f, teamId: v || null }))
+                  setFilters((f) => ({ ...f, projectId: v || null }))
                 }
               />
-            )}
-          </>
-        )}
-        <FilterMenu
-          label={
-            filters.category ? categoryLabels[filters.category] : "Any type"
-          }
-          active={!!filters.category}
-          title="Type"
-          options={[
-            { value: "", label: "Any type" },
-            ...notificationCategories.map((c) => ({
-              value: c,
-              label: categoryLabels[c],
-            })),
-          ]}
-          value={filters.category ?? ""}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              category: (v || null) as NotificationCategory | null,
-            }))
-          }
-        />
-        <div className="ml-auto flex items-center gap-3">
-          {unreadElsewhere.length > 0 && !filters.everywhere && (
-            <p className="text-xs text-muted-foreground">
-              Also unread in{" "}
-              {unreadElsewhere.map((o, i) => (
-                <span key={o.id}>
-                  {i > 0 && ", "}
-                  <Link
-                    href={paths.inbox(o.slug, "updates")}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {o.name} ({o.count})
-                  </Link>
-                </span>
-              ))}
-            </p>
+              {teams.length > 0 && (
+                <FilterMenu
+                  label={teamName(filters.teamId) ?? "Any team"}
+                  active={!!filters.teamId}
+                  title="Team"
+                  options={[
+                    { value: "", label: "Any team" },
+                    ...teams.map((t) => ({
+                      value: t.id,
+                      label: teamName(t.id) ?? t.name,
+                    })),
+                  ]}
+                  value={filters.teamId ?? ""}
+                  onSelect={(v) =>
+                    setFilters((f) => ({ ...f, teamId: v || null }))
+                  }
+                />
+              )}
+            </>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void markAllRead()}
-            disabled={!page?.items.some((n) => !n.readAt)}
-          >
-            <CheckCheck className="size-3.5" /> Mark all read
-          </Button>
-          <Tooltip label="Notification settings">
-            <Link
-              href={paths.notificationSettings(organization.slug)}
-              aria-label="Notification settings"
-              className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+          <FilterMenu
+            label={
+              filters.category ? categoryLabels[filters.category] : "Any type"
+            }
+            active={!!filters.category}
+            title="Type"
+            options={[
+              { value: "", label: "Any type" },
+              ...notificationCategories.map((c) => ({
+                value: c,
+                label: categoryLabels[c],
+              })),
+            ]}
+            value={filters.category ?? ""}
+            onSelect={(v) =>
+              setFilters((f) => ({
+                ...f,
+                category: (v || null) as NotificationCategory | null,
+              }))
+            }
+          />
+          <div className="ml-auto flex items-center gap-3">
+            {unreadElsewhere.length > 0 && !filters.everywhere && (
+              <p className="text-xs text-muted-foreground">
+                Also unread in{" "}
+                {unreadElsewhere.map((o, i) => (
+                  <span key={o.id}>
+                    {i > 0 && ", "}
+                    <Link
+                      href={paths.inbox(o.slug, "updates")}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {o.name} ({o.count})
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void markAllRead()}
+              disabled={!page?.items.some((n) => !n.readAt)}
             >
-              <Settings2 className="size-4" aria-hidden />
-            </Link>
-          </Tooltip>
+              <CheckCheck className="size-3.5" /> Mark all read
+            </Button>
+            <Tooltip label="Notification settings">
+              <Link
+                href={paths.notificationSettings(organization.slug)}
+                aria-label="Notification settings"
+                className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+              >
+                <Settings2 className="size-4" aria-hidden />
+              </Link>
+            </Tooltip>
+          </div>
         </div>
       </div>
       {error && (
@@ -388,7 +390,7 @@ export function NotificationFeed() {
             addressed to you appear here.
           </EmptyState>
         ) : (
-          <ul className="divide-y">
+          <ul className="mx-auto w-full max-w-5xl divide-y">
             {rows.map((row) => {
               const ids = row.items.map((n) => n.id);
               return (
