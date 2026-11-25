@@ -1,4 +1,14 @@
-import { and, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { canonicalJson } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
@@ -258,6 +268,25 @@ async function computeCodeRows(
       .select()
       .from(s.codeRepositoryProject)
       .where(eq(s.codeRepositoryProject.organizationId, organizationId));
+    // Repositories whose host has reported at least one check: Autopilot
+    // and the Definition of Done wait for CI, so the Autonomy settings warn
+    // about a repository that never reported one.
+    const reporting = new Set(
+      (
+        await db
+          .selectDistinct({ repositoryId: s.codeCommitChecks.repositoryId })
+          .from(s.codeCommitChecks)
+          .where(
+            and(
+              eq(s.codeCommitChecks.organizationId, organizationId),
+              ne(s.codeCommitChecks.state, "none"),
+              repositoryIds
+                ? inArray(s.codeCommitChecks.repositoryId, repositoryIds)
+                : undefined,
+            ),
+          )
+      ).map((r) => r.repositoryId),
+    );
     for (const repository of repositories.values()) {
       if (repositoryIds && !repositoryIds.includes(repository.id)) continue;
       rows.push(
@@ -283,6 +312,7 @@ async function computeCodeRows(
               .sort(),
             lastSyncedAt: isoOrNull(repository.lastSyncedAt),
             lastSyncError: repository.lastSyncError,
+            reportsChecks: reporting.has(repository.id),
           },
           { repositoryId: repository.id },
         ),

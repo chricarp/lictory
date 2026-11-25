@@ -2000,12 +2000,22 @@ export async function followDefinitionOfDone(
             workItemId: entity.workItemId,
             actorId: evaluation.accountableId!,
             action: "definition_of_done_passed",
+            // The evidence Done rests on, kept on the item once its
+            // evaluation leaves the projection (the item is Done).
             detail: {
               checks: entity.checks.map((c) => ({
                 key: c.key,
                 label: c.label,
                 overridden: Boolean(c.override),
+                ...(c.detail ? { detail: c.detail } : {}),
               })),
+              pullRequests: entity.code.pullRequests.map((pr) => ({
+                title: pr.title,
+                url: pr.url,
+                state: pr.state,
+                headSha: pr.headSha,
+              })),
+              revisionId: entity.revisionId,
               claimId: evaluation.claimId,
               automation: "definition_of_done",
             },

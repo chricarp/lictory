@@ -39,6 +39,21 @@ export function relevantPullRequests(prs: CodePullRequestEvidence[]) {
 
 const named = (pr: CodePullRequestEvidence) => `“${pr.title}”`;
 
+// Why the CI check is not met when the host reported nothing to pass.
+export const noChecksSentence =
+  "The code host has reported no checks for this commit.";
+
+function noChecksDetail(prs: CodePullRequestEvidence[]) {
+  const optional = prs.filter((pr) => (pr.checks.reported ?? 0) > 0);
+  const first =
+    prs.length === 1
+      ? optional.length
+        ? `The code host marks none of the checks on the head commit of ${named(prs[0]!)} as required.`
+        : `The code host has reported no checks for the head commit of ${named(prs[0]!)}.`
+      : `The code host has reported no required checks for the head commits of ${prs.map(named).join(", ")}.`;
+  return `${first} A project without CI removes this check from its Definition of Done.`;
+}
+
 function approvedHead(
   pr: CodePullRequestEvidence,
   reviewer: { id: string } | null,
@@ -99,12 +114,15 @@ function evaluateCode(
           passed: false,
           detail: `Still running: ${pending.join(", ")}.`,
         };
+      // No reported check is no evidence that CI passed: the check waits
+      // until the code host reports one for the head commit.
+      const unreported = relevant.filter((pr) => pr.checks.required === 0);
+      if (unreported.length)
+        return { passed: false, detail: noChecksDetail(unreported) };
       const required = relevant.reduce((n, pr) => n + pr.checks.required, 0);
       return {
         passed: true,
-        detail: required
-          ? `${required} required check${required === 1 ? "" : "s"} passed.`
-          : "No required checks reported on this branch.",
+        detail: `${required} required check${required === 1 ? "" : "s"} passed.`,
       };
     }
     case "code_review_approved": {
@@ -208,6 +226,12 @@ export function autopilotMergeCandidate(
         return {
           ready: false,
           reason: `Required checks have not passed on ${named(pr)}.`,
+        };
+      // Autopilot never merges a commit CI has not reported on.
+      if (pr.checks.required === 0)
+        return {
+          ready: false,
+          reason: `The code host has reported no checks for the head commit of ${named(pr)}. Autopilot merges only after CI passes.`,
         };
     } else if (requirement === "code_review_approved") {
       if (!reviewer)

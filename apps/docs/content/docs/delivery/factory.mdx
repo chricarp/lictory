@@ -107,7 +107,10 @@ channel. Without one, dispatched sessions are followed in the Factory.
 
 Under **Before an automatic merge**, Autopilot can also require the reviewer
 agent's approval of the head commit and every other Definition of Done check;
-passing CI is always required.
+passing CI is always required. A commit the code host has reported no checks
+for has not passed CI: Autopilot waits until CI reports on the head commit,
+and the pull request page says so. If a linked repository has never reported
+a check, the Autonomy settings warn you before you choose Autopilot.
 
 Every change is recorded in the audit log, and **History** restores an
 earlier policy. Lowering the level releases nothing: claims in flight
@@ -126,7 +129,9 @@ is done, next to the Definition of Ready:
 
 - **A linked code pull request is merged** and none is still open. Pull
   requests that name the item's key (PAY-142) are linked automatically.
-- **Required CI checks passed** on the head commit.
+- **Required CI checks passed** on the head commit. A commit the code host
+  has reported no checks for does not pass it: no check is no evidence. A
+  project without CI removes this check.
 - **A reviewer approved the head commit**: the project's reviewer agent when
   one is set (its review recorded in Lictory for that commit); otherwise any
   approval, in Lictory or on the host.
@@ -136,8 +141,9 @@ is done, next to the Definition of Ready:
 By default a project requires a merged pull request with passing checks. The
 item's right panel shows each check under **Definition of Done** while work
 is in progress. When every check passes, the item moves to Done by itself and
-records the revision it delivered. An agent saying it is finished never moves
-it.
+records the revision it delivered; the Done item keeps showing the checks that
+passed and the pull requests they read. An agent saying it is finished never
+moves it.
 
 When a check cannot pass from evidence (the change needed no code, CI cannot
 run), someone who changes properties chooses **Pass by hand** and gives a

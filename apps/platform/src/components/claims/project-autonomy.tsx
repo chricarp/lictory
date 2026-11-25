@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, History } from "lucide-react";
+import { Bot, CircleAlert, History } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   autonomyLevelMeta,
@@ -22,6 +22,7 @@ import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannels } from "@lictory/platform/components/channels/store";
+import { useCodeHosts } from "@lictory/platform/components/code/store";
 import { AgentActor } from "@lictory/platform/components/identity/actor";
 import {
   InlineError,
@@ -331,13 +332,14 @@ export function ProjectAutonomy({
                       {autopilotRequirementLabels[requirement]}
                       {requirement === "checks_passed" && (
                         <span className="text-xs text-muted-foreground">
-                          always
+                          always; a commit with no reported checks waits
                         </span>
                       )}
                     </label>
                   </li>
                 ))}
               </ul>
+              <SilentRepositories projectId={project.id} />
             </Field>
           )}
           {loaded.claimsInFlight > 0 && (
@@ -427,5 +429,31 @@ export function ProjectAutonomy({
         </SettingsSection>
       )}
     </div>
+  );
+}
+
+// Autopilot merges only after the code host reports passing checks, so a
+// linked repository that never reported a check means it will never merge
+// there. Said before the administrator relies on it.
+function SilentRepositories({ projectId }: { projectId: string }) {
+  const { repositories } = useCodeHosts();
+  const linked = repositories.filter((r) => r.projectIds.includes(projectId));
+  const silent = linked.filter((r) => r.reportsChecks === false);
+  if (linked.length > 0 && silent.length === 0) return null;
+  return (
+    <p
+      role="note"
+      className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
+    >
+      <CircleAlert
+        aria-hidden
+        className="mt-px size-3.5 shrink-0 text-warning"
+      />
+      <span>
+        {linked.length === 0
+          ? "No repository is linked to this project, so there is nothing for Autopilot to merge yet."
+          : `${silent.map((r) => r.fullName).join(", ")} ${silent.length === 1 ? "has" : "have"} never reported a CI check. Autopilot waits for passing checks on the head commit, so it will not merge there until CI reports.`}
+      </span>
+    </p>
   );
 }

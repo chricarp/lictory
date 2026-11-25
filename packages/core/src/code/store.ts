@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type {
   CodeLinkSource,
@@ -225,6 +225,22 @@ export async function upsertChecks(
   touched: Touched,
 ) {
   const organizationId = repository.organizationId;
+  // The repository's first reported check changes what it shows
+  // (`reportsChecks`).
+  if (summary.state !== "none") {
+    const [seen] = await tx
+      .select({ sha: s.codeCommitChecks.sha })
+      .from(s.codeCommitChecks)
+      .where(
+        and(
+          eq(s.codeCommitChecks.organizationId, organizationId),
+          eq(s.codeCommitChecks.repositoryId, repository.id),
+          ne(s.codeCommitChecks.state, "none"),
+        ),
+      )
+      .limit(1);
+    if (!seen) touched.repositoryIds.add(repository.id);
+  }
   await tx
     .insert(s.codeCommitChecks)
     .values({
