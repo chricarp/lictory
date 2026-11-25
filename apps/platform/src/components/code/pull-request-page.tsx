@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   ChevronRight,
@@ -19,6 +19,7 @@ import { mergeBlockers } from "@lictory/core/code/merge-rules";
 import type { CodePullRequestFile } from "@lictory/core/code/provider";
 import { codePullRequest } from "@lictory/core/contracts/state-machines";
 import { cn } from "@lictory/core/lib/utils";
+import { numberPatch } from "@lictory/platform/lib/patch";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import {
@@ -548,7 +549,7 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
     >
       {/* The shared composer's frame: the rich editor with its toolbar,
           the action at its end (as in channels and sessions). */}
-      <div className="flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
+      <div className="flex items-end gap-1 rounded-xl border border-input bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
         <div className="min-w-0 flex-1">
           <MarkdownEditor
             ref={editor}
@@ -698,21 +699,50 @@ function FilesChanged({
                 </CollapsibleTrigger>
                 <CollapsiblePanel>
                   {f.patch ? (
-                    <pre className="overflow-x-auto border-t text-xs leading-5">
-                      {f.patch.split("\n").map((line, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "px-3 font-mono whitespace-pre",
-                            line.startsWith("+") && "bg-success/10",
-                            line.startsWith("-") && "bg-destructive/10",
-                            line.startsWith("@@") &&
-                              "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {line || " "}
-                        </div>
-                      ))}
+                    // Old and new line numbers in a gutter, then the line.
+                    <pre
+                      role="group"
+                      aria-label={`Diff of ${f.path}`}
+                      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
+                      tabIndex={0}
+                      className="grid grid-cols-[auto_auto_1fr] overflow-x-auto border-t font-mono text-xs leading-5 focus-ring-inset outline-none"
+                    >
+                      {numberPatch(f.patch).map((line, i) => {
+                        const tone = cn(
+                          line.kind === "add" && "bg-success/10",
+                          line.kind === "delete" && "bg-destructive/10",
+                          line.kind === "hunk" &&
+                            "bg-muted text-muted-foreground",
+                          line.kind === "note" && "text-muted-foreground",
+                        );
+                        return (
+                          <Fragment key={i}>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "min-w-10 pr-2 pl-3 text-right text-muted-foreground tabular-nums select-none",
+                                tone,
+                              )}
+                            >
+                              {line.old ?? ""}
+                            </span>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "min-w-10 border-r pr-2 text-right text-muted-foreground tabular-nums select-none",
+                                tone,
+                              )}
+                            >
+                              {line.new ?? ""}
+                            </span>
+                            <span
+                              className={cn("pr-3 pl-2 whitespace-pre", tone)}
+                            >
+                              {line.text || " "}
+                            </span>
+                          </Fragment>
+                        );
+                      })}
                     </pre>
                   ) : (
                     <p className="border-t px-3 py-2 text-xs text-muted-foreground">
