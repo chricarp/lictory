@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  Bot,
   ChevronRight,
   FileDiff,
   GitMerge,
@@ -19,7 +20,7 @@ import { mergeBlockers } from "@lictory/core/code/merge-rules";
 import type { CodePullRequestFile } from "@lictory/core/code/provider";
 import { codePullRequest } from "@lictory/core/contracts/state-machines";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { byType, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import {
   DropdownSelect,
@@ -45,6 +46,7 @@ import {
   type MergeRequirement,
 } from "@lictory/platform/components/review/merge-box";
 import { Actor, AgentActor } from "@lictory/platform/components/identity/actor";
+import { CheckIcon } from "@lictory/platform/components/review/flow-ui";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   useCodeHosts,
@@ -228,7 +230,9 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
 }
 
 // The checks, reviews and conflicts the merge depends on, as requirements
-// in words. `mergeBlockers` is the rule; these rows explain it.
+// in words. `mergeBlockers` is the rule; these rows explain it. Reviews
+// recorded in Lictory (an agent's, with the person it acts for) count
+// beside the host's.
 function requirements(
   pr: CodePullRequestEntity,
   memberName: (id: string | null) => string,
@@ -249,49 +253,68 @@ function requirements(
           key: "checks",
           state: "success",
           text: "Checks passed.",
-          detail: runs.length > 0 && <CheckRuns runs={runs} />,
+          detail: runs.length > 0 && <CheckRuns runs={runs} pr={pr} />,
         }
       : pr.checks.state === "failure"
         ? {
             key: "checks",
             state: "failure",
             text: `Checks are failing (${failing.length} of ${runs.length}).`,
-            detail: <CheckRuns runs={runs} />,
+            detail: <CheckRuns runs={runs} pr={pr} />,
           }
         : pr.checks.state === "pending"
           ? {
               key: "checks",
               state: "running",
               text: `Checks are still running (${running.length} of ${runs.length}).`,
-              detail: <CheckRuns runs={runs} />,
+              detail: <CheckRuns runs={runs} pr={pr} />,
             }
           : {
               key: "checks",
               state: "neutral",
-              text: "The code host reports no checks.",
+              text: `The code host has reported no checks for ${shortSha(pr.headSha)}.`,
+              detail:
+                "No check is no evidence that CI passed. If this repository runs CI, wait for it to report.",
             },
   );
-  const lictoryReviewers = pr.reviews
-    .filter((r) => r.current && r.decision === "approve")
-    .map((r) =>
-      r.agentName
-        ? `${r.agentName} via ${memberName(r.reviewerId)}`
-        : memberName(r.reviewerId),
-    );
-  const approvers = [...pr.approvedBy, ...lictoryReviewers];
+  const reviewer = (r: CodePullRequestEntity["reviews"][number]) =>
+    r.agentName
+      ? `${r.agentName} via ${memberName(r.reviewerId)}`
+      : memberName(r.reviewerId);
+  const current = pr.reviews.filter((r) => r.current);
+  const lictoryApprovers = current
+    .filter((r) => r.decision === "approve")
+    .map(reviewer);
+  const lictoryChanges = current
+    .filter((r) => r.decision === "request_changes")
+    .map(reviewer);
+  const approvers = [...pr.approvedBy, ...lictoryApprovers];
+  const changesNote =
+    lictoryChanges.length > 0 &&
+    `${lictoryChanges.join(", ")} requested changes in Lictory.`;
   rows.push(
-    pr.reviewDecision === "approved"
+    pr.reviewDecision === "changes_requested"
       ? {
           key: "reviews",
-          state: "success",
-          text: "Approved.",
-          detail: approvers.length > 0 && `By ${approvers.join(", ")}.`,
+          state: "failure",
+          text: "A reviewer requested changes.",
         }
-      : pr.reviewDecision === "changes_requested"
+      : approvers.length > 0
         ? {
             key: "reviews",
-            state: "failure",
-            text: "A reviewer requested changes.",
+            state: "success",
+            text:
+              pr.reviewDecision === "approved"
+                ? "Approved."
+                : `Approved in Lictory at ${shortSha(pr.headSha)}.`,
+            detail: [
+              `By ${approvers.join(", ")}.`,
+              pr.reviewDecision === "review_required" &&
+                "The code host still asks for a review of its own.",
+              changesNote,
+            ]
+              .filter(Boolean)
+              .join(" "),
           }
         : pr.reviewDecision === "review_required"
           ? {
@@ -299,16 +322,28 @@ function requirements(
               state: "pending",
               text: "A review is required.",
               detail:
-                pr.requestedReviewers.length > 0 &&
-                `Asked: ${pr.requestedReviewers.join(", ")}.`,
+                [
+                  pr.requestedReviewers.length > 0 &&
+                    `Asked: ${pr.requestedReviewers.join(", ")}.`,
+                  changesNote,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined,
             }
           : {
               key: "reviews",
               state: "neutral",
-              text: "No reviews yet.",
+              text: lictoryChanges.length
+                ? "Nobody has approved this commit."
+                : "Nobody has reviewed this commit.",
               detail:
-                pr.requestedReviewers.length > 0 &&
-                `Asked: ${pr.requestedReviewers.join(", ")}.`,
+                [
+                  pr.requestedReviewers.length > 0 &&
+                    `Asked: ${pr.requestedReviewers.join(", ")}.`,
+                  changesNote,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined,
             },
   );
   rows.push(
@@ -333,11 +368,43 @@ function requirements(
   return rows;
 }
 
+// Under "Ready to merge": what the evidence is, never more. Nothing blocks
+// the merge, but missing evidence is named ("no checks reported").
+function readySummary(
+  rows: readonly MergeRequirement[],
+  target: string,
+): string {
+  const missing: string[] = [];
+  for (const r of rows) {
+    if (r.state === "success") continue;
+    if (r.key === "checks") missing.push("no checks were reported");
+    else if (r.key === "reviews")
+      missing.push(
+        r.state === "pending"
+          ? "the code host still requires a review"
+          : "nobody approved it",
+      );
+    else if (r.key === "conflicts") missing.push("conflicts are not known yet");
+  }
+  if (!missing.length)
+    return `Checks passed, it is approved and it merges cleanly into ${target}.`;
+  const list =
+    missing.length === 1
+      ? missing[0]
+      : `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}`;
+  return `Nothing blocks merging into ${target}, but ${list}.`;
+}
+
+// Each run links to its details on the host; a run the host gave no link
+// for opens the pull request's checks there.
 function CheckRuns({
   runs,
+  pr,
 }: {
   runs: CodePullRequestEntity["checks"]["runs"];
+  pr: Pick<CodePullRequestEntity, "provider" | "webUrl">;
 }) {
+  const fallback = hostChecksUrl(pr);
   return (
     <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
       {runs.map((run) => (
@@ -346,9 +413,9 @@ function CheckRuns({
             state={run.state === "neutral" ? "none" : run.state}
             label={run.state === "neutral" ? "Skipped" : undefined}
           />
-          {run.url ? (
+          {(run.url ?? fallback) ? (
             <a
-              href={run.url}
+              href={run.url ?? fallback}
               target="_blank"
               rel="noreferrer"
               className="rounded-sm underline-offset-2 focus-ring outline-none hover:text-foreground hover:underline"
@@ -363,6 +430,18 @@ function CheckRuns({
       ))}
     </ul>
   );
+}
+
+function hostChecksUrl(
+  pr: Pick<CodePullRequestEntity, "provider" | "webUrl">,
+): string | undefined {
+  if (!pr.webUrl) return undefined;
+  const base = pr.webUrl.replace(/\/$/, "");
+  return pr.provider === "github"
+    ? `${base}/checks`
+    : pr.provider === "gitlab"
+      ? `${base}/pipelines`
+      : base;
 }
 
 function useCanWork(pr: CodePullRequestEntity) {
@@ -405,6 +484,8 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
   const [confirming, setConfirming] = useState(false);
   const { call, error } = useCall(pr);
   const blockers = mergeBlockers(pr);
+  const rows = requirements(pr, memberName);
+  const autopilot = useAutopilotGoverns(pr);
   const merging = writes.some(
     (w) => w.kind === "merge" && w.status !== "failed",
   );
@@ -427,6 +508,23 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
                 ? ` by ${pr.mergedByLogin} on the code host.`
                 : "."}
           </p>
+          {/* What the merge rested on: the head's checks and reviews. */}
+          <ul
+            aria-label="Merged on"
+            className="mt-2 space-y-1 text-xs text-muted-foreground"
+          >
+            {requirements(pr, memberName)
+              .filter((r) => r.key !== "conflicts")
+              .map((r) => (
+                <li key={r.key} className="flex items-start gap-2">
+                  <CheckIcon state={r.state} className="mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-foreground">{r.text}</p>
+                    {r.detail && <div>{r.detail}</div>}
+                  </div>
+                </li>
+              ))}
+          </ul>
         </MergedNotice>
       </div>
     );
@@ -445,9 +543,10 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
       {status}
       <MergeBox
         target={pr.baseBranch}
-        requirements={requirements(pr, memberName)}
+        requirements={rows}
         blocked={blockers.length > 0}
-        readySummary={`Checks, reviews and conflicts allow merging into ${pr.baseBranch}.`}
+        readySummary={readySummary(rows, pr.baseBranch)}
+        before={autopilot && <AutopilotWaits pr={pr} />}
         note={
           !canWork
             ? "Merging here needs “Change properties” in a project this repository serves."
@@ -519,6 +618,60 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+// Whether Autopilot merges this pull request by itself: an agent's pull
+// request delivering an item of a project on Autopilot.
+function useAutopilotGoverns(pr: CodePullRequestEntity) {
+  const { view } = useWorkspace();
+  if (!(pr.agentSessionId ?? pr.agentId)) return null;
+  const projectIds = new Set(pr.links.map((l) => l.projectId));
+  return (
+    byType(Object.values(view.entities), "autonomyPolicy").find(
+      (p) => projectIds.has(p.projectId) && p.level === "autopilot",
+    ) ?? null
+  );
+}
+
+// What Autopilot waits for before it merges, in the merge box: a person
+// sees why nothing has happened yet, and that a missing check is waited
+// for, never taken as a pass.
+function AutopilotWaits({ pr }: { pr: CodePullRequestEntity }) {
+  const policy = useAutopilotGoverns(pr);
+  const { agentById } = useFactory();
+  if (!policy) return null;
+  const reviewer = policy.reviewerAgentId
+    ? (agentById.get(policy.reviewerAgentId)?.name ?? "the reviewer agent")
+    : null;
+  const conditions = [
+    `the code host reports passing checks on ${shortSha(pr.headSha)}`,
+    policy.autopilotRequires.includes("code_review_approved") && reviewer
+      ? `${reviewer} approves it`
+      : null,
+    policy.autopilotRequires.includes("definition_of_done")
+      ? "every other Definition of Done check passes"
+      : null,
+  ].filter((c): c is string => Boolean(c));
+  const waiting =
+    pr.checks.state === "none"
+      ? "Waiting: the code host has reported no checks for this commit yet."
+      : pr.checks.state === "pending"
+        ? "Waiting: checks are still running."
+        : pr.checks.state === "failure"
+          ? "Checks are failing, so Autopilot will not merge this commit."
+          : null;
+  return (
+    <div className="flex items-start gap-2 text-xs" data-autopilot-waits>
+      <Bot aria-hidden className="mt-px size-3.5 shrink-0" />
+      <p>
+        <span className="font-medium">Autopilot</span> merges this when{" "}
+        {conditions.length > 1
+          ? `${conditions.slice(0, -1).join(", ")} and ${conditions.at(-1)}`
+          : conditions[0]}
+        .{waiting && <span className="text-muted-foreground"> {waiting}</span>}
+      </p>
     </div>
   );
 }
