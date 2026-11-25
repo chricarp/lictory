@@ -12,7 +12,11 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import type { RunnerEvent } from "@lictory/core/factory/protocol";
 import { ProtocolError } from "@lictory/runner/client";
-import { configSchema } from "@lictory/runner/config";
+import {
+  configSchema,
+  containerImageProblem,
+  pinnedImage,
+} from "@lictory/runner/config";
 import { EventStream } from "@lictory/runner/events";
 import { confined, OutsideWorktree } from "@lictory/runner/harness/lictory";
 import { defaultScript, fakeHarnesses } from "@lictory/runner/harness/fake";
@@ -293,4 +297,30 @@ void test("service definitions run `start` with the runner's home", () => {
   });
   assert.match(plist, /<string>start<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
+});
+
+void test("container isolation needs an image the operator chose; Lictory names none", () => {
+  const base = {
+    url: "https://lictory.example.test",
+    runnerId: "r",
+    organizationId: "o",
+    name: "box",
+    personal: false,
+    credential: "lcr_x",
+  };
+  const host = configSchema.parse(base);
+  assert.equal(host.containerImage, undefined);
+  assert.equal(containerImageProblem(host), null);
+  const container = configSchema.parse({ ...base, isolation: "container" });
+  assert.match(
+    containerImageProblem(container) ?? "",
+    /needs an image .* --container-image/,
+  );
+  const image = `registry.example.test/sandbox@sha256:${"a".repeat(64)}`;
+  assert.equal(
+    containerImageProblem({ ...container, containerImage: image }),
+    null,
+  );
+  assert.ok(pinnedImage(image));
+  assert.ok(!pinnedImage("registry.example.test/sandbox:latest"));
 });

@@ -12,6 +12,8 @@ import {
   workDirectory,
   writeConfig,
   configSchema,
+  containerImageProblem,
+  pinnedImage,
 } from "@lictory/runner/config";
 import { machineReport, startDaemon } from "@lictory/runner/daemon";
 import { fakeHarnesses, loadScript } from "@lictory/runner/harness/fake";
@@ -24,6 +26,7 @@ const usage = `lictory-runner ${RUNNER_VERSION}: runs Lictory agent sessions on 
 Usage:
   lictory-runner register --url <server> --token <registration token> [--name <name>]
                           [--max-sessions <n>] [--isolation host|container] [--label <label>]…
+                          [--container-image <image@sha256:digest>]
   lictory-runner start [--test-harness <script.json|default>]
   lictory-runner status
   lictory-runner doctor
@@ -43,6 +46,7 @@ async function register(args: string[]) {
       name: { type: "string" },
       "max-sessions": { type: "string" },
       isolation: { type: "string" },
+      "container-image": { type: "string" },
       label: { type: "string", multiple: true },
       force: { type: "boolean" },
     },
@@ -67,8 +71,11 @@ async function register(args: string[]) {
       ? Number(values["max-sessions"])
       : undefined,
     isolation: values.isolation,
+    containerImage: values["container-image"],
     labels: values.label ?? [],
   });
+  const imageProblem = containerImageProblem(base);
+  if (imageProblem) throw new Error(imageProblem);
   const detected = await detectHarnesses(harnesses, base);
   const client = new RunnerClient(base.url, null);
   const registered = await client.register({
@@ -109,6 +116,8 @@ async function start(args: string[]) {
     options: { "test-harness": { type: "string" } },
   });
   const config = await required();
+  const imageProblem = containerImageProblem(config);
+  if (imageProblem) throw new Error(imageProblem);
   const testScript =
     values["test-harness"] ?? process.env.LICTORY_RUNNER_TEST_HARNESS;
   let available = harnesses;
@@ -230,6 +239,14 @@ async function doctor() {
     `Work directory ${work} is ${writable ? "writable" : "not writable"}`,
   );
   if (config.isolation === "container") {
+    const imageProblem = containerImageProblem(config);
+    if (imageProblem) check(false, imageProblem);
+    else if (pinnedImage(config.containerImage!))
+      check(true, `Container image ${config.containerImage}`);
+    else
+      out(
+        `! Container image ${config.containerImage} is not pinned by digest: pin it (image@sha256:…) in config.json so a moved tag cannot change what sessions run in.`,
+      );
     const docker = await run("docker", [
       "version",
       "--format",

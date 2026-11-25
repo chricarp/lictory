@@ -4,8 +4,10 @@ import { test } from "node:test";
 import { latestDesktopInstallers } from "@lictory/core/release/downloads";
 import {
   desktopDownloads,
+  isPublished,
   otherSystems,
   primaryDownload,
+  releaseFiles,
 } from "@lictory/marketing/content/downloads";
 import {
   detectSystem,
@@ -197,4 +199,15 @@ void test("every download is the newest stable release's file under its contract
       ["Linux", "linux-x64-appimage"],
     ],
   );
+});
+
+void test("a file the release does not carry is offered as missing, never as a link that 404s", () => {
+  assert.equal(releaseFiles(undefined), null);
+  assert.equal(releaseFiles(" , "), null);
+  // Without the list (local builds) every file is offered.
+  assert.ok(isPublished("Lictory-mac-universal.dmg", null));
+  const v026 = releaseFiles("release.env,manifest.json,LICENSE");
+  assert.ok(!isPublished("Lictory-mac-universal.dmg", v026));
+  assert.ok(!isPublished("lictory-runner-install.sh", v026));
+  assert.ok(isPublished("release.env", v026));
 });

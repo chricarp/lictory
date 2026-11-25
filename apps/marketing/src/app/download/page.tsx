@@ -17,8 +17,12 @@ import {
   checksumFiles,
   desktopDownloads,
   desktopSystems,
+  releaseName,
+  releaseVersion,
   runnerBinaries,
+  runnerFromSource,
   runnerInstallCommands,
+  runnerInstallersAvailable,
   runnerScripts,
 } from "@lictory/marketing/content/downloads";
 import {
@@ -48,17 +52,24 @@ const textLink =
 const buttonLink =
   "inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-card px-4 text-[13px] font-medium text-foreground shadow-[0_0_0_1px_var(--border),0_1px_2px_rgb(0_0_0/0.05)] transition-colors outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60";
 
-/** One file: what it is, its name, and a plain link to it. */
+/**
+ * One file: what it is, its name, and a plain link to it, or why there is
+ * none (the release does not carry it, so the link would 404).
+ */
 function FileRow({
   label,
   detail,
   file,
   href,
+  available,
+  missing,
 }: {
   label: string;
   detail?: string;
   file: string;
   href: string;
+  available: boolean;
+  missing?: ReactNode;
 }) {
   return (
     <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -73,9 +84,15 @@ function FileRow({
           {file}
         </p>
       </div>
-      <TrackedLink href={href} tracking={tracking} className={buttonLink}>
-        Download<span className="sr-only"> {label}</span>
-      </TrackedLink>
+      {available ? (
+        <TrackedLink href={href} tracking={tracking} className={buttonLink}>
+          Download<span className="sr-only"> {label}</span>
+        </TrackedLink>
+      ) : (
+        <p className="shrink-0 text-sm leading-6 text-muted-foreground sm:max-w-56 sm:text-right">
+          Not in {releaseName}.{missing ? <> {missing}</> : null}
+        </p>
+      )}
     </li>
   );
 }
@@ -122,13 +139,21 @@ function Lead({ children }: { children: ReactNode }) {
   );
 }
 
+// A command people copy: wrapped rather than clipped, so the whole command
+// is readable at any width and zoom without scrolling.
 function Command({ children }: { children: string }) {
   return (
-    <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 text-[13px] leading-6">
+    <pre className="mt-3 rounded-lg border border-border bg-muted/40 p-4 text-[13px] leading-6 break-all whitespace-pre-wrap">
       <code>{children}</code>
     </pre>
   );
 }
+
+const fromSource = (
+  <a href="#runner-source" className={textLink}>
+    Build it from source
+  </a>
+);
 
 export default function DownloadPage() {
   const { title, description } = publicPage(downloadPath);
@@ -140,7 +165,8 @@ export default function DownloadPage() {
       <PageHeading title={title} lead={description} />
       <DownloadHero />
       <p className="mt-4 text-[13px] leading-6 text-muted-foreground">
-        Every link downloads the newest stable release from GitHub.{" "}
+        Every link downloads the newest stable release
+        {releaseVersion ? ` (${releaseVersion})` : ""} from GitHub.{" "}
         <a href={latestReleaseUrl} className={textLink}>
           What changed in it
         </a>
@@ -162,7 +188,15 @@ export default function DownloadPage() {
               {desktopDownloads
                 .filter((download) => download.os === os)
                 .map((download) => (
-                  <FileRow key={download.id} {...download} />
+                  <FileRow
+                    key={download.id}
+                    {...download}
+                    missing={
+                      <a href={desktopDocsUrl} className={textLink}>
+                        Use Lictory in the browser
+                      </a>
+                    }
+                  />
                 ))}
             </Files>
           </div>
@@ -174,32 +208,57 @@ export default function DownloadPage() {
           Runs your agents’ sessions on a server, a VPS, a laptop or a Mac. To
           add a runner, copy the command from <strong>Factory → Runners</strong>{" "}
           in your Lictory: it installs your server’s version and registers the
-          runner in one step. To install the newest stable release by hand:
+          runner in one step.
+          {runnerInstallersAvailable
+            ? " To install the newest stable release by hand:"
+            : null}
         </Lead>
-        {runnerInstallCommands.map(({ id, label, shell, command }) => (
-          <div key={id} className="mt-6">
-            <h3 className="text-[15px] font-medium">
-              {label}{" "}
-              <span className="font-normal text-muted-foreground">
-                ({shell})
-              </span>
-            </h3>
-            <Command>{command}</Command>
-          </div>
-        ))}
-        <Lead>
-          The installer checks the binary against the release’s checksums.{" "}
-          <a href={runnerDocsUrl} className={textLink}>
-            Register and run a runner
-          </a>
-        </Lead>
+        {runnerInstallersAvailable ? (
+          <>
+            {runnerInstallCommands.map(({ id, label, shell, command }) => (
+              <div key={id} className="mt-6">
+                <h3 className="text-[15px] font-medium">
+                  {label}{" "}
+                  <span className="font-normal text-muted-foreground">
+                    ({shell})
+                  </span>
+                </h3>
+                <Command>{command}</Command>
+              </div>
+            ))}
+            <Lead>
+              The installer checks the binary against the release’s checksums.{" "}
+              <a href={runnerDocsUrl} className={textLink}>
+                Register and run a runner
+              </a>
+            </Lead>
+          </>
+        ) : (
+          <Lead>
+            {releaseName} has no runner files, so the installer command does not
+            work with it yet. Build the runner from source below until a release
+            carries them.
+          </Lead>
+        )}
         <div className="mt-8">
           <h3 className="text-lg font-medium">Binaries and installers</h3>
           <Files>
             {[...runnerBinaries, ...runnerScripts].map((file) => (
-              <FileRow key={file.file} {...file} />
+              <FileRow key={file.file} {...file} missing={fromSource} />
             ))}
           </Files>
+        </div>
+        <div id="runner-source" className="mt-8 scroll-mt-24">
+          <h3 className="text-lg font-medium">Build it from source</h3>
+          <Lead>
+            With{" "}
+            <a href="https://bun.sh" className={textLink}>
+              Bun
+            </a>{" "}
+            and git, on any system: the binary lands in{" "}
+            <code>apps/runner/dist</code>.
+          </Lead>
+          <Command>{runnerFromSource}</Command>
         </div>
       </Section>
 
@@ -241,7 +300,9 @@ export default function DownloadPage() {
                 "The Lictory desktop app: your team’s Lictory servers in one window, with native notifications, a badge and lictory:// links.",
               applicationCategory: "BusinessApplication",
               operatingSystem: "macOS, Windows, Linux",
-              downloadUrl: desktopDownloads.map((download) => download.href),
+              downloadUrl: desktopDownloads
+                .filter((download) => download.available)
+                .map((download) => download.href),
               license: "https://opensource.org/license/mit",
               isAccessibleForFree: true,
               mainEntityOfPage: { "@id": webPageId(downloadPath) },
