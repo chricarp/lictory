@@ -105,6 +105,8 @@ export function ChannelBrowser() {
         <PageHeader
           title="Channels"
           icon={<Hash />}
+          ownSearch
+          ownCreate
           meta={
             loaded && (
               <span>

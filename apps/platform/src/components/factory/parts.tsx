@@ -66,6 +66,9 @@ export function FactoryPage({
         meta={meta}
         tabs={<div className="max-sm:hidden">{tabs}</div>}
         actions={actions}
+        // New agent, Add runner: on phones the page's create replaces the
+        // shell's "+".
+        ownCreate={!!actions}
       />
       {/* Phones: the header keeps the title; the tabs get their own row. */}
       <div className="flex h-10 shrink-0 items-center border-b px-2 sm:hidden">

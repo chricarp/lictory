@@ -328,10 +328,12 @@ function AgentRow({
         </>
       }
       // The row's actions (on hover or focus), then one fixed column for
-      // the state and the last activity, so every row's state lines up.
+      // the state and the last activity, so every row's state lines up. On
+      // phones the actions stay on the agent's page, so the name keeps the
+      // row's width.
       chips={
         <>
-          <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none touch:opacity-100">
+          <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none max-sm:hidden touch:opacity-100">
             {actions}
           </span>
           <span className="flex items-center justify-end gap-3 sm:w-60">
