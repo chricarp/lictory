@@ -149,6 +149,9 @@ export class CodeHostError extends Error {
     readonly kind: CodeHostErrorKind,
     message: string,
     readonly retryAfterMs?: number,
+    // The host never answered (DNS, connection, timeout), as opposed to
+    // answering with an error.
+    readonly unreachable = false,
   ) {
     super(message);
     this.name = "CodeHostError";

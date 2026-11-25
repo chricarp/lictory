@@ -84,6 +84,8 @@ export function createCodeHttp(
         throw new CodeHostError(
           "unavailable",
           `${product} could not be reached. Try again later.`,
+          undefined,
+          true,
         );
       }
       if (
