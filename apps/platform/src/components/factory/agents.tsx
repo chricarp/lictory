@@ -1,4 +1,5 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   Archive,
   Bot,
@@ -54,7 +55,11 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 export function FactoryAgents() {
   const { userId, isAdmin } = useWorkspace();
   const { agents } = useFactory();
-  const [editing, setEditing] = useState<AgentEntity | "new" | null>(null);
+  // `?new=1` (the command palette's "New agent") opens the form.
+  const search = useSearchParams();
+  const [editing, setEditing] = useState<AgentEntity | "new" | null>(() =>
+    search.get("new") === "1" ? "new" : null,
+  );
   const [starting, setStarting] = useState<AgentEntity | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const active = agents.filter((a) => !a.archivedAt);

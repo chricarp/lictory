@@ -142,7 +142,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
-      .getByRole("link", { name: "Overview" }),
+      .getByRole("link", { name: "Factory", exact: true }),
   ).toHaveAccessibleDescription(/1 agent session waiting on you/);
   await page.goto(`/${seeded.slug}`);
   const asks = page.getByRole("region", { name: "Waiting on you" });

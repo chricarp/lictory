@@ -34,7 +34,10 @@ import { useSessionState } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
-import { navSections } from "@lictory/platform/components/shell/nav-registry";
+import {
+  navSections,
+  topSections,
+} from "@lictory/platform/components/shell/nav-registry";
 import { useNavBadges } from "@lictory/platform/components/shell/nav-badges";
 import {
   CompactSidebarContext,
@@ -154,9 +157,8 @@ export function Sidebar({
             onClick={onCreate}
             className={cn(
               "grid size-8 shrink-0 place-items-center rounded-lg focus-ring outline-none",
-              compact
-                ? "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                : "bg-sidebar-accent text-foreground shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
+              // An action beside the search field, not a second field.
+              "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
             )}
           >
             <SquarePen className="size-4" aria-hidden />
@@ -180,8 +182,8 @@ export function Sidebar({
             className={cn(
               "space-y-0.5",
               compact && "flex flex-col items-center",
-              // Home and Inbox sit together at the top.
-              !compact && index === 1 && "-mt-3",
+              // The single-row destinations sit together at the top.
+              !compact && index > 0 && index < topSections && "-mt-3",
             )}
           >
             <section.Section badge={badges.get(section.id) ?? null} />

@@ -65,8 +65,16 @@ const blockingCount = (n: number) =>
 // on my items, items of mine that became ready. An entry disappears when the
 // underlying state resolves, unlike notifications, which record events.
 export function useAttention() {
-  const { items, userId, disciplineIds, delivery, projects, directory, view } =
-    useWorkspace();
+  const {
+    items,
+    userId,
+    disciplineIds,
+    delivery,
+    projects,
+    directory,
+    view,
+    memberName,
+  } = useWorkspace();
   return useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
@@ -91,6 +99,15 @@ export function useAttention() {
             ),
         );
         const suggestion = item.suggestionReviewerIds.includes(userId);
+        // Who waits on me: the people who asked (a review requested by
+        // policy has nobody to name).
+        const requesters = [
+          ...new Set(
+            pending
+              .map((r) => r.requestedById)
+              .filter((id): id is string => !!id && id !== userId),
+          ),
+        ].map((id) => memberName(id));
         // Blocking discussions on what I review wait on my answer too.
         const blocking = item.blockingThreads
           ? ` · ${blockingCount(item.blockingThreads)}`
@@ -101,7 +118,7 @@ export function useAttention() {
             ? "Review requested"
             : "Pull request to review",
           detail: pending.length
-            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}${blocking}`
+            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}${blocking}`
             : `A pull request awaits your approval to be merged${blocking}`,
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
@@ -186,6 +203,7 @@ export function useAttention() {
     projects,
     directory.delivery.targets,
     view.entities,
+    memberName,
   ]);
 }
 

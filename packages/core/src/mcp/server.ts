@@ -43,7 +43,13 @@ export const SUPPORTED_PROTOCOL_VERSIONS = [
   "2025-03-26",
   "2024-11-05",
 ];
-const SERVER_INFO = { name: "lictory", title: "Lictory", version: "1.0.0" };
+// The release this server runs (the image's APP_VERSION), so clients and
+// support can tell which Lictory answered.
+const SERVER_INFO = {
+  name: "lictory",
+  title: "Lictory",
+  version: process.env.APP_VERSION?.trim() || "development",
+};
 const EVENTS_EXTENSION = "io.modelcontextprotocol/events";
 const CAPABILITIES = {
   tools: { listChanged: false },

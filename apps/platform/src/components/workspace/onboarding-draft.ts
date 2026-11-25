@@ -1,9 +1,14 @@
 import { z } from "zod";
 
-// Browser-only setup progress, partitioned by user and organization.
+// Browser-only setup progress, partitioned by user and organization. Setup
+// asks only what a team must decide before its first day (where delivery
+// happens, whether content may reach an AI provider, who joins); planning
+// and readiness start from the project defaults and are changed in the
+// project's settings once the team has met them.
 export const steps = {
   project: 0,
   delivery: 1,
+  // Retired: a draft saved on this step resumes at Lictory Intelligence.
   planning: 2,
   people: 3,
   intelligence: 4,
@@ -14,12 +19,10 @@ export const draftSchema = z.object({
   key: z.string().max(10),
   keyTouched: z.boolean(),
   deliveryMode: z.enum(["", "native", "external"]),
-  readinessPolicy: z.enum(["off", "warn", "block"]),
-  iterationMode: z.enum(["", "off", "manual", "automatic"]),
-  estimateScale: z.enum(["", "none", "fibonacci", "linear", "tshirt"]),
   aiEnabled: z.boolean().default(true),
-  iterationWeeks: z.string(),
-  iterationStartDay: z.string(),
+  // Until the person picks, the choice follows whether this server has an
+  // AI provider configured.
+  aiChosen: z.boolean().default(false),
   invites: z.array(z.string().max(320)).max(50),
 });
 export type Draft = z.infer<typeof draftSchema>;
@@ -29,12 +32,8 @@ export const emptyDraft: Draft = {
   key: "",
   keyTouched: false,
   deliveryMode: "",
-  readinessPolicy: "warn",
-  iterationMode: "",
-  estimateScale: "",
   aiEnabled: true,
-  iterationWeeks: "2",
-  iterationStartDay: "1",
+  aiChosen: false,
   invites: [],
 };
 export const draftKey = (userId: string, organizationId: string) =>

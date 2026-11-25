@@ -421,18 +421,23 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await expect(page.getByText("Write CHANGES.md").first()).toBeVisible();
     await scan(`${scheme}: home`);
 
-    await page.goto(`/${seeded.slug}/inbox`);
+    await page.goto(`/${seeded.slug}/inbox?view=todo`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await scan(`${scheme}: inbox`);
+    // The request opened in place, with its context.
+    const todo = page.getByRole("list", { name: "Waiting on you" });
+    await todo.getByRole("button", { name: /^Review/ }).first().click();
+    await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
+    await scan(`${scheme}: inbox with a request open`);
 
+    // The factory says how many requests wait and points to the Inbox.
     await page.goto(paths.factory(seeded.slug));
     const needs = page.getByRole("region", { name: "Needs you" });
-    await expect(needs.getByText("Write CHANGES.md")).toBeVisible();
+    await expect(needs.getByRole("link", { name: /wait/ })).toHaveAttribute(
+      "href",
+      paths.inbox(seeded.slug, "todo"),
+    );
     await scan(`${scheme}: factory overview`);
-    // The request opened in place, with its context.
-    await needs.getByRole("button", { name: "Review" }).first().click();
-    await expect(needs.getByRole("button", { name: "Approve" })).toBeVisible();
-    await scan(`${scheme}: factory overview with a request open`);
 
     await page.goto(`${paths.factory(seeded.slug)}/agents`);
     await expect(

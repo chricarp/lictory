@@ -8,7 +8,6 @@ import {
   Bot,
   ChevronRight,
   CircleCheckBig,
-  ChevronsUpDown,
   FilePenLine,
   FolderKanban,
   FolderOpen,
@@ -127,10 +126,10 @@ function ProjectSwitcher({
             )}
             {!compact && (
               <>
+                {/* The whole row switches projects; the name gets the room. */}
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {project?.name ?? "Choose project"}
                 </span>
-                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
               </>
             )}
           </button>
@@ -203,8 +202,11 @@ function ProjectNav({ project }: { project: Project }) {
   const tool = external
     ? (projectDeliveryTool(directory, project.id).product ?? "External")
     : null;
+  // Two stages, named: agreeing on what to build, then building it (or
+  // handing it off). Everything and saved views follow.
   return (
     <div className="space-y-0.5 pt-0.5">
+      <SidebarGroup label="Refine" className="pt-1">
       <SidebarLink
         href={paths.proposals(org, key)}
         active={active(paths.proposals(org, key)) || origin === "proposals"}
@@ -230,6 +232,8 @@ function ProjectNav({ project }: { project: Project }) {
       >
         Reviews
       </SidebarLink>
+      </SidebarGroup>
+      <SidebarGroup label="Deliver" className="pt-2">
       {external ? (
         <SidebarLink
           href={paths.handoff(org, key)}
@@ -280,6 +284,8 @@ function ProjectNav({ project }: { project: Project }) {
           </SidebarLink>
         </>
       )}
+      </SidebarGroup>
+      <div className="pt-2" />
       <SidebarLink
         href={catalog}
         active={active(catalog) && !origin}

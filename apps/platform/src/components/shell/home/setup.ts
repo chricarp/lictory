@@ -11,6 +11,8 @@ export type SetupFacts = {
   channels: readonly { kind: string; archivedAt: number | string | null }[];
   // People in the organization, including me.
   members: number;
+  // Invitations sent and not yet accepted.
+  invited: number;
 };
 
 export type SetupStepId = "code" | "runner" | "agent" | "channel" | "team";
@@ -20,6 +22,8 @@ export type SetupStep = {
   title: string;
   detail: string;
   done: boolean;
+  // Said even once done, when done does not tell the whole story.
+  note?: string;
   // What to do next, when the person may do it.
   action: { label: string; href: string } | null;
 };
@@ -69,7 +73,12 @@ export function setupSteps(
       id: "team",
       title: "Invite your team",
       detail: "Product, engineering and QA decide together what agents build.",
-      done: facts.members > 1,
+      // Inviting is the step; joining is the invitee's.
+      done: facts.members > 1 || facts.invited > 0,
+      ...(facts.members === 1 &&
+        facts.invited > 0 && {
+          note: `${facts.invited} invited, not joined yet`,
+        }),
       action: isAdmin
         ? { label: "Invite", href: paths.settings(org, "members") }
         : null,

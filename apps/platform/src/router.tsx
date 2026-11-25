@@ -117,8 +117,9 @@ const forgotPasswordRoute = authPage(
 const resetPasswordRoute = authPage("/reset-password", "ResetPasswordPage");
 const verifyEmailRoute = authPage("/verify-email", "VerifyEmailPage");
 const authErrorRoute = authPage("/auth-error", "AuthErrorPage");
+// Choosing a handle starts setting up, so it sits outside the auth card.
 const welcomeRoute = createRoute({
-  getParentRoute: () => authRoute,
+  getParentRoute: () => rootRoute,
   path: "/welcome",
   beforeLoad: async ({ location }) => {
     const session = await loadSession();

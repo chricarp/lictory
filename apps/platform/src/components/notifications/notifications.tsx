@@ -428,6 +428,21 @@ export function NotificationFeed() {
   );
 }
 
+// Events nobody performed by hand: they show what happened, not a person.
+const automaticKinds: ReadonlySet<string> = new Set([
+  "item_ready",
+  "item_unready",
+  "approval_invalidated",
+  "page_approval_invalidated",
+  "relation_blocked",
+  "pull_request_mergeable",
+  "export_failed",
+  "export_completed",
+  "code_write_failed",
+  "agent_approval_requested",
+  "agent_session_finished",
+]);
+
 function Row({
   row,
   showOrganization,
@@ -489,20 +504,15 @@ function Row({
           onOpen(href);
         }}
         className={cn(
-          "flex items-start gap-3 py-2.5 pr-4 pl-4 focus-ring-inset outline-none hover:bg-muted/60",
+          "flex min-h-12 items-center gap-3 px-3.5 py-2 focus-ring-inset outline-none hover:bg-muted/60",
           !unread && "text-muted-foreground",
         )}
       >
-        <span
-          aria-hidden
-          className={cn(
-            "mt-2 size-1.5 shrink-0 rounded-full",
-            unread ? "bg-primary" : "bg-transparent",
-          )}
-        />
+        {/* One leading mark, as in To do: who did it, or what happened when
+            nobody did (readiness is evidence, not someone's act). */}
         <span
           className={cn(
-            "mt-0.5 grid size-5 shrink-0 place-items-center",
+            "grid min-w-4 shrink-0 place-items-center",
             urgent
               ? "text-destructive"
               : n.kind === "item_ready"
@@ -510,25 +520,27 @@ function Row({
                 : "text-muted-foreground",
           )}
         >
-          <Icon className="size-4" aria-hidden />
+          {n.actorName && !automaticKinds.has(n.kind) ? (
+            <PersonAvatar
+              person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
+              size={20}
+            />
+          ) : (
+            <Icon className="size-4" aria-hidden />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "flex items-center gap-2 text-[13px] leading-5",
+              "truncate text-[13px] leading-5",
               unread && "font-medium text-foreground",
             )}
           >
-            {n.actorName && (
-              <PersonAvatar
-                person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
-                size={20}
-              />
-            )}
-            <span className="min-w-0 truncate">{headline}</span>
+            {unread && <span className="sr-only">Unread: </span>}
+            {headline}
           </p>
           {(title ?? body) && (
-            <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+            <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
               {title && <span className="text-foreground/80">{title}</span>}
               {title && body && " · "}
               {body}
@@ -551,6 +563,12 @@ function Row({
             </p>
           )}
         </div>
+        {unread && (
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full bg-primary"
+          />
+        )}
         <span className="mt-0.5 group-focus-within:invisible group-hover:invisible max-sm:hidden">
           {time}
         </span>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   Box,
   CircleOff,
@@ -39,7 +40,9 @@ import {
 export function FactoryRunners() {
   const { userId, isAdmin, memberName } = useWorkspace();
   const { runners, sessions } = useFactory();
-  const [adding, setAdding] = useState(false);
+  // `?add=1` (the command palette's "Add runner") opens the dialog.
+  const search = useSearchParams();
+  const [adding, setAdding] = useState(() => search.get("add") === "1");
   const active = runners.filter((r) => !r.revokedAt);
   const busy = (runner: RunnerEntity) =>
     sessions.filter(
