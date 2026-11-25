@@ -276,6 +276,34 @@ export function slackClient(options: SlackApiOptions = {}) {
       };
     },
 
+    /**
+     * Checks an app's Client ID and Client Secret before it is installed:
+     * Slack answers an unknown authorization code with `invalid_code` only
+     * when the client credentials are right (no token exists yet, so
+     * auth.test cannot be used). Throws a SlackError otherwise.
+     */
+    async checkAppCredentials(input: {
+      clientId: string;
+      clientSecret: string;
+    }) {
+      try {
+        await call(
+          "oauth.v2.access",
+          null,
+          {
+            client_id: input.clientId,
+            client_secret: input.clientSecret,
+            code: "lictory-credentials-check",
+          },
+          "form",
+        );
+      } catch (error) {
+        if (error instanceof SlackError && error.code === "invalid_code")
+          return;
+        throw error;
+      }
+    },
+
     /** Who the token is (auth.test): the workspace URL and bot id. */
     async authTest(token: string) {
       const data = await call("auth.test", token, {});

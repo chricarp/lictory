@@ -51,8 +51,7 @@ async function problems() {
   return rows.filter((row) => row.name !== "replication_slot");
 }
 
-const minutesAgo = (minutes: number) =>
-  new Date(Date.now() - minutes * 60_000);
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 
 test("the monitor reports offline runners, stranded sessions, suspended webhooks and Slack failures", async () => {
   assert.deepEqual(await problems(), [], "an empty installation is healthy");
@@ -163,9 +162,11 @@ test("the monitor reports offline runners, stranded sessions, suspended webhooks
   const details = (check: string) =>
     found.filter((p) => p.name === check).map((p) => p.detail);
   assert.deepEqual(details("runner"), [
-    `1 organization runner(s) offline for more than 10 min: build-01 (last seen ${(
-      await client`SELECT last_seen_at::text AS t FROM runner WHERE name = 'build-01'`
-    )[0]!.t as string}) (revoke a retired runner in Factory -> Runners)`,
+    `1 organization runner(s) offline for more than 10 min: build-01 (last seen ${
+      (
+        await client`SELECT last_seen_at::text AS t FROM runner WHERE name = 'build-01'`
+      )[0]!.t as string
+    }) (revoke a retired runner in Factory -> Runners)`,
   ]);
   const sessions = details("agent_session");
   assert.equal(sessions.length, 2, sessions.join("\n"));
