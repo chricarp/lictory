@@ -53,7 +53,7 @@ export const capabilityMeta: Record<
   publishDelivery: {
     label: "Hand off to delivery tools",
     description:
-      "Export ready work to this project's delivery tool and link existing issues.",
+      "Hand off ready work to this project's delivery tool and link existing issues.",
   },
 };
 

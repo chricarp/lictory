@@ -192,8 +192,8 @@ export function describeNotification(
     case "export_failed": {
       const failures = (d.failures as { message: string | null }[]) ?? [];
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
-        body: `${num(d.failed)} of ${num(d.total)} items were not exported.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
+        body: `${num(d.failed)} of ${num(d.total)} items were not handed off${d.status === "partial" ? "; the others were" : ""}.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
       };
     }
     case "code_write_failed":
@@ -203,8 +203,8 @@ export function describeNotification(
       };
     case "export_completed":
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
-        body: `${num(d.total)} items exported.`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
+        body: `${num(d.total)} items handed off.`,
       };
     case "page_review_requested":
       return {

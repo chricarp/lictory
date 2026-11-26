@@ -867,12 +867,12 @@ export function ItemDetail({
                   disabled={item.refinementState !== "ready"}
                   title={
                     item.refinementState === "ready"
-                      ? `Export to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
-                      : "Only ready items can be exported."
+                      ? `Hand off to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
+                      : "Only ready specifications can be handed off."
                   }
                   onClick={() => setExporting(true)}
                 >
-                  <Upload className="size-3.5" /> Export to{" "}
+                  <Upload className="size-3.5" /> Hand off to{" "}
                   {exportAvailability.tool.name}
                 </Button>
               )}
@@ -980,7 +980,7 @@ export function ItemDetail({
                         title={
                           item.refinementState === "ready"
                             ? undefined
-                            : "Only ready items can be exported."
+                            : "Only ready specifications can be handed off."
                         }
                         onClick={() => {
                           close();
@@ -988,7 +988,7 @@ export function ItemDetail({
                         }}
                       >
                         <Upload className="size-3.5 text-muted-foreground" />
-                        Export to {exportAvailability.tool.name}…
+                        Hand off to {exportAvailability.tool.name}…
                       </DropdownItem>
                     )}
                     <DropdownItem

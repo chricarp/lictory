@@ -128,7 +128,10 @@ const phrases: Record<
     "Requesting Intelligence review",
     "Requested Intelligence review",
   ],
-  publishDelivery: ["Exporting to delivery tool", "Exported to delivery tool"],
+  publishDelivery: [
+    "Handing off to delivery tool",
+    "Handed off to delivery tool",
+  ],
   syncRead: ["Synchronizing workspace", "Synchronized workspace", "read"],
   getInsights: ["Gathering insights", "Gathered insights", "read"],
   draftProposals: ["Drafting proposals", "Drafted proposals", "read"],
@@ -142,7 +145,7 @@ const actions: Record<string, string> = {
   replyToThread: "Reply to discussion",
   setThreadState: "Update discussion",
   requestAiReview: "Request Intelligence review",
-  publishDelivery: "Export to delivery tool",
+  publishDelivery: "Hand off to delivery tool",
 };
 
 function actionOf(name: string, input: Record<string, unknown> | undefined) {
