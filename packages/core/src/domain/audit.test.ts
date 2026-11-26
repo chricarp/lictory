@@ -337,6 +337,14 @@ void test("audit entries cannot be edited or deleted, but leave with their organ
     (e) => e.action === "member.left",
   );
   assert.equal(left?.actor?.name, "Wendy Witness");
+  // A command without words of its own reads in the past tense, like
+  // every other entry ("Created space", not "Create space").
+  assert.equal(
+    (await readAuditLog(db, owner, organizationId)).entries.find(
+      (e) => e.action === "updateProject",
+    )?.summary,
+    "Updated project",
+  );
 
   await db.delete(s.organization).where(eq(s.organization.id, organizationId));
   const [remaining] = await db

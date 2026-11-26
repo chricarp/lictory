@@ -131,10 +131,11 @@
 .dark {
   color-scheme: dark;
   /* On near-black the light theme's dark ink fades into its tile: the tile
-     takes more color and the glyph is drawn mostly in foreground. */
-  --identity-tile: 28%;
-  --identity-ink: 40%;
-  --identity-edge: 50%;
+     takes more color and the glyph is drawn mostly in foreground, so an
+     agent's tile reads as clearly as a person's coloured disc. */
+  --identity-tile: 34%;
+  --identity-ink: 20%;
+  --identity-edge: 60%;
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;
@@ -647,6 +648,19 @@
   }
   ::selection {
     @apply bg-primary/20 text-foreground;
+  }
+  /* Date fields: the browser's calendar button as a quiet icon, like the
+     chevrons of the app's selects, and no extra inner padding. */
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.55;
+    margin-inline-end: -2px;
+  }
+  input[type="date"]:hover::-webkit-calendar-picker-indicator {
+    opacity: 0.9;
   }
 }
 
