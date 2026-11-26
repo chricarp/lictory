@@ -2454,6 +2454,34 @@ export async function applyMutation(
         // approved by the pull request's required reviewers.
         const textUnchanged =
           previous.title === title && previous.content === content;
+        // Approvals the revised text outdates are recorded in the item's
+        // history: who approved which revision for what, and that it no
+        // longer counts (carried approvals of unchanged text are not).
+        if (!textUnchanged) {
+          const outdated = before.filter(
+            (e): e is EntityOf<"approval"> =>
+              e.type === "approval" && e.status === "granted",
+          );
+          if (outdated.length)
+            log("approvals_outdated", {
+              revision: number,
+              approvals: outdated.map((a) => {
+                const review = before.find(
+                  (e): e is EntityOf<"review"> =>
+                    e.type === "review" && e.id === a.reviewId,
+                );
+                const approved = before.find(
+                  (e) => e.type === "revision" && e.id === a.revisionId,
+                );
+                return {
+                  reviewerId: a.reviewerId,
+                  responsibility: review?.responsibility ?? null,
+                  revision:
+                    approved?.type === "revision" ? approved.number : null,
+                };
+              }),
+            });
+        }
         await tx
           .update(s.approval)
           .set({

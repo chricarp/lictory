@@ -15,6 +15,7 @@ import { LoadingState } from "@lictory/ui/spinner";
 import { StatusChip } from "@lictory/ui/status-chip";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { identifier } from "@lictory/core/lib/work-items";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
@@ -273,13 +274,47 @@ type AgentCall = {
   durationMs: number;
   tokenName: string;
   sessionId: string | null;
+  // The subject it named and, when refused, what it was told.
+  detail: {
+    target?: { field: string; id: string };
+    message?: string;
+    kind?: string;
+  } | null;
+};
+
+const targetNouns: Record<string, string> = {
+  sessionId: "session",
+  pullRequestId: "pull request",
+  claimId: "claim",
+  reviewId: "review",
+  threadId: "discussion",
+  suggestionId: "suggestion",
+  specificationId: "specification",
+  pageId: "page",
+  channelId: "channel",
+  projectId: "project",
+  agentId: "agent",
+  runnerId: "runner",
 };
 
 // What the agent did with its tokens, as Lictory recorded it: each tool it
-// called, when, and whether it worked (inputs are never recorded). Its
-// owner's view; administrators see every agent's calls in the audit log.
+// called, what it named, when, and whether it worked, with the refusal it
+// got (inputs are never recorded). Its owner's view; administrators see
+// every agent's calls in the audit log.
 function RecentActivity({ agent }: { agent: AgentEntity }) {
-  const { organization } = useWorkspace();
+  const { organization, items, projects } = useWorkspace();
+  // A work item reads by its key, whichever way the agent named it.
+  const targetLabel = (target: { field: string; id: string } | undefined) => {
+    if (!target) return null;
+    if (target.field === "workItemId" || target.field === "key") {
+      const item = items.find((i) => i.id === target.id);
+      const project = item && projects.find((p) => p.id === item.projectId);
+      return item && project
+        ? identifier(project, item.number)
+        : target.id.toUpperCase();
+    }
+    return `${targetNouns[target.field] ?? "on"} ${target.id.slice(0, 8)}`;
+  };
   const [calls, setCalls] = useState<AgentCall[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -300,13 +335,26 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
       title="Recent activity"
       icon={<Activity />}
       count={calls.length}
-      empty={`${agent.name} has not called Lictory with its tokens yet.`}
+      // A runner agent works in sessions (their transcripts say what it
+      // did); this lists only its calls to Lictory's own tools.
+      empty={
+        agent.kind === "runner"
+          ? `${agent.name}'s sessions have not called Lictory's tools yet. What it did in each session is in the session's transcript.`
+          : `${agent.name} has not called Lictory with its tokens yet.`
+      }
     >
       {calls.map((call) => (
         <ListRow
           key={call.id}
+          identifier={targetLabel(call.detail?.target) ?? undefined}
           title={<span className="font-mono text-xs">{call.capability}</span>}
-          meta={`${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`}
+          meta={
+            call.detail?.message ? (
+              <span title={call.detail.message}>{call.detail.message}</span>
+            ) : (
+              `${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`
+            )
+          }
           chips={
             call.outcome === "ok" ? undefined : (
               <StatusChip tone="danger">

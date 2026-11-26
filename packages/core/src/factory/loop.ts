@@ -318,6 +318,68 @@ const endReasons: Record<string, string> = {
   definition_of_done: "its Definition of Done passed",
 };
 
+// "PAY-4 is Done: its Definition of Done passed. Pull request #3 was merged
+// by bo. Delivered revision 2." From Lictory's own records: the item, the
+// claim's delivered revision and the session's pull request as the Code
+// module mirrors it.
+async function deliveredNotice(tx: Tx, session: SessionRow, claimId: string) {
+  const [item] = session.workItemId
+    ? await tx
+        .select({ key: s.project.key, number: s.workItem.number })
+        .from(s.workItem)
+        .innerJoin(s.project, eq(s.project.id, s.workItem.projectId))
+        .where(
+          and(
+            eq(s.workItem.organizationId, session.organizationId),
+            eq(s.workItem.id, session.workItemId),
+          ),
+        )
+    : [];
+  const [revision] = await tx
+    .select({ number: s.specificationRevision.number })
+    .from(s.workItemClaim)
+    .innerJoin(
+      s.specificationRevision,
+      and(
+        eq(
+          s.specificationRevision.organizationId,
+          s.workItemClaim.organizationId,
+        ),
+        eq(s.specificationRevision.id, s.workItemClaim.deliveredRevisionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.workItemClaim.organizationId, session.organizationId),
+        eq(s.workItemClaim.id, claimId),
+      ),
+    );
+  const [pull] = session.pullRequestId
+    ? await tx
+        .select({
+          number: s.codePullRequest.number,
+          state: s.codePullRequest.state,
+          mergedByLogin: s.codePullRequest.mergedByLogin,
+        })
+        .from(s.codePullRequest)
+        .where(
+          and(
+            eq(s.codePullRequest.organizationId, session.organizationId),
+            eq(s.codePullRequest.id, session.pullRequestId),
+          ),
+        )
+    : [];
+  return [
+    `${item ? `${item.key}-${item.number}` : "The item"} is Done: its Definition of Done passed.`,
+    pull?.state === "merged"
+      ? `Pull request #${pull.number} was merged${pull.mergedByLogin ? ` by ${pull.mergedByLogin}` : ""}.`
+      : null,
+    revision ? `Delivered revision ${revision.number}.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 async function claimSessionOf(tx: Tx, event: SessionResumeEvent) {
   if (!event.agentSessionId) return undefined;
   return lockSession(tx, event.organizationId, event.agentSessionId);
@@ -399,6 +461,16 @@ const resumer = (): SessionResumer => ({
     // claim_ended
     const session = await claimSessionOf(tx, event);
     if (!session) return;
+    // The work landed: the conversation that started it hears how it ended
+    // (merged, Done, the delivered revision), not only the item's chip.
+    if (event.state === "completed" && event.reason === "definition_of_done")
+      await postSessionNotice(
+        tx,
+        session,
+        `delivered:${event.claimId}`,
+        await deliveredNotice(tx, session, event.claimId),
+        { besideCard: true },
+      );
     const why = endReasons[event.reason] ?? event.reason.replaceAll("_", " ");
     if (session.status === "queued") {
       // Nothing started yet: the session would work on unclaimed work.

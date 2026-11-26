@@ -1,4 +1,5 @@
 import * as s from "@lictory/core/db/schema";
+import type { CapabilityInvocationDetail } from "@lictory/core/db/agent-schema";
 import { and, eq, or, sql } from "drizzle-orm";
 import { accessTokenCapabilities } from "@lictory/core/capabilities/access-tokens";
 import { productKnowledgeCapabilities } from "@lictory/core/capabilities/product-knowledge";
@@ -177,6 +178,54 @@ async function resolveMcpOrganization(ctx: CapabilityContext, input: unknown) {
   };
 }
 
+// The subject a call names, for its owner to read in the agent's activity:
+// the first of these fields the caller passed, as it named it (a key such as
+// PAY-142 or an id). Only identifiers, never the call's content.
+const targetFields = [
+  "workItemId",
+  "sessionId",
+  "pullRequestId",
+  "claimId",
+  "reviewId",
+  "threadId",
+  "suggestionId",
+  "specificationId",
+  "pageId",
+  "channelId",
+  "projectId",
+  "agentId",
+  "runnerId",
+  // getWorkItem's key ("PAY-142").
+  "key",
+] as const;
+
+export function invocationTarget(input: unknown) {
+  if (!input || typeof input !== "object") return undefined;
+  for (const field of targetFields) {
+    const value = (input as Record<string, unknown>)[field];
+    if (typeof value === "string" && value.trim())
+      return { field, id: value.trim().slice(0, 120) };
+  }
+  return undefined;
+}
+
+// What a refused call was told, bounded. A server failure's message is
+// internal and stays in the server's log.
+export function invocationDetail(
+  input: unknown,
+  error: CapabilityError | null,
+): CapabilityInvocationDetail | null {
+  const target = invocationTarget(input);
+  const refusal =
+    error && error.category !== "server"
+      ? {
+          message: error.message.slice(0, 500),
+          ...(error.details.kind ? { kind: error.details.kind } : {}),
+        }
+      : {};
+  return target || error ? { ...(target ? { target } : {}), ...refusal } : null;
+}
+
 async function audit(
   ctx: CapabilityContext,
   record: {
@@ -186,6 +235,7 @@ async function audit(
     outcome: string;
     mutationId: string | null;
     durationMs: number;
+    detail: CapabilityInvocationDetail | null;
   },
 ) {
   try {
@@ -438,6 +488,7 @@ export async function invoke(
   let organizationId: string | null = null;
   let mutationId: string | null = null;
   let outcome = "ok";
+  let failure: CapabilityError | null = null;
   try {
     if (!capability)
       throw (
@@ -485,6 +536,7 @@ export async function invoke(
   } catch (error) {
     const normalized = toCapabilityError(error);
     outcome = normalized.category;
+    failure = normalized;
     if (normalized.category === "server")
       console.error(
         JSON.stringify({
@@ -510,6 +562,7 @@ export async function invoke(
         outcome,
         mutationId,
         durationMs: Date.now() - start,
+        detail: invocationDetail(rawInput, failure),
       });
   }
 }

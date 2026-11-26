@@ -7,6 +7,7 @@ import {
   claimState,
   claimWaitsOnPeople,
   deliveredEvidence,
+  leaseLeftLabel,
   pullRequestStripPart,
 } from "@lictory/platform/components/claims/claim-state";
 
@@ -187,4 +188,15 @@ void test("a Done item keeps the evidence its Definition of Done moved it on", (
     undefined,
   );
   assert.equal(deliveredEvidence([]), undefined);
+});
+
+void test("a lease reads in minutes, hours or days, never 10080 min", () => {
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  const at = (ms: number) => ({
+    leaseExpiresAt: new Date(now + ms).toISOString(),
+  });
+  assert.equal(leaseLeftLabel(at(15 * 60_000), now), "15 min");
+  assert.equal(leaseLeftLabel(at(5 * 60 * 60_000), now), "5 h");
+  assert.equal(leaseLeftLabel(at(7 * 24 * 60 * 60_000), now), "7 days");
+  assert.equal(leaseLeftLabel(at(-60_000), now), "0 min");
 });

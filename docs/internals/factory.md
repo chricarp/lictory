@@ -147,7 +147,8 @@ slots.
 
 Interrupt stops the agent's current turn; the agent keeps its work and
 waits for the next message (so the session shows as waiting on the
-person). Cancel is immediate: the status becomes canceled and the lease is
+person). Only a running session can be interrupted: a waiting one already
+waits on a person and has no turn to stop. Cancel is immediate: the status becomes canceled and the lease is
 cleared, so the runner's next write fails and it stops. Because a cancel and
 an expired or reassigned lease fail the same way, the runner then asks one
 heartbeat for that session's status, so its log says "canceled" rather than
@@ -171,6 +172,27 @@ week, until they retry it or a later session works on its item.
 "Completed" is the agent's claim. It moves nothing in delivery: items reach
 done through evidence (merged pull requests, checks, the Definition of
 Done), never because a session completed.
+
+### Approval requests
+
+A runner raises an approval request (`approval_request`: a request id, a
+title and, for a permission, the `tool` and its `input`, as a harness's
+permission prompt states them). Text is never permission, so what a person
+can do with a request depends on whether it names its action
+(`asksPermission`):
+
+- **A permission** (a tool and its input: the command it would run, the
+  file it would write) is approved or denied. A denial can carry a message.
+- **A question** (no tool: only a title) has nothing to approve. A person
+  answers it in words (`answer`, with the note) or denies it; the server
+  refuses `approve`. The answer reaches the harness as a non-grant: Claude
+  Code hears it as a denial carrying the person's words.
+
+Harnesses that ask for a permission attach the action. Claude Code always
+does; the scripted test harness asks a question when its step has no
+`action`. Answering is a person's decision (`agentApproval` in the state
+machines: approved, denied or answered) that only the session's requester or
+the agent's owner may take.
 
 ### The event log
 
@@ -488,7 +510,13 @@ waits on someone reads differently from a quiet thread:
   and commands are not posted;
 - **question cards** for `askQuestion`, in the session's thread and at the
   top of the reporting channel, linking the anchored discussion, marked
-  resolved when a person resolves it.
+  resolved when a person resolves it;
+- a **delivered note** when the Definition of Done completes the session's
+  claim: the item is Done, the session's pull request merged (and by whom,
+  as the code host reported it) and the delivered revision, posted once by
+  Lictory beside a dispatched session's card in the channel, or in a
+  mention's thread, so the conversation that started the work hears how it
+  ended.
 
 Every write has a stable id (`factory/thread-ids.ts`), so a retried publish
 or a replayed hook changes a card in place and never adds a message. Card

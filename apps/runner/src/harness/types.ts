@@ -57,9 +57,12 @@ export type HarnessContext = {
 export type HarnessRun = {
   // Stops the current turn; the harness then waits for the next message.
   interrupt(): void;
+  // A person's answer: approve or deny a permission, or (for a request that
+  // named no action, a question) "answer" with their words in `note`.
+  // "answer" never grants anything.
   answer(
     requestId: string,
-    decision: "approve" | "deny",
+    decision: "approve" | "deny" | "answer",
     note: string | null,
   ): void;
   // Ends the run now (cancel, lost lease, shutdown).

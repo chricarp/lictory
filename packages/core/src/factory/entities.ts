@@ -125,6 +125,17 @@ export function waitsForRunner(
 
 export type SessionStatus = SessionRow["status"];
 
+// Whether a request asks a permission a person can approve: it names the
+// action (the tool, with its input, as a harness's permission prompt states
+// it). A request naming none is a question: a person answers it in words or
+// denies it, and nothing is approved on a title, since text is never
+// permission (docs/internals/factory.md#approval-requests).
+export function asksPermission(
+  detail: Readonly<Record<string, unknown>> | null | undefined,
+) {
+  return typeof detail?.tool === "string" && detail.tool.trim() !== "";
+}
+
 export function approvalEntity(row: ApprovalRow) {
   return {
     id: row.id,

@@ -10,6 +10,7 @@ import {
   FilePen,
   FilePlus,
   Info,
+  MessageSquareReply,
   Pause,
   Play,
   ShieldQuestion,
@@ -182,7 +183,8 @@ export const TranscriptRow = memo(function TranscriptRow({
       return (
         <Line icon={<ShieldQuestion className="text-warning" />}>
           <span className="text-foreground">
-            {agent?.name ?? "The agent"} asked to approve{" "}
+            {agent?.name ?? "The agent"}{" "}
+            {str(data.tool) ? "asked to approve" : "asked"}{" "}
             <span className="font-medium">{str(data.title)}</span>
           </span>
           {str(data.reason) && (
@@ -204,6 +206,8 @@ export const TranscriptRow = memo(function TranscriptRow({
           icon={
             data.decision === "approve" ? (
               <Check className="text-success" />
+            ) : data.decision === "answer" ? (
+              <MessageSquareReply className="text-foreground" />
             ) : (
               <X className="text-destructive" />
             )
@@ -212,8 +216,12 @@ export const TranscriptRow = memo(function TranscriptRow({
           <span className="font-medium text-foreground">
             {str(data.byName)}
           </span>{" "}
-          {data.decision === "approve" ? "approved" : "denied"} “
-          {str(data.title)}”{str(data.note) && `: ${str(data.note)}`}
+          {data.decision === "approve"
+            ? "approved"
+            : data.decision === "answer"
+              ? "answered"
+              : "denied"}{" "}
+          “{str(data.title)}”{str(data.note) && `: ${str(data.note)}`}
         </Line>
       );
     case "status": {

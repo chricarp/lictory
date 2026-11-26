@@ -45,6 +45,8 @@ export const agentApprovalStatus = pgEnum("agent_approval_status", [
   "approved",
   "denied",
   "expired",
+  // A question (a request naming no action) a person answered in words.
+  "answered",
 ]);
 
 // A named, non-human member of an organization. It acts with its owner's
@@ -343,7 +345,8 @@ export const agentSessionInput = pgTable(
 );
 
 // Something the agent asked a person to decide (a permission it lacks, a
-// command it wants to run). Answering is a person's decision.
+// command it wants to run: `detail.tool` and `detail.input`) or, when it
+// names no action, a question. Answering is a person's decision.
 export const agentApproval = pgTable(
   "agent_approval",
   {

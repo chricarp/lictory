@@ -335,8 +335,10 @@ function startClaude(ctx: HarnessContext): HarnessRun {
               : {
                   behavior: "deny",
                   message:
-                    note ??
-                    "A person denied this. Continue without it or ask how to proceed.",
+                    decision === "answer" && note
+                      ? `A person answered instead of approving: ${note}`
+                      : (note ??
+                        "A person denied this. Continue without it or ask how to proceed."),
                 },
         },
       });

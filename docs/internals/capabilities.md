@@ -197,7 +197,11 @@ human-only (`credentials`, `egress`).
 
 Every MCP and agent call is recorded in `capability_invocation`: person, token,
 client, capability, organization, outcome (or error category), mutation id and
-duration. Inputs are not stored because they can contain specification content.
+duration, and a bounded `detail`: the subject the call named (the first of a
+fixed list of identifier fields, such as `workItemId` or `sessionId`, as the
+caller wrote it) and, when refused, the refusal message and kind it got (a
+server failure's message stays in the server log). Inputs are not stored
+because they can contain specification content.
 Organization attribution is resolved among the caller's current memberships
 inside the audit insert, even when validation or token checks reject the call
 before execution. MCP references accept ids or slugs; embedded-agent references

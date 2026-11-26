@@ -53,7 +53,9 @@ files it changed and status changes. Below it:
 - **Message the agent** to steer it. A message sent while it works reaches
   it when its current step ends.
 - **Interrupt** stops the current turn; the agent keeps its work and waits
-  for your next message (the session shows **Waiting on you**).
+  for your next message (the session shows **Waiting on you**). It is offered
+  only while the agent works: a session already waiting on you has nothing
+  to interrupt.
 - **Cancel…** stops the session for good, after you confirm. **Retry** runs a failed or canceled
   session again from its original instructions and sends it the messages you
   sent before, so you do not repeat them; its history stays.
@@ -69,12 +71,14 @@ When an agent needs a decision (for example a command its harness may not
 run without permission) the session is **Waiting on you** and an approval
 request appears in the session, on the Factory overview, on Home and in your
 Inbox's To do. It names the item, the agent and the exact action (the
-command it would run or the file it would write), or says **No command
-attached** when the agent named none: approving then allows what its title
-says, so ask for the exact command first if you need it. Open **Review** to
-see the evidence, then choose **Approve** or **Deny**. Only the person who started the
-session and the agent's owner can answer, and an agent can never answer for
-them.
+command it would run or the file it would write). Open **Review** to see the
+evidence, then choose **Approve** or **Deny**.
+
+A request that names no command or file is a **Question**: there is nothing
+to approve, so you answer it in words (**Answer**, then **Send answer**) or
+deny it. Lictory never approves an action on its title alone. Only the
+person who started the session and the agent's owner can answer, and an
+agent can never answer for them.
 
 When the agent asks something in its own words and waits for your answer,
 the session is **Waiting on you** too: reply in the session or in its

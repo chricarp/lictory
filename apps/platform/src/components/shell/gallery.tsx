@@ -506,9 +506,15 @@ function ApprovalExamples() {
     requestedById: userId,
     pullRequestUrl: "https://github.com/northwind/payments/pull/3",
   });
-  const decide = async (decision: "approve" | "deny") => {
+  const decide = async (decision: "approve" | "deny" | "answer") => {
     await new Promise((r) => setTimeout(r, 300));
-    setAnswered(decision === "approve" ? "Approved" : "Denied");
+    setAnswered(
+      decision === "approve"
+        ? "Approved"
+        : decision === "answer"
+          ? "Answered"
+          : "Denied",
+    );
   };
   return (
     <>
@@ -528,10 +534,12 @@ function ApprovalExamples() {
             id: galleryIds.otherSession,
             requestedById: other,
           }}
+          // A request naming no action is a question: answered in words.
           approval={{
             ...approval,
             id: "ap-2",
-            title: "Push to the release branch",
+            title: "Which release branch should this go to?",
+            detail: { tool: null, input: null, reason: null },
           }}
           agent={someoneElses}
           runner={runner}

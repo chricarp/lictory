@@ -300,18 +300,51 @@ void test("an agent's owner sees what it called, refusals included; nobody else 
     invoke(agent, "getWorkItem", { organizationId, key: "NOPE-1" }),
     "not_found",
   );
+  // A person's decision is refused to the agent, whatever it names.
+  await refused(
+    invoke(agent, "answerAgentApproval", {
+      organizationId,
+      sessionId: "session-1",
+      approvalId: "approval-1",
+      decision: "approve",
+    }),
+    "forbidden",
+    "human_only",
+  );
   const { calls } = (await invoke(web(ownerId), "listAgentActivity", {
     organizationId,
     agentId: scout.id,
-  })) as { calls: { capability: string; outcome: string }[] };
+  })) as {
+    calls: {
+      capability: string;
+      outcome: string;
+      detail: {
+        target?: { field: string; id: string };
+        message?: string;
+        kind?: string;
+      } | null;
+    }[];
+  };
   assert.deepEqual(
     calls.map((c) => [c.capability, c.outcome]),
     [
+      ["answerAgentApproval", "forbidden"],
       ["getWorkItem", "not_found"],
       ["getWorkspace", "ok"],
       ["listOrganizations", "ok"],
     ],
   );
+  // Its owner reads what each call named and, when refused, why.
+  const [decision, lookup, workspace] = calls;
+  assert.deepEqual(decision!.detail?.target, {
+    field: "sessionId",
+    id: "session-1",
+  });
+  assert.equal(decision!.detail?.kind, "human_only");
+  assert.match(decision!.detail?.message ?? "", /person/);
+  assert.deepEqual(lookup!.detail?.target, { field: "key", id: "NOPE-1" });
+  assert.ok(lookup!.detail?.message);
+  assert.equal(workspace!.detail, null);
   await refused(
     invoke(web(memberId), "listAgentActivity", {
       organizationId,
@@ -887,6 +920,15 @@ void test("an agent waiting for a person's next message waits on them, and a ret
     event(4, "Got it: Fix the timeout."),
   ]);
   assert.equal((await sessionRow(session.id)).status, "running");
+  // Interrupt says what it does: the turn stops and the agent waits.
+  await invoke(ctx, "interruptAgentSession", ids);
+  assert.ok(
+    (await eventsOf(session.id)).some((e) =>
+      String((e.data as { message?: string }).message).includes(
+        "stops its current turn and waits for the next message",
+      ),
+    ),
+  );
   // An approval request still pending keeps it waiting, whatever the
   // harness reports about messages.
   await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
@@ -903,14 +945,11 @@ void test("an agent waiting for a person's next message waits on them, and a ret
     { seq: 6, type: "status", data: { phase: "working" } },
   ]);
   assert.equal((await sessionRow(session.id)).status, "waiting");
-  // Interrupt says what it does: the turn stops and the agent waits.
-  await invoke(ctx, "interruptAgentSession", ids);
-  assert.ok(
-    (await eventsOf(session.id)).some((e) =>
-      String((e.data as { message?: string }).message).includes(
-        "stops its current turn and waits for the next message",
-      ),
-    ),
+  // Waiting on a person, it is not working: there is no turn to interrupt.
+  await refused(
+    invoke(ctx, "interruptAgentSession", ids),
+    "conflict",
+    "invalid_state",
   );
   await invoke(ctx, "cancelAgentSession", ids);
   // A retry starts over from the task with the person's messages, in
@@ -1091,6 +1130,81 @@ void test("approval requests are answered only by the requester or the agent's o
     lastSeq: 1,
   });
   assert.equal(await authenticateAccessToken(db, lease.lictory.token), null);
+});
+
+// Text is never permission: a request that names no action (no tool and
+// input) is a question, which a person answers in words or denies.
+void test("a request naming no action is a question: answered in words, never approved", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const session = await start(ownerId, organizationId, agent.id);
+  const lease = (await claimSession(db, machineRow))!;
+  await startRun(db, machineRow, session.id, lease.leaseToken);
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    {
+      seq: 1,
+      type: "approval_request",
+      data: { requestId: "ask-1", title: "Run the migration on staging" },
+    },
+    {
+      seq: 2,
+      type: "approval_request",
+      data: {
+        requestId: "tool-2",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
+    },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  const approvals = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.sessionId, session.id));
+  const question = approvals.find((a) => a.requestKey === "ask-1")!;
+  const permission = approvals.find((a) => a.requestKey === "tool-2")!;
+  const answer = (approvalId: string, decision: string, note?: string) =>
+    invoke(web(ownerId), "answerAgentApproval", {
+      organizationId,
+      sessionId: session.id,
+      approvalId,
+      decision,
+      ...(note === undefined ? {} : { note }),
+    });
+  // A title alone cannot be approved, and an answer needs words.
+  await refused(answer(question.id, "approve"), "validation");
+  await refused(answer(question.id, "answer", "  "), "validation");
+  // A permission is approved or denied, not answered around.
+  await refused(answer(permission.id, "answer", "Sure"), "validation");
+  await answer(
+    question.id,
+    "answer",
+    "Run it after 18:00 with --dry-run first.",
+  );
+  const [answered] = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.id, question.id));
+  assert.equal(answered!.status, "answered");
+  assert.equal(answered!.note, "Run it after 18:00 with --dry-run first.");
+  // The permission still waits: the session waits until it is decided.
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  const inbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    lease.leaseToken,
+    0,
+  );
+  const heard = inbox.inputs.find((i) => i.kind === "approval_answer")!;
+  assert.equal(heard.data.requestId, "ask-1");
+  assert.equal(heard.data.decision, "answer");
+  assert.equal(heard.data.note, "Run it after 18:00 with --dry-run first.");
+  await answer(permission.id, "approve");
+  assert.equal((await sessionRow(session.id)).status, "running");
 });
 
 void test("the model proxy serves only running built-in sessions with Lictory Intelligence on", async () => {

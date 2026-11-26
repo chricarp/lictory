@@ -487,6 +487,32 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
+    // A material revision outdated these approvals: the record that an
+    // approval no longer counts, and which revision it was for.
+    case "approvals_outdated": {
+      const outdated = Array.isArray(d.approvals)
+        ? (d.approvals as {
+            reviewerId?: string;
+            responsibility?: string | null;
+            revision?: number | null;
+          }[])
+        : [];
+      body = (
+        <>
+          <b className="text-warning">outdated</b>{" "}
+          {outdated.map((a, i) => (
+            <span key={`${a.reviewerId}-${i}`}>
+              {i > 0 && (i === outdated.length - 1 ? " and " : ", ")}
+              <b>{memberName(a.reviewerId ?? "")}</b>’s{" "}
+              {a.responsibility ? `${a.responsibility} ` : ""}approval
+              {a.revision ? ` of revision ${a.revision}` : ""}
+            </span>
+          ))}{" "}
+          with revision {num(d.revision)}
+        </>
+      );
+      break;
+    }
     case "approved":
       body = (
         <>

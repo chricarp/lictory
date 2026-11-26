@@ -1,15 +1,18 @@
-import { sessionTitle } from "@lictory/core/factory/entities";
+import { asksPermission, sessionTitle } from "@lictory/core/factory/entities";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
   FileDiff,
   GitBranch,
+  MessageCircleQuestion,
+  Send,
   Server,
   ShieldQuestion,
   SquareTerminal,
   X,
 } from "lucide-react";
+import { Textarea } from "@ui-sdk/react/textarea";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
   AgentEntity,
@@ -50,9 +53,11 @@ import {
 //
 // In lists (`compact`) the row's action is Review: it opens the context, and
 // Approve appears only then, so nothing is approved from a one-line title.
-// The decision is the server's `answerAgentApproval` capability; only the
-// person who started the session or the agent's owner may answer, and
-// everyone else sees who decides.
+// A request that names no action (no tool and input) is a question, not a
+// permission: it is answered in words or denied, never approved (text is
+// never permission). The decision is the server's `answerAgentApproval`
+// capability; only the person who started the session or the agent's owner
+// may answer, and everyone else sees who decides.
 
 export function canDecide(
   session: Pick<SessionEntity, "requestedById">,
@@ -76,7 +81,10 @@ type Props = {
   // Inside another card (a channel's session card): no card of its own.
   embedded?: boolean;
   // Replaces the server call (the design gallery's examples).
-  onDecide?: (decision: "approve" | "deny") => Promise<void>;
+  onDecide?: (
+    decision: "approve" | "deny" | "answer",
+    note?: string,
+  ) => Promise<void>;
 };
 
 export function ApprovalRequest({
@@ -117,6 +125,7 @@ export function ApprovalRequest({
     : undefined;
   const itemKey = item && project ? identifier(project, item.number) : null;
   const action = approvalAction(approval.detail);
+  const question = !asksPermission(approval.detail);
   const task = sessionTitle(session.title);
   const taskBesideKey =
     itemKey && task.startsWith(`${itemKey}: `)
@@ -132,6 +141,11 @@ export function ApprovalRequest({
         <span className="shrink-0">
           {agent ? (
             <AgentAvatar agent={agent} size={20} />
+          ) : question ? (
+            <MessageCircleQuestion
+              aria-hidden
+              className="size-4 text-muted-foreground"
+            />
           ) : (
             <ShieldQuestion aria-hidden className="size-4 text-warning" />
           )}
@@ -150,33 +164,31 @@ export function ApprovalRequest({
               {approval.title}
             </span>
           </span>
+          {/* What sets this request apart from its neighbours comes first:
+              the exact action (or that it is a question), then the task it
+              belongs to; the agent, usually the same on every row, last. */}
           <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 overflow-hidden text-xs leading-4 text-muted-foreground">
-            {action ? (
-              <>
-                <ActionText
-                  action={action}
-                  className="max-w-full sm:max-w-[45%]"
-                />
-                <span aria-hidden>·</span>
-              </>
+            {action && !question ? (
+              <ActionText
+                action={action}
+                className="max-w-full sm:max-w-[45%]"
+              />
             ) : (
-              // Rows that ask the same title must still say that this one
-              // names nothing to check.
-              <>
-                <span className="shrink-0 font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
-                  No command attached
-                </span>
-                <span aria-hidden>·</span>
-              </>
+              <span className="shrink-0 font-medium text-foreground">
+                Question
+              </span>
             )}
+            <span aria-hidden>·</span>
+            <span className="min-w-0 truncate text-foreground/80">
+              {taskBesideKey}
+            </span>
+            <span aria-hidden>·</span>
             <AgentActor
               agent={agent}
               ownerId={agent?.ownerId}
               avatar={false}
               className="shrink-0"
             />
-            <span aria-hidden>·</span>
-            <span className="min-w-0 truncate">{taskBesideKey}</span>
           </span>
         </span>
         <time
@@ -191,10 +203,10 @@ export function ApprovalRequest({
           aria-expanded={open}
           aria-controls={bodyId}
           // Several rows can ask the same thing: the name says which.
-          aria-label={`${open ? "Close" : "Review"}: ${approval.title}, ${itemKey ?? `“${task}”`}`}
+          aria-label={`${open ? "Close" : question ? "Answer" : "Review"}: ${approval.title}, ${itemKey ?? `“${task}”`}`}
           onClick={() => setOpen((o) => !o)}
         >
-          {open ? "Close" : "Review"}
+          {open ? "Close" : question ? "Answer" : "Review"}
           <ChevronDown
             aria-hidden
             className={cn(
@@ -247,10 +259,22 @@ function Ask({
   agent: AgentEntity | undefined;
   session: SessionEntity;
 }) {
+  const question = !asksPermission(approval.detail);
   return (
     <div className="flex items-start gap-3">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning">
-        <ShieldQuestion className="size-4" aria-hidden />
+      <span
+        className={cn(
+          "grid size-8 shrink-0 place-items-center rounded-lg",
+          question
+            ? "bg-primary/10 text-primary"
+            : "bg-warning/10 text-warning",
+        )}
+      >
+        {question ? (
+          <MessageCircleQuestion className="size-4" aria-hidden />
+        ) : (
+          <ShieldQuestion className="size-4" aria-hidden />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[13px] leading-5 font-semibold">{approval.title}</p>
@@ -366,6 +390,7 @@ function Context({
         ? evidence.input
         : JSON.stringify(evidence.input, null, 2);
   const reason = evidence.reason;
+  const question = !asksPermission(approval.detail);
   const action = approvalAction({
     tool: evidence.tool,
     input: evidence.input,
@@ -513,13 +538,11 @@ function Context({
       {!complete && !reason && !input && (
         <p className="text-xs text-muted-foreground">Loading what it did…</p>
       )}
-      {complete && !evidence.tool && !input && (
+      {question && (
         <p className="text-[13px] leading-5">
-          <span className="font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
-            No command or file attached.
-          </span>{" "}
-          Approving allows what the title says. Ask the agent for the exact
-          command first if you need it.
+          {agent?.name ?? "The agent"} asks this as a question: it names no
+          command or file, so there is nothing to approve. Answer it in words,
+          or deny it.
         </p>
       )}
       {(session.pullRequestId ?? session.pullRequestUrl) && (
@@ -544,7 +567,13 @@ function Context({
         </p>
       )}
       {decider ? (
-        <Decide session={session} approval={approval} onDecide={onDecide} />
+        <Decide
+          sessionId={session.id}
+          approvalId={approval.id}
+          question={question}
+          agentName={agent?.name}
+          onDecide={onDecide}
+        />
       ) : (
         <p className="text-xs text-muted-foreground">
           {deciders.length
@@ -596,28 +625,40 @@ function Fact({
   );
 }
 
-// Approve or Deny, full-size. The server decides who may answer and records
-// the decision; the request leaves every list once it has.
-function Decide({
-  session,
-  approval,
+// Approve or Deny a permission, full-size; answer a question in words or
+// deny it. The server decides who may answer, refuses to approve a request
+// that names no action, and records the decision; the request leaves every
+// list once it has.
+export function Decide({
+  sessionId,
+  approvalId,
+  question,
+  agentName,
   onDecide,
 }: {
-  session: SessionEntity;
-  approval: ApprovalEntity;
-  onDecide?: (decision: "approve" | "deny") => Promise<void>;
+  sessionId: string;
+  approvalId: string;
+  question: boolean;
+  agentName?: string;
+  onDecide?: (
+    decision: "approve" | "deny" | "answer",
+    note?: string,
+  ) => Promise<void>;
 }) {
   const { organization } = useWorkspace();
-  const [sent, setSent] = useState<"approve" | "deny" | null>(null);
-  const answer = async (decision: "approve" | "deny") => {
+  const [sent, setSent] = useState<"approve" | "deny" | "answer" | null>(null);
+  const [note, setNote] = useState("");
+  const noteId = useId();
+  const answer = async (decision: "approve" | "deny" | "answer") => {
     setSent(decision);
     try {
-      if (onDecide) return await onDecide(decision);
+      if (onDecide) return await onDecide(decision, note.trim() || undefined);
       await callCapability("answerAgentApproval", {
         organizationId: organization.id,
-        sessionId: session.id,
-        approvalId: approval.id,
+        sessionId,
+        approvalId,
         decision,
+        note: decision === "approve" ? null : note.trim() || null,
       });
     } catch (error) {
       setSent(null);
@@ -628,6 +669,50 @@ function Decide({
       });
     }
   };
+  const status = sent && (
+    <span role="status" className="text-xs text-muted-foreground">
+      {sent === "approve" ? "Approved" : sent === "deny" ? "Denied" : "Sent"};
+      telling the agent…
+    </span>
+  );
+  if (question)
+    return (
+      <form
+        className="space-y-2 pt-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (note.trim()) void answer("answer");
+        }}
+      >
+        <label htmlFor={noteId} className="sr-only">
+          Your answer to {agentName ?? "the agent"}
+        </label>
+        <Textarea
+          id={noteId}
+          value={note}
+          onValueChange={setNote}
+          maxLength={2000}
+          rows={2}
+          disabled={sent !== null}
+          placeholder={`Answer ${agentName ?? "the agent"}…`}
+          className="min-h-16 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/20 touch:text-base"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={sent !== null || !note.trim()}>
+            <Send className="size-3.5" aria-hidden /> Send answer
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => answer("deny")}
+            disabled={sent !== null}
+          >
+            <X className="size-3.5" aria-hidden /> Deny
+          </Button>
+          {status}
+        </div>
+      </form>
+    );
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
       <Button onClick={() => answer("approve")} disabled={sent !== null}>
@@ -640,11 +725,7 @@ function Decide({
       >
         <X className="size-3.5" aria-hidden /> Deny
       </Button>
-      {sent && (
-        <span role="status" className="text-xs text-muted-foreground">
-          {sent === "approve" ? "Approved" : "Denied"}; telling the agent…
-        </span>
-      )}
+      {status}
     </div>
   );
 }

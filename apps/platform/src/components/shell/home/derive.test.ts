@@ -368,4 +368,19 @@ void test("recent outcomes are my delivered work and my agents' finished session
     result.rows[0]!.kind === "session" && result.rows[0]!.failed,
     true,
   );
+  // A failure already waiting on me (to retry) is listed there, once.
+  const once = recentOutcomes(
+    {
+      ...context([delivered]),
+      sessions: [failed, finished],
+      agentOwner: () => me,
+      now,
+      listed: new Set(["failed"]),
+    },
+    10,
+  );
+  assert.deepEqual(
+    once.rows.map((r) => r.key),
+    [`item:${delivered.id}`, "session:finished"],
+  );
 });

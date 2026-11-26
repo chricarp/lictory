@@ -31,6 +31,7 @@ import {
 } from "@lictory/core/factory/authority";
 import { policyStarter } from "@lictory/core/claims/contracts";
 import {
+  asksPermission,
   sessionEntity,
   type SessionStatus,
 } from "@lictory/core/factory/entities";
@@ -868,11 +869,12 @@ export async function answerApproval(
     organizationId: string;
     sessionId: string;
     approvalId: string;
-    decision: "approve" | "deny";
+    decision: "approve" | "deny" | "answer";
     note?: string | null;
   },
 ) {
   assertPerson(actor.agent, "answering an approval request");
+  const note = present(input.note?.slice(0, 2000));
   return writeAndPublish(db, input.organizationId, async (tx, publish) => {
     const { session } = await steerable(
       tx,
@@ -897,8 +899,27 @@ export async function answerApproval(
       );
     requireStep(agentApproval, approval.status, "answer");
     requireStep(agentSession, session.status, "answerApproval");
-    const status = input.decision === "approve" ? "approved" : "denied";
-    const note = present(input.note?.slice(0, 2000));
+    // A permission is approved or denied; a question (a request that names
+    // no action) is answered in words or denied, never approved.
+    const permission = asksPermission(approval.detail);
+    if (input.decision === "approve" && !permission)
+      throw new DomainError(
+        "validation",
+        "This request names no command or file, so there is nothing to approve. Answer it in words or deny it.",
+      );
+    if (input.decision === "answer" && permission)
+      throw new DomainError(
+        "validation",
+        "This request asks to run a command or use a tool: approve or deny it (a denial can carry a message).",
+      );
+    if (input.decision === "answer" && !note)
+      throw new DomainError("validation", "Write the answer for the agent.");
+    const status =
+      input.decision === "approve"
+        ? "approved"
+        : input.decision === "answer"
+          ? "answered"
+          : "denied";
     await tx
       .update(s.agentApproval)
       .set({
