@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { attachmentsAvailable } from "@lictory/core/storage";
+import { emailConfigured } from "@lictory/core/lib/mailer";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import type * as Db from "@lictory/core/db";
 import type * as Service from "@lictory/core/domain/service";
@@ -285,6 +286,7 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
     signIn: { password: true, ssoName: null, signUpMode: "invite" },
     // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
     attachments: attachmentsAvailable(),
+    email: emailConfigured(),
     organizationDeletionGraceDays: 30,
   });
   assert.equal((await m.app.request("/api/account")).status, 401);

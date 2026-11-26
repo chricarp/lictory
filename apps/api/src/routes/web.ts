@@ -50,6 +50,7 @@ import {
   suggestHandles,
 } from "@lictory/core/lib/handles-server";
 import { attachmentsAvailable } from "@lictory/core/storage";
+import { emailConfigured } from "@lictory/core/lib/mailer";
 import { MAX_CONTEXT_DOCUMENT_SIZE } from "@lictory/core/intelligence/shared";
 import { PhotoError } from "@lictory/core/profile/image";
 import { MAX_PROFILE_PHOTO_SIZE } from "@lictory/core/profile/photo";
@@ -140,6 +141,8 @@ export function webRoutes() {
         signIn: signInOptions,
         // False when the server has no object storage: attachments disabled.
         attachments: attachmentsAvailable(),
+        // False when the server sends no email (no SMTP or Resend).
+        email: emailConfigured(),
         organizationDeletionGraceDays: policy.organizationDeletionGraceDays,
       },
       200,
@@ -463,7 +466,9 @@ export function webRoutes() {
             body: { organizationId, email, role: "member", resend: true },
           }),
       );
-      return c.json({ id: invitation.id });
+      // Without outbound email the link is the only way the invitation
+      // reaches them; the form says so instead of "email sent".
+      return c.json({ id: invitation.id, emailed: emailConfigured() });
     } catch (error) {
       if (error instanceof APIError)
         return Response.json(
