@@ -854,9 +854,7 @@ void test("approvals target exact revisions, only assignments authorize, and sug
   // The item's history says which approval the new revision outdated.
   const revised = all.find(
     (e) =>
-      e.type === "activity" &&
-      e.action === "revised" &&
-      e.detail?.number === 2,
+      e.type === "activity" && e.action === "revised" && e.detail?.number === 2,
   );
   assert.deepEqual(revised?.type === "activity" && revised.detail, {
     number: 2,
