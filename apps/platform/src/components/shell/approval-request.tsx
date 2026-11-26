@@ -452,6 +452,8 @@ function Context({
           {action && action.kind !== "tool" ? (
             <>
               <pre
+                // A named group: a bare <pre> may not carry a name.
+                role="group"
                 aria-label="The exact action"
                 className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[12px] leading-4 whitespace-pre-wrap text-foreground"
               >
