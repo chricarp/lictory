@@ -877,12 +877,13 @@ void test("approval requests are answered only by the requester or the agent's o
       approvalId: approval!.id,
       decision,
     });
-  // Another member cannot decide, and neither can the agent itself.
+  // Another member cannot decide, and neither can the agent itself: the
+  // server refuses a person's decision to every agent (human_only).
   await refused(answer(web(otherId)), "forbidden");
   await refused(
     answer(context(await agentPrincipal(ownerId, organizationId, agent.id))),
     "forbidden",
-    "agent_scope",
+    "human_only",
   );
   // The session's own token is the agent too.
   const sessionToken = (await authenticateAccessToken(
@@ -901,7 +902,7 @@ void test("approval requests are answered only by the requester or the agent's o
       "approve",
     ),
     "forbidden",
-    "agent_scope",
+    "human_only",
   );
   // The requester decides; the session resumes and the runner hears it.
   await answer(web(memberId), "deny");

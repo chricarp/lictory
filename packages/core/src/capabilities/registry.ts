@@ -7,10 +7,12 @@ import { auditCapabilities } from "@lictory/core/capabilities/audit";
 import { exportCapabilities } from "@lictory/core/capabilities/export";
 import { organizationDeletionCapabilities } from "@lictory/core/capabilities/organization-deletion";
 import { brandingCapabilities } from "@lictory/core/capabilities/branding";
+import { z } from "zod";
 import {
   CapabilityError,
   type AnyCapability,
   type CapabilityContext,
+  type Principal,
   type Surface,
 } from "@lictory/core/capabilities/core";
 import { deliveryCapabilities } from "@lictory/core/capabilities/delivery";
@@ -19,6 +21,7 @@ import {
   assertHumanOnlyMetadata,
   humanOnlyCapability,
   humanOnlyRefusal,
+  personDecisionRefusal,
 } from "@lictory/core/capabilities/human-only";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import { assertOrganizationAccess } from "@lictory/core/domain/organization-access";
@@ -89,6 +92,19 @@ export function listCapabilities(surface: Surface) {
 export function getCapability(name: string, surface: Surface) {
   const capability = byName.get(name);
   return capability?.surfaces.includes(surface) ? capability : undefined;
+}
+
+// What this principal may call, which is what MCP lists: read tokens only
+// reach queries; a Factory agent never reaches a person's decision, and an
+// agent limited to some projects never reaches an operation that cannot name
+// one of them (it would always be refused, see assertAgentScope).
+export function capabilitiesFor(principal: Principal) {
+  return listCapabilities(principal.surface).filter(
+    (c) =>
+      (principal.access !== "read" || c.kind === "query") &&
+      !(principal.agent && c.decision) &&
+      !(principal.agent?.projectIds && alwaysOutsideProjects(c)),
+  );
 }
 
 // Agents calling an operation that deliberately stays in the browser get the
@@ -323,6 +339,91 @@ async function assertAgentScope(
   if (!agentScoped.has(capability.name)) assertAgentProject(agent, null);
 }
 
+// Inputs assertAgentScope can place inside a project.
+const projectFields = [
+  "projectId",
+  "claimId",
+  "pullRequestId",
+  "workItemId",
+  "key",
+];
+function alwaysOutsideProjects(capability: AnyCapability) {
+  if (agentScoped.has(capability.name)) return false;
+  if (!(capability.input instanceof z.ZodObject)) return false;
+  const shape = capability.input.shape as Record<string, unknown>;
+  return !projectFields.some((field) => field in shape);
+}
+
+// MCP clients send what the model wrote. Fields a tool does not take are
+// refused rather than dropped, so a retry key or a misspelled field never
+// silently does nothing.
+function refuseUnknownFields(capability: AnyCapability, input: unknown) {
+  if (!(capability.input instanceof z.ZodObject)) return;
+  // Strict inputs (workspace commands) refuse with their own hints.
+  if (capability.input._zod.def.catchall) return;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return;
+  const shape = capability.input.shape as Record<string, unknown>;
+  const unknown = Object.keys(input).filter((key) => !(key in shape));
+  if (!unknown.length) return;
+  const hint = unknown.includes("mutationId")
+    ? " This tool takes no retry key: read the current state before calling it again."
+    : "";
+  throw new CapabilityError(
+    "validation",
+    `Unknown field(s): ${unknown.join(", ")}.${hint}`,
+    {
+      issues: unknown.map((key) => ({
+        path: key,
+        message: "Not a field of this tool.",
+      })),
+    },
+  );
+}
+
+// People see work item keys (PAY-142) and agents copy them. Wherever an MCP
+// tool takes `workItemId`, a key is accepted too and resolved among the
+// organization's projects (every member reads every project); the domain
+// services then authorize the id as usual.
+const workItemKey = /^([A-Za-z][A-Za-z0-9]{1,9})-(\d+)$/;
+async function resolveWorkItemKey(ctx: CapabilityContext, input: unknown) {
+  if (!input || typeof input !== "object") return input;
+  const fields = input as Record<string, unknown>;
+  const reference = fields.workItemId;
+  const organization = fields.organizationId;
+  if (typeof reference !== "string" || typeof organization !== "string")
+    return input;
+  const match = workItemKey.exec(reference.trim());
+  if (!match) return input;
+  // An unknown organization is reported after validation, as for any call.
+  const organizations = await organizationMatches(ctx, organization, true);
+  if (organizations.length !== 1) return input;
+  const organizationId = organizations[0]!.id;
+  const [found] = await ctx.db
+    .select({ id: s.workItem.id })
+    .from(s.workItem)
+    .innerJoin(
+      s.project,
+      and(
+        eq(s.project.organizationId, s.workItem.organizationId),
+        eq(s.project.id, s.workItem.projectId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.workItem.organizationId, organizationId),
+        sql`upper(${s.project.key}) = ${match[1]!.toUpperCase()}`,
+        eq(s.workItem.number, Number(match[2])),
+      ),
+    )
+    .limit(1);
+  if (!found)
+    throw new CapabilityError(
+      "not_found",
+      `No work item in this organization has the key ${reference.trim().toUpperCase()}. workItemId takes a key such as PAY-142 or the item's id; listWorkItems shows both.`,
+    );
+  return { ...fields, workItemId: found.id };
+}
+
 // Validates, authorizes the surface and token, runs the capability and
 // normalizes every failure to a CapabilityError. Domain authorization
 // (membership, application role, organization-role capabilities) happens in
@@ -343,12 +444,23 @@ export async function invoke(
         humanOnlyError(name) ??
         new CapabilityError("unavailable", `Unknown operation “${name}”.`)
       );
+    // A person's decision is never an agent's, whatever its token allows
+    // (docs/internals/software-factory.md, rule 3).
+    if (capability.decision && ctx.principal.agent)
+      throw personDecisionRefusal(capability, ctx.principal.agent.name);
     if (capability.kind === "command" && ctx.principal.access === "read")
       throw new CapabilityError(
         "forbidden",
-        "This access token is read-only. Create a token with write access to make changes.",
+        ctx.principal.agent
+          ? `${ctx.principal.agent.name} is read only. Its owner can give it read and write access in Factory → Agents → ${ctx.principal.agent.name} → Edit → Scope.`
+          : "This access token is read-only. Create a token with write access to make changes.",
       );
-    const parsed = capability.input.parse(rawInput ?? {});
+    let raw: unknown = rawInput ?? {};
+    if (ctx.principal.surface === "mcp") {
+      refuseUnknownFields(capability, raw);
+      raw = await resolveWorkItemKey(ctx, raw);
+    }
+    const parsed = capability.input.parse(raw);
     const input =
       ctx.principal.surface === "mcp"
         ? await resolveMcpOrganization(ctx, parsed)
