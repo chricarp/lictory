@@ -851,6 +851,24 @@ void test("approvals target exact revisions, only assignments authorize, and sug
         e.revisionId === first.id,
     ),
   );
+  // The item's history says which approval the new revision outdated.
+  const revised = all.find(
+    (e) =>
+      e.type === "activity" &&
+      e.action === "revised" &&
+      e.detail?.number === 2,
+  );
+  assert.deepEqual(revised?.type === "activity" && revised.detail, {
+    number: 2,
+    summary: revised?.type === "activity" ? revised.detail?.summary : null,
+    outdatedApprovals: [
+      {
+        reviewerId: f.reviewerId,
+        responsibility: "Engineering",
+        revision: 1,
+      },
+    ],
+  });
   assert.ok(
     all.some(
       (e) =>
@@ -3166,7 +3184,7 @@ void test("shared branches merge independent commits, reject overlap and preserv
       content: "resolved",
       message: "Old resolution",
     }),
-    /changed again/,
+    /saved again meanwhile/,
   );
   await f.command({
     type: "commitBranch",
@@ -3324,7 +3342,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
       sourceHeadId: b.source.headId,
       targetHeadId: b.target.headId,
     }),
-    /required responsibility/,
+    /required discipline/,
   );
   await decide();
   const mutationId = crypto.randomUUID(),
@@ -3337,7 +3355,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     };
   await assert.rejects(
     f.command(mergeCommand, f.reviewerId),
-    /disciplines in this project cannot merge/,
+    /disciplines in this project cannot apply changes/,
   );
   // Cleanup and its audit event must roll back with the merge if any write fails.
   await client`CREATE FUNCTION reject_branch_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'branch_deleted' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF; RETURN NEW; END $$`;
@@ -3650,7 +3668,7 @@ void test("branch/PR deletion emits tombstones, keeps history, and branches can 
       workItemId: f.proposalId,
       branchId: childId,
     }),
-    /active pull requests/,
+    /open reviews of this change/,
   );
   const checkpoint = (await f.read()).nextCursor;
   await f.command({

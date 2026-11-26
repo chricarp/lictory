@@ -389,10 +389,10 @@ test("changes between revisions mark only the words that changed, and any two re
   // The same history holds branches and pull requests.
   await page
     .getByRole("navigation", { name: "Specification history" })
-    .getByRole("button", { name: "Branches & pull requests" })
+    .getByRole("button", { name: "Proposed changes" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Branches & pull requests" }),
+    page.getByRole("heading", { name: "Proposed changes" }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Specification history" })
@@ -557,7 +557,7 @@ test("a larger suggested change opens a branch with the chosen passage selected 
   );
   await composer.getByRole("button", { name: "Larger change" }).click();
   const editor = page.locator(
-    '[data-markdown-editor][aria-label="Branch specification"][contenteditable="true"]',
+    '[data-markdown-editor][aria-label="Proposed specification"][contenteditable="true"]',
   );
   await expect(editor).toBeFocused();
   await expect

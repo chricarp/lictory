@@ -75,14 +75,14 @@ export function SuggestionStatusBadge({
   if (suggestion.status === "merged")
     return (
       <Badge tone="good">
-        <GitMerge className="size-3" /> Merged as revision{" "}
+        <GitMerge className="size-3" /> Accepted as revision{" "}
         {revisionNumber(suggestion.mergedRevisionId ?? "") ?? ""}
       </Badge>
     );
   if (suggestion.status === "closed")
     return (
       <Badge>
-        <X className="size-3" /> Closed
+        <X className="size-3" /> Rejected
       </Badge>
     );
   if (suggestion.status === "draft")
@@ -106,7 +106,7 @@ export function SuggestionStatusBadge({
   if (mergeable)
     return (
       <Badge tone="good">
-        <Check className="size-3" /> Approved · ready to merge
+        <Check className="size-3" /> Approved · ready to accept
       </Badge>
     );
   if (approvals.length)

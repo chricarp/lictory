@@ -114,7 +114,24 @@ void test("declared machines end where the product says they end", () => {
 });
 
 void test("pull requests: only open ones are reviewed and merged; closing differs by product", () => {
-  for (const machine of [specificationPullRequest, pagePullRequest]) {
+  // Each product says it in its own words: a specification's proposed
+  // change is applied, a page's pull request merged.
+  for (const [machine, words] of [
+    [
+      specificationPullRequest,
+      {
+        draft: "This review is a draft. Mark it ready for review first.",
+        merged: "This change is already applied.",
+      },
+    ],
+    [
+      pagePullRequest,
+      {
+        draft: "This pull request is a draft. Mark it ready for review first.",
+        merged: "This pull request is merged.",
+      },
+    ],
+  ] as const) {
     assert.deepEqual(
       (["draft", "open", "merged", "closed"] as const).filter((state) =>
         machine.allows(state, "merge"),
@@ -125,14 +142,8 @@ void test("pull requests: only open ones are reviewed and merged; closing differ
     assert.equal(machine.refusal("draft", "markDraft"), undefined);
     assert.equal(machine.available("closed").length, 0);
     // A refusal names the state that causes it, not another one.
-    assert.equal(
-      machine.refusal("draft", "review"),
-      "This pull request is a draft. Mark it ready for review first.",
-    );
-    assert.equal(
-      machine.refusal("merged", "review"),
-      "This pull request is merged.",
-    );
+    assert.equal(machine.refusal("draft", "review"), words.draft);
+    assert.equal(machine.refusal("merged", "review"), words.merged);
     assert.doesNotMatch(machine.refusal("merged", "markReady")!, /draft/);
   }
   // A merged specification pull request can be removed from the item; a

@@ -1024,7 +1024,7 @@ function DraftEditor({
           <span aria-hidden className="size-1.5 rounded-full bg-primary" />
           {line.isMain
             ? "Live draft"
-            : `Draft of ${line.branchName ?? "this branch"}`}
+            : `Draft of ${line.branchName ?? "this change"}`}
         </span>
         <span aria-hidden>·</span>
         <span>based on {line.basedOn}</span>
@@ -1045,10 +1045,10 @@ function DraftEditor({
             : uncommitted
               ? line.isMain
                 ? "Not saved as a revision yet"
-                : "Uncommitted changes"
+                : "Not saved as a version yet"
               : line.isMain
                 ? `Same as ${line.basedOn}`
-                : "All changes committed"}
+                : "Every edit is in a version"}
         </span>
         <Editors peers={snapshot.peers} />
       </div>

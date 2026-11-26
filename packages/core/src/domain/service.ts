@@ -2454,6 +2454,29 @@ export async function applyMutation(
         // approved by the pull request's required reviewers.
         const textUnchanged =
           previous.title === title && previous.content === content;
+        // What the new revision did to the approvals in force, for the
+        // item's history: outdated by a text change, or carried over.
+        const granted = before.filter(
+          (e): e is EntityOf<"approval"> =>
+            e.type === "approval" &&
+            e.workItemId === workItemId &&
+            e.status === "granted",
+        );
+        const approvalEffect = !granted.length
+          ? {}
+          : textUnchanged
+            ? { carriedApprovals: granted.length }
+            : {
+                outdatedApprovals: granted.map((a) => ({
+                  reviewerId: a.reviewerId,
+                  responsibility:
+                    before.find(
+                      (e): e is EntityOf<"review"> =>
+                        e.type === "review" && e.id === a.reviewId,
+                    )?.responsibility ?? null,
+                  revision: previous.number,
+                })),
+              };
         await tx
           .update(s.approval)
           .set({
@@ -2548,6 +2571,7 @@ export async function applyMutation(
         log("revised", {
           number,
           summary: summary?.trim() ? summary.trim() : null,
+          ...approvalEffect,
         });
       }
       return revisionId;
@@ -4049,7 +4073,7 @@ export async function applyMutation(
           if (!branch || branch.name === "main")
             throw new DomainError(
               "not_found",
-              "This branch or pull request is unavailable.",
+              "This proposed change or its review is unavailable.",
             );
           require(branch.authorId === userId ||
             branch.collaboratorIds.includes(

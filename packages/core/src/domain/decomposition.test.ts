@@ -300,7 +300,7 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   await f.commit(branchId, [child]);
   await assert.rejects(
     f.merge(pullRequestId),
-    /approve the current merge result/,
+    /approve the current result/,
   );
   await f.approve(pullRequestId);
   const mutationId = crypto.randomUUID();
@@ -662,7 +662,7 @@ void test("a reviewed breakdown renames, moves and archives existing children on
   await f.commit(branchId, [fresh, ...changes.slice(0, 2)]);
   await assert.rejects(
     f.merge(pullRequestId),
-    /approve the current merge result/,
+    /approve the current result/,
   );
   await f.commit(branchId, [fresh, ...changes]);
   // A sibling branch carrying the same changes must not apply them twice.

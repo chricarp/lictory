@@ -31,7 +31,7 @@ import { threadMarks } from "@lictory/platform/components/review/markdown-marks"
 
 // A specification's history, like a page's: Versions (every revision with
 // who wrote it, why, the approvals given on it and the revisions accepted
-// for and delivered by delivery), and Branches & pull requests. Any two
+// for and delivered by delivery), and Proposed changes. Any two
 // revisions can be compared; restoring makes a new revision, it never
 // rewrites one.
 
@@ -62,7 +62,7 @@ export function HistoryNav({
       {(
         [
           ["versions", "Versions", onVersions],
-          ["branches", "Branches & pull requests", onBranches],
+          ["branches", "Proposed changes", onBranches],
         ] as const
       ).map(([key, title, go]) => (
         <button
@@ -404,14 +404,14 @@ export function SpecVersions({
             item.mainProtected &&
             capabilities.editSpecifications && (
               <p className="text-sm text-muted-foreground">
-                Main is protected. Use a branch and pull request to restore
-                earlier content.
+                This specification is protected. To restore earlier text,
+                propose it as a change and send it for review.
               </p>
             )}
           {canRestore && confirm && (
             <div className="space-y-2 rounded-xl p-3 ring-1 ring-foreground/10">
               <p className="text-sm">
-                Restore revision {shown.number} as a new main revision. Existing
+                Restore revision {shown.number} as a new revision. Existing
                 approvals will require review again.
               </p>
               {error && (

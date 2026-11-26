@@ -807,13 +807,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // Collaborators edit the branch's one live draft and commit what both
   // see.
-  await page.getByRole("button", { name: /Branches & pull requests/ }).click();
+  await page.getByRole("button", { name: /Proposed changes/ }).click();
   await page
-    .getByRole("textbox", { name: "New branch name" })
+    .getByRole("textbox", { name: "Name of the change" })
     .fill("conflict-lab");
-  await page
-    .getByRole("button", { name: "Create branch", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Start change", exact: true }).click();
   await expect(page).toHaveURL(/\?branch=[^&]+$/);
   const conflictBranchUrl = page.url();
   await page.getByRole("combobox", { name: "Invite collaborator" }).click();
@@ -822,32 +820,30 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Remove Riley Chen", exact: true }),
   ).toBeVisible();
   await reviewer.goto(conflictBranchUrl);
-  const reviewerEditor = await richEditor(reviewer, "Branch specification");
-  const sourceText = await markdownOf(page, "Branch specification");
+  const reviewerEditor = await richEditor(reviewer, "Proposed specification");
+  const sourceText = await markdownOf(page, "Proposed specification");
   await fillMarkdown(
     page,
-    "Branch specification",
+    "Proposed specification",
     sourceText.replace("partial amount", "bounded amount"),
   );
   await expect(reviewerEditor).toContainText("bounded amount");
   await expect(page.getByText("Riley Chen is editing")).toBeVisible();
   await page
-    .getByRole("textbox", { name: "Commit message" })
+    .getByRole("textbox", { name: "What changed?" })
     .fill("Bound the amount");
-  await page
-    .getByRole("button", { name: "Commit changes", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Save version", exact: true }).click();
   await expect(
-    page.getByRole("textbox", { name: "Commit message" }),
+    page.getByRole("textbox", { name: "What changed?" }),
   ).toHaveValue("");
-  await expect(reviewer.getByText("All changes committed")).toBeVisible();
+  await expect(reviewer.getByText("Every edit is in a version")).toBeVisible();
   await expect(reviewerEditor).toContainText("bounded amount");
   await page
-    .getByRole("button", { name: "Delete branch", exact: true })
+    .getByRole("button", { name: "Delete change", exact: true })
     .click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page).toHaveURL(/\?branches=1$/);
-  await page.getByRole("button", { name: /Main · revision 2/ }).click();
+  await page.getByRole("button", { name: "Revision 2", exact: true }).click();
   await reviewer.goto(storyUrl);
 
   // 9-12. The owner commits on a branch; Engineering reviews the PR.
@@ -857,50 +853,46 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewer.getByRole("button", { name: "Suggest", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: /Branches & pull requests/ }).click();
+  await page.getByRole("button", { name: /Proposed changes/ }).click();
   await page
-    .getByRole("textbox", { name: "New branch name" })
+    .getByRole("textbox", { name: "Name of the change" })
     .fill("cancellation-timeouts");
-  await page
-    .getByRole("button", { name: "Create branch", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Start change", exact: true }).click();
   await expect(page).toHaveURL(/\?branch=/);
   const branchUrl = page.url();
   await fillMarkdown(
     page,
-    "Branch specification",
+    "Proposed specification",
     "# Behavior\n\nPOST /cancellations accepts a partial amount.\n\nLate provider responses are reconciled against the original transaction ID.\n\n## Acceptance criteria\n\n- [ ] Duplicate callbacks do not create duplicate cancellations",
   );
   await page
-    .getByRole("textbox", { name: "Commit message" })
+    .getByRole("textbox", { name: "What changed?" })
     .fill("Define cancellation timeouts");
-  await page
-    .getByRole("button", { name: "Commit changes", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Save version", exact: true }).click();
   await expect(
-    page.getByRole("textbox", { name: "Commit message" }),
+    page.getByRole("textbox", { name: "What changed?" }),
   ).toHaveValue("");
   // The branch draft is durable locally and main still shows revision 2.
   await page.reload();
-  await expect(await richEditor(page, "Branch specification")).toContainText(
+  await expect(await richEditor(page, "Proposed specification")).toContainText(
     "Late provider responses",
   );
   await page
-    .getByRole("button", { name: "Open pull request", exact: true })
+    .getByRole("button", { name: "Send for review", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "Pull request title" })
+    .getByRole("textbox", { name: "Review title" })
     .fill("Clarify cancellation timeouts and retries");
   await page
-    .getByRole("textbox", { name: "Pull request description" })
+    .getByRole("textbox", { name: "Review description" })
     .fill("Review late provider responses and duplicate callbacks.");
   await page
-    .getByRole("button", { name: "Create draft PR", exact: true })
+    .getByRole("button", { name: "Save as draft", exact: true })
     .click();
   await expect(page).toHaveURL(/\?pr=/);
   const prUrl = page.url();
   await expect(
-    page.getByRole("button", { name: "Merge pull request", exact: true }),
+    page.getByRole("button", { name: "Apply change", exact: true }),
   ).toBeDisabled();
   await page
     .getByRole("button", { name: "Ready for review", exact: true })
@@ -912,16 +904,16 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toBeVisible();
   await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Merge pull request", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Apply change", exact: true }).click();
   await expect(
-    page.getByText("Merged. The reviewed content is recorded", {
+    page.getByText("Applied. The reviewed text is part of", {
       exact: false,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Main · revision 3/ }).click();
-  await reviewer.getByRole("button", { name: /Main · revision 3/ }).click();
+  await page.getByRole("button", { name: "Revision 3", exact: true }).click();
+  await reviewer
+    .getByRole("button", { name: "Revision 3", exact: true })
+    .click();
   await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
   // The status card says the approval state even while the review rail
   // steps aside for discussions; the rail returns once they close.
@@ -935,7 +927,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // Deleting a merged PR keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
   await page
-    .getByRole("button", { name: "Delete pull request", exact: true })
+    .getByRole("button", { name: "Delete review", exact: true })
     .click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page).toHaveURL(/\?branches=1$/);
@@ -946,12 +938,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toHaveCount(0);
   await expect(
     page.getByRole("listitem").filter({
-      hasText: "Lictory automatically deleted branch cancellation-timeouts",
+      hasText: "Lictory closed the change cancellation-timeouts",
     }),
   ).toHaveCount(1);
   await page.goto(branchUrl);
-  await expect(page.getByText("This branch is unavailable.")).toBeVisible();
-  await page.getByRole("button", { name: /Main · revision 3/ }).click();
+  await expect(
+    page.getByText("This proposed change is unavailable."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Revision 3", exact: true }).click();
 
   // 13-14. Owner changes the specification → approval becomes outdated.
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -1210,7 +1204,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toHaveCount(0);
   await expect(
     page.getByText(
-      "Main is protected. Use a branch and pull request to restore earlier content.",
+      "This specification is protected. To restore earlier text, propose it as a change and send it for review.",
     ),
   ).toBeVisible();
   await page

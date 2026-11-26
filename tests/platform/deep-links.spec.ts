@@ -51,18 +51,18 @@ test("nested routes render directly on load and reload", async ({ page }) => {
   const item = `${seeded.itemPath(1)}?branches=1`;
   await page.goto(item);
   await expect(
-    page.getByRole("heading", { name: "Branches & pull requests" }),
+    page.getByRole("heading", { name: "Proposed changes" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "New branch name" }),
+    page.getByRole("textbox", { name: "Name of the change" }),
   ).toBeVisible();
   await page.reload();
   await expect(page).toHaveURL(new RegExp(`${item.replace("?", "\\?")}$`));
   await expect(
-    page.getByRole("heading", { name: "Branches & pull requests" }),
+    page.getByRole("heading", { name: "Proposed changes" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "New branch name" }),
+    page.getByRole("textbox", { name: "Name of the change" }),
   ).toBeVisible();
 
   const teams = seeded.projectPath("/settings/teams");
@@ -164,10 +164,10 @@ test("an anonymous deep link signs in and returns to the same place", async ({
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(target);
     await expect(
-      page.getByRole("heading", { name: "Branches & pull requests" }),
+      page.getByRole("heading", { name: "Proposed changes" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("textbox", { name: "New branch name" }),
+      page.getByRole("textbox", { name: "Name of the change" }),
     ).toBeVisible();
   } finally {
     await context.close();

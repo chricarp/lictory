@@ -159,55 +159,49 @@ async function lastProcessedMutation(clientID: string) {
   }
 }
 async function commit(page: Page, content: string, message: string) {
-  await fillMarkdown(page, "Branch specification", content);
-  await page.getByRole("textbox", { name: "Commit message" }).fill(message);
-  await page
-    .getByRole("button", { name: "Commit changes", exact: true })
-    .click();
+  await fillMarkdown(page, "Proposed specification", content);
+  await page.getByRole("textbox", { name: "What changed?" }).fill(message);
+  await page.getByRole("button", { name: "Save version", exact: true }).click();
   await expect(
-    page.getByRole("textbox", { name: "Commit message" }),
+    page.getByRole("textbox", { name: "What changed?" }),
   ).toHaveValue("");
 }
 async function createBranch(page: Page, name: string, from?: string) {
   await page.goto(itemUrl + "?branches=1");
   const source = page.getByRole("combobox", {
-    name: "Branch from",
+    name: "Start from",
     exact: true,
   });
-  await expect(source).toHaveText("main");
+  await expect(source).toHaveText("Current specification");
   await expect(source).toHaveCSS("height", "32px");
   await expect(
-    page.getByRole("textbox", { name: "New branch name" }),
+    page.getByRole("textbox", { name: "Name of the change" }),
   ).toHaveCSS("height", "32px");
-  const switcher = page.getByRole("combobox", { name: "Switch branch" });
-  await expect(switcher).toHaveCSS("height", "32px");
-  await expect(switcher).toHaveCSS(
+  await expect(source).toHaveCSS(
     "border-radius",
     await page
-      .getByRole("button", { name: "Create branch", exact: true })
+      .getByRole("button", { name: "Start change", exact: true })
       .evaluate((button) => getComputedStyle(button).borderRadius),
   );
   await source.click();
   await page.screenshot({ path: "/tmp/lictory-select-branch-overview.png" });
   await page.keyboard.press("Escape");
   await expect(source).toBeFocused();
-  await page.getByRole("textbox", { name: "New branch name" }).fill(name);
+  await page.getByRole("textbox", { name: "Name of the change" }).fill(name);
   expect(
     await page
-      .getByRole("textbox", { name: "New branch name" })
+      .getByRole("textbox", { name: "Name of the change" })
       .evaluate((e: HTMLInputElement) => e.checkValidity()),
   ).toBe(true);
   if (from) {
     await page
-      .getByRole("combobox", { name: "Branch from", exact: true })
+      .getByRole("combobox", { name: "Start from", exact: true })
       .click();
     await page.getByRole("option", { name: from, exact: true }).click();
   }
-  await page
-    .getByRole("button", { name: "Create branch", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Start change", exact: true }).click();
   await expect(page).toHaveURL(/\?branch=/);
-  await richEditor(page, "Branch specification");
+  await richEditor(page, "Proposed specification");
   return page.url();
 }
 async function openPR(
@@ -216,18 +210,18 @@ async function openPR(
   targetName = "integration/retries",
 ) {
   await page
-    .getByRole("button", { name: "Open pull request", exact: true })
+    .getByRole("button", { name: "Send for review", exact: true })
     .click();
-  const target = page.getByRole("combobox", { name: "PR target branch" });
-  await expect(target).toHaveText("main");
+  const target = page.getByRole("combobox", { name: "Apply to" });
+  await expect(target).toHaveText("Current specification");
   await target.click();
   await page.getByRole("option", { name: targetName, exact: true }).click();
-  await page.getByRole("textbox", { name: "Pull request title" }).fill(title);
+  await page.getByRole("textbox", { name: "Review title" }).fill(title);
   await page
-    .getByRole("textbox", { name: "Pull request description" })
+    .getByRole("textbox", { name: "Review description" })
     .fill("Review the resulting retry policy.");
   await page
-    .getByRole("button", { name: "Create pull request", exact: true })
+    .getByRole("button", { name: "Send for review", exact: true })
     .click();
   await expect(page).toHaveURL(/\?pr=/);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
@@ -510,7 +504,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
   const parent = await createBranch(page, "integration/retries");
   await commit(page, integration, "Define stable retry IDs");
   const child = await createBranch(page, "qa/criterion", "integration/retries");
-  await expectMarkdown(page, "Branch specification", integration);
+  await expectMarkdown(page, "Proposed specification", integration);
   await commit(
     page,
     integration.replace("60 seconds", "30 seconds"),
@@ -536,10 +530,10 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     // request that waits for them.
     await reviewer.goto(pr.replace(/\?.*$/, ""));
     const waiting = reviewer.getByRole("region", {
-      name: "Pull requests waiting for your review",
+      name: "Proposed changes waiting for your review",
     });
     await expect(
-      waiting.getByText("A pull request waits for your review"),
+      waiting.getByText("A proposed change waits for your review"),
     ).toBeVisible();
     await waiting
       .getByRole("link", { name: /Review tighter criterion/ })
@@ -559,7 +553,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await expect(
       page
         .getByRole("listitem")
-        .filter({ hasText: "The branches have merge conflicts." }),
+        .filter({ hasText: "This change conflicts with newer text." }),
     ).toBeVisible();
     await expect(
       page.getByText("Review required again", { exact: true }),
@@ -573,27 +567,27 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await expect(
       page
         .getByRole("listitem")
-        .filter({ hasText: "The branches have merge conflicts." }),
+        .filter({ hasText: "This change conflicts with newer text." }),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Merge pull request", exact: true }),
+      page.getByRole("button", { name: "Apply change", exact: true }),
     ).toBeEnabled();
     await page
-      .getByRole("button", { name: "Merge pull request", exact: true })
+      .getByRole("button", { name: "Apply change", exact: true })
       .click();
     await expect(
-      page.getByText("Merged. The reviewed content is recorded", {
+      page.getByText("Applied. The reviewed text is part of", {
         exact: false,
       }),
     ).toBeVisible();
     await page.goto(parent);
     await expectMarkdown(
       page,
-      "Branch specification",
+      "Proposed specification",
       integration.replace("60 seconds", "30 seconds"),
     );
     await expect(
-      page.getByRole("button", { name: "Main · revision 1", exact: true }),
+      page.getByRole("button", { name: "Revision 1", exact: true }),
     ).toBeVisible();
 
     const discarded = await createBranch(
@@ -623,26 +617,26 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await expect(
       page
         .getByRole("listitem")
-        .filter({ hasText: "This branch has no changes to merge." }),
+        .filter({ hasText: "This change has nothing left to apply." }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Merge pull request", exact: true }),
+      page.getByRole("button", { name: "Apply change", exact: true }),
     ).toBeDisabled();
     await page.goto(discarded);
     await expectMarkdown(
       page,
-      "Branch specification",
+      "Proposed specification",
       integration.replace("60 seconds", "20 seconds"),
     );
     await page.goto(discardPR);
     await page
-      .getByRole("button", { name: "Delete pull request", exact: true })
+      .getByRole("button", { name: "Delete review", exact: true })
       .click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page).toHaveURL(/\?branches=1$/);
     await page.goto(discarded);
     await page
-      .getByRole("button", { name: "Delete branch", exact: true })
+      .getByRole("button", { name: "Delete change", exact: true })
       .click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page).toHaveURL(/\?branches=1$/);
@@ -650,7 +644,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     await page.goto(child);
     await expectMarkdown(
       page,
-      "Branch specification",
+      "Proposed specification",
       integration.replace("60 seconds", "30 seconds"),
     );
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
@@ -674,9 +668,13 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     }
     // Only a successful merge into main automatically removes the source.
     await page.goto(parent);
-    const mainPR = await openPR(page, "Approve retry policy", "main");
+    const mainPR = await openPR(
+      page,
+      "Approve retry policy",
+      "Current specification",
+    );
     await expect(
-      page.getByRole("button", { name: "Merge pull request", exact: true }),
+      page.getByRole("button", { name: "Apply change", exact: true }),
     ).toBeDisabled();
     await page
       .getByRole("combobox", { name: "PR reviewing discipline" })
@@ -690,36 +688,38 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       .getByRole("button", { name: "Approve", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "Merge pull request", exact: true }),
+      page.getByRole("button", { name: "Apply change", exact: true }),
     ).toBeEnabled();
     await page
-      .getByRole("button", { name: "Merge pull request", exact: true })
+      .getByRole("button", { name: "Apply change", exact: true })
       .click();
     const deletion = page.getByRole("listitem").filter({
       hasText:
-        "Lictory automatically deleted branch integration/retries after its pull request was merged into main",
+        "Lictory closed the change integration/retries after it was applied to the specification",
     });
     await expect(deletion).toHaveCount(1);
     await expect(
       reviewer.getByRole("listitem").filter({
-        hasText: "Lictory automatically deleted branch integration/retries",
+        hasText: "Lictory closed the change integration/retries",
       }),
     ).toBeVisible();
     await expect(
-      page.getByText("Merged. The reviewed content is recorded", {
+      page.getByText("Applied. The reviewed text is part of", {
         exact: false,
       }),
-    ).toContainText(
-      "Lictory automatically deleted the branch integration/retries.",
-    );
+    ).toContainText("Lictory closed the change integration/retries.");
     await page.reload();
     await expect(deletion).toHaveCount(1);
-    await page.getByRole("combobox", { name: "Switch branch" }).click();
+    // The closed change is gone from the item's proposed changes.
+    await page
+      .getByRole("navigation", { name: "Specification changes" })
+      .getByRole("button", { name: "Proposed changes", exact: true })
+      .click();
     await expect(
-      page.getByRole("option", { name: "integration/retries", exact: true }),
+      page.getByRole("button", { name: /^integration\/retries/ }),
     ).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await page.getByRole("tab", { name: /^Commits/ }).click();
+    await page.goto(mainPR);
+    await page.getByRole("tab", { name: /^Versions/ }).click();
     await expect(
       page.getByText("Keep target timeout", { exact: true }),
     ).toBeVisible();
@@ -730,7 +730,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       fullPage: true,
     });
     await page.goto(child);
-    await richEditor(page, "Branch specification");
+    await richEditor(page, "Proposed specification");
   } finally {
     await reviewerContext.close();
   }

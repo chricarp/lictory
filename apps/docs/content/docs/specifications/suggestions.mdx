@@ -56,17 +56,17 @@ specifications. Suggestions made by an agent through MCP appear the same way.
 **Suggest a change** works the same way once the specification is ready, but
 one person no longer accepts it: the composer says the change is reviewed by
 the specification's reviewers and its button reads **Send for review**.
-Lictory puts exactly that change up for review (a pull request on its own
-branch) and the required reviews approve it before it becomes the next
-revision. See [branches and pull requests](/specifications/branches).
+Lictory puts exactly that change up for review as a [proposed
+change](/specifications/branches), and the required reviews approve it before
+it becomes the next revision.
 
 ## Larger changes
 
 A passage with formatting or that spans several blocks, or a change across
 the document, goes to the editor instead: **Suggest a change** then starts a
-branch named `suggestion` with the passage selected, and the composer's
-**Larger change** does the same. You commit there and open a pull request
-that the required reviews approve.
+proposed change named `suggestion` with the passage selected, and the
+composer's **Larger change** does the same. You save a version there and send
+it for review; the required reviews approve it.
 
 ## Changes proposed by Lictory Intelligence
 
@@ -74,17 +74,17 @@ When [Lictory Intelligence](/ai) is on, it can propose fixes, but always as
 proposals:
 
 - **From an item review.** Select the findings you agree with and choose
-  **Open corrective pull request**. Lictory Intelligence applies exactly those
-  edits, without another model call, on its own branch, one pull request per
-  affected item, and invites you as a collaborator. Reviewers decide what
-  merges. See [Lictory Intelligence reviews](/ai/reviews).
-- **On a pull request.** A Lictory Intelligence review of a pull request can
-  annotate a finding with a suggested edit. A collaborator on the source
-  branch can choose **Commit suggestion** to commit it to the branch, where it
-  is reviewed with the rest of the change.
+  **Propose a corrective change**. Lictory Intelligence applies exactly those
+  edits, without another model call, as a proposed change per affected item,
+  and invites you as a collaborator. Reviewers decide what applies. See
+  [Lictory Intelligence reviews](/ai/reviews).
+- **On a proposed change.** A Lictory Intelligence review of a proposed change
+  can annotate a finding with a suggested edit. A collaborator on the change
+  can choose **Apply to the change** to save it as a new version, where it is
+  reviewed with the rest of the change.
 
-Lictory Intelligence never writes main, approves, resolves discussions or
-merges.
+Lictory Intelligence never edits the specification directly, approves,
+resolves discussions or applies changes.
 
 ## What to watch for
 

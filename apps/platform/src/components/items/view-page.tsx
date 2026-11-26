@@ -169,8 +169,8 @@ export function ViewPage({
           ? `${asked} review requested on revision ${item.revisionNumber}`
           : item.suggestionReviewerIds.includes(userId)
             ? item.openSuggestions > 0
-              ? `${item.openSuggestions} proposed change${item.openSuggestions === 1 ? "" : "s"} waiting for your review`
-              : "A proposed change waits for your review"
+              ? `${item.openSuggestions} suggested change${item.openSuggestions === 1 ? "" : "s"} waiting for you to accept or reject`
+              : "A suggested change waits for you to accept or reject it"
             : `Revision ${item.revisionNumber}`,
       ];
       if (item.blockingThreads)
