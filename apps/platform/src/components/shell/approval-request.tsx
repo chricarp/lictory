@@ -144,14 +144,19 @@ export function ApprovalRequest({
                 {itemKey}
               </span>
             )}
-            <span className="min-w-0 truncate font-medium">
+            {/* Phones give the request two lines, and the line under it
+                wraps, so rows asking alike stay apart at any zoom. */}
+            <span className="min-w-0 font-medium max-sm:line-clamp-2 max-sm:break-words sm:truncate">
               {approval.title}
             </span>
           </span>
-          <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
+          <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 overflow-hidden text-xs leading-4 text-muted-foreground">
             {action && (
               <>
-                <ActionText action={action} className="max-w-[45%]" />
+                <ActionText
+                  action={action}
+                  className="max-w-full sm:max-w-[45%]"
+                />
                 <span aria-hidden>·</span>
               </>
             )}
