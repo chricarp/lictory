@@ -851,6 +851,24 @@ void test("approvals target exact revisions, only assignments authorize, and sug
         e.revisionId === first.id,
     ),
   );
+  // The item's history says which approval the revision outdated.
+  const outdated = (
+    await db
+      .select()
+      .from(s.activity)
+      .where(eq(s.activity.workItemId, f.proposalId))
+  ).filter((a) => a.action === "approvals_outdated");
+  assert.equal(outdated.length, 1);
+  assert.deepEqual(outdated[0]!.detail, {
+    revision: 2,
+    approvals: [
+      {
+        reviewerId: f.reviewerId,
+        responsibility: review.responsibility,
+        revision: first.number,
+      },
+    ],
+  });
   assert.ok(
     all.some(
       (e) =>
