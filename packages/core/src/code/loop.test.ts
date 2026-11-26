@@ -839,6 +839,9 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
     1,
   );
 
+  // Before CI reports, the CI check waits: no check is no evidence.
+  assert.equal(await f.passing(story.workItemId, "checks_passed"), false);
+
   // A connected host with a linked open pull request is evidence, never
   // "no code host": the checks say what the pull request is waiting for.
   await f.ci(f.repos.pay, pr.number, pr.headSha, "failure");
@@ -943,6 +946,19 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
   assert.equal(claim!.state, "completed");
   const [merged] = await f.pullRequests();
   assert.equal(merged!.mergeRequestedById, f.bo);
+  // The item's history says who merged it and who reviewed it.
+  const history = await db
+    .select()
+    .from(s.activity)
+    .where(eq(s.activity.workItemId, story.workItemId));
+  const mergedEntries = history.filter(
+    (a) => a.action === "code_pull_request_merged",
+  );
+  assert.equal(mergedEntries.length, 1);
+  assert.equal(mergedEntries[0]!.actorId, f.bo);
+  const reviewed = history.find((a) => a.action === "code_review_approved");
+  assert.equal(reviewed?.actorId, f.bo);
+  assert.equal(reviewed?.detail?.performedVia, "Hawk");
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });
 
@@ -971,9 +987,24 @@ void test("Autopilot merges once per head, attributed to the policy, and refuses
   const merges = async () =>
     (await f.writes()).filter((w) => w.kind === "merge");
 
+  // Approved, but the host has reported no checks: no check is no
+  // evidence that CI passed, so Autopilot waits.
+  await approve(pr!.headSha);
+  assert.equal((await merges()).length, 0);
+  assert.match(
+    (await f.doneChecks(story.workItemId)).find(
+      (c) => c.kind === "checks_passed",
+    )!.detail,
+    /The code host has reported no checks for the head commit of/,
+  );
+  const autopilotWaited = await db
+    .select()
+    .from(s.autopilotMerge)
+    .where(eq(s.autopilotMerge.workItemId, story.workItemId));
+  assert.equal(autopilotWaited.length, 0);
+
   // A failing check: nothing merges, even with the approval.
   await f.ci(f.repos.pay, pr!.number, pr!.headSha, "failure");
-  await approve(pr!.headSha);
   assert.equal((await merges()).length, 0);
 
   // New commits move the head: the approval was for the old one.
@@ -1043,6 +1074,39 @@ void test("Autopilot merges once per head, attributed to the policy, and refuses
   const done = await f.item(story.workItemId);
   assert.equal(done.category, "done");
   assert.equal(done.deliveredRevisionId, story.revisionId);
+  // The organization's audit log records the merge, attributed to Bo's
+  // policy, once.
+  const audited = await db
+    .select()
+    .from(s.auditEvent)
+    .where(
+      and(
+        eq(s.auditEvent.organizationId, f.organizationId),
+        eq(s.auditEvent.action, "autopilot.merged"),
+      ),
+    );
+  assert.equal(audited.length, 1);
+  assert.equal(audited[0]!.actorId, f.bo);
+  assert.equal(audited[0]!.targetId, pr!.id);
+  assert.equal(audited[0]!.detail?.headSha, moved);
+  // The Done item keeps the evidence it was delivered on.
+  const record = (
+    await db
+      .select()
+      .from(s.activity)
+      .where(
+        and(
+          eq(s.activity.workItemId, story.workItemId),
+          eq(s.activity.action, "definition_of_done_passed"),
+        ),
+      )
+  )[0];
+  const recorded = record?.detail as {
+    checks: { detail?: string }[];
+    pullRequests: { state: string }[];
+  };
+  assert.ok(recorded.checks.every((c) => typeof c.detail === "string"));
+  assert.ok(recorded.pullRequests.length > 0);
 
   // A second item: lowering autonomy to Build stops Autopilot.
   const second = await f.agreedStory("Partial refunds");

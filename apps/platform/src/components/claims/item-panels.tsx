@@ -3,7 +3,6 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
-  CircleMinus,
   ExternalLink,
   GitPullRequest,
 } from "lucide-react";
@@ -27,7 +26,8 @@ import { SessionStateChip } from "@lictory/platform/components/shell/session-chi
 import { ClaimOwner } from "@lictory/platform/components/claims/claim-badge";
 import {
   claimState,
-  doneCheckGlyph,
+  deliveredEvidence,
+  type DeliveredEvidence,
 } from "@lictory/platform/components/claims/claim-state";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
@@ -350,15 +350,21 @@ const pullRequestStateLabel: Record<"open" | "merged" | "closed", string> = {
 };
 
 // The delivery twin of readiness: what must be true before the item is
-// Done, from evidence. Shown while work is in progress or claimed.
+// Done, from evidence. Shown while work is in progress or claimed, and on a
+// Done item as the evidence it was delivered on.
 export function DefinitionOfDonePanel() {
-  const { item, project, entities } = useItem();
-  const { organization } = useWorkspace();
+  const { item, project, entities, activity } = useItem();
+  const { organization, delivery } = useWorkspace();
   const evaluation = entities.find(
     (e): e is DoneEvaluationEntity =>
       e.type === "doneEvaluation" && e.workItemId === item.id,
   );
-  if (project.deliveryMode !== "native" || !evaluation) return null;
+  if (project.deliveryMode !== "native") return null;
+  if (!evaluation) {
+    const done = delivery.statuses.get(item.statusId)?.category === "done";
+    const delivered = done ? deliveredEvidence(activity) : undefined;
+    return delivered ? <DeliveredPanel evidence={delivered} /> : null;
+  }
   const { checks } = evaluation;
   const passed = checks.filter((c) => c.passed).length;
   return (
@@ -410,6 +416,11 @@ export function DefinitionOfDonePanel() {
             />
           ))}
         </ul>
+      )}
+      {!evaluation.code.connected && evaluation.code.explanation && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {evaluation.code.explanation}
+        </p>
       )}
       {evaluation.code.pullRequests.length > 0 && (
         <ul className="mt-3 space-y-1">
@@ -472,6 +483,83 @@ export function DefinitionOfDonePanel() {
   );
 }
 
+// A Done item: the checks that passed when its Definition of Done moved it
+// to Done, and the pull requests they read. History, not a live evaluation.
+function DeliveredPanel({ evidence }: { evidence: DeliveredEvidence }) {
+  return (
+    <section
+      aria-label="Definition of Done"
+      data-rail-section="done"
+      className="scroll-mt-4"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <SectionLabel>Definition of Done</SectionLabel>
+        <span className="text-xs text-success tabular-nums">
+          {evidence.checks.length} / {evidence.checks.length} checks
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {evidence.checks.map((check) => (
+          <li
+            key={check.key}
+            data-done-check="passed"
+            className="flex items-start gap-2 text-[13px] leading-5"
+          >
+            <CircleCheck
+              role="img"
+              aria-label="Passed"
+              className="mt-0.5 size-4 shrink-0 text-success"
+            />
+            <div className="min-w-0 flex-1">
+              <p>{check.label}</p>
+              {(check.overridden || check.detail) && (
+                <p className="text-xs text-muted-foreground">
+                  {check.overridden ? "Passed by hand." : check.detail}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {evidence.pullRequests.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {evidence.pullRequests.map((pr) => (
+            <li
+              key={`${pr.title}:${pr.headSha}`}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <GitPullRequest aria-hidden className="size-3.5 shrink-0" />
+              {pr.url ? (
+                <a
+                  href={pr.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-w-0 items-center gap-1 truncate hover:text-foreground"
+                >
+                  <span className="truncate">{pr.title}</span>
+                  <ExternalLink aria-hidden className="size-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="truncate">{pr.title}</span>
+              )}
+              <StatusChip
+                tone={pr.state === "merged" ? "success" : "neutral"}
+                className="ml-auto"
+              >
+                {pullRequestStateLabel[pr.state]}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Every check passed {relativeTime(evidence.at)}, which moved the item to
+        Done.
+      </p>
+    </section>
+  );
+}
+
 function DoneCheckRow({
   check,
   evaluation,
@@ -512,23 +600,22 @@ function DoneCheckRow({
       setPending(false);
     }
   };
-  const glyph = doneCheckGlyph(check, evaluation);
+  // Without a code host every code check fails for the same reason; the
+  // panel says it once, below the list.
+  const detail =
+    !evaluation.code.connected && check.detail === evaluation.code.explanation
+      ? undefined
+      : check.detail;
   return (
     <li
-      data-done-check={glyph}
+      data-done-check={check.passed ? "passed" : "open"}
       className="flex items-start gap-2 text-[13px] leading-5"
     >
-      {glyph === "passed" ? (
+      {check.passed ? (
         <CircleCheck
           role="img"
           aria-label="Passed"
           className="mt-0.5 size-4 shrink-0 text-success"
-        />
-      ) : glyph === "no_checks" ? (
-        <CircleMinus
-          role="img"
-          aria-label="Passed: no checks reported"
-          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
         />
       ) : (
         <CircleDashed
@@ -539,13 +626,13 @@ function DoneCheckRow({
       )}
       <div className="min-w-0 flex-1">
         <p className={cn(!check.passed && "text-foreground")}>{check.label}</p>
-        {/* The evidence behind the state, passed or not ("No required
-            checks reported on this branch."), unless it only repeats the
+        {/* The evidence behind the state, passed or not ("The code host
+            has reported no checks for …"), unless it only repeats the
             label; a check passed by hand says who did instead. */}
-        {check.detail &&
+        {detail &&
           !check.override &&
-          check.detail.replace(/\.$/, "") !== check.label && (
-            <p className="text-xs text-muted-foreground">{check.detail}</p>
+          detail.replace(/\.$/, "") !== check.label && (
+            <p className="text-xs text-muted-foreground">{detail}</p>
           )}
         {check.override && (
           <p className="text-xs text-muted-foreground">

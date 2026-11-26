@@ -1,6 +1,7 @@
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import {
   deliveryCategory,
+  readyForSelection,
   type ExternalLink,
 } from "@lictory/core/lib/lifecycle";
 import type { Delivery, Project } from "@lictory/core/lib/work-items";
@@ -16,6 +17,10 @@ type Context = {
   delivery: Delivery;
   links: ReadonlyMap<string, ExternalLink>;
   userId: string;
+  // Native delivery: whether work may start now, by the one rule the
+  // server enforces and the item and the Factory queue show
+  // (`claimability`: agreed scope, readiness, blockers, no live claim).
+  startable?: (item: WorkItem) => boolean;
 };
 
 const newest = (a: { updatedAt: string }, b: { updatedAt: string }) =>
@@ -49,7 +54,8 @@ export function inFlight(
 // project's policy asks): mine first, then unassigned. Work assigned to
 // someone else is theirs to start. A ready specification nobody accepted
 // yet is not here: accepting it is its owner's act, in Waiting on you. Work
-// broken down into open children starts through the children.
+// broken down into open children starts through the children. In external
+// delivery: ready specifications not handed off yet.
 export function readyToStart(
   {
     items,
@@ -73,13 +79,13 @@ export function readyToStart(
       parents.add(child.parentId);
   }
   const ready = items.filter((item) => {
+    if (item.archivedAt) return false;
     if (item.assigneeId && item.assigneeId !== userId) return false;
     const project = byId.get(item.projectId);
-    return (
-      project?.deliveryMode === "native" &&
-      !parents.has(item.id) &&
-      startable(item)
-    );
+    if (!project) return false;
+    if (project.deliveryMode !== "native")
+      return readyForSelection(item, project, delivery, links.get(item.id));
+    return !parents.has(item.id) && startable(item);
   });
   ready.sort(
     (a, b) =>

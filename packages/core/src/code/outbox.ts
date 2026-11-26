@@ -1,4 +1,4 @@
-import { and, asc, eq, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt, or, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
 import { createConnections } from "@lictory/core/code/connections";
@@ -23,6 +23,7 @@ import {
 } from "@lictory/core/code/store";
 import { notifyCodeWriteFailed } from "@lictory/core/code/notifications";
 import { followCodeEvidence } from "@lictory/core/code/follow";
+import { recordAuditEvent } from "@lictory/core/domain/audit";
 import {
   afterCommit,
   codeSessionHooks,
@@ -531,8 +532,77 @@ export function createCodeOutbox(
             eq(s.codePullRequest.id, write.pullRequestId),
           ),
         );
+    if (
+      write.kind === "merge" &&
+      write.pullRequestId &&
+      performed.info.state === "merged"
+    )
+      await auditAutopilotMerge(tx, write, repository, performed.info);
     return opened;
   }
+}
+
+// The organization's audit log records each merge Autopilot carried out,
+// when the host confirms it, attributed to the administrator whose policy
+// authorized it (docs/internals/audit.md). A person's merge is item
+// history, not a security event.
+async function auditAutopilotMerge(
+  tx: Tx,
+  write: WriteRow,
+  repository: RepositoryRow,
+  info: CodePullRequestInfo,
+) {
+  if (!write.requestedById) return;
+  const [merge] = await tx
+    .select({
+      headSha: s.autopilotMerge.headSha,
+      policyVersion: s.autopilotMerge.policyVersion,
+      authorizedById: s.autopilotMerge.authorizedById,
+      projectKey: s.project.key,
+      number: s.workItem.number,
+    })
+    .from(s.autopilotMerge)
+    .innerJoin(
+      s.workItem,
+      and(
+        eq(s.workItem.organizationId, s.autopilotMerge.organizationId),
+        eq(s.workItem.id, s.autopilotMerge.workItemId),
+      ),
+    )
+    .innerJoin(
+      s.project,
+      and(
+        eq(s.project.organizationId, s.workItem.organizationId),
+        eq(s.project.id, s.workItem.projectId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.autopilotMerge.organizationId, write.organizationId),
+        eq(s.autopilotMerge.pullRequestId, write.pullRequestId!),
+        eq(s.autopilotMerge.outcome, "requested"),
+        eq(s.autopilotMerge.authorizedById, write.requestedById),
+      ),
+    )
+    .orderBy(desc(s.autopilotMerge.createdAt))
+    .limit(1);
+  if (!merge) return;
+  await recordAuditEvent(tx, {
+    organizationId: write.organizationId,
+    actor: merge.authorizedById ? { id: merge.authorizedById } : null,
+    action: "autopilot.merged",
+    target: {
+      type: "code_pull_request",
+      id: write.pullRequestId!,
+      label: `${repository.fullName}#${info.number}`,
+    },
+    detail: {
+      headSha: merge.headSha,
+      policyVersion: merge.policyVersion,
+      workItem: `${merge.projectKey}-${merge.number}`,
+      performedVia: write.performedVia,
+    },
+  });
 }
 
 type Performed =

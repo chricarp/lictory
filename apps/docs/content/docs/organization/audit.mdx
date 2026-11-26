@@ -16,13 +16,13 @@ everyone who can read the item sees them.
 
 ## What is recorded
 
-| Activity            | Entries                                                                                                                                                                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Members & roles** | Members added, joined (accepted an invitation), removed, left or deleted their account; application role changes; invitations sent, withdrawn or declined                                                                               |
-| **Access tokens**   | Agent tokens created (with access level and expiry) and revoked, in every organization the token's owner belongs to; two-factor requirement changes and resets                                                                          |
-| **Organization**    | The organization created, renamed or given a new handle; data exports requested and downloaded; the audit log exported; deletion scheduled or cancelled                                                                                 |
-| **Configuration**   | Every configuration change, with the previous definition: project settings, members and project roles, disciplines, teams, workflow, types, labels and milestones, readiness, spaces and their access, integrations (never credentials) |
-| **Agent calls**     | Every call an agent made through MCP and every action Litto took: the person, the token's name, the operation and its outcome                                                                                                           |
+| Activity               | Entries                                                                                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Members & roles**    | Members added, joined (accepted an invitation), removed, left or deleted their account; application role changes; invitations sent, withdrawn or declined                                                                                                         |
+| **Access**             | Agent tokens created (with access level and expiry) and revoked, in every organization the token's owner belongs to; agents and their access; runners; private channels and their members; Slack; agent event webhooks; two-factor requirement changes and resets |
+| **Organization**       | The organization created, renamed or given a new handle; data exports requested and downloaded; the audit log exported; deletion scheduled or cancelled                                                                                                           |
+| **Configuration**      | Every configuration change, with the previous definition: project settings, members and project roles, disciplines, teams, workflow, types, labels and milestones, readiness, spaces and their access, integrations (never credentials)                           |
+| **Agents & Autopilot** | Every call an agent made through MCP and every action Litto took: the person, the token's name, the operation and its outcome; every pull request Autopilot merged, under the policy of the administrator named                                                   |
 
 Each entry names who acted (or **Lictory** when the system did), with their
 name and email at the time, what they acted on, and when. Passwords, token
@@ -36,7 +36,7 @@ organization.
 
 1. Go to **Organization settings → Audit log**.
 2. Narrow it with **Activity** (**All activity**, **Members & roles**,
-   **Access tokens**, **Organization**, **Configuration**, **Agent calls**),
+   **Access**, **Organization**, **Configuration**, **Agents & Autopilot**),
    **Person** (or **Anyone**), and **From** and **To** dates (UTC days).
 3. **Show older entries** loads more.
 
@@ -59,7 +59,7 @@ spreadsheet. The export itself is recorded in the log, with its filters.
 
 ## Tips
 
-- Filter on **Agent calls** and a person to review what an agent did before
+- Filter on **Agents & Autopilot** and a person to review what an agent did before
   you trust it with a read/write token for longer.
 - Export the log before you schedule an organization's deletion if your
   company must keep it; the [data export](/organization/data) includes it

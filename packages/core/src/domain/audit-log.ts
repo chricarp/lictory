@@ -73,6 +73,8 @@ const eventCategories = new Set<AuditCategory>([
   "membership",
   "access",
   "organization",
+  // Autopilot's merges; agents' calls come from `capability_invocation`.
+  "agent",
 ]);
 
 function conditions(
@@ -294,6 +296,16 @@ function describeEvent(row: Row, detail: Record<string, unknown>) {
           ? `, expiring ${detail.expiresAt.slice(0, 10)}`
           : ", without expiry"
       }`;
+    case "autopilot.merged":
+      return `Autopilot merged ${row.target_label ?? "a pull request"}${
+        typeof detail.headSha === "string"
+          ? ` at ${detail.headSha.slice(0, 7)}`
+          : ""
+      }${typeof detail.workItem === "string" ? ` for ${detail.workItem}` : ""} under the autonomy policy${
+        typeof detail.policyVersion === "number"
+          ? ` (version ${detail.policyVersion})`
+          : ""
+      } this person set`;
     case "access_token.revoked":
       return `Revoked access token ${quoted(row.target_label)}`;
     case "two_factor.requirement_changed":

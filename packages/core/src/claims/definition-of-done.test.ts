@@ -75,6 +75,54 @@ void test("merged and green passes; an abandoned pull request does not count", (
   assert.match(failing[1]!.detail!, /Failing: ci/);
 });
 
+void test("a commit the code host reported no checks for is no evidence that CI passed", () => {
+  const silent = evaluate({
+    connected: true,
+    pullRequests: [
+      pr("merged", { checks: { required: 0, failing: [], pending: [] } }),
+    ],
+  });
+  assert.equal(silent[1]!.passed, false);
+  assert.match(
+    silent[1]!.detail!,
+    /The code host has reported no checks for the head commit of “merged change”/,
+  );
+  assert.equal(definitionPasses(silent), false);
+  // Checks the host reports but marks optional are not required checks.
+  const optional = evaluate({
+    connected: true,
+    pullRequests: [
+      pr("merged", {
+        checks: { required: 0, failing: [], pending: [], reported: 2 },
+      }),
+    ],
+  });
+  assert.equal(optional[1]!.passed, false);
+  assert.match(optional[1]!.detail!, /marks none of the checks/);
+  // Autopilot waits for CI instead of merging before it reported.
+  const approved = pr("open", {
+    approvals: [{ agentId: "lens", userId: null }],
+    checks: { required: 0, failing: [], pending: [] },
+  });
+  const code: CodeEvidence = { connected: true, pullRequests: [approved] };
+  const waiting = autopilotMergeCandidate(
+    evaluate(code),
+    code,
+    {
+      ...defaultAutonomyPolicy,
+      level: "autopilot",
+      implementerAgentIds: ["forge"],
+      reviewerAgentId: "lens",
+    },
+    { id: "lens", name: "Lens" },
+  );
+  assert.ok(
+    !waiting.ready &&
+      waiting.reason.includes("reported no checks") &&
+      waiting.reason.includes("Autopilot merges only after CI passes"),
+  );
+});
+
 void test("code review names the reviewer agent and needs its approval of the head", () => {
   const checks: DoneCheckDefinition[] = [
     { id: "review", kind: "code_review_approved" },

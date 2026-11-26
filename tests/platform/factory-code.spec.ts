@@ -46,7 +46,9 @@ let runner: ChildProcess | undefined;
 let home: string | undefined;
 let output = "";
 
-test.afterEach(async () => {
+test.afterEach(async ({}, info) => {
+  if (info.status !== info.expectedStatus)
+    console.log(`[runner output]\n${output}`);
   const child = runner;
   if (child?.exitCode === null) {
     child.kill("SIGTERM");
@@ -323,16 +325,24 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
   expect(pulls).toHaveLength(1);
   expect(pulls[0]?.head).toMatch(/^lictory\/rfd-1-refund-retries-/);
 
+  // Before CI reports, the CI check waits: no check is no evidence.
+  const done = page.getByRole("region", { name: "Definition of Done" });
+  await expect(
+    done.getByText(/The code host has reported no checks for the head commit/),
+  ).toBeVisible({ timeout: 30_000 });
+
   // CI goes green on the host; Hawk's review session approves the head.
   await github(`/__fake/repos/${repository}/pulls/1/checks`, {
     name: "ci",
     state: "success",
   });
-  const done = page.getByRole("region", { name: "Definition of Done" });
-  await expect(done.getByText("Hawk approved the head commit")).toBeVisible();
+  await expect(done.getByText("Hawk approved the head commit")).toBeVisible({
+    timeout: 120_000,
+  });
   await expect(done.getByText("2 / 3 checks")).toBeVisible({
     timeout: 120_000,
   });
+  await expect(done.getByText("1 required check passed.")).toBeVisible();
 
   // Build: Bo merges, from the pull request's page, the head he sees.
   const second = await newPerson(browser);
@@ -349,6 +359,11 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     });
     await expect(reviews).toContainText("Hawk");
     await expect(reviews).toContainText("via Bo");
+    // The merge box counts the same evidence: CI and Hawk's approval.
+    const box = second.page.locator("[data-merge-box]");
+    await expect(box.getByText("Checks passed.")).toBeVisible();
+    await expect(box.getByText(/^Approved in Lictory at /)).toBeVisible();
+    await expect(box.getByText(/By Hawk via Bo/)).toBeVisible();
     await second.page
       .getByRole("button", { name: "Merge", exact: true })
       .click();
@@ -362,11 +377,17 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     await second.context.close();
   }
 
-  // The item is Done by evidence, with the revision it delivered.
+  // The item is Done by evidence, with the revision it delivered, and
+  // keeps that evidence; its history names who merged and who reviewed.
   await page.goto(seeded.itemPath(1));
   await expect(page.getByText("Delivered revision 1")).toBeVisible({
     timeout: 30_000,
   });
+  await expect(done.getByText("3 / 3 checks")).toBeVisible();
+  await expect(page.getByText(/merged pull request #1/).first()).toBeVisible();
+  await expect(
+    page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
+  ).toBeVisible();
   // The runner's log names the outcome and the branch it pushed.
   expect(output).toMatch(/Session \S+ completed after .+; pushed branch \S+\./);
 });
@@ -382,6 +403,29 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
     "autopilot",
   );
   await pullRequestInThread(page, seeded, channelId);
+
+  // Hawk approves, but CI has not reported: Autopilot waits, and the pull
+  // request page says what for.
+  await page.goto(seeded.itemPath(1));
+  await expect(
+    page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
+  ).toBeVisible({ timeout: 120_000 });
+  const done = page.getByRole("region", { name: "Definition of Done" });
+  await expect(
+    done.getByText(/The code host has reported no checks for the head commit/),
+  ).toBeVisible();
+  const before = (await github(`/__fake/repos/${repository}/pulls`)) as {
+    state: string;
+  }[];
+  expect(before[0]?.state).toBe("open");
+  await page
+    .locator("[data-item-code]")
+    .getByRole("link", { name: "#1 RFD-1: Refund retries" })
+    .click();
+  await expect(page.locator("[data-autopilot-waits]")).toContainText(
+    "the code host has reported no checks for this commit yet",
+  );
+
   await github(`/__fake/repos/${repository}/pulls/1/checks`, {
     name: "ci",
     state: "success",
@@ -404,9 +448,10 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
     .locator("[data-item-code]")
     .getByRole("link", { name: "#1 RFD-1: Refund retries" })
     .click();
+  const merged = page.getByRole("region", { name: "Merged" });
   await expect(
-    page
-      .getByRole("region", { name: "Merged" })
-      .getByText(/by Autopilot · policy set by Ada/),
+    merged.getByText(/by Autopilot · policy set by Ada/),
   ).toBeVisible();
+  // What the merge rested on stays on the page.
+  await expect(merged.getByText("Checks passed.")).toBeVisible();
 });

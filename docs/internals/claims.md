@@ -184,7 +184,11 @@ merged and required checks passed). Kinds:
 - `pull_request_merged`: a linked code pull request is merged and none is
   still open;
 - `checks_passed`: the code host's required checks passed on the head
-  commit;
+  commit. A commit the host reported no checks for (or none of whose
+  reported checks it marks required) does not pass: an absent check is no
+  evidence that CI passed, and the detail says so ("The code host has
+  reported no checks for the head commit of …"). A project without CI
+  removes the check;
 - `code_review_approved`: the reviewer agent approved the head commit (any
   reviewer when the policy names none). An agent's approval is a review
   recorded in Lictory for that commit (`reviewCodePullRequest`, see
@@ -204,7 +208,10 @@ evidence that agents' work is done is never recorded by an agent.
 `evaluateDefinitionOfDone` (`claims/definition-of-done.ts`) is pure: checks,
 code evidence, the reviewer agent and sign-offs in, one result per check
 out. It is evaluated for native items in progress or claimed and projected as
-`doneEvaluation` in the item's scope. When every check passes (and there is
+`doneEvaluation` in the item's scope. A Done item leaves the projection; the
+`definition_of_done_passed` activity that moved it keeps each check (with its
+evidence sentence) and the pull requests it read, and the item and its pull
+requests show that record while the item stays in that Done. When every check passes (and there is
 at least one), the item moves to the project's first Done status through
 `updateWorkItem`, attributed to the accountable person (the live claim's
 owner, else the assignee) with `automation: definition_of_done`, and records
@@ -256,7 +263,9 @@ impossible whichever worker runs, and running two dispatchers at once
 changes nothing.
 
 **Autopilot merges.** When a claimed item's single open pull request passes
-everything Autopilot requires (CI on the head commit, the reviewer agent's
+everything Autopilot requires (CI on the head commit, which needs at least
+one reported required check: Autopilot never merges a commit CI has not
+reported on; the reviewer agent's
 approval of it, every other Definition of Done check) and the code host
 reports it mergeable, Lictory asks the `CodeMergeExecutor` to merge it, once
 per pull request head (`autopilot_merge`). The request is attributed to the

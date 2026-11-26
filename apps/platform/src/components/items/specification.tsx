@@ -9,7 +9,7 @@ import {
 import { Input } from "@ui-sdk/react/input";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { byType, relativeTime } from "@lictory/core/lib/work-items";
 import { occurrenceIn } from "@lictory/core/editor/markdown-text";
 import { CONTEXT_QUOTE_LIMIT } from "@lictory/core/intelligence/chat/shared";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
@@ -52,9 +52,19 @@ export function Specification({
   // Suggests a change of the selected text (reviewable specifications).
   onSuggest?: (draft: QuoteDraft) => void;
 }) {
-  const { current, readOnly, canEdit, memberName, reviewable } = useItem();
+  const { current, readOnly, canEdit, memberName, reviewable, entities } =
+    useItem();
   const mainDraft = useSpecificationDraft();
   if (!current) return null;
+  // A revision a pull request's merge published: its text is the pull
+  // request author's; the revision's author merged it.
+  const mergedFrom = byType(entities, "pullRequest").find(
+    (p) =>
+      p.status === "merged" &&
+      byType(entities, "specCommit").some(
+        (c) => c.id === p.mergedCommitId && c.revisionId === current.id,
+      ),
+  );
   // Plain work (tasks, bugs) has a description that is edited directly; only
   // specifications are reviewed through suggestions and anchored discussions.
   return (
@@ -64,8 +74,11 @@ export function Specification({
           {reviewable ? "Specification" : "Description"}
         </SectionLabel>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
-          Revision {current.number} · {memberName(current.authorId)} ·{" "}
-          {relativeTime(current.createdAt)}
+          Revision {current.number} ·{" "}
+          {mergedFrom && mergedFrom.authorId !== current.authorId
+            ? `${memberName(mergedFrom.authorId)}'s pull request, merged by ${memberName(current.authorId)}`
+            : memberName(current.authorId)}{" "}
+          · {relativeTime(current.createdAt)}
         </span>
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">

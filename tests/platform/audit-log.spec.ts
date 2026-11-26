@@ -134,7 +134,7 @@ test("with analytics disabled, role and token changes appear in the audit log", 
 
   // Filters run on the server.
   await log.getByLabel("Activity").click();
-  await page.getByRole("option", { name: "Access tokens" }).click();
+  await page.getByRole("option", { name: "Access", exact: true }).click();
   await expect(log.getByText(/Created write access token/)).toBeVisible();
   await expect(
     log.getByText(`Changed ${teammate.name}'s application role`),

@@ -30,6 +30,7 @@ import {
   useWaitingOnYou,
 } from "@lictory/platform/components/workspace/inbox";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
+import { useClaimability } from "@lictory/platform/components/claims/claims";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
@@ -54,7 +55,6 @@ import {
   recentOutcomes,
   recentPages,
 } from "@lictory/platform/components/shell/home/derive";
-import { useClaimability } from "@lictory/platform/components/claims/claims";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { AgentAvatar } from "@lictory/platform/components/identity/actor";

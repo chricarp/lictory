@@ -156,9 +156,14 @@ the discipline decides with **Approve** or **Request changes**, and can
 ### Approvals bind to the merge result
 
 An approval records the exact result of the merge the reviewer inspected:
-the merged title, content and breakdown. _Approvals apply to the exact merge
-result. Any new commit on either branch asks reviewers again._ A change that
-leaves the result identical keeps the approval.
+the merged title, content and breakdown. Approving a pull request into main
+approves the whole specification as it reads after the merge, not only the
+change, so merging records it as that discipline's approval of the new
+revision; the reviewer row says so beside **Approve**. _Approvals apply to the
+exact merge result, the whole specification after the merge; merging records
+them as approvals of revision 4. Any new commit on either branch asks
+reviewers again._ A change that leaves the result identical keeps the
+approval.
 
 People who authored commits in the pull request cannot approve it
 (_Contributors cannot approve their own changes._), unless they are the

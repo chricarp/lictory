@@ -1,6 +1,5 @@
 import type {
   ClaimEntity,
-  DoneCheckResult,
   DoneEvaluationEntity,
 } from "@lictory/core/claims/contracts";
 import type { StatusTone } from "@lictory/ui/status-chip";
@@ -109,26 +108,93 @@ export function pullRequestStripPart(
   }
 }
 
-// How a Definition of Done check is drawn: passed, open, or passed with
-// nothing to check. The CI check passes when the code host reports no
-// required checks on the pull requests it looks at (the merged ones once
-// any merged, else the open ones); a green tick would read as "CI ran and
-// passed", so that case gets its own neutral glyph. A check a person passed
-// by hand is passed.
-export type DoneCheckGlyph = "passed" | "no_checks" | "open";
+// The evidence a Done item was delivered on: the Definition of Done record
+// that moved it to Done, when its latest move into Done was that one. Its
+// live evaluation leaves the projection at Done, so the item and its pull
+// requests show this record instead (docs/internals/claims.md#definition-of-done).
+export type DeliveredEvidence = {
+  at: string;
+  checks: {
+    key: string;
+    label: string;
+    overridden: boolean;
+    detail?: string;
+  }[];
+  pullRequests: {
+    title: string;
+    url: string | null;
+    state: "open" | "merged" | "closed";
+    headSha: string | null;
+  }[];
+};
 
-export function doneCheckGlyph(
-  check: Pick<DoneCheckResult, "kind" | "passed" | "override">,
-  evaluation: Pick<DoneEvaluationEntity, "code"> | undefined,
-): DoneCheckGlyph {
-  if (!check.passed) return "open";
-  if (check.kind !== "checks_passed" || check.override) return "passed";
-  const pulls = (evaluation?.code.pullRequests ?? []).filter(
-    (p) => p.state !== "closed",
-  );
-  const merged = pulls.filter((p) => p.state === "merged");
-  const looked = merged.length ? merged : pulls;
-  return looked.length > 0 && looked.every((p) => p.checks === "none")
-    ? "no_checks"
-    : "passed";
+type ActivityLike = {
+  action: string;
+  detail: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export function deliveredEvidence(
+  activity: readonly ActivityLike[],
+): DeliveredEvidence | undefined {
+  // The record is written just before the move it causes, at the same
+  // time or earlier.
+  const ordered = activity
+    .filter(
+      (a) =>
+        a.action === "definition_of_done_passed" ||
+        a.action === "status_changed",
+    )
+    .sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) ||
+        (a.action === "definition_of_done_passed" ? -1 : 1) -
+          (b.action === "definition_of_done_passed" ? -1 : 1),
+    );
+  let pending: ActivityLike | undefined;
+  let delivered: ActivityLike | undefined;
+  for (const a of ordered) {
+    if (a.action === "definition_of_done_passed") pending = a;
+    else {
+      delivered = a.detail?.category === "done" ? pending : undefined;
+      pending = undefined;
+    }
+  }
+  if (!delivered) return undefined;
+  const d = delivered.detail ?? {};
+  const list = (v: unknown) => (Array.isArray(v) ? (v as unknown[]) : []);
+  const text = (v: unknown) => (typeof v === "string" ? v : undefined);
+  return {
+    at: delivered.createdAt,
+    checks: list(d.checks).flatMap((raw) => {
+      const c = (raw ?? {}) as Record<string, unknown>;
+      const label = text(c.label);
+      return label
+        ? [
+            {
+              key: text(c.key) ?? label,
+              label,
+              overridden: c.overridden === true,
+              ...(text(c.detail) ? { detail: text(c.detail) } : {}),
+            },
+          ]
+        : [];
+    }),
+    pullRequests: list(d.pullRequests).flatMap((raw) => {
+      const p = (raw ?? {}) as Record<string, unknown>;
+      const title = text(p.title);
+      const state = text(p.state);
+      return title &&
+        (state === "open" || state === "merged" || state === "closed")
+        ? [
+            {
+              title,
+              url: text(p.url) ?? null,
+              state,
+              headSha: text(p.headSha) ?? null,
+            },
+          ]
+        : [];
+    }),
+  };
 }

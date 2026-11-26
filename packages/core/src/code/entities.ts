@@ -54,6 +54,9 @@ export type CodeRepositoryEntity = {
   defaultForProjectIds: string[];
   lastSyncedAt: string | null;
   lastSyncError: string | null;
+  // Whether the host has reported any check for a commit here. Optional:
+  // projections written before it existed omit it.
+  reportsChecks?: boolean;
 };
 
 export type CodeLinkRef = {

@@ -31,7 +31,7 @@ export const autonomyLevelMeta: Record<
   autopilot: {
     label: "Autopilot",
     summary:
-      "As Build, and Lictory merges an agent's code pull request when every required check passes. The merge is attributed to this policy and the administrator who set it.",
+      "As Build, and Lictory merges an agent's code pull request once the code host reports that every required check passed. The merge is attributed to this policy and the administrator who set it.",
   },
 };
 

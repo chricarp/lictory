@@ -8,12 +8,13 @@ import {
 } from "lucide-react";
 import type { DoneEvaluationEntity } from "@lictory/core/claims/contracts";
 import type { CodePullRequestEntity } from "@lictory/core/code/entities";
-import type { WorkItem } from "@lictory/core/contracts/protocol";
+import type { Entity, WorkItem } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import {
   identifier,
   refinementMeta,
+  relativeTime,
   type Project,
 } from "@lictory/core/lib/work-items";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
@@ -36,6 +37,7 @@ import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { shortSha } from "@lictory/platform/components/code/parts";
+import { deliveredEvidence } from "@lictory/platform/components/claims/claim-state";
 
 // Beside a code pull request, the evidence a person merges on: what the
 // linked work is and whether it was agreed (readiness, the accepted
@@ -100,6 +102,17 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
       : null;
   const ready = spec?.refinementState === "ready";
   const passedDone = done?.checks.filter((c) => c.passed).length ?? 0;
+  // A Done item's evaluation left the projection; its record stays.
+  const category = status?.category;
+  const delivered =
+    !done && category === "done"
+      ? deliveredEvidence(
+          entities.filter(
+            (e): e is Extract<Entity, { type: "activity" }> =>
+              e.type === "activity" && e.workItemId === item.id,
+          ),
+        )
+      : undefined;
   const muted = "text-muted-foreground";
   return (
     <li className="px-3.5 py-3">
@@ -178,8 +191,20 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
                 ))}
               </span>
             </span>
+          ) : delivered ? (
+            <span className="flex items-center gap-1.5">
+              <CircleCheckBig aria-hidden className="size-3.5 text-success" />
+              {delivered.checks.length} of {delivered.checks.length} passed
+              <span className={muted}>· {relativeTime(delivered.at)}</span>
+            </span>
+          ) : category === "done" ? (
+            <span className={muted}>Moved to Done by a person</span>
+          ) : category === "canceled" ? (
+            <span className={muted}>Canceled</span>
           ) : (
-            <span className={muted}>Checked once work on it starts</span>
+            <span className={muted}>
+              Evaluated once the item is in progress
+            </span>
           )}
         </Fact>
       </dl>
