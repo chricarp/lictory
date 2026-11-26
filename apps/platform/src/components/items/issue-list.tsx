@@ -524,7 +524,7 @@ export function IssueList({
           onValueChange={setSearch}
           placeholder="Filter…"
           aria-label="Filter by title or identifier"
-          className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted max-sm:hidden touch:text-base"
+          className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-placeholder focus:bg-muted max-sm:hidden touch:text-base"
         />
       )}
       <Popover
@@ -727,7 +727,7 @@ export function IssueList({
                   }}
                   placeholder="Search items…"
                   aria-label="Filter by title or identifier"
-                  className="h-7 w-full min-w-0 rounded-md bg-muted/70 pr-2 pl-7 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset forced-colors:focus-visible:outline-2 forced-colors:focus-visible:-outline-offset-2 forced-colors:focus-visible:outline-solid touch:text-base"
+                  className="h-7 w-full min-w-0 rounded-md bg-muted/70 pr-2 pl-7 text-xs outline-none placeholder:text-placeholder focus:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset forced-colors:focus-visible:outline-2 forced-colors:focus-visible:-outline-offset-2 forced-colors:focus-visible:outline-solid touch:text-base"
                 />
               </div>
             )}
@@ -760,7 +760,7 @@ export function IssueList({
             onValueChange={setSearch}
             placeholder="Filter…"
             aria-label="Filter by title or identifier"
-            className="h-9 w-full rounded-md bg-muted/70 px-2.5 text-base outline-none placeholder:text-muted-foreground/70 focus:bg-muted"
+            className="h-9 w-full rounded-md bg-muted/70 px-2.5 text-base outline-none placeholder:text-placeholder focus:bg-muted"
           />
         </div>
       )}

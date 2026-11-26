@@ -734,7 +734,7 @@ function CustomSentence({
               onChange={(e) =>
                 onChange({ ...check, description: e.target.value || null })
               }
-              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-placeholder touch:text-base"
             />
           ) : (
             check.description && (

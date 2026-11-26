@@ -894,7 +894,7 @@ export function CommandPalette({
               ref={inputRef}
               placeholder="Search items, pages or commands…"
               aria-label="Search"
-              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
               onKeyDown={(event) => {
                 // Escape closes the palette at once; left to the list, the
                 // first press would only clear what was typed.

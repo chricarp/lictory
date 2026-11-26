@@ -86,6 +86,55 @@ void test("an agent tile's glyph keeps 4.5:1 on its tile in light and dark", () 
   }
 });
 
+// A placeholder is often the only thing saying what a field is for, so it
+// holds 4.5:1 like any text on every surface a field sits on. Dark mode
+// draws it as muted text at partial opacity, blended over the surface.
+void test("placeholders keep 4.5:1 on every field surface in light and dark", () => {
+  const css = readFileSync(
+    fileURLToPath(
+      new URL("../../../../../packages/ui/src/styles.css", import.meta.url),
+    ),
+    "utf8",
+  );
+  const block = (selector: string) => {
+    const start = css.indexOf(`\n${selector} {`);
+    assert.ok(start >= 0, selector);
+    return css.slice(start, css.indexOf("\n}", start));
+  };
+  const token = (text: string, name: string) => {
+    const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(text);
+    assert.ok(match, name);
+    return match[1]!.trim();
+  };
+  const light = block(":root,\n[data-theme]");
+  const dark = block(".dark");
+  for (const [mode, tokens] of [
+    ["light", light],
+    ["dark", dark],
+  ] as const) {
+    const muted = hex(token(tokens, "muted-foreground"));
+    const value = token(tokens, "placeholder");
+    const opacity =
+      value === "var(--muted-foreground)"
+        ? 1
+        : parseFloat(
+            /var\(--muted-foreground\)\s+(\d+)%,\s*transparent/.exec(
+              value,
+            )?.[1] ?? "NaN",
+          ) / 100;
+    assert.ok(opacity > 0 && opacity <= 1, `${mode} placeholder: ${value}`);
+    for (const surface of ["background", "card", "popover", "muted"]) {
+      const under = hex(token(tokens, surface));
+      // Alpha blends in sRGB, as browsers composite.
+      const shown = muted.map(
+        (c, i) => c * opacity + under[i]! * (1 - opacity),
+      ) as Rgb;
+      const ratio = contrast(shown, under);
+      assert.ok(ratio >= 4.5, `${mode} on ${surface}: ${ratio.toFixed(2)}:1`);
+    }
+  }
+});
+
 type Rgb = [number, number, number];
 const hex = (value: string): Rgb =>
   [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16) / 255) as Rgb;

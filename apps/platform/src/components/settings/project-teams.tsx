@@ -170,7 +170,7 @@ function TeamRow({
               editable ? "What this team works on" : "No description"
             }
             aria-label={`Description of ${t.name}`}
-            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted touch:text-base"
+            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-placeholder focus:bg-muted enabled:hover:bg-muted touch:text-base"
             onBlur={(e) => {
               const description = e.currentTarget.value.trim() || null;
               if (description !== (t.description ?? null))
