@@ -344,16 +344,20 @@ export function createCodeService(
       const baseUrl =
         replaced?.baseUrl ?? provider.normalizeBaseUrl(input.baseUrl);
       // Network outside the lock.
-      const { accountLabel } = await provider
-        .verify({ baseUrl, authKind: input.authKind, credential })
-        .catch((error: unknown) => {
-          throw error instanceof CodeHostError
-            ? new DomainError(
-                error.kind === "validation" ? "validation" : "forbidden",
-                error.message,
-              )
-            : error;
-        });
+      let accountLabel: string;
+      try {
+        ({ accountLabel } = await provider.verify({
+          baseUrl,
+          authKind: input.authKind,
+          credential,
+        }));
+      } catch (error) {
+        throw error instanceof CodeHostError
+          ? connectError(error, productName[input.provider], baseUrl, {
+              authKind: input.authKind,
+            })
+          : error;
+      }
       return db.transaction(async (tx) => {
         await lock(tx, organizationId);
         requireCodeHostManager(
@@ -2472,3 +2476,36 @@ async function targetLabel(
 }
 
 export type CodeService = ReturnType<typeof createCodeService>;
+
+const credentialNoun = {
+  github_app: "app's credentials",
+  token: "token",
+  oauth_consumer: "consumer's key and secret",
+} as const;
+
+// What the administrator who is connecting can do about a failed check. The
+// host's runtime wording ("an administrator must reconnect it", "try again
+// later") is for people who meet a broken connection later, not for the
+// person connecting it now.
+function connectError(
+  error: CodeHostError,
+  product: string,
+  baseUrl: string,
+  input: { authKind: keyof typeof credentialNoun },
+) {
+  const noun = credentialNoun[input.authKind];
+  if (error.kind === "authentication")
+    return new DomainError(
+      "validation",
+      `${product} rejected this ${noun}. Check that it was copied whole, has not expired or been revoked, and belongs to ${baseUrl}.`,
+    );
+  if (error.kind === "unavailable" && error.unreachable)
+    return new DomainError(
+      "validation",
+      `${product} at ${baseUrl} did not answer. Check the host address (leave it empty for the cloud host) and that this Lictory server can reach it through its network and proxy.`,
+    );
+  return new DomainError(
+    error.kind === "validation" ? "validation" : "forbidden",
+    error.message,
+  );
+}

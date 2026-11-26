@@ -85,7 +85,13 @@ export async function receiveSlackRequest(
   },
 ): Promise<SlackHttpAnswer> {
   const installation = await installationOf(db, input.organizationId);
-  if (!installation) return answer(404, "Not found.");
+  // No app saved yet: Slack shows "URL not verified" until the signing
+  // secret is saved; say what to do for whoever reads the answer.
+  if (!installation)
+    return answer(
+      404,
+      "No Slack app is saved for this organization yet. Save the app's credentials in Lictory's Slack settings, then choose Retry in the app's Event Subscriptions.",
+    );
   const check = verifySlackSignature(
     signingSecret(installation),
     input.headers,

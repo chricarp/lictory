@@ -17,6 +17,8 @@ import {
   workDirectory,
   writeConfig,
   configSchema,
+  containerImageProblem,
+  pinnedImage,
 } from "@lictory/runner/config";
 import {
   REVOKED_MESSAGE,
@@ -51,6 +53,7 @@ const commands = {
       name: { type: "string" },
       "max-sessions": { type: "string" },
       isolation: { type: "string" },
+      "container-image": { type: "string" },
       label: { type: "string", multiple: true },
       force: { type: "boolean" },
     },
@@ -68,6 +71,10 @@ const commands = {
       [
         "--isolation host|container",
         "Sessions in worktrees on this machine (default) or in Docker containers",
+      ],
+      [
+        "--container-image <image@sha256:…>",
+        "The image container isolation runs sessions in (needs git and the harnesses)",
       ],
       ["--label <label>", "A label shown on the runner; repeat for several"],
       ["--force", "Replace this machine's existing registration"],
@@ -282,8 +289,11 @@ async function register(args: string[]) {
     credential: "pending",
     maxSessions: maxSessions ? Number(maxSessions) : undefined,
     isolation,
+    containerImage: text(values["container-image"]),
     labels: Array.isArray(values.label) ? values.label : [],
   });
+  const imageProblem = containerImageProblem(base);
+  if (imageProblem) throw new CliError(imageProblem, EXIT.usage);
   const detected = await detectHarnesses(harnesses, base);
   const client = new RunnerClient(base.url, null);
   const registered = await client.register({
@@ -324,6 +334,8 @@ async function start(args: string[]) {
   if (!values) return;
   const config = await required();
   await refuseIfRunning();
+  const imageProblem = containerImageProblem(config);
+  if (imageProblem) throw new CliError(imageProblem, EXIT.usage);
   const testScript =
     text(values["test-harness"]) ?? process.env.LICTORY_RUNNER_TEST_HARNESS;
   let available = harnesses;
@@ -461,6 +473,14 @@ async function doctor(args: string[]) {
     `Work directory ${work} is ${writable ? "writable" : "not writable"}`,
   );
   if (config.isolation === "container") {
+    const imageProblem = containerImageProblem(config);
+    if (imageProblem) check(false, imageProblem);
+    else if (pinnedImage(config.containerImage!))
+      check(true, `Container image ${config.containerImage}`);
+    else
+      say(
+        `! Container image ${config.containerImage} is not pinned by digest: pin it (image@sha256:…) in config.json so a moved tag cannot change what sessions run in.`,
+      );
     const docker = await run("docker", [
       "version",
       "--format",

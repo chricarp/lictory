@@ -1017,6 +1017,14 @@ export const declarations: readonly Declaration[] = [
       "Version shown in the platform. Set by the build; not configured by hand.",
   },
   {
+    name: "NEXT_PUBLIC_RELEASE_ASSETS",
+    group: "Builds",
+    services: ["website"],
+    default: "empty: every download is offered",
+    description:
+      "Comma-separated file names of the stable release the website's /download page links to. Set by the website's deploy from the GitHub Release; a file not listed is shown as not in that release.",
+  },
+  {
     name: "MARKETING_STATIC_EXPORT",
     group: "Builds",
     services: ["website"],

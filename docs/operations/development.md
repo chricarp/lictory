@@ -39,8 +39,8 @@ test results go to `/tmp`), so native Windows shells are not supported.
 Dev Containers, GitHub Codespaces or the `devcontainer` CLI: Node 24 with the
 exact Bun release, and a Docker daemon of its own (the docker-in-docker
 feature) so `docker compose up -d` runs the services inside the container and
-the commands below work unchanged. Creating it copies `.env.example` to `.env`
-when there is none and runs `bun install`; the app, website and Mailpit ports
+the commands below work unchanged. Creating it runs `bun install` and
+`bun run dev:env` (which creates `.env` when there is none); the app, website and Mailpit ports
 are forwarded to the host. Give Docker at least 8 GB of memory, as below. On
 macOS and Windows, a clone in a container volume ("Clone Repository in
 Container Volume") is much faster than a bind-mounted checkout. With rootless
@@ -53,8 +53,8 @@ machines, so `bun run lint` allows itself 6 GB (`--max-old-space-size=6144`).
 A `NODE_OPTIONS` you export comes after it and wins.
 
 ```sh
-cp .env.example .env
-bun install
+bun install --frozen-lockfile
+bun run dev:env               # creates .env and fits its ports to this machine
 docker compose up -d --wait   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
 bun run dev                   # SPA, API, worker, collaboration and website on the host
 ```
@@ -119,8 +119,18 @@ on, for example a private VPN address, and prefer an SSH tunnel
 (`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
 address. `docker compose config` shows the resulting `host_ip`.
 
-**Ports and a second checkout.** Every published port has a variable, set in
-the shell or `.env` and listed in `.env.example`:
+**Ports and a second checkout.** `bun run dev:env` does this for you: it
+creates `.env` when there is none; when the Compose project `lictory` belongs
+to another checkout it names this one `lictory-<directory>`; when a port is
+taken it moves every port in the table below, and the app's own ports (3000,
+3002, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
+rewrites the settings that name them; on Linux it runs a short container to
+check that Docker reaches the host, and sets `COMPOSE_FILE` to the
+host-network fallback when a firewall blocks it (see
+[troubleshooting](#troubleshooting)). It keeps a set that still works and
+leaves ports alone while this checkout's services run. To set them by hand,
+every published port has a variable, set in the shell or `.env` and listed in
+`.env.example`:
 
 | Variable                         | Default | Service                                     |
 | -------------------------------- | ------- | ------------------------------------------- |

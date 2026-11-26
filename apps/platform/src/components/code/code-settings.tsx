@@ -952,7 +952,7 @@ function SetupInstructions({
       "In GitHub, open Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.",
       "Resource owner: your organization. Repository access: the repositories Lictory should see.",
       "Permissions: Contents read and write, Pull requests read and write, Issues read and write, Commit statuses read, Checks read (when offered), Metadata read.",
-      `After connecting, add the webhook in each repository (Settings → Webhooks → Add webhook): content type application/json, the secret Lictory shows, events: ${events.github}.`,
+      `After connecting, add the webhook Lictory shows once, to your GitHub organization (Organization settings → Webhooks → Add webhook), where one webhook covers every repository; on a personal account, to each repository (Settings → Webhooks). Payload URL and secret: as shown. Content type: application/json. Choose “Let me select individual events”: ${events.github}. Adding an organization webhook needs an organization owner; the token itself is not used for it.`,
       "A token is long-lived and is handed to agent sessions as is. A GitHub App gives each session a token for one repository that expires within an hour.",
     ];
   else if (provider === "gitlab")

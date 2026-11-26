@@ -50,8 +50,14 @@ function canonicalPath(path: string, kind: Environment["SITE_KIND"]) {
       .replace(/(^|\/)index$/, "$1"),
   );
   // The landing page used to be reachable at /home as well.
-  return kind === "marketing" && canonical === "/home" ? "/" : canonical;
+  if (kind === "marketing") return canonical === "/home" ? "/" : canonical;
+  return movedDocsPages[canonical] ?? canonical;
 }
+
+// Documentation pages that moved, so links people kept still land.
+const movedDocsPages: Record<string, string> = {
+  "/delivery/factory": "/factory/autonomy",
+};
 
 // Next.js exports its not-found page twice as ordinary files (/404.html,
 // /_not-found.html). Fetched directly, the asset server would answer 200 with

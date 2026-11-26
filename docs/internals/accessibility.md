@@ -162,8 +162,10 @@ Not covered automatically, and worth checking by hand when these areas change:
   identity tiles (agent avatars) take their mix from `--identity-tile`,
   `--identity-ink` and `--identity-edge`, set per mode so the glyph keeps
   4.5:1 on its tile.
-- **The website.** The marketing site is linted but not scanned in the browser
-  suite.
+- **The websites.** `tests/marketing/accessibility.spec.ts` and
+  `tests/docs/accessibility.spec.ts` scan the landing page, downloads, a guide
+  and a comparison, and the main documentation pages, in light and dark;
+  other website pages share their components but are not scanned.
 - **Screen reader announcements** for realtime changes (another person's edit,
   sync state) and the Lictory Intelligence conversation. The page editor's
   save state is a status region, so its changes are announced politely;

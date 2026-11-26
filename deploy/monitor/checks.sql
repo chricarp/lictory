@@ -86,4 +86,89 @@ FROM iteration i
 JOIN project p ON p.organization_id = i.organization_id AND p.id = i.project_id
 WHERE p.iteration_mode = 'automatic' AND p.archived_at IS NULL
   AND i.state = 'active' AND i.ends_at < now() - interval '2 hours'
+HAVING count(*) > 0
+UNION ALL
+-- Factory: organization runners (servers) that stopped heartbeating. Personal
+-- runners are people's own machines, often asleep, and are not alerted on.
+SELECT 'runner', format('%s organization runner(s) offline for more than 10 min: %s (revoke a retired runner in Factory -> Runners)',
+                        count(*), string_agg(format('%s (last seen %s)', r.name, coalesce(r.last_seen_at, r.registered_at)), ', ' ORDER BY r.name))
+FROM runner r
+WHERE r.owner_id IS NULL AND r.revoked_at IS NULL
+  AND coalesce(r.last_seen_at, r.registered_at) < now() - interval '10 minutes'
+HAVING count(*) > 0
+UNION ALL
+-- Agent sessions waiting for a runner that no online runner can take (no
+-- runner with the agent's harness, the requested runner, or the owner's
+-- personal runner is online), and sessions assigned but never started.
+-- Online matches the Factory page: seen in the last 135 s.
+SELECT 'agent_session', format('%s queued for more than 15 min with no online runner that can run them (oldest %s)', count(*), min(q.created_at))
+FROM agent_session q
+JOIN agent a ON a.id = q.agent_id
+WHERE q.status = 'queued' AND q.created_at < now() - interval '15 minutes'
+  AND a.kind = 'runner' AND a.archived_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM runner r
+    WHERE r.organization_id = q.organization_id AND r.revoked_at IS NULL
+      AND r.last_seen_at > now() - interval '135 seconds'
+      AND r.harnesses @> jsonb_build_array(jsonb_build_object('id', a.harness))
+      AND (q.requested_runner_id IS NULL OR q.requested_runner_id = r.id)
+      AND (r.owner_id IS NULL OR r.owner_id = a.owner_id))
+HAVING count(*) > 0
+UNION ALL
+SELECT 'agent_session', format('%s queued for more than 1 h although a capable runner is online: runners are at capacity (oldest %s)', count(*), min(q.created_at))
+FROM agent_session q
+WHERE q.status = 'queued' AND q.created_at < now() - interval '1 hour'
+  AND EXISTS (
+    SELECT 1 FROM agent a JOIN runner r ON r.organization_id = q.organization_id
+    WHERE a.id = q.agent_id AND a.kind = 'runner' AND a.archived_at IS NULL
+      AND r.revoked_at IS NULL AND r.last_seen_at > now() - interval '135 seconds'
+      AND r.harnesses @> jsonb_build_array(jsonb_build_object('id', a.harness))
+      AND (q.requested_runner_id IS NULL OR q.requested_runner_id = r.id)
+      AND (r.owner_id IS NULL OR r.owner_id = a.owner_id))
+HAVING count(*) > 0
+UNION ALL
+SELECT 'agent_session', format('%s assigned to a runner for more than 10 min without starting (oldest %s)', count(*), min(assigned_at))
+FROM agent_session
+WHERE status = 'assigned' AND assigned_at < now() - interval '10 minutes'
+HAVING count(*) > 0
+UNION ALL
+-- Event deliveries to agents: subscriptions suspended after repeated
+-- failures (their person must resume them) and ones failing for an hour.
+SELECT 'agent_event_subscription', format('%s %s subscription(s) suspended (latest: %s)', count(*), kind, max(status_reason))
+FROM agent_event_subscription
+WHERE status = 'suspended'
+GROUP BY kind
+UNION ALL
+SELECT 'agent_event_subscription', format('%s failing to deliver for more than 1 h (latest: %s)', count(*), max(last_error_detail))
+FROM agent_event_subscription
+WHERE status = 'active' AND failed_since < now() - interval '1 hour'
+HAVING count(*) > 0
+UNION ALL
+-- Slack: installations whose token Slack refused, events and mirrored
+-- messages that failed or are not being processed.
+SELECT 'slack', format('%s Slack installation(s) need reinstalling: Slack refused the token (latest: %s)', count(*), max(last_error))
+FROM slack_installation
+WHERE status = 'invalid'
+HAVING count(*) > 0
+UNION ALL
+SELECT 'slack', format('%s Slack event(s) failed in the last 24 h (latest: %s)', count(*), max(last_error))
+FROM slack_event
+WHERE failed_at > now() - interval '24 hours'
+HAVING count(*) > 0
+UNION ALL
+SELECT 'slack', format('%s Slack event(s) waiting for more than 15 min (oldest %s)', count(*), min(received_at))
+FROM slack_event
+WHERE processed_at IS NULL AND failed_at IS NULL AND due_at < now() - interval '15 minutes'
+  AND (leased_until IS NULL OR leased_until < now())
+HAVING count(*) > 0
+UNION ALL
+SELECT 'slack', format('%s message(s) failed to mirror to Slack in the last 24 h (latest: %s)', count(*), max(last_error))
+FROM channel_mirror
+WHERE failed_at > now() - interval '24 hours'
+HAVING count(*) > 0
+UNION ALL
+SELECT 'slack', format('%s message(s) waiting to mirror to Slack for more than 15 min', count(*))
+FROM channel_mirror
+WHERE due_at IS NOT NULL AND failed_at IS NULL AND due_at < now() - interval '15 minutes'
+  AND (leased_until IS NULL OR leased_until < now())
 HAVING count(*) > 0;

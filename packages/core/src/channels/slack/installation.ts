@@ -18,6 +18,7 @@ import {
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
 import type { Environment } from "@lictory/core/lib/env";
 import {
+  defaultSlackClient,
   SLACK_AUTHORIZE_URL,
   SlackError,
   type SlackClient,
@@ -91,7 +92,7 @@ export function slackAppManifest(
   return {
     display_information: {
       name: "Lictory",
-      description: `Keeps ${organizationName.slice(0, 60)}'s Lictory channels and Slack channels in one conversation.`,
+      description: `Keeps the Lictory and Slack channels of ${organizationName.slice(0, 60)} in one conversation.`,
       background_color: "#1f2937",
     },
     features: {
@@ -242,7 +243,10 @@ export async function saveSlackApp(
     clientSecret: string;
     signingSecret: string;
   },
-  environment: Environment = process.env,
+  {
+    client = defaultSlackClient(),
+    environment = process.env,
+  }: { client?: SlackClient; environment?: Environment } = {},
 ) {
   const appId = input.appId.trim();
   const clientId = input.clientId.trim();
@@ -258,14 +262,42 @@ export async function saveSlackApp(
       "validation",
       "The Client ID looks like 1234567890.1234567890 (Basic Information → App Credentials).",
     );
-  if (
-    !/^[a-f0-9]{16,64}$/i.test(clientSecret) ||
-    !/^[a-f0-9]{16,64}$/i.test(secret)
-  )
+  if (!/^[a-f0-9]{16,64}$/i.test(clientSecret))
     throw new DomainError(
       "validation",
-      "Copy the Client Secret and Signing Secret from Basic Information → App Credentials (Show, then copy).",
+      "The Client Secret is not in Slack's format. Copy it again from Basic Information → App Credentials (Show, then copy).",
     );
+  if (!/^[a-f0-9]{16,64}$/i.test(secret))
+    throw new DomainError(
+      "validation",
+      "The Signing Secret is not in Slack's format. Copy it again from Basic Information → App Credentials (Show, then copy).",
+    );
+  // Only an administrator may make Lictory ask Slack about an app.
+  await db.transaction((tx) => requireAdmin(tx, userId, input.organizationId));
+  // Slack checks the Client ID and Secret now, outside any transaction, so
+  // a wrong one is named here rather than at install. Slack offers no check
+  // of the Signing Secret: it is proven when Slack verifies the events URL.
+  try {
+    await client.checkAppCredentials({ clientId, clientSecret });
+  } catch (error) {
+    if (!(error instanceof SlackError)) throw error;
+    if (error.code === "invalid_client_id")
+      throw new DomainError(
+        "validation",
+        "Slack does not know this Client ID. Copy it again from the app's Basic Information page.",
+      );
+    if (error.code === "bad_client_secret")
+      throw new DomainError(
+        "validation",
+        "Slack refused the Client Secret for this Client ID. Copy it again from the app's Basic Information page (Show, then copy).",
+      );
+    if (error.kind === "transient" || error.kind === "rate_limited")
+      throw new DomainError(
+        "unavailable",
+        "Slack could not be reached to check the app's credentials. Nothing was saved; try again in a minute.",
+      );
+    throw new DomainError("validation", error.message);
+  }
   return db.transaction(async (tx) => {
     const { organizationId } = input;
     await lock(tx, organizationId);

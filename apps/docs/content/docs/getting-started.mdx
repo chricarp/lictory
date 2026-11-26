@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Set up a team in Lictory and take a first specification from proposal through review and approval to delivery.
+description: Set up a team in Lictory, connect your code host and a first agent, and take a specification from proposal through review and approval to delivery.
 ---
 
 **Joining a team that already uses Lictory?** Start at [Sign in](#sign-in).
@@ -83,6 +83,31 @@ choose the project and disciplines in the invitation itself
 </Step>
 <Step>
 
+### Connect your code and a first agent (optional)
+
+Home's checklist starts here. Each step works on its own; specifications,
+reviews and delivery work without any of them.
+
+1. **Connect a code host** (organization administrators): in **Organization
+   settings → Code hosts**, connect GitHub, GitLab or Bitbucket, add the
+   webhook it shows and link repositories to the project
+   ([code hosts](/integrations/code-hosts)).
+2. **Add a runner**: in **Factory → Runners**, create a registration token and
+   run the command it shows on a machine you control
+   ([runners](/factory/runners)).
+3. **Create an agent**: in **Factory → Agents**, name it, choose its harness
+   (Claude Code, Codex or the built-in one) and its scope. You are its owner
+   and it acts with your permissions ([agents](/factory/agents)). Start a
+   first session from **Factory → Start session**, or mention it in a
+   channel.
+
+How much agents do by themselves is the project's
+[autonomy policy](/factory/autonomy): **Assist** (the default) until you
+choose more.
+
+</Step>
+<Step>
+
 ### Write a first proposal
 
 Open the project's **Proposals** and choose **New proposal**. Describe the
@@ -133,7 +158,9 @@ also propose the [breakdown](/delivery/breakdown) into Stories and Tasks.
 - **In Lictory**: choose **Accept revision N for delivery** to record what
   the team agreed to build, plan it into a sprint or cycle and move it across
   the **Board**. Moving it to Done records the delivered revision. See
-  [Deliver](/delivery).
+  [Deliver](/delivery). With the autonomy policy at **Build** or
+  **Autopilot**, agents claim ready items themselves, open the pull request and
+  report progress on the item ([autonomy](/factory/autonomy)).
 - **In Jira**: connect a Jira site in **Organization settings →
   Integrations**, choose the Jira project and type mapping in **Project
   settings → Delivery**, then **Hand off** the ready work from the project's
@@ -170,6 +197,9 @@ else, from comments to reviewed publishing.
   </Card>
   <Card title="Deliver" href="/delivery">
     Board, backlog, sprints and cycles, or hand-off to Jira.
+  </Card>
+  <Card title="Factory" href="/factory">
+    Runners, agents and sessions, and how much they may do alone.
   </Card>
   <Card title="Organization and access" href="/organization">
     Members, projects, disciplines and security.

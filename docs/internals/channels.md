@@ -263,7 +263,11 @@ and the bot token from the OAuth v2 install, are encrypted with the delivery
 credentials key bound to the organization and never returned; saving and
 installing are web-only capabilities (`humanOnly: credentials`). The install
 `state` is a random value whose hash, person and ten-minute expiry are
-stored; the callback needs the same signed-in administrator.
+stored; the callback needs the same signed-in administrator. Saving first
+asks Slack about the Client ID and Secret, outside any transaction: no token
+exists yet, so the check is `oauth.v2.access` with a made-up code, which Slack
+answers `invalid_code` only when the client credentials are right. The signing
+secret has no such check; Slack's events URL verification proves it.
 
 `slack_installation.status` moves as a consequence: `pending` (credentials
 saved), `connected` (installed), `invalid` (Slack refused the token, the app

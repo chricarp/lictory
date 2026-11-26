@@ -279,7 +279,31 @@ void test("connecting stores the credential encrypted; the projection carries no
         credential: { token: "bad" },
       },
     ),
-    refusal("forbidden", /rejected/),
+    refusal(
+      "validation",
+      /^GitHub rejected this token\. Check that it was copied whole/,
+    ),
+  );
+  // A host that never answers names the address to check.
+  f.host.fail(
+    "verify",
+    new CodeHostError("unavailable", "unreachable", undefined, true),
+  );
+  await assert.rejects(
+    f.service.connect(
+      { userId: f.owner },
+      {
+        organizationId: f.organizationId,
+        provider: "github",
+        authKind: "token",
+        baseUrl: "https://github.invalid.test",
+        credential: { token: "good" },
+      },
+    ),
+    refusal(
+      "validation",
+      /^GitHub at https:\/\/github\.invalid\.test did not answer\. Check the host address/,
+    ),
   );
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });

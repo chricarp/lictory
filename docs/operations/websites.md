@@ -26,6 +26,11 @@ and immutable caching of hashed assets are defined once:
   `wrangler deploy --var`; without it `/relay` answers 404 and nothing leaves.
   Former application paths (`/app/...`, `/sign-in`, `/sign-up` and the other
   account pages) are not redirected; they are ordinary missing pages.
+  `/download` links each file of the newest stable release under its
+  version-free name. The deploy passes the files that release carries
+  (`NEXT_PUBLIC_RELEASE_ASSETS`); a file it lacks is shown as not in that
+  release, with the build-from-source steps, instead of a link that would 404. The site is rebuilt with every release, so links appear once a release
+  carries the files.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
   (`/search.json`) and runs in the browser. The Worker serves files and
   headers, the Markdown versions of the pages, and relays `/relay` to PostHog

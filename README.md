@@ -191,8 +191,8 @@ On Windows, use WSL2. A dev container is also included.
 ```sh
 git clone https://github.com/chricarp/lictory.git
 cd lictory
-cp .env.example .env
 bun install --frozen-lockfile
+bun run dev:env               # writes .env: free ports, own Compose project, firewall fallback
 docker compose up -d --wait   # waits until zero-cache has finished starting
 bun run dev
 ```
@@ -202,8 +202,12 @@ bun run dev
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-Ports already taken by another PostgreSQL or Mailpit? Set the
-`LICTORY_DEV_*_PORT` variables in `.env` (listed in `.env.example`). The
+`bun run dev:env` creates `.env` from `.env.example`. Beside another checkout,
+or when another PostgreSQL or Mailpit holds a port, it gives this checkout its
+own Compose project and moves every port by the same offset (the defaults plus
+10000, so the app is then http://localhost:13000), and on Linux it turns on
+`compose.host-network.yaml` when a firewall keeps Docker from reaching the
+host. It prints what it changed. The
 [development runbook](docs/operations/development.md) covers environment
 settings, troubleshooting, OAuth callbacks, database migrations, daily commands and the complete
 required verification sequence.

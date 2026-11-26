@@ -134,7 +134,7 @@
   height: 26px;
   border-radius: 50%;
   background: var(--lane);
-  color: #fff;
+  color: var(--lx-on-lane);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;

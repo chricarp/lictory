@@ -8,8 +8,10 @@
 //   docker compose up -d --wait && bun run dev   (both read .env)
 //
 // Ports follow .env like compose.yaml does: the SPA takes PLATFORM_URL's (or
-// BETTER_AUTH_URL's) port, the API LICTORY_DEV_API_PORT, and zero-cache is
-// expected on LICTORY_DEV_ZERO_PORT. See docs/operations/development.md.
+// BETTER_AUTH_URL's) port, the API LICTORY_DEV_API_PORT, collaboration
+// COLLABORATION_PORT, the website SITE_URL's port, and zero-cache is
+// expected on LICTORY_DEV_ZERO_PORT. `bun run dev:env` sets them all for a
+// second checkout. See docs/operations/development.md.
 import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
 import { bunMismatch } from "./bun-version";
@@ -54,11 +56,21 @@ const zeroOrigin = or(
   process.env.ZERO_ORIGIN,
   `http://localhost:${port("LICTORY_DEV_ZERO_PORT", 4848)}`,
 );
+const siteUrl = or(process.env.SITE_URL, "http://localhost:3100");
+const sitePort = URL.canParse(siteUrl)
+  ? new URL(siteUrl).port || "3100"
+  : "3100";
+const collaborationPort = port("COLLABORATION_PORT", 3004);
 const env: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PLATFORM_URL: platformUrl,
-  SITE_URL: or(process.env.SITE_URL, "http://localhost:3100"),
+  SITE_URL: siteUrl,
+  COLLABORATION_PORT: String(collaborationPort),
+  COLLABORATION_ORIGIN: or(
+    process.env.COLLABORATION_ORIGIN,
+    `http://localhost:${collaborationPort}`,
+  ),
   API_ORIGIN: or(process.env.API_ORIGIN, `http://localhost:${apiPort}`),
   ZERO_ORIGIN: zeroOrigin,
 };
@@ -247,7 +259,12 @@ const services: [string, string, string[], NodeJS.ProcessEnv][] = [
     ["run", "--filter", "@lictory/platform", "dev"],
     { ...env, PORT: platformPort },
   ],
-  ["website", "bun", ["run", "--filter", "@lictory/marketing", "dev"], env],
+  [
+    "website",
+    "bun",
+    ["run", "--filter", "@lictory/marketing", "dev"],
+    { ...env, PORT: sitePort },
+  ],
 ];
 
 const children: ChildProcess[] = [];

@@ -48,8 +48,10 @@ export const configSchema = z.object({
   credential: z.string(),
   maxSessions: z.number().int().min(1).max(64).default(2),
   isolation: z.enum(isolationModes).default("host"),
-  // Image for container isolation; it must contain git and the harnesses.
-  containerImage: z.string().default("ghcr.io/lictory/runner-sandbox:latest"),
+  // Image for container isolation, chosen by the operator: it must contain
+  // git and the harnesses. Lictory publishes none, so there is no default;
+  // pin it by digest (image@sha256:…) so a moved tag cannot change it.
+  containerImage: z.string().min(1).optional(),
   // Docker network for containers ("none" cuts them off entirely).
   containerNetwork: z.string().default("bridge"),
   labels: z.array(z.string()).default([]),
@@ -149,3 +151,18 @@ export function runnerLiveness(
   const age = (options.now ?? Date.now()) - updated;
   return age <= options.staleAfterMs ? "running" : "unresponsive";
 }
+
+// Why a configuration cannot isolate sessions in containers, or null.
+export function containerImageProblem(config: {
+  isolation: string;
+  containerImage?: string;
+}): string | null {
+  if (config.isolation !== "container") return null;
+  if (!config.containerImage)
+    return "Container isolation needs an image that contains git and the harnesses: set containerImage in config.json, or register with --container-image <image@sha256:digest>.";
+  return null;
+}
+
+// A container image reference that a moved tag cannot change.
+export const pinnedImage = (image: string) =>
+  /@sha256:[a-f0-9]{64}$/.test(image);

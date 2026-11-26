@@ -18,6 +18,8 @@ import {
 } from "@lictory/runner/client";
 import {
   configSchema,
+  containerImageProblem,
+  pinnedImage,
   runnerLiveness,
   writeState,
   readState,
@@ -519,4 +521,30 @@ void test("unreachable servers are described by address and what to check", () =
     ),
     /NODE_EXTRA_CA_CERTS/,
   );
+});
+
+void test("container isolation needs an image the operator chose; Lictory names none", () => {
+  const base = {
+    url: "https://lictory.example.test",
+    runnerId: "r",
+    organizationId: "o",
+    name: "box",
+    personal: false,
+    credential: "lcr_x",
+  };
+  const host = configSchema.parse(base);
+  assert.equal(host.containerImage, undefined);
+  assert.equal(containerImageProblem(host), null);
+  const container = configSchema.parse({ ...base, isolation: "container" });
+  assert.match(
+    containerImageProblem(container) ?? "",
+    /needs an image .* --container-image/,
+  );
+  const image = `registry.example.test/sandbox@sha256:${"a".repeat(64)}`;
+  assert.equal(
+    containerImageProblem({ ...container, containerImage: image }),
+    null,
+  );
+  assert.ok(pinnedImage(image));
+  assert.ok(!pinnedImage("registry.example.test/sandbox:latest"));
 });
