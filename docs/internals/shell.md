@@ -83,10 +83,16 @@ and what is the factory doing?" before any module.
 - **Recently edited pages** are pages whose published version changed last.
 - **Needs an administrator** (organization administrators only, nothing
   while all is well): offline or never-started organization runners, queued
-  sessions no runner can take, and code host or Slack connections that
-  stopped working (`components/shell/home/admin-health.tsx`). The instance's
-  monitor alerts the operator about the same things; the organization
-  administrator who can fix them is told where they look.
+  sessions no runner can take, code host or Slack connections that
+  stopped working (`components/shell/home/admin-health.tsx`), and the
+  monitor's database checks narrowed to the organization
+  (`domain/administrator-health.ts`): background work the worker has not
+  reached, email and Lictory Intelligence runs that failed, hand-offs that
+  failed and were not retried, and, for instance administrators, the
+  replication slot. The instance's monitor alerts the operator about the same
+  things; the organization administrator who can fix them, or tell the
+  operator, is told where they look. Backups and disk are checked only by the
+  monitor: they live on the server, not in the database.
 - **Registered cards** sit beside them: **Agents at work** (sessions
   running that do not already wait on me, so a session is listed once). A
   card renders nothing until it has something to show, so an organization

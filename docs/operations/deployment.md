@@ -474,6 +474,13 @@ pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
 a server that stopped reporting; both are optional. Logs rotate at 5 × 20 MB
 per container.
 
+Organization administrators see the monitor's database checks for their
+own organization on their Home, under **Needs an administrator**: work the
+worker has not reached for 15 minutes, failed email and AI runs, and
+hand-offs that failed and were not retried; instance administrators also see
+a lagging, lost or missing replication slot there. Backup age, disk and
+container health stay with the monitor, which reads them on the host.
+
 Existing monitoring can replace or complement it: point an uptime checker
 (Uptime Kuma, Pingdom, a load balancer health check) at
 `https://<app host>/readyz`, scrape container health with cAdvisor or the

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
+import { readAdministratorHealth } from "@lictory/core/domain/administrator-health";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
 import { deliveryIndex } from "@lictory/core/lib/work-items";
 import {
@@ -1359,6 +1360,21 @@ const listMilestones = defineCapability({
   },
 });
 
+// What the server knows is wrong with the organization's background work
+// (stuck or failing jobs, failed hand-offs; for instance administrators the
+// replication slot too), for the "Needs an administrator" card.
+const getAdministratorHealth = defineCapability({
+  name: "getAdministratorHealth",
+  title: "Administrator health",
+  description:
+    "Organization administrators: problems the server knows about in this organization's background work, the same database checks the instance monitor runs: notifications, email or Lictory Intelligence runs waiting for the worker, email that failed, Lictory Intelligence runs failing, hand-offs that failed and were not retried, and (for instance administrators) the replication slot that keeps browsers current. Empty while all is well.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({ organizationId }),
+  run: (ctx, input) =>
+    readAdministratorHealth(ctx.db, ctx.principal.userId, input.organizationId),
+});
+
 export const workspaceCapabilities: AnyCapability[] = [
   listOrganizations,
   getWorkspace,
@@ -1373,5 +1389,6 @@ export const workspaceCapabilities: AnyCapability[] = [
   getReadinessHistory,
   previewReadinessChecks,
   syncDirectory,
+  getAdministratorHealth,
   ...commandCapabilities,
 ] as AnyCapability[];
