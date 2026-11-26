@@ -24,6 +24,11 @@ import { documentEnd } from "../helpers/keyboard";
 // reaches the others without reloading, the server stays authoritative, and
 // nothing a person wrote is lost when the server refuses it.
 
+// A desktop monitor: discussions, the specification and the review rail fit
+// side by side. On a laptop the rail steps aside while discussions are open
+// (item-detail.tsx), and these tests change properties and discuss at once.
+test.use({ viewport: { width: 1920, height: 1080 } });
+
 const properties = (page: Page) =>
   page.getByRole("heading", { name: "Properties", exact: true }).locator("..");
 
@@ -416,6 +421,10 @@ test("changes made offline survive a reload, apply once back online and reach ot
     await richEditor(ben.page, "Start a discussion");
     await ben.context.setOffline(true);
     await zero.interrupt();
+    // Losing the connection is said once, through the workspace's announcer.
+    await expect(ben.page.locator("[data-announcer]")).toContainText(
+      /You’re offline|Reconnecting…/,
+    );
     await setPriority(ben.page, "Low");
     const text = "Exports include reversed entries.";
     await fillMarkdown(ben.page, "Start a discussion", text);
