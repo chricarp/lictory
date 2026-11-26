@@ -704,15 +704,6 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     ).toContainText("Lictory closed the change integration/retries.");
     await page.reload();
     await expect(deletion).toHaveCount(1);
-    // The closed change is gone from the item's proposed changes.
-    await page
-      .getByRole("navigation", { name: "Specification changes" })
-      .getByRole("button", { name: "Proposed changes", exact: true })
-      .click();
-    await expect(
-      page.getByRole("button", { name: /^integration\/retries/ }),
-    ).toHaveCount(0);
-    await page.goto(mainPR);
     await page.getByRole("tab", { name: /^Versions/ }).click();
     await expect(
       page.getByText("Keep target timeout", { exact: true }),

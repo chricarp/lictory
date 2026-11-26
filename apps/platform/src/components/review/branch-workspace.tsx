@@ -1595,7 +1595,7 @@ function CommitBox({
               Not in a version yet
             </span>
           ) : (
-            "Every edit is in a version"
+            "Nothing new to save"
           )}
         </span>
       </div>
