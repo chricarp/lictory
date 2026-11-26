@@ -103,7 +103,7 @@ const listClaims = defineCapability({
 const claimItemCapability = defineCapability({
   name: "claimItem",
   title: "Claim work item",
-  description: `Agents: take a lease on one claimable work item (see listClaimableItems) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with renewClaim or reportProgress. Refused with kind \`not_claimable\` and the reasons when the item cannot be claimed, and \`external_delivery\` in projects delivered by an external tool. Exactly one live claim holds an item. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.`,
+  description: `Agents: take a lease on one claimable work item (see listClaimableItems) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with renewClaim or reportProgress. Refused with kind \`not_claimable\` and the reasons when the item cannot be claimed, and \`external_delivery\` in projects delivered by an external tool. Exactly one live claim holds an item; claiming one you already hold returns your claim with \`alreadyHeld\`. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.`,
   kind: "command",
   surfaces: everywhere,
   idempotent: true,

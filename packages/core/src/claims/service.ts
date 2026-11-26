@@ -735,6 +735,26 @@ export async function claimItem(
       );
       const item = facts.items.find((i) => i.id === input.workItemId)!;
       const key = facts.key(item);
+      // The holder asking again (a retry that lost the answer and sent no
+      // mutationId) gets its own live claim back instead of a conflict.
+      // Only the same agent, for the same person, in the same session.
+      if (
+        held &&
+        !isExpired(held, now) &&
+        held.agentId === agent.agentId &&
+        held.ownerId === actor.userId &&
+        (held.agentSessionId ?? null) === (actor.agentSessionId ?? null)
+      )
+        return {
+          claimId: held.id,
+          workItemId: item.id,
+          key,
+          state: held.state,
+          status:
+            roster.statuses.find((x) => x.id === item.statusId)?.name ?? null,
+          leaseExpiresAt: held.leaseExpiresAt.toISOString(),
+          alreadyHeld: true,
+        };
       const verdict = claimability(item, facts.facts);
       if (
         !verdict.claimable &&
