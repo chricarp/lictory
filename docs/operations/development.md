@@ -210,6 +210,16 @@ After adding or changing one, run `bun run config:docs` to regenerate the
 [configuration reference](./configuration.md); a test fails when runtime code
 reads an undeclared variable.
 
+To work on the factory (agents, sessions, claims) against `bun run dev`, run
+a runner from the checkout: create a registration token in **Factory →
+Runners → Add runner**, then
+`bun apps/runner/src/cli.ts register --url http://localhost:3000 --token <token>`
+and `bun apps/runner/src/cli.ts start` (add `--test-harness default` to walk a
+scripted agent instead of a real one). Give it its own
+`LICTORY_RUNNER_HOME` so it does not reuse a runner installed on the machine.
+Code and the code loop also need a code host: connect one in **Organization
+settings → Code hosts**.
+
 The desktop app (`apps/desktop`) runs against any Lictory server, including
 the one `bun run dev` starts: run `bun run --cwd apps/desktop setup` once (it
 downloads Electron, which installing the repository never does), then
