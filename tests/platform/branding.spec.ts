@@ -130,6 +130,10 @@ test("an administrator brands the organization with its logos, browser icon and 
     );
   const defaultPrimary = await primary();
   await page.getByLabel("Brand color", { exact: true }).fill("#1D4ED8");
+  // The preview says where a color is adjusted to keep text readable.
+  await expect(
+    page.getByRole("group", { name: "Brand color preview" }),
+  ).toContainText("Shown as #6586e4 on dark surfaces");
   await page.getByRole("button", { name: "Save color" }).click();
   await expect.poll(primary).toBe("#1d4ed8");
   await page.reload();

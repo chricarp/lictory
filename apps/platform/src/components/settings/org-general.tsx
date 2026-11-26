@@ -332,8 +332,10 @@ function BrandColor() {
           <p className="text-[13px] font-medium">Brand color</p>
           <p className="text-xs text-muted-foreground">
             Tints primary buttons and accents for everyone working in this
-            organization, and the button and links in its emails. People who
-            chose their own color theme keep it.
+            organization, and the button and links in its emails. Lictory
+            darkens or lightens it where needed so text stays readable (4.5:1
+            contrast); the preview shows what people see. People who chose their
+            own color theme keep it.
           </p>
         </div>
         {isAdmin ? (
@@ -405,6 +407,11 @@ function BrandColor() {
 
 function BrandPreview({ color }: { color: string }) {
   const palette = brandPalette(color);
+  const same = (tone: string) => tone.toLowerCase() === color.toLowerCase();
+  const adjusted = [
+    !same(palette.light.color) && `${palette.light.color} on light surfaces`,
+    !same(palette.dark.color) && `${palette.dark.color} on dark surfaces`,
+  ].filter(Boolean);
   const tones = [
     { label: "Light", surface: "#ffffff", tone: palette.light },
     { label: "Dark", surface: "#141518", tone: palette.dark },
@@ -432,6 +439,11 @@ function BrandPreview({ color }: { color: string }) {
           </span>
         </div>
       ))}
+      {adjusted.length > 0 && (
+        <p className="basis-full text-xs text-muted-foreground">
+          Shown as {adjusted.join(" and ")}, so text keeps 4.5:1 contrast.
+        </p>
+      )}
     </div>
   );
 }
