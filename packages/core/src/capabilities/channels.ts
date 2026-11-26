@@ -191,7 +191,7 @@ const badgeCapability = defineCapability({
   name: "getChannelAttention",
   title: "Unread mentions and direct messages",
   description:
-    "Your unread mentions and unread direct messages per organization, and their total: what the desktop app's badge shows. Ordinary channel traffic is not counted.",
+    "Your unread mentions and unread direct messages per organization, and their total: the conversation part of the desktop app's badge (which also counts the open organization's Inbox to-dos). Ordinary channel traffic is not counted.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({}),

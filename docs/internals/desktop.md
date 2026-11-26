@@ -184,14 +184,17 @@ in the signed-in layout by `components/app/desktop-connector.tsx`):
   raise the badge or a native notification. It uses the same endpoint and
   realtime signals as the Inbox and adds no server events.
 - The badge is a **sum of sources**, and this module is the only caller of
-  `setBadge`. Notifications are one source; another feature adds its own
-  unread count with `useDesktopBadgeSource(source, count)`. The shell adds
-  its sidebar's `dock` badges (channel mentions and direct messages of the
-  open organization, from read state; see [the shell](shell.md#desktop-app)),
-  so notifications of the Channels category are left out of the
-  notification source: reading a conversation clears its mentions without
-  marking their notifications read. They are still forwarded as native
-  notifications.
+  `setBadge`. Another feature adds its own count with
+  `useDesktopBadgeSource(source, count)`. The shell adds its sidebar's
+  `dock` badges of the open organization (the Inbox's To do, channel
+  mentions and direct messages, from live state; see
+  [the shell](shell.md#desktop-app)), so the badge shows the sidebar's
+  numbers. Notifications are the other source, for the person's other
+  organizations only (`useDesktopOpenOrganization` names the open one):
+  the open organization's would count twice and outlive what they announced
+  (an answered review, a read conversation). Channel notifications and
+  agents' questions never count as notifications (read state and To do
+  count them). Everything is still forwarded as native notifications.
 - `onNavigate` paths go through the router only when they are pages of the
   app: other origins and the account flows are refused.
 - The page is a view under the window's top bar and beside the server
@@ -394,8 +397,10 @@ flag into a setting.
   the web app's side (attention kinds, badge sources, what counts as new,
   refresh coalescing). Both run in `bun run test:domain`.
 - `tests/platform/desktop-bridge.spec.ts` runs the real web app with a
-  recording bridge: an assignment raises the badge and a native
-  notification, the shell navigates the page, reading clears the badge.
+  recording bridge: an assignment raises a native notification but not the
+  badge (it is news), a review request raises the badge with the sidebar's
+  Inbox count, the shell navigates the page, and the request going away
+  clears the badge.
 - `apps/desktop/tests/smoke.spec.ts` runs the built app with Playwright's
   Electron support against a fake Lictory server: the bundled font, adding a
   server (and refusing wrong ones in plain words), the bridge without

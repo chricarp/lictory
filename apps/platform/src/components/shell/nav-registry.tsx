@@ -34,9 +34,11 @@ export type NavBadge = {
   // "strong" is addressed to me (mentions, direct messages, requests); a
   // "quiet" count is activity worth a glance.
   tone: "strong" | "quiet";
-  // Counts toward the desktop app's dock or taskbar badge. Only mentions and
-  // direct messages do (the desktop contract); the shell adds them to the
-  // desktop bridge as one source (lib/desktop-bridge.ts).
+  // Counts toward the desktop app's dock or taskbar badge: what waits on
+  // the person (the Inbox's To do, mentions, direct messages), so the dock
+  // shows the sidebar's numbers. The shell adds them to the desktop bridge
+  // as one source (lib/desktop-bridge.ts). A count another one already
+  // contains (the Factory's agents are in To do) never docks.
   dock?: boolean;
   // A quiet dot after the count for lesser news, named for assistive
   // technology: the Inbox counts what waits on me and dots unread updates.

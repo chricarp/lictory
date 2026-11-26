@@ -33,7 +33,10 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 // /api/notifications), refreshed by the same realtime signals; it adds no
 // server events. The badge is a sum of sources, so other kinds of unread
 // activity add their own count with useDesktopBadgeSource: the shell adds
-// its sidebar's mentions and direct messages (components/shell/nav-badges).
+// its sidebar's strong counts of the organization open in the window (the
+// Inbox's To do, mentions and direct messages; components/shell/nav-badges),
+// so the badge is the number the sidebar shows. Notifications add only the
+// asks of the person's other organizations, which no sidebar shows.
 // This module is the only caller of `setBadge`.
 
 // The catalog's rule (docs/internals/notifications.md): what asks something
@@ -56,8 +59,34 @@ const channelKinds = new Set<string>(
 // nothing marks its notification read; counting it would keep the badge
 // after it is answered. It is still forwarded as a native notification.
 const liveKinds = new Set<string>(toDoKinds);
-export const badgeCounts = (n: Pick<NotificationItem, "kind">) =>
-  !channelKinds.has(n.kind) && !liveKinds.has(n.kind);
+// The organization open in this window counts through its sidebar (To do,
+// mentions, direct messages: what waits on the person, by the rule Home and
+// the Inbox use), so its notifications would count twice; they are still
+// forwarded as native notifications. Other organizations have no sidebar
+// here, so their unread asks are the badge's only word about them.
+export const badgeCounts = (
+  n: Pick<NotificationItem, "kind" | "organizationId">,
+  openOrganizationId: string | null = null,
+) =>
+  !channelKinds.has(n.kind) &&
+  !liveKinds.has(n.kind) &&
+  n.organizationId !== openOrganizationId;
+
+// The organization the window shows (set by the shell while it is mounted).
+let openOrganization: string | null = null;
+const openListeners = new Set<() => void>();
+export function useDesktopOpenOrganization(organizationId: string) {
+  useEffect(() => {
+    if (!desktop()) return;
+    openOrganization = organizationId;
+    for (const listener of openListeners) listener();
+    return () => {
+      if (openOrganization !== organizationId) return;
+      openOrganization = null;
+      for (const listener of openListeners) listener();
+    };
+  }, [organizationId]);
+}
 
 const PAGE = 100;
 // Native notifications per refresh; the rest are summed up in one.
@@ -188,6 +217,8 @@ export function createDesktopSync(options: {
   setBadge: (count: number) => void;
   fetchUnread: () => Promise<Pick<NotificationPage, "items" | "next">>;
   now?: () => number;
+  // The organization whose sidebar already counts toward the badge.
+  openOrganization?: () => string | null;
 }) {
   const forwarder = createNotificationForwarder({
     now: options.now ?? Date.now,
@@ -200,7 +231,8 @@ export function createDesktopSync(options: {
     try {
       const page = await options.fetchUnread();
       if (stopped) return;
-      options.setBadge(page.items.filter(badgeCounts).length);
+      const open = options.openOrganization?.() ?? null;
+      options.setBadge(page.items.filter((n) => badgeCounts(n, open)).length);
       for (const notification of toDesktopNotifications(
         forwarder.take(page.items),
       ))
@@ -272,10 +304,13 @@ export function useDesktopBridge(
       bridge,
       setBadge: (count) => badge()?.set("notifications", count),
       fetchUnread,
+      openOrganization: () => openOrganization,
     });
     sync.current = current;
     void current.refresh();
     const refresh = schedule.current;
+    // Switching organizations moves which notifications count.
+    openListeners.add(refresh);
     // Read state changed in this tab (the inbox announces it).
     window.addEventListener("lictory:notifications", refresh);
     window.addEventListener("focus", refresh);
@@ -287,6 +322,7 @@ export function useDesktopBridge(
       if (timer.current) clearTimeout(timer.current);
       window.removeEventListener("lictory:notifications", refresh);
       window.removeEventListener("focus", refresh);
+      openListeners.delete(refresh);
       clearInterval(interval);
       badge()?.clear("notifications");
     };

@@ -274,3 +274,52 @@ export function waitingOnYou<
   ];
   return rows.sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at));
 }
+
+// What a list of waiting rows holds, by kind, for rows Home does not show
+// ("2 blocked items · 1 failed session"): the count above the card and the
+// rows in it reconcile without opening the Inbox. Kinds in the queue's
+// order; each named once with its count.
+const reviewReasons = new Set([
+  "Review requested",
+  "Pull request to review",
+  "Review again",
+]);
+const itemKinds: Record<string, readonly [string, string]> = {
+  Blocked: ["blocked item", "blocked items"],
+  "Changes requested": [
+    "item with changes requested",
+    "items with changes requested",
+  ],
+  "Publish failed": ["failed hand-off", "failed hand-offs"],
+  "Ready for delivery": ["item ready for delivery", "items ready for delivery"],
+};
+
+export function waitingKinds(
+  rows: readonly Waiting<
+    WaitingItem & { reason: string },
+    WaitingPage,
+    WaitingRequest
+  >[],
+): string {
+  const counts = new Map<string, { n: number; one: string; many: string }>();
+  const add = ([one, many]: readonly [string, string]) => {
+    const entry = counts.get(one) ?? { n: 0, one, many };
+    entry.n += 1;
+    counts.set(one, entry);
+  };
+  for (const row of rows) {
+    if (row.kind === "agent")
+      add(
+        row.request.failed
+          ? ["failed agent session", "failed agent sessions"]
+          : ["request from an agent", "requests from agents"],
+      );
+    else if (row.kind === "page") add(["page change", "page changes"]);
+    else if (reviewReasons.has(row.entry.reason)) add(["review", "reviews"]);
+    else
+      add(itemKinds[row.entry.reason] ?? ["item to check", "items to check"]);
+  }
+  return [...counts.values()]
+    .map(({ n, one, many }) => `${n} ${n === 1 ? one : many}`)
+    .join(" · ");
+}

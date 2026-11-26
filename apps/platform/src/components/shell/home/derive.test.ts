@@ -11,6 +11,7 @@ import {
   readyToStart,
   recentOutcomes,
   recentPages,
+  waitingKinds,
   waitingOnYou,
 } from "@lictory/platform/components/shell/home/derive";
 
@@ -247,6 +248,43 @@ void test("waiting on you is one queue: agents' questions first, each thing once
     ],
   );
   assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
+});
+
+void test("rows Home does not show are named by kind, so its count reconciles", () => {
+  const rows = waitingOnYou({
+    items: [
+      {
+        reason: "Blocked",
+        weight: 2,
+        item: { id: "i1", updatedAt: "2026-11-05" },
+      },
+      {
+        reason: "Blocked",
+        weight: 2,
+        item: { id: "i2", updatedAt: "2026-11-04" },
+      },
+      {
+        reason: "Review requested",
+        weight: 0,
+        item: { id: "i3", updatedAt: "2026-11-01" },
+      },
+    ],
+    pages: [],
+    requests: [
+      {
+        session: { id: "s1", updatedAt: "2026-10-30" },
+        approval: { id: "a1", createdAt: "2026-10-30" },
+      },
+      { session: { id: "s3", updatedAt: "2026-11-03" }, failed: true },
+    ],
+  });
+  assert.equal(
+    waitingKinds(rows),
+    "1 request from an agent · 1 failed agent session · 1 review · 2 blocked items",
+  );
+  // Home shows the first rows; the rest are said, not hidden.
+  assert.equal(waitingKinds(rows.slice(3)), "2 blocked items");
+  assert.equal(waitingKinds([]), "");
 });
 
 void test("recent outcomes are my delivered work and my agents' finished sessions, newest first", () => {
