@@ -53,6 +53,19 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await ada.page.getByRole("button", { name: "Connect a host" }).click();
     await ada.page.getByRole("radio", { name: "Fine-grained token" }).click();
     await ada.page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
+    // A refused token is explained; another host starts a fresh form.
+    await ada.page
+      .getByLabel("Token", { exact: true })
+      .fill("github_pat_wrong");
+    await ada.page.getByRole("button", { name: "Verify and connect" }).click();
+    const refused = ada.page.getByText("GitHub rejected this token");
+    await expect(refused).toBeVisible();
+    await ada.page.getByRole("radio", { name: "GitLab" }).click();
+    await expect(ada.page.getByLabel("Host address")).toHaveValue("");
+    await expect(refused).toBeHidden();
+    await ada.page.getByRole("radio", { name: "GitHub", exact: true }).click();
+    await ada.page.getByRole("radio", { name: "Fine-grained token" }).click();
+    await ada.page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
     await ada.page.getByLabel("Token", { exact: true }).fill(FAKE_GITHUB_TOKEN);
     await ada.page.getByRole("button", { name: "Verify and connect" }).click();
     // The webhook secret is shown once, to paste into the host.

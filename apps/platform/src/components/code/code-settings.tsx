@@ -707,10 +707,14 @@ function ConnectForm({
     onChange: (e: { target: { value: string } }) =>
       setFields((f) => ({ ...f, [key]: e.target.value })),
   });
+  // Another host or sign-in method starts a fresh form: the previous host's
+  // address and its error say nothing about this one.
   const chooseProvider = (next: Provider) => {
     setProvider(next);
     setAuthKind(authChoices[next][0]!.value);
+    setBaseUrl("");
     setFields({});
+    setError(undefined);
   };
   const cloud = {
     github: "https://github.com, or your GitHub Enterprise Server",
@@ -765,6 +769,7 @@ function ConnectForm({
             onValueChange={(v) => {
               setAuthKind(v);
               setFields({});
+              setError(undefined);
             }}
             className="w-fit"
           >
