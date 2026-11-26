@@ -241,7 +241,9 @@ in-app path; anything else is refused.
   classic scrollbars. The shell draws slim ones in its colors, and injects
   the same colors and `scrollbar-width: thin` into servers' pages
   (`src/main/scrollbars.ts`, standard properties only, so a page's own
-  `scrollbar-width` still wins). macOS keeps its overlay scrollbars.
+  `scrollbar-width` still wins). Like overlay scrollbars, a thumb shows only
+  on the scroller under the pointer or holding the focus, never as a
+  permanent bar. macOS keeps its own overlay scrollbars.
 - **Shortcuts** (Ctrl instead of ⌘ on Windows and Linux): ⌘1 to ⌘9 open the
   server at that position, ⌘K is left to the page (its command palette; the
   menu item types it when chosen with the mouse), ⌘, settings, ⌘⇧N add a

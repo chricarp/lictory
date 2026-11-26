@@ -88,7 +88,8 @@ select {
 
 /* Slim scrollbars in the token colors instead of the platform's classic
    ones (Linux and Windows draw arrows and a wide gutter); macOS keeps its
-   overlay scrollbars. */
+   overlay scrollbars. As there, a thumb shows only on the scroller under
+   the pointer or holding the focus. */
 :root:not([data-platform="darwin"]) ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -97,6 +98,10 @@ select {
 :root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 5px;
+  background: transparent;
+}
+:root:not([data-platform="darwin"]) :hover::-webkit-scrollbar-thumb,
+:root:not([data-platform="darwin"]) :focus-within::-webkit-scrollbar-thumb {
   background: var(--scrollbar) padding-box;
 }
 :root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb:hover {
@@ -487,14 +492,31 @@ h3 {
   text-underline-offset: 3px;
 }
 
-/* Settings: a centred column of titled cards, like the web app's. */
+/* Settings: a centred column of titled cards, in the web app's type
+   scale (13px rows, 12px help, one modest title), so the app's settings
+   and a server's settings read as one product. */
 .settings {
   max-width: 720px;
   margin: 0 auto;
-  padding: 40px 32px 56px;
+  padding: 32px 32px 56px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 .settings > h1 {
-  margin-bottom: 24px;
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+.settings h2 {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.settings .hint {
+  font-size: 12px;
+}
+.settings .button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 .settings-section + .settings-section {
   margin-top: 28px;
