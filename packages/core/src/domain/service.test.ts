@@ -2719,11 +2719,25 @@ void test("sprints: one active per project, carry-over on completion, frozen rep
     workItemId: done,
     statusId: f.statuses.Done,
   });
+  // Planned and sized in one change counts at its estimate, as the backlog
+  // shows it (it was recorded unestimated before).
+  const sized = await create(f, f.types.Bug);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: sprint,
+    estimate: 1,
+  });
   const report = await iterationReport(db, f.userId, f.organizationId, sprint);
   assert.deepEqual(report.totals.atStart, { count: 2, points: 8 });
-  assert.deepEqual(report.totals.addedAfterStart, { count: 1, points: 2 });
+  assert.deepEqual(report.totals.addedAfterStart, { count: 2, points: 3 });
   assert.deepEqual(report.totals.completed, { count: 1, points: 3 });
-  assert.equal(report.series.at(-1)!.remaining, 7);
+  assert.equal(report.series.at(-1)!.remaining, 8);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: null,
+  });
   await f.command({
     type: "completeIteration",
     projectId: f.projectId,

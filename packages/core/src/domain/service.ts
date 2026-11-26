@@ -3428,6 +3428,7 @@ export async function applyMutation(
             automatic: false,
           });
         }
+        let movedIteration = false;
         if (c.iterationId !== undefined && c.iterationId !== iterationId) {
           if (c.iterationId) {
             if (projectRow!.deliveryMode === "external")
@@ -3438,11 +3439,16 @@ export async function applyMutation(
             openIteration(c.iterationId);
           }
           await iterationEvent(iterationId, "removed", item!.estimate);
-          await iterationEvent(c.iterationId, "added", item!.estimate);
+          // Planned and sized in one change: the iteration receives the
+          // item at its new estimate (no separate estimate change follows).
+          const estimate =
+            c.estimate !== undefined ? c.estimate : item!.estimate;
+          await iterationEvent(c.iterationId, "added", estimate);
           // Already-finished work counts as completed scope, not remaining.
           const category = statuses.find((x) => x.id === statusId)?.category;
           if (category && closedCategories.includes(category))
-            await iterationEvent(c.iterationId, "completed", item!.estimate);
+            await iterationEvent(c.iterationId, "completed", estimate);
+          movedIteration = true;
           patch.iterationId = c.iterationId;
           log("iteration_changed", {
             from: iterationId,
@@ -3457,7 +3463,7 @@ export async function applyMutation(
               `${projectRow!.name} does not estimate work in Lictory.`,
             );
           rejectEstimate(projectRow!.estimateScale, c.estimate);
-          if (iterationId && c.iterationId === undefined)
+          if (iterationId && !movedIteration)
             await iterationEvent(
               iterationId,
               "estimate_changed",
