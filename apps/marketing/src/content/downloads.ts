@@ -176,7 +176,7 @@ export const runnerInstallCommands = [
 ] as const;
 
 /** A file of the release: its name, link and whether the release has it. */
-export type ReleaseFile = {
+type ReleaseFile = {
   label: string;
   file: string;
   href: string;

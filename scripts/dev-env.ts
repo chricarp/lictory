@@ -18,7 +18,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Every port a checkout uses in development, with its default. */
-export const devPorts = {
+const devPorts = {
   LICTORY_DEV_POSTGRES_PORT: 5432,
   LICTORY_DEV_ZERO_PORT: 4848,
   LICTORY_DEV_SMTP_PORT: 1025,
@@ -34,7 +34,7 @@ export const devPorts = {
 type PortName = keyof typeof devPorts;
 
 // 9001 + 50000 is the highest port that stays below 65536.
-export const offsets = [0, 10000, 20000, 30000, 40000, 50000];
+const offsets = [0, 10000, 20000, 30000, 40000, 50000];
 
 export const portsAt = (offset: number) =>
   Object.fromEntries(
