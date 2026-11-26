@@ -1,6 +1,6 @@
 ---
 title: Suggest changes
-description: How to suggest new wording for a passage, who accepts it, when a larger change goes to a branch, and what Lictory Intelligence proposes.
+description: How to suggest new wording for a passage, who accepts it, how a ready specification reviews it, when a larger change goes to a branch, and what Lictory Intelligence proposes.
 ---
 
 A comment says what is wrong; a suggestion says how to fix it. A suggestion
@@ -36,7 +36,8 @@ edits specifications and reviews. Choose **Suggest**.
 The passage is underlined in the text and the suggestion waits beside it,
 with the words it changes marked. The review panel says how many suggestions
 are waiting. The person asked chooses **Accept**, and the suggestion becomes
-the next revision, or **Reject**. You can **Withdraw** your own.
+the next revision, or **Reject**. You can **Withdraw** your own. When nobody
+was asked, anyone who could accept it can take it by choosing **Accept**.
 
 </Step>
 </Steps>
@@ -50,14 +51,22 @@ specifications. Suggestions made by an agent through MCP appear the same way.
   question is settled, so the change records an agreement rather than a guess.
 </Callout>
 
+## On a ready specification
+
+**Suggest a change** works the same way once the specification is ready, but
+one person no longer accepts it: the composer says the change is reviewed by
+the specification's reviewers and its button reads **Send for review**.
+Lictory puts exactly that change up for review (a pull request on its own
+branch) and the required reviews approve it before it becomes the next
+revision. See [branches and pull requests](/specifications/branches).
+
 ## Larger changes
 
-A passage with formatting or that spans several blocks, a change across the
-document, or any change once the specification is ready (main is protected)
-goes to the editor instead: **Suggest a change** then starts a branch named
-`suggestion` with the passage selected, and the composer's **Larger change**
-does the same. You commit there and open a pull request that the required
-reviews approve. See [branches and pull requests](/specifications/branches).
+A passage with formatting or that spans several blocks, or a change across
+the document, goes to the editor instead: **Suggest a change** then starts a
+branch named `suggestion` with the passage selected, and the composer's
+**Larger change** does the same. You commit there and open a pull request
+that the required reviews approve.
 
 ## Changes proposed by Lictory Intelligence
 
@@ -84,8 +93,8 @@ merges.
   ([approvals](/review/approvals)).
 - **A suggestion written on an earlier revision** says so once the
   specification has moved on; its author can withdraw it and suggest again.
-- **Once the specification is ready**, suggestions can no longer be accepted
-  into it: changes go through a branch and a reviewed pull request.
+- **Once the specification is ready**, suggestions made before can no longer
+  be accepted into it; suggest the passage again to send it for review.
 
 ## Tips
 

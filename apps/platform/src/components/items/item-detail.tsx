@@ -1498,16 +1498,17 @@ function ChangedSince({
 }
 
 // The specification, with "Suggest a change" on selected text: a plain
-// passage is rewritten beside the text and accepted there; a passage with
-// formatting, or any change once main is protected, opens the editor on a
-// branch (it needs the item context the branch commands run in).
+// passage is rewritten beside the text, accepted there or, once the
+// specification is ready, sent for review; a passage with formatting opens
+// the editor on a branch (it needs the item context the branch commands
+// run in).
 function SuggestingSpecification({
   onNavigate,
   ...props
 }: Omit<Parameters<typeof Specification>[0], "onSuggest"> & {
   onNavigate: (screen: BranchScreen) => void;
 }) {
-  const { item, current } = useItem();
+  const { current } = useItem();
   const discussions = useSpecDiscussions();
   const suggest = useSuggestChange(onNavigate);
   const inEditor = (quote: string) => void suggest(quote);
@@ -1526,7 +1527,6 @@ function SuggestingSpecification({
         const inline =
           discussions &&
           current &&
-          !item.mainProtected &&
           replaceQuote(current.content, draft, draft.quote) !== null;
         if (inline) discussions.startSuggestion(draft);
         else inEditor(draft.quote);

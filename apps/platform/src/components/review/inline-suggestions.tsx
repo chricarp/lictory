@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Check, FilePenLine, PenLine, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { byType, relativeTime } from "@lictory/core/lib/work-items";
 import {
   canReviewSuggestions,
   type EntityOf,
@@ -102,9 +102,13 @@ export function SuggestionComposer({
   // Larger changes are written in the editor instead.
   onOpenEditor?: (quote: string) => void;
 }) {
-  const { current, item, userId, mutateConfirmed, base } = useItem();
+  const { current, item, userId, mutateConfirmed, base, entities } = useItem();
   const discussions = useSpecDiscussions();
   const acceptors = useAcceptors(userId);
+  // A ready specification is protected: the same change is then reviewed
+  // by its reviewers before it applies (a proposed change on its own line
+  // of work), instead of being accepted by one person.
+  const reviewed = item.mainProtected;
   const preferred =
     [item.assigneeId, item.createdById, current?.authorId].find(
       (id) => id && acceptors.some((m) => m.id === id),
@@ -117,6 +121,48 @@ export function SuggestionComposer({
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const ids = { text: useId(), why: useId(), who: useId() };
+  // The reviewed path, with the commands the branch screens use: a line of
+  // work from the current revision holding exactly this change, sent for
+  // review at once. Merging it later creates the next revision.
+  const proposeReviewedChange = async (replacement: string, title: string) => {
+    if (!current) return;
+    const branches = byType(entities, "specBranch");
+    const main = branches.find((b) => b.name === "main");
+    if (!main)
+      throw new Error(
+        "The specification's history is still loading. Try again.",
+      );
+    let name = "change";
+    for (let n = 2; branches.some((b) => b.name === name); n++)
+      name = `change-${n}`;
+    const branchId = crypto.randomUUID();
+    const reason = why.trim() || title;
+    await mutateConfirmed({ type: "createBranch", ...base, branchId, name });
+    await mutateConfirmed({
+      type: "commitBranch",
+      workItemId: item.id,
+      branchId,
+      baseCommitId: main.headId,
+      title: current.title,
+      content: replacement,
+      message: short(reason, 500),
+    });
+    await mutateConfirmed({
+      type: "createPullRequest",
+      workItemId: item.id,
+      pullRequestId: crypto.randomUUID(),
+      sourceId: branchId,
+      targetId: main.id,
+      title,
+      description: short(reason, 10_000),
+      draft: false,
+    });
+    toast({
+      title: "Change sent for review",
+      description: `The specification's reviewers approve it before it becomes revision ${current.number + 1}.`,
+      type: "success",
+    });
+  };
   const submit = async () => {
     if (!current || pending) return;
     const replacement = replaceQuote(current.content, draft, text.trim());
@@ -134,6 +180,21 @@ export function SuggestionComposer({
     const title = short(`Change “${draft.quote}”`, 120);
     setPending(true);
     setError(undefined);
+    if (reviewed) {
+      try {
+        await proposeReviewedChange(replacement, title);
+        onClose();
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "The change was not sent for review.",
+        );
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     try {
       await mutateConfirmed({
         type: "createSuggestion",
@@ -214,32 +275,39 @@ export function SuggestionComposer({
           className="h-8 w-full rounded-lg border border-input bg-background px-2.5 outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10"
         />
       </div>
-      <div className="space-y-1">
-        <span id={ids.who} className="text-xs font-medium">
-          Who accepts it
-        </span>
-        {acceptors.length ? (
-          <DropdownSelect
-            aria-labelledby={ids.who}
-            value={acceptor}
-            onValueChange={setAcceptor}
-            size="sm"
-            className="w-full"
-          >
-            {acceptors.map((m) => (
-              <DropdownSelectOption key={m.id} value={m.id} label={m.name}>
-                {m.name}
-              </DropdownSelectOption>
-            ))}
-          </DropdownSelect>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Nobody else in this project can accept suggestions yet (it takes a
-            discipline that edits specifications and reviews). It stays open
-            until someone can.
-          </p>
-        )}
-      </div>
+      {reviewed ? (
+        <p className="text-xs text-muted-foreground">
+          This specification is ready, so the change is reviewed by its
+          reviewers before it becomes a new revision.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          <span id={ids.who} className="text-xs font-medium">
+            Who accepts it
+          </span>
+          {acceptors.length ? (
+            <DropdownSelect
+              aria-labelledby={ids.who}
+              value={acceptor}
+              onValueChange={setAcceptor}
+              size="sm"
+              className="w-full"
+            >
+              {acceptors.map((m) => (
+                <DropdownSelectOption key={m.id} value={m.id} label={m.name}>
+                  {m.name}
+                </DropdownSelectOption>
+              ))}
+            </DropdownSelect>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Nobody else in this project can accept suggestions yet (it takes a
+              discipline that edits specifications and reviews). It stays open
+              until someone can.
+            </p>
+          )}
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
@@ -247,7 +315,7 @@ export function SuggestionComposer({
       )}
       <div className="flex flex-wrap items-center gap-1.5">
         <Button type="submit" size="sm" disabled={pending}>
-          Suggest
+          {reviewed ? "Send for review" : "Suggest"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>
           Cancel
@@ -298,7 +366,14 @@ export function SuggestionCard({
   const [pending, setPending] = useState(false);
   const target = revisions.find((r) => r.id === suggestion.revisionId);
   const isAuthor = suggestion.authorId === userId;
-  const isAcceptor = state.reviewers.some((r) => r.userId === userId);
+  // Nobody asked yet: someone who could accept it takes it by accepting.
+  const canTake =
+    !isAuthor &&
+    state.reviewers.length === 0 &&
+    suggestionMachine.allows(suggestion.status, "setReviewer") &&
+    acceptors.some((m) => m.id === userId);
+  const isAcceptor =
+    state.reviewers.some((r) => r.userId === userId) || canTake;
   const iApproved = state.approvals.some((a) => a.reviewerId === userId);
   const run = async (action: () => Promise<unknown>) => {
     setPending(true);
@@ -314,6 +389,14 @@ export function SuggestionCard({
   const accept = () =>
     run(async () => {
       if (!current) return;
+      if (canTake)
+        await mutateConfirmed({
+          type: "setSuggestionReviewer",
+          workItemId: item.id,
+          suggestionId: suggestion.id,
+          userId,
+          assigned: true,
+        });
       if (!iApproved)
         await mutateConfirmed({
           type: "decideSuggestion",
@@ -357,7 +440,7 @@ export function SuggestionCard({
     (isAuthor || canEdit) &&
     suggestionMachine.allows(suggestion.status, "close");
   const blocked = item.mainProtected
-    ? "The specification is ready, so main is protected: changes go through a reviewed branch now."
+    ? "The specification became ready, so changes are now reviewed before they apply. Select the passage and suggest it again to send it for review."
     : state.outdated
       ? `Written on revision ${revisionNumber(suggestion.revisionId) ?? "?"}; the specification changed since, so it no longer applies as written.`
       : state.blocking.length
@@ -410,7 +493,10 @@ export function SuggestionCard({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Nobody is asked to accept it yet.
+          Nobody is asked to accept it yet.{" "}
+          {isAuthor
+            ? "Ask someone who edits and reviews specifications."
+            : `${memberName(suggestion.authorId)} chooses who accepts it.`}
         </p>
       )}
       {error && (
