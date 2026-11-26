@@ -346,6 +346,40 @@ void test("audit entries cannot be edited or deleted, but leave with their organ
   assert.equal(remaining!.n, 0);
 });
 
+void test("a Definition of Done override reads as the check, the item and the reason", async () => {
+  const owner = await user("Olive Owner");
+  const organizationId = await organization([[owner, "owner"]]);
+  await recordAuditEvent(db, {
+    organizationId,
+    actor: { id: owner },
+    action: "done_check.overridden",
+    target: { type: "work_item", id: "w-1", label: "PAY-7" },
+    detail: {
+      checkId: "ci",
+      label: "Required CI checks pass",
+      revision: 3,
+      reason: "CI cannot run on documentation-only changes.",
+    },
+  });
+  await recordAuditEvent(db, {
+    organizationId,
+    actor: { id: owner },
+    action: "done_check.override_withdrawn",
+    target: { type: "work_item", id: "w-1", label: "PAY-7" },
+    detail: { checkId: "ci", label: "Required CI checks pass", revision: 3 },
+  });
+  const entries = (
+    await readAuditLog(db, owner, organizationId, { category: "agent" })
+  ).entries;
+  assert.deepEqual(
+    entries.map((e) => e.summary),
+    [
+      "Withdrew the override of “Required CI checks pass” on PAY-7 (revision 3)",
+      "Passed “Required CI checks pass” by hand on PAY-7 (revision 3): “CI cannot run on documentation-only changes.”",
+    ],
+  );
+});
+
 void test("the CSV export holds every filtered entry and neutralizes formulas", async () => {
   const owner = await user('=HYPERLINK("http://evil")');
   const organizationId = await organization([[owner, "owner"]]);
@@ -368,9 +402,13 @@ void test("the CSV export holds every filtered entry and neutralizes formulas", 
   const lines = csv.trimEnd().split("\r\n");
   assert.equal(
     lines[0],
-    "Time (UTC),Category,Actor,Actor email,Action,Summary,Target type,Target,Details",
+    "Time (UTC),Entry,Category,Actor id,Actor,Actor email,Action,Summary,Target type,Target id,Target,Details",
   );
   assert.equal(lines.length, 4);
+  // Every field of the entry: a stable entry id and the ids beside names.
+  assert.match(lines[1]!, /^[^,]+,event:[^,]+,membership,/);
+  assert.ok(lines[1]!.includes(`,${owner},`));
+  assert.ok(lines[1]!.includes(",invitation,i2,"));
   assert.ok(lines[1]!.includes(`"'=HYPERLINK(""http://evil"")"`));
   assert.ok(lines[1]!.includes(`"a,b""2@example.test"`));
 });

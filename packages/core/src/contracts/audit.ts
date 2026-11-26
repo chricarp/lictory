@@ -150,6 +150,17 @@ export const auditActions = {
     category: "agent",
     label: "Autopilot merged a pull request",
   },
+  // The Definition of Done (docs/internals/claims.md): a person passed a
+  // check without its evidence, or withdrew that. Sign-offs are evidence
+  // and stay in the item's history only.
+  "done_check.overridden": {
+    category: "agent",
+    label: "Passed a Definition of Done check by hand",
+  },
+  "done_check.override_withdrawn": {
+    category: "agent",
+    label: "Withdrew a Definition of Done override",
+  },
 } as const satisfies Record<
   string,
   { category: Exclude<AuditCategory, "configuration">; label: string }

@@ -306,6 +306,23 @@ function describeEvent(row: Row, detail: Record<string, unknown>) {
           ? ` (version ${detail.policyVersion})`
           : ""
       } this person set`;
+    case "done_check.overridden":
+    case "done_check.override_withdrawn": {
+      const check =
+        typeof detail.label === "string" ? `“${detail.label}”` : "a check";
+      const item = row.target_label ?? "an item";
+      const revision =
+        typeof detail.revision === "number"
+          ? ` (revision ${detail.revision})`
+          : "";
+      return row.action === "done_check.overridden"
+        ? `Passed ${check} by hand on ${item}${revision}${
+            typeof detail.reason === "string" && detail.reason
+              ? `: “${detail.reason}”`
+              : ""
+          }`
+        : `Withdrew the override of ${check} on ${item}${revision}`;
+    }
     case "access_token.revoked":
       return `Revoked access token ${quoted(row.target_label)}`;
     case "two_factor.requirement_changed":
@@ -382,14 +399,20 @@ function toEntry(row: Row): AuditEntry {
   };
 }
 
+// Every field of an entry, so the export is the whole record: a stable entry
+// id (source and id) for de-duplicating overlapping exports, and the actor's
+// and target's ids beside their names at the time. docs/internals/audit.md.
 const csvHeader = [
   "Time (UTC)",
+  "Entry",
   "Category",
+  "Actor id",
   "Actor",
   "Actor email",
   "Action",
   "Summary",
   "Target type",
+  "Target id",
   "Target",
   "Details",
 ];
@@ -397,13 +420,16 @@ const csvHeader = [
 function auditCsvLine(entry: AuditEntry) {
   return csvLine([
     entry.at,
+    `${entry.source}:${entry.id}`,
     entry.category,
+    entry.actor?.id ?? "",
     entry.actor?.name ?? (entry.actor ? "" : "Lictory"),
     entry.actor?.email ?? "",
     entry.action,
     entry.summary,
     entry.target?.type ?? "",
-    entry.target?.label ?? entry.target?.id ?? "",
+    entry.target?.id ?? "",
+    entry.target?.label ?? "",
     JSON.stringify(entry.detail),
   ]);
 }

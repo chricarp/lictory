@@ -4,6 +4,7 @@ import * as s from "@lictory/core/db/schema";
 import {
   PROTOCOL,
   canManageProject,
+  canOverrideDoneCheck,
   capabilitiesOf,
   type Command,
   type Entity,
@@ -48,6 +49,7 @@ import {
 import { isTopLevel } from "@lictory/core/lib/work-items";
 import { mentionToken } from "@lictory/core/notifications/mentions";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { writeProjections } from "@lictory/core/domain/projections";
 import {
   applyMutation,
@@ -1851,8 +1853,9 @@ async function recordDoneDecision(
               : `Only people holding a discipline in this project can sign off “${check.label}”.`,
           );
       } else if (
-        !capabilitiesOf(roster.disciplines, actor.userId, projectId)
-          .changeProperties
+        !canOverrideDoneCheck(
+          capabilitiesOf(roster.disciplines, actor.userId, projectId),
+        )
       )
         throw new DomainError(
           "forbidden",
@@ -1949,6 +1952,45 @@ async function recordDoneDecision(
         },
         at: now,
       });
+      // Passing a check without evidence is what an auditor looks for
+      // across the organization, so overrides (not sign-offs, which are the
+      // evidence) are also in the audit log, in this transaction.
+      if (decision.kind === "override") {
+        const [item] = await tx
+          .select({ key: s.project.key, number: s.workItem.number })
+          .from(s.workItem)
+          .innerJoin(
+            s.project,
+            and(
+              eq(s.project.organizationId, s.workItem.organizationId),
+              eq(s.project.id, s.workItem.projectId),
+            ),
+          )
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, decision.workItemId),
+            ),
+          );
+        await recordAuditEvent(tx, {
+          organizationId,
+          actor: { id: actor.userId },
+          action: decision.on
+            ? "done_check.overridden"
+            : "done_check.override_withdrawn",
+          target: {
+            type: "work_item",
+            id: decision.workItemId,
+            label: item ? `${item.key}-${item.number}` : null,
+          },
+          detail: {
+            ...detail,
+            ...(decision.on ? { reason: decision.reason?.trim() } : {}),
+            ...(existing && !decision.on ? { by: existing.userId } : {}),
+            ...delegation(actor),
+          },
+        });
+      }
       const followed = await followDefinitionOfDone(
         tx,
         organizationId,

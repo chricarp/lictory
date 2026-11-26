@@ -1402,6 +1402,25 @@ void test("Definition of Done: acceptance sign-off by the chosen discipline and 
   const actions = await f.activity(spec);
   assert.ok(actions.includes("done_signed_off"));
   assert.ok(actions.includes("done_check_overridden"));
+  // An override stands in for evidence, so the organization's audit log
+  // records it too (a sign-off is evidence and stays in the item's history).
+  const audited = await db
+    .select()
+    .from(s.auditEvent)
+    .where(eq(s.auditEvent.organizationId, f.organizationId));
+  const override = audited.filter((e) => e.action === "done_check.overridden");
+  assert.equal(override.length, 1);
+  assert.equal(override[0]!.actorId, f.ada);
+  assert.equal(override[0]!.targetId, spec);
+  assert.match(override[0]!.targetLabel ?? "", /^[A-Z]+-\d+$/);
+  assert.deepEqual(
+    {
+      checkId: override[0]!.detail.checkId,
+      reason: override[0]!.detail.reason,
+    },
+    { checkId: "review", reason: "Reviewed together in the pairing session." },
+  );
+  assert.ok(!audited.some((e) => e.action.includes("sign")));
   assert.deepEqual(await f.drift(), []);
 });
 
