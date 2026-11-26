@@ -18,7 +18,8 @@ const moving: ReadonlySet<SessionStatus> = new Set([
   "waiting",
 ]);
 
-const finishedAt = (s: SessionEntity) => s.completedAt ?? s.updatedAt;
+const finishedAt = (s: Pick<SessionEntity, "completedAt" | "updatedAt">) =>
+  s.completedAt ?? s.updatedAt;
 
 // A session waits on me when it waits on a person (a decision, or my next
 // message) and I am the one who answers: I started it or own its agent.
@@ -34,6 +35,42 @@ export function waitsOnMe(
     session.status === "waiting" &&
     (session.requestedById === userId ||
       agentById.get(session.agentId)?.ownerId === userId)
+  );
+}
+
+// How long a failed session stays on the To do of the person who started
+// it, unless it is retried or later work on its item replaces it.
+export const FAILED_TODO_DAYS = 7;
+
+// Failed sessions waiting on me to retry them or decide what next: I
+// started them (a policy's sessions are requested by the agent's owner),
+// they failed in the last week, and no later session works on their item.
+// A failure is work for its requester, not news.
+export function failedForMe<
+  S extends Pick<
+    SessionEntity,
+    | "id"
+    | "status"
+    | "requestedById"
+    | "workItemId"
+    | "createdAt"
+    | "completedAt"
+    | "updatedAt"
+  >,
+>(sessions: readonly S[], userId: string, now = Date.now()): S[] {
+  const since = now - FAILED_TODO_DAYS * 24 * 60 * 60 * 1000;
+  return sessions.filter(
+    (session) =>
+      session.status === "failed" &&
+      session.requestedById === userId &&
+      Date.parse(finishedAt(session)) >= since &&
+      !sessions.some(
+        (later) =>
+          later.id !== session.id &&
+          session.workItemId !== null &&
+          later.workItemId === session.workItemId &&
+          later.createdAt > session.createdAt,
+      ),
   );
 }
 

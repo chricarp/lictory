@@ -98,11 +98,13 @@ type WaitingPage = {
   reason: keyof typeof pageWeight;
   pullRequest: { id: string; updatedAt: string };
 };
-// An agent's session waiting on me: one entry per question it asks, or one
-// for the session when it waits for my next message.
+// An agent's session waiting on me: one entry per question it asks, one
+// for the session when it waits for my next message, or one for a session
+// I started that failed (I retry it or decide what next).
 type WaitingRequest = {
   session: { id: string; updatedAt: string };
   approval?: { id: string; createdAt: string };
+  failed?: boolean;
 };
 
 export const pageWeight = {
@@ -135,8 +137,12 @@ export function waitingOnYou<
       kind: "agent" as const,
       key: request.approval
         ? `agent:${request.approval.id}`
-        : `agent:session:${request.session.id}`,
-      weight: -1,
+        : request.failed
+          ? `agent:failed:${request.session.id}`
+          : `agent:session:${request.session.id}`,
+      // A live agent waiting is stopped: first. A failure waits like a
+      // review does.
+      weight: request.failed ? 0 : -1,
       at: request.approval?.createdAt ?? request.session.updatedAt,
       request,
     })),
