@@ -80,7 +80,7 @@ export function People() {
         id="members"
         icon={<Users />}
         title="Members"
-        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines."
+        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines: choose a project chip to change them."
         action={
           <span className="text-xs text-muted-foreground tabular-nums">
             {directory.members.length}{" "}
@@ -164,7 +164,6 @@ export function People() {
                     size="sm"
                     variant="ghost"
                     disabled={lastAdmin}
-                    className="opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus-visible:opacity-100 disabled:group-hover:opacity-50"
                     title={
                       lastAdmin
                         ? "An organization needs at least one administrator."
