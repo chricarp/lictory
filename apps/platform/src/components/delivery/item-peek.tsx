@@ -609,7 +609,7 @@ function Meter({
             key={index}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              index < done ? "bg-success" : "bg-foreground/10",
+              index < done ? "bg-success" : "inset-ring inset-ring-input",
             )}
           />
         ))}

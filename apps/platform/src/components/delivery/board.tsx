@@ -69,6 +69,7 @@ import {
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
@@ -671,7 +672,13 @@ function ProjectBoard({ project }: { project: Project }) {
             : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
-        <BoardScroller startAt={firstFilled}>
+        <BoardScroller
+          startAt={firstFilled}
+          columns={columns.map((c) => ({
+            status: c,
+            count: scoped.filter((i) => i.statusId === c.id).length,
+          }))}
+        >
           <div
             className={cn(
               "inline-flex min-h-full min-w-full flex-col gap-3 p-3 pr-4",
@@ -886,14 +893,21 @@ function ColumnHeader({
 
 // The board scrolls sideways when its columns outgrow the frame (Litto open
 // on a laptop). A fade on the edge that has more columns says so, instead of
-// the last column looking cut off.
+// the last column looking cut off. Phones show one column per screen and,
+// above it, every column by name and count: the whole flow at a glance, and
+// a press on a name brings that column into view (no arrows over cards).
 function BoardScroller({
   children,
   startAt,
+  columns,
 }: {
   children: ReactNode;
   // The column phones open at (one column fills the screen there).
   startAt?: string;
+  columns: readonly {
+    status: ReturnType<typeof activeStatuses>[number];
+    count: number;
+  }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // On a phone (also one the window narrows to), open at the first column
@@ -921,6 +935,25 @@ function BoardScroller({
     return () => phone.removeEventListener("change", apply);
   }, [startAt]);
   const [more, setMore] = useState({ left: false, right: false });
+  const [inView, setInView] = useState<string | undefined>(startAt);
+  const show = (id: string) => {
+    const el = ref.current;
+    const column = el?.querySelector<HTMLElement>(
+      `[data-board-column="${CSS.escape(id)}"]`,
+    );
+    if (!el || !column) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({
+      left:
+        column.getBoundingClientRect().left -
+        el.getBoundingClientRect().left +
+        el.scrollLeft -
+        12,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  };
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -930,6 +963,20 @@ function BoardScroller({
       setMore((m) =>
         m.left === left && m.right === right ? m : { left, right },
       );
+      // The column nearest the board's start edge is the one in view.
+      const box = el.getBoundingClientRect();
+      let nearest: string | undefined;
+      let distance = Infinity;
+      for (const column of el.querySelectorAll<HTMLElement>(
+        "[data-board-column]",
+      )) {
+        const d = Math.abs(column.getBoundingClientRect().left - box.left);
+        if (d < distance) {
+          distance = d;
+          nearest = column.dataset.boardColumn;
+        }
+      }
+      setInView(nearest);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -975,10 +1022,37 @@ function BoardScroller({
     el.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
   };
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <ScrollStrip className="shrink-0 border-b sm:hidden">
+        <ul
+          aria-label="Board columns"
+          className="flex [scrollbar-width:none] gap-1 overflow-x-auto px-3 py-1.5"
+        >
+          {columns.map(({ status, count }) => (
+            <li key={status.id}>
+              <button
+                type="button"
+                aria-pressed={inView === status.id}
+                onClick={() => show(status.id)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset outline-none",
+                  inView === status.id &&
+                    "bg-muted font-medium text-foreground",
+                )}
+              >
+                <StatusIcon category={status.category} color={status.color} />
+                {status.name}
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {count}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollStrip>
       <div
         ref={ref}
-        className="h-full [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
+        className="min-h-0 flex-1 [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
       >
         {children}
       </div>
@@ -986,7 +1060,8 @@ function BoardScroller({
         <div
           key={side}
           className={cn(
-            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150",
+            // Wider screens only: phones step with the column names above.
+            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150 max-sm:hidden",
             side === "left"
               ? "left-0 w-12 justify-start bg-linear-to-r pl-1.5"
               : "right-0 w-16 justify-end bg-linear-to-l pr-1.5",

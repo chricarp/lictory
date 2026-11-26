@@ -49,7 +49,7 @@ export function Readiness() {
                     ? "bg-destructive"
                     : // An unmet check is an empty slot whose outline
                       // keeps 3:1 against the card (WCAG 1.4.11).
-                      "ring-1 ring-muted-foreground ring-inset",
+                      "inset-ring inset-ring-input",
               )}
             />
           ))}

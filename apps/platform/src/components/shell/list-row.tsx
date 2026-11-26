@@ -45,13 +45,16 @@ export function ListRow({
   current?: boolean;
   className?: string;
 }) {
+  // Phones give a title two lines before it is cut, so rows that start
+  // alike ("Run the database migration on…") stay tell-apart-able.
+  const clamp = "min-w-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate";
   const target =
-    "min-w-0 truncate text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring";
+    "text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring";
   const titleNode = href ? (
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={target}
+      className={cn(clamp, target)}
     >
       {title}
     </Link>
@@ -60,12 +63,12 @@ export function ListRow({
       type="button"
       onClick={onClick}
       aria-expanded={expanded}
-      className={cn(target, "cursor-default")}
+      className={cn(clamp, target, "cursor-default")}
     >
       {title}
     </button>
   ) : (
-    <span className="min-w-0 truncate">{title}</span>
+    <span className={clamp}>{title}</span>
   );
   const iso = typeof time === "string" ? time : time?.iso;
   const timeLabel = typeof time === "string" ? relativeTime(time) : time?.label;
@@ -89,7 +92,7 @@ export function ListRow({
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2 text-[13px] leading-5">
+        <span className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
           {identifier && (
             <span className="shrink-0 font-mono text-xs text-muted-foreground">
               {identifier}
@@ -99,10 +102,12 @@ export function ListRow({
         </span>
         {(meta ?? timeProps) && (
           // On phones the time leads this line, so the title above keeps the
-          // row's full width.
+          // row's full width. Its parts wrap rather than clip: a flex line
+          // cut by overflow ends mid-word with no ellipsis ("started b").
+          // A long sentence part truncates on its own line.
           <span
             className={cn(
-              "mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs leading-4 text-muted-foreground",
+              "mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-xs leading-4 text-muted-foreground",
               !meta && "sm:hidden",
             )}
           >

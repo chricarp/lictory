@@ -481,6 +481,14 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   };
   await surfaces("light");
   await surfaces("dark");
+
+  // The design-system gallery shows each example on both themes; the dark
+  // copy is for the eye only, so its landmarks are not announced twice.
+  await page.goto(`/${seeded.slug}/design-system`);
+  await expect(
+    page.getByRole("heading", { name: "Design system", level: 1 }),
+  ).toBeVisible();
+  await expectNoAccessibilityViolations(page, "design-system gallery");
 });
 
 test("a code pull request and a space page meet WCAG 2.2 AA automated checks", async ({

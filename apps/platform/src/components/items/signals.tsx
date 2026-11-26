@@ -134,7 +134,7 @@ export function ReadinessBar({
                 : // An open blocker fails one check: show it in red.
                   index === item.readinessPassed && item.blockingThreads > 0
                   ? "bg-destructive"
-                  : "bg-foreground/12",
+                  : "inset-ring inset-ring-input",
             )}
           />
         ))}

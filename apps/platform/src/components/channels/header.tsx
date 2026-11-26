@@ -217,29 +217,26 @@ export function ChannelHeader({
                 <button
                   type="button"
                   {...props}
-                  aria-label={`${memberCount} ${memberCount === 1 ? "member" : "members"}`}
                   className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
                 >
-                  {/* A picture of who is here: the button is named by its
-                      count, and the initials are not part of that name. */}
+                  {/* A picture of who is here. The button is named by what
+                      it shows in words, the count ("4 members"), so a voice
+                      user can say the number they see; the faces are not
+                      part of that name and never show a "+N" of their own. */}
                   <span aria-hidden className="contents">
                     <Facepile
-                      people={facepile}
+                      people={facepile.slice(0, 3)}
                       max={3}
                       size={20}
                       className="max-sm:hidden"
                     />
                   </span>
                   <Users className="size-4 sm:hidden" aria-hidden />
-                  {/* The facepile counts beyond three; phones show the
-                      number alone. */}
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      facepile.length > 3 && "sm:hidden",
-                    )}
-                  >
+                  <span className="tabular-nums">
                     {memberCount}
+                    <span className="sr-only">
+                      {memberCount === 1 ? " member" : " members"}
+                    </span>
                   </span>
                 </button>
               )}

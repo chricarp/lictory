@@ -1,4 +1,5 @@
 import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { MissingState } from "@lictory/ui/status-page";
 import { Tabs as TabsRoot } from "@ui-sdk/react/tabs";
 import { Actor } from "@lictory/platform/components/identity/actor";
 import {
@@ -2354,17 +2355,21 @@ function PullRequestView({
   const actionRuns = useAiRuns("pr_action", id);
   if (!p)
     return (
-      <div className="rounded-lg border border-dashed px-6 py-10 text-center">
-        <p className="text-sm font-medium">This pull request is unavailable.</p>
-        <Button
-          className="mt-3"
-          variant="secondary"
-          size="sm"
-          onClick={() => onNavigate({ kind: "branches" })}
-        >
-          See all pull requests
-        </Button>
-      </div>
+      <MissingState
+        illustration="search"
+        headingLevel={2}
+        title="This pull request is unavailable"
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => onNavigate({ kind: "branches" })}
+          >
+            See all pull requests
+          </Button>
+        }
+      >
+        The link may be wrong, or the pull request belongs to another item.
+      </MissingState>
     );
   const mergeActivity = activity.find(
     (a) =>

@@ -27,7 +27,6 @@ export function ClaimBadge({
   claim,
   assigneeId,
   withAgent = true,
-  compactOnPhone = false,
   className,
 }: {
   claim: ClaimEntity;
@@ -36,9 +35,6 @@ export function ClaimBadge({
   // Name the agent ("Forge · waiting on Ada"); off where an owner line
   // beside the badge already names it ("Waiting on Ada").
   withAgent?: boolean;
-  // In narrow rows on phones, only the state's icon and the agent's
-  // initial ("✋ F"); the full label stays the accessible name.
-  compactOnPhone?: boolean;
   className?: string;
 }) {
   const { memberName } = useWorkspace();
@@ -54,25 +50,8 @@ export function ClaimBadge({
     >
       <SessionStateChip
         state={{ ...state, label, meaning }}
-        className={cn(
-          "max-w-full min-w-0 shrink",
-          compactOnPhone && "max-sm:hidden",
-        )}
+        className="max-w-full min-w-0 shrink"
       />
-      {compactOnPhone && (
-        <span className="contents sm:hidden">
-          <span aria-hidden className="contents">
-            <SessionStateChip
-              state={{
-                ...state,
-                label: Array.from(claim.agentName)[0]?.toUpperCase() ?? "",
-                meaning,
-              }}
-            />
-          </span>
-          <span className="sr-only">{label}</span>
-        </span>
-      )}
     </span>
   );
 }

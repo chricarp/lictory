@@ -49,6 +49,8 @@ rendered state with seeded data:
   the scripted harness drives the session
 - Code: the code host settings, the pull request list, a pull request with
   failing checks (conversation and files) and the item it delivers
+- the design-system gallery (its dark copy of every example is `inert`,
+  so each landmark is met once)
 - Spaces (`tests/platform/spaces.spec.ts`, `tests/platform/spaces-editor.spec.ts`):
   a space home with a nested page tree, a published page, the live page
   editor, the editor with its comments panel, and the published page reader
@@ -66,7 +68,12 @@ at any impact, on axe's structural rules: the heading outline
 (`heading-order`, `page-has-heading-one`), content outside every landmark
 (`region`) and landmarks that repeat a name or sit inside another
 (`landmark-*`). Screen reader users move through a page by its headings and
-landmarks, so these regress quietly unless they fail. Other moderate and minor
+landmarks, so these regress quietly unless they fail. Label in Name
+(`label-content-name-mismatch`, WCAG 2.5.3) is enabled although axe marks it
+experimental: a control whose visible words are not in its accessible name
+cannot be spoken by voice-control users. A control that shows a picture and
+a count (the channel members button) is named by its content, the count plus
+screen-reader-only words, not by an `aria-label`. Other moderate and minor
 findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
@@ -152,8 +159,10 @@ field, Enter or Arrow Down moves into the content.
   come first in the tab order after the text, and Enter on a marked passage
   opens its discussion.
 - **Comments.** The comments panel is a labelled region beside the page, or
-  a modal sheet on narrow frames (Escape closes it and focus returns to what
-  opened it). Composers post with Mod+Enter. A specification's discussions
+  a modal sheet on phone-sized frames (Escape closes it and focus returns to
+  what opened it). The sheet is at most 60% of the screen, so the page's title
+  and text above it stay in view; a specification's discussions dock beside
+  the text down to a 360px text column, so 200% zoom on a laptop keeps both. Composers post with Mod+Enter. A specification's discussions
   work the same way: the header toggle states the open and blocking counts
   and whether the panel is expanded, Alt+Arrow Up/Down (Home and End with
   Alt) move between threads and select the one reached, so its passage is
@@ -163,6 +172,23 @@ field, Enter or Arrow Down moves into the content.
   text changed say so in words, not only by colour.
 - **Carets.** Other people's carets and their name labels are decorative
   (`aria-hidden`); who is editing is stated next to the save state.
+
+## Narrow screens and zoom
+
+Phones, 320px reflow and 200% zoom get the same content, never a word cut in
+half or a state reduced to an icon:
+
+- A row that scrolls sideways (settings sections, page and pull request
+  tabs, the board's columns) is a `ScrollStrip`: while more lies beyond an
+  edge, that edge shows an arrow on the strip's surface. The arrows are a
+  pointer convenience (`aria-hidden`, out of the tab order); keyboard focus
+  scrolls the focused tab into view.
+- List rows (`ListRow`, agents' requests) give titles two lines on phones and
+  wrap their meta line instead of clipping it; one long part truncates with
+  an ellipsis on its own line.
+- The board on a phone shows one column with every column's name and count
+  above it; the backlog puts its states, in words, on a second line.
+- Copyable commands wrap on phones (copying is unchanged).
 
 ## Announcements
 

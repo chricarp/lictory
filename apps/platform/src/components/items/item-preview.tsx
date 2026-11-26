@@ -505,7 +505,7 @@ function Meter({
                 : // An open blocker fails one check, as in the row meter.
                   index === done && failing
                   ? "bg-destructive"
-                  : "bg-foreground/10",
+                  : "inset-ring inset-ring-input",
             )}
           />
         ))}
