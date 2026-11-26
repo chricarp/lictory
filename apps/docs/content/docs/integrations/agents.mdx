@@ -40,6 +40,13 @@ tokens** (**New token**, a name, the access and the expiry). Prefer an
 agent for anything that works on its own: it has a name, a scope and
 wake-ups of its own, and you can see and stop it in one place.
 
+Do not give an AI client your personal token. The server refuses people's
+decisions (approving, merging, accepting delivery scope, resolving
+discussions, recording decisions, handing off) to an agent's token whatever
+a message, issue or comment says, but it cannot tell an AI client holding
+your personal token from you: that client can make every decision you can,
+held back only by its instructions.
+
 Client configuration formats differ. Choose a client that supports a remote
 Streamable HTTP server and custom authorization headers. Signing into
 Lictory in a browser does not authorize your terminal client.

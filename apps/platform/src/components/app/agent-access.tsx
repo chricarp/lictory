@@ -56,7 +56,10 @@ function ConnectAgentLinks() {
     "inline-flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline";
   return (
     <p className="text-xs text-muted-foreground">
-      Connecting an AI agent? Give it a name, a scope and wake-ups of its own:{" "}
+      Connecting an AI agent? A personal token can also make your decisions
+      (approve, merge, hand off), and Lictory cannot tell the agent from you.
+      Give it an agent instead: a name, a scope, wake-ups of its own, and
+      decisions left to you:{" "}
       {organizations.length === 1 ? (
         <Link
           href={factoryPaths.agents(organizations[0]!.slug)}
