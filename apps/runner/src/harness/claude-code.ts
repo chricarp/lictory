@@ -5,6 +5,7 @@ import {
   IDLE_GRACE_MS,
   INTERRUPTED_WAIT_MS,
   type AgentHarness,
+  type Readiness,
   type HarnessContext,
   type HarnessResult,
   type HarnessRun,
@@ -76,10 +77,57 @@ export const claudeCode: AgentHarness = {
     if (result.code !== 0) return null;
     return /([\d.]+)/.exec(result.stdout)?.[1] ?? result.stdout.trim();
   },
+  ready(config) {
+    return claudeReadiness(
+      config.harnesses["claude-code"]?.command ?? "claude",
+    );
+  },
   start(ctx) {
     return startClaude(ctx);
   },
 };
+
+const authMethods: Record<string, string> = {
+  "claude.ai": "Claude account",
+  api_key: "API key",
+};
+
+// `claude auth status --json` reports whether Claude Code can authenticate
+// (exit 0 when signed in). Only `loggedIn` and `authMethod` are read: the
+// rest names the account, which doctor's output must not repeat.
+export async function claudeReadiness(command: string): Promise<Readiness> {
+  const result = await run(command, ["auth", "status", "--json"], {
+    timeoutMs: 15_000,
+  });
+  type Status = { loggedIn?: unknown; authMethod?: unknown };
+  let status: Status | null;
+  try {
+    status = JSON.parse(result.stdout) as Status | null;
+  } catch {
+    status = null;
+  }
+  if (status?.loggedIn === true) {
+    const method =
+      typeof status.authMethod === "string"
+        ? (authMethods[status.authMethod] ?? status.authMethod)
+        : null;
+    return {
+      state: "ready",
+      detail: method ? `signed in (${method})` : "signed in",
+    };
+  }
+  if (status?.loggedIn === false)
+    return {
+      state: "not-ready",
+      detail: "is installed but not signed in, so its sessions would fail",
+      fix: "Sign in as the account the runner runs as with `claude auth login`, or give the runner ANTHROPIC_API_KEY (a service does not read your shell profile). Then run `lictory-runner doctor` again.",
+    };
+  return {
+    state: "unknown",
+    detail: "did not say whether it is signed in",
+    fix: "Run `claude auth status` as the account the runner runs as; Claude Code 2 or newer answers it.",
+  };
+}
 
 function startClaude(ctx: HarnessContext): HarnessRun {
   const settings = ctx.config.harnesses["claude-code"] ?? {};

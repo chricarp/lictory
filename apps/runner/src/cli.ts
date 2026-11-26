@@ -19,6 +19,7 @@ import {
   configSchema,
   containerImageProblem,
   pinnedImage,
+  type RunnerConfig,
 } from "@lictory/runner/config";
 import {
   REVOKED_MESSAGE,
@@ -31,7 +32,7 @@ import { fakeHarnesses, loadScript } from "@lictory/runner/harness/fake";
 import { detectHarnesses, harnesses } from "@lictory/runner/harness/index";
 import { CliError, EXIT, complain, say, when } from "@lictory/runner/output";
 import { run } from "@lictory/runner/process";
-import { installService } from "@lictory/runner/service";
+import { installService, showLogs } from "@lictory/runner/service";
 
 type Options = NonNullable<ParseArgsConfig["options"]>;
 
@@ -131,6 +132,23 @@ const commands = {
     help: [
       ["--system", "A system service (needs root) instead of your user's"],
       ["--enable", "Enable and start it now"],
+    ],
+  },
+  logs: {
+    summary: "Show the runner service's log",
+    usage: "lictory-runner logs [--follow] [--lines <n>]",
+    about: [
+      "Prints the log of the service install-service set up: the systemd journal on",
+      "Linux, the runner.log file launchd writes on macOS. A runner started by hand",
+      "with `lictory-runner start` logs to its own terminal instead.",
+    ],
+    options: {
+      follow: { type: "boolean", short: "f" },
+      lines: { type: "string", short: "n" },
+    },
+    help: [
+      ["-f, --follow", "Keep printing new lines until Ctrl-C"],
+      ["-n, --lines <n>", "How many recent lines to show (default 100)"],
     ],
   },
   version: {
@@ -394,7 +412,7 @@ async function status(args: string[]) {
       `Not responding: pid ${state.pid} last wrote its state ${when(state.updatedAt ?? state.startedAt)}.`,
     );
     say(
-      "It may be stuck. Check its log, or stop that process and start the runner again.",
+      "It may be stuck. Check its log (`lictory-runner logs` for the service), or stop that process and start the runner again.",
     );
     process.exitCode = EXIT.failed;
     return;
@@ -406,6 +424,30 @@ async function status(args: string[]) {
   if (!state.sessions.length) say("No sessions.");
   for (const s of state.sessions)
     say(`  ${s.state.padEnd(9)} ${s.harness.padEnd(12)} ${s.title}`);
+}
+
+const claudeModes: Record<RunnerConfig["claudePermissionMode"], string> = {
+  default: "asks a person before edits and commands",
+  acceptEdits: "edits files without asking, asks a person before commands",
+  plan: "plans only and changes nothing",
+  bypassPermissions: "runs every tool without asking anyone",
+};
+const codexSandboxes: Record<RunnerConfig["codexSandbox"], string> = {
+  "read-only": "may only read files",
+  "workspace-write": "may write only in the session's worktree",
+  "danger-full-access": "may change anything this account can",
+};
+
+// What agents may do on this machine without asking, from config.json
+// (claudePermissionMode, codexSandbox, isolation).
+function posture(config: RunnerConfig) {
+  return [
+    config.isolation === "container"
+      ? `Isolation container: sessions run in ${config.containerImage ?? "(no image set)"}, network ${config.containerNetwork}`
+      : "Isolation host: sessions run on this machine as this account, with its files and credentials",
+    `Claude Code permission mode ${config.claudePermissionMode}: ${claudeModes[config.claudePermissionMode]}`,
+    `Codex sandbox ${config.codexSandbox}: ${codexSandboxes[config.codexSandbox]}`,
+  ];
 }
 
 async function doctor(args: string[]) {
@@ -482,14 +524,33 @@ async function doctor(args: string[]) {
   }
   for (const id of ["claude-code", "codex", "lictory"]) {
     const found = detected.find((d) => d.id === id);
-    say(
-      `${found ? "✓ ok  " : "· info"} ${id}${found ? ` ${found.version ?? ""}` : " not found"}`,
-    );
+    if (!found) {
+      say(`· info ${id} not found`);
+      continue;
+    }
+    const name = `${id} ${found.version ?? ""}`.trim();
+    // In a container the harness signs in inside the image, not here.
+    if (!found.harness.ready || config.isolation === "container") {
+      say(
+        `✓ ok   ${name}${found.harness.ready ? " (sign-in is not checked here: sessions run in the container image)" : ""}`,
+      );
+      continue;
+    }
+    const readiness = await found.harness.ready(config);
+    if (readiness.state === "ready")
+      check(true, `${name}, ${readiness.detail}`);
+    else if (readiness.state === "not-ready")
+      check(false, `${name} ${readiness.detail}`, readiness.fix);
+    else {
+      say(`! warn ${name} ${readiness.detail}`);
+      say(`  → ${readiness.fix}`);
+    }
   }
   if (!detected.some((d) => d.id !== "lictory"))
     say(
       "  → Install Claude Code or Codex to run those agents; the built-in harness needs Lictory Intelligence on the server.",
     );
+  for (const line of posture(config)) say(`· info ${line}`);
   const work = workDirectory(config);
   await mkdir(work, { recursive: true }).catch(() => undefined);
   const writable = await access(work, constants.W_OK).then(
@@ -544,6 +605,22 @@ async function main() {
         enable: Boolean(values.enable),
         log: say,
       });
+    }
+    case "logs": {
+      const values = options("logs", args);
+      if (!values) return;
+      const lines = text(values.lines) ?? "100";
+      if (!/^\d+$/.test(lines) || +lines < 1)
+        throw new CliError(
+          `--lines is a whole number of lines, not ${lines}.`,
+          EXIT.usage,
+        );
+      process.exitCode = await showLogs({
+        follow: Boolean(values.follow),
+        lines: Number(lines),
+        log: complain,
+      });
+      return;
     }
     case "version":
     case "--version":
