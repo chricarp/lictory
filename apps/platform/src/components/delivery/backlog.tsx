@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   CircleAlert,
   CirclePlay,
+  CornerLeftUp,
   Flag,
   ListOrdered,
   Plus,
@@ -853,9 +854,14 @@ export function BacklogRow({
   // Plain clicks preview the item instead of following the link.
   onOpen?: (event: React.MouseEvent, id: string) => void;
 }) {
-  const { delivery, projects } = useWorkspace();
+  const { delivery, projects, items } = useWorkspace();
   const project = projects.find((p) => p.id === item.projectId);
   const status = delivery.statuses.get(item.statusId);
+  // A ranked backlog keeps its order, so a child names its parent: the
+  // breakdown of an agreed specification stays visible where it is planned.
+  const parent = item.parentId
+    ? items.find((i) => i.id === item.parentId)
+    : undefined;
   const claim = useLiveClaims().get(item.id);
   return (
     <div
@@ -891,6 +897,21 @@ export function BacklogRow({
       >
         {item.title}
       </Link>
+      {parent && project && (
+        <span
+          title={`Part of ${identifier(project, parent.number)} ${parent.title}`}
+          className="relative z-[1] inline-flex max-w-48 shrink-0 items-center gap-1 truncate text-xs text-muted-foreground max-sm:order-last"
+        >
+          <span className="sr-only">Part of </span>
+          <CornerLeftUp aria-hidden className="size-3 shrink-0" />
+          <span className="font-mono">
+            {identifier(project, parent.number)}
+          </span>
+          <span className="hidden truncate @min-[65rem]/frame:inline">
+            {parent.title}
+          </span>
+        </span>
+      )}
       <span aria-hidden className="basis-full sm:hidden" />
       {teamName && (
         <span className="max-w-28 shrink-0 truncate rounded bg-muted px-1.5 text-xs text-muted-foreground">
