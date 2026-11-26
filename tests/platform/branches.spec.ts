@@ -768,34 +768,33 @@ test("a breakdown-only pull request creates children only after review and merge
   await expect(
     page.getByRole("region", { name: "Proposed breakdown" }),
   ).toContainText("Persist stable retry identifiers");
-  await page
-    .getByRole("textbox", { name: "Commit message", exact: true })
-    .fill("Propose implementation breakdown");
-  await page
-    .getByRole("button", { name: "Commit changes", exact: true })
-    .click();
-  await expect(
-    page.getByRole("textbox", { name: "Commit message", exact: true }),
-  ).toHaveValue("");
-  await page.reload();
-  await expect(
-    page.getByRole("region", { name: "Proposed breakdown" }),
-  ).toContainText("Keep the original transaction ID");
+  // One step, in the words of the work: no commit message, branch or pull
+  // request to name.
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client, { schema: s });
   const childRows = () =>
     db.select().from(s.workItem).where(eq(s.workItem.parentId, workItemId));
   const before = await childRows();
+  await page
+    .getByRole("form", { name: "Send breakdown for review" })
+    .getByRole("button", { name: "Send for review", exact: true })
+    .click();
+  await expect(page).toHaveURL(/[?&]pr=/);
+  const pr = page.url();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Breakdown: Retry policy",
+  );
+  await expect(page.locator("[data-pull-request-header]")).toContainText(
+    "proposes a breakdown of Retry policy",
+  );
+  await expect(
+    page.getByRole("region", { name: "Proposed breakdown" }),
+  ).toContainText("Keep the original transaction ID");
   expect(
     before.some((child) => child.title === "Persist stable retry identifiers"),
   ).toBe(false);
-  const pr = await openPR(
-    page,
-    "Review retry implementation breakdown",
-    "main",
-  );
   await expect(
-    page.getByRole("button", { name: "Merge pull request", exact: true }),
+    page.getByRole("button", { name: "Create the items", exact: true }),
   ).toBeDisabled();
   const hasReview = await page.getByText(/^QA approval is pending/).count();
   if (!hasReview) {
@@ -822,19 +821,19 @@ test("a breakdown-only pull request creates children only after review and merge
       .getByRole("button", { name: "Approve", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "Merge pull request", exact: true }),
+      page.getByRole("button", { name: "Create the items", exact: true }),
     ).toBeEnabled();
     await page
-      .getByRole("button", { name: "Merge pull request", exact: true })
+      .getByRole("button", { name: "Create the items", exact: true })
       .click();
     await expect(
-      page.getByText("Merged. The reviewed content is recorded", {
+      page.getByText("Created. The reviewed breakdown is part of", {
         exact: false,
       }),
     ).toBeVisible();
-    // The header counts the commits the pull request brought in, not main's
-    // whole history.
-    await expect(page.getByText("merged 1 commit into")).toBeVisible();
+    await expect(page.locator("[data-pull-request-header]")).toContainText(
+      "created the breakdown of Retry policy",
+    );
     await expect
       .poll(async () => (await childRows()).length)
       .toBe(before.length + 1);

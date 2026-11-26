@@ -49,6 +49,7 @@ export function PullRequestHeader({
   state,
   author,
   commits,
+  summary,
   base,
   head,
   onHeadClick,
@@ -66,6 +67,9 @@ export function PullRequestHeader({
   author: ReactNode;
   // How many commits it merges, when known.
   commits?: number;
+  // Says what it does in the words of its subject instead of "wants to
+  // merge N commits into base from head" (a specification's breakdown).
+  summary?: ReactNode;
   // The branch it merges into, and the branch it merges from.
   base: string;
   head: string;
@@ -100,13 +104,19 @@ export function PullRequestHeader({
         <span className="inline-flex min-w-0 items-center font-medium text-foreground">
           {author}
         </span>
-        <span>
-          {state === "merged" ? "merged" : "wants to merge"}
-          {commits !== undefined && ` ${plural(commits, "commit")}`} into
-        </span>
-        <BranchChip name={base} />
-        <span>from</span>
-        <BranchChip name={head} muted={headGone} onClick={onHeadClick} />
+        {summary ? (
+          <span>{summary}</span>
+        ) : (
+          <>
+            <span>
+              {state === "merged" ? "merged" : "wants to merge"}
+              {commits !== undefined && ` ${plural(commits, "commit")}`} into
+            </span>
+            <BranchChip name={base} />
+            <span>from</span>
+            <BranchChip name={head} muted={headGone} onClick={onHeadClick} />
+          </>
+        )}
         {meta}
       </p>
       {tabs && <div className="mt-4">{tabs}</div>}
