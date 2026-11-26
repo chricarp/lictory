@@ -169,8 +169,10 @@ export function ProjectAutonomy({
         <SettingsBody className="space-y-5">
           {external && (
             <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-              This project hands work off to an external tool, which owns
-              execution. Build and Autopilot need native delivery.
+              This project hands work off to an external delivery tool, which
+              owns delivery, so agents never claim or get dispatched its work.
+              Build and Autopilot need a project that delivers in Lictory; the
+              level stays at Assist until it does.
             </p>
           )}
           <Field label="Level">

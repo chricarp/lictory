@@ -457,7 +457,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                       value: "external",
                       title: "In Jira",
                       description:
-                        "Export ready work. Jira owns status and sprints.",
+                        "Hand off ready work. Jira owns status and sprints.",
                       icon: <Send />,
                     },
                   ]}

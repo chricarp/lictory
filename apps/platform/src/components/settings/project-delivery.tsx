@@ -40,7 +40,7 @@ const modesFor = (
     points: [
       "Board, backlog, sprints or cycles and estimates",
       "Readiness can gate starting spec-backed work",
-      "Nothing is exported",
+      "Nothing is handed off",
     ],
   },
   {
@@ -48,7 +48,7 @@ const modesFor = (
     title: `Hand off to ${tool.name}`,
     summary: `Refine and approve here; ${tool.name} runs delivery.`,
     points: [
-      `Ready work is exported to one project in ${tool.name}`,
+      `Ready work is handed off to one project in ${tool.name}`,
       `Status and assignee are read back from ${tool.name}`,
       `Iterations and estimates are planned in ${tool.name}`,
     ],

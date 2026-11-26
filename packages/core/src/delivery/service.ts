@@ -288,7 +288,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     if (requested.length === 0)
       throw new DomainError(
         "validation",
-        "Choose at least one item to export.",
+        "Choose at least one item to hand off.",
       );
     const seeds = await tx
       .select()
@@ -300,12 +300,12 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         ),
       );
     if (seeds.length !== new Set(requested).size)
-      throw new DomainError("not_found", "An item to export is unavailable.");
+      throw new DomainError("not_found", "An item to hand off is unavailable.");
     const projectId = seeds[0]!.projectId;
     if (seeds.some((i) => i.projectId !== projectId))
       throw new DomainError(
         "validation",
-        "Export items from one project at a time.",
+        "Hand off items from one project at a time.",
       );
     const projectRow = (
       await tx
@@ -367,26 +367,34 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           item,
         ]);
 
-    // Parents first, then children in rank order.
+    // Every requested item goes with its subtree, parents first, then
+    // children in rank order. A requested item under another requested one
+    // is part of that one's subtree.
+    const picked = new Set(requested);
     const ordered: { item: ItemRow; depth: number; under: boolean }[] = [];
+    const visited = new Set<string>();
     const visit = (item: ItemRow, depth: number, under: boolean) => {
-      if (canceled.has(item.statusId)) return;
+      if (visited.has(item.id) || canceled.has(item.statusId)) return;
+      visited.add(item.id);
       ordered.push({ item, depth, under });
-      if (request.rootId)
-        for (const child of children.get(item.id) ?? [])
-          visit(child, depth + 1, true);
+      for (const child of children.get(item.id) ?? [])
+        visit(child, depth + 1, true);
+    };
+    const pickedAbove = (item: ItemRow) => {
+      const seen = new Set<string>();
+      for (let p = item.parentId; p && !seen.has(p);) {
+        if (picked.has(p)) return true;
+        seen.add(p);
+        p = byId.get(p)?.parentId ?? null;
+      }
+      return false;
     };
     if (request.rootId) visit(byId.get(request.rootId) ?? seeds[0]!, 0, false);
     else {
-      const picked = new Set(requested);
-      const depthOf = (i: ItemRow): number =>
-        i.parentId && picked.has(i.parentId) && byId.get(i.parentId)
-          ? depthOf(byId.get(i.parentId)!) + 1
-          : 0;
-      for (const item of seeds
-        .filter((i) => !i.archivedAt)
-        .sort((a, b) => depthOf(a) - depthOf(b)))
-        ordered.push({ item, depth: depthOf(item), under: false });
+      for (const item of all)
+        if (picked.has(item.id) && !pickedAbove(item)) visit(item, 0, false);
+      // Requested items whose requested ancestor's subtree left them out.
+      for (const item of all) if (picked.has(item.id)) visit(item, 0, false);
     }
 
     const target = (
@@ -468,8 +476,16 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     const excluded = new Set<string>();
     const entries: PlanEntry[] = [];
     const payloads = new Map<string, Omit<DeliveryPayload, "parent">>();
-    for (const { item, depth, under } of ordered) {
+    for (const { item, depth, under: inSubtree } of ordered) {
       const type = types.get(item.typeId);
+      // A plain item goes under an exported parent: one in this export, or
+      // one already in the delivery system.
+      const parentLinked = Boolean(
+        item.parentId && linkOf.get(item.parentId)?.externalId,
+      );
+      const under = inSubtree || parentLinked;
+      const parent = item.parentId ? byId.get(item.parentId) : undefined;
+      const parentKey = parent && `${projectRow.key}-${parent.number}`;
       const key = `${projectRow.key}-${item.number}`;
       const link = linkOf.get(item.id);
       const entry: PlanEntry = {
@@ -490,7 +506,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         excluded.add(item.id);
       };
       if (under && item.parentId && excluded.has(item.parentId)) {
-        skip("parent_excluded", "Its parent is not exported.");
+        skip("parent_excluded", `Its parent ${parentKey} is not handed off.`);
         continue;
       }
       if (!type) {
@@ -501,7 +517,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         if (depth === 0 && request.rootId)
           throw new DomainError(
             "validation",
-            `${key} is not ready, so it and its children cannot be exported. Complete its readiness checks first.`,
+            `${key} is not ready, so it and its children cannot be handed off. Complete its readiness checks first.`,
           );
         skip("not_ready", "Not ready: readiness checks are incomplete.");
         continue;
@@ -509,7 +525,9 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       if (!type.hasSpecification && !under) {
         skip(
           "not_ready",
-          `${type.name} items have no specification to approve; export them with their parent.`,
+          parentKey
+            ? `${type.name} items have no specification to approve; ${key} is handed off with its parent ${parentKey}.`
+            : `${type.name} items have no specification to approve; hand off the item they belong to.`,
         );
         continue;
       }
@@ -541,9 +559,8 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       };
       payloads.set(item.id, payload);
       const placed = placement.get(item.id) ?? null;
-      const parentItem = item.parentId ? byId.get(item.parentId) : undefined;
-      if (parentItem && placed !== item.parentId) {
-        const parentType = types.get(parentItem.typeId)?.name ?? "Item";
+      if (parent && placed !== item.parentId) {
+        const parentType = types.get(parent.typeId)?.name ?? "Item";
         const ancestor = placed ? byId.get(placed) : undefined;
         entry.note = `Jira cannot nest ${article(type.name)} ${type.name} under ${article(parentType)} ${parentType}, so ${key} goes ${ancestor ? `under ${projectRow.key}-${ancestor.number}` : "without a parent"} in Jira.`;
       }
@@ -937,8 +954,8 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           throw new DomainError(
             "validation",
             entries[0]?.reason
-              ? `Nothing can be exported. ${entries[0].key}: ${entries[0].reason}`
-              : "Nothing can be exported.",
+              ? `Nothing can be handed off. ${entries[0].key}: ${entries[0].reason}`
+              : "Nothing can be handed off.",
           );
         const results: Record<
           string,
@@ -1055,7 +1072,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
       if (external.lictoryItemId && external.lictoryItemId !== input.workItemId)
         throw new DomainError(
           "conflict",
-          `${external.key} was exported from another Lictory item.`,
+          `${external.key} was handed off from another Lictory item.`,
         );
       return db.transaction(async (tx) => {
         await lock(tx, organizationId);
@@ -1182,7 +1199,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         if (link.status === "pending")
           throw new DomainError(
             "conflict",
-            "An export of this item is in progress. Try again when it finishes.",
+            "A hand-off of this item is in progress. Try again when it finishes.",
           );
         await tx
           .delete(s.workItemExternalLink)
@@ -1238,7 +1255,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             )
         )[0];
         if (!row)
-          throw new DomainError("not_found", "The export is unavailable.");
+          throw new DomainError("not_found", "The hand-off is unavailable.");
         return row;
       });
     },
@@ -1356,7 +1373,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
             const result = {
               outcome: "failed" as const,
               message:
-                "The Jira connection was removed. Reconnect it and export again.",
+                "The Jira connection was removed. Reconnect it and hand off again.",
             };
             if (await finishItem(claimed, itemId, result, null, lease))
               results[itemId] = result;
@@ -1637,9 +1654,11 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     // mapping and content may have changed since the export was requested.
     const state = await db.transaction(async (tx) => {
       await lock(tx, organizationId);
+      // A selection is re-planned whole, so a plain item still counts as
+      // going under a parent exported earlier in the same run.
       const request = publication.rootItemId
         ? { organizationId, rootId: publication.rootItemId }
-        : { organizationId, itemIds: [itemId] };
+        : { organizationId, itemIds: publication.itemIds };
       let planned: Awaited<ReturnType<typeof plan>> | DomainError;
       try {
         planned = await plan(tx, request);
@@ -1696,7 +1715,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     if (!entry || !exportable.has(entry.action))
       return settle({
         outcome: "skipped",
-        message: `${key} was not exported: ${entry?.reason ?? "it is no longer part of this export."}`,
+        message: `${key} was not handed off: ${entry?.reason ?? "it is no longer part of this hand-off."}`,
       });
     // A parent that already exists externally (e.g. held as a conflict)
     // still anchors its children; only a parent with no external issue
@@ -1713,14 +1732,25 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         !parentLink?.externalId
       );
     };
-    if (
-      blocked(state.item.parentId, state.directParentLink) ||
-      blocked(state.placed, state.parentLink)
-    )
+    // A parent whose create is still being confirmed holds its children
+    // back until it settles; they are not skipped.
+    const waiting = (parentId: string | null) =>
+      parentId !== null && results[parentId]?.outcome === "pending";
+    if (waiting(state.item.parentId) || waiting(state.placed)) return undefined;
+    const blocker = blocked(state.item.parentId, state.directParentLink)
+      ? state.item.parentId
+      : blocked(state.placed, state.parentLink)
+        ? state.placed
+        : null;
+    if (blocker) {
+      const parentKey =
+        state.planned.entries.find((e) => e.workItemId === blocker)?.key ??
+        "its parent";
       return settle({
         outcome: "skipped",
-        message: `${key} was not exported because its parent was not. Export it again after fixing the parent.`,
+        message: `${key} waits for ${parentKey}, which was not handed off. Retrying ${parentKey} hands ${key} off with it.`,
       });
+    }
     const base = state.planned.rows.payloads.get(itemId)!;
     const target = state.planned.rows.target()!;
     const destination = {
@@ -1736,7 +1766,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     if (!link)
       return settle({
         outcome: "skipped",
-        message: `${key} was unlinked while exporting.`,
+        message: `${key} was unlinked during the hand-off.`,
       });
     const { provider, connection } = open(row);
     const overwrite = publication.overwriteItemIds.includes(itemId);
@@ -1748,14 +1778,14 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         if (!overwrite && !link.externalUpdatedAt)
           return settle({
             outcome: "conflict",
-            message: `${key} is linked to ${link.externalKey} but was never exported. Confirm overwriting ${link.externalKey} to export it.`,
+            message: `${key} is linked to ${link.externalKey} but was never handed off. Confirm overwriting ${link.externalKey} to hand it off.`,
           });
         if (link.payloadHash === payloadHash) {
           const external = await provider.getItem(connection, ref.id);
           if (!external)
             return settle({
               outcome: "failed",
-              message: `${link.externalKey} no longer exists in Jira. Unlink it to export a new issue.`,
+              message: `${link.externalKey} no longer exists in Jira. Unlink it to hand off a new issue.`,
             });
           return settle(
             {
@@ -1780,7 +1810,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
           if (changed.length)
             return settle({
               outcome: "conflict",
-              message: `${link.externalKey} was changed in Jira since the last export (${changed.map(fieldName).join(", ")}). Review it and confirm overwriting.`,
+              message: `${link.externalKey} was changed in Jira since the last hand-off (${changed.map(fieldName).join(", ")}). Review it and confirm overwriting.`,
             });
         }
         const external = await provider.updateItem(connection, ref, payload);
@@ -1859,8 +1889,14 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         outcome: "failed",
         message:
           error instanceof DeliveryError
-            ? `${key} was not exported. ${error.message}`
-            : `${key} was not exported because of an unexpected error. Try again.`,
+            ? `${key} was not handed off. ${error.message}${
+                creating && error.retryable
+                  ? ` Retrying is safe: Lictory first looks for an issue Jira may already have created for ${key}, so it is never created twice.`
+                  : error.kind === "authentication"
+                    ? " An organization administrator can replace the token under Organization settings → Integrations, then retry."
+                    : ""
+              }`
+            : `${key} was not handed off because of an unexpected error. Try again.`,
       });
     }
   }

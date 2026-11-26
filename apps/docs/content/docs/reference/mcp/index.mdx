@@ -47,7 +47,7 @@ Decisions stay with people. An agent's token is refused these on the server, wha
 | `decideReview` (Decide review)                                | The work item's specification → Reviews (Approve or Request changes)                                                  |
 | `signOffReadinessCheck` (Sign off readiness check)            | The work item → Readiness → Sign off                                                                                  |
 | `setAiPolicy` (Set Lictory Intelligence policy)               | Organization settings → Intelligence                                                                                  |
-| `publishDelivery` (Export to delivery tool)                   | The work item → Delivery → Export                                                                                     |
+| `publishDelivery` (Hand off to delivery tool)                 | The work item → Delivery → Export                                                                                     |
 | `answerAgentApproval` (Answer agent approval request)         | The approval card in the session's thread, Home or Factory                                                            |
 | `promoteMessageToDecision` (Record a decision from a message) | The message's More actions → Record as decision                                                                       |
 | `mergeCodePullRequest` (Merge a pull request)                 | Code → the pull request → Merge (or Autopilot, when the project's autonomy policy merges passing agent pull requests) |
@@ -297,8 +297,8 @@ Hand work to Jira or another delivery tool, and follow what was exported.
 - [`describeDeliveryProject`](/reference/mcp/delivery#describedeliveryproject): Describe Jira project
 - [`setDeliveryTarget`](/reference/mcp/delivery#setdeliverytarget): Set delivery target
 - [`removeDeliveryTarget`](/reference/mcp/delivery#removedeliverytarget): Remove delivery target
-- [`previewDeliveryExport`](/reference/mcp/delivery#previewdeliveryexport): Preview export
-- [`publishDelivery`](/reference/mcp/delivery#publishdelivery): Export to delivery tool
+- [`previewDeliveryExport`](/reference/mcp/delivery#previewdeliveryexport): Preview hand-off
+- [`publishDelivery`](/reference/mcp/delivery#publishdelivery): Hand off to delivery tool
 - [`refreshDeliveryStatus`](/reference/mcp/delivery#refreshdeliverystatus): Refresh Jira status
 - [`getDeliveryPublication`](/reference/mcp/delivery#getdeliverypublication): Get export result
 - [`linkExternalItem`](/reference/mcp/delivery#linkexternalitem): Link existing issue

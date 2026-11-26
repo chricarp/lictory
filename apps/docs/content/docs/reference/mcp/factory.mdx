@@ -169,7 +169,7 @@ Machines that execute agent sessions: name, organization or personal (personal r
 
 **List agent sessions.** Query (read tokens too)
 
-Agent sessions, most recently updated first. Each has a status: queued (Waiting for a runner that may run its agent.); assigned (Claimed by a runner, which is preparing the workspace.); running (The agent is working.); waiting (The agent asked a person to decide something.); completed (The agent finished; its result is a claim, not proof.); failed (Stopped by an error or after its runner was lost too often.); canceled (Stopped by a person.)
+Agent sessions, most recently updated first. Each has a status: queued (Waiting for a runner that may run its agent.); assigned (Claimed by a runner, which is preparing the workspace.); running (The agent is working.); waiting (The agent waits on a person: a decision it asked for, or the next message.); completed (The agent finished; its result is a claim, not proof.); failed (Stopped by an error or after its runner was lost too often.); canceled (Stopped by a person.)
 
 | Field            | Type                                                                                                | Required | Description                                           |
 | ---------------- | --------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------- |
@@ -251,7 +251,7 @@ Send a steering message to the agent of a session you started or whose agent you
 
 **Interrupt agent session.** Command · no retry key: read before repeating
 
-Stop the agent's current turn; it waits for your next message. Interrupt the agent's current turn while the agent session is running or waiting.
+Stop the agent's current turn; it waits for your next message. Stop the agent's current turn; it waits for the next message while the agent session is running or waiting.
 
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
@@ -273,7 +273,7 @@ Stop a session for good (it can be retried). The person who started it, the agen
 
 **Retry agent session.** Command · no retry key: read before repeating
 
-Queue the session again from its original instructions; its history stays. Retry from the start while the agent session is failed or canceled (it becomes queued).
+Queue the session again from its original instructions; its history stays. Retry from the task, with the messages sent before while the agent session is failed or canceled (it becomes queued).
 
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |

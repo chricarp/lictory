@@ -34,6 +34,9 @@ export function createFakeProvider() {
     when?: (payload?: DeliveryPayload) => boolean;
   }[] = [];
   const calls: string[] = [];
+  // Creates whose answer is lost after the item exists (a timeout or 5xx
+  // after the external system committed).
+  let lostCreates = 0;
   let sequence = 0;
   let clock = Date.UTC(2026, 0, 1);
   const now = () => new Date((clock += 1000));
@@ -132,6 +135,13 @@ export function createFakeProvider() {
       // A refused create leaves nothing behind, as in Jira.
       const created = write(stored, payload);
       items.set(id, stored);
+      if (lostCreates > 0) {
+        lostCreates--;
+        throw new DeliveryError(
+          "unavailable",
+          "Jira returned an error (502). Try again later.",
+        );
+      }
       return created;
     },
     async updateItem(_connection, ref, payload) {
@@ -168,6 +178,10 @@ export function createFakeProvider() {
       when?: (payload?: DeliveryPayload) => boolean,
     ) {
       failures.push({ method, error, when });
+    },
+    // The next create succeeds externally but its answer never arrives.
+    loseNextCreate() {
+      lostCreates++;
     },
     // Simulate someone editing an owned field directly in the external tool.
     editExternally(id: string, field: OwnedField, value: string) {

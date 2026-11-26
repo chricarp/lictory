@@ -71,28 +71,28 @@ Project administrators: stop handing this project's work off to its Jira project
 
 ### `previewDeliveryExport`
 
-**Preview export.** Query (read tokens too) · talks to an outside system
+**Preview hand-off.** Query (read tokens too) · talks to an outside system
 
-What exporting would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.
+What handing off would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.
 
-| Field            | Type           | Required | Description                                              |
-| ---------------- | -------------- | -------- | -------------------------------------------------------- |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.    |
-| `rootId`         | string         |          | Export this item and its subtree (usually a ready Epic). |
-| `itemIds`        | list of string |          | Or export exactly these items.                           |
+| Field            | Type           | Required | Description                                                                                                                                    |
+| ---------------- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                          |
+| `rootId`         | string         |          | Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.                                         |
+| `itemIds`        | list of string |          | Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira. |
 
 ### `publishDelivery`
 
-**Export to delivery tool.** Command · no retry key: read before repeating · talks to an outside system · **a person's decision**: refused to agents (the person decides in The work item → Delivery → Export)
+**Hand off to delivery tool.** Command · no retry key: read before repeating · talks to an outside system · **a person's decision**: refused to agents (the person decides in The work item → Delivery → Export)
 
-Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to export. Requires the hand-off capability in the project. Returns per-item results; failed items can be exported again on their own. Items edited externally are only overwritten when listed in overwriteItemIds.
+Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to hand off. Requires the hand-off capability in the project. Returns per-item results; retrying a failed item (itemIds) hands it off again with its subtree and never creates a second issue. Items edited externally are only overwritten when listed in overwriteItemIds.
 
-| Field              | Type           | Required | Description                                              |
-| ------------------ | -------------- | -------- | -------------------------------------------------------- |
-| `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.    |
-| `rootId`           | string         |          | Export this item and its subtree (usually a ready Epic). |
-| `itemIds`          | list of string |          | Or export exactly these items.                           |
-| `overwriteItemIds` | list of string |          |                                                          |
+| Field              | Type           | Required | Description                                                                                                                                    |
+| ------------------ | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                          |
+| `rootId`           | string         |          | Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.                                         |
+| `itemIds`          | list of string |          | Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira. |
+| `overwriteItemIds` | list of string |          |                                                                                                                                                |
 
 ### `refreshDeliveryStatus`
 
@@ -120,7 +120,7 @@ Status and per-item results of an export.
 
 **Link existing issue.** Command · no retry key: read before repeating · talks to an outside system
 
-Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is exported with overwrite confirmed.
+Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is handed off with overwrite confirmed.
 
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |

@@ -253,12 +253,19 @@ projects do not plan iterations or estimate in Lictory, and only external
 projects export. Their hand-off view shows what is ready, what changed since it
 was handed off, what Jira reports, and what needs attention.
 
+The interface calls this act "hand off" everywhere (the glossary's
+publish); "export" is the implementation's word for it.
+
 Export is explicit and evidence-gated, independent of the readiness policy:
 
-- Only `ready` spec-backed items are exported. Exporting an item with its
-  subtree refuses entirely when the root is not ready; not-ready descendants
-  (and everything under them) are skipped. Plain items (tasks, subtasks) go
-  along only under an exported parent.
+- Only `ready` spec-backed items are exported. A request names one root or a
+  selection; every named item goes with its subtree. Exporting one root
+  refuses entirely when it is not ready; in a selection a not-ready item is
+  skipped. Not-ready descendants (and everything under them) are skipped.
+  Plain items (tasks, subtasks) go along under an exported parent: one in
+  the same export, or one already linked to an external issue. So a task
+  added to a breakdown after its story was handed off can be exported on
+  its own, and the hand-off view lists it as ready.
 - The delivery system's hierarchy can be stricter than Lictory's: in Jira a
   Story and a Task are both standard issues, so a Task cannot be a Story's
   child. Each item goes under the issue of its nearest ancestor whose mapped
@@ -284,8 +291,12 @@ Export is explicit and evidence-gated, independent of the readiness policy:
 - Every export is a `delivery_publication` with a result per item. Requesting
   an export reserves the links and records the running publication, then
   returns; the worker exports the items and clients follow progress through
-  `getDeliveryPublication` until it settles. Parents go first; a failed parent
-  skips its subtree. Failed items are exported again by themselves.
+  `getDeliveryPublication` until it settles. Parents go first. A parent whose
+  create is waiting for confirmation holds its children back (they stay
+  pending); a failed parent skips its subtree, and each skipped child names
+  the parent it waits for. Retrying a failed item exports it again with its
+  subtree, so the children that waited for it follow and nothing is left
+  stranded; items already exported are unchanged and not written again.
 - No duplicates: links are reserved before the first call, a create attempt
   is committed before it is made, and the `lictory.item` issue property lets a
   crashed create be found and adopted. A recent attempt that cannot be
