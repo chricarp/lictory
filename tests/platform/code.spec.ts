@@ -142,8 +142,9 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await expect(
       ben.page.getByRole("region", { name: "Reviews in Lictory" }),
     ).toContainText("Ben Engineer");
-    // The board's card shows the pull request waiting to merge.
-    await ada.page.goto(seeded.projectPath("/board"));
+    // The backlog row shows the pull request waiting to merge (board cards
+    // carry the same chip).
+    await ada.page.goto(seeded.projectPath("/backlog"));
     await expect(
       ada.page
         .locator("[data-pull-request-chip]")
