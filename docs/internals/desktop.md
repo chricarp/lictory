@@ -187,11 +187,12 @@ in the signed-in layout by `components/app/desktop-connector.tsx`):
   `setBadge`. Notifications are one source; another feature adds its own
   unread count with `useDesktopBadgeSource(source, count)`. The shell adds
   its sidebar's `dock` badges (channel mentions and direct messages of the
-  open organization, from read state; see [the shell](shell.md#desktop-app)),
-  so notifications of the Channels category are left out of the
-  notification source: reading a conversation clears its mentions without
-  marking their notifications read. They are still forwarded as native
-  notifications.
+  open organization, from read state, and the agent sessions waiting on the
+  person; see [the shell](shell.md#desktop-app)), so notifications of the
+  Channels category and agents' requests are left out of the notification
+  source: reading a conversation clears its mentions without marking their
+  notifications read, and answering an agent clears its session's wait.
+  They are still forwarded as native notifications.
 - `onNavigate` paths go through the router only when they are pages of the
   app: other origins and the account flows are refused.
 - The page is a view under the window's top bar and beside the server

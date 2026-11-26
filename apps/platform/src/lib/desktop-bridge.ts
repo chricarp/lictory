@@ -54,7 +54,9 @@ const channelKinds = new Set<string>(
 );
 // An agent's question (`toDoKinds`) waits in the Inbox's To do, where
 // nothing marks its notification read; counting it would keep the badge
-// after it is answered. It is still forwarded as a native notification.
+// after it is answered. The Factory's sidebar badge (sessions waiting on me,
+// cleared by answering) counts it instead. It is still forwarded as a
+// native notification.
 const liveKinds = new Set<string>(toDoKinds);
 export const badgeCounts = (n: Pick<NotificationItem, "kind">) =>
   !channelKinds.has(n.kind) && !liveKinds.has(n.kind);

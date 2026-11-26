@@ -37,6 +37,29 @@ test("a person runs an agent on their own runner, steers it and approves what it
     key: "FAC",
     users: ["Ada"],
   });
+  // Inside the desktop app (its preload's bridge, recorded): an agent
+  // waiting on the person raises the dock badge until it is answered.
+  await page.addInitScript(() => {
+    const badges: number[] = [];
+    Object.assign(window, {
+      desktopBadges: badges,
+      lictoryDesktop: {
+        platform: "linux",
+        version: "0.0.0-test",
+        notify: () => undefined,
+        setBadge: (count: number) => badges.push(count),
+        setOrganizationName: () => undefined,
+        onNavigate: () => () => undefined,
+      },
+    });
+  });
+  const badge = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { desktopBadges: number[] }).desktopBadges.at(
+          -1,
+        ) ?? 0,
+    );
   await signIn(page, seeded.owner.email);
 
   // Add a runner: the dialog shows a one-time token in the commands.
@@ -146,6 +169,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
       .getByRole("navigation", { name: "Workspace", exact: true })
       .getByRole("link", { name: "Factory", exact: true }),
   ).toHaveAccessibleDescription(/1 agent session waiting on you/);
+  await expect.poll(badge).toBe(1);
   await page.goto(`/${seeded.slug}`);
   const asks = page.getByRole("region", { name: "Waiting on you" });
   await expect(asks).toBeVisible();
@@ -175,6 +199,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(
     transcript.getByText("Approved: Run the database migration."),
   ).toBeVisible();
+  await expect.poll(badge).toBe(0);
 
   // It completes with its summary; nothing is left to steer.
   await expect(

@@ -64,6 +64,10 @@ export const factorySection: NavSection = {
               ? "agent session waiting on you"
               : "agent sessions waiting on you",
           tone: "strong",
+          // An agent blocked on me is what the badge is for; the session's
+          // wait ends when I answer (the notification source leaves agents'
+          // requests out, lib/desktop-bridge.ts).
+          dock: true,
         }
       : null;
   },
