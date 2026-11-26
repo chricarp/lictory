@@ -66,7 +66,9 @@ export async function configureFirstProject(
     page.getByRole("heading", { name: "Where does delivery happen?" }),
   ).toBeVisible();
   await page
-    .getByRole("radio", { name: mode === "native" ? "In Lictory" : "In Jira" })
+    .getByRole("radio", {
+      name: mode === "native" ? "Deliver in Lictory" : "Hand off to Jira",
+    })
     .click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
