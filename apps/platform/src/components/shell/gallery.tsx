@@ -561,6 +561,8 @@ function EmptyExamples() {
       channels: [{ kind: "public", archivedAt: null }],
       members: 1,
       invited: 0,
+      project: { key: "PAY" },
+      workItems: 1,
     },
     organization.slug,
     true,
