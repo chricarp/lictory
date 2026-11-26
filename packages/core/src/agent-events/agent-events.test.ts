@@ -1184,6 +1184,13 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
       assert.equal(current.attempts, 1);
       assert.equal(current.lastError, "http_5xx");
       assert.equal(current.nextAttemptAt.getTime() - clock, 30_000);
+      // The person sees that it is failing and when it tries again.
+      const listed = async () =>
+        (await listSubscriptions(db, f.bo)).find((v) => v.id === webhook.id)!;
+      assert.deepEqual((await listed()).retry, {
+        failedAttempts: 1,
+        nextAttemptAt: current.nextAttemptAt.toISOString(),
+      });
       // Not due yet: nothing is sent.
       const sent = hook.received.length;
       await tick();
@@ -1195,6 +1202,8 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
       current = await row();
       assert.equal(current.status, "suspended");
       assert.match(current.statusReason!, /failed attempts/);
+      // Suspended, it no longer tries again: the reason says what to do.
+      assert.equal((await listed()).retry, null);
       // Suspended: no more attempts until resumed.
       clock += 60 * 60_000;
       const before = hook.received.length;

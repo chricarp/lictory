@@ -13,11 +13,19 @@ Reviews, proposals and context of Lictory Intelligence. Every tool takes `organi
 
 Administrators: allow or forbid sending this organization's content to the AI provider.
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `enabled`        | boolean | Yes      |                                                                                |
+| Field            | Type    | Required | Description                                                                                |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------ |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                      |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.             |
+| `enabled`        | boolean | Yes      | true lets Lictory Intelligence send content to the configured AI provider; false stops it. |
+
+```json title="setAiPolicy arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "enabled": true
+}
+```
 
 ### `requestAiReview`
 
@@ -29,8 +37,16 @@ Queue a Lictory Intelligence review of the item's specification. Findings are pr
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
 | `runId`          | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
+
+```json title="requestAiReview arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142"
+}
+```
 
 ### `rerunAiAction`
 
@@ -42,9 +58,18 @@ Run the Lictory Intelligence review action of a pull request again.
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `pullRequestId`  | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string | Yes      | Specification pull request id (from getWorkItem).                              |
 | `runId`          | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
+
+```json title="rerunAiAction arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524"
+}
+```
 
 ### `createAiCorrectivePr`
 
@@ -56,11 +81,21 @@ Open a pull request that applies chosen fixable findings of a Lictory Intelligen
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string         | Yes      |                                                                                |
-| `runId`          | string         | Yes      |                                                                                |
-| `findingIds`     | list of string | Yes      |                                                                                |
+| `workItemId`     | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `runId`          | string         | Yes      | The Lictory Intelligence review run (getWorkItem).                             |
+| `findingIds`     | list of string | Yes      | The fixable findings of that run to address.                                   |
 | `branchId`       | id             |          | Identifier for the new entity. Omit to have one assigned.                      |
 | `pullRequestId`  | id             |          | Identifier for the new entity. Omit to have one assigned.                      |
+
+```json title="createAiCorrectivePr arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "runId": "599e5591-3334-4d0a-abb9-069b278d9b20",
+  "findingIds": ["63c09399-0bfb-4f19-a69c-d293093ef77e"]
+}
+```
 
 ### `applyAiSuggestion`
 
@@ -72,9 +107,19 @@ Commit one Lictory Intelligence finding's suggestion to its pull request's sourc
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `runId`          | string | Yes      |                                                                                |
-| `findingId`      | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `runId`          | string | Yes      | The Lictory Intelligence review action run (getWorkItem).                      |
+| `findingId`      | string | Yes      | The finding whose suggested change to commit.                                  |
+
+```json title="applyAiSuggestion arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "runId": "599e5591-3334-4d0a-abb9-069b278d9b20",
+  "findingId": "63c09399-0bfb-4f19-a69c-d293093ef77e"
+}
+```
 
 ### `listIntelligenceContext`
 
@@ -86,6 +131,12 @@ Organization, project and team knowledge entries that Lictory Intelligence recei
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="listIntelligenceContext arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `getIntelligenceContextHistory`
 
 **Get intelligence context history.** Query (read tokens too)
@@ -95,7 +146,14 @@ Every version of one context entry, newest first.
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `entryId`        | string | Yes      |                                                       |
+| `entryId`        | string | Yes      | Context entry id (from listIntelligenceContext).      |
+
+```json title="getIntelligenceContextHistory arguments"
+{
+  "organizationId": "acme",
+  "entryId": "f9aa9ee2-cbdf-4966-a7bb-a812dbfb80c7"
+}
+```
 
 ### `createIntelligenceContext`
 
@@ -103,14 +161,24 @@ Every version of one context entry, newest first.
 
 Administrators: add a note (Markdown `content`) or a document (`file`) at organization, project or team scope. Pass `idempotencyKey` to make a retry return the original entry.
 
-| Field            | Type   | Required | Description                                                                                      |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                            |
-| `target`         | object | Yes      |                                                                                                  |
-| `idempotencyKey` | id     |          |                                                                                                  |
-| `title`          | string | Yes      |                                                                                                  |
-| `content`        | string |          | Markdown note content.                                                                           |
-| `file`           | object |          | A document (PDF, Word, Markdown, text…) converted to Markdown on the server. Replaces `content`. |
+| Field            | Type   | Required | Description                                                                                                             |
+| ---------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                   |
+| `target`         | object | Yes      | Where the entry applies: \{ scope: "organization" \}, \{ scope: "project", projectId \} or \{ scope: "team", teamId \}. |
+| `idempotencyKey` | id     |          | Retry key: retrying with the same value returns the first result.                                                       |
+| `title`          | string | Yes      | Entry title.                                                                                                            |
+| `content`        | string |          | Markdown note content.                                                                                                  |
+| `file`           | object |          | A document (PDF, Word, Markdown, text…) converted to Markdown on the server. Replaces `content`.                        |
+
+```json title="createIntelligenceContext arguments"
+{
+  "organizationId": "acme",
+  "target": {
+    "scope": "organization"
+  },
+  "title": "Retry failed refunds once"
+}
+```
 
 ### `reviseIntelligenceContext`
 
@@ -121,11 +189,19 @@ Administrators: save a new version of an entry. Earlier versions are kept. Pass 
 | Field            | Type   | Required | Description                                                                                      |
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                            |
-| `entryId`        | string | Yes      |                                                                                                  |
-| `idempotencyKey` | id     |          |                                                                                                  |
-| `title`          | string | Yes      |                                                                                                  |
+| `entryId`        | string | Yes      | Context entry id (from listIntelligenceContext).                                                 |
+| `idempotencyKey` | id     |          | Retry key: retrying with the same value returns the first result.                                |
+| `title`          | string | Yes      | Entry title.                                                                                     |
 | `content`        | string |          | Markdown note content.                                                                           |
 | `file`           | object |          | A document (PDF, Word, Markdown, text…) converted to Markdown on the server. Replaces `content`. |
+
+```json title="reviseIntelligenceContext arguments"
+{
+  "organizationId": "acme",
+  "entryId": "f9aa9ee2-cbdf-4966-a7bb-a812dbfb80c7",
+  "title": "Retry failed refunds once"
+}
+```
 
 ### `archiveIntelligenceContext`
 
@@ -136,17 +212,33 @@ Administrators: archive (true) or restore (false) an entry. Archived entries no 
 | Field            | Type    | Required | Description                                           |
 | ---------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `entryId`        | string  | Yes      |                                                       |
-| `archived`       | boolean | Yes      |                                                       |
+| `entryId`        | string  | Yes      | Context entry id (from listIntelligenceContext).      |
+| `archived`       | boolean | Yes      | true archives it; false restores it.                  |
+
+```json title="archiveIntelligenceContext arguments"
+{
+  "organizationId": "acme",
+  "entryId": "f9aa9ee2-cbdf-4966-a7bb-a812dbfb80c7",
+  "archived": true
+}
+```
 
 ### `draftProposals`
 
 **Draft proposals from rough material.** Query (read tokens too) · talks to an outside system
 
-Lictory Intelligence reads rough material (meeting notes, customer requests, support tickets, documents) and returns _proposed_ proposals for one project: title, problem, expected outcome, open questions, suggested reviewer disciplines and related recorded decisions or approved specifications. Every draft cites verbatim excerpts of the sources and lists what was inferred rather than stated; citations, disciplines and references the server could not verify are removed and counted in `filtered`. Nothing is created. Show the drafts to the person and create only the ones they choose, with createWorkItem (a specification-backed type, the draft's title and its `description`), adjusting them as they ask. Requires Lictory Intelligence to be enabled and permission to edit specifications in the project. The material is sent to the AI provider and not stored.
+Lictory Intelligence reads rough material (meeting notes, customer requests, support tickets, documents) and returns _proposed_ proposals for one project: title, problem, expected outcome, open questions, suggested reviewer disciplines and related recorded decisions or approved specifications. Every draft cites verbatim excerpts of the sources and lists what was inferred rather than stated; citations, disciplines and references the server could not verify are removed and counted in `filtered`. Nothing is created. Show the drafts to the person and create only the ones they choose, with [createWorkItem](/reference/mcp/work-items#createworkitem) (a specification-backed type, the draft's title and its `description`), adjusting them as they ask. Requires Lictory Intelligence to be enabled and permission to edit specifications in the project. The material is sent to the AI provider and not stored.
 
 | Field            | Type           | Required | Description                                                                                                      |
 | ---------------- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                                            |
 | `projectId`      | string         | Yes      | Project the proposals are for.                                                                                   |
 | `sources`        | list of object | Yes      | Up to 10 pieces of material. At most 60,000 characters are analysed in total; the rest is reported as truncated. |
+
+```json title="draftProposals arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "sources": [{}]
+}
+```

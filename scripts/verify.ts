@@ -75,6 +75,10 @@ Options:
 
 Steps: ${steps.map((step) => step.name).join(", ")}
 
+Time and memory: check is about 5 minutes on an 8-core machine (typed
+linting is most of it and needs about 10 GB of memory); the browser suite
+(test:e2e) builds every application and is the longest step.
+
 E2E_PORT_OFFSET, E2E_WORKERS and the rest of the environment reach the
 steps unchanged. E2E_SHARD and E2E_SKIP_BUILD narrow the browser suite, so
 a full run refuses them.`;

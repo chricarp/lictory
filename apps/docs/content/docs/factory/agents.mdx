@@ -69,9 +69,18 @@ its client need not ask over and over. Choose **New webhook** for a client
 that starts from a URL and a key (Claude routines, Grok, OpenClaw hooks):
 its name, the URL, the bearer secret and the event types, then **Test** it.
 Each wake-up shows whether it is active, what it delivered and the last
-problem; **Pause**, **Resume** and **Remove** it there. Clients that support
+problem; while a receiver fails it also shows how many attempts failed and
+when it tries again. **Pause**, **Resume** and **Remove** it there. Clients that support
 MCP Events subscribe themselves with the agent's token and appear here too.
 See [AI agents and MCP](/integrations/agents#wake-your-agent-when-something-waits-on-you).
+
+## Recent activity
+
+Its owner sees what the agent did under **Recent activity**: every tool it
+called with one of its tokens (its own or its sessions'), when, and whether
+it worked or was refused. What it sent is never recorded. Organization
+administrators see every agent's calls in the
+[audit log](/organization/audit).
 
 ## Archive an agent
 

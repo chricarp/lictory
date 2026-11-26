@@ -9,6 +9,7 @@ const pages = [
   "/factory/runners",
   "/basics/account",
   "/basics/accessibility",
+  "/reference/mcp",
 ];
 
 for (const colorScheme of ["light", "dark"] as const)
@@ -63,4 +64,26 @@ test("deep pages keep the sidebar's labels whole and commands readable beside th
     };
   });
   expect(fits).toEqual({ scrolls: false, underCopy: false });
+});
+
+test("the MCP reference lists its areas as plain contents entries, never links inside links", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/reference/mcp");
+  await page.waitForLoadState("networkidle");
+  expect(await page.locator("a a").count()).toBe(0);
+  const contents = page.getByRole("navigation", { name: "On this page" });
+  const area = contents.getByRole("link", {
+    name: "Factory: claims and agent sessions",
+    exact: true,
+  });
+  await expect(area).toBeVisible();
+  // One or two lines, not one letter per line.
+  expect((await area.boundingBox())!.height).toBeLessThan(60);
+  // The sidebar names the folder once: the folder opens the overview.
+  const sidebar = page.locator("#nd-sidebar");
+  await expect(
+    sidebar.getByRole("link", { name: "MCP tools", exact: true }),
+  ).toHaveCount(1);
 });

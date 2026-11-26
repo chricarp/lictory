@@ -191,9 +191,11 @@ main() {
       printf '  systemctl --user restart lictory-runner (or sudo systemctl restart lictory-runner)\n'
     fi
   else
-    printf '\nRegister it with a token from Factory → Runners → Add runner:\n'
-    printf '  %s register --url <server> --token <token>\n' "$command"
-    printf '  %s install-service --enable\n' "$command"
+    printf '\nNext, in this order:\n'
+    printf '  1. Register it with a token from Factory → Runners → Add runner:\n'
+    printf '     %s register --url <server> --token <token>\n' "$command"
+    printf '  2. Keep it running as a service (or run %s start):\n' "$command"
+    printf '     %s install-service --enable\n' "$command"
   fi
 }
 

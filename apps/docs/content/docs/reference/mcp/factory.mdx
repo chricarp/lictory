@@ -16,9 +16,15 @@ Work items an agent can claim now, in rank order: native delivery, not started, 
 | Field            | Type    | Required | Description                                             |
 | ---------------- | ------- | -------- | ------------------------------------------------------- |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.   |
-| `projectId`      | string  |          |                                                         |
+| `projectId`      | string  |          | Project id (from getWorkspace).                         |
 | `all`            | boolean |          | Include items that cannot be claimed yet, with reasons. |
-| `limit`          | integer |          |                                                         |
+| `limit`          | integer |          | Most results to return.                                 |
+
+```json title="listClaimableItems arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `listClaims`
 
@@ -29,20 +35,34 @@ Live claims (starting, active or waiting on a question) of the organization or o
 | Field            | Type    | Required | Description                                           |
 | ---------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string  |          |                                                       |
-| `mine`           | boolean |          |                                                       |
+| `projectId`      | string  |          | Project id (from getWorkspace).                       |
+| `mine`           | boolean |          | true lists only claims held by the calling agent.     |
+
+```json title="listClaims arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `claimItem`
 
 **Claim work item.** Command · retry key `mutationId`
 
-Agents: take a lease on one claimable work item (see listClaimableItems) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with renewClaim or reportProgress. Refused with kind `not_claimable` and the reasons when the item cannot be claimed, and `external_delivery` in projects delivered by an external tool. Exactly one live claim holds an item. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.
+Agents: take a lease on one claimable work item (see [listClaimableItems](/reference/mcp/factory#listclaimableitems)) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with [renewClaim](/reference/mcp/factory#renewclaim) or [reportProgress](/reference/mcp/factory#reportprogress). Refused with kind `not_claimable` and the reasons when the item cannot be claimed, and `external_delivery` in projects delivered by an external tool. Exactly one live claim holds an item; claiming one you already hold returns your claim with `alreadyHeld`. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.
 
 | Field            | Type   | Required | Description                                                                    |
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `workItemId`     | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
+
+```json title="claimItem arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `renewClaim`
 
@@ -50,11 +70,18 @@ Agents: take a lease on one claimable work item (see listClaimableItems) and sta
 
 The agent holding a claim extends its lease (default 15 minutes, 60 to 3600 seconds). Renew the lease while the claim is starting, active or waiting. A claim whose lease ran out is released by the next sweep and the item returns to the queue.
 
-| Field            | Type    | Required | Description                                           |
-| ---------------- | ------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `claimId`        | string  | Yes      | The claim (from claimItem or listClaims).             |
-| `leaseSeconds`   | integer |          |                                                       |
+| Field            | Type    | Required | Description                                            |
+| ---------------- | ------- | -------- | ------------------------------------------------------ |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.  |
+| `claimId`        | string  | Yes      | The claim (from claimItem or listClaims).              |
+| `leaseSeconds`   | integer |          | New lease length in seconds (default 900, 15 minutes). |
+
+```json title="renewClaim arguments"
+{
+  "organizationId": "acme",
+  "claimId": "6c0400d7-c81e-462d-af2d-9b03aba61436"
+}
+```
 
 ### `releaseClaim`
 
@@ -66,8 +93,16 @@ Give a claimed item back without completing it, with an optional note. The item 
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `claimId`        | string | Yes      | The claim (from claimItem or listClaims).                                      |
-| `note`           | string |          |                                                                                |
+| `note`           | string |          | Why the work is given back, kept in the item's activity.                       |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
+
+```json title="releaseClaim arguments"
+{
+  "organizationId": "acme",
+  "claimId": "6c0400d7-c81e-462d-af2d-9b03aba61436",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `reportProgress`
 
@@ -79,8 +114,17 @@ The agent holding a claim adds a progress note to the item's activity (what is d
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `claimId`        | string | Yes      | The claim (from claimItem or listClaims).                                      |
-| `note`           | string | Yes      |                                                                                |
+| `note`           | string | Yes      | What is done and what is next, added to the item's activity.                   |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
+
+```json title="reportProgress arguments"
+{
+  "organizationId": "acme",
+  "claimId": "6c0400d7-c81e-462d-af2d-9b03aba61436",
+  "note": "Tests for the retry window pass; next: the settlement case.",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `askQuestion`
 
@@ -88,15 +132,25 @@ The agent holding a claim adds a progress note to the item's activity (what is d
 
 The agent holding a claim asks people about the exact specification text it works against: a blocking discussion on the claimed item's specification (or its nearest specification ancestor's) anchored to `section` (a heading; empty for the whole text) and `quote` (text copied exactly from it). The item's reviewers are mentioned and notified, and the claim waits until a person resolves the discussion; you are told when it is resolved. A blocking question also blocks readiness, so related work waits too. Questions never change the specification. Ask people a question while the claim is active or waiting (it becomes waiting).
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `claimId`        | string  | Yes      | The claim (from claimItem or listClaims).                                      |
-| `question`       | string  | Yes      |                                                                                |
-| `section`        | string  | Yes      | Heading the question is about; an empty string for the whole text.             |
-| `quote`          | string  |          | The exact specification text the question is about.                            |
-| `occurrence`     | integer |          |                                                                                |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
+| Field            | Type    | Required | Description                                                                                 |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                       |
+| `claimId`        | string  | Yes      | The claim (from claimItem or listClaims).                                                   |
+| `question`       | string  | Yes      | The question for people, in Markdown.                                                       |
+| `section`        | string  | Yes      | Heading the question is about; an empty string for the whole text.                          |
+| `quote`          | string  |          | The exact specification text the question is about.                                         |
+| `occurrence`     | integer |          | When the quote appears more than once under its section: which appearance (0 is the first). |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.              |
+
+```json title="askQuestion arguments"
+{
+  "organizationId": "acme",
+  "claimId": "6c0400d7-c81e-462d-af2d-9b03aba61436",
+  "question": "Does a retry reuse the original transaction id?",
+  "section": "Failure behavior",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `retryDispatch`
 
@@ -107,8 +161,16 @@ Clear the dispatcher's hold or backoff on an item (after failed session starts, 
 | Field            | Type   | Required | Description                                                                    |
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `workItemId`     | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
+
+```json title="retryDispatch arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `getDispatchState`
 
@@ -119,7 +181,14 @@ Items of a project the dispatcher is backing off or holding, with the last failu
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                       |
+
+```json title="getDispatchState arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `getAutonomyPolicy`
 
@@ -130,7 +199,14 @@ A project's autonomy policy (assist, build, autopilot; Assist when never set), t
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                       |
+
+```json title="getAutonomyPolicy arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `getDefinitionOfDone`
 
@@ -138,11 +214,18 @@ A project's autonomy policy (assist, build, autopilot; Assist when never set), t
 
 A project's Definition of Done (what must be true before work is Done; Lictory's defaults when never set), and with `workItemId` that item's evaluation: each check, whether it passes and why, from code evidence and people's sign-offs. Agents read it to know what finishing means; they cannot pass it by reporting.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
-| `workItemId`     | string |          |                                                       |
+| Field            | Type   | Required | Description                                                          |
+| ---------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                      |
+| `workItemId`     | string |          | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+
+```json title="getDefinitionOfDone arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `listAgents`
 
@@ -153,7 +236,13 @@ The organization's agents: name, @handle, owner (the accountable person), kind (
 | Field             | Type    | Required | Description                                           |
 | ----------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId`  | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `includeArchived` | boolean |          |                                                       |
+| `includeArchived` | boolean |          | Also return archived ones.                            |
+
+```json title="listAgents arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `listRunners`
 
@@ -165,19 +254,31 @@ Machines that execute agent sessions: name, organization or personal (personal r
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="listRunners arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `listAgentSessions`
 
 **List agent sessions.** Query (read tokens too)
 
 Agent sessions, most recently updated first. Each has a status: queued (Waiting for a runner that may run its agent.); assigned (Claimed by a runner, which is preparing the workspace.); running (The agent is working.); waiting (The agent waits on a person: a decision it asked for, or the next message.); completed (The agent finished; its result is a claim, not proof.); failed (Stopped by an error or after its runner was lost too often.); canceled (Stopped by a person.)
 
-| Field            | Type                                                                                                | Required | Description                                           |
-| ---------------- | --------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                                                                                              | Yes      | Exact organization id or slug from listOrganizations. |
-| `status`         | list of `"queued"`, `"assigned"`, `"running"`, `"waiting"`, `"completed"`, `"failed"`, `"canceled"` |          |                                                       |
-| `agentId`        | string                                                                                              |          | Agent id (see listAgents).                            |
-| `workItemId`     | string                                                                                              |          |                                                       |
-| `limit`          | integer                                                                                             |          |                                                       |
+| Field            | Type                                                                                                | Required | Description                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------- |
+| `organizationId` | string                                                                                              | Yes      | Exact organization id or slug from listOrganizations.                |
+| `status`         | list of `"queued"`, `"assigned"`, `"running"`, `"waiting"`, `"completed"`, `"failed"`, `"canceled"` |          | Only sessions in these statuses.                                     |
+| `agentId`        | string                                                                                              |          | Agent id (see listAgents).                                           |
+| `workItemId`     | string                                                                                              |          | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+| `limit`          | integer                                                                                             |          | Most results to return.                                              |
+
+```json title="listAgentSessions arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `getAgentSession`
 
@@ -185,11 +286,18 @@ Agent sessions, most recently updated first. Each has a status: queued (Waiting 
 
 One agent session with its pending approval requests and its latest events (messages, tool calls, commands, file changes, status). Completed is a claim, not proof: delivery evidence is the merged pull request and checks.
 
-| Field            | Type    | Required | Description                                           |
-| ---------------- | ------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `sessionId`      | string  | Yes      | Agent session id (see listAgentSessions).             |
-| `events`         | integer |          |                                                       |
+| Field            | Type    | Required | Description                                            |
+| ---------------- | ------- | -------- | ------------------------------------------------------ |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.  |
+| `sessionId`      | string  | Yes      | Agent session id (see listAgentSessions).              |
+| `events`         | integer |          | How many of the latest events to include (default 50). |
+
+```json title="getAgentSession arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579"
+}
+```
 
 ### `listAgentSessionEvents`
 
@@ -197,12 +305,19 @@ One agent session with its pending approval requests and its latest events (mess
 
 A window of a session's event log, oldest first. Pass `before` (a sequence) to read earlier events.
 
-| Field            | Type    | Required | Description                                           |
-| ---------------- | ------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `sessionId`      | string  | Yes      | Agent session id (see listAgentSessions).             |
-| `before`         | integer |          |                                                       |
-| `limit`          | integer |          |                                                       |
+| Field            | Type    | Required | Description                                                                                                   |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                         |
+| `sessionId`      | string  | Yes      | Agent session id (see listAgentSessions).                                                                     |
+| `before`         | integer |          | Read the events before this sequence (the first sequence of the window you have); omitted: the latest events. |
+| `limit`          | integer |          | Most results to return.                                                                                       |
+
+```json title="listAgentSessionEvents arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579"
+}
+```
 
 ### `listAgentApprovalsWaiting`
 
@@ -214,26 +329,41 @@ Questions agent sessions asked that you may answer (you started the session or o
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="listAgentApprovalsWaiting arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `startAgentSession`
 
 **Start agent session.** Command · retry key `mutationId`
 
 Ask a runner agent to work on a task. It is queued until a runner that may run the agent claims it. `prompt` says what to do; `workItemId` names the work item (its key becomes the default branch); `repositoryUrl` (https or ssh, no credentials) and `baseBranch` say where the code is. You need to own the agent or the agent must be shared. With `channelId` (and optionally `threadRootMessageId`) the session's live card, its approval requests and the agent's answers are posted in that thread, and replies there by you or the agent's owner steer it; you must be able to post in the channel. Retrying with the same `mutationId` returns the same session.
 
-| Field                 | Type           | Required | Description                                                             |
-| --------------------- | -------------- | -------- | ----------------------------------------------------------------------- |
-| `organizationId`      | string         | Yes      | Exact organization id or slug from listOrganizations.                   |
-| `agentId`             | string         | Yes      | Agent id (see listAgents).                                              |
-| `prompt`              | string         | Yes      |                                                                         |
-| `title`               | string         |          |                                                                         |
-| `workItemId`          | string or null |          |                                                                         |
-| `repositoryUrl`       | string or null |          |                                                                         |
-| `baseBranch`          | string or null |          |                                                                         |
-| `branch`              | string or null |          |                                                                         |
-| `runnerId`            | string or null |          |                                                                         |
-| `channelId`           | string or null |          |                                                                         |
-| `threadRootMessageId` | string or null |          |                                                                         |
-| `mutationId`          | id             |          | Idempotency key. Retrying with the same value returns the same session. |
+| Field                 | Type           | Required | Description                                                                                         |
+| --------------------- | -------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `organizationId`      | string         | Yes      | Exact organization id or slug from listOrganizations.                                               |
+| `agentId`             | string         | Yes      | Agent id (see listAgents).                                                                          |
+| `prompt`              | string         | Yes      | What the agent should do.                                                                           |
+| `title`               | string         |          | Session title; omitted: the work item's title or the prompt's first line.                           |
+| `workItemId`          | string or null |          | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                |
+| `repositoryUrl`       | string or null |          | Repository to work in (https or ssh, no credentials in the URL).                                    |
+| `baseBranch`          | string or null |          | Branch to start from; omitted: the repository's default branch.                                     |
+| `branch`              | string or null |          | Branch the agent works on; omitted: derived from the work item key, or the agent's handle.          |
+| `runnerId`            | string or null |          | Runner to run on (listRunners); omitted: the agent's default runner, or any runner that may run it. |
+| `channelId`           | string or null |          | Channel id (from listChannels).                                                                     |
+| `threadRootMessageId` | string or null |          | Message whose thread in channelId the session posts in; omitted: a new thread.                      |
+| `mutationId`          | id             |          | Idempotency key. Retrying with the same value returns the same session.                             |
+
+```json title="startAgentSession arguments"
+{
+  "organizationId": "acme",
+  "agentId": "c62cefd9-9018-4d1b-aa0f-9381d6549ff6",
+  "prompt": "Implement PAY-142 and open a pull request.",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8"
+}
+```
 
 ### `sendAgentSessionMessage`
 
@@ -245,7 +375,15 @@ Send a steering message to the agent of a session you started or whose agent you
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 | `sessionId`      | string | Yes      | Agent session id (see listAgentSessions).             |
-| `text`           | string | Yes      |                                                       |
+| `text`           | string | Yes      | The message to the agent.                             |
+
+```json title="sendAgentSessionMessage arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579",
+  "text": "text"
+}
+```
 
 ### `interruptAgentSession`
 
@@ -258,6 +396,13 @@ Stop the agent's current turn; it waits for your next message. Stop the agent's 
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 | `sessionId`      | string | Yes      | Agent session id (see listAgentSessions).             |
 
+```json title="interruptAgentSession arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579"
+}
+```
+
 ### `cancelAgentSession`
 
 **Cancel agent session.** Command · safe to repeat · destructive
@@ -268,6 +413,13 @@ Stop a session for good (it can be retried). The person who started it, the agen
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 | `sessionId`      | string | Yes      | Agent session id (see listAgentSessions).             |
+
+```json title="cancelAgentSession arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579"
+}
+```
 
 ### `retryAgentSession`
 
@@ -280,16 +432,32 @@ Queue the session again from its original instructions; its history stays. Retry
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 | `sessionId`      | string | Yes      | Agent session id (see listAgentSessions).             |
 
+```json title="retryAgentSession arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579"
+}
+```
+
 ### `answerAgentApproval`
 
 **Answer agent approval request.** Command · no retry key: read before repeating · **a person's decision**: refused to agents (the person decides in The approval card in the session's thread, Home or Factory)
 
 Approve or deny what an agent session asked for. A person's decision: only the person who started the session or the agent's owner, never an agent. Approve or deny what the agent asked for while the agent session is waiting.
 
-| Field            | Type                  | Required | Description                                           |
-| ---------------- | --------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                | Yes      | Exact organization id or slug from listOrganizations. |
-| `sessionId`      | string                | Yes      | Agent session id (see listAgentSessions).             |
-| `approvalId`     | string                | Yes      |                                                       |
-| `decision`       | `"approve"`, `"deny"` | Yes      |                                                       |
-| `note`           | string or null        |          |                                                       |
+| Field            | Type                  | Required | Description                                                                     |
+| ---------------- | --------------------- | -------- | ------------------------------------------------------------------------------- |
+| `organizationId` | string                | Yes      | Exact organization id or slug from listOrganizations.                           |
+| `sessionId`      | string                | Yes      | Agent session id (see listAgentSessions).                                       |
+| `approvalId`     | string                | Yes      | The pending approval request id (getAgentSession or listAgentApprovalsWaiting). |
+| `decision`       | `"approve"`, `"deny"` | Yes      | approve or deny what the agent asked for.                                       |
+| `note`           | string or null        |          | A message to the agent with your answer.                                        |
+
+```json title="answerAgentApproval arguments"
+{
+  "organizationId": "acme",
+  "sessionId": "09724085-1664-4183-a554-bacab2816579",
+  "approvalId": "b51bae8b-100d-4cbd-a8e1-5f17fb649d88",
+  "decision": "approve"
+}
+```

@@ -393,6 +393,15 @@ void test("claiming starts the item for the agent; people and external projects 
   });
   assert.equal(replay.claimId, claimed.claimId);
   assert.equal(replay.replayed, true);
+  // The holder asking again without its retry key (it lost the answer) gets
+  // its own claim back, not a conflict; nothing moves twice.
+  const again = await claimItem(db, f.agent(), {
+    organizationId: f.organizationId,
+    workItemId: spec,
+  });
+  assert.equal(again.claimId, claimed.claimId);
+  assert.equal(again.alreadyHeld, true);
+  assert.equal(again.status, "In Progress");
   assert.equal((await f.item(spec)).statusId, f.statuses["In Progress"]);
   const actions = await f.activity(spec);
   assert.ok(actions.includes("claimed"));

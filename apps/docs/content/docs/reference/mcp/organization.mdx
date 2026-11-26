@@ -15,6 +15,10 @@ Organizations you belong to, with your application role (admin or member). An or
 
 No fields.
 
+```json title="listOrganizations arguments"
+{}
+```
+
 ### `getWorkspace`
 
 **Get workspace configuration.** Query (read tokens too)
@@ -25,6 +29,12 @@ The organization's projects (with their delivery settings, workflow statuses, en
 | ---------------- | ------ | -------- | ----------------------------------------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                               |
 | `projectId`      | string |          | When set, the workspace is limited to this project. A missing project is not found. |
+
+```json title="getWorkspace arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `listAttachments`
 
@@ -39,11 +49,17 @@ Files attached to a work item (workItemId), to a page (pageId; readers of its sp
 | `pageId`         | string |          | The Lictory Spaces page the file belongs to (instead of workItemId).        |
 | `channelId`      | string |          | The channel the file is attached in (for postChannelMessage attachmentIds). |
 
+```json title="listAttachments arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `startAttachmentUpload`
 
 **Start attachment upload.** Command · no retry key: read before repeating · talks to an outside system
 
-Reserve an attachment on a work item (workItemId), a page (pageId; comment or edit access to its space) or in a channel you are a member of (channelId; then pass its id to postChannelMessage's attachmentIds) and get a presigned URL. PUT the bytes to `uploadUrl` with `headers` within five minutes, then call finishAttachmentUpload. Allowed types: png, jpg, jpeg, gif, webp, bmp, pdf, txt, md, csv, doc, docx, xls, xlsx, ppt, pptx, zip, mp4, mov, mp3. Files must be between 1 byte and 25 MB.
+Reserve an attachment on a work item (workItemId), a page (pageId; comment or edit access to its space) or in a channel you are a member of (channelId; then pass its id to [postChannelMessage](/reference/mcp/channels#postchannelmessage)'s attachmentIds) and get a presigned URL. PUT the bytes to `uploadUrl` with `headers` within five minutes, then call [finishAttachmentUpload](/reference/mcp/organization#finishattachmentupload). Allowed types: png, jpg, jpeg, gif, webp, bmp, pdf, txt, md, csv, doc, docx, xls, xlsx, ppt, pptx, zip, mp4, mov, mp3. Files must be between 1 byte and 25 MB.
 
 | Field            | Type    | Required | Description                                                                 |
 | ---------------- | ------- | -------- | --------------------------------------------------------------------------- |
@@ -51,9 +67,18 @@ Reserve an attachment on a work item (workItemId), a page (pageId; comment or ed
 | `workItemId`     | string  |          | The work item the file belongs to.                                          |
 | `pageId`         | string  |          | The Lictory Spaces page the file belongs to (instead of workItemId).        |
 | `channelId`      | string  |          | The channel the file is attached in (for postChannelMessage attachmentIds). |
-| `filename`       | string  | Yes      |                                                                             |
-| `mimeType`       | string  | Yes      |                                                                             |
-| `size`           | integer | Yes      |                                                                             |
+| `filename`       | string  | Yes      | File name with its extension, such as diagram.png.                          |
+| `mimeType`       | string  | Yes      | The file's media type, such as image/png.                                   |
+| `size`           | integer | Yes      | Size in bytes (at most 25 MB).                                              |
+
+```json title="startAttachmentUpload arguments"
+{
+  "organizationId": "acme",
+  "filename": "filename",
+  "mimeType": "mimeType",
+  "size": 1
+}
+```
 
 ### `finishAttachmentUpload`
 
@@ -61,10 +86,17 @@ Reserve an attachment on a work item (workItemId), a page (pageId; comment or ed
 
 Confirm an upload reached storage. Returns the attachment URL to reference in Markdown.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `id`             | id     | Yes      |                                                       |
+| Field            | Type   | Required | Description                                            |
+| ---------------- | ------ | -------- | ------------------------------------------------------ |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.  |
+| `id`             | id     | Yes      | The attachment id (returned by startAttachmentUpload). |
+
+```json title="finishAttachmentUpload arguments"
+{
+  "organizationId": "acme",
+  "id": "a5614527-0ce6-43be-ad1d-d012b7394867"
+}
+```
 
 ### `removeAttachment`
 
@@ -72,10 +104,17 @@ Confirm an upload reached storage. Returns the attachment URL to reference in Ma
 
 Uploader only: remove an attachment from the item. It can no longer be downloaded, including through links issued before the removal; the bytes are retained privately. Returns `removed: false` when it was already removed.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `id`             | id     | Yes      |                                                       |
+| Field            | Type   | Required | Description                                            |
+| ---------------- | ------ | -------- | ------------------------------------------------------ |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.  |
+| `id`             | id     | Yes      | The attachment id (returned by startAttachmentUpload). |
+
+```json title="removeAttachment arguments"
+{
+  "organizationId": "acme",
+  "id": "a5614527-0ce6-43be-ad1d-d012b7394867"
+}
+```
 
 ### `getAttachmentDownloadUrl`
 
@@ -83,10 +122,16 @@ Uploader only: remove an attachment from the item. It can no longer be downloade
 
 A short-lived URL to download an attachment's bytes. The file id appears in `/api/files/<id>` references inside specifications, pages, comments and channel messages. A page's files are available to readers of its space, a channel's to readers of the channel.
 
-| Field    | Type    | Required | Description |
-| -------- | ------- | -------- | ----------- |
-| `fileId` | string  | Yes      |             |
-| `inline` | boolean |          |             |
+| Field    | Type    | Required | Description                                                   |
+| -------- | ------- | -------- | ------------------------------------------------------------- |
+| `fileId` | string  | Yes      | The file id: the &lt;id> of an /api/files/&lt;id> reference.  |
+| `inline` | boolean |          | true: a URL that displays the file instead of downloading it. |
+
+```json title="getAttachmentDownloadUrl arguments"
+{
+  "fileId": "b914340e-db22-43b0-a8d4-903bc9f20556"
+}
+```
 
 ### `setOrganizationLogo`
 
@@ -100,6 +145,14 @@ Administrators: upload a PNG, JPEG or WebP logo (at most 512 KB).
 | `kind`           | `"mark"`, `"full"`, `"icon"` | Yes      | `mark` is the square logomark; `full` the wide logo; `icon` the browser tab icon. |
 | `contentBase64`  | string                       | Yes      | The image bytes, base64-encoded.                                                  |
 
+```json title="setOrganizationLogo arguments"
+{
+  "organizationId": "acme",
+  "kind": "mark",
+  "contentBase64": "contentBase64"
+}
+```
+
 ### `removeOrganizationLogo`
 
 **Remove organization logo.** Command · safe to repeat · destructive
@@ -110,6 +163,13 @@ Administrators: remove a logo. Without a logomark the initial is shown, without 
 | ---------------- | ---------------------------- | -------- | --------------------------------------------------------------------------------- |
 | `organizationId` | string                       | Yes      | Exact organization id or slug from listOrganizations.                             |
 | `kind`           | `"mark"`, `"full"`, `"icon"` | Yes      | `mark` is the square logomark; `full` the wide logo; `icon` the browser tab icon. |
+
+```json title="removeOrganizationLogo arguments"
+{
+  "organizationId": "acme",
+  "kind": "mark"
+}
+```
 
 ### `setOrganizationBrandColor`
 
@@ -122,6 +182,13 @@ Administrators: set the color that tints primary actions and accents for everyon
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations. |
 | `color`          | string or null | Yes      | Six hexadecimal digits, for example #1d4ed8, or null. |
 
+```json title="setOrganizationBrandColor arguments"
+{
+  "organizationId": "acme",
+  "color": "color"
+}
+```
+
 ### `listHumanOnlyOperations`
 
 **List human-only operations.** Query (read tokens too)
@@ -129,3 +196,7 @@ Administrators: set the color that tints primary actions and accents for everyon
 What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, the audit log, organization data exports, Litto conversations, browser preferences) and, for a Factory agent, the decisions its person makes (approvals, merges, accepted scope, resolved discussions, recorded decisions, exports), with the reason and where the person does each one. Call it before telling someone a tool is missing.
 
 No fields.
+
+```json title="listHumanOnlyOperations arguments"
+{}
+```

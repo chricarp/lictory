@@ -16,8 +16,15 @@ Labels defined on a project. Archived labels are omitted unless includeArchived 
 | Field             | Type    | Required | Description                                           |
 | ----------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId`  | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`       | string  | Yes      |                                                       |
-| `includeArchived` | boolean |          |                                                       |
+| `projectId`       | string  | Yes      | Project id (from getWorkspace).                       |
+| `includeArchived` | boolean |          | Also return archived ones.                            |
+
+```json title="listLabels arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `listMilestones`
 
@@ -28,8 +35,15 @@ Milestones defined on a project. Archived milestones are omitted unless includeA
 | Field             | Type    | Required | Description                                           |
 | ----------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId`  | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`       | string  | Yes      |                                                       |
-| `includeArchived` | boolean |          |                                                       |
+| `projectId`       | string  | Yes      | Project id (from getWorkspace).                       |
+| `includeArchived` | boolean |          | Also return archived ones.                            |
+
+```json title="listMilestones arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `getInsights`
 
@@ -37,12 +51,19 @@ Milestones defined on a project. Archived milestones are omitted unless includeA
 
 Figures computed from the workspace, for questions about how work is going. topic `refinement`: specification refinement states, review progress, readiness checks and specifications that need attention. topic `delivery`: work by status, the active iteration's burndown and velocity, blocked or stalled work. topic `people`: workload per person and pending review requests. Narrow with projectId and teamId. The chat shows the result as cards; comment on it instead of repeating the numbers.
 
-| Field            | Type                                     | Required | Description                                           |
-| ---------------- | ---------------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                                   | Yes      | Exact organization id or slug from listOrganizations. |
-| `topic`          | `"refinement"`, `"delivery"`, `"people"` | Yes      |                                                       |
-| `projectId`      | string                                   |          |                                                       |
-| `teamId`         | string                                   |          |                                                       |
+| Field            | Type                                     | Required | Description                                                                                                                                       |
+| ---------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string                                   | Yes      | Exact organization id or slug from listOrganizations.                                                                                             |
+| `topic`          | `"refinement"`, `"delivery"`, `"people"` | Yes      | refinement (specification states, reviews, readiness), delivery (status, burndown, velocity, blocked work) or people (workload, pending reviews). |
+| `projectId`      | string                                   |          | Project id (from getWorkspace).                                                                                                                   |
+| `teamId`         | string                                   |          | Team id (from getWorkspace).                                                                                                                      |
+
+```json title="getInsights arguments"
+{
+  "organizationId": "acme",
+  "topic": "refinement"
+}
+```
 
 ### `searchMembers`
 
@@ -53,9 +74,15 @@ Find organization members by name, email or handle.
 | Field            | Type    | Required | Description                                           |
 | ---------------- | ------- | -------- | ----------------------------------------------------- |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `q`              | string  |          |                                                       |
-| `offset`         | integer |          |                                                       |
-| `limit`          | integer |          |                                                       |
+| `q`              | string  |          | Text to search for.                                   |
+| `offset`         | integer |          | Results to skip, for paging.                          |
+| `limit`          | integer |          | Most results to return.                               |
+
+```json title="searchMembers arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `getIterationReport`
 
@@ -66,7 +93,14 @@ Burndown series, totals, frozen summary and recent velocity of an iteration.
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `iterationId`    | string | Yes      |                                                       |
+| `iterationId`    | string | Yes      | Iteration id (from getWorkspace).                     |
+
+```json title="getIterationReport arguments"
+{
+  "organizationId": "acme",
+  "iterationId": "8f965c74-6b32-4044-a982-3716d6aeb290"
+}
+```
 
 ### `previewReadinessChecks`
 
@@ -74,11 +108,19 @@ Burndown series, totals, frozen summary and recent velocity of an iteration.
 
 What publishing these readiness rules would do to the project's items, without changing anything: how many ready or done items keep their version, which items would become ready, and which would need more work and why.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
-| `rules`          | object | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                                                         |
+| ---------------- | ------ | -------- | --------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                               |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                                     |
+| `rules`          | object | Yes      | The checks to try, per work item type id: \{ [typeId]: [checks] \} (as for publishReadinessChecks). |
+
+```json title="previewReadinessChecks arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "rules": {}
+}
+```
 
 ### `createProject`
 
@@ -86,15 +128,24 @@ What publishing these readiness rules would do to the project's items, without c
 
 Organization administrators: create a project (a product area). `key` prefixes item identifiers, e.g. PAY. The project starts with the default workflow, every active type and the Product, Engineering and QA disciplines; the creator becomes its administrator. Optional `setup` records onboarding decisions.
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string | Yes      |                                                                                |
-| `key`            | string | Yes      |                                                                                |
-| `description`    | string |          |                                                                                |
-| `setup`          | object |          |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                       |
+| ---------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                             |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                    |
+| `projectId`      | id     |          | Identifier for the new entity. Omit to have one assigned.                                                                         |
+| `name`           | string | Yes      | Project name.                                                                                                                     |
+| `key`            | string | Yes      | Prefix of the project's work item keys: 2-10 letters or digits starting with a letter, such as PAY (items become PAY-1, PAY-2…).  |
+| `description`    | string |          | What the project is about.                                                                                                        |
+| `setup`          | object |          | First-run settings of the project; omitted: Lictory's defaults. External delivery needs iterationMode off and estimateScale none. |
+
+```json title="createProject arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "name": "payments",
+  "key": "key"
+}
+```
 
 ### `updateProject`
 
@@ -102,37 +153,55 @@ Organization administrators: create a project (a product area). `key` prefixes i
 
 Project administrators: rename or describe the project and change its delivery settings: delivery mode (native = delivered in Lictory, external = handed off to Jira), readiness policy, estimate scale, iteration mode and cadence, and the Lictory Intelligence review action policy. External projects never plan iterations or estimate in Lictory.
 
-| Field                | Type                                            | Required | Description                                                                    |
-| -------------------- | ----------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId`     | string                                          | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`         | id                                              |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`          | string                                          | Yes      |                                                                                |
-| `name`               | string                                          |          |                                                                                |
-| `description`        | string or null                                  |          |                                                                                |
-| `deliveryMode`       | `"native"`, `"external"`                        |          |                                                                                |
-| `readinessPolicy`    | `"off"`, `"warn"`, `"block"`                    |          |                                                                                |
-| `estimateScale`      | `"none"`, `"fibonacci"`, `"linear"`, `"tshirt"` |          |                                                                                |
-| `iterationMode`      | `"off"`, `"manual"`, `"automatic"`              |          |                                                                                |
-| `iterationWeeks`     | integer                                         |          |                                                                                |
-| `iterationStartDay`  | integer                                         |          |                                                                                |
-| `upcomingIterations` | integer                                         |          |                                                                                |
-| `aiActionPolicy`     | `"off"`, `"advisory"`, `"required"`             |          |                                                                                |
-| `mergeReadyNotice`   | boolean                                         |          |                                                                                |
+| Field                | Type                                            | Required | Description                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId`     | string                                          | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                         |
+| `mutationId`         | id                                              |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                |
+| `projectId`          | string                                          | Yes      | Project id (from getWorkspace).                                                                                                                                               |
+| `name`               | string                                          |          | New project name.                                                                                                                                                             |
+| `description`        | string or null                                  |          | New description; null clears it.                                                                                                                                              |
+| `deliveryMode`       | `"native"`, `"external"`                        |          | native: delivered in Lictory (board, backlog, iterations); external: handed off to a delivery tool such as Jira, which then owns status.                                      |
+| `readinessPolicy`    | `"off"`, `"warn"`, `"block"`                    |          | What happens when a specification that is not Ready moves into a started status: off (informative), warn (allowed and recorded) or block (refused).                           |
+| `estimateScale`      | `"none"`, `"fibonacci"`, `"linear"`, `"tshirt"` |          | How work is estimated; none turns estimates off.                                                                                                                              |
+| `iterationMode`      | `"off"`, `"manual"`, `"automatic"`              |          | off: no iterations; manual: sprints people start and complete; automatic: cycles scheduled for you.                                                                           |
+| `iterationWeeks`     | integer                                         |          | Length of an iteration in weeks.                                                                                                                                              |
+| `iterationStartDay`  | integer                                         |          | Weekday iterations start on: 0 Sunday, 1 Monday … 6 Saturday.                                                                                                                 |
+| `upcomingIterations` | integer                                         |          | Automatic cycles: how many future cycles to keep scheduled.                                                                                                                   |
+| `aiActionPolicy`     | `"off"`, `"advisory"`, `"required"`             |          | Lictory Intelligence review of pull requests: off (only when asked), advisory (automatic, findings inform) or required (merge waits for a completed run on the current head). |
+| `mergeReadyNotice`   | boolean                                         |          | Notify the author and collaborators when a pull request becomes ready to merge.                                                                                               |
+
+```json title="updateProject arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `publishReadinessChecks`
 
 **Publish Definition of Ready.** Command · retry key `mutationId` · **a person's decision**: refused to agents (the person decides in Project settings → Readiness)
 
-Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision), intelligence_review (an automated check, never an approval: the latest Lictory Intelligence review of the item analysed its current revision and found no finding at or above `severity`, `blocker` or `major`; at most once per type and only beside reviews_approved, discipline_approval or manual; a person can override it per revision with signOffReadinessCheck) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from getWorkspace (null while the project uses the defaults). Use previewReadinessChecks first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.
+Project administrators: publish the next version of the project's Definition of Ready. `rules` maps a work item type id to its complete list of checks; types left out use Lictory's defaults. Check kinds: specification, no_blocking_threads, reviews_requested, reviews_approved, children_ready (each at most once per type), section (`heading` must exist and not be empty), discipline_approval (`disciplineIds` approved the current revision), intelligence_review (an automated check, never an approval: the latest Lictory Intelligence review of the item analysed its current revision and found no finding at or above `severity`, `blocker` or `major`; at most once per type and only beside reviews_approved, discipline_approval or manual; a person can override it per revision with [signOffReadinessCheck](/reference/mcp/work-items#signoffreadinesscheck)) and manual (a named sign-off by someone in `disciplineIds`, or anyone holding a discipline when empty). `baseRevisionId` is the current version id from [getWorkspace](/reference/mcp/organization#getworkspace) (null while the project uses the defaults). Use [previewReadinessChecks](/reference/mcp/projects#previewreadinesschecks) first. Items that are ready or done keep the checks they met; every other item moves to the new checks and becomes ready when they pass.
 
-| Field            | Type           | Required | Description                                                                    |
-| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `baseRevisionId` | string or null | Yes      |                                                                                |
-| `rules`          | object         | Yes      |                                                                                |
-| `summary`        | string         |          |                                                                                |
+| Field            | Type           | Required | Description                                                                                                                                                                           |
+| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                                                                                                                       |
+| `baseRevisionId` | string or null | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `rules`          | object         | Yes      | Checks per work item type id: \{ [typeId]: [checks] \}. Types left out use Lictory's defaults. Preview with previewReadinessChecks.                                                   |
+| `summary`        | string         |          | Why the checks change, kept with the version.                                                                                                                                         |
+
+```json title="publishReadinessChecks arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "rules": {}
+}
+```
 
 ### `archiveProject`
 
@@ -144,8 +213,17 @@ Organization administrators: archive (archived: true) or restore a project. Arch
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string  | Yes      |                                                                                |
-| `archived`       | boolean | Yes      |                                                                                |
+| `projectId`      | string  | Yes      | Project id (from getWorkspace).                                                |
+| `archived`       | boolean | Yes      | true archives it; false restores it.                                           |
+
+```json title="archiveProject arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "archived": true
+}
+```
 
 ### `setProjectMember`
 
@@ -157,9 +235,19 @@ Project administrators: add a person to the project as `admin` or `member`, chan
 | ---------------- | ----------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                        | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                            |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                        | Yes      |                                                                                |
-| `userId`         | string                        | Yes      |                                                                                |
-| `role`           | `"admin"`, `"member"` or null | Yes      |                                                                                |
+| `projectId`      | string                        | Yes      | Project id (from getWorkspace).                                                |
+| `userId`         | string                        | Yes      | A member's user id (from getWorkspace or searchMembers).                       |
+| `role`           | `"admin"`, `"member"` or null | Yes      | admin or member; null removes the person from the project and its disciplines. |
+
+```json title="setProjectMember arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "role": "admin"
+}
+```
 
 ### `createDiscipline`
 
@@ -171,11 +259,27 @@ Project administrators: add a work discipline (e.g. Security) with the work item
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string | Yes      |                                                                                |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                |
 | `disciplineId`   | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string | Yes      |                                                                                |
-| `description`    | string |          |                                                                                |
-| `capabilities`   | object | Yes      |                                                                                |
+| `name`           | string | Yes      | Discipline name, such as QA; it names the review responsibility.               |
+| `description`    | string |          | What the discipline covers.                                                    |
+| `capabilities`   | object | Yes      | What its members may do with the project's work items.                         |
+
+```json title="createDiscipline arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments",
+  "capabilities": {
+    "editSpecifications": true,
+    "changeProperties": true,
+    "requestReviews": true,
+    "review": true,
+    "publishDelivery": true
+  }
+}
+```
 
 ### `updateDiscipline`
 
@@ -187,12 +291,21 @@ Project administrators: rename, describe, change capabilities, archive or restor
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `disciplineId`   | string         | Yes      |                                                                                |
-| `name`           | string         |          |                                                                                |
-| `description`    | string or null |          |                                                                                |
-| `capabilities`   | object         |          |                                                                                |
-| `archived`       | boolean        |          |                                                                                |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                |
+| `disciplineId`   | string         | Yes      | Discipline id (from getWorkspace).                                             |
+| `name`           | string         |          | New discipline name.                                                           |
+| `description`    | string or null |          | New description; null clears it.                                               |
+| `capabilities`   | object         |          | What its members may do with the project's work items (the complete set).      |
+| `archived`       | boolean        |          | true archives it; false restores it.                                           |
+
+```json title="updateDiscipline arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "disciplineId": "188a283a-d2e4-4317-ac13-bea0312ca218"
+}
+```
 
 ### `setDisciplineMember`
 
@@ -200,14 +313,25 @@ Project administrators: rename, describe, change capabilities, archive or restor
 
 Project administrators: add or remove a person from a discipline. Adding someone also makes them a project member.
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string  | Yes      |                                                                                |
-| `disciplineId`   | string  | Yes      |                                                                                |
-| `userId`         | string  | Yes      |                                                                                |
-| `member`         | boolean | Yes      |                                                                                |
+| Field            | Type    | Required | Description                                                                        |
+| ---------------- | ------- | -------- | ---------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                              |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.     |
+| `projectId`      | string  | Yes      | Project id (from getWorkspace).                                                    |
+| `disciplineId`   | string  | Yes      | Discipline id (from getWorkspace).                                                 |
+| `userId`         | string  | Yes      | A member's user id (from getWorkspace or searchMembers).                           |
+| `member`         | boolean | Yes      | true adds the person (and to the project); false removes them from the discipline. |
+
+```json title="setDisciplineMember arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "disciplineId": "188a283a-d2e4-4317-ac13-bea0312ca218",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "member": true
+}
+```
 
 ### `createLabel`
 
@@ -219,10 +343,20 @@ Create a project label.
 | ---------------- | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                                                                            | Yes      |                                                                                |
+| `projectId`      | string                                                                            | Yes      | Project id (from getWorkspace).                                                |
 | `labelId`        | id                                                                                |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string                                                                            | Yes      |                                                                                |
-| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      |                                                                                |
+| `name`           | string                                                                            | Yes      | Label name.                                                                    |
+| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      | Label color.                                                                   |
+
+```json title="createLabel arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments",
+  "color": "gray"
+}
+```
 
 ### `updateLabel`
 
@@ -234,11 +368,20 @@ Rename, recolor, archive or restore a project label.
 | ---------------- | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                                                                            | Yes      |                                                                                |
-| `labelId`        | string                                                                            | Yes      |                                                                                |
-| `name`           | string                                                                            |          |                                                                                |
-| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          |                                                                                |
-| `archived`       | boolean                                                                           |          |                                                                                |
+| `projectId`      | string                                                                            | Yes      | Project id (from getWorkspace).                                                |
+| `labelId`        | string                                                                            | Yes      | Label id (from listLabels).                                                    |
+| `name`           | string                                                                            |          | New label name.                                                                |
+| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          | New label color.                                                               |
+| `archived`       | boolean                                                                           |          | true archives it; false restores it.                                           |
+
+```json title="updateLabel arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "labelId": "e5b488e2-22fe-4999-a71e-d8109d43758d"
+}
+```
 
 ### `createMilestone`
 
@@ -250,10 +393,20 @@ Create a project milestone with an optional target date.
 | ---------------- | ------------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string       | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id           |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string       | Yes      |                                                                                |
+| `projectId`      | string       | Yes      | Project id (from getWorkspace).                                                |
 | `milestoneId`    | id           |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string       | Yes      |                                                                                |
-| `targetDate`     | date or null | Yes      |                                                                                |
+| `name`           | string       | Yes      | Milestone name.                                                                |
+| `targetDate`     | date or null | Yes      | Target date (YYYY-MM-DD) or null for none.                                     |
+
+```json title="createMilestone arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments",
+  "targetDate": "targetDate"
+}
+```
 
 ### `updateMilestone`
 
@@ -265,12 +418,21 @@ Rename, reschedule, change status, archive or restore a milestone.
 | ---------------- | ----------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                                | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                                    |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                                                | Yes      |                                                                                |
-| `milestoneId`    | string                                                | Yes      |                                                                                |
-| `name`           | string                                                |          |                                                                                |
-| `targetDate`     | date or null                                          |          |                                                                                |
-| `status`         | `"planned"`, `"active"`, `"completed"`, `"cancelled"` |          |                                                                                |
-| `archived`       | boolean                                               |          |                                                                                |
+| `projectId`      | string                                                | Yes      | Project id (from getWorkspace).                                                |
+| `milestoneId`    | string                                                | Yes      | Milestone id (from listMilestones).                                            |
+| `name`           | string                                                |          | New milestone name.                                                            |
+| `targetDate`     | date or null                                          |          | New target date (YYYY-MM-DD); null clears it.                                  |
+| `status`         | `"planned"`, `"active"`, `"completed"`, `"cancelled"` |          | Milestone status.                                                              |
+| `archived`       | boolean                                               |          | true archives it; false restores it.                                           |
+
+```json title="updateMilestone arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "milestoneId": "44d38d45-5e2d-4c45-a1b4-218019eab39a"
+}
+```
 
 ### `createTeam`
 
@@ -282,10 +444,19 @@ Project administrators: create a team, a group of people working on one vertical
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string | Yes      |                                                                                |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                |
 | `teamId`         | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string | Yes      |                                                                                |
-| `description`    | string |          |                                                                                |
+| `name`           | string | Yes      | Team name.                                                                     |
+| `description`    | string |          | What the team works on.                                                        |
+
+```json title="createTeam arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments"
+}
+```
 
 ### `updateTeam`
 
@@ -297,11 +468,20 @@ Project administrators: rename or describe a team, or archive/restore it. Archiv
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `teamId`         | string         | Yes      |                                                                                |
-| `name`           | string         |          |                                                                                |
-| `description`    | string or null |          |                                                                                |
-| `archived`       | boolean        |          |                                                                                |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                |
+| `teamId`         | string         | Yes      | Team id (from getWorkspace).                                                   |
+| `name`           | string         |          | New team name.                                                                 |
+| `description`    | string or null |          | New description; null clears it.                                               |
+| `archived`       | boolean        |          | true archives it; false restores it.                                           |
+
+```json title="updateTeam arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "teamId": "73672067-345a-4307-a325-8154b2b650a6"
+}
+```
 
 ### `setTeamMembership`
 
@@ -313,10 +493,21 @@ Project administrators: add or remove a team member. Adding someone also makes t
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string  | Yes      |                                                                                |
-| `teamId`         | string  | Yes      |                                                                                |
-| `userId`         | string  | Yes      |                                                                                |
-| `member`         | boolean | Yes      |                                                                                |
+| `projectId`      | string  | Yes      | Project id (from getWorkspace).                                                |
+| `teamId`         | string  | Yes      | Team id (from getWorkspace).                                                   |
+| `userId`         | string  | Yes      | A member's user id (from getWorkspace or searchMembers).                       |
+| `member`         | boolean | Yes      | true adds the person to the team; false removes them.                          |
+
+```json title="setTeamMembership arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "teamId": "73672067-345a-4307-a325-8154b2b650a6",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "member": true
+}
+```
 
 ### `setProjectType`
 
@@ -328,9 +519,19 @@ Project administrators: enable or disable an organization work item type in the 
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string  | Yes      |                                                                                |
-| `typeId`         | string  | Yes      |                                                                                |
-| `enabled`        | boolean | Yes      |                                                                                |
+| `projectId`      | string  | Yes      | Project id (from getWorkspace).                                                |
+| `typeId`         | string  | Yes      | Work item type id (from getWorkspace).                                         |
+| `enabled`        | boolean | Yes      | true enables the type in the project; false disables it.                       |
+
+```json title="setProjectType arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "typeId": "462830bc-c392-4549-a4a6-0bf70a5228b4",
+  "enabled": true
+}
+```
 
 ### `createStatus`
 
@@ -342,11 +543,22 @@ Project administrators: add a workflow status in a fixed category (backlog, unst
 | ---------------- | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                                                                            | Yes      |                                                                                |
+| `projectId`      | string                                                                            | Yes      | Project id (from getWorkspace).                                                |
 | `statusId`       | id                                                                                |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string                                                                            | Yes      |                                                                                |
-| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      |                                                                                |
-| `category`       | `"backlog"`, `"unstarted"`, `"started"`, `"done"`, `"canceled"`                   | Yes      |                                                                                |
+| `name`           | string                                                                            | Yes      | Status name, such as In review.                                                |
+| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      | Status color.                                                                  |
+| `category`       | `"backlog"`, `"unstarted"`, `"started"`, `"done"`, `"canceled"`                   | Yes      | Fixed category the status belongs to; boards, readiness and reports use it.    |
+
+```json title="createStatus arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments",
+  "color": "gray",
+  "category": "backlog"
+}
+```
 
 ### `updateStatus`
 
@@ -354,16 +566,25 @@ Project administrators: add a workflow status in a fixed category (backlog, unst
 
 Project administrators: rename, recolor, recategorize or reorder a status.
 
-| Field            | Type                                                                              | Required | Description                                                                    |
-| ---------------- | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string                                                                            | Yes      |                                                                                |
-| `statusId`       | string                                                                            | Yes      |                                                                                |
-| `name`           | string                                                                            |          |                                                                                |
-| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          |                                                                                |
-| `category`       | `"backlog"`, `"unstarted"`, `"started"`, `"done"`, `"canceled"`                   |          |                                                                                |
-| `beforeId`       | string or null                                                                    |          |                                                                                |
+| Field            | Type                                                                              | Required | Description                                                                                         |
+| ---------------- | --------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `organizationId` | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                                               |
+| `mutationId`     | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice.                      |
+| `projectId`      | string                                                                            | Yes      | Project id (from getWorkspace).                                                                     |
+| `statusId`       | string                                                                            | Yes      | Workflow status id (from getWorkspace).                                                             |
+| `name`           | string                                                                            |          | New status name.                                                                                    |
+| `color`          | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          | New status color.                                                                                   |
+| `category`       | `"backlog"`, `"unstarted"`, `"started"`, `"done"`, `"canceled"`                   |          | New category.                                                                                       |
+| `beforeId`       | string or null                                                                    |          | Place it directly before this sibling (same list). Omit both beforeId and afterId to place it last. |
+
+```json title="updateStatus arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "statusId": "96823753-c111-49b4-a645-bb0bf8350958"
+}
+```
 
 ### `archiveStatus`
 
@@ -375,9 +596,19 @@ Project administrators: archive a status, moving its items to `replacementId`.
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string | Yes      |                                                                                |
-| `statusId`       | string | Yes      |                                                                                |
-| `replacementId`  | string | Yes      |                                                                                |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                |
+| `statusId`       | string | Yes      | Workflow status id (from getWorkspace).                                        |
+| `replacementId`  | string | Yes      | Status its items move to (getWorkspace).                                       |
+
+```json title="archiveStatus arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "statusId": "96823753-c111-49b4-a645-bb0bf8350958",
+  "replacementId": "43e7555f-df13-4a87-a4ec-cdfa6c205659"
+}
+```
 
 ### `createIteration`
 
@@ -389,12 +620,24 @@ Plan a sprint in a project that delivers in Lictory with manual sprints (project
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                |
 | `iterationId`    | id             |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`           | string or null | Yes      |                                                                                |
-| `goal`           | string or null | Yes      |                                                                                |
-| `startsAt`       | date           | Yes      |                                                                                |
-| `endsAt`         | date           | Yes      |                                                                                |
+| `name`           | string or null | Yes      | Iteration name; null: numbered automatically.                                  |
+| `goal`           | string or null | Yes      | What the iteration should achieve; null for none.                              |
+| `startsAt`       | date           | Yes      | First day (YYYY-MM-DD).                                                        |
+| `endsAt`         | date           | Yes      | Last day (YYYY-MM-DD).                                                         |
+
+```json title="createIteration arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "name": "payments",
+  "goal": "goal",
+  "startsAt": "startsAt",
+  "endsAt": "endsAt"
+}
+```
 
 ### `updateIteration`
 
@@ -406,12 +649,21 @@ Change an iteration's name, goal or dates.
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `iterationId`    | string         | Yes      |                                                                                |
-| `name`           | string or null |          |                                                                                |
-| `goal`           | string or null |          |                                                                                |
-| `startsAt`       | date           |          |                                                                                |
-| `endsAt`         | date           |          |                                                                                |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                |
+| `iterationId`    | string         | Yes      | Iteration id (from getWorkspace).                                              |
+| `name`           | string or null |          | New name; null: numbered automatically.                                        |
+| `goal`           | string or null |          | New goal; null clears it.                                                      |
+| `startsAt`       | date           |          | New first day (YYYY-MM-DD).                                                    |
+| `endsAt`         | date           |          | New last day (YYYY-MM-DD).                                                     |
+
+```json title="updateIteration arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "iterationId": "8f965c74-6b32-4044-a982-3716d6aeb290"
+}
+```
 
 ### `startIteration`
 
@@ -423,8 +675,17 @@ Start a planned sprint; one iteration per project is active. Start while the ite
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string | Yes      |                                                                                |
-| `iterationId`    | string | Yes      |                                                                                |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                |
+| `iterationId`    | string | Yes      | Iteration id (from getWorkspace).                                              |
+
+```json title="startIteration arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "iterationId": "8f965c74-6b32-4044-a982-3716d6aeb290"
+}
+```
 
 ### `completeIteration`
 
@@ -436,9 +697,19 @@ Complete the active sprint, moving unfinished items to `carryOverTo` (or the bac
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `iterationId`    | string         | Yes      |                                                                                |
-| `carryOverTo`    | string or null | Yes      |                                                                                |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                |
+| `iterationId`    | string         | Yes      | Iteration id (from getWorkspace).                                              |
+| `carryOverTo`    | string or null | Yes      | Iteration that receives unfinished items; null moves them to the backlog.      |
+
+```json title="completeIteration arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "iterationId": "8f965c74-6b32-4044-a982-3716d6aeb290",
+  "carryOverTo": "carryOverTo"
+}
+```
 
 ### `createType`
 
@@ -446,16 +717,28 @@ Complete the active sprint, moving unfinished items to `carryOverTo` (or the bac
 
 Organization administrators: add an organization-wide work item type with a hierarchy level and whether it carries a specification. A parent's level is strictly above its children's: 0 Subtask, 1 Task and Bug, 2 Story, 3 Epic, 4 above Epic. The level cannot change later. It is enabled in every project.
 
-| Field              | Type                                                                              | Required | Description                                                                    |
-| ------------------ | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId`   | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`       | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `typeId`           | id                                                                                |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `name`             | string                                                                            | Yes      |                                                                                |
-| `icon`             | `"epic"`, `"story"`, `"task"`, `"bug"`, `"subtask"`, `"spike"`, `"chore"`         | Yes      |                                                                                |
-| `color`            | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      |                                                                                |
-| `level`            | integer                                                                           | Yes      |                                                                                |
-| `hasSpecification` | boolean                                                                           | Yes      |                                                                                |
+| Field              | Type                                                                              | Required | Description                                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId`   | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                                                                                    |
+| `mutationId`       | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice.                                                           |
+| `typeId`           | id                                                                                |          | Identifier for the new entity. Omit to have one assigned.                                                                                |
+| `name`             | string                                                                            | Yes      | Type name, such as Spike.                                                                                                                |
+| `icon`             | `"epic"`, `"story"`, `"task"`, `"bug"`, `"subtask"`, `"spike"`, `"chore"`         | Yes      | Icon shown with the type.                                                                                                                |
+| `color`            | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` | Yes      | Type color.                                                                                                                              |
+| `level`            | integer                                                                           | Yes      | Hierarchy level, fixed once created: 0 Subtask, 1 Task and Bug, 2 Story, 3 Epic, 4 above Epic. A parent's level is above its children's. |
+| `hasSpecification` | boolean                                                                           | Yes      | true: items of this type carry a specification that is refined, reviewed and checked for readiness.                                      |
+
+```json title="createType arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "name": "payments",
+  "icon": "epic",
+  "color": "gray",
+  "level": 0,
+  "hasSpecification": true
+}
+```
 
 ### `updateType`
 
@@ -467,9 +750,17 @@ Organization administrators: change or archive a work item type.
 | ------------------ | --------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId`   | string                                                                            | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`       | id                                                                                |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `typeId`           | string                                                                            | Yes      |                                                                                |
-| `name`             | string                                                                            |          |                                                                                |
-| `icon`             | `"epic"`, `"story"`, `"task"`, `"bug"`, `"subtask"`, `"spike"`, `"chore"`         |          |                                                                                |
-| `color`            | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          |                                                                                |
-| `hasSpecification` | boolean                                                                           |          |                                                                                |
-| `archived`         | boolean                                                                           |          |                                                                                |
+| `typeId`           | string                                                                            | Yes      | Work item type id (from getWorkspace).                                         |
+| `name`             | string                                                                            |          | New type name.                                                                 |
+| `icon`             | `"epic"`, `"story"`, `"task"`, `"bug"`, `"subtask"`, `"spike"`, `"chore"`         |          | New icon.                                                                      |
+| `color`            | `"gray"`, `"blue"`, `"green"`, `"amber"`, `"red"`, `"purple"`, `"pink"`, `"teal"` |          | New color.                                                                     |
+| `hasSpecification` | boolean                                                                           |          | Whether items of this type carry a specification.                              |
+| `archived`         | boolean                                                                           |          | true archives it; false restores it.                                           |
+
+```json title="updateType arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "typeId": "462830bc-c392-4549-a4a6-0bf70a5228b4"
+}
+```

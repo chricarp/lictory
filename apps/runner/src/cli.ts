@@ -101,7 +101,9 @@ const commands = {
     usage: "lictory-runner status",
     about: [
       "Reads the state the running runner writes on every heartbeat; it does not",
-      "contact the server (lictory-runner doctor does).",
+      "contact the server (lictory-runner doctor does). For scripts: exits 0 while",
+      `it runs, ${EXIT.failed} when it is stopped or not responding, and ${EXIT.needsPerson} when this machine`,
+      "is not registered.",
     ],
     options: {},
     help: [],
@@ -314,6 +316,10 @@ async function register(args: string[]) {
   say(
     `Registered ${registered.name} as ${registered.personal ? "a personal" : "an organization"} runner. Configuration: ${configPath()}`,
   );
+  if (base.isolation === "host")
+    say(
+      "Sessions run directly on this machine as this account (isolation: host), with its files and credentials. To run each session in a container instead, register again with --isolation container --force.",
+    );
   say(
     "Start it with `lictory-runner start`, or keep it running with `lictory-runner install-service --enable`.",
   );
@@ -356,19 +362,25 @@ async function start(args: string[]) {
 async function status(args: string[]) {
   if (!options("status", args)) return;
   const config = await readConfig();
-  if (!config)
-    return say(
+  if (!config) {
+    say(
       "Not registered. Register with: lictory-runner register --url <server> --token <token>",
     );
+    process.exitCode = EXIT.needsPerson;
+    return;
+  }
   say(
     `${config.name} (${config.personal ? "personal" : "organization"} runner) at ${config.url}`,
   );
   const state = await readState();
   const liveness = runnerLiveness(state, { staleAfterMs: STATE_STALE_MS });
-  if (!state || liveness === "stopped")
-    return say(
+  if (!state || liveness === "stopped") {
+    say(
       "Not running. Start it with `lictory-runner start` (or start its service).",
     );
+    process.exitCode = EXIT.failed;
+    return;
+  }
   if (liveness === "unresponsive") {
     say(
       `Not responding: pid ${state.pid} last wrote its state ${when(state.updatedAt ?? state.startedAt)}.`,

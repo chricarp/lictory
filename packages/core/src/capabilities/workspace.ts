@@ -1002,9 +1002,12 @@ const listWorkItems = defineCapability({
       .nullable()
       .optional()
       .describe("A member id, or null for unassigned items."),
-    parentId: id.optional(),
+    parentId: id.optional().describe("Only direct children of this work item."),
     iterationId: id.optional(),
-    refinementState: z.enum(refinementStates).optional(),
+    refinementState: z
+      .enum(refinementStates)
+      .optional()
+      .describe("Only items in this refinement state."),
     lifecycle: z
       .enum([
         "proposal",
@@ -1016,7 +1019,10 @@ const listWorkItems = defineCapability({
         "completed",
         "canceled",
       ])
-      .optional(),
+      .optional()
+      .describe(
+        "Only items at this lifecycle stage, across delivery modes; ready means checks pass and delivery has not started.",
+      ),
     query: z.string().max(120).optional(),
     includeArchived: z.boolean().default(false),
     offset: z.number().int().min(0).default(0),
@@ -1081,9 +1087,21 @@ const getWorkItem = defineCapability({
       key: z
         .string()
         .regex(/^[A-Za-z][A-Za-z0-9]{1,9}-\d+$/)
-        .optional(),
-      includeRevisionContent: z.boolean().default(false),
-      activityLimit: z.number().int().min(0).max(500).default(50),
+        .optional()
+        .describe(
+          "The work item key, such as PAY-142; give workItemId or key.",
+        ),
+      includeRevisionContent: z
+        .boolean()
+        .default(false)
+        .describe("true includes the content of earlier revisions."),
+      activityLimit: z
+        .number()
+        .int()
+        .min(0)
+        .max(500)
+        .default(50)
+        .describe("How many recent activity entries to include."),
     })
     .refine((q) => Boolean(q.workItemId) !== Boolean(q.key), {
       message: "Give exactly one of workItemId or key.",
@@ -1232,7 +1250,11 @@ const getInsights = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    topic: z.enum(insightTopics),
+    topic: z
+      .enum(insightTopics)
+      .describe(
+        "refinement (specification states, reviews, readiness), delivery (status, burndown, velocity, blocked work) or people (workload, pending reviews).",
+      ),
     projectId: id.optional(),
     teamId: id.optional(),
   }),

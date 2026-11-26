@@ -30,6 +30,7 @@ main() {
   channel="${LICTORY_CHANNEL:-stable}"
   version="${LICTORY_VERSION:-}"
 
+  case "${1:-}" in -h | --help) usage; return 0 ;; esac
   [ "$(uname -s)" = Linux ] || fail "Lictory servers run Linux; this is $(uname -s)."
   [ "$(id -u)" = 0 ] || fail "Run as root: curl -fsSL <url> | sudo sh"
   case "$(uname -m)" in
@@ -166,6 +167,24 @@ read packages, then re-run:  docker login ${registry%%/*}" ;;
     bash "$work/bundle/bin/lictory" bootstrap --bundle "$work/bundle" --release-file "$work/release.env" </dev/null
 }
 
+usage() {
+  cat <<'EOF'
+Usage: curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh
+       sudo lictory install
+
+Installs the lictory command and host tooling on a Linux server from a
+published release (its digests verified), without starting anything;
+`sudo lictory install` then asks for the settings and deploys. Safe to re-run.
+
+Settings are environment variables (curl … | sudo LICTORY_CHANNEL=nightly sh):
+  LICTORY_CHANNEL   stable (default) or nightly
+  LICTORY_VERSION   a release version such as 1.4.2 (instead of the newest)
+  LICTORY_ROOT      tooling and environment root (default /srv/lictory)
+  DEPLOY_USER       unprivileged user that runs releases (default deploy)
+  LICTORY_ENV       environment name prepared for `lictory install` (default production)
+  GITHUB_TOKEN      a token that can read the repository (a private fork)
+EOF
+}
 say() { printf '%s\n' "$*"; }
 fail() {
   printf 'lictory get.sh: %s\n' "$*" >&2

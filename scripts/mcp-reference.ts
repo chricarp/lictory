@@ -4,6 +4,7 @@
 // offers.
 // Usage: bun run mcp:docs                           rewrite the reference
 //        bun scripts/mcp-reference.ts --check       fail when it is stale
+import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -69,6 +70,29 @@ function prose(text: string) {
     .join("");
 }
 const cell = (text: string) => prose(text).replaceAll("|", "\\|");
+
+// Where each tool is documented, so prose can link the tools it names.
+const homes = new Map<string, string>();
+const toolLink = (name: string) =>
+  `/reference/mcp/${homes.get(name)}#${name.toLowerCase()}`;
+const toolName = /\b[a-z][A-Za-z]+\b/g;
+
+// Prose with every other tool it names linked to that tool's section, the
+// way a reader moves from claimItem to renewClaim.
+function linked(text: string, self?: string) {
+  return prose(text)
+    .split("`")
+    .map((part, index) =>
+      index % 2 === 1
+        ? part
+        : part.replace(toolName, (word) =>
+            homes.has(word) && word !== self
+              ? `[${word}](${toolLink(word)})`
+              : word,
+          ),
+    )
+    .join("`");
+}
 
 // ------------------------------------------------------------- tool groups
 
@@ -196,6 +220,7 @@ type Schema = {
   description?: string;
   format?: string;
   default?: unknown;
+  minimum?: number;
 };
 
 function typeOf(schema: Schema): string {
@@ -251,6 +276,66 @@ function facts(capability: AnyCapability, schema: Schema) {
   return facts.join(" · ");
 }
 
+// ------------------------------------------------------------- examples
+
+// Example values by field name, so an example call reads like one.
+const sampleValues: Record<string, unknown> = {
+  organizationId: "acme",
+  workItemId: "PAY-142",
+  projectId: "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  mutationId: "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  title: "Retry failed refunds once",
+  name: "payments",
+  query: "refund",
+  q: "refund",
+  body: "Can a refund be retried after settlement?",
+  note: "Tests for the retry window pass; next: the settlement case.",
+  question: "Does a retry reuse the original transaction id?",
+  section: "Failure behavior",
+  content: "## Problem\n\nRefunds that time out are never retried.",
+  description: "## Problem\n\nRefunds that time out are never retried.",
+  message: "Define the retry window",
+  prompt: "Implement PAY-142 and open a pull request.",
+  after: "latest",
+};
+
+// A stable, valid-looking UUID for an example identifier.
+function sampleId(field: string) {
+  const hex = createHash("sha256").update(field).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function sampleOf(field: string, schema: Schema): unknown {
+  if (field in sampleValues) return sampleValues[field];
+  if (schema.enum) return schema.enum[0];
+  if (schema.const !== undefined) return schema.const;
+  const variants = (schema.anyOf ?? schema.oneOf ?? []).filter(
+    (v) => v.type !== "null",
+  );
+  if (variants.length) return sampleOf(field, variants[0]!);
+  const type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
+  if (type === "boolean") return true;
+  if (type === "integer" || type === "number") return schema.minimum ?? 1;
+  if (type === "array")
+    return schema.items
+      ? [sampleOf(field.replace(/s$/, ""), schema.items)]
+      : [];
+  if (type === "object") return sampleArguments(schema);
+  if (/Ids?$/.test(field) || schema.format === "uuid") return sampleId(field);
+  return field;
+}
+
+// The required fields (and the retry key, a habit worth copying).
+function sampleArguments(schema: Schema) {
+  const required = new Set(schema.required ?? []);
+  const properties = Object.entries(schema.properties ?? {}).filter(
+    ([name]) => required.has(name) || name === "mutationId",
+  );
+  return Object.fromEntries(
+    properties.map(([name, field]) => [name, sampleOf(name, field)]),
+  );
+}
+
 function tool(capability: AnyCapability) {
   const schema = inputSchemaOf(capability) as Schema;
   const properties = Object.entries(schema.properties ?? {});
@@ -260,7 +345,7 @@ function tool(capability: AnyCapability) {
     "",
     `**${prose(capability.title)}.** ${facts(capability, schema)}`,
     "",
-    prose(capability.description),
+    linked(capability.description, capability.name),
     "",
   ];
   if (properties.length)
@@ -274,6 +359,12 @@ function tool(capability: AnyCapability) {
       "",
     );
   else lines.push("No fields.", "");
+  lines.push(
+    `\`\`\`json title="${capability.name} arguments"`,
+    JSON.stringify(sampleArguments(schema), null, 2),
+    "```",
+    "",
+  );
   return lines;
 }
 
@@ -287,13 +378,83 @@ function frontmatter(title: string, description: string) {
   ];
 }
 
+// The tools most work starts with, by task. Every name must be a tool.
+const commonTasks: [string, string][] = [
+  [
+    "Find your way around",
+    "listOrganizations, then getWorkspace (projects, statuses, types, members and their ids)",
+  ],
+  ["Read work", "listWorkItems, getWorkItem, searchKnowledge"],
+  [
+    "Know what was agreed",
+    "searchProductKnowledge, getDecisions, getWorkItemKnowledge",
+  ],
+  [
+    "Propose a specification change",
+    "createBranch → commitBranch → createPullRequest",
+  ],
+  ["Discuss", "createThread, replyToThread, askQuestion"],
+  [
+    "Implement agreed work",
+    "listClaimableItems → claimItem → reportProgress or renewClaim → releaseClaim; getDefinitionOfDone says what finishing means",
+  ],
+  [
+    "Work with code",
+    "getWorkItemCode, createCodeBranch, openCodePullRequest, getCodePullRequest",
+  ],
+  [
+    "Talk in channels",
+    "listChannels, readChannel, postChannelMessage, replyInThread",
+  ],
+  ["Be woken instead of polling", "listEvents, then waitForEvents in a loop"],
+  ["Tell a person where to do something", "listHumanOnlyOperations"],
+];
+
+const exampleClaim = {
+  claimId: "0c5e7a52-8f1b-4c3d-9e2a-7b6f5d4c3b2a",
+  workItemId: "9d2f4b61-3a7e-4c58-8b19-6e0a2d3c4f5b",
+  key: "PAY-142",
+  state: "active",
+  status: "In progress",
+  leaseExpiresAt: "2026-11-26T10:15:00.000Z",
+};
+const exampleCall = {
+  request: {
+    jsonrpc: "2.0",
+    id: 7,
+    method: "tools/call",
+    params: {
+      name: "claimItem",
+      arguments: {
+        organizationId: "acme",
+        workItemId: "PAY-142",
+        mutationId: "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+      },
+    },
+  },
+  response: {
+    jsonrpc: "2.0",
+    id: 7,
+    result: {
+      content: [{ type: "text", text: JSON.stringify(exampleClaim) }],
+      structuredContent: exampleClaim,
+      isError: false,
+    },
+  },
+};
+
 function toolPages() {
   const tools = listCapabilities("mcp");
   const placed = new Map<string, AnyCapability[]>();
   for (const capability of tools) {
     const home = groups.find((g) => g.test(capability))!;
     placed.set(home.slug, [...(placed.get(home.slug) ?? []), capability]);
+    homes.set(capability.name, home.slug);
   }
+  for (const [task, names] of commonTasks)
+    for (const name of names.match(toolName) ?? [])
+      if (/[A-Z]/.test(name) && !homes.has(name))
+        throw new Error(`“${task}” names ${name}, which is not an MCP tool.`);
   const used = groups.filter((g) => placed.has(g.slug));
   const pages = new Map<string, string>();
   for (const g of used) {
@@ -321,7 +482,23 @@ function toolPages() {
     "",
     `Lictory's MCP server (\`POST /api/mcp\`, Streamable HTTP) offers ${tools.length} tools, generated from the same capabilities the browser uses. A token sees only the tools it may call: read tokens see queries, an agent's token never sees a person's decisions, and an agent limited to some projects never sees an operation that cannot name one of them. [AI agents and MCP](/integrations/agents) explains how to connect.`,
     "",
+    "## Start here",
+    "",
+    "| To | Use |",
+    "| --- | --- |",
+    ...commonTasks.map(([task, tools]) => `| ${task} | ${linked(tools)} |`),
+    "",
     "## Calling tools",
+    "",
+    "A call is a JSON-RPC `tools/call` request with the tool's name and arguments. The result carries the output twice, as the MCP specification asks: as JSON text in `content` for clients that read text, and as `structuredContent`.",
+    "",
+    '```json title="Request"',
+    JSON.stringify(exampleCall.request, null, 2),
+    "```",
+    "",
+    '```json title="Result"',
+    JSON.stringify(exampleCall.response, null, 2),
+    "```",
     "",
     "- **Identifiers.** `organizationId` takes an organization's id or slug. Wherever a tool takes `workItemId`, a work item key such as `PAY-142` works too.",
     "- **Retries.** Write tools that take a `mutationId` (a UUID you choose) replay their first result when called again with the same value, so nothing is applied twice; the result says `replayed: true`. Write tools without one are marked below as safe to repeat, or say to read the current state first.",
@@ -355,19 +532,19 @@ function toolPages() {
         `| ${cell(o.title)} (\`${o.name}\`) | ${cell(o.explanation)} | ${cell(o.where)} |`,
     ),
     "",
-    "## Tools",
+    "## Tools by area",
+    "",
+    "Each area has its own page with every tool's fields and example arguments.",
     "",
     ...used.flatMap((g) => [
-      `### [${g.title}](/reference/mcp/${g.slug})`,
+      `### ${prose(g.title)}`,
       "",
-      prose(g.description),
+      `${prose(g.description)} [${placed.get(g.slug)!.length} tools](/reference/mcp/${g.slug}):`,
       "",
-      ...placed
+      placed
         .get(g.slug)!
-        .map(
-          (c) =>
-            `- [\`${c.name}\`](/reference/mcp/${g.slug}#${c.name.toLowerCase()}): ${prose(c.title)}`,
-        ),
+        .map((c) => `[\`${c.name}\`](${toolLink(c.name)})`)
+        .join(", ") + ".",
       "",
     ]),
   ].join("\n");
@@ -376,7 +553,9 @@ function toolPages() {
     "mcp/meta.json",
     JSON.stringify({
       title: "MCP tools",
-      pages: ["index", ...used.map((g) => g.slug)],
+      // The folder itself opens the overview, so the sidebar does not
+      // list "MCP tools" twice.
+      pages: used.map((g) => g.slug),
     }),
   );
   return pages;

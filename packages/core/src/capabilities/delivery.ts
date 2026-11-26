@@ -139,7 +139,11 @@ const describeDeliveryProject = defineCapability({
   input: z.object({
     organizationId,
     connectionId: id,
-    projectKey: z.string().min(1).max(64),
+    projectKey: z
+      .string()
+      .min(1)
+      .max(64)
+      .describe("The Jira project's key, such as PAY (listDeliveryProjects)."),
     projectId: id.optional(),
   }),
   run: (ctx, input) =>
@@ -165,8 +169,16 @@ const setDeliveryTarget = defineCapability({
     organizationId,
     connectionId: id,
     projectId: id,
-    projectKey: z.string().min(1).max(64),
-    typeMapping: z.record(id, z.string().min(1).max(64)),
+    projectKey: z
+      .string()
+      .min(1)
+      .max(64)
+      .describe("The Jira project's key, such as PAY (listDeliveryProjects)."),
+    typeMapping: z
+      .record(id, z.string().min(1).max(64))
+      .describe(
+        "Jira issue type per work item type id: { [typeId]: issue type id from describeDeliveryProject }.",
+      ),
   }),
   async run(ctx, input) {
     const result = await service(ctx).setTarget(ctx.principal.userId, input);
@@ -230,7 +242,13 @@ const publishDelivery = defineCapability({
   external: true,
   input: z.object({
     ...exportScope,
-    overwriteItemIds: z.array(id).max(500).optional(),
+    overwriteItemIds: z
+      .array(id)
+      .max(500)
+      .optional()
+      .describe(
+        "Items edited in Jira since the last hand-off that may be overwritten; others are left as they are and reported.",
+      ),
   }),
   async run(ctx, input) {
     const result = await service(ctx).publish(ctx.principal.userId, input);
@@ -273,7 +291,10 @@ const getDeliveryPublication = defineCapability({
   description: "Status and per-item results of an export.",
   kind: "query",
   surfaces: everywhere,
-  input: z.object({ organizationId, publicationId: id }),
+  input: z.object({
+    organizationId,
+    publicationId: id.describe("The export id (returned by publishDelivery)."),
+  }),
   run: (ctx, input) =>
     service(ctx).publication(
       ctx.principal.userId,
@@ -293,7 +314,12 @@ const linkExternalItem = defineCapability({
   input: z.object({
     organizationId,
     workItemId: id,
-    externalKey: z.string().trim().min(1).max(64),
+    externalKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .describe("The existing issue's key, such as PAY-12."),
   }),
   async run(ctx, input) {
     const result = await service(ctx).linkExisting(ctx.principal.userId, input);

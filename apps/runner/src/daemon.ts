@@ -145,6 +145,7 @@ export async function startDaemon(
     ).catch(() => undefined);
 
   let revoked = false;
+  const heartbeatFailures = failureLog(log, "Heartbeat");
   const beat = async () => {
     // Written before the request too, so a slow server never makes a
     // running runner look stopped.
@@ -164,13 +165,14 @@ export async function startDaemon(
           sessions
             .get(lease.sessionId)
             ?.stop(lease.status === "canceled" ? "canceled" : "lost");
+      heartbeatFailures.ok();
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : String(error);
       if (error instanceof ProtocolError && error.status === 401) {
         revoked = true;
         log(REVOKED_MESSAGE(config));
         stopping.abort();
-      } else log(`Heartbeat failed: ${state.lastError}`);
+      } else heartbeatFailures.fail(state.lastError);
     }
     await saveState();
   };
@@ -191,6 +193,7 @@ export async function startDaemon(
     [...sessions.values()].filter((s) => s.state !== "waiting").length;
 
   let failures = 0;
+  const claimFailures = failureLog(log, "Asking for work");
   while (!stopped.aborted) {
     if (busy() >= config.maxSessions) {
       await delay(1_000, stopped);
@@ -199,6 +202,7 @@ export async function startDaemon(
     try {
       const assignment = await client.claim(MAX_POLL_SECONDS, stopped);
       failures = 0;
+      claimFailures.ok();
       if (!assignment) continue;
       const harness = harnessFor(detected, assignment.agent.harness);
       if (!harness) {
@@ -262,8 +266,9 @@ export async function startDaemon(
       }
       failures++;
       state.lastError = error instanceof Error ? error.message : String(error);
-      log(`Claim failed: ${state.lastError}`);
-      await delay(Math.min(60_000, 1_000 * 2 ** failures), stopped);
+      const wait = Math.min(60_000, 1_000 * 2 ** failures);
+      claimFailures.fail(state.lastError, ` Next try in ${wait / 1000} s.`);
+      await delay(wait, stopped);
     }
   }
 
@@ -277,4 +282,46 @@ export async function startDaemon(
   process.off("SIGTERM", shutdown);
   log("Stopped.");
   return { revoked };
+}
+
+// A failure that repeats (an unreachable server) is logged once in full,
+// then as a short reminder every five minutes, and recovery is logged, so a
+// service journal does not fill with the same sentence.
+export function failureLog(
+  log: (line: string) => void,
+  what: string,
+  remindEveryMs = 5 * 60_000,
+  now = () => Date.now(),
+) {
+  let last: string | null = null;
+  let count = 0;
+  let since = 0;
+  let reminded = 0;
+  return {
+    fail(message: string, next = "") {
+      const at = now();
+      if (message !== last) {
+        last = message;
+        count = 1;
+        since = at;
+        reminded = at;
+        log(`${what} failed: ${message}${next}`);
+        return;
+      }
+      count++;
+      if (at - reminded < remindEveryMs) return;
+      reminded = at;
+      log(
+        `${what} still failing: ${count} attempts since ${new Date(since).toISOString()}.${next}`,
+      );
+    },
+    ok() {
+      if (last)
+        log(
+          `${what} works again after ${count} failed ${count === 1 ? "attempt" : "attempts"}.`,
+        );
+      last = null;
+      count = 0;
+    },
+  };
 }

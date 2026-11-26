@@ -1,7 +1,6 @@
 {
   "title": "MCP tools",
   "pages": [
-    "index",
     "factory",
     "events",
     "slack",

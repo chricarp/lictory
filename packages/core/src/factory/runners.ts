@@ -89,13 +89,20 @@ export async function createRunnerRegistration(
   });
 }
 
-const refused = () =>
-  new DomainError(
-    "forbidden",
-    "This registration token is invalid, expired or already used. Create a new one in Factory → Runners.",
-    undefined,
-    "revoked",
-  );
+// Whoever presents the token holds it, so saying which of these applies
+// reveals nothing they could not try; it tells them whether to retype or
+// create a new token.
+const refusals = {
+  unknown:
+    "This server issued no such registration token. Check that you copied all of it, or create a new one in Factory → Runners.",
+  expired:
+    "This registration token expired. Create a new one in Factory → Runners.",
+  used: "This registration token was already used to register a runner. Create a new one in Factory → Runners.",
+  creator:
+    "The person who created this registration token can no longer add this runner. Create a new one in Factory → Runners.",
+};
+const refused = (why: keyof typeof refusals) =>
+  new DomainError("forbidden", refusals[why], undefined, "revoked");
 
 // Exchanges a registration token for a runner credential, once.
 export async function registerRunner(
@@ -105,7 +112,7 @@ export async function registerRunner(
 ) {
   const { token } = request;
   if (!token.startsWith(REGISTRATION_TOKEN_PREFIX) || token.length > 200)
-    throw refused();
+    throw refused("unknown");
   const digest = hash(token);
   const [registration] = await db
     .select()
@@ -115,7 +122,7 @@ export async function registerRunner(
     !registration ||
     !timingSafeEqual(Buffer.from(registration.tokenHash), Buffer.from(digest))
   )
-    throw refused();
+    throw refused("unknown");
   return factoryWrite(db, registration.organizationId, async (tx) => {
     // Single use under concurrency: only one exchange claims the token.
     const [claimed] = await tx
@@ -129,7 +136,14 @@ export async function registerRunner(
         ),
       )
       .returning();
-    if (!claimed) throw refused();
+    if (!claimed)
+      throw refused(
+        registration.usedAt
+          ? "used"
+          : registration.expiresAt <= now
+            ? "expired"
+            : "used",
+      );
     // The person who created the token must still be a member (and an
     // administrator, for an organization runner).
     const membership = await authorize(
@@ -138,7 +152,7 @@ export async function registerRunner(
       claimed.organizationId,
     ).catch(() => null);
     if (!membership || (!claimed.ownerId && !isAdmin(membership)))
-      throw refused();
+      throw refused("creator");
     const credential = secretFor(RUNNER_CREDENTIAL_PREFIX);
     const [row] = await tx
       .insert(s.runner)

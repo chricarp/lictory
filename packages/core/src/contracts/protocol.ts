@@ -642,11 +642,23 @@ export const projectMemberSchema = z.object({
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
 // Work item capabilities a discipline grants its members in its project.
 export const capabilitySchema = z.object({
-  editSpecifications: z.boolean(),
-  changeProperties: z.boolean(),
-  requestReviews: z.boolean(),
-  review: z.boolean(),
-  publishDelivery: z.boolean(),
+  editSpecifications: z
+    .boolean()
+    .describe(
+      "Create spec-backed items, save revisions, rename and merge suggestions.",
+    ),
+  changeProperties: z
+    .boolean()
+    .describe(
+      "Change status, priority, owner, labels, milestones, order and iteration planning, and manage plain work items.",
+    ),
+  requestReviews: z.boolean().describe("Request and cancel reviews."),
+  review: z
+    .boolean()
+    .describe("Can be assigned reviews (the discipline or its members)."),
+  publishDelivery: z
+    .boolean()
+    .describe("Hand work off to the project's delivery tool."),
 });
 export type Capabilities = z.infer<typeof capabilitySchema>;
 export const capabilityKeys = Object.keys(
@@ -964,7 +976,9 @@ export const readinessHistorySchema = z.object({
 export const readinessPreviewQuerySchema = z.object({
   organizationId: id,
   projectId: id,
-  rules: readinessRulesSchema,
+  rules: readinessRulesSchema.describe(
+    "The checks to try, per work item type id: { [typeId]: [checks] } (as for publishReadinessChecks).",
+  ),
 });
 export const directorySchema = z.object({
   organizations: z.array(
@@ -1184,18 +1198,33 @@ export const workItemPageSourceSchema = z.strictObject({
     .max(128)
     .regex(/^[A-Za-z0-9_-]+$/, "Use the block's id.")
     .nullable()
-    .optional(),
-  quote: z.string().trim().min(1).max(PAGE_SOURCE_QUOTE_MAX).optional(),
+    .optional()
+    .describe("The block of that commit the item comes from."),
+  quote: z
+    .string()
+    .trim()
+    .min(1)
+    .max(PAGE_SOURCE_QUOTE_MAX)
+    .optional()
+    .describe("The exact text the item comes from."),
 });
 export type WorkItemPageSource = z.infer<typeof workItemPageSourceSchema>;
 // The work item revision a page branch is opened from.
 export const pageBranchOriginSchema = z.strictObject({
   workItemId: id,
-  revisionId: id,
+  revisionId: id.describe("The item revision the change documents."),
   // What the change is ("Document the finance approval time"): names the
   // proposal before it has a pull request, and is that pull request's
   // default title.
-  title: z.string().trim().min(1).max(200).optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'What the change is, such as "Document the finance approval time"; the pull request\'s default title.',
+    ),
 });
 export const pageMergeBlockers = [
   "draft",
@@ -1564,31 +1593,88 @@ const projectKey = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z][A-Z0-9]{1,9}$/, "Use 2-10 letters or digits, e.g. PAY.");
+// Project delivery settings, shared by project setup and updateProject.
+const deliveryModeField = z
+  .enum(deliveryModes)
+  .describe(
+    "native: delivered in Lictory (board, backlog, iterations); external: handed off to a delivery tool such as Jira, which then owns status.",
+  );
+const readinessPolicyField = z
+  .enum(readinessPolicies)
+  .describe(
+    "What happens when a specification that is not Ready moves into a started status: off (informative), warn (allowed and recorded) or block (refused).",
+  );
+const estimateScaleField = z
+  .enum(estimateScales)
+  .describe("How work is estimated; none turns estimates off.");
+const iterationModeField = z
+  .enum(iterationModes)
+  .describe(
+    "off: no iterations; manual: sprints people start and complete; automatic: cycles scheduled for you.",
+  );
+const iterationWeeksField = z
+  .number()
+  .int()
+  .min(1)
+  .max(8)
+  .describe("Length of an iteration in weeks.");
+const iterationStartDayField = z
+  .number()
+  .int()
+  .min(0)
+  .max(6)
+  .describe("Weekday iterations start on: 0 Sunday, 1 Monday … 6 Saturday.");
 export const projectSettingsSchema = z.object({
-  deliveryMode: z.enum(deliveryModes),
-  readinessPolicy: z.enum(readinessPolicies),
-  estimateScale: z.enum(estimateScales),
-  iterationMode: z.enum(iterationModes),
-  iterationWeeks: z.number().int().min(1).max(8),
-  iterationStartDay: z.number().int().min(0).max(6),
-  upcomingIterations: z.number().int().min(0).max(6),
-  aiActionPolicy: z.enum(aiActionPolicies),
-  mergeReadyNotice: z.boolean(),
+  deliveryMode: deliveryModeField,
+  readinessPolicy: readinessPolicyField,
+  estimateScale: estimateScaleField,
+  iterationMode: iterationModeField,
+  iterationWeeks: iterationWeeksField,
+  iterationStartDay: iterationStartDayField,
+  upcomingIterations: z
+    .number()
+    .int()
+    .min(0)
+    .max(6)
+    .describe("Automatic cycles: how many future cycles to keep scheduled."),
+  aiActionPolicy: z
+    .enum(aiActionPolicies)
+    .describe(
+      "Lictory Intelligence review of pull requests: off (only when asked), advisory (automatic, findings inform) or required (merge waits for a completed run on the current head).",
+    ),
+  mergeReadyNotice: z
+    .boolean()
+    .describe(
+      "Notify the author and collaborators when a pull request becomes ready to merge.",
+    ),
 });
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 export const onboardingSetupSchema = z
   .object({
-    deliveryMode: z.enum(deliveryModes),
-    readinessPolicy: z.enum(readinessPolicies),
-    estimateScale: z.enum(estimateScales),
-    iterationMode: z.enum(iterationModes),
-    iterationWeeks: z.number().int().min(1).max(8),
-    iterationStartDay: z.number().int().min(0).max(6),
+    deliveryMode: deliveryModeField,
+    readinessPolicy: readinessPolicyField,
+    estimateScale: estimateScaleField,
+    iterationMode: iterationModeField,
+    iterationWeeks: iterationWeeksField,
+    iterationStartDay: iterationStartDayField,
     // Older clients did not ask for Lictory Intelligence consent; preserve
     // their existing policy.
-    aiEnabled: z.boolean().optional(),
+    aiEnabled: z
+      .boolean()
+      .optional()
+      .describe(
+        "Turn Lictory Intelligence on for the organization; omitted keeps the current policy.",
+      ),
     // Invitations are Better Auth operations sent after setup commits.
-    invitations: z.number().int().min(0).max(50).default(0),
+    invitations: z
+      .number()
+      .int()
+      .min(0)
+      .max(50)
+      .default(0)
+      .describe(
+        "How many people the creator invited during setup, recorded with the setup; the invitations themselves are sent from the browser.",
+      ),
   })
   .refine(
     (s) =>
@@ -1598,6 +1684,9 @@ export const onboardingSetupSchema = z
       message:
         "Projects delivered in an external tool plan and estimate there.",
     },
+  )
+  .describe(
+    "First-run settings of the project; omitted: Lictory's defaults. External delivery needs iterationMode off and estimateScale none.",
   );
 export type OnboardingSetup = z.infer<typeof onboardingSetupSchema>;
 
@@ -1660,37 +1749,97 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createSpace"),
     spaceId: z.uuid(),
-    name: text.max(120),
-    slug: spaceSlug,
-    description: z.string().trim().max(2000).optional(),
-    icon: z.string().trim().min(1).max(32).optional(),
-    home: spaceHome.optional(),
-    accessMode: z.enum(spaceAccessModes).optional(),
-    publishing: z.enum(spacePublishingPolicies).optional(),
+    name: text.max(120).describe("Space name shown to people."),
+    slug: spaceSlug.describe(
+      "Short address of the space, unique in the organization, such as payments-handbook.",
+    ),
+    description: z
+      .string()
+      .trim()
+      .max(2000)
+      .optional()
+      .describe("What the space is for."),
+    icon: z
+      .string()
+      .trim()
+      .min(1)
+      .max(32)
+      .optional()
+      .describe("An emoji or short symbol shown with the name."),
+    home: spaceHome
+      .optional()
+      .describe(
+        "Where the space lives: {} the organization, { projectId } a project, { projectId, teamId } a team. Members of the home can edit by default.",
+      ),
+    accessMode: z
+      .enum(spaceAccessModes)
+      .optional()
+      .describe(
+        "inherited: the home's members can read and edit; restricted: only people named with setSpaceGrant.",
+      ),
+    publishing: z
+      .enum(spacePublishingPolicies)
+      .optional()
+      .describe(
+        "direct: editors publish changes themselves; reviewed: changes to main go through a pull request.",
+      ),
   }),
   // Editors change name, slug, description and icon; home and publishing
   // are administrators' decisions.
   z.object({
     type: z.literal("updateSpace"),
     spaceId: id,
-    name: text.max(120).optional(),
-    slug: spaceSlug.optional(),
-    description: z.string().trim().max(2000).nullable().optional(),
-    icon: z.string().trim().min(1).max(32).nullable().optional(),
-    home: spaceHome.optional(),
-    publishing: z.enum(spacePublishingPolicies).optional(),
+    name: text.max(120).optional().describe("New space name."),
+    slug: spaceSlug
+      .optional()
+      .describe("New short address of the space, unique in the organization."),
+    description: z
+      .string()
+      .trim()
+      .max(2000)
+      .nullable()
+      .optional()
+      .describe("New description; null clears it."),
+    icon: z
+      .string()
+      .trim()
+      .min(1)
+      .max(32)
+      .nullable()
+      .optional()
+      .describe("New emoji or short symbol; null clears it."),
+    home: spaceHome
+      .optional()
+      .describe(
+        "New home: {} the organization, { projectId } a project, { projectId, teamId } a team. Administrators only.",
+      ),
+    publishing: z
+      .enum(spacePublishingPolicies)
+      .optional()
+      .describe(
+        "direct or reviewed (pull requests into main). Administrators only.",
+      ),
   }),
   z.object({
     type: z.literal("setSpaceAccessMode"),
     spaceId: id,
-    accessMode: z.enum(spaceAccessModes),
+    accessMode: z
+      .enum(spaceAccessModes)
+      .describe(
+        "inherited: the home's members can read and edit; restricted: only people named with setSpaceGrant.",
+      ),
   }),
   // null removes the person's named access.
   z.object({
     type: z.literal("setSpaceGrant"),
     spaceId: id,
     userId: id,
-    level: z.enum(spaceAccessLevels).nullable(),
+    level: z
+      .enum(spaceAccessLevels)
+      .nullable()
+      .describe(
+        "view, comment or edit; null removes the person's named access.",
+      ),
   }),
   z.object({
     type: z.literal("archiveSpace"),
@@ -1703,28 +1852,46 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createPage"),
     spaceId: id,
     pageId: z.uuid(),
-    parentId: id.nullable().optional(),
-    title: pageTitle,
+    parentId: id
+      .nullable()
+      .optional()
+      .describe(
+        "Page to create it under, in the same space; omitted or null: top level.",
+      ),
+    title: pageTitle.describe("Page title."),
     // Starting content (canonical page JSON, e.g. a template); absent: an
     // empty page. It becomes the page's first version.
-    content: pageNodeInput.optional(),
+    content: pageNodeInput
+      .optional()
+      .describe(
+        "Starting content as canonical page JSON (a Tiptap document), such as a template; omitted: an empty page.",
+      ),
     // Also links the new page as a context page of the project, one of its
     // teams or iterations, in the same transaction (both or neither), with
     // the rules of `linkContextPage`: iteration notes are created this way.
     contextLink: z
       .strictObject({
         projectId: id,
-        linkId: z.uuid(),
+        linkId: z
+          .uuid()
+          .describe("Identifier for the new context link (a UUID you choose)."),
         teamId: id.nullable().optional(),
         iterationId: id.nullable().optional(),
       })
-      .optional(),
+      .optional()
+      .describe(
+        "Also keep the new page as a context page of a project ({ projectId, linkId }), one of its teams (teamId) or iterations (iterationId).",
+      ),
     ...pagePosition,
   }),
   z.object({
     type: z.literal("movePage"),
     pageId: id,
-    parentId: id.nullable(),
+    parentId: id
+      .nullable()
+      .describe(
+        "New parent page in the same space; null moves it to the top level.",
+      ),
     ...pagePosition,
   }),
   // Archiving hides the page and its subtree; restoring brings back what
@@ -1742,9 +1909,18 @@ export const commandSchema = z.discriminatedUnion("type", [
     pageId: id,
     threadId: z.uuid(),
     messageId: z.uuid(),
-    anchor: pageThreadAnchorSchema,
-    body: text,
-    blocking: z.boolean().optional(),
+    anchor: pageThreadAnchorSchema.describe(
+      'What the discussion is about: { v: 1, kind: "page" }, a commit range { v: 1, kind: "commit", commitId, blockId, from, to, quote } or a live draft range { v: 1, kind: "draft", draftId, epoch, start, end, quote }.',
+    ),
+    body: text.describe(
+      "First message, in Markdown. Mentions (@[label](mention:USER_ID)) notify people who can read the space.",
+    ),
+    blocking: z
+      .boolean()
+      .optional()
+      .describe(
+        "true: the discussion blocks merging the page's changes until it is resolved.",
+      ),
     // The line the thread was written on; required for draft anchors
     // (the draft's branch) and otherwise optional.
     branchId: id.optional(),
@@ -1756,14 +1932,20 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("replyToPageThread"),
     threadId: id,
     messageId: z.uuid(),
-    body: text,
+    body: text.describe(
+      "Reply, in Markdown. Mentions (@[label](mention:USER_ID)) notify people who can read the space.",
+    ),
   }),
   z.object({ type: z.literal("resolvePageThread"), threadId: id }),
   z.object({ type: z.literal("reopenPageThread"), threadId: id }),
   z.object({
     type: z.literal("setPageThreadBlocking"),
     threadId: id,
-    blocking: z.boolean(),
+    blocking: z
+      .boolean()
+      .describe(
+        "true: the discussion blocks merging until resolved; false: it does not.",
+      ),
   }),
   // Page history (docs/internals/spaces.md#history-commits-branches-and-pull-requests).
   // Seals the live draft of a line at exactly `expectedSequence` (the
@@ -1774,10 +1956,26 @@ export const commandSchema = z.discriminatedUnion("type", [
     pageId: id,
     branchId: id,
     draftId: id,
-    epoch: z.number().int().positive(),
-    expectedSequence: z.number().int().min(0),
-    title: pageTitle,
-    message: pageCommitMessage.optional(),
+    epoch: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        "The draft's epoch you edited (returned with the draft); a new epoch means it was restarted.",
+      ),
+    expectedSequence: z
+      .number()
+      .int()
+      .min(0)
+      .describe(
+        "The draft's stored sequence you last saw; the commit seals exactly that cut.",
+      ),
+    title: pageTitle.describe(
+      "Title of the commit, used only when the draft has no working title of its own.",
+    ),
+    message: pageCommitMessage
+      .optional()
+      .describe("What changed, for the page's history."),
   }),
   // A new commit on the line with an earlier commit's title and content;
   // the line's draft starts a new epoch from it.
@@ -1786,9 +1984,18 @@ export const commandSchema = z.discriminatedUnion("type", [
     pageId: id,
     branchId: id,
     commitId: id,
-    expectedHead: id,
-    discardDraftChanges: z.boolean().optional(),
-    message: pageCommitMessage.optional(),
+    expectedHead: id.describe(
+      "The line's head commit id you inspected; refused if the line moved since.",
+    ),
+    discardDraftChanges: z
+      .boolean()
+      .optional()
+      .describe(
+        "true: restore even though the line's live draft has uncommitted changes (they stay recoverable).",
+      ),
+    message: pageCommitMessage
+      .optional()
+      .describe("Why the version is restored, for the page's history."),
   }),
   // `origin`: the work item revision the branch proposes to document
   // ("Propose page update"), kept with the branch.
@@ -1796,15 +2003,32 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createPageBranch"),
     pageId: id,
     branchId: z.uuid(),
-    name: z.string().trim().min(1).max(80),
-    fromCommitId: id.optional(),
-    origin: pageBranchOriginSchema.optional(),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .describe("Branch name, following Git's branch rules; main is reserved."),
+    fromCommitId: id
+      .optional()
+      .describe(
+        "Commit to start from (listPageCommits); omitted: main's latest commit.",
+      ),
+    origin: pageBranchOriginSchema
+      .optional()
+      .describe(
+        "The work item revision the branch documents, { workItemId, revisionId, title? }, so the item lists the proposal.",
+      ),
   }),
   z.object({
     type: z.literal("setPageBranchCollaborator"),
     branchId: id,
     userId: id,
-    collaborator: z.boolean(),
+    collaborator: z
+      .boolean()
+      .describe(
+        "true invites the person to edit the branch; false removes them.",
+      ),
   }),
   // Deleting a branch removes its discussions (`discussionsOnDelete` of the
   // branch). `discussionsToRemove` is how many the person was shown before
@@ -1812,7 +2036,14 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("deletePageBranch"),
     branchId: id,
-    discussionsToRemove: z.number().int().min(0).optional(),
+    discussionsToRemove: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "How many discussions you were told the deletion removes; refused if that number changed.",
+      ),
   }),
   // Merges another line (main unless `fromBranchId`) into a branch with a
   // merge commit. Conflicts are refused (kind `page_merge_conflicts`; see
@@ -1821,26 +2052,54 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("syncPageBranch"),
     branchId: id,
     fromBranchId: id.optional(),
-    expectedHead: id,
-    expectedTargetHead: id,
-    resolutions: z.record(z.string(), pageMergeResolutionSchema).optional(),
+    expectedHead: id.describe("The branch's head commit id you inspected."),
+    expectedTargetHead: id.describe(
+      "The head commit id of the line you bring in (main or fromBranchId) that you inspected.",
+    ),
+    resolutions: z
+      .record(z.string(), pageMergeResolutionSchema)
+      .optional()
+      .describe(
+        'Choices for merge conflicts, keyed by conflict id from previewPageMerge: "ours", "theirs", "both" or { manual: blocks }; the title conflict takes "ours", "theirs" or { title }.',
+      ),
   }),
   z.object({
     type: z.literal("createPagePullRequest"),
     pageId: id,
     pullRequestId: z.uuid(),
-    sourceBranchId: id,
-    targetBranchId: id.optional(),
-    title: pageTitle,
-    description: z.string().trim().max(20_000).optional(),
-    draft: z.boolean().optional(),
+    sourceBranchId: id.describe(
+      "Page branch with the changes (returned by createPageBranch).",
+    ),
+    targetBranchId: id
+      .optional()
+      .describe("Branch to merge into; omitted: main."),
+    title: pageTitle.describe("Pull request title."),
+    description: z
+      .string()
+      .trim()
+      .max(20_000)
+      .optional()
+      .describe("What the change is and why, in Markdown."),
+    draft: z
+      .boolean()
+      .optional()
+      .describe("true opens it as a draft that cannot be merged yet."),
   }),
   z.object({
     type: z.literal("updatePagePullRequest"),
     pullRequestId: id,
-    title: pageTitle.optional(),
-    description: z.string().trim().max(20_000).nullable().optional(),
-    draft: z.boolean().optional(),
+    title: pageTitle.optional().describe("New title."),
+    description: z
+      .string()
+      .trim()
+      .max(20_000)
+      .nullable()
+      .optional()
+      .describe("New description in Markdown; null clears it."),
+    draft: z
+      .boolean()
+      .optional()
+      .describe("true marks it a draft; false marks it ready for review."),
   }),
   z.object({
     type: z.literal("deletePagePullRequest"),
@@ -1850,7 +2109,9 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("requestPageReview"),
     pullRequestId: id,
     userId: id,
-    required: z.boolean(),
+    required: z
+      .boolean()
+      .describe("true: merging waits for this person's approval."),
   }),
   z.object({
     type: z.literal("cancelPageReview"),
@@ -1861,9 +2122,15 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("decidePagePullRequest"),
     pullRequestId: id,
-    decision: z.enum(["approve", "request_changes", "revoke"]),
-    inspectedSourceHead: id,
-    inspectedTargetHead: id,
+    decision: z
+      .enum(["approve", "request_changes", "revoke"])
+      .describe("approve, request_changes, or revoke your earlier decision."),
+    inspectedSourceHead: id.describe(
+      "The source branch head commit id you reviewed.",
+    ),
+    inspectedTargetHead: id.describe(
+      "The target branch head commit id you reviewed.",
+    ),
   }),
   // Merging removes the source's discussions and the pull request's own
   // (`mergeability.onMerge`); `discussionsToRemove` as for deletePageBranch.
@@ -1872,10 +2139,26 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("mergePagePullRequest"),
     pullRequestId: id,
-    inspectedSourceHead: id,
-    inspectedTargetHead: id,
-    discussionsToRemove: z.number().int().min(0).optional(),
-    deletesSourceBranch: z.boolean().optional(),
+    inspectedSourceHead: id.describe(
+      "The source branch head commit id you inspected; refused if it moved.",
+    ),
+    inspectedTargetHead: id.describe(
+      "The target branch head commit id you inspected; refused if it moved.",
+    ),
+    discussionsToRemove: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "How many discussions you were told the merge removes; refused if that number changed.",
+      ),
+    deletesSourceBranch: z
+      .boolean()
+      .optional()
+      .describe(
+        "Whether you were told the source branch is deleted by the merge; refused if that changed.",
+      ),
   }),
   // Proposes new content for a page without publishing it: a branch from
   // main, a commit with this title and content (Markdown or canonical
@@ -1886,13 +2169,47 @@ export const commandSchema = z.discriminatedUnion("type", [
       pageId: id,
       branchId: z.uuid(),
       pullRequestId: z.uuid(),
-      title: pageTitle,
-      markdown: z.string().max(1_000_000).optional(),
-      content: pageNodeInput.optional(),
-      message: z.string().trim().min(1).max(2000),
-      description: z.string().trim().max(20_000).optional(),
-      branchName: z.string().trim().min(1).max(80).optional(),
-      origin: pageBranchOriginSchema.optional(),
+      title: pageTitle.describe("Title of the page in the proposed version."),
+      markdown: z
+        .string()
+        .max(1_000_000)
+        .optional()
+        .describe(
+          "The complete new page as GitHub-flavoured Markdown. Give markdown or content, not both.",
+        ),
+      content: pageNodeInput
+        .optional()
+        .describe(
+          "The complete new page as canonical Tiptap JSON. Give markdown or content, not both.",
+        ),
+      message: z
+        .string()
+        .trim()
+        .min(1)
+        .max(2000)
+        .describe(
+          "What changed and why; its first line titles the pull request.",
+        ),
+      description: z
+        .string()
+        .trim()
+        .max(20_000)
+        .optional()
+        .describe("Pull request description, in Markdown."),
+      branchName: z
+        .string()
+        .trim()
+        .min(1)
+        .max(80)
+        .optional()
+        .describe(
+          "Name of the branch to create; omitted: one is derived from the message.",
+        ),
+      origin: pageBranchOriginSchema
+        .optional()
+        .describe(
+          "The work item revision the change documents, { workItemId, revisionId, title? }, so the item lists the proposal.",
+        ),
     })
     .refine((c) => (c.markdown === undefined) !== (c.content === undefined), {
       message: "Provide the new page as either markdown or content.",
@@ -1903,17 +2220,30 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createProject"),
     projectId: z.uuid(),
-    name: text.max(120),
-    key: projectKey,
-    description: z.string().trim().max(2000).optional(),
+    name: text.max(120).describe("Project name."),
+    key: projectKey.describe(
+      "Prefix of the project's work item keys: 2-10 letters or digits starting with a letter, such as PAY (items become PAY-1, PAY-2…).",
+    ),
+    description: z
+      .string()
+      .trim()
+      .max(2000)
+      .optional()
+      .describe("What the project is about."),
     setup: onboardingSetupSchema.optional(),
   }),
   // Project administrators.
   z.object({
     type: z.literal("updateProject"),
     projectId: id,
-    name: text.max(120).optional(),
-    description: z.string().trim().max(2000).nullable().optional(),
+    name: text.max(120).optional().describe("New project name."),
+    description: z
+      .string()
+      .trim()
+      .max(2000)
+      .nullable()
+      .optional()
+      .describe("New description; null clears it."),
     ...projectSettingsSchema.partial().shape,
   }),
   // Publishes the next version of the project's Definition of Ready: checks
@@ -1923,8 +2253,15 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("publishReadinessChecks"),
     projectId: id,
     baseRevisionId: id.nullable(),
-    rules: readinessRulesSchema,
-    summary: z.string().trim().max(500).optional(),
+    rules: readinessRulesSchema.describe(
+      "Checks per work item type id: { [typeId]: [checks] }. Types left out use Lictory's defaults. Preview with previewReadinessChecks.",
+    ),
+    summary: z
+      .string()
+      .trim()
+      .max(500)
+      .optional()
+      .describe("Why the checks change, kept with the version."),
   }),
   z.object({
     type: z.literal("archiveProject"),
@@ -1936,23 +2273,49 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("setProjectMember"),
     projectId: id,
     userId: id,
-    role: z.enum(projectRoles).nullable(),
+    role: z
+      .enum(projectRoles)
+      .nullable()
+      .describe(
+        "admin or member; null removes the person from the project and its disciplines.",
+      ),
   }),
   z.object({
     type: z.literal("createDiscipline"),
     projectId: id,
     disciplineId: z.uuid(),
-    name: text.max(60),
-    description: z.string().trim().max(500).optional(),
-    capabilities: capabilitySchema,
+    name: text
+      .max(60)
+      .describe(
+        "Discipline name, such as QA; it names the review responsibility.",
+      ),
+    description: z
+      .string()
+      .trim()
+      .max(500)
+      .optional()
+      .describe("What the discipline covers."),
+    capabilities: capabilitySchema.describe(
+      "What its members may do with the project's work items.",
+    ),
   }),
   z.object({
     type: z.literal("updateDiscipline"),
     projectId: id,
     disciplineId: id,
-    name: text.max(60).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
-    capabilities: capabilitySchema.optional(),
+    name: text.max(60).optional().describe("New discipline name."),
+    description: z
+      .string()
+      .trim()
+      .max(500)
+      .nullable()
+      .optional()
+      .describe("New description; null clears it."),
+    capabilities: capabilitySchema
+      .optional()
+      .describe(
+        "What its members may do with the project's work items (the complete set).",
+      ),
     archived: z.boolean().optional(),
   }),
   // Adding someone to a discipline also adds them to the project.
@@ -1961,7 +2324,11 @@ export const commandSchema = z.discriminatedUnion("type", [
     projectId: id,
     disciplineId: id,
     userId: id,
-    member: z.boolean(),
+    member: z
+      .boolean()
+      .describe(
+        "true adds the person (and to the project); false removes them from the discipline.",
+      ),
   }),
   z.object({
     type: z.literal("createWorkItem"),
@@ -1970,15 +2337,25 @@ export const commandSchema = z.discriminatedUnion("type", [
     typeId: id,
     // Optional team of the project.
     teamId: id.nullable().optional(),
-    parentId: id.nullable(),
-    title: text.max(240),
-    description: document.optional(),
+    parentId: id
+      .nullable()
+      .describe(
+        "Parent work item id or null for none; the parent's type level must be above this type's.",
+      ),
+    title: text.max(240).describe("Work item title."),
+    description: document
+      .optional()
+      .describe("Specification or description, in Markdown."),
     statusId: id.optional(),
     iterationId: id.nullable().optional(),
     assigneeId: id.nullable().optional(),
     // Committed page content the item is created from (provenance, kept
     // immutably with the item).
-    source: workItemPageSourceSchema.optional(),
+    source: workItemPageSourceSchema
+      .optional()
+      .describe(
+        "The committed page content the item is created from, { pageId, commitId, blockId?, quote? }, kept with the item.",
+      ),
   }),
   // Knowledge links (docs/internals/knowledge-links.md). Attaching needs
   // change-properties in the item's project and read access to the page;
@@ -1990,13 +2367,17 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...itemCommand,
     attachmentId: z.uuid(),
     pageId: id,
-    purpose: z.enum(pageAttachmentPurposes),
+    purpose: z
+      .enum(pageAttachmentPurposes)
+      .describe("Why the page is attached: background, design or runbook."),
     commitId: id.nullable().optional(),
   }),
   z.object({
     type: z.literal("detachPage"),
     ...itemCommand,
-    attachmentId: id,
+    attachmentId: id.describe(
+      "The page attachment id (returned by attachPage, or getWorkItemKnowledge).",
+    ),
   }),
   // Context pages of a project, a team (`teamId`) or an iteration
   // (`iterationId`), placed between `afterId` and `beforeId` among the links
@@ -2031,15 +2412,35 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("updateWorkItem"),
     ...itemCommand,
     statusId: id.optional(),
-    refinementState: z.enum(chosenRefinementStates).optional(),
+    refinementState: z
+      .enum(chosenRefinementStates)
+      .optional()
+      .describe(
+        "Move refinement by hand before Ready; Ready itself follows from the readiness checks.",
+      ),
     typeId: id.optional(),
     teamId: id.nullable().optional(),
-    priority: z.enum(workItemPriorities).optional(),
+    priority: z
+      .enum(workItemPriorities)
+      .optional()
+      .describe("Priority of the item."),
     assigneeId: id.nullable().optional(),
-    parentId: id.nullable().optional(),
+    parentId: id
+      .nullable()
+      .optional()
+      .describe("New parent work item id; null detaches it."),
     milestoneId: id.nullable().optional(),
     iterationId: id.nullable().optional(),
-    estimate: z.number().int().min(0).max(1000).nullable().optional(),
+    estimate: z
+      .number()
+      .int()
+      .min(0)
+      .max(1000)
+      .nullable()
+      .optional()
+      .describe(
+        "Estimate as a number in the project's estimate scale (getWorkspace); null clears it.",
+      ),
     labelIds: z.array(id).max(50).optional(),
   }),
   // Backlog/board order: place between two neighbours (null = open end).
@@ -2057,13 +2458,15 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("addRelation"),
     ...itemCommand,
     relationId: z.uuid(),
-    toId: id,
-    kind: z.enum(relationKinds),
+    toId: id.describe("The other work item's id."),
+    kind: z
+      .enum(relationKinds)
+      .describe("blocks, relates or duplicates, from this item to toId."),
   }),
   z.object({
     type: z.literal("removeRelation"),
     ...itemCommand,
-    relationId: id,
+    relationId: id.describe("Relation id (from getWorkItem relations)."),
   }),
   // Manual ordering among siblings: place before `beforeId` (null = last).
   z.object({
@@ -2075,31 +2478,40 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createLabel"),
     projectId: id,
     labelId: z.uuid(),
-    name: text.max(60),
-    color: z.enum(labelColors),
+    name: text.max(60).describe("Label name."),
+    color: z.enum(labelColors).describe("Label color."),
   }),
   z.object({
     type: z.literal("updateLabel"),
     projectId: id,
-    labelId: id,
-    name: text.max(60).optional(),
-    color: z.enum(labelColors).optional(),
+    labelId: id.describe("Label id (from listLabels)."),
+    name: text.max(60).optional().describe("New label name."),
+    color: z.enum(labelColors).optional().describe("New label color."),
     archived: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("createMilestone"),
     projectId: id,
     milestoneId: z.uuid(),
-    name: text.max(120),
-    targetDate: z.string().date().nullable(),
+    name: text.max(120).describe("Milestone name."),
+    targetDate: z
+      .string()
+      .date()
+      .nullable()
+      .describe("Target date (YYYY-MM-DD) or null for none."),
   }),
   z.object({
     type: z.literal("updateMilestone"),
     projectId: id,
     milestoneId: id,
-    name: text.max(120).optional(),
-    targetDate: z.string().date().nullable().optional(),
-    status: z.enum(milestoneStatuses).optional(),
+    name: text.max(120).optional().describe("New milestone name."),
+    targetDate: z
+      .string()
+      .date()
+      .nullable()
+      .optional()
+      .describe("New target date (YYYY-MM-DD); null clears it."),
+    status: z.enum(milestoneStatuses).optional().describe("Milestone status."),
     archived: z.boolean().optional(),
   }),
   z.object({
@@ -2111,37 +2523,62 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("recordDecision"),
     ...revisionCommand,
     decisionId: z.uuid(),
-    title: text.max(240),
-    body: text.max(20_000),
-    sourceThreadId: id.optional(),
+    title: text
+      .max(240)
+      .describe(
+        'The decision in one line, such as "Retries reuse the original transaction id".',
+      ),
+    body: text.max(20_000).describe("Context and consequences, in Markdown."),
+    sourceThreadId: id
+      .optional()
+      .describe("Discussion the decision came from (from getWorkItem)."),
   }),
   z.object({
     type: z.literal("setDecisionArchived"),
     ...itemCommand,
-    decisionId: id,
+    decisionId: id.describe("Decision id (from getDecisions or getWorkItem)."),
     archived: z.boolean(),
   }),
   z.object({
     type: z.literal("updateSpecification"),
     ...revisionCommand,
-    title: text.max(240),
-    content: document,
-    summary: z.string().trim().max(500).optional(),
+    title: text.max(240).describe("Item title in the new revision."),
+    content: document.describe(
+      "The complete specification of the new revision, in Markdown.",
+    ),
+    summary: z
+      .string()
+      .trim()
+      .max(500)
+      .optional()
+      .describe("What changed and why, shown in the revision history."),
   }),
   z.object({
     type: z.literal("createThread"),
     ...revisionCommand,
     threadId: z.uuid(),
     messageId: z.uuid(),
-    body: text,
-    blocking: z.boolean(),
+    body: text.describe(
+      "First message, in Markdown. Mentions (@[label](mention:USER_ID)) notify people.",
+    ),
+    blocking: z
+      .boolean()
+      .describe(
+        "true: the discussion blocks readiness and merging until it is resolved.",
+      ),
     section: z
       .string()
       .max(200)
       .describe(
         "Heading this discussion is anchored to. An empty string anchors the thread to the whole text. An unknown heading is rejected.",
       ),
-    quote: z.string().max(2000).optional(),
+    quote: z
+      .string()
+      .max(2000)
+      .optional()
+      .describe(
+        "Exact text the discussion is about, from the section's content.",
+      ),
     occurrence: z
       .number()
       .int()
@@ -2165,14 +2602,24 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...itemCommand,
     threadId: id,
     messageId: z.uuid(),
-    body: text,
+    body: text.describe(
+      "Reply, in Markdown. Mentions (@[label](mention:USER_ID)) notify people.",
+    ),
   }),
   z.object({
     type: z.literal("setThreadState"),
     ...itemCommand,
     threadId: id,
-    resolved: z.boolean(),
-    blocking: z.boolean(),
+    resolved: z
+      .boolean()
+      .describe(
+        "true resolves the discussion (its history stays); false reopens it.",
+      ),
+    blocking: z
+      .boolean()
+      .describe(
+        "true: the discussion blocks readiness and merging while open.",
+      ),
   }),
   z.object({
     type: z.literal("createBranch"),
@@ -2195,19 +2642,35 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...itemCommand,
     branchId: id,
     userId: id,
-    assigned: z.boolean(),
+    assigned: z
+      .boolean()
+      .describe(
+        "true invites the person to commit to the branch; false removes them.",
+      ),
   }),
   z.object({
     type: z.literal("commitBranch"),
     ...itemCommand,
     branchId: id,
-    baseCommitId: id,
-    title: text.max(240),
-    content: document,
-    proposedChildren: proposedChildrenSchema.optional(),
-    message: text.max(500),
+    baseCommitId: id.describe(
+      "The branch's head commit id you edited from (getWorkItem branches).",
+    ),
+    title: text.max(240).describe("Item title in the commit."),
+    content: document.describe(
+      "The complete specification in the commit, in Markdown.",
+    ),
+    proposedChildren: proposedChildrenSchema
+      .optional()
+      .describe(
+        "The proposed breakdown: new children and changes to existing direct children (see the tool description). Omit to keep the base breakdown; give the complete list when editing it.",
+      ),
+    message: text.max(500).describe("Commit message: what changed and why."),
     // A conflict resolution may only replace the exact head shown to the user.
-    expectedHeadId: id.optional(),
+    expectedHeadId: id
+      .optional()
+      .describe(
+        "When resolving a conflict: the exact head commit id you were shown.",
+      ),
   }),
   // Live drafts of a specification line
   // (docs/internals/specification-drafts.md). Opens the shared draft of main
@@ -2218,7 +2681,12 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...itemCommand,
     branchId: id.optional(),
     // Start again from the line's head, for everyone editing the draft.
-    discardChanges: z.boolean().optional(),
+    discardChanges: z
+      .boolean()
+      .optional()
+      .describe(
+        "true starts the draft again from the line's latest Markdown for everyone editing it (discarded edits stay recoverable).",
+      ),
   }),
   // Seals the draft at exactly `expectedSequence` (the stored sequence the
   // editor last saw): on main a new revision ("Save revision"; `message` is
@@ -2229,39 +2697,81 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("commitSpecificationDraft"),
     ...itemCommand,
     draftId: id,
-    epoch: z.number().int().positive(),
-    expectedSequence: z.number().int().min(0),
-    message: z.string().trim().max(500).optional(),
-    proposedChildren: proposedChildrenSchema.optional(),
-    breakdownBaseCommitId: id.optional(),
+    epoch: z
+      .number()
+      .int()
+      .positive()
+      .describe(
+        "The draft's epoch you edited (returned by openSpecificationDraft).",
+      ),
+    expectedSequence: z
+      .number()
+      .int()
+      .min(0)
+      .describe(
+        "The draft's stored sequence you last saw; the commit seals exactly that cut.",
+      ),
+    message: z
+      .string()
+      .trim()
+      .max(500)
+      .optional()
+      .describe(
+        "Change summary of the revision (main) or commit message (branch).",
+      ),
+    proposedChildren: proposedChildrenSchema
+      .optional()
+      .describe(
+        "Breakdown edits to commit with a branch commit (as in commitBranch).",
+      ),
+    breakdownBaseCommitId: id
+      .optional()
+      .describe("The branch commit the breakdown edits were made from."),
   }),
   z.object({
     type: z.literal("syncBranch"),
     ...itemCommand,
     branchId: id,
-    targetId: id,
-    sourceHeadId: id,
-    targetHeadId: id,
-    title: text.max(240).optional(),
-    content: document.optional(),
-    proposedChildren: proposedChildrenSchema.optional(),
+    targetId: id.describe(
+      "The line to bring changes from: main or another branch id (getWorkItem).",
+    ),
+    sourceHeadId: id.describe("The branch's head commit id you inspected."),
+    targetHeadId: id.describe("The head commit id of targetId you inspected."),
+    title: text
+      .max(240)
+      .optional()
+      .describe("Resolved title, when the lines conflict on it."),
+    content: document
+      .optional()
+      .describe("Resolved Markdown, when the lines conflict on the text."),
+    proposedChildren: proposedChildrenSchema
+      .optional()
+      .describe("Resolved breakdown, when the lines conflict on it."),
   }),
   z.object({ type: z.literal("deleteBranch"), ...itemCommand, branchId: id }),
   z.object({
     type: z.literal("createPullRequest"),
     ...itemCommand,
     pullRequestId: z.uuid(),
-    sourceId: id,
-    targetId: id,
-    title: text.max(120),
-    description: text.max(10000),
-    draft: z.boolean(),
+    sourceId: id.describe("Branch with the changes (getWorkItem branches)."),
+    targetId: id.describe(
+      "Line to merge into, usually main (getWorkItem branches).",
+    ),
+    title: text.max(120).describe("Pull request title."),
+    description: text
+      .max(10000)
+      .describe("What the change is and why, in Markdown."),
+    draft: z
+      .boolean()
+      .describe("true opens it as a draft that cannot be merged yet."),
   }),
   z.object({
     type: z.literal("setPullRequestDraft"),
     ...itemCommand,
     pullRequestId: id,
-    draft: z.boolean(),
+    draft: z
+      .boolean()
+      .describe("true marks it a draft; false marks it ready for review."),
   }),
   z.object({
     type: z.literal("deletePullRequest"),
@@ -2273,29 +2783,43 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...itemCommand,
     pullRequestId: id,
     disciplineId: id,
-    userId: id.nullable(),
-    required: z.boolean(),
+    userId: id
+      .nullable()
+      .describe(
+        "A member of that discipline to ask (getWorkspace); null asks the discipline.",
+      ),
+    required: z
+      .boolean()
+      .describe("true: merging waits for this review's approval."),
   }),
   z.object({
     type: z.literal("decidePullRequest"),
     ...itemCommand,
     pullRequestId: id,
     reviewId: id,
-    sourceHeadId: id,
-    targetHeadId: id,
-    decision: z.enum(["approve", "changes_requested", "revoke"]),
+    sourceHeadId: id.describe("The source branch head commit id you reviewed."),
+    targetHeadId: id.describe("The target line head commit id you reviewed."),
+    decision: z
+      .enum(["approve", "changes_requested", "revoke"])
+      .describe("approve, changes_requested, or revoke your earlier decision."),
   }),
   z.object({
     type: z.literal("mergePullRequest"),
     ...itemCommand,
     pullRequestId: id,
-    sourceHeadId: id,
-    targetHeadId: id,
+    sourceHeadId: id.describe(
+      "The source branch head commit id you inspected; refused if it moved.",
+    ),
+    targetHeadId: id.describe(
+      "The target line head commit id you inspected; refused if it moved.",
+    ),
   }),
   z.object({
     type: z.literal("revertSpecification"),
     ...revisionCommand,
-    revisionId: id,
+    revisionId: id.describe(
+      "The earlier revision whose content to restore (getWorkItem revisions).",
+    ),
   }),
   // Suggestions follow a pull-request lifecycle. Anyone in the organization
   // can draft one; only the author manages it; only assigned reviewers (members
@@ -2304,11 +2828,15 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createSuggestion"),
     ...revisionCommand,
     suggestionId: z.uuid(),
-    replacement: document,
-    title: text.max(120),
-    rationale: text.max(10_000),
+    replacement: document.describe(
+      "The complete proposed specification, in Markdown.",
+    ),
+    title: text.max(120).describe("Suggestion title."),
+    rationale: text.max(10_000).describe("Why the change is needed."),
     // Open for review immediately instead of saving a private draft.
-    open: z.boolean(),
+    open: z
+      .boolean()
+      .describe("true opens it for review now; false saves a private draft."),
   }),
   // Author updates the proposed text (and re-bases onto the current revision).
   // A content change bumps the version and supersedes existing decisions.
@@ -2316,30 +2844,42 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("updateSuggestion"),
     ...revisionCommand,
     suggestionId: id,
-    replacement: document,
-    title: text.max(120),
-    rationale: text.max(10_000),
+    replacement: document.describe(
+      "The complete proposed specification, in Markdown. A content change supersedes earlier decisions.",
+    ),
+    title: text.max(120).describe("Suggestion title."),
+    rationale: text.max(10_000).describe("Why the change is needed."),
   }),
   // draft ⇄ open, open/draft → closed, closed → draft/open. Never merged.
   z.object({
     type: z.literal("setSuggestionState"),
     ...itemCommand,
     suggestionId: id,
-    status: z.enum(["draft", "open", "closed"]),
+    status: z
+      .enum(["draft", "open", "closed"])
+      .describe("draft, open (for review) or closed."),
   }),
   z.object({
     type: z.literal("setSuggestionReviewer"),
     ...itemCommand,
     suggestionId: id,
     userId: id,
-    assigned: z.boolean(),
+    assigned: z
+      .boolean()
+      .describe("true assigns the person as a reviewer; false unassigns them."),
   }),
   z.object({
     type: z.literal("decideSuggestion"),
     ...itemCommand,
     suggestionId: id,
-    version: z.number().int().positive(),
-    decision: z.enum(["approve", "changes_requested", "revoke"]),
+    version: z
+      .number()
+      .int()
+      .positive()
+      .describe("The suggestion version you reviewed (getWorkItem)."),
+    decision: z
+      .enum(["approve", "changes_requested", "revoke"])
+      .describe("approve, changes_requested, or revoke your earlier decision."),
   }),
   // Merging creates the next mainline revision from the suggestion text.
   z.object({
@@ -2355,8 +2895,16 @@ export const commandSchema = z.discriminatedUnion("type", [
     ...revisionCommand,
     reviewId: z.uuid(),
     disciplineId: id,
-    userId: id.nullable(),
-    required: z.boolean(),
+    userId: id
+      .nullable()
+      .describe(
+        "A member of that discipline to ask (getWorkspace); null asks the discipline.",
+      ),
+    required: z
+      .boolean()
+      .describe(
+        "true: the review is required; readiness and merging wait for its approval.",
+      ),
   }),
   z.object({
     type: z.literal("cancelReview"),
@@ -2367,19 +2915,32 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("decideReview"),
     ...revisionCommand,
     reviewId: id,
-    decision: z.enum(["approve", "changes_requested", "revoke"]),
+    decision: z
+      .enum(["approve", "changes_requested", "revoke"])
+      .describe("approve, changes_requested, or revoke your earlier decision."),
   }),
   // Confirms (or withdraws) a manual readiness check for the current revision.
   z.object({
     type: z.literal("signOffReadinessCheck"),
     ...revisionCommand,
-    checkId: id,
-    signedOff: z.boolean(),
+    checkId: id.describe("The check's key in getWorkItem readiness."),
+    signedOff: z
+      .boolean()
+      .describe(
+        "true confirms the check for the current revision; false withdraws the sign-off.",
+      ),
   }),
   // Lictory Intelligence. Organization administrators decide whether content
   // may be sent to the AI provider; runs are recorded and never change content
   // by themselves.
-  z.object({ type: z.literal("setAiPolicy"), enabled: z.boolean() }),
+  z.object({
+    type: z.literal("setAiPolicy"),
+    enabled: z
+      .boolean()
+      .describe(
+        "true lets Lictory Intelligence send content to the configured AI provider; false stops it.",
+      ),
+  }),
   z.object({
     type: z.literal("requestAiReview"),
     ...itemCommand,
@@ -2397,8 +2958,12 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createAiCorrectivePr"),
     ...itemCommand,
-    runId: id,
-    findingIds: z.array(id).min(1).max(50),
+    runId: id.describe("The Lictory Intelligence review run (getWorkItem)."),
+    findingIds: z
+      .array(id)
+      .min(1)
+      .max(50)
+      .describe("The fixable findings of that run to address."),
     branchId: z.uuid(),
     pullRequestId: z.uuid(),
   }),
@@ -2407,23 +2972,36 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("applyAiSuggestion"),
     ...itemCommand,
-    runId: id,
-    findingId: id,
+    runId: id.describe(
+      "The Lictory Intelligence review action run (getWorkItem).",
+    ),
+    findingId: id.describe("The finding whose suggested change to commit."),
   }),
   // Project configuration (project administrators).
   z.object({
     type: z.literal("createTeam"),
     projectId: id,
     teamId: z.uuid(),
-    name: text.max(60),
-    description: z.string().trim().max(500).optional(),
+    name: text.max(60).describe("Team name."),
+    description: z
+      .string()
+      .trim()
+      .max(500)
+      .optional()
+      .describe("What the team works on."),
   }),
   z.object({
     type: z.literal("updateTeam"),
     projectId: id,
     teamId: id,
-    name: text.max(60).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
+    name: text.max(60).optional().describe("New team name."),
+    description: z
+      .string()
+      .trim()
+      .max(500)
+      .nullable()
+      .optional()
+      .describe("New description; null clears it."),
     archived: z.boolean().optional(),
   }),
   z.object({
@@ -2431,29 +3009,37 @@ export const commandSchema = z.discriminatedUnion("type", [
     projectId: id,
     teamId: id,
     userId: id,
-    member: z.boolean(),
+    member: z
+      .boolean()
+      .describe("true adds the person to the team; false removes them."),
   }),
   z.object({
     type: z.literal("setProjectType"),
     projectId: id,
     typeId: id,
-    enabled: z.boolean(),
+    enabled: z
+      .boolean()
+      .describe("true enables the type in the project; false disables it."),
   }),
   z.object({
     type: z.literal("createStatus"),
     projectId: id,
     statusId: z.uuid(),
-    name: text.max(40),
-    color: z.enum(labelColors),
-    category: z.enum(statusCategories),
+    name: text.max(40).describe("Status name, such as In review."),
+    color: z.enum(labelColors).describe("Status color."),
+    category: z
+      .enum(statusCategories)
+      .describe(
+        "Fixed category the status belongs to; boards, readiness and reports use it.",
+      ),
   }),
   z.object({
     type: z.literal("updateStatus"),
     projectId: id,
     statusId: id,
-    name: text.max(40).optional(),
-    color: z.enum(labelColors).optional(),
-    category: z.enum(statusCategories).optional(),
+    name: text.max(40).optional().describe("New status name."),
+    color: z.enum(labelColors).optional().describe("New status color."),
+    category: z.enum(statusCategories).optional().describe("New category."),
     // Place before this status (null = last).
     beforeId: id.nullable().optional(),
   }),
@@ -2462,7 +3048,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("archiveStatus"),
     projectId: id,
     statusId: id,
-    replacementId: id,
+    replacementId: id.describe("Status its items move to (getWorkspace)."),
   }),
   // Iteration planning (project administrators and disciplines that change
   // properties).
@@ -2470,19 +3056,45 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("createIteration"),
     projectId: id,
     iterationId: z.uuid(),
-    name: z.string().trim().max(80).nullable(),
-    goal: z.string().trim().max(500).nullable(),
-    startsAt: z.string().date(),
-    endsAt: z.string().date(),
+    name: z
+      .string()
+      .trim()
+      .max(80)
+      .nullable()
+      .describe("Iteration name; null: numbered automatically."),
+    goal: z
+      .string()
+      .trim()
+      .max(500)
+      .nullable()
+      .describe("What the iteration should achieve; null for none."),
+    startsAt: z.string().date().describe("First day (YYYY-MM-DD)."),
+    endsAt: z.string().date().describe("Last day (YYYY-MM-DD)."),
   }),
   z.object({
     type: z.literal("updateIteration"),
     projectId: id,
     iterationId: id,
-    name: z.string().trim().max(80).nullable().optional(),
-    goal: z.string().trim().max(500).nullable().optional(),
-    startsAt: z.string().date().optional(),
-    endsAt: z.string().date().optional(),
+    name: z
+      .string()
+      .trim()
+      .max(80)
+      .nullable()
+      .optional()
+      .describe("New name; null: numbered automatically."),
+    goal: z
+      .string()
+      .trim()
+      .max(500)
+      .nullable()
+      .optional()
+      .describe("New goal; null clears it."),
+    startsAt: z
+      .string()
+      .date()
+      .optional()
+      .describe("New first day (YYYY-MM-DD)."),
+    endsAt: z.string().date().optional().describe("New last day (YYYY-MM-DD)."),
   }),
   z.object({
     type: z.literal("startIteration"),
@@ -2494,25 +3106,43 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("completeIteration"),
     projectId: id,
     iterationId: id,
-    carryOverTo: id.nullable(),
+    carryOverTo: id
+      .nullable()
+      .describe(
+        "Iteration that receives unfinished items; null moves them to the backlog.",
+      ),
   }),
   // Organization type registry (organization administrators).
   z.object({
     type: z.literal("createType"),
     typeId: z.uuid(),
-    name: text.max(40),
-    icon: z.enum(typeIcons),
-    color: z.enum(labelColors),
-    level: z.number().int().min(0).max(maxTypeLevel),
-    hasSpecification: z.boolean(),
+    name: text.max(40).describe("Type name, such as Spike."),
+    icon: z.enum(typeIcons).describe("Icon shown with the type."),
+    color: z.enum(labelColors).describe("Type color."),
+    level: z
+      .number()
+      .int()
+      .min(0)
+      .max(maxTypeLevel)
+      .describe(
+        "Hierarchy level, fixed once created: 0 Subtask, 1 Task and Bug, 2 Story, 3 Epic, 4 above Epic. A parent's level is above its children's.",
+      ),
+    hasSpecification: z
+      .boolean()
+      .describe(
+        "true: items of this type carry a specification that is refined, reviewed and checked for readiness.",
+      ),
   }),
   z.object({
     type: z.literal("updateType"),
     typeId: id,
-    name: text.max(40).optional(),
-    icon: z.enum(typeIcons).optional(),
-    color: z.enum(labelColors).optional(),
-    hasSpecification: z.boolean().optional(),
+    name: text.max(40).optional().describe("New type name."),
+    icon: z.enum(typeIcons).optional().describe("New icon."),
+    color: z.enum(labelColors).optional().describe("New color."),
+    hasSpecification: z
+      .boolean()
+      .optional()
+      .describe("Whether items of this type carry a specification."),
     archived: z.boolean().optional(),
   }),
   // Lictory Channels (docs/internals/channels.md). Channel structure and
@@ -2524,11 +3154,28 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createChannel"),
     channelId: z.uuid(),
-    kind: z.enum(["public", "private"]),
-    name: channelName,
-    topic: z.string().trim().max(250).optional(),
+    kind: z
+      .enum(["public", "private"])
+      .describe(
+        "public (anyone in the organization can join) or private (members add people).",
+      ),
+    name: channelName.describe(
+      "Channel name: lowercase letters, digits, hyphens and underscores, such as payments-releases.",
+    ),
+    topic: z
+      .string()
+      .trim()
+      .max(250)
+      .optional()
+      .describe("What the channel is for."),
     home: channelHome.optional(),
-    memberIds: z.array(id).max(200).optional(),
+    memberIds: z
+      .array(id)
+      .max(200)
+      .optional()
+      .describe(
+        "User ids of people to add with you (getWorkspace or searchMembers).",
+      ),
   }),
   // A direct conversation with the named people (and agents): opening the
   // same set again returns the existing conversation (`channelId` of the
@@ -2544,8 +3191,12 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("updateChannel"),
     channelId: id,
-    name: channelName.optional(),
-    topic: z.string().trim().max(250).optional(),
+    name: channelName
+      .optional()
+      .describe(
+        "New channel name: lowercase letters, digits, hyphens and underscores.",
+      ),
+    topic: z.string().trim().max(250).optional().describe("New topic."),
     home: channelHome.nullable().optional(),
   }),
   // Archiving keeps every message and makes the channel read-only;
@@ -2576,14 +3227,22 @@ export const commandSchema = z.discriminatedUnion("type", [
     type: z.literal("removeChannelMember"),
     channelId: id,
     userId: id.optional(),
-    agentId: id.optional(),
+    agentId: id
+      .optional()
+      .describe(
+        "Agent id to remove (from listAgents); give userId or agentId.",
+      ),
   }),
   // What the person is told about: all messages, mentions (and their
   // threads), or nothing.
   z.object({
     type: z.literal("setChannelNotificationLevel"),
     channelId: id,
-    level: z.enum(["all", "mentions", "none"]),
+    level: z
+      .enum(["all", "mentions", "none"])
+      .describe(
+        "all messages, mentions (and replies in threads you take part in), or none.",
+      ),
   }),
 ]);
 // Commands that change one project's configuration and may move its items.

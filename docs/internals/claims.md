@@ -33,6 +33,9 @@ starting ─activate─▶ active ⇄ waiting (ask / resume)
 At most one live claim per item: claims are taken under the organization
 lock and a partial unique index (`work_item_claim_live_unique`) makes the
 invariant the database's. Concurrent claims of one item: exactly one wins.
+The holder claiming again (the same agent, for the same person, in the same
+session: a retry that lost its answer and sent no `mutationId`) gets its live
+claim back with `alreadyHeld` instead of a conflict; nothing moves twice.
 
 **Leases.** A claim lasts 15 minutes unless renewed (`renewClaim`,
 60–3600 seconds, or any `reportProgress`). A starting claim gets 10 minutes.

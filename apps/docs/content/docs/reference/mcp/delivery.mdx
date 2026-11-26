@@ -13,10 +13,17 @@ Hand work to Jira or another delivery tool, and follow what was exported. Every 
 
 Organization administrators: remove a Jira connection. Projects using it lose their hand-off target; existing links keep their history.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `connectionId`   | string | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                       |
+| ---------------- | ------ | -------- | ----------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.             |
+| `connectionId`   | string | Yes      | Delivery tool connection id (from getWorkspace delivery targets). |
+
+```json title="disconnectDelivery arguments"
+{
+  "organizationId": "acme",
+  "connectionId": "101d6e1e-aa2d-4eda-af1a-59cba1afb49b"
+}
+```
 
 ### `listDeliveryProjects`
 
@@ -24,12 +31,19 @@ Organization administrators: remove a Jira connection. Projects using it lose th
 
 Jira projects visible through a connection. Organization administrators, or with `projectId`, that project's administrators and the people who can hand its work off.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `connectionId`   | string | Yes      |                                                       |
-| `query`          | string |          |                                                       |
-| `projectId`      | string |          |                                                       |
+| Field            | Type   | Required | Description                                                       |
+| ---------------- | ------ | -------- | ----------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.             |
+| `connectionId`   | string | Yes      | Delivery tool connection id (from getWorkspace delivery targets). |
+| `query`          | string |          | Text to search for.                                               |
+| `projectId`      | string |          | Project id (from getWorkspace).                                   |
+
+```json title="listDeliveryProjects arguments"
+{
+  "organizationId": "acme",
+  "connectionId": "101d6e1e-aa2d-4eda-af1a-59cba1afb49b"
+}
+```
 
 ### `describeDeliveryProject`
 
@@ -37,12 +51,20 @@ Jira projects visible through a connection. Organization administrators, or with
 
 Issue types of an external project, for mapping work item types.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `connectionId`   | string | Yes      |                                                       |
-| `projectKey`     | string | Yes      |                                                       |
-| `projectId`      | string |          |                                                       |
+| Field            | Type   | Required | Description                                                       |
+| ---------------- | ------ | -------- | ----------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.             |
+| `connectionId`   | string | Yes      | Delivery tool connection id (from getWorkspace delivery targets). |
+| `projectKey`     | string | Yes      | The Jira project's key, such as PAY (listDeliveryProjects).       |
+| `projectId`      | string |          | Project id (from getWorkspace).                                   |
+
+```json title="describeDeliveryProject arguments"
+{
+  "organizationId": "acme",
+  "connectionId": "101d6e1e-aa2d-4eda-af1a-59cba1afb49b",
+  "projectKey": "projectKey"
+}
+```
 
 ### `setDeliveryTarget`
 
@@ -50,13 +72,23 @@ Issue types of an external project, for mapping work item types.
 
 Project administrators: choose the Jira project (on an organization connection) this project hands work off to, and map work item type ids to Jira issue types.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `connectionId`   | string | Yes      |                                                       |
-| `projectId`      | string | Yes      |                                                       |
-| `projectKey`     | string | Yes      |                                                       |
-| `typeMapping`    | object | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                                                        |
+| ---------------- | ------ | -------- | -------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                              |
+| `connectionId`   | string | Yes      | Delivery tool connection id (from getWorkspace delivery targets).                                  |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                                                                    |
+| `projectKey`     | string | Yes      | The Jira project's key, such as PAY (listDeliveryProjects).                                        |
+| `typeMapping`    | object | Yes      | Jira issue type per work item type id: \{ [typeId]: issue type id from describeDeliveryProject \}. |
+
+```json title="setDeliveryTarget arguments"
+{
+  "organizationId": "acme",
+  "connectionId": "101d6e1e-aa2d-4eda-af1a-59cba1afb49b",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "projectKey": "projectKey",
+  "typeMapping": {}
+}
+```
 
 ### `removeDeliveryTarget`
 
@@ -67,7 +99,14 @@ Project administrators: stop handing this project's work off to its Jira project
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                       |
+
+```json title="removeDeliveryTarget arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `previewDeliveryExport`
 
@@ -81,6 +120,12 @@ What handing off would do for each item (create, update, unchanged, or why it is
 | `rootId`         | string         |          | Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.                                         |
 | `itemIds`        | list of string |          | Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira. |
 
+```json title="previewDeliveryExport arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `publishDelivery`
 
 **Hand off to delivery tool.** Command · no retry key: read before repeating · talks to an outside system · **a person's decision**: refused to agents (the person decides in The work item → Delivery → Export)
@@ -92,7 +137,13 @@ Hand ready work off to the project's Jira project: create or update issues. Only
 | `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                          |
 | `rootId`           | string         |          | Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.                                         |
 | `itemIds`          | list of string |          | Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira. |
-| `overwriteItemIds` | list of string |          |                                                                                                                                                |
+| `overwriteItemIds` | list of string |          | Items edited in Jira since the last hand-off that may be overwritten; others are left as they are and reported.                                |
+
+```json title="publishDelivery arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `refreshDeliveryStatus`
 
@@ -103,7 +154,14 @@ Read the current Jira status, status category and assignee of every issue a proj
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                       |
+
+```json title="refreshDeliveryStatus arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `getDeliveryPublication`
 
@@ -114,7 +172,14 @@ Status and per-item results of an export.
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `publicationId`  | string | Yes      |                                                       |
+| `publicationId`  | string | Yes      | The export id (returned by publishDelivery).          |
+
+```json title="getDeliveryPublication arguments"
+{
+  "organizationId": "acme",
+  "publicationId": "bb44fe04-8764-4a3f-a63f-f8d406162623"
+}
+```
 
 ### `linkExternalItem`
 
@@ -122,11 +187,19 @@ Status and per-item results of an export.
 
 Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is handed off with overwrite confirmed.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `workItemId`     | string | Yes      |                                                       |
-| `externalKey`    | string | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                          |
+| ---------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+| `externalKey`    | string | Yes      | The existing issue's key, such as PAY-12.                            |
+
+```json title="linkExternalItem arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142",
+  "externalKey": "externalKey"
+}
+```
 
 ### `unlinkExternalItem`
 
@@ -134,8 +207,16 @@ Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Not
 
 Remove the link between a work item and its external issue. The external issue is not deleted.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `workItemId`     | string | Yes      |                                                       |
-| `connectionId`   | string | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                          |
+| ---------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+| `connectionId`   | string | Yes      | Delivery tool connection id (from getWorkspace delivery targets).    |
+
+```json title="unlinkExternalItem arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142",
+  "connectionId": "101d6e1e-aa2d-4eda-af1a-59cba1afb49b"
+}
+```
