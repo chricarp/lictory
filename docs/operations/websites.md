@@ -30,7 +30,9 @@ and immutable caching of hashed assets are defined once:
   version-free name. The deploy passes the files that release carries
   (`NEXT_PUBLIC_RELEASE_ASSETS`); a file it lacks is shown as not in that
   release, with the build-from-source steps, instead of a link that would 404. The site is rebuilt with every release, so links appear once a release
-  carries the files.
+  carries the files. A build without the list (local builds, the browser
+  suite) offers every file and says it cannot tell which ones the release
+  carries.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
   (`/search.json`) and runs in the browser. The Worker serves files and
   headers, the Markdown versions of the pages, and relays `/relay` to PostHog

@@ -83,6 +83,20 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             <a href={repositoryUrl} className={footerLinkClass}>
               Source code
             </a>
+            {/* Free, MIT-licensed and self-hosted: help is the community's
+                and security reports go to the private advisory channel. */}
+            <a
+              href={`${repositoryUrl}/blob/main/SUPPORT.md`}
+              className={footerLinkClass}
+            >
+              Get help
+            </a>
+            <a
+              href={`${repositoryUrl}/security/policy`}
+              className={footerLinkClass}
+            >
+              Report a vulnerability
+            </a>
           </div>
           <div className="flex flex-col gap-2">
             <Link href="/privacy" className={footerLinkClass}>

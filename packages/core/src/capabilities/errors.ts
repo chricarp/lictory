@@ -4,7 +4,10 @@ import { DeliveryError } from "@lictory/core/delivery/provider";
 import { SlackError } from "@lictory/core/channels/slack/api";
 import { ConversionError } from "@lictory/core/intelligence/convert";
 import { ContextError } from "@lictory/core/intelligence/server";
-import { StorageConfigurationError } from "@lictory/core/storage/errors";
+import {
+  ATTACHMENTS_UNAVAILABLE,
+  StorageConfigurationError,
+} from "@lictory/core/storage/errors";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
   CapabilityError,
@@ -49,11 +52,9 @@ export function toCapabilityError(error: unknown): CapabilityError {
   if (error instanceof ConversionError)
     return new CapabilityError("validation", error.message);
   if (error instanceof StorageConfigurationError)
-    return new CapabilityError(
-      "unavailable",
-      "Attachments are unavailable: this server has no file storage configured. Ask an administrator to configure S3-compatible storage.",
-      { status: 503 },
-    );
+    return new CapabilityError("unavailable", ATTACHMENTS_UNAVAILABLE, {
+      status: 503,
+    });
   if (error instanceof z.ZodError) {
     const issues = error.issues.map((issue) => ({
       path: issue.path.join("."),

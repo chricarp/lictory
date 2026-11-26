@@ -42,11 +42,27 @@ On Windows, in PowerShell:
   -Version <server release> -Url https://lictory.example.com -Token lrt_… -Service
 ```
 
-The dialog fills in your server's release, address and token. A release
-published before runner downloads existed carries none of these files, and
-`curl` then reports a 404: build the runner from source instead
-([lictory.com/download](https://lictory.com/download#runner-source) lists the
-three commands) and register it with `lictory-runner register`.
+The dialog fills in your server's release, address and token.
+
+### When the download answers 404
+
+A release published before runner downloads existed carries none of these
+files, and `curl` then reports `(22) … 404`. Build the same runner from your
+server's release tag instead: you need [Bun](https://bun.sh) and git. The Add
+runner dialog shows these commands with your release, address and token
+filled in under **The download answers 404?**:
+
+```sh
+git clone --depth 1 --branch v<server release> https://github.com/chricarp/lictory.git && cd lictory
+bun install --frozen-lockfile
+bun run --cwd apps/runner build linux-x64   # linux-arm64, darwin-arm64, darwin-x64, windows-x64…
+mkdir -p ~/.local/bin && cp apps/runner/dist/lictory-runner-linux-x64 ~/.local/bin/lictory-runner
+~/.local/bin/lictory-runner register --url https://lictory.example.com --token lrt_…
+~/.local/bin/lictory-runner install-service --enable
+```
+
+A server built from source has no release tag: leave out `--branch` to build
+the default branch.
 
 The installer puts `lictory-runner` in `/usr/local/bin` when it can write
 there and in `~/.local/bin` otherwise (`--dir` chooses another directory);

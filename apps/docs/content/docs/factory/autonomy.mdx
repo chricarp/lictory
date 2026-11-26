@@ -146,8 +146,12 @@ passed and the pull requests they read. An agent saying it is finished never
 moves it.
 
 When a check cannot pass from evidence (the change needed no code, CI cannot
-run), someone who changes properties chooses **Pass by hand** and gives a
-reason, which is kept in the item's history. With no checks at all, people
+run), someone who changes properties in the project chooses **Pass by
+hand** and gives a reason. The check then counts as passed for that item's
+accepted revision only, and the override, with the person and the reason, is
+recorded in the item's history and in the organization's
+[audit log](/organization/audit). Anyone who changes properties can withdraw
+it. Agents cannot pass a check by hand. With no checks at all, people
 always move work to Done themselves.
 
 Until a code host is connected, the code checks say so and cannot pass.

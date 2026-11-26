@@ -19,7 +19,8 @@ import type {
 // (NEXT_PUBLIC_RELEASE_ASSETS, comma-separated; the site is rebuilt with
 // every release). A file the release lacks gets no link, which would 404:
 // the page says it is not in that release and how to build it from source.
-// Without the list (local builds, the browser suite) every file is offered.
+// Without the list (local builds, the browser suite) every file is offered
+// and the page says that it cannot tell which ones the release carries.
 
 /** Which contract files the release has; `null`: not known, offer all. */
 export function releaseFiles(list: string | undefined) {
@@ -31,6 +32,8 @@ export function releaseFiles(list: string | undefined) {
 }
 
 const publishedFiles = releaseFiles(process.env.NEXT_PUBLIC_RELEASE_ASSETS);
+/** Whether the build knows the release's files; the page says so if not. */
+export const releaseFilesKnown = publishedFiles !== null;
 /** The version the site was built for, when the deploy named one. */
 const builtVersion = process.env.NEXT_PUBLIC_APP_VERSION?.trim();
 export const releaseVersion = builtVersion?.length ? builtVersion : null;

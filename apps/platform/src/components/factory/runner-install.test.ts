@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   expiresIn,
+  runnerFromSourceCommand,
   runnerInstallCommand,
 } from "@lictory/platform/components/factory/runner-install";
 
@@ -55,6 +56,48 @@ void test("a build without a release version installs the latest stable runner",
       ),
     );
   }
+});
+
+void test("a release without runner files gets the same runner from its own source tag", () => {
+  const unix = runnerFromSourceCommand(
+    "linux",
+    "https://lictory.example.com",
+    "lrt_abc",
+    "0.26.0",
+  ).split("\n");
+  assert.equal(
+    unix[0],
+    "git clone --depth 1 --branch v0.26.0 https://github.com/chricarp/lictory.git && cd lictory",
+  );
+  assert.match(unix[2]!, /^bun run --cwd apps\/runner build linux-x64 /);
+  assert.equal(
+    unix.at(-2),
+    "~/.local/bin/lictory-runner register --url https://lictory.example.com --token lrt_abc",
+  );
+  assert.equal(
+    unix.at(-1),
+    "~/.local/bin/lictory-runner install-service --enable",
+  );
+  assert.match(
+    runnerFromSourceCommand("macos", "https://l", "lrt_x", "0.26.0"),
+    /build darwin-arm64 .*\n.*lictory-runner-darwin-arm64 ~\/\.local\/bin/,
+  );
+  // A build without a release version builds the default branch.
+  assert.ok(
+    !runnerFromSourceCommand("linux", "https://l", "lrt_x", "dev").includes(
+      "--branch",
+    ),
+  );
+  const windows = runnerFromSourceCommand(
+    "windows",
+    "https://l",
+    "lrt_x",
+    "0.26.0",
+  );
+  assert.match(
+    windows,
+    /\.\\apps\\runner\\dist\\lictory-runner-windows-x64\.exe register --url https:\/\/l --token lrt_x/,
+  );
 });
 
 void test("a fresh registration token says it is valid for an hour, not that it expires now", () => {

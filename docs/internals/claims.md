@@ -200,7 +200,8 @@ merged and required checks passed). Kinds:
   the acceptance criteria were verified. Several may be required.
 
 A person who changes properties may **override** a failing check for one
-item, with a reason. Sign-offs and overrides belong to the item's accepted
+item, with a reason (`canOverrideDoneCheck`); the override and its withdrawal
+are also in the organization's [audit log](audit.md). Sign-offs and overrides belong to the item's accepted
 revision (else its current one), so re-accepting scope needs new ones;
 withdrawing keeps the record (`done_sign_off`). Both are human-only:
 evidence that agents' work is done is never recorded by an agent.
@@ -351,7 +352,10 @@ reason, `claim_completed`, `claim_dispatch_failed`, `dispatch_retried`) and
 every Definition of Done decision (sign-offs, overrides, `definition_of_done_passed`,
 Autopilot merge requests and refusals), with the agent (`performedVia`,
 `agentName`, `agentSessionId`) and any `automation`. Autonomy and Definition
-of Done changes are configuration audit entries with the previous value.
+of Done changes are configuration audit entries with the previous value;
+overrides and their withdrawal are also `audit_event` entries
+(`done_check.overridden`, `done_check.override_withdrawn`), as are
+Autopilot's confirmed merges (`autopilot.merged`).
 Claims, questions, policies, definitions, sign-offs and merge requests are
 part of the organization export; dispatcher backoff is operational state and
 is not.

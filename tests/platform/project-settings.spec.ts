@@ -238,7 +238,7 @@ test("project settings keep their header and sidebar while switching sections", 
   for (const [section, label] of [
     ["members", "Members"],
     ["teams", "Teams"],
-    ["readiness", "Readiness"],
+    ["readiness", "Definition of Ready"],
     ["labels", "Labels & milestones"],
     ["general", "General"],
   ] as const) {

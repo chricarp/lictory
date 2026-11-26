@@ -31,6 +31,7 @@ import { DRAFT_UPDATE_BYTES } from "@lictory/core/spaces/collaboration-protocol"
 import { Button } from "@lictory/ui/button";
 import { Avatar } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
+import { ATTACHMENTS_UNAVAILABLE } from "@lictory/core/storage/errors";
 import { useAttachmentsAvailable } from "@lictory/platform/lib/session";
 import { ACCEPT_FILES } from "@lictory/platform/components/items/file-upload";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -371,7 +372,7 @@ function DraftEditor({
       if (!data.get().attachments) {
         toast({
           title: "Images are unavailable",
-          description: "This installation has no file storage configured.",
+          description: ATTACHMENTS_UNAVAILABLE,
           type: "error",
         });
         return true;

@@ -723,6 +723,13 @@ export function canArchiveDecision(
     (decision.authorId === userId && canRecordDecisions(capabilities))
   );
 }
+// Passing a Definition of Done check by hand stands in for evidence (a merged
+// pull request, passing CI), so it takes the capability that moves delivery
+// state: changing properties in the project. Every override is recorded in
+// the item's history and the organization's audit log.
+export function canOverrideDoneCheck(capabilities: Capabilities) {
+  return capabilities.changeProperties;
+}
 export function projectRoleOf(
   members: ProjectMember[],
   userId: string,

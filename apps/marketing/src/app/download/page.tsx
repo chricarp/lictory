@@ -17,6 +17,7 @@ import {
   checksumFiles,
   desktopDownloads,
   desktopSystems,
+  releaseFilesKnown,
   releaseName,
   releaseVersion,
   runnerBinaries,
@@ -149,6 +150,26 @@ function Command({ children }: { children: string }) {
   );
 }
 
+const runnerSource = (
+  <div id="runner-source" className="mt-8 scroll-mt-24">
+    <h3 className="text-lg font-medium">Build it from source</h3>
+    <Lead>
+      With{" "}
+      <a href="https://bun.sh" className={textLink}>
+        Bun
+      </a>{" "}
+      and git, on any system: the binary lands in <code>apps/runner/dist</code>.
+      Register it with the token from <strong>Factory → Runners</strong>:{" "}
+      <code>
+        lictory-runner register --url &lt;server&gt; --token &lt;token&gt;
+      </code>
+      . The dialog there also shows these commands with your server and token
+      filled in.
+    </Lead>
+    <Command>{runnerFromSource}</Command>
+  </div>
+);
+
 const fromSource = (
   <a href="#runner-source" className={textLink}>
     Build it from source
@@ -167,8 +188,14 @@ export default function DownloadPage() {
       <p className="mt-4 text-[13px] leading-6 text-muted-foreground">
         Every link downloads the newest stable release
         {releaseVersion ? ` (${releaseVersion})` : ""} from GitHub.{" "}
+        {releaseFilesKnown ? null : (
+          <>
+            This copy of the site was built without that release’s list of
+            files, so a file the release lacks answers 404 on GitHub.{" "}
+          </>
+        )}
         <a href={latestReleaseUrl} className={textLink}>
-          What changed in it
+          {releaseFilesKnown ? "What changed in it" : "See what it carries"}
         </a>
       </p>
 
@@ -240,6 +267,9 @@ export default function DownloadPage() {
             carries them.
           </Lead>
         )}
+        {/* The one path that works when the release has no runner files
+            comes first then, not under a list of files it lacks. */}
+        {runnerInstallersAvailable ? null : runnerSource}
         <div className="mt-8">
           <h3 className="text-lg font-medium">Binaries and installers</h3>
           <Files>
@@ -248,18 +278,7 @@ export default function DownloadPage() {
             ))}
           </Files>
         </div>
-        <div id="runner-source" className="mt-8 scroll-mt-24">
-          <h3 className="text-lg font-medium">Build it from source</h3>
-          <Lead>
-            With{" "}
-            <a href="https://bun.sh" className={textLink}>
-              Bun
-            </a>{" "}
-            and git, on any system: the binary lands in{" "}
-            <code>apps/runner/dist</code>.
-          </Lead>
-          <Command>{runnerFromSource}</Command>
-        </div>
+        {runnerInstallersAvailable ? runnerSource : null}
       </Section>
 
       <Section id="verify" title="Check a download">

@@ -14,6 +14,7 @@ import {
   type DoneCheckResult,
   type DoneEvaluationEntity,
 } from "@lictory/core/claims/contracts";
+import { canOverrideDoneCheck } from "@lictory/core/contracts/protocol";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
@@ -701,7 +702,7 @@ function DoneCheckRow({
                 {signOff.signedOffBy ? "Withdraw sign-off" : "Sign off"}
               </Button>
             )}
-            {capabilities.changeProperties &&
+            {canOverrideDoneCheck(capabilities) &&
               (check.override ? (
                 <Button
                   size="sm"
@@ -762,7 +763,7 @@ function OverrideDialog({
   return (
     <Dialog
       title={`Pass “${check.label}” by hand?`}
-      description="An override is recorded with your name and reason in the item's history. It applies to this item's accepted revision only."
+      description="The check then counts as passed without its evidence, for this item's accepted revision only. Your name and reason are recorded in the item's history and the organization's audit log; you or anyone who changes properties here can withdraw it."
       onClose={onClose}
       onSubmit={() => {
         if (reason.trim()) void onConfirm(reason.trim());

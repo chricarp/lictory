@@ -31,7 +31,9 @@ const categories: { value: AuditCategory | "all"; label: string }[] = [
   { value: "access", label: "Access" },
   { value: "organization", label: "Organization" },
   { value: "configuration", label: "Configuration" },
-  { value: "agent", label: "Agents & Autopilot" },
+  // Agents' calls, Autopilot's merges and Definition of Done checks people
+  // passed by hand: what acted in place of a person or of evidence.
+  { value: "agent", label: "Agents, Autopilot & Done" },
 ];
 const categoryLabel = Object.fromEntries(
   categories.map((c) => [c.value, c.label]),
@@ -149,7 +151,7 @@ function AuditLog() {
       id="audit"
       icon={<ScrollText />}
       title="Audit log"
-      description="Who changed membership, application roles, invitations, access tokens and configuration, and what agents did on someone's behalf. Entries cannot be edited or deleted."
+      description="Who changed membership, application roles, invitations, access tokens and configuration, what agents did on someone's behalf, and which Definition of Done checks people passed by hand. Entries cannot be edited or deleted."
       action={
         <Button
           size="sm"
@@ -160,12 +162,15 @@ function AuditLog() {
         </Button>
       }
     >
-      <SettingsBody className="flex flex-wrap items-end gap-3 py-3">
-        <div className="text-[13px] font-medium">
+      {/* One row of four equal fields on wide screens, two by two on
+          phones: no field wraps alone, and each label sits above its
+          control with the same gap. */}
+      <SettingsBody className="grid grid-cols-2 items-end gap-x-3 gap-y-4 py-3 md:grid-cols-4">
+        <div className="min-w-0 text-[13px] font-medium">
           <span id="audit-category-label">Activity</span>
           <DropdownSelect
             aria-labelledby="audit-category-label"
-            className="mt-1.5 w-44"
+            className="mt-1.5 w-full"
             value={filters.category}
             onValueChange={(v) => set({ category: v as Filters["category"] })}
           >
@@ -176,11 +181,11 @@ function AuditLog() {
             ))}
           </DropdownSelect>
         </div>
-        <div className="text-[13px] font-medium">
+        <div className="min-w-0 text-[13px] font-medium">
           <span id="audit-actor-label">Person</span>
           <DropdownSelect
             aria-labelledby="audit-actor-label"
-            className="mt-1.5 w-44"
+            className="mt-1.5 w-full"
             value={filters.actorId}
             onValueChange={(v) => set({ actorId: v })}
           >
@@ -192,24 +197,24 @@ function AuditLog() {
             ))}
           </DropdownSelect>
         </div>
-        <label className="block text-[13px] font-medium">
-          From
+        <label className="block min-w-0 text-[13px] font-medium">
+          From (UTC)
           <Input
             type="date"
             value={filters.from}
             max={filters.to || undefined}
             onChange={(e) => set({ from: e.target.value })}
-            className="mt-1.5 h-8 w-36 rounded-md text-sm"
+            className="mt-1.5 h-8 w-full rounded-md text-sm"
           />
         </label>
-        <label className="block text-[13px] font-medium">
-          To
+        <label className="block min-w-0 text-[13px] font-medium">
+          To (UTC)
           <Input
             type="date"
             value={filters.to}
             min={filters.from || undefined}
             onChange={(e) => set({ to: e.target.value })}
-            className="mt-1.5 h-8 w-36 rounded-md text-sm"
+            className="mt-1.5 h-8 w-full rounded-md text-sm"
           />
         </label>
       </SettingsBody>

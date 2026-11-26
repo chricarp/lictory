@@ -72,6 +72,7 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useAgents } from "@lictory/platform/components/claims/claims";
 import { startableAgents } from "@lictory/platform/components/factory/start-session";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { organizationSettingsSections } from "@lictory/platform/components/settings/organization-sections";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
@@ -370,6 +371,40 @@ export function CommandPalette({
         run: () => go(paths.notificationSettings(org)),
       },
     );
+    // Each section of organization settings and of the Factory, so "audit",
+    // "runners" or "code hosts" lands on the page, not on its parent.
+    for (const section of organizationSettingsSections)
+      list.push({
+        id: `settings-${section.id}`,
+        label: `Organization settings · ${section.label}`,
+        group: "Navigate",
+        icon: <Settings className="size-4" />,
+        keywords: `settings ${section.keywords}`,
+        run: () => go(paths.settings(org, section.id)),
+      });
+    for (const [id, label, keywords, href] of [
+      ["agents", "Agents", "agents harness owner scope", factoryPaths.agents],
+      [
+        "runners",
+        "Runners",
+        "runners machines register install",
+        factoryPaths.runners,
+      ],
+      [
+        "sessions",
+        "Sessions",
+        "sessions runs agent history",
+        factoryPaths.sessions,
+      ],
+    ] as const)
+      list.push({
+        id: `factory-${id}`,
+        label: `Factory · ${label}`,
+        group: "Navigate",
+        icon: <Bot className="size-4" />,
+        keywords: `factory ${keywords}`,
+        run: () => go(href(org)),
+      });
     // Every module in the sidebar, by name.
     for (const section of navSections) {
       if (section.id === "projects") continue;
