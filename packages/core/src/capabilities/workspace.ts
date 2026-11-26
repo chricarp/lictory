@@ -469,7 +469,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   deletePullRequest: {
     title: "Close pull request",
-    description: `Close a pull request and remove it from the item. Open discussions on it are resolved. The text of a merged pull request stays in the specification. ${specificationPullRequest.rule("close")}`,
+    description: `Close an unmerged pull request and remove it from the item. Open discussions on it are resolved. A merged pull request stays: it records who approved which result. ${specificationPullRequest.rule("close")}`,
     destructive: true,
   },
   requestPullRequestReview: {

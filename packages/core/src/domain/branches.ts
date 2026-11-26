@@ -760,6 +760,8 @@ export async function applyBranchCommand(
       const p = pr(c.pullRequestId);
       require(p.authorId === userId ||
         capabilities.editSpecifications, "Only the author or a specification editor can delete this review.");
+      // An applied review is the record of who agreed to which result.
+      requireStep(specificationPullRequest, p.status, "close");
       const deletedAt = new Date();
       await tx
         .update(s.specificationPullRequest)
@@ -1008,7 +1010,7 @@ export async function applyBranchCommand(
         const revisionId = await ctx.revision(
           result.title,
           result.content,
-          `Merge PR: ${p.title}`,
+          `Applied “${p.title}”`,
           [target.headId, source.headId],
           result.proposedChildren,
         );
@@ -1097,7 +1099,7 @@ export async function applyBranchCommand(
           });
         }
       } else
-        mergedId = await insertCommit(target, result, `Merge PR: ${p.title}`, [
+        mergedId = await insertCommit(target, result, `Applied “${p.title}”`, [
           target.headId,
           source.headId,
         ]);

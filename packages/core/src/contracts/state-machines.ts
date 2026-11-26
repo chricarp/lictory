@@ -121,15 +121,17 @@ export function stateMachine<S extends string, A extends string>(definition: {
 
 // ------------------------------------------------------- specifications
 
-// A proposal to merge a specification branch into another line. Closing one
-// removes it from the item; the merged text stays in the specification.
+// A proposal to merge a specification branch into another line. Closing an
+// unapplied one removes it from the item; an applied one stays as the record
+// of who approved which result.
 export const specificationPullRequest = stateMachine({
   name: "pull request",
   states: {
     draft: "Being prepared; reviewers are not asked to decide yet.",
     open: "Ready for review and, once its requirements are met, for merging.",
     merged: "Its result is part of the target line.",
-    closed: "Removed from the item by its author or a specification editor.",
+    closed:
+      "Removed from the item, before it applied, by its author or a specification editor.",
   },
   derived: ["closed"],
   steps: {
@@ -178,9 +180,12 @@ export const specificationPullRequest = stateMachine({
     },
     close: {
       does: "Close",
-      from: ["draft", "open", "merged"],
+      from: ["draft", "open"],
       to: "closed",
-      refused: "This proposed change or its review is unavailable.",
+      refused: (state) =>
+        state === "merged"
+          ? "This review is applied: it records who approved which result, so it stays on the item."
+          : "This proposed change or its review is unavailable.",
     },
   },
 });

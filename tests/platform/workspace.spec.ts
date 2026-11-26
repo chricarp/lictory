@@ -926,17 +926,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   if ((await toggle.getAttribute("aria-expanded")) === "true")
     await toggle.click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
-  // Deleting a merged PR keeps the automatic branch cleanup activity.
+  // An applied review is the record of who approved which result: it
+  // offers no deletion, and it keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
-  await page
-    .getByRole("button", { name: "Delete review", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page).toHaveURL(/\?branches=1$/);
   await expect(
-    page.getByRole("button", {
-      name: /Clarify cancellation timeouts and retries/,
-    }),
+    page.getByText("Applied. The reviewed text is part of", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Delete review", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("listitem").filter({

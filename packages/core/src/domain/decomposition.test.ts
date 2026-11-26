@@ -336,6 +336,21 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   assert.equal(parent.type, "workItem");
   assert.equal(parent.revisionNumber, 2);
   assert.equal(children[0]!.sourceRevisionId, parent.revisionId);
+  // The revision names the applied review in requirements words, and the
+  // applied review stays: it records who approved the breakdown.
+  const [applied] = await db
+    .select({ summary: s.specificationRevision.changeSummary })
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.id, parent.revisionId));
+  assert.match(applied!.summary ?? "", /^Applied “/);
+  await assert.rejects(
+    f.command({
+      type: "deletePullRequest",
+      workItemId: f.workItemId,
+      pullRequestId,
+    }),
+    /This review is applied/,
+  );
   // Merging made the merger the child's creator, not its owner: a status
   // change by someone else reaches explicit watchers, not the merger.
   await db.insert(s.workItemWatcher).values({
