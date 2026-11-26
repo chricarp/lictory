@@ -9,17 +9,14 @@ import {
   MessageSquareText,
   ShieldQuestion,
   SquareTerminal,
+  TriangleAlert,
   Wrench,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import {
-  asksPermission,
-  sessionTitle,
-  waitsForRunner,
-} from "@lictory/core/factory/entities";
+import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
 import type {
   ApprovalCardPayload,
   QuestionCardPayload,
@@ -47,6 +44,11 @@ import {
 } from "@lictory/platform/components/shell/approval-request";
 import { titledByItem } from "@lictory/platform/components/channels/data";
 import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
+import { useCodePullRequest } from "@lictory/platform/components/code/store";
+import {
+  PullRequestIcon,
+  stateWords,
+} from "@lictory/platform/components/code/parts";
 
 // What the Factory writes into a channel thread
 // (docs/internals/factory.md#sessions-in-channels): a session's live card,
@@ -138,8 +140,9 @@ function SessionCard({
       : null);
   const asks = session && status === "waiting" ? session.approvals : [];
   // In its thread each request is answered where it was asked, so the
-  // thread reads in order; the card says that something waits below. In
-  // the channel (a dispatched session's report) the card holds them.
+  // thread reads in order, and the card stays one row (its state chip says
+  // it waits) rather than a second card pointing at the request. In the
+  // channel (a dispatched session's report) the card holds them.
   const holdsAsks = !detailed;
   // A dispatched session is titled after its item ("PAY-10: Refund
   // button…"); the item's chip already names it, so the title is not
@@ -163,12 +166,7 @@ function SessionCard({
           />
         )}
         {pullRequest && (
-          <Link
-            href={pullRequest.path}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md text-xs font-medium focus-ring outline-none hover:underline"
-          >
-            <GitPullRequest className="size-3.5" aria-hidden /> Pull request
-          </Link>
+          <CardPullRequest id={pullRequest.id} path={pullRequest.path} />
         )}
         <Link
           href={card.path}
@@ -177,6 +175,13 @@ function SessionCard({
           <span className="max-sm:sr-only">Open session</span>
           <ArrowUpRight className="size-3.5" aria-hidden />
         </Link>
+        {detailed && session && (
+          <SessionControls
+            session={session}
+            steer={decider === "you"}
+            agentName={card.agentName}
+          />
+        )}
       </div>
       {root && !namedByChip && <p className="px-3 pb-2 font-medium">{title}</p>}
       <Progress
@@ -192,24 +197,6 @@ function SessionCard({
           !session.repositoryUrl
         }
       />
-      {!holdsAsks && asks.length > 0 && (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
-          <Hand className="size-3.5 shrink-0" aria-hidden />
-          {asks.length > 1
-            ? `${card.agentName} asks ${asks.length} things below`
-            : asksPermission(asks[0]!.detail)
-              ? `${card.agentName} asks for approval below`
-              : `${card.agentName} asks a question below`}
-          {decider === "you" ? "." : `; ${firstName(decider)} decides.`}
-          <button
-            type="button"
-            onClick={() => toRequest(asks[0]!.id)}
-            className="rounded-sm text-foreground underline-offset-2 focus-ring outline-none hover:underline"
-          >
-            Go to the request
-          </button>
-        </p>
-      )}
       {status === "waiting" && session && !asks.length && (
         <p className="flex items-center gap-1.5 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
           <Hand className="size-3.5 shrink-0" aria-hidden />
@@ -227,13 +214,6 @@ function SessionCard({
         <p className="line-clamp-3 border-t px-3 py-2 text-destructive">
           {error}
         </p>
-      )}
-      {detailed && session && (
-        <SessionControls
-          session={session}
-          steer={decider === "you"}
-          agentName={card.agentName}
-        />
       )}
       {session &&
         holdsAsks &&
@@ -254,6 +234,41 @@ function SessionCard({
           </div>
         ))}
     </article>
+  );
+}
+
+// The session's pull request by number and state ("#7, merged"), from the
+// Code module's mirror; "Pull request" until the mirror has it.
+function CardPullRequest({ id, path }: { id: string; path: string }) {
+  const { pullRequest } = useCodePullRequest(id);
+  return (
+    <Link
+      href={path}
+      className="inline-flex shrink-0 items-center gap-1 rounded-md text-xs font-medium focus-ring outline-none hover:underline"
+    >
+      {pullRequest ? (
+        <>
+          <span aria-hidden className="contents">
+            <PullRequestIcon
+              state={pullRequest.state}
+              draft={pullRequest.draft}
+              className="size-3.5"
+            />
+          </span>
+          <span>
+            <span className="sr-only">Pull request </span>#{pullRequest.number}
+            <span className="font-normal text-muted-foreground">
+              {" "}
+              {stateWords[pullRequest.state].toLowerCase()}
+            </span>
+          </span>
+        </>
+      ) : (
+        <>
+          <GitPullRequest className="size-3.5" aria-hidden /> Pull request
+        </>
+      )}
+    </Link>
   );
 }
 
@@ -291,56 +306,44 @@ function SessionControls({
       });
     }
   };
+  // In the card's header row: the buttons beside "Open session", and the
+  // confirmation on a line of its own.
+  if (confirming)
+    return (
+      <div className="flex basis-full flex-wrap items-center gap-2 border-t pt-1.5 text-xs">
+        <span className="mr-auto">
+          Cancel {agentName}’s session? It ends; Retry starts it over.
+        </span>
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          Keep it running
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={act("cancelAgentSession", "Canceling")}
+        >
+          Cancel session
+        </Button>
+      </div>
+    );
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2 text-xs">
-      {confirming ? (
-        <>
-          <span className="mr-auto">
-            Cancel {agentName}’s session? It ends; Retry starts it over.
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setConfirming(false)}
-          >
-            Keep it running
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={act("cancelAgentSession", "Canceling")}
-          >
-            Cancel session
-          </Button>
-        </>
-      ) : (
-        <>
-          {canInterrupt && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={act("interruptAgentSession", "Interrupting")}
-            >
-              <Hand className="size-3.5" aria-hidden /> Interrupt
-            </Button>
-          )}
-          {canCancel && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setConfirming(true)}
-            >
-              <CircleStop className="size-3.5" aria-hidden /> Cancel…
-            </Button>
-          )}
-          {canInterrupt && (
-            <span className="text-muted-foreground max-sm:hidden">
-              Interrupt stops its turn and waits for you.
-            </span>
-          )}
-        </>
+    <span className="flex shrink-0 items-center gap-1">
+      {canInterrupt && (
+        <Button
+          size="sm"
+          variant="secondary"
+          title="Stops its turn; it waits for your next message."
+          onClick={act("interruptAgentSession", "Interrupting")}
+        >
+          <Hand className="size-3.5" aria-hidden /> Interrupt
+        </Button>
       )}
-    </div>
+      {canCancel && (
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(true)}>
+          <CircleStop className="size-3.5" aria-hidden /> Cancel…
+        </Button>
+      )}
+    </span>
   );
 }
 
@@ -412,15 +415,26 @@ function LiveProgress({
           )}
         </p>
       )}
-      {files.length > 0 && (
+      {files.length > 0 && discarded && (
+        // Said in full, not truncated: the agent's summary reads as if the
+        // change exists, and it does not.
+        <p className="flex items-start gap-1.5 font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+          <span>
+            Not kept: {filesChangedLabel(progress).replace(/ changed$/, "")} (
+            <span className="font-mono font-normal break-all">
+              {files.map((f) => f.path).join(", ")}
+            </span>
+            ) discarded when the session ended, because no repository is linked
+            to it.
+          </span>
+        </p>
+      )}
+      {files.length > 0 && !discarded && (
         <p className="flex min-w-0 items-center gap-1.5">
           <FileDiff aria-hidden className="size-3.5 shrink-0" />
-          <span className="shrink-0">
-            {discarded
-              ? `${filesChangedLabel(progress)}, not kept (no repository linked):`
-              : filesChangedLabel(progress)}
-          </span>
-          {!discarded && (progress.additions > 0 || progress.deletions > 0) && (
+          <span className="shrink-0">{filesChangedLabel(progress)}</span>
+          {(progress.additions > 0 || progress.deletions > 0) && (
             <span className="shrink-0 tabular-nums">
               +{progress.additions} −{progress.deletions}
             </span>
@@ -444,15 +458,6 @@ const stepIcons = {
   files: <FileDiff />,
   approval: <ShieldQuestion />,
 } as const;
-
-// Scrolls a thread to a request's own message and focuses its first action.
-function toRequest(approvalId: string) {
-  const request = document.querySelector<HTMLElement>(
-    `[data-approval-record="${approvalId}"]`,
-  );
-  request?.scrollIntoView({ block: "center", behavior: "smooth" });
-  request?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-}
 
 // An agent's request in its thread, where it was asked, so the thread reads
 // in order. While it is pending and the browser can read the session, it is
