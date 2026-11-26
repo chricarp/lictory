@@ -36,6 +36,7 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { ChatContext } from "@lictory/core/intelligence/chat/shared";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import {
@@ -441,7 +442,7 @@ export function IntelligenceDock() {
           exit={{ opacity: 0, transition: { duration: 0.12 } }}
           transition={{ duration: 0.16, ease }}
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-40 bg-black/25 lg:hidden"
+          className={cn("fixed inset-0 z-40 lg:hidden", scrimClass)}
         />
       )}
       {open && (

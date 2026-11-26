@@ -21,6 +21,7 @@ import { popupContainer } from "@lictory/ui/popup";
 import { Button } from "@lictory/ui/button";
 import { track } from "@lictory/core/lib/analytics/client";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { paths } from "@lictory/core/lib/paths";
 import { enabledTypes } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -497,7 +498,9 @@ function ShellFrame({
             side="left"
             container={popupContainer()}
           >
-            <DrawerBackdrop className="fixed inset-0 z-40 bg-black/30 lg:hidden" />
+            <DrawerBackdrop
+              className={cn("fixed inset-0 z-40 lg:hidden", scrimClass)}
+            />
             <DrawerContent
               aria-label="Navigation"
               className="z-50 flex h-dvh max-h-none w-[300px] max-w-[88vw] flex-row gap-0 overflow-hidden border-0 border-r bg-sidebar p-0 text-foreground shadow-xl lg:hidden"

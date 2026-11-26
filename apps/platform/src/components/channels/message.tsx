@@ -334,8 +334,11 @@ export const ChannelMessage = memo(function ChannelMessage({
                   onClick={() => actions.react(message, r.emoji, !r.mine)}
                   className={cn(
                     "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums focus-ring outline-none touch:h-8",
+                    // Mine in the interactive colour, edge and tint, so it
+                    // stands apart in dark themes too (the primary there is
+                    // near-white, and its tint barely showed).
                     r.mine
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-ring/60 bg-ring/12 font-medium text-foreground dark:bg-ring/20"
                       : "bg-card hover:bg-muted",
                   )}
                 >
