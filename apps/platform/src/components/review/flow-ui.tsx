@@ -21,6 +21,7 @@ import {
   TabsTab,
 } from "@ui-sdk/react/tabs";
 import { cn } from "@lictory/core/lib/utils";
+import { statusToneClass } from "@lictory/ui/status-chip";
 import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 
@@ -89,7 +90,7 @@ export const prStatusMeta: Record<
   merged: {
     label: "Applied",
     icon: GitMerge,
-    pill: "bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/25 ring-inset dark:text-violet-300",
+    pill: `${statusToneClass.merged} ring-1 ring-inset`,
     text: "text-violet-600 dark:text-violet-400",
   },
 };
@@ -196,7 +197,7 @@ export function Tabs<T extends string>({
               {t.icon}
               {t.label}
               {t.count !== undefined && (
-                <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
+                <span className="rounded-full bg-foreground/8 px-1.5 text-[11px] text-muted-foreground tabular-nums">
                   {t.count}
                 </span>
               )}
