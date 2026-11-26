@@ -140,6 +140,18 @@ export function ItemWorkflow({
     : delivering
       ? paths.board(organization.slug, project.key)
       : paths.backlog(organization.slug, project.key);
+  // The main button is the step the NEXT line names: while no required
+  // review is requested, that is requesting them (which also moves a draft
+  // into review). Starting refinement first is optional, so it is quieter.
+  const noReviewYet = !item.reviews.some(
+    (r) => r.required && r.status !== "cancelled",
+  );
+  const empty = !current?.content.trim();
+  const requestReviews = !readOnly && noReviewYet && !empty && (
+    <Button size="sm" onClick={onReview}>
+      Request reviews
+    </Button>
+  );
   // Accepting a ready native scope happens in the panel below; the other
   // stages point to the place where their next step happens.
   const action = mine.review ? (
@@ -158,14 +170,24 @@ export function ItemWorkflow({
       )}
     </div>
   ) : !readOnly && stage === "proposal" && onStartRefinement ? (
-    <Button size="sm" onClick={onStartRefinement}>
-      <FilePenLine className="size-3.5" /> Start refinement
-    </Button>
+    <div className="flex flex-wrap gap-1.5">
+      {requestReviews}
+      <Button
+        size="sm"
+        variant="secondary"
+        title="Optional: tells the team the proposal is being explored before anyone reviews it."
+        onClick={onStartRefinement}
+      >
+        <FilePenLine className="size-3.5" /> Start refinement
+      </Button>
+    </div>
   ) : type.hasSpecification &&
     ((!delivering && stage !== "ready") || amendment) ? (
-    <Button variant="secondary" size="sm" onClick={onReview}>
-      Review & checks
-    </Button>
+    requestReviews || (
+      <Button variant="secondary" size="sm" onClick={onReview}>
+        Review & checks
+      </Button>
+    )
   ) : stage === "canceled" ? null : container &&
     (stage === "ready" || delivering) ? (
     <Button variant="ghost" size="sm" onClick={onBreakdown}>
@@ -241,7 +263,9 @@ export function ItemWorkflow({
     type.hasSpecification &&
     refinement &&
     refinement !== "ready"
-      ? nextRefinementAction(item)
+      ? stage === "proposal" && empty && noReviewYet
+        ? "Describe the intent and the expected behavior in the specification, then request the required reviews."
+        : nextRefinementAction(item)
       : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
