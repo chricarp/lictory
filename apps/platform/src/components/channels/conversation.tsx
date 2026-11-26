@@ -20,8 +20,8 @@ import {
 } from "@lictory/platform/lib/navigation";
 import {
   channelLabel,
-  hiddenReplies,
   lastOwnMessage,
+  threadSessions,
   type Channel,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
@@ -46,6 +46,8 @@ import { Composer } from "@lictory/platform/components/channels/composer";
 import type { Mentionable } from "@lictory/platform/components/editor/markdown-editor";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { activeStatuses } from "@lictory/platform/components/factory/labels";
+import { useSessionStateOf } from "@lictory/platform/components/factory/parts";
+import type { SessionState } from "@lictory/platform/lib/session-state";
 import { ChannelHeader } from "@lictory/platform/components/channels/header";
 import {
   SearchPanel,
@@ -128,14 +130,22 @@ function Conversation({ channel }: { channel: Channel }) {
     ],
     [directory.members, factory.agents],
   );
-  // Replies set aside while a session card shows them, keyed so the map
-  // only changes when a count does (sessions update often).
-  const hiddenKey = JSON.stringify([
-    ...hiddenReplies(factory.sessions, channel.id),
-  ]);
-  const hidden = useMemo(
-    () => new Map<string, number>(JSON.parse(hiddenKey) as [string, number][]),
-    [hiddenKey],
+  // Where the agent session of each thread stands, for the channel's thread
+  // summaries, keyed so the map only changes when a state does (sessions
+  // update often).
+  const stateOf = useSessionStateOf();
+  const statesKey = JSON.stringify(
+    [...threadSessions(factory.sessions, channel.id)].map(([root, session]) => [
+      root,
+      stateOf(session, factory.agentById.get(session.agentId)),
+    ]),
+  );
+  const threadStates = useMemo(
+    () =>
+      new Map<string, SessionState>(
+        JSON.parse(statesKey) as [string, SessionState][],
+      ),
+    [statesKey],
   );
   const agentNameOf = useCallback(
     (id: string | null | undefined) =>
@@ -311,12 +321,12 @@ function Conversation({ channel }: { channel: Channel }) {
         mentions={mentions}
         actions={actions}
         inThread={inThread}
-        hiddenReplies={hidden.get(message.id)}
+        threadState={threadStates.get(message.id)}
         syncError={sendFailures.get(message.id)}
       />
     ),
     [
-      hidden,
+      threadStates,
       agentNameOf,
       agentOf,
       userId,
@@ -397,7 +407,6 @@ function Conversation({ channel }: { channel: Channel }) {
           channel={channel}
           label={title}
           rootMessageId={threadId}
-          hiddenReplies={hidden.get(threadId)}
           participant={participant}
           renderMessage={renderInThread}
           speakerOf={speakerOf}

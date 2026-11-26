@@ -62,7 +62,8 @@ a thread you follow. Change it per channel with the bell in its header:
 - **Mentions and my threads** (the default).
 - **Nothing**: the channel is muted. Unread mentions are still counted.
 
-The desktop app's badge counts unread mentions and direct messages.
+The desktop app's badge counts unread mentions and direct messages, with
+everything else that waits on you (see [the desktop app](/basics/desktop#notifications-and-the-badge)).
 
 ## Promote a message
 
@@ -90,15 +91,20 @@ session's thread:
 
 - A **session card** answers in the thread: the agent "via" its owner, its
   live status, the work item when the message links exactly one, and
-  **Open session** for the full transcript in the Factory.
+  **Open session** for the full transcript in the Factory. **Interrupt**
+  and **Cancel…** are on the card too. In the channel, the message shows the
+  session's state beside its reply count (**Running**, **Waiting on you**,
+  **Completed**), so you see an agent waiting without opening the thread.
 - **Reply in the thread to steer it.** Your replies reach the agent when
   you started the session or own the agent. Anyone else's replies stay
   conversation and never reach the agent; the reply box says who steers it.
 - The agent's answers to your replies and its summary arrive as messages
   from the agent. Tool calls and commands stay in the Factory transcript.
-- When it needs permission, an **approval card** asks in the thread. Only
-  the person who started the session and the agent's owner see **Approve**
-  and **Deny**; everyone else sees who can decide.
+- When it needs permission, the request appears in the thread where it was
+  asked, with what it would run and the evidence, so the thread reads in
+  order. Only the person who started the session and the agent's owner see
+  **Approve** and **Deny**; everyone else sees who can decide. Once answered,
+  it stays there as the record of who decided.
 
 Only your own message starts a session. A message sent through an agent or
 an access token does not, and a mention of an agent you may not use gets a

@@ -3,15 +3,13 @@ import { test } from "node:test";
 import {
   channelLabel,
   groupReactions,
-  hiddenReplies,
   indexChannels,
   lastOwnMessage,
   listEntries,
   replyAuthors,
-  sessionCardsIn,
-  shownReplyCount,
   sidebarChannels,
   sidebarDirect,
+  threadSessions,
   titledByItem,
   type ChannelRow,
   type MemberRow,
@@ -280,57 +278,40 @@ void test("a thread root shows its people and agents who replied, Slack people l
   ]);
 });
 
-void test("a thread knows which sessions have their card in it", () => {
-  const thread = [
-    message(1, "ada", start),
-    message(2, "ada", start, {
-      kind: "card",
-      payload: { type: "agentSession", sessionId: "s1" },
-    }),
-    message(3, "ada", start, {
-      kind: "card",
-      payload: { type: "agentApproval", sessionId: "s2" },
-    }),
-    message(4, "ada", start, { payload: { type: "agentSession" } }),
-  ];
-  assert.deepEqual([...sessionCardsIn(thread)], ["s1"]);
-});
-
-void test("reply counts leave out requests their session card shows", () => {
+void test("a channel knows the latest agent session of each thread", () => {
   const session = (
+    id: string,
     over: Partial<{
       channelId: string | null;
       threadRootMessageId: string | null;
-      status: string;
-      approvals: unknown[];
-    }>,
+      createdAt: string;
+    }> = {},
   ) => ({
+    id,
     channelId: "c1",
     threadRootMessageId: "root",
-    status: "waiting",
-    approvals: [{ id: "a1" }],
+    createdAt: "2026-11-24T10:00:00.000Z",
     ...over,
   });
-  const hidden = hiddenReplies(
+  const sessions = threadSessions(
     [
-      session({}),
-      // A second session in the same thread asking twice.
-      session({ approvals: [{ id: "a2" }, { id: "a3" }] }),
-      // Answered or running: its record lines show.
-      session({ threadRootMessageId: "other", status: "running" }),
-      session({ threadRootMessageId: "other", approvals: [] }),
-      // Another channel.
-      session({ channelId: "c2", threadRootMessageId: "elsewhere" }),
+      session("first"),
+      // Retried in the same thread: the newer session speaks for it.
+      session("second", { createdAt: "2026-11-24T11:00:00.000Z" }),
+      session("other", { threadRootMessageId: "root2" }),
+      // Started from the Factory, not from a thread; another channel.
+      session("loose", { threadRootMessageId: null }),
+      session("elsewhere", { channelId: "c2", threadRootMessageId: "x" }),
     ],
     "c1",
   );
-  assert.deepEqual([...hidden], [["root", 3]]);
-  // "2 replies" with one request on the card reads "1 reply"; a dispatch
-  // card whose only reply is its pending request shows none.
-  assert.equal(shownReplyCount({ replyCount: 2 }, 1), 1);
-  assert.equal(shownReplyCount({ replyCount: 1 }, 1), 0);
-  assert.equal(shownReplyCount({ replyCount: 1 }, 2), 0);
-  assert.equal(shownReplyCount({ replyCount: 4 }), 4);
+  assert.deepEqual(
+    [...sessions].map(([root, s]) => [root, s.id]),
+    [
+      ["root", "second"],
+      ["root2", "other"],
+    ],
+  );
 });
 
 void test("a dispatched session's title repeats its item only when named after it", () => {

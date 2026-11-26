@@ -165,19 +165,32 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await reply.press("Enter");
   await expect(panel.getByText("Got it: Mention the v2 API.")).toBeVisible();
 
-  // It asks for approval in the thread; Ada approves on the session's card,
-  // where the request shows with its context. While the card shows it, the
-  // request is one block: its record line returns once answered.
+  // It asks for approval in the thread, where it asks: after the exchange
+  // above, so the thread reads in order. The request shows its context and
+  // Ada answers it there; the card says something waits below it.
   const approval = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();
+  await expect(card.getByText(/Forge asks for approval below/)).toBeVisible();
   await expect(
-    card.getByText("Write CHANGES.md", { exact: true }),
+    approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
-  await expect(approval).toHaveCount(0);
-  // Reply counts leave the set-aside record out: the thread's count and the
-  // channel's summary both state the replies the thread shows.
+  const order = await panel
+    .locator("[data-message-id]")
+    .evaluateAll((nodes) =>
+      nodes.map((node) =>
+        node.querySelector("[data-approval-record]")
+          ? "request"
+          : node.textContent?.includes("Got it: Mention the v2 API.")
+            ? "answer"
+            : null,
+      ),
+    );
+  expect(order.filter(Boolean)).toEqual(["answer", "request"]);
+  // The channel says where the session stands without opening the thread,
+  // and the thread's count is the replies it shows.
+  await expect(message.getByText("Waiting on you")).toBeVisible();
   const log = panel.getByRole("log", { name: "Thread replies" });
   await expect
     .poll(async () => {
@@ -190,7 +203,8 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
       return inThread + summary;
     })
     .toBe(2);
-  await card.getByRole("button", { name: "Approve" }).click();
+  await approval.getByRole("button", { name: "Approve" }).click();
+  // Answered, it stays where it was asked, as the record of who decided.
   await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
 
