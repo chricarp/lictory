@@ -16,8 +16,11 @@ import {
 import { AuthLayout } from "@lictory/platform/components/auth/auth-layout";
 import { ProjectGate } from "@lictory/platform/components/workspace/project-gate";
 import { SplitView } from "@lictory/platform/components/items/split-view";
-import { loadSession } from "@lictory/platform/lib/session";
-import { RootLayout } from "@lictory/platform/routes/root";
+import {
+  loadSession,
+  ServerUnreachableError,
+} from "@lictory/platform/lib/session";
+import { LoadingScreen, RootLayout } from "@lictory/platform/routes/root";
 import {
   AppIndex,
   AppLayout,
@@ -49,6 +52,7 @@ const here = (location: { pathname: string; searchStr: string }) =>
 
 const rootRoute = createRootRoute({
   component: RootLayout,
+  pendingComponent: LoadingScreen,
   errorComponent: RootError,
   notFoundComponent: WorkspaceNotFound,
 });
@@ -67,14 +71,19 @@ const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
   beforeLoad: async () => {
-    // Social sign-in buttons need the configured providers.
-    await loadSession().catch(() => undefined);
+    // Social sign-in buttons need the configured providers. A server that
+    // answers with an error still leaves the pages usable; one that does not
+    // answer could not sign anyone in, so it shows the retry.
+    await loadSession().catch((error: unknown) => {
+      if (error instanceof ServerUnreachableError) throw error;
+    });
   },
   component: () => (
     <AuthLayout>
       <Outlet />
     </AuthLayout>
   ),
+  pendingComponent: LoadingScreen,
 });
 // Pages only for people who are signed out: a signed-in person continues to
 // the destination they asked for, or the home page. The cached session is
@@ -140,6 +149,7 @@ const welcomeRoute = createRoute({
     () => import("@lictory/platform/routes/auth"),
     "WelcomePage",
   ),
+  pendingComponent: LoadingScreen,
 });
 
 // Signed in, with a handle.
@@ -167,7 +177,7 @@ const appRoute = createRoute({
   },
   component: AppLayout,
   errorComponent: WorkspaceError,
-  pendingComponent: () => <DocumentSkeleton headerBar />,
+  pendingComponent: LoadingScreen,
 });
 const appIndexRoute = createRoute({
   getParentRoute: () => appRoute,

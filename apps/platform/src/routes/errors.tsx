@@ -7,7 +7,7 @@ import {
   Search,
   ShieldOff,
 } from "lucide-react";
-import type { ErrorComponentProps } from "@tanstack/react-router";
+import { useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 
 import { Logo } from "@lictory/ui/logo";
 import { Button } from "@lictory/ui/button";
@@ -15,10 +15,20 @@ import { StatusPage } from "@lictory/ui/status-page";
 import { StateIllustration } from "@lictory/ui/state-illustration";
 import { trackRenderFailure } from "@lictory/core/lib/analytics/client";
 import { Link } from "@lictory/platform/lib/navigation";
+import { ServerUnreachableError } from "@lictory/platform/lib/session";
 import { PageTitle } from "@lictory/platform/routes/title";
 
 function describeWorkspaceError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
+
+  if (error instanceof ServerUnreachableError)
+    return {
+      icon: CloudOff,
+      tone: "warning" as const,
+      title: "Couldn’t reach the server",
+      body: "Lictory didn’t answer in time. Check your connection and retry.",
+      retry: "Retry",
+    };
 
   if (/access is unavailable|organization access/i.test(message))
     return {
@@ -67,6 +77,7 @@ function describeWorkspaceError(error: unknown) {
 
 export function WorkspaceError({ error, reset }: ErrorComponentProps) {
   const described = describeWorkspaceError(error);
+  const router = useRouter();
   useEffect(() => {
     trackRenderFailure(undefined);
   }, [error]);
@@ -80,8 +91,15 @@ export function WorkspaceError({ error, reset }: ErrorComponentProps) {
       detail={"detail" in described ? described.detail : undefined}
       actions={
         <>
-          <Button size="lg" onClick={reset}>
-            Try again
+          <Button
+            size="lg"
+            onClick={() => {
+              // Route checks (the session, loaders) run again before the
+              // page renders again; resetting alone would rethrow their error.
+              void router.invalidate().finally(reset);
+            }}
+          >
+            {"retry" in described ? described.retry : "Try again"}
           </Button>
           <Button size="lg" variant="secondary" render={<Link href="/" />}>
             Go to your workspace

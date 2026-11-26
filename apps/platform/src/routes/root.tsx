@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { ConsentProvider } from "@lictory/ui/consent/consent-provider";
 import { Toaster } from "@lictory/ui/toast";
+import { LoadingState } from "@lictory/ui/spinner";
 import { publicConfig } from "@lictory/platform/lib/public-config";
 
 export function RootLayout() {
@@ -11,6 +12,18 @@ export function RootLayout() {
       <RouteAnnouncer />
       <Toaster />
     </ConsentProvider>
+  );
+}
+
+// While the session check is on its way (every page waits for it): a quiet
+// spinner on the page background, so nothing jumps when the page replaces
+// it. The router shows the pending component of the first route still
+// loading; a route without one leaves the page blank.
+export function LoadingScreen() {
+  return (
+    <main className="min-h-dvh bg-background">
+      <LoadingState label="Loading Lictory" className="min-h-dvh" />
+    </main>
   );
 }
 
