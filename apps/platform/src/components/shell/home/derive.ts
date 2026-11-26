@@ -130,10 +130,14 @@ export function recentOutcomes<S extends OutcomeSession>(
     sessions,
     agentOwner,
     now,
+    listed,
   }: Context & {
     sessions: readonly S[];
     agentOwner: (agentId: string) => string | null | undefined;
     now: number;
+    // Sessions already in "Waiting on you" (a failure to retry): listed
+    // once, where there is something to do about them.
+    listed?: ReadonlySet<string>;
   },
   limit: number,
 ): Listed<Outcome<S>> {
@@ -158,6 +162,7 @@ export function recentOutcomes<S extends OutcomeSession>(
   }
   for (const session of sessions) {
     if (session.status !== "completed" && session.status !== "failed") continue;
+    if (listed?.has(session.id)) continue;
     const at = session.completedAt ?? session.updatedAt;
     if (!recent(at)) continue;
     if (

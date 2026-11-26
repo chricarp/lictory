@@ -140,11 +140,26 @@ function Home() {
           sessions,
           agentOwner: (id) => agentById.get(id)?.ownerId,
           now: hour * HOUR,
+          listed: new Set(
+            waiting.flatMap((row) =>
+              row.kind === "agent" ? [row.request.session.id] : [],
+            ),
+          ),
         },
         SHOWN,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, projects, delivery, links, userId, sessions, agentById, hour],
+    [
+      items,
+      projects,
+      delivery,
+      links,
+      userId,
+      sessions,
+      agentById,
+      hour,
+      waiting,
+    ],
   );
   const recent = useMemo(() => {
     const active = new Set(
