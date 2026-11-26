@@ -54,8 +54,13 @@ void test("a release without this system's update reads as that, not a failure",
     }),
     "The newest release has no update for this system yet. Lictory checks again later.",
   );
+  // A network failure is said in words, never as Chromium's code.
   assert.equal(
     updateErrorMessage({ message: "net::ERR_INTERNET_DISCONNECTED\nstack" }),
-    "Checking for updates failed: net::ERR_INTERNET_DISCONNECTED",
+    "Lictory could not check for updates. This computer is offline. It checks again later.",
+  );
+  assert.equal(
+    updateErrorMessage({ message: "net::ERR_CONNECTION_TIMED_OUT" }),
+    "Lictory could not check for updates. The update server did not answer. It checks again later.",
   );
 });
