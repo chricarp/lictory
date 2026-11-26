@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { MissingState } from "@lictory/ui/status-page";
 import {
   ArrowUpRight,
@@ -467,6 +467,16 @@ function readySummary(
 
 // Each run links to its details on the host; a run the host gave no link
 // for opens the pull request's checks there.
+const runWords: Record<
+  CodePullRequestEntity["checks"]["runs"][number]["state"],
+  string
+> = {
+  success: "passed",
+  failure: "failed",
+  pending: "running",
+  neutral: "skipped",
+};
+
 function CheckRuns({
   runs,
   pr,
@@ -492,9 +502,11 @@ function CheckRuns({
               className="inline-flex items-center gap-0.5 rounded-sm underline decoration-muted-foreground/40 underline-offset-2 focus-ring outline-none hover:text-foreground hover:decoration-current"
             >
               {run.name}
+              {/* Out of context (a links list) the name still says how
+                  it went and where it opens. */}
               <span className="sr-only">
                 {" "}
-                ({run.url ? "its run" : "the checks"} on{" "}
+                ({runWords[run.state]}; {run.url ? "its run" : "the checks"} on{" "}
                 {providerLabels[pr.provider]})
               </span>
               <ArrowUpRight aria-hidden className="size-3" />
@@ -559,6 +571,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
     pr.provider === "gitlab" ? "merge" : "squash",
   );
   const [confirming, setConfirming] = useState(false);
+  const noteId = useId();
   const { call, error } = useCall(pr);
   const ciRequired = useCiRequired(pr);
   const blockers = mergeBlockers({ ...pr, ciRequired });
@@ -625,6 +638,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
         blocked={blockers.length > 0}
         readySummary={readySummary(rows, pr.baseBranch)}
         before={autopilot && <AutopilotWaits pr={pr} />}
+        noteId={noteId}
         note={
           !canWork ? (
             "Merging here needs “Change properties” in a project this repository serves."
@@ -685,6 +699,9 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
               ) : (
                 <Button
                   disabled={!!blockers.length || merging}
+                  // Blocked, it stays in the tab order and says why.
+                  focusableWhenDisabled
+                  aria-describedby={blockers.length ? noteId : undefined}
                   onClick={() => setConfirming(true)}
                 >
                   {merging ? (
@@ -854,8 +871,11 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
             <Button
               variant="secondary"
               type="button"
-              // Changes are requested with what must change.
+              // Changes are requested with what must change; until then it
+              // stays in the tab order, described by the line that says so.
               disabled={!comment.trim()}
+              focusableWhenDisabled
+              aria-describedby="code-comment-hint"
               onClick={() => void review("request_changes")}
             >
               <CircleX aria-hidden className="size-3.5" />

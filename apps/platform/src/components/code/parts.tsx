@@ -261,6 +261,12 @@ export function PullRequestChip({
       : review === "changes_requested"
         ? "changes requested"
         : null;
+  const checksWord =
+    pr.checks.state === "failure"
+      ? "Failing"
+      : pr.checks.state === "pending"
+        ? "Running"
+        : null;
   const spoken = [
     `${pr.draft ? "Draft pull request" : "Pull request"} #${pr.number}`,
     checkWords[pr.checks.state].toLowerCase(),
@@ -280,6 +286,11 @@ export function PullRequestChip({
         <PullRequestIcon state={pr.state} draft={pr.draft} className="size-3" />
         <span className="tabular-nums">#{pr.number}</span>
         <ChecksIcon state={pr.checks.state} label="" className="size-3" />
+        {/* Checks that are not green say so in words, not only by the
+            icon's shape and colour (a title is not shown on focus or
+            touch). */}
+        {checksWord && <span>{checksWord}</span>}
+        {checksWord && reviewWord && <span>·</span>}
         {reviewWord && (
           <span
             className={
