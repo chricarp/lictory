@@ -12,7 +12,7 @@ import {
   withoutAsking,
   type AgentEntity,
 } from "@lictory/core/factory/entities";
-import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
+import { harnessLabels } from "@lictory/core/factory/protocol";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -328,12 +328,14 @@ const targetNouns: Record<string, string> = {
 // Approval requests only reach people for what the harness asks.
 function WithoutAsking({ agent }: { agent: AgentEntity }) {
   const { runners } = useFactory();
-  const harness = harnessLabels[agent.harness as HarnessId] ?? agent.harness;
+  const id = agent.harness;
+  if (!id) return <span className="text-muted-foreground">Unknown</span>;
+  const harness = harnessLabels[id];
   const able = runners.filter(
     (r) =>
       !r.revokedAt &&
       (!r.ownerId || r.ownerId === agent.ownerId) &&
-      r.harnesses.some((h) => h.id === agent.harness),
+      r.harnesses.some((h) => h.id === id),
   );
   if (!able.length)
     return (
@@ -344,10 +346,7 @@ function WithoutAsking({ agent }: { agent: AgentEntity }) {
     );
   const said = able.map((r) => ({
     runner: r.name,
-    text: withoutAsking(
-      agent.harness,
-      r.harnesses.find((h) => h.id === agent.harness)?.permissions,
-    ),
+    text: withoutAsking(id, r.harnesses.find((h) => h.id === id)?.permissions),
   }));
   const distinct = new Set(said.map((s) => s.text));
   const unknown = `Unknown: ${distinct.size === 1 && able.length > 1 ? "its runners do" : "the runner does"} not report it (an older runner version). The runner’s configuration decides what ${harness} does without asking.`;
