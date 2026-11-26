@@ -202,7 +202,9 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
           ) : category === "canceled" ? (
             <span className={muted}>Canceled</span>
           ) : (
-            <span className={muted}>Evaluated once the item is in progress</span>
+            <span className={muted}>
+              Evaluated once the item is in progress
+            </span>
           )}
         </Fact>
       </dl>

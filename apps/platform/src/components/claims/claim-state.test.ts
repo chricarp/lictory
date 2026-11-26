@@ -133,11 +133,21 @@ void test("a Done item keeps the evidence its Definition of Done moved it on", (
     createdAt: "2026-11-20T10:00:00.000Z",
     detail: {
       checks: [
-        { key: "merged", label: "Merged", overridden: false, detail: "#1 merged." },
+        {
+          key: "merged",
+          label: "Merged",
+          overridden: false,
+          detail: "#1 merged.",
+        },
         { key: "ci", label: "CI passed", overridden: true },
       ],
       pullRequests: [
-        { title: "acme/api#1 Retries", url: null, state: "merged", headSha: "abc" },
+        {
+          title: "acme/api#1 Retries",
+          url: null,
+          state: "merged",
+          headSha: "abc",
+        },
       ],
     },
   };

@@ -114,7 +114,12 @@ export function pullRequestStripPart(
 // requests show this record instead (docs/internals/claims.md#definition-of-done).
 export type DeliveredEvidence = {
   at: string;
-  checks: { key: string; label: string; overridden: boolean; detail?: string }[];
+  checks: {
+    key: string;
+    label: string;
+    overridden: boolean;
+    detail?: string;
+  }[];
   pullRequests: {
     title: string;
     url: string | null;

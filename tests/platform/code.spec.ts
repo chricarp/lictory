@@ -116,6 +116,12 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
       ben.page.getByRole("heading", { name: "PAY-1: refunds over the API" }),
     ).toBeVisible();
     await expect(ben.page.getByText("Ready to merge")).toBeVisible();
+    // Nothing blocks it, but nobody reviewed it: the summary says so.
+    await expect(
+      ben.page.getByText(
+        "Nothing blocks merging into main, but nobody approved it.",
+      ),
+    ).toBeVisible();
     // Opening the files view reads them from the host.
     await ben.page.getByRole("tab", { name: "Files changed" }).click();
     await expect(ben.page.getByText("src/refunds.ts")).toBeVisible();

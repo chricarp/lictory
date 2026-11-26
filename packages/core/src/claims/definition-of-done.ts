@@ -40,9 +40,6 @@ export function relevantPullRequests(prs: CodePullRequestEvidence[]) {
 const named = (pr: CodePullRequestEvidence) => `“${pr.title}”`;
 
 // Why the CI check is not met when the host reported nothing to pass.
-export const noChecksSentence =
-  "The code host has reported no checks for this commit.";
-
 function noChecksDetail(prs: CodePullRequestEvidence[]) {
   const optional = prs.filter((pr) => (pr.checks.reported ?? 0) > 0);
   const first =
