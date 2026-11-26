@@ -338,8 +338,10 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
             </>
           }
           time={session.completedAt ?? session.updatedAt}
-          // It waits on me to retry it: the row does that in place.
-          actions={
+          // It waits on me to retry it: the row does that in place, shown
+          // like the Review and Answer of the rows beside it (not only on
+          // hover).
+          chips={
             agentSession.allows(session.status, "retry") && (
               <RetrySession sessionId={session.id} />
             )

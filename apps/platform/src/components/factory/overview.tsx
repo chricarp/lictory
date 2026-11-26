@@ -97,8 +97,10 @@ export function FactoryOverview() {
     );
 
   const counts = [
+    // Only the agents' part of the queue Home and the Inbox count, named as
+    // such so the numbers reconcile.
     asks.length > 0 &&
-      `${asks.length} ${asks.length === 1 ? "needs" : "need"} you`,
+      `${asks.length} from agents ${asks.length === 1 ? "needs" : "need"} you`,
     blocks.waitingOnOthers.length > 0 &&
       `${blocks.waitingOnOthers.length} waiting on teammates`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,
@@ -156,10 +158,16 @@ export function FactoryOverview() {
           "Waiting on you"), the same rows answered the same way here, so
           the Factory, Home and the Inbox never disagree. */}
       <Panel
-        title="Needs you"
+        title="Agents need you"
         icon={<Hand />}
         count={asks.length}
-        more={{ label: "Inbox", href: paths.inbox(org, "todo") }}
+        more={{
+          label:
+            waiting.length > asks.length
+              ? `All ${waiting.length} waiting on you in Inbox`
+              : "Inbox",
+          href: paths.inbox(org, "todo"),
+        }}
         empty="Nothing waits on you. When an agent needs a decision or your next message, it appears here and in your Inbox."
       >
         {asks.map((row) => (
