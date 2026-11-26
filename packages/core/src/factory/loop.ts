@@ -318,7 +318,11 @@ const endReasons: Record<string, string> = {
   definition_of_done: "its Definition of Done passed",
 };
 
-const hostNames = { github: "GitHub", gitlab: "GitLab", bitbucket: "Bitbucket" };
+const hostNames = {
+  github: "GitHub",
+  gitlab: "GitLab",
+  bitbucket: "Bitbucket",
+};
 
 // "PAY-4 is Done: its Definition of Done passed. Pull request #3 was merged
 // by Bo Lind. Delivered revision 2." From Lictory's own records: the item,

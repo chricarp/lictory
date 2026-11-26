@@ -128,8 +128,10 @@ export type SessionStatus = SessionRow["status"];
 // The sessions that take one of a runner's slots: assigned or running. A
 // session waiting on a person keeps its lease without taking a slot, so the
 // runner's capacity and the dispatcher count the same thing.
-export const SLOT_STATUSES = ["assigned", "running"] as const satisfies
-  readonly SessionStatus[];
+export const SLOT_STATUSES = [
+  "assigned",
+  "running",
+] as const satisfies readonly SessionStatus[];
 export const takesSlot = (status: SessionStatus) =>
   (SLOT_STATUSES as readonly SessionStatus[]).includes(status);
 

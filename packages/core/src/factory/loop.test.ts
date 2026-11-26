@@ -906,7 +906,10 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
       .where(eq(s.channelMessage.channelId, f.channelId))
       .orderBy(desc(s.channelMessage.sequence))
       .limit(1);
-    return note!.body.replace(/^PAY-1 is Done: its Definition of Done passed\. /, "");
+    return note!.body.replace(
+      /^PAY-1 is Done: its Definition of Done passed\. /,
+      "",
+    );
   };
   assert.equal(
     await noteFor(crypto.randomUUID()),
