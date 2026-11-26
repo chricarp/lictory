@@ -27,10 +27,11 @@ function rpcError(status: number, message: string, headers?: HeadersInit) {
     { status, headers },
   );
 }
-// Header values are ASCII: no arrows here.
+// Header values are ASCII, so ">" stands for the "→" of the JSON body; the
+// places are named the same way in both.
 const mcpChallenge = {
   "WWW-Authenticate":
-    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Integrations."',
+    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Integrations > Personal access tokens."',
 };
 
 export function createApp(options: { draining?: () => boolean } = {}) {
