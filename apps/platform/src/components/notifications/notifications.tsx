@@ -13,6 +13,7 @@ import {
   CircleAlert,
   CircleCheckBig,
   GitPullRequestArrow,
+  ListFilter,
   Mail,
   MessageSquare,
   MessagesSquare,
@@ -103,6 +104,15 @@ export function NotificationFeed() {
     teamId: null,
     category: null,
   });
+  // Phones show the filters behind one button, so the list starts on the
+  // first screen instead of under three rows of controls.
+  const [filtersShown, setFiltersShown] = useState(false);
+  const filtersSet = [
+    filters.everywhere,
+    filters.projectId,
+    filters.teamId,
+    filters.category,
+  ].filter(Boolean).length;
   const [page, setPage] = useState<NotificationPage | null>(null);
   const [error, setError] = useState<string>();
   const [loadingMore, setLoadingMore] = useState(false);
@@ -237,88 +247,116 @@ export function NotificationFeed() {
               </SegmentedItem>
             ))}
           </Segmented>
-          <FilterMenu
-            label={filters.everywhere ? "All organizations" : organization.name}
-            active={filters.everywhere}
-            title="Organization"
-            options={[
-              {
-                value: "here",
-                label: organization.name,
-                hint: "This organization",
-              },
-              { value: "all", label: "All organizations" },
-            ]}
-            value={filters.everywhere ? "all" : "here"}
-            onSelect={(v) =>
-              setFilters((f) => ({
-                ...f,
-                everywhere: v === "all",
-                projectId: null,
-                teamId: null,
-              }))
-            }
-          />
-          {!filters.everywhere && (
-            <>
-              <FilterMenu
-                label={projectName(filters.projectId) ?? "Any project"}
-                active={!!filters.projectId}
-                title="Project"
-                options={[
-                  { value: "", label: "Any project" },
-                  ...projects.map((p) => ({
-                    value: p.id,
-                    label: p.name,
-                    hint: p.key,
-                  })),
-                ]}
-                value={filters.projectId ?? ""}
-                onSelect={(v) =>
-                  setFilters((f) => ({ ...f, projectId: v || null }))
-                }
-              />
-              {teams.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={filtersShown}
+            aria-controls="inbox-filters"
+            onClick={() => setFiltersShown((v) => !v)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs sm:hidden",
+              filtersSet > 0
+                ? "border-primary/30 bg-primary/5 text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            <ListFilter className="size-3.5" aria-hidden />
+            Filters
+            {filtersSet > 0 && (
+              <span className="tabular-nums">· {filtersSet}</span>
+            )}
+          </button>
+          <div
+            id="inbox-filters"
+            className={cn(
+              "flex flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full sm:contents",
+              !filtersShown && "max-sm:hidden",
+            )}
+          >
+            <FilterMenu
+              label={
+                filters.everywhere ? "All organizations" : organization.name
+              }
+              active={filters.everywhere}
+              title="Organization"
+              options={[
+                {
+                  value: "here",
+                  label: organization.name,
+                  hint: "This organization",
+                },
+                { value: "all", label: "All organizations" },
+              ]}
+              value={filters.everywhere ? "all" : "here"}
+              onSelect={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  everywhere: v === "all",
+                  projectId: null,
+                  teamId: null,
+                }))
+              }
+            />
+            {!filters.everywhere && (
+              <>
                 <FilterMenu
-                  label={teamName(filters.teamId) ?? "Any team"}
-                  active={!!filters.teamId}
-                  title="Team"
+                  label={projectName(filters.projectId) ?? "Any project"}
+                  active={!!filters.projectId}
+                  title="Project"
                   options={[
-                    { value: "", label: "Any team" },
-                    ...teams.map((t) => ({
-                      value: t.id,
-                      label: teamName(t.id) ?? t.name,
+                    { value: "", label: "Any project" },
+                    ...projects.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      hint: p.key,
                     })),
                   ]}
-                  value={filters.teamId ?? ""}
+                  value={filters.projectId ?? ""}
                   onSelect={(v) =>
-                    setFilters((f) => ({ ...f, teamId: v || null }))
+                    setFilters((f) => ({ ...f, projectId: v || null }))
                   }
                 />
-              )}
-            </>
-          )}
-          <FilterMenu
-            label={
-              filters.category ? categoryLabels[filters.category] : "Any type"
-            }
-            active={!!filters.category}
-            title="Type"
-            options={[
-              { value: "", label: "Any type" },
-              ...notificationCategories.map((c) => ({
-                value: c,
-                label: categoryLabels[c],
-              })),
-            ]}
-            value={filters.category ?? ""}
-            onSelect={(v) =>
-              setFilters((f) => ({
-                ...f,
-                category: (v || null) as NotificationCategory | null,
-              }))
-            }
-          />
+                {teams.length > 0 && (
+                  <FilterMenu
+                    label={teamName(filters.teamId) ?? "Any team"}
+                    active={!!filters.teamId}
+                    title="Team"
+                    options={[
+                      { value: "", label: "Any team" },
+                      ...teams.map((t) => ({
+                        value: t.id,
+                        label: teamName(t.id) ?? t.name,
+                      })),
+                    ]}
+                    value={filters.teamId ?? ""}
+                    onSelect={(v) =>
+                      setFilters((f) => ({ ...f, teamId: v || null }))
+                    }
+                  />
+                )}
+              </>
+            )}
+            <FilterMenu
+              label={
+                filters.category ? categoryLabels[filters.category] : "Any type"
+              }
+              active={!!filters.category}
+              title="Type"
+              options={[
+                { value: "", label: "Any type" },
+                ...notificationCategories.map((c) => ({
+                  value: c,
+                  label: categoryLabels[c],
+                })),
+              ]}
+              value={filters.category ?? ""}
+              onSelect={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  category: (v || null) as NotificationCategory | null,
+                }))
+              }
+            />
+          </div>
           <div className="ml-auto flex items-center gap-3">
             {unreadElsewhere.length > 0 && !filters.everywhere && (
               <p className="text-xs text-muted-foreground">
@@ -342,7 +380,8 @@ export function NotificationFeed() {
               onClick={() => void markAllRead()}
               disabled={!page?.items.some((n) => !n.readAt)}
             >
-              <CheckCheck className="size-3.5" /> Mark all read
+              <CheckCheck className="size-3.5" aria-hidden />
+              <span className="max-sm:sr-only">Mark all read</span>
             </Button>
             <Tooltip label="Notification settings">
               <Link
@@ -514,7 +553,7 @@ function Row({
             nobody did (readiness is evidence, not someone's act). */}
         <span
           className={cn(
-            "grid min-w-4 shrink-0 place-items-center",
+            "grid w-5 shrink-0 place-items-center",
             urgent
               ? "text-destructive"
               : n.kind === "item_ready"
@@ -534,7 +573,9 @@ function Row({
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "truncate text-[13px] leading-5",
+              // Phones give the headline two lines, so the item it names
+              // ("…a discussion on PAY-11") is not the part that is cut.
+              "text-[13px] leading-5 max-sm:line-clamp-2 sm:truncate",
               unread && "font-semibold text-foreground",
             )}
           >
