@@ -93,6 +93,37 @@ test("on a phone the settings sections, board columns and backlog states stay re
   await fits(page, 390);
 });
 
+// No separator dot starts a line of row details: a part whose dot shows
+// has another part before it on the same line (the dot of a part that
+// starts a line falls outside the line's box).
+async function expectNoLeadingSeparators(scope: Locator) {
+  const stranded = await scope.evaluate((element) =>
+    [...element.querySelectorAll<HTMLElement>("[data-meta-line]")].flatMap(
+      (line) => {
+        const edge = line.getBoundingClientRect().left;
+        const parts = [
+          ...line.querySelectorAll<HTMLElement>("[data-meta-part]"),
+        ].filter((part) => part.getClientRects().length > 0);
+        return parts
+          .filter((part) => {
+            const box = part.getBoundingClientRect();
+            if (box.left < edge - 0.5) return false;
+            return !parts.some((other) => {
+              const before = other.getBoundingClientRect();
+              return (
+                other !== part &&
+                Math.abs(before.top - box.top) < 2 &&
+                before.right <= box.left + 1
+              );
+            });
+          })
+          .map((part) => part.textContent);
+      },
+    ),
+  );
+  expect(stranded).toEqual([]);
+}
+
 test("at 320px list rows wrap their details instead of cutting them mid-word", async ({
   page,
 }) => {
@@ -113,6 +144,13 @@ test("at 320px list rows wrap their details instead of cutting them mid-word", a
   await expect(row).toContainText("Read and write");
   await expect(row).toContainText("Every project");
   await expectWhole(row);
+  // The details wrap onto more than one line, and no line starts with a
+  // separator.
+  const meta = row.locator("[data-meta-line]");
+  expect(
+    await meta.evaluate((line) => line.getBoundingClientRect().height),
+  ).toBeGreaterThan(20);
+  await expectNoLeadingSeparators(row);
   await fits(page, 320);
 });
 
