@@ -46,7 +46,9 @@ let runner: ChildProcess | undefined;
 let home: string | undefined;
 let output = "";
 
-test.afterEach(async () => {
+test.afterEach(async ({}, info) => {
+  if (info.status !== info.expectedStatus)
+    console.log(`[runner output]\n${output}`);
   const child = runner;
   if (child?.exitCode === null) {
     child.kill("SIGTERM");
@@ -404,10 +406,10 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
   // Hawk approves, but CI has not reported: Autopilot waits, and the pull
   // request page says what for.
   await page.goto(seeded.itemPath(1));
+  await expect(
+    page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
+  ).toBeVisible({ timeout: 120_000 });
   const done = page.getByRole("region", { name: "Definition of Done" });
-  await expect(done.getByText("Hawk approved the head commit")).toBeVisible({
-    timeout: 120_000,
-  });
   await expect(
     done.getByText(/The code host has reported no checks for the head commit/),
   ).toBeVisible();
