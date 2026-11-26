@@ -680,8 +680,8 @@ function PullRequestDetail({
           {!pr.reviewers.length && (
             <p className="text-[13px] text-muted-foreground">
               {space.publishing === "reviewed"
-                ? "Nobody is asked yet. Merging needs a required reviewer's approval of this exact result."
-                : "Nobody is asked yet."}
+                ? "Nobody is asked yet. Ask anyone who can comment on this page and did not write the change; merging needs a required reviewer’s approval of this exact result."
+                : "Nobody is asked yet. Anyone who can comment on this page and did not write the change can review it."}
             </p>
           )}
           {pr.reviewers.map((r) => {
