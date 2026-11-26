@@ -91,7 +91,7 @@ export const prStatusMeta: Record<
     label: "Applied",
     icon: GitMerge,
     pill: `${statusToneClass.merged} ring-1 ring-inset`,
-    text: "text-violet-600 dark:text-violet-400",
+    text: "text-merged",
   },
 };
 

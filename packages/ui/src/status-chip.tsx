@@ -26,7 +26,7 @@ export const statusToneClass: Record<StatusTone, string> = {
   danger:
     "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/20 dark:bg-destructive/14 dark:ring-destructive/40",
   merged:
-    "bg-violet-600/8 text-violet-700 ring-violet-600/25 dark:bg-violet-400/14 dark:text-violet-300 dark:ring-violet-400/40",
+    "bg-merged/8 text-[color-mix(in_oklab,var(--merged)_80%,var(--foreground))] ring-merged/25 dark:bg-merged/14 dark:ring-merged/40",
 };
 
 // One shape for every state: 20px tall, 6px corners, sans 12px medium, an

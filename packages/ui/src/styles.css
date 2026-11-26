@@ -26,6 +26,9 @@
      foregrounds (WCAG 2.2 AA; checked by the browser suite). */
   --success: #15803d;
   --warning: #b45309;
+  /* A merged change (pull requests, proposed changes): the code hosts'
+     violet, >= 4.5:1 on background and card. */
+  --merged: #7c3aed;
   --shell: #f2f3f5;
   /* Recessed groups (trays) hold raised cards. */
   --tray: #f3f4f6;
@@ -136,6 +139,7 @@
   --identity-tile: 34%;
   --identity-ink: 20%;
   --identity-edge: 60%;
+  --merged: #a78bfa;
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;
@@ -570,6 +574,7 @@
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-merged: var(--merged);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);

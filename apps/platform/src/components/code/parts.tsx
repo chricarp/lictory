@@ -55,7 +55,7 @@ export function PullRequestIcon({
 }) {
   const [Icon, tone, label]: [LucideIcon, string, string] =
     state === "merged"
-      ? [GitMerge, "text-violet-600 dark:text-violet-400", "Merged"]
+      ? [GitMerge, "text-merged", "Merged"]
       : state === "closed"
         ? [GitPullRequestClosed, "text-destructive", "Closed"]
         : draft
