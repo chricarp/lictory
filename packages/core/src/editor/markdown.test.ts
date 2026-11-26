@@ -199,6 +199,21 @@ void test("agent mentions (channels) read and write as agent mentions", () => {
   assert.equal(serializeMarkdown(doc), markdown.trimEnd());
 });
 
+void test("a heading's text is written as it reads, without line-start escapes", () => {
+  // After "## " nothing starts a block, so a numbered or dashed heading keeps
+  // its text (sections are found by it), while emphasis and a closing "#"
+  // are still escaped.
+  for (const heading of [
+    "## 1. Choose where delivery happens",
+    "# 2) Second",
+    "### - dash, + plus and > quote",
+    "## Pay \\*now\\* \\#",
+  ]) {
+    const { doc } = parseMarkdown(`${heading}\n`);
+    assert.equal(serializeMarkdown(doc), heading);
+  }
+});
+
 void test("readiness sections, references and mentions survive a fresh write", () => {
   for (const [name, markdown] of Object.entries(fixtures)) {
     const fresh = serializeMarkdown(parseMarkdown(markdown).doc);

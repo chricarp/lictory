@@ -29,7 +29,13 @@ function documentedSequence(file: string) {
   const text = readFileSync(join(repository, file), "utf8");
   const block = [...text.matchAll(/```sh\n([\s\S]*?)```/g)]
     .map((match) => match[1]!)
-    .find((body) => body.includes("bun install --frozen-lockfile"));
+    // The setup block also starts with the install; the verification
+    // sequence is the one that audits.
+    .find(
+      (body) =>
+        body.includes("bun install --frozen-lockfile") &&
+        body.includes("bun audit"),
+    );
   assert.ok(block, `${file} lists the verification sequence`);
   return block
     .split("\n")

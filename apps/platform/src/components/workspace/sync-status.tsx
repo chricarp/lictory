@@ -27,6 +27,7 @@ import {
 } from "@lictory/platform/components/workspace/recovery";
 import { reauthenticate } from "@lictory/platform/components/workspace/connection-notice";
 import { useCompactSidebar } from "@lictory/platform/components/shell/sidebar-parts";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 
 // Routine sync cycles stay quiet; connection problems are shown immediately.
 const SHOW_AFTER_MS = 400;
@@ -100,63 +101,62 @@ export function SyncStatus() {
     ),
   ];
 
+  // A problem is said once when it starts, through the workspace's one
+  // announcer, not on every save (routine states stay quiet).
   const problemShown = shortLabels[presentation] !== undefined;
+  useAnnounceChange("sync", problemShown ? label : "", (_previous, next) =>
+    next ? next : null,
+  );
   return (
-    <>
-      {/* Said once when the connection changes, not on every save. */}
-      <span role="status" className="sr-only">
-        {problemShown ? label : ""}
-      </span>
-      <Popover
-        width={300}
-        // Opens over the sidebar it belongs to, not over the page's content.
-        side={compact ? "right" : "top"}
-        align="end"
-        trigger={(props) => (
-          <button
-            {...props}
-            // The visible word starts the name (WCAG 2.5.3).
-            aria-label={word && word !== label ? `${word}. ${label}` : label}
-            title={label}
-            data-sync-status={presentation}
-            data-pending={pending.length}
+    <Popover
+      width={300}
+      // Opens over the sidebar it belongs to, not over the page's content.
+      side={compact ? "right" : "top"}
+      align="end"
+      trigger={(props) => (
+        <button
+          {...props}
+          // The visible word starts the name (WCAG 2.5.3).
+          aria-label={word && word !== label ? `${word}. ${label}` : label}
+          title={label}
+          data-sync-status={presentation}
+          data-pending={pending.length}
+          className={cn(
+            "flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+            word ? "px-2 text-xs font-medium" : "w-7",
+            presentation === "idle" && "text-muted-foreground/70",
+            recovering && "text-muted-foreground",
+            presentation === "offline" && "text-warning",
+            (presentation === "attention" || presentation === "access") &&
+              "text-destructive",
+            word &&
+              (presentation === "offline"
+                ? "bg-warning/10"
+                : presentation === "recovering"
+                  ? "bg-muted"
+                  : "bg-destructive/10"),
+          )}
+        >
+          <Icon
+            aria-hidden
             className={cn(
-              "flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-              word ? "px-2 text-xs font-medium" : "w-7",
-              presentation === "idle" && "text-muted-foreground/70",
-              recovering && "text-muted-foreground",
-              presentation === "offline" && "text-warning",
-              (presentation === "attention" || presentation === "access") &&
-                "text-destructive",
-              word &&
-                (presentation === "offline"
-                  ? "bg-warning/10"
-                  : presentation === "recovering"
-                    ? "bg-muted"
-                    : "bg-destructive/10"),
+              "size-4 shrink-0",
+              recovering &&
+                "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
             )}
-          >
-            <Icon
-              aria-hidden
-              className={cn(
-                "size-4 shrink-0",
-                recovering &&
-                  "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
-              )}
-            />
-            {word && <span aria-hidden>{word}</span>}
-          </button>
-        )}
-      >
-        <SyncPanel
-          presentation={presentation}
-          count={pending.length}
-          errors={errors}
-          reconnect={reconnect}
-          recoverable={recoverable}
-        />
-      </Popover>
-    </>
+          />
+          {word && <span aria-hidden>{word}</span>}
+        </button>
+      )}
+    >
+      <SyncPanel
+        presentation={presentation}
+        count={pending.length}
+        errors={errors}
+        reconnect={reconnect}
+        recoverable={recoverable}
+      />
+    </Popover>
   );
 }
 
