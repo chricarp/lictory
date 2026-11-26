@@ -48,6 +48,7 @@ import {
   harnessIds,
   limits,
   runnerEventSchema,
+  runnerPhases,
   type Assignment,
   type HarnessId,
   type RunnerEvent,
@@ -204,6 +205,20 @@ async function addInput(
     sessionId: session.id,
   });
   return sequence;
+}
+
+// Whether the agent still waits on a person's decision.
+async function pendingApprovals(tx: Tx, sessionId: string) {
+  const [pending] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(s.agentApproval)
+    .where(
+      and(
+        eq(s.agentApproval.sessionId, sessionId),
+        eq(s.agentApproval.status, "pending"),
+      ),
+    );
+  return (pending?.count ?? 0) > 0;
 }
 
 // Ends the current run's credentials and questions; used whenever a
@@ -695,7 +710,7 @@ export async function interruptSession(
         data: {
           phase: "interrupt_requested",
           status: session.status,
-          message: `${name} interrupted the agent.`,
+          message: `${name} interrupted the agent: it stops its current turn and waits for the next message.`,
           byId: actor.userId,
         },
       },
@@ -774,19 +789,55 @@ export async function retrySession(
     requireStep(agentSession, session.status, "retry");
     await assertCanStart(tx, actor.userId, agent);
     const name = await memberName(tx, actor.userId);
+    // The new run starts over from the task. The earlier run's inputs stay
+    // behind (its cancel and its approval answers belong to that run), but
+    // the messages people sent it are its steering: they are sent again, in
+    // order, so nobody has to repeat them. Copies are marked so a later
+    // retry sends each message once.
+    const messages = (
+      await tx
+        .select({
+          data: s.agentSessionInput.data,
+          createdById: s.agentSessionInput.createdById,
+        })
+        .from(s.agentSessionInput)
+        .where(
+          and(
+            eq(s.agentSessionInput.sessionId, session.id),
+            eq(s.agentSessionInput.kind, "message"),
+          ),
+        )
+        .orderBy(asc(s.agentSessionInput.sequence))
+    ).filter((m) => !m.data.carried);
+    let inputSequence = session.inputSequence;
+    for (const message of messages)
+      inputSequence = await addInput(
+        tx,
+        { ...session, inputSequence },
+        "message",
+        { ...message.data, carried: true },
+        message.createdById,
+      );
+    const carried =
+      messages.length === 0
+        ? ""
+        : messages.length === 1
+          ? " with the message sent to it before"
+          : ` with the ${messages.length} messages sent to it before`;
     const eventSequence = await appendEvents(tx, session, [
       {
         type: "status",
         data: {
           phase: "queued",
           status: "queued",
-          message: `${name} retried the session.`,
+          message: `${name} retried the session: ${agent.name} starts over from the task${carried}.`,
           byId: actor.userId,
         },
       },
     ]);
     const row = await updateSession(tx, session.id, {
       status: "queued",
+      inputSequence,
       eventSequence,
       attempts: 0,
       runnerId: null,
@@ -874,16 +925,7 @@ export async function answerApproval(
       data,
       actor.userId,
     );
-    const [pending] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(s.agentApproval)
-      .where(
-        and(
-          eq(s.agentApproval.sessionId, session.id),
-          eq(s.agentApproval.status, "pending"),
-        ),
-      );
-    const resume = (pending?.count ?? 0) === 0;
+    const resume = !(await pendingApprovals(tx, session.id));
     if (resume) requireStep(agentSession, session.status, "resume");
     const eventSequence = await appendEvents(tx, session, [
       { type: "approval_answer", data },
@@ -1369,6 +1411,21 @@ export async function appendRunnerEvents(
           0,
           limits.text,
         );
+      // The harness waits on a person's next message, or works again.
+      if (event.type === "status") {
+        const phase = (event.data as { phase: string }).phase;
+        if (
+          phase === runnerPhases.awaitingMessage &&
+          (status === "assigned" || status === "running")
+        )
+          status = "waiting";
+        else if (
+          phase === runnerPhases.working &&
+          status === "waiting" &&
+          !(await pendingApprovals(tx, session.id))
+        )
+          status = "running";
+      }
       stored.push({ type: event.type, data: event.data, at: when });
     }
     // An approval request before the runner said it started still counts as
@@ -1378,6 +1435,8 @@ export async function appendRunnerEvents(
         requireStep(agentSession, session.status, "start");
       else requireStep(agentSession, session.status, "wait");
     }
+    if (status === "running" && session.status === "waiting")
+      requireStep(agentSession, session.status, "resume");
     // The agent's answers to people reach the session's thread: the first
     // message after a person's steering message (the full log stays in the
     // Factory). Everything else (progress, tool calls) stays in the log.
@@ -1450,6 +1509,9 @@ export async function appendRunnerEvents(
     }
     for (const approvalId of approvals)
       publish(threadEvent(row, "approval_requested", approvalId));
+    // Waiting on a message (or working again) changes the card and the claim.
+    if (!approvals.length && row.status !== session.status)
+      publish(threadEvent(row, "status"));
     for (const sequence of replies)
       publish({
         ...threadEvent(row, "agent_message"),

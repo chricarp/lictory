@@ -294,3 +294,65 @@ void test("service definitions run `start` with the runner's home", () => {
   assert.match(plist, /<string>start<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
 });
+
+void test("the scripted harness's interrupt stops the step and waits for the next message", async () => {
+  const worktree = join(scratch, "fake-interrupt");
+  await mkdir(worktree, { recursive: true });
+  const said: string[] = [];
+  const waits: number[] = [];
+  const harness = fakeHarnesses([
+    { sleep: 60_000 },
+    { say: "Back to work." },
+    { waitForMessage: true },
+  ]).find((h) => h.id === "claude-code")!;
+  let interruptNow: () => void = () => undefined;
+  const replies = ["Fix the timeout instead", null];
+  const run = harness.start({
+    sessionId: "s",
+    prompt: "Investigate the flaky test",
+    instructions: "",
+    model: null,
+    worktree,
+    exec: hostExec(worktree),
+    config: configSchema.parse({
+      url: "https://lictory.example.test",
+      runnerId: "r",
+      organizationId: "o",
+      name: "test",
+      personal: false,
+      credential: "lcr_x",
+    }),
+    lictory: {
+      mcpUrl: "https://lictory.example.test/api/mcp",
+      token: "lct_x",
+      organizationId: "org-1",
+    },
+    scratch: { host: worktree, exec: worktree },
+    emit: (type, data) => {
+      if (type === "message") said.push(String(data.text));
+    },
+    emitText: () => undefined,
+    nextMessage: (waitMs) => {
+      waits.push(waitMs);
+      // Interrupting while it already waits for a message changes nothing.
+      interruptNow();
+      return Promise.resolve(replies.shift() ?? null);
+    },
+    languageModel: null,
+    signal: new AbortController().signal,
+    log: () => undefined,
+  });
+  interruptNow = () => run.interrupt();
+  // The long sleep is cut short by the interrupt.
+  setTimeout(() => run.interrupt(), 5);
+  const result = await run.done;
+  assert.equal(result.outcome, "completed");
+  assert.deepEqual(said, [
+    "Stopped. Waiting for your next message.",
+    "Got it: Fix the timeout instead",
+    "Back to work.",
+    "No message arrived.",
+  ]);
+  // Both waits are for a person, long enough to be shown as waiting.
+  assert.ok(waits.every((ms) => ms > 60_000));
+});

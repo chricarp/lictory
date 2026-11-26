@@ -79,6 +79,50 @@ export function runnerOnline(
   return now - Date.parse(runner.lastSeenAt) < (ONLINE_SECONDS + 75) * 1000;
 }
 
+// Whether a runner may take a session of this agent now, by the claim's own
+// rule (`claimSession`): online, reporting the agent's harness, the runner
+// the session asked for if any, and only its owner's agents on a personal
+// runner. Capacity is left out: a full runner takes it when a slot frees.
+export function runnerCanRun(
+  runner: Pick<
+    RunnerEntity,
+    "id" | "lastSeenAt" | "revokedAt" | "harnesses" | "ownerId"
+  >,
+  agent: Pick<AgentEntity, "kind" | "harness" | "ownerId" | "archivedAt">,
+  session: Pick<SessionEntity, "requestedRunnerId">,
+  now = Date.now(),
+) {
+  return (
+    agent.kind === "runner" &&
+    !agent.archivedAt &&
+    agent.harness !== null &&
+    runnerOnline(runner, now) &&
+    runner.harnesses.some((h) => h.id === agent.harness) &&
+    (!session.requestedRunnerId || session.requestedRunnerId === runner.id) &&
+    (!runner.ownerId || runner.ownerId === agent.ownerId)
+  );
+}
+
+// A queued session no online runner can take: it waits silently unless
+// someone starts or adds a runner, so every surface says so.
+export function waitsForRunner(
+  session: Pick<SessionEntity, "status" | "requestedRunnerId">,
+  agent:
+    | Pick<AgentEntity, "kind" | "harness" | "ownerId" | "archivedAt">
+    | undefined,
+  runners: readonly Pick<
+    RunnerEntity,
+    "id" | "lastSeenAt" | "revokedAt" | "harnesses" | "ownerId"
+  >[],
+  now = Date.now(),
+) {
+  return (
+    session.status === "queued" &&
+    !!agent &&
+    !runners.some((runner) => runnerCanRun(runner, agent, session, now))
+  );
+}
+
 export type SessionStatus = SessionRow["status"];
 
 export function approvalEntity(row: ApprovalRow) {

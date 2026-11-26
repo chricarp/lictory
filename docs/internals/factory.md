@@ -51,6 +51,9 @@ audit name both: work item activity records `performedVia`, the agent's id,
 name and handle, and the UI reads "Forge via Ada"; `capability_invocation`
 records the token, which names the agent.
 
+The Factory's Sessions page (`/{org}/factory/sessions`) lists the recent
+sessions of the organization, narrowed by where they stand (active,
+failed, completed, canceled); the overview shows what needs attention now.
 An agent's page (`/{org}/factory/agents/{agent}`) is the one place for
 it: what it is, its recent sessions and, for its owner, its
 **Connection** (the tokens an external MCP client acts as it with) and
@@ -121,12 +124,36 @@ Commands refuse with `requireStep`, the browser offers with `allows`, and
 capability descriptions take their state sentences from `rule`. Runners take
 the automatic steps (assign, start, wait, resume, finish, requeue); people
 send messages, interrupt, cancel, retry and answer approvals. `waiting`
-means the agent asked a person something: the session keeps its lease (the
+means the agent waits on a person: an approval request it raised, or its
+next message. The runner reports the second as a status event: a harness
+that waits for a message longer than the short grace after a turn (the
+agent asked something in its own words, or a person interrupted it)
+reports `awaiting_message` (running → waiting), and `working` once it goes
+on (waiting → running, unless an approval request is still pending). Either
+way the session waits on the person who started it or the agent's owner,
+and counts in their "Needs you" and To do. The session keeps its lease (the
 harness is alive, waiting) but does not take one of the runner's session
-slots. Cancel is immediate: the status becomes canceled and the lease is
+slots.
+
+Interrupt stops the agent's current turn; the agent keeps its work and
+waits for the next message (so the session shows as waiting on the
+person). Cancel is immediate: the status becomes canceled and the lease is
 cleared, so the runner's next write fails and it stops. A retry starts the
-run over from the original prompt with fresh attempts; the earlier run's
-inputs stay behind (`input_cursor`), so its cancel is not replayed.
+run over from the original prompt with fresh attempts. The earlier run's
+inputs stay behind (`input_cursor`), so its cancel, interrupts and approval
+answers are not replayed, but the messages people sent it are its steering:
+they are added again, in order, after the cursor (marked `carried`, so a
+later retry sends each once), and nobody has to repeat them.
+
+A queued session that no online runner may take (none reports its agent's
+harness, none is online, or the only ones are other people's personal
+runners) would wait silently; the Factory, the session card, the item's
+claim and the project's queue say "No runner" instead, by the claim's own
+rule (`waitsForRunner` in `factory/entities.ts`).
+
+A failed session waits on the person who started it (a policy's session is
+requested by the agent's owner): it is in their To do and on Home for a
+week, until they retry it or a later session works on its item.
 
 "Completed" is the agent's claim. It moves nothing in delivery: items reach
 done through evidence (merged pull requests, checks, the Definition of
@@ -418,6 +445,10 @@ only what they need; the full log stays in the Factory:
   asked, where, the evidence, then Approve and Deny for the people who may
   decide). One card per session: the prompt is the message above it and is
   not repeated;
+- while the agent waits for a message rather than a decision, the card
+  says so ("Forge waits for your next message: reply in this thread"); a
+  reply from the person who started it or the agent's owner is that
+  message;
 - an **approval card** per request, naming the people who may decide (the
   requester and the owner); it shows the answer once given. While the
   browser can read the session, it is a record that leads to the session
