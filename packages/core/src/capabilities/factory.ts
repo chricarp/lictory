@@ -12,6 +12,7 @@ import { agentSession } from "@lictory/core/contracts/state-machines";
 import {
   createAgent,
   createAgentToken,
+  listAgentActivity,
   listAgentTokens,
   listAgents,
   revokeAgentToken,
@@ -170,6 +171,34 @@ const archiveAgentCapability = defineCapability({
         input.organizationId,
         input.agentId,
         input.archived,
+      ),
+    };
+  },
+});
+
+const listAgentActivityCapability = defineCapability({
+  name: "listAgentActivity",
+  title: "List agent activity",
+  description:
+    "What an agent you own did, newest first: each tool it called with one of its tokens, when, and whether it succeeded. Inputs are not recorded.",
+  kind: "query",
+  surfaces: webOnly,
+  humanOnly: {
+    reason: "audit",
+    where: "Factory → Agents → the agent → Recent activity",
+  },
+  input: z.object({
+    organizationId,
+    agentId,
+    limit: z.number().int().min(1).max(100).optional(),
+  }),
+  async run(ctx, input) {
+    return {
+      calls: await listAgentActivity(
+        ctx.db,
+        ctx.principal.userId,
+        input.organizationId,
+        input,
       ),
     };
   },
@@ -559,6 +588,7 @@ export const factoryCapabilities = [
   createAgentCapability,
   updateAgentCapability,
   archiveAgentCapability,
+  listAgentActivityCapability,
   listAgentTokensCapability,
   createAgentTokenCapability,
   revokeAgentTokenCapability,

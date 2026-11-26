@@ -282,6 +282,50 @@ const event = (seq: number, text = `step ${seq}`) => ({
 
 // ---------------------------------------------------------------- tests
 
+void test("an agent's owner sees what it called, refusals included; nobody else does", async () => {
+  const ownerId = await user("Ada");
+  const memberId = await user("Grace");
+  const organizationId = await organization(ownerId, [memberId]);
+  const scout = await createAgent(ownerId, organizationId, {
+    kind: "external",
+    name: "Scout",
+    harness: undefined,
+  });
+  const agent = context(
+    await agentPrincipal(ownerId, organizationId, scout.id),
+  );
+  await invoke(agent, "listOrganizations", {});
+  await invoke(agent, "getWorkspace", { organizationId });
+  await refused(
+    invoke(agent, "getWorkItem", { organizationId, key: "NOPE-1" }),
+    "not_found",
+  );
+  const { calls } = (await invoke(web(ownerId), "listAgentActivity", {
+    organizationId,
+    agentId: scout.id,
+  })) as { calls: { capability: string; outcome: string }[] };
+  assert.deepEqual(
+    calls.map((c) => [c.capability, c.outcome]),
+    [
+      ["getWorkItem", "not_found"],
+      ["getWorkspace", "ok"],
+      ["listOrganizations", "ok"],
+    ],
+  );
+  await refused(
+    invoke(web(memberId), "listAgentActivity", {
+      organizationId,
+      agentId: scout.id,
+    }),
+    "forbidden",
+  );
+  // Agents do not read activity records, their own included.
+  await refused(
+    invoke(agent, "listAgentActivity", { organizationId, agentId: scout.id }),
+    "forbidden",
+  );
+});
+
 void test("an agent acts with its owner's permissions narrowed by its scope", async () => {
   const ownerId = await user("Ada");
   const memberId = await user("Grace");

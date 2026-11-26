@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, History, Info, Pencil, Play, RotateCcw } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  History,
+  Info,
+  Pencil,
+  Play,
+  RotateCcw,
+} from "lucide-react";
 import type { AgentEntity } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
@@ -9,6 +17,8 @@ import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { callCapability } from "@lictory/core/capabilities/client";
 import {
   Actor,
   AgentAvatar,
@@ -166,6 +176,9 @@ export function AgentPage() {
               <SessionRow key={session.id} session={session} agent={agent} />
             ))}
           </Panel>
+          {mine && agent.kind !== "intelligence" && (
+            <RecentActivity agent={agent} />
+          )}
         </div>
       </div>
       {editing && (
@@ -243,6 +256,65 @@ function About({ agent }: { agent: AgentEntity }) {
           ))}
         </dl>
       </li>
+    </Panel>
+  );
+}
+
+type AgentCall = {
+  id: string;
+  at: string;
+  capability: string;
+  outcome: string;
+  durationMs: number;
+  tokenName: string;
+  sessionId: string | null;
+};
+
+// What the agent did with its tokens, as Lictory recorded it: each tool it
+// called, when, and whether it worked (inputs are never recorded). Its
+// owner's view; administrators see every agent's calls in the audit log.
+function RecentActivity({ agent }: { agent: AgentEntity }) {
+  const { organization } = useWorkspace();
+  const [calls, setCalls] = useState<AgentCall[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    callCapability<{ calls: AgentCall[] }>("listAgentActivity", {
+      organizationId: organization.id,
+      agentId: agent.id,
+    }).then(
+      (result) => live && setCalls(result.calls),
+      () => live && setCalls([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [organization.id, agent.id]);
+  if (!calls) return null;
+  return (
+    <Panel
+      title="Recent activity"
+      icon={<Activity />}
+      count={calls.length}
+      empty={`${agent.name} has not called Lictory with its tokens yet.`}
+    >
+      {calls.map((call) => (
+        <ListRow
+          key={call.id}
+          title={<span className="font-mono text-xs">{call.capability}</span>}
+          meta={`${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`}
+          chips={
+            call.outcome === "ok" ? undefined : (
+              <StatusChip tone="danger">
+                {call.outcome === "server" || call.outcome === "external"
+                  ? "Failed"
+                  : "Refused"}
+                : {call.outcome.replaceAll("_", " ")}
+              </StatusChip>
+            )
+          }
+          time={call.at}
+        />
+      ))}
     </Panel>
   );
 }

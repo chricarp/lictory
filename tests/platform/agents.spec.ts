@@ -227,6 +227,9 @@ test("an external agent is connected and woken from its own page", async ({
   await page.reload();
   await expect(connection.getByTestId("agent-token")).toHaveCount(1);
   await expect(connection.getByTestId("agent-token-secret")).toHaveCount(0);
+  // Its owner sees what it called.
+  const activity = page.getByRole("region", { name: /Recent activity/ });
+  await expect(activity.getByText("listOrganizations")).toBeVisible();
 
   // A wake-up added on the agent's page is listed there.
   const wakeUps = page.locator("#wake-ups");
