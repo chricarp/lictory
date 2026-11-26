@@ -605,7 +605,7 @@ export function QuestionnaireInput({
     },
     "aria-invalid": invalid || undefined,
     className: cn(
-      "w-full min-w-0 rounded-xl border bg-background px-3 text-[13px] transition-[border-color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/10 aria-invalid:border-destructive/60 touch:text-base",
+      "w-full min-w-0 rounded-xl border border-input bg-background px-3 text-[13px] transition-[border-color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/10 aria-invalid:border-destructive/60 touch:text-base",
       multiline ? "resize-none py-2 leading-5" : "h-10",
       className,
     ),

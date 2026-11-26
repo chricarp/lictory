@@ -67,7 +67,7 @@ export function SettingsNavigation({
     >
       <div
         ref={row}
-        className="flex [scrollbar-width:none] gap-1 overflow-x-auto max-lg:px-4 sm:max-lg:px-6 lg:block lg:space-y-4"
+        className="flex [scrollbar-width:none] gap-1 overflow-x-auto max-lg:scroll-fade-x max-lg:px-4 sm:max-lg:px-6 lg:block lg:space-y-4"
       >
         {groups.map((g, i) => (
           <div key={g.group ?? i} className="flex gap-1 lg:block">

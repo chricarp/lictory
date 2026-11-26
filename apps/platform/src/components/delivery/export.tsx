@@ -695,7 +695,7 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             onValueChange={setKey}
             placeholder="Issue key, e.g. PAY-12"
             aria-label={`${tool.Name} issue key`}
-            className="h-7 min-w-0 flex-1 rounded-md border bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"
+            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
           <Button size="sm" type="submit" disabled={busy || !key.trim()}>
             Link

@@ -41,13 +41,16 @@ export async function expectNoAccessibilityViolations(
   } = {},
 ) {
   // A popover or tooltip still fading in has a blended, lighter text colour;
-  // contrast is checked once finite animations have finished.
+  // contrast is checked once finite animations have finished. Scroll-driven
+  // animations (the edge fades of scrolling tab strips) follow the scroll
+  // position, not time, and finish only when scrolled to their end.
   await page.evaluate(() =>
     Promise.all(
       document
         .getAnimations()
         .filter(
           (animation) =>
+            animation.timeline === document.timeline &&
             animation.effect?.getComputedTiming().iterations !== Infinity,
         )
         .map((animation) => animation.finished.catch(() => undefined)),

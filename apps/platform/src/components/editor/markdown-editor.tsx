@@ -169,7 +169,7 @@ const PlainMarkdownField = forwardRef<
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+        "rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
         containerClassName,
       )}
     >

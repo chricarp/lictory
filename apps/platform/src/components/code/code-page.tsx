@@ -12,6 +12,7 @@ import type {
   CodeLinkRef,
   CodePullRequestEntity,
 } from "@lictory/core/code/entities";
+import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { identifier, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
@@ -219,10 +220,18 @@ function ItemChips({ links }: { links: CodeLinkRef[] }) {
   );
 }
 
+// The lists sit in the same centred column as every other index (Home,
+// Factory), so a row's state is not a screen's width from its title.
+const column = "mx-auto w-full max-w-5xl";
+
 function Toolbar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-      {children}
+    <div className="border-b">
+      <div
+        className={cn(column, "flex flex-wrap items-center gap-2 px-4 py-2")}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -324,7 +333,10 @@ function PullRequests() {
               : "Pull requests of linked repositories appear here as soon as the host reports them."}
           </EmptyState>
         ) : (
-          <ul aria-label="Pull requests" className="divide-y divide-border/70">
+          <ul
+            aria-label="Pull requests"
+            className={cn(column, "divide-y divide-border/70")}
+          >
             {shown.map((p) => (
               <PullRequestRow key={p.id} pullRequest={p} owners={owners} />
             ))}
@@ -432,7 +444,7 @@ function Issues() {
             Issues of linked repositories appear here.
           </EmptyState>
         ) : (
-          <ul aria-label="Issues" className="divide-y">
+          <ul aria-label="Issues" className={cn(column, "divide-y")}>
             {shown.map((i) => (
               <IssueRow key={i.id} issue={i} />
             ))}
@@ -570,47 +582,52 @@ function Repositories() {
       </EmptyState>
     );
   return (
-    <ul aria-label="Repositories" className="h-full divide-y overflow-y-auto">
-      {repositories.map((r) => {
-        const connection = connections.find((c) => c.id === r.connectionId);
-        return (
-          <li
-            key={r.id}
-            className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]"
-          >
-            <FolderGit2 aria-hidden className="size-4 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <a
-                href={r.webUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
-              >
-                {r.fullName} <ArrowUpRight className="size-3" />
-              </a>
-              <p className="text-xs text-muted-foreground">
-                {providerLabels[r.provider]}
-                {connection && ` · ${connection.name}`} · {r.visibility} ·
-                default {r.defaultBranch} ·{" "}
-                {r.lastSyncedAt
-                  ? `read ${relativeTime(r.lastSyncedAt)}`
-                  : "reading…"}
-              </p>
-              {r.lastSyncError && (
-                <p className="text-xs text-destructive">{r.lastSyncError}</p>
-              )}
-            </div>
-            <span className="flex flex-wrap gap-1">
-              {r.projectIds.map((id) => (
-                <Badge key={id} tone="info">
-                  {projects.find((p) => p.id === id)?.name ??
-                    "Archived project"}
-                </Badge>
-              ))}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="h-full overflow-y-auto">
+      <ul aria-label="Repositories" className={cn(column, "divide-y")}>
+        {repositories.map((r) => {
+          const connection = connections.find((c) => c.id === r.connectionId);
+          return (
+            <li
+              key={r.id}
+              className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]"
+            >
+              <FolderGit2
+                aria-hidden
+                className="size-4 text-muted-foreground"
+              />
+              <div className="min-w-0 flex-1">
+                <a
+                  href={r.webUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
+                >
+                  {r.fullName} <ArrowUpRight className="size-3" />
+                </a>
+                <p className="text-xs text-muted-foreground">
+                  {providerLabels[r.provider]}
+                  {connection && ` · ${connection.name}`} · {r.visibility} ·
+                  default {r.defaultBranch} ·{" "}
+                  {r.lastSyncedAt
+                    ? `read ${relativeTime(r.lastSyncedAt)}`
+                    : "reading…"}
+                </p>
+                {r.lastSyncError && (
+                  <p className="text-xs text-destructive">{r.lastSyncError}</p>
+                )}
+              </div>
+              <span className="flex flex-wrap gap-1">
+                {r.projectIds.map((id) => (
+                  <Badge key={id} tone="info">
+                    {projects.find((p) => p.id === id)?.name ??
+                      "Archived project"}
+                  </Badge>
+                ))}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

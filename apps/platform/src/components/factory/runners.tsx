@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  Box,
-  CircleOff,
-  Copy,
-  Laptop,
-  Plus,
-  Server,
-  Trash2,
-} from "lucide-react";
+import { Box, CircleOff, Laptop, Plus, Server, Trash2 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   runnerOnline,
@@ -18,6 +10,7 @@ import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
+import { CommandBlock } from "@lictory/ui/command-block";
 import { Dialog } from "@lictory/ui/dialog";
 import { MissingState } from "@lictory/ui/status-page";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
@@ -368,25 +361,12 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
             <SegmentedItem value="macos">macOS</SegmentedItem>
             <SegmentedItem value="windows">Windows</SegmentedItem>
           </Segmented>
-          <div className="relative">
-            <pre
-              aria-label="Install and register commands"
-              className="overflow-x-auto rounded-lg bg-muted/60 p-3 pr-20 font-mono text-[12px] leading-5 whitespace-pre"
-            >
-              {commands}
-            </pre>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="absolute top-2 right-2"
-              onClick={() => {
-                void navigator.clipboard.writeText(commands);
-                toast({ title: "Commands copied" });
-              }}
-            >
-              <Copy className="size-3.5" aria-hidden /> Copy
-            </Button>
-          </div>
+          <CommandBlock
+            label="Install and register commands"
+            copyLabel="Copy the commands"
+          >
+            {commands}
+          </CommandBlock>
           <p className="text-xs text-muted-foreground">
             The token works once and expires {relativeTime(token.expiresAt)}.
             The installer checks the download against the release&apos;s

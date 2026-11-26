@@ -230,7 +230,7 @@ export function SessionView() {
           session and when stay in view. */}
       <div
         data-session-meta
-        className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*:not([data-shrink])]:shrink-0"
+        className="flex h-9 shrink-0 scroll-fade-x [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*:not([data-shrink])]:shrink-0"
       >
         <SessionStateChip state={state} className="sm:hidden" />
         <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />

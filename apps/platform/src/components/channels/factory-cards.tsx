@@ -177,8 +177,9 @@ function SessionCard({
       )}
       {session &&
         asks.map((approval) => (
-          <div key={approval.id} className="border-t p-2">
+          <div key={approval.id} className="border-t px-3 py-3">
             <ApprovalRequest
+              framed={false}
               session={session}
               approval={approval}
               agent={agent}

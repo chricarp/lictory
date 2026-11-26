@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Radio, RadioGroup, RadioIndicator } from "@ui-sdk/react/radio";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
-import { Check, GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
+import { GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import type { DeliveryMode } from "@lictory/core/contracts/protocol";
@@ -19,6 +19,7 @@ import {
 } from "@lictory/platform/components/delivery/provider-name";
 import {
   Choice,
+  ChoiceMark,
   useCommand,
 } from "@lictory/platform/components/settings/project-shared";
 
@@ -119,13 +120,11 @@ function DeliveryModeSection({
             <Radio
               key={m.value}
               value={m.value}
-              className="block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60"
+              className="group/choice block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60"
             >
               <span className="flex items-center gap-2 text-sm font-semibold">
+                <ChoiceMark className="mt-0" />
                 {m.title}
-                <RadioIndicator className="ml-auto grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
-                  <Check className="size-3" />
-                </RadioIndicator>
               </span>
               <span className="mt-0.5 block text-[13px] text-muted-foreground">
                 {m.summary}

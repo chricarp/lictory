@@ -132,7 +132,7 @@ export function PullRequestTabs({
   return (
     <TabsList
       aria-label={label}
-      className="flex [scrollbar-width:none] gap-1 overflow-x-auto border-b"
+      className="flex scroll-fade-x [scrollbar-width:none] gap-1 overflow-x-auto border-b"
     >
       {tabs.map((t) => (
         <TabsTab

@@ -90,6 +90,7 @@ export function SpacesIndex() {
           active.length > 0 &&
           `${active.length} space${active.length === 1 ? "" : "s"}`
         }
+        ownCreate
         actions={
           <Button size="sm" onClick={() => openCreateSpace()}>
             <Plus className="size-3.5" aria-hidden /> New space
@@ -195,7 +196,7 @@ function SpaceFilter({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === "Escape" && value && onChange("")}
         className={cn(
-          "h-8 w-full min-w-0 rounded-full border border-foreground/15 bg-card pl-8 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 touch:text-base [&::-webkit-search-cancel-button]:hidden",
+          "h-8 w-full min-w-0 rounded-full border border-input bg-card pl-8 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 touch:text-base [&::-webkit-search-cancel-button]:hidden",
           filtering ? "pr-32" : "pr-3",
         )}
       />

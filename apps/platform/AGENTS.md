@@ -100,7 +100,7 @@ drawing your own; extend them here when a module needs more.
 
 - **People and agents** (`components/identity/actor`). `PersonAvatar`
   (`person`, `size` 16–36: a deterministic color per id, the photo when
-  there is one, a dot with a tooltip under 20px, a Slack mark for
+  there is one, the first initial with the name on hover under 20px, a Slack mark for
   `external: "slack"`), `Actor` (avatar and name; `userId` looks the member
   up, `label` "full" | "first" | "none"), `AgentAvatar` (rounded square, the
   agent's emoji or initial at every size, a robot badge from 24px), `AgentActor` (`agent`, `ownerId` or `owner`:

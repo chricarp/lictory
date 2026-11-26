@@ -80,6 +80,15 @@ full-bleed row that sits flush against a clipping scroll container
 (`focus-ring-inset`). The ring is opaque, so it keeps 3:1 against every
 surface. Muted text keeps 4.5:1 on every light surface it sits on.
 
+The edge of every field and control (text fields, selects, radios, the
+off track of a switch, the chosen segment of a segmented control) is drawn
+in `--input`, which keeps 3:1 on the background, card, popover and muted
+surfaces in every theme and mode (WCAG 1.4.11; `packages/ui/src/theme.test.ts`).
+`--border` is for hairlines between regions and never marks where a control
+starts. Text a person copies (commands, manifests, diffs) scrolls in its own
+area that is a tab stop, with Copy outside the text (`CommandBlock`,
+`CopyValue` in `@lictory/ui/command-block`).
+
 ## The editor's keyboard model
 
 Every rich text field (the live page editor and Work's Markdown fields:

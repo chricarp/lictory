@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Copy, KeyRound, Plug, Plus } from "lucide-react";
+import { BellRing, KeyRound, Plug, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { AgentEntity } from "@lictory/core/factory/entities";
 import type { AgentTokenSummary } from "@lictory/core/factory/agents";
 import { Button } from "@lictory/ui/button";
+import { CommandBlock, CopyValue } from "@lictory/ui/command-block";
 import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
-import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import {
@@ -75,33 +75,6 @@ URL        ${endpoint}
 Header     Authorization: Bearer <token>`;
 }
 
-function CopyButton({
-  text,
-  label,
-  copied,
-  className,
-}: {
-  text: string;
-  label: string;
-  copied: string;
-  className?: string;
-}) {
-  return (
-    <Button
-      size="sm"
-      variant="secondary"
-      aria-label={label}
-      className={className}
-      onClick={() => {
-        void navigator.clipboard.writeText(text);
-        toast({ title: copied });
-      }}
-    >
-      <Copy className="size-3.5" aria-hidden /> Copy
-    </Button>
-  );
-}
-
 // How to point an MCP client at Lictory as this agent.
 function SetupSnippet() {
   const [client, setClient] = useState<Client>("claude");
@@ -129,20 +102,9 @@ function SetupSnippet() {
         <SegmentedItem value="codex">Codex</SegmentedItem>
         <SegmentedItem value="other">Other clients</SegmentedItem>
       </Segmented>
-      <div className="relative">
-        <pre
-          aria-label="Setup"
-          className="overflow-x-auto rounded-lg bg-muted/60 p-3 pr-20 font-mono text-[12px] leading-5 whitespace-pre"
-        >
-          {text}
-        </pre>
-        <CopyButton
-          text={text}
-          label="Copy the setup"
-          copied="Setup copied"
-          className="absolute top-2 right-2"
-        />
-      </div>
+      <CommandBlock label="Setup" copyLabel="Copy the setup">
+        {text}
+      </CommandBlock>
       {client !== "other" && (
         <p className="text-xs text-muted-foreground">
           Set <code className="font-mono">LICTORY_TOKEN</code> to the token in
@@ -295,19 +257,11 @@ export function AgentConnection({
               <p className="text-[13px] font-medium">
                 Copy this token now. It will not be shown again.
               </p>
-              <div className="flex items-center gap-2">
-                <code
-                  data-testid="agent-token-secret"
-                  className="min-w-0 flex-1 truncate rounded-md bg-card px-2 py-1.5 font-mono text-xs shadow-(--shadow-border)"
-                >
-                  {secret}
-                </code>
-                <CopyButton
-                  text={secret}
-                  label="Copy the token"
-                  copied="Token copied"
-                />
-              </div>
+              <CopyValue
+                label="Token"
+                value={secret}
+                testId="agent-token-secret"
+              />
             </div>
           )}
           {!archived && (secret ?? !optional) && <SetupSnippet />}

@@ -351,7 +351,10 @@ export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
           discussions on your items and requested changes appear here.
         </EmptyState>
       ) : (
-        <ul aria-label="Waiting on you" className="divide-y divide-border/70">
+        <ul
+          aria-label="Waiting on you"
+          className="mx-auto w-full max-w-5xl divide-y divide-border/70"
+        >
           {rows.slice(0, shown).map((row) => (
             <WaitingRowView key={row.key} row={row} />
           ))}

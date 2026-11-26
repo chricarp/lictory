@@ -98,7 +98,7 @@ function StatusesSection({
                 )}
               </div>
               {rows.length === 0 && adding !== category && (
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                   No statuses in this category.
                 </p>
               )}

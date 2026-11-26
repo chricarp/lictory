@@ -609,7 +609,7 @@ function LinkForm({
         placeholder="https://"
         aria-invalid={invalid}
         aria-describedby={invalid ? `${id}-error` : undefined}
-        className="h-8 w-full rounded-md border border-foreground/20 bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive/60 touch:text-base"
+        className="h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive/60 touch:text-base"
       />
       {invalid && (
         <p id={`${id}-error`} role="alert" className="text-xs text-destructive">

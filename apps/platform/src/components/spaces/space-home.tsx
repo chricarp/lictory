@@ -339,7 +339,7 @@ function PageFinder({
               ?.click();
           }
         }}
-        className="h-8 w-full min-w-0 rounded-full border border-foreground/15 bg-card pr-8 pl-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 max-sm:h-10 touch:h-10 touch:text-base [&::-webkit-search-cancel-button]:hidden"
+        className="h-8 w-full min-w-0 rounded-full border border-input bg-card pr-8 pl-8 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring/60 focus-visible:ring-3 focus-visible:ring-ring/15 max-sm:h-10 touch:h-10 touch:text-base [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button

@@ -101,7 +101,7 @@ export function EpicPicker({
         ref={setField}
         data-state={open ? "open" : "closed"}
         className={cn(
-          "flex h-9 w-full min-w-0 cursor-text items-center gap-2 rounded-md border bg-card px-2.5 transition-[border-color,box-shadow] duration-100 ease-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 hover:border-foreground/20",
+          "flex h-9 w-full min-w-0 cursor-text items-center gap-2 rounded-md border border-input bg-card px-2.5 transition-[border-color,box-shadow] duration-100 ease-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 hover:border-foreground/20",
           className,
         )}
         onMouseDown={(event) => {

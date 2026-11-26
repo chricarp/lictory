@@ -1108,7 +1108,7 @@ function DraftEditor({
       ) : (
         <div
           className={cn(
-            "relative flex min-w-0 flex-col rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+            "relative flex min-w-0 flex-col rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
             !snapshot.everSynced && "opacity-60",
           )}
         >

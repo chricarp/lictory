@@ -239,8 +239,7 @@ function Setting({
   );
 }
 
-const field =
-  "border-foreground/15 focus-visible:border-ring/60 disabled:opacity-60";
+const field = "border-input focus-visible:border-ring/60 disabled:opacity-60";
 
 function DetailsSection({
   space,

@@ -151,7 +151,7 @@ export function PageHeader({
         )}
       </div>
       {tabs && (
-        <div className="flex min-w-0 [scrollbar-width:none] items-center overflow-x-auto">
+        <div className="flex min-w-0 scroll-fade-x [scrollbar-width:none] items-center overflow-x-auto">
           {tabs}
         </div>
       )}

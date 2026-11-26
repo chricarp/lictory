@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { IterationContext } from "@lictory/platform/components/knowledge/context";
 import { LoadingState } from "@lictory/ui/spinner";
 import { useParams } from "@lictory/platform/lib/navigation";
@@ -180,8 +181,20 @@ function Burndown({
   usePoints: boolean;
   iteration?: { startsAt: string; endsAt: string };
 }) {
-  const W = 640;
-  const H = 220;
+  // Drawn at the width it is shown, so labels stay 11px and the plot keeps a
+  // readable shape on a phone instead of shrinking with a fixed viewBox.
+  const frame = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(640);
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setW(Math.max(240, Math.round(entry.contentRect.width)));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const H = W < 480 ? 180 : 220;
   const pad = { l: 32, r: 12, t: 10, b: 24 };
   const series = report.series.map((p) => ({
     at: new Date(p.at),
@@ -190,7 +203,7 @@ function Burndown({
   }));
   if (series.length < 2)
     return (
-      <p className="text-[13px] text-muted-foreground">
+      <p ref={frame} className="text-[13px] text-muted-foreground">
         The chart appears once the iteration has started.
       </p>
     );
@@ -208,70 +221,100 @@ function Burndown({
   const start = series[0]!;
   // Iterations end at the start of `endsAt`; label the last working day.
   const lastDay = new Date(t1 - (iteration ? 86_400_000 : 0));
+  const unit = usePoints ? "points" : "items";
+  const now = series.at(-1)!;
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label={`Burndown: ${series.at(-1)!.remaining} of ${series.at(-1)!.scope} ${usePoints ? "points" : "items"} remaining`}
-      className="w-full"
-    >
-      {ticks.map((t) => (
-        <g key={t}>
-          <line
-            x1={pad.l}
-            x2={W - pad.r}
-            y1={y(t)}
-            y2={y(t)}
-            className="stroke-border"
-            strokeWidth={1}
-          />
+    <div ref={frame} className="space-y-2">
+      {/* The numbers first: on a phone they say more than the plot. */}
+      <p className="text-[13px]">
+        <span className="font-semibold tabular-nums">{now.remaining}</span>{" "}
+        <span className="text-muted-foreground">
+          of {now.scope} {unit} remaining
+        </span>
+      </p>
+      <ul
+        aria-hidden
+        className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+      >
+        <li className="flex items-center gap-1.5">
+          <span className="h-0.5 w-4 rounded-full bg-primary" />
+          Remaining
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="h-0.5 w-4 rounded-full bg-amber-500" />
+          Scope
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="w-4 border-t-[1.5px] border-dashed border-muted-foreground" />
+          Ideal pace
+        </li>
+      </ul>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width={W}
+        height={H}
+        role="img"
+        aria-label={`Burndown: ${now.remaining} of ${now.scope} ${unit} remaining`}
+        className="block max-w-full"
+      >
+        {ticks.map((t) => (
+          <g key={t}>
+            <line
+              x1={pad.l}
+              x2={W - pad.r}
+              y1={y(t)}
+              y2={y(t)}
+              className="stroke-border"
+              strokeWidth={1}
+            />
+            <text
+              x={pad.l - 6}
+              y={y(t) + 3}
+              textAnchor="end"
+              className="fill-muted-foreground text-[11px]"
+            >
+              {t}
+            </text>
+          </g>
+        ))}
+        <line
+          x1={x(start.at)}
+          y1={y(start.scope)}
+          x2={x(new Date(t1))}
+          y2={y(0)}
+          className="stroke-muted-foreground/50"
+          strokeDasharray="4 4"
+          strokeWidth={1.5}
+        />
+        <path
+          d={path("scope")}
+          fill="none"
+          className="stroke-amber-500"
+          strokeWidth={1.5}
+        />
+        <path
+          d={path("remaining")}
+          fill="none"
+          className="stroke-primary"
+          strokeWidth={2}
+        />
+        {[new Date(t0), lastDay].map((at, i) => (
           <text
-            x={pad.l - 6}
-            y={y(t) + 3}
-            textAnchor="end"
-            className="fill-muted-foreground text-[10px]"
+            key={i}
+            x={i ? W - pad.r : pad.l}
+            y={H - 6}
+            textAnchor={i ? "end" : "start"}
+            className="fill-muted-foreground text-[11px]"
           >
-            {t}
+            {at.toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              ...(iteration ? { timeZone: "UTC" } : {}),
+            })}
           </text>
-        </g>
-      ))}
-      <line
-        x1={x(start.at)}
-        y1={y(start.scope)}
-        x2={x(new Date(t1))}
-        y2={y(0)}
-        className="stroke-muted-foreground/50"
-        strokeDasharray="4 4"
-        strokeWidth={1.5}
-      />
-      <path
-        d={path("scope")}
-        fill="none"
-        className="stroke-amber-500"
-        strokeWidth={1.5}
-      />
-      <path
-        d={path("remaining")}
-        fill="none"
-        className="stroke-primary"
-        strokeWidth={2}
-      />
-      {[new Date(t0), lastDay].map((at, i) => (
-        <text
-          key={i}
-          x={i ? W - pad.r : pad.l}
-          y={H - 6}
-          textAnchor={i ? "end" : "start"}
-          className="fill-muted-foreground text-[10px]"
-        >
-          {at.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            ...(iteration ? { timeZone: "UTC" } : {}),
-          })}
-        </text>
-      ))}
-    </svg>
+        ))}
+      </svg>
+    </div>
   );
 }
 
