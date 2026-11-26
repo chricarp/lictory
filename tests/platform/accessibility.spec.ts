@@ -85,6 +85,24 @@ test("account pages meet WCAG 2.2 AA automated checks", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(appAlert(page)).toBeVisible();
   await expectNoAccessibilityViolations(page, "sign-in with an error");
+  // Every field says what is wrong next to it and keeps saying it; the
+  // first field to fix takes focus and is described by its message.
+  await page.goto("/sign-up");
+  await page.getByLabel("Work email").fill("not-an-email");
+  await page.getByRole("button", { name: "Create account" }).click();
+  const name = page.getByLabel("Full name");
+  await expect(name).toBeFocused();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  await expect(name).toHaveAccessibleDescription("Full name is required.");
+  await expect(page.getByLabel("Work email")).toHaveAccessibleDescription(
+    "Enter an email address like name@company.com.",
+  );
+  await expect(page.getByText("3 fields need attention.")).toBeVisible();
+  await expectNoAccessibilityViolations(page, "sign-up with field errors");
+  // A fixed field drops its message as soon as it is valid.
+  await name.fill("Alex Example");
+  await expect(name).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Full name is required.")).toHaveCount(0);
 });
 
 test("specification review meets WCAG 2.2 AA automated checks", async ({
@@ -389,7 +407,7 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     .first();
   await asked.getByRole("button", { name: /repl(y|ies)/ }).click();
   const thread = page.getByRole("complementary", { name: /thread/i });
-  const card = thread.getByRole("region", { name: "Forge session" });
+  const card = thread.getByRole("article", { name: /^Forge session/ });
   await expect(card.getByRole("button", { name: "Approve" })).toBeVisible({
     timeout: 60_000,
   });

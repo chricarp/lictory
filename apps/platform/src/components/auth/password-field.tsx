@@ -13,6 +13,10 @@ import { Check, Eye, EyeOff } from "lucide-react";
 
 import { inputClass } from "@lictory/ui/input";
 import {
+  FieldError,
+  useFieldError,
+} from "@lictory/platform/components/auth/form-field";
+import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   stripWhitespace,
@@ -50,8 +54,10 @@ export function PasswordInput({
   required,
   disabled,
   readOnly,
+  "aria-describedby": describedBy,
   ...props
 }: PasswordInputProps) {
+  const { error, errorId, fieldProps } = useFieldError(id, describedBy);
   return (
     <div className="grid gap-1.5">
       <div className="flex items-baseline justify-between">
@@ -78,6 +84,7 @@ export function PasswordInput({
           id={id}
           className={cn(inputClass, "pr-11", className)}
           {...props}
+          {...fieldProps}
         />
         <PasswordInputToggle
           className="absolute top-1/2 right-1.5 grid size-8 -translate-y-1/2 cursor-default place-items-center rounded-lg text-muted-foreground transition-[color,background-color] duration-100 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.96]"
@@ -99,6 +106,7 @@ export function PasswordInput({
         />
         {overlay}
       </PasswordInputRoot>
+      <FieldError id={errorId}>{error}</FieldError>
     </div>
   );
 }
