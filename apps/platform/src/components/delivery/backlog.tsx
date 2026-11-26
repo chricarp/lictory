@@ -59,10 +59,10 @@ import {
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
 import {
-  ExternalProjectNotice,
   TeamFilterPicker,
   useTeamFilter,
 } from "@lictory/platform/components/delivery/board";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 const DAY = 86_400_000;
@@ -96,7 +96,14 @@ export function useIterationReport(
 export function Backlog() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="backlog" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="backlog"
+        title="Backlog"
+        icon={<ListOrdered />}
+      />
+    );
   return <ProjectBacklog project={project} />;
 }
 

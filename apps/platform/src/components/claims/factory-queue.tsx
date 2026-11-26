@@ -2,7 +2,6 @@ import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bot,
   CircleCheck,
-  KanbanSquare,
   ListChecks,
   MessageCircleQuestion,
   OctagonPause,
@@ -34,6 +33,8 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
@@ -67,27 +68,20 @@ type Dispatch = {
 // rule, so the queue never promises what a claim would refuse.
 export function FactoryQueue() {
   const project = useProject();
-  const { organization } = useWorkspace();
+  const { directory } = useWorkspace();
+  const tool = projectDeliveryTool(directory, project.id);
   if (project.deliveryMode !== "native")
     return (
-      <MissingState
-        illustration="planning"
-        icon={KanbanSquare}
-        title={`${project.name} delivers in an external tool`}
-        action={
-          <Button
-            variant="secondary"
-            render={
-              <Link href={paths.handoff(organization.slug, project.key)} />
-            }
-          >
-            Open hand-off
-          </Button>
-        }
+      <ExternalProjectNotice
+        project={project}
+        surface="factory queue"
+        title="Factory queue"
+        icon={<ListChecks />}
       >
-        The delivery tool owns execution, so agents do not claim this
-        project&apos;s work.
-      </MissingState>
+        {tool.Name} owns delivery in this project, so agents never claim or get
+        dispatched its work: claims, Build and Autopilot need a project that
+        delivers in Lictory. Refinement, reviews and the hand-off work as usual.
+      </ExternalProjectNotice>
     );
   return <Queue project={project} />;
 }

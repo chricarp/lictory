@@ -18,7 +18,6 @@ import {
   Plus,
   Repeat,
   Rows3,
-  Send,
   Settings2,
   UserRound,
   Users,
@@ -47,7 +46,6 @@ import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 import { EmptyState } from "@lictory/ui/primitives";
-import { MissingState } from "@lictory/ui/status-page";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
@@ -65,13 +63,13 @@ import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
-import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import {
   useAgents,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
@@ -157,42 +155,17 @@ export function TeamFilterPicker({
   );
 }
 
-// External projects deliver in another tool: Lictory shows the hand-off instead of a
-// board, backlog or iterations.
-export function ExternalProjectNotice({
-  project,
-  surface,
-}: {
-  project: Project;
-  surface: string;
-}) {
-  const { organization, directory } = useWorkspace();
-  const tool = projectDeliveryTool(directory, project.id);
-  return (
-    <MissingState
-      illustration="planning"
-      icon={Send}
-      title={`${project.name} delivers in ${tool.name}`}
-      action={
-        <Button
-          variant="secondary"
-          render={<Link href={paths.handoff(organization.slug, project.key)} />}
-        >
-          Open hand-off
-        </Button>
-      }
-    >
-      Statuses, sprints and estimates for this project are owned by {tool.name},
-      so there is no {surface} in Lictory. The hand-off shows what is ready,
-      what changed since it was handed off and what {tool.name} reports back.
-    </MissingState>
-  );
-}
-
 export function Board() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="board" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="board"
+        title="Board"
+        icon={<KanbanSquare />}
+      />
+    );
   return <ProjectBoard project={project} />;
 }
 

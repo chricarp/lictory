@@ -125,9 +125,17 @@ test("an externally delivered project hands off instead of offering a board or b
   await expect(rail.getByRole("link", { name: "Board" })).toHaveCount(0);
   await expect(rail.getByRole("link", { name: /^Backlog/ })).toHaveCount(0);
   await expect(rail.getByRole("link", { name: "Hand-off" })).toBeVisible();
-  // Old links to native delivery explain where delivery happens.
-  for (const surface of ["board", "backlog"]) {
+  // Old links to native delivery, and the factory queue, explain where
+  // delivery happens under the page's own header.
+  for (const [surface, title] of [
+    ["board", "Board"],
+    ["backlog", "Backlog"],
+    ["queue", "Factory queue"],
+  ] as const) {
     await page.goto(seeded.projectPath(`/${surface}`));
+    await expect(
+      page.getByRole("heading", { level: 1, name: title, exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", {
         name: "Jira Shop project delivers in your delivery tool",
