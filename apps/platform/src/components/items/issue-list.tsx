@@ -967,7 +967,9 @@ export function IssueList({
               project &&
               !allItems.some((i) => i.projectId === project.id) &&
               isAdmin && (
-                <span className="mt-5 block text-left text-xs leading-relaxed">
+                // Centred like the title and text above it: one empty state,
+                // not two components stacked.
+                <span className="mt-5 block border-t pt-4 text-xs leading-relaxed">
                   <span className="block font-medium text-foreground">
                     Your next steps
                   </span>

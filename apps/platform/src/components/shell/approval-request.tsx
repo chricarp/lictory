@@ -69,6 +69,9 @@ type Props = {
   linkSession?: boolean;
   // Show the work item (off where the surrounding card already names it).
   linkItem?: boolean;
+  // Draw its own card (off inside a card that already frames it, such as a
+  // session card in a thread: one frame around the request, not two).
+  framed?: boolean;
   // Replaces the server call (the design gallery's examples).
   onDecide?: (decision: "approve" | "deny") => Promise<void>;
 };
@@ -77,6 +80,7 @@ export function ApprovalRequest({
   compact = false,
   linkSession = true,
   linkItem = true,
+  framed = true,
   ...props
 }: Props) {
   const [open, setOpen] = useState(!compact);
@@ -86,7 +90,10 @@ export function ApprovalRequest({
     return (
       <div
         data-approval-request
-        className="rounded-xl bg-card p-4 shadow-(--shadow-border) [--actor-ring:var(--card)]"
+        className={cn(
+          "[--actor-ring:var(--card)]",
+          framed && "rounded-xl bg-card p-4 shadow-(--shadow-border)",
+        )}
       >
         <Ask approval={approval} agent={agent} session={session} />
         <Context {...props} linkSession={linkSession} linkItem={linkItem} />
