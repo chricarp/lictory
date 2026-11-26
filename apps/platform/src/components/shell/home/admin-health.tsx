@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   CircleOff,
+  Cog,
   GitBranch,
   MessageSquare,
   Server,
@@ -8,6 +9,7 @@ import {
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
+import { agentSession } from "@lictory/core/contracts/state-machines";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -23,10 +25,20 @@ import { ListRow } from "@lictory/platform/components/shell/list-row";
 // connections that stopped working. The instance's monitor alerts its
 // operator about the same things (docs/operations/deployment.md); the
 // administrator who can fix them is often someone else, so the product says
-// it where they look. Nothing here is a setting; it is derived state, and
-// the card renders nothing while all is well.
+// it where they look. The server's own checks of the organization's
+// background work (stuck or failing jobs, failed hand-offs, and for instance
+// administrators the replication slot) come from getAdministratorHealth.
+// Nothing here is a setting; it is derived state, and the card renders
+// nothing while all is well.
 
 type SlackHealth = { status: string; lastError: string | null };
+// One of the server's checks (packages/core/src/domain/administrator-health.ts).
+type AdministratorProblem = {
+  key: string;
+  title: string;
+  detail: string;
+  projectId?: string;
+};
 
 // A runner registered this long ago that never connected was forgotten,
 // not still being installed.
@@ -42,10 +54,11 @@ export function AdminHealthCard() {
 }
 
 function Health() {
-  const { organization } = useWorkspace();
+  const { organization, projects } = useWorkspace();
   const { runners, sessions, agentById } = useFactory();
   const { connections } = useCodeHosts();
   const slack = useSlackHealth();
+  const server = useServerHealth();
   const org = organization.slug;
   // A minute is precise enough for "offline": a stable snapshot of the
   // clock, read again with synchronized changes.
@@ -63,6 +76,15 @@ function Health() {
   const rows = [
     ...down.map((runner) => {
       const started = runner.lastSeenAt !== runner.registeredAt;
+      // Sessions it holds (they return to the queue when its lease runs
+      // out) or that asked for it: only then does its absence stop work.
+      const held = sessions.filter(
+        (s) =>
+          (s.runnerId === runner.id &&
+            agentSession.allows(s.status, "requeue")) ||
+          (s.requestedRunnerId === runner.id &&
+            agentSession.allows(s.status, "assign")),
+      ).length;
       return (
         <ListRow
           key={`runner:${runner.id}`}
@@ -75,7 +97,13 @@ function Health() {
           }
           meta={
             started && runner.lastSeenAt
-              ? `Last seen ${relativeTime(runner.lastSeenAt)}. Its sessions wait until it is back.`
+              ? `Last seen ${relativeTime(runner.lastSeenAt)}. ${
+                  held === 0
+                    ? "No session needs it now; start it again, or revoke it if it is retired."
+                    : held === 1
+                      ? "1 session waits until it is back."
+                      : `${held} sessions wait until it is back.`
+                }`
               : "Registered, but it has not connected since. Start lictory-runner on the machine."
           }
         />
@@ -118,12 +146,54 @@ function Health() {
         }
       />
     ),
+    ...server.map((problem, index) => {
+      const project = problem.projectId
+        ? projects.find((p) => p.id === problem.projectId)
+        : undefined;
+      return (
+        <ListRow
+          key={`server:${problem.key}:${problem.projectId ?? index}`}
+          href={
+            project
+              ? paths.handoff(org, project.key)
+              : problem.key === "intelligence_failed"
+                ? paths.settings(org, "intelligence")
+                : undefined
+          }
+          leading={<Cog aria-hidden className="text-destructive" />}
+          title={project ? `${project.key}: ${problem.title}` : problem.title}
+          meta={problem.detail}
+        />
+      );
+    }),
   ].filter(Boolean);
   return (
     <Panel title="Needs an administrator" icon={<Wrench />} count={rows.length}>
       {rows}
     </Panel>
   );
+}
+
+// The server's checks are read once per visit, like Slack's state: they
+// change on the scale of minutes and only administrators read them.
+function useServerHealth() {
+  const { organization } = useWorkspace();
+  const [problems, setProblems] = useState<AdministratorProblem[]>([]);
+  useEffect(() => {
+    let live = true;
+    callCapability<{ problems: AdministratorProblem[] }>(
+      "getAdministratorHealth",
+      { organizationId: organization.id },
+    )
+      .then((reading) => {
+        if (live) setProblems(reading.problems);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [organization.id]);
+  return problems;
 }
 
 // The Slack connection's state is read once, not synchronized: it changes

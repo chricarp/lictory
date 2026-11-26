@@ -98,6 +98,12 @@ worker ── claim under lease ─▶ parseWebhook ─▶ read again from the h
   verifies before it parses, needs no cookie (it is exempt from the
   same-origin rule) and answers the same way for an unknown connection and a
   bad signature.
+- **Refusals are visible.** A delivery refused for its signature or a body
+  that is not JSON stores nothing, but the connection records when and why
+  (at most once a minute, so forged deliveries cannot turn into a stream of
+  writes). Repositories and Code hosts show the refusal until the host's next
+  accepted delivery: after a secret rotation or a proxy change, an
+  administrator sees why deliveries stopped instead of only that they did.
 - **Dedupe.** Deliveries are unique per connection and delivery id
   (`X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Request-UUID`; GitLab
   versions without an event UUID use the body's digest). A replay is a

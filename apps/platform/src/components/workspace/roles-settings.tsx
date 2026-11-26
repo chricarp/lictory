@@ -80,7 +80,7 @@ export function People() {
         id="members"
         icon={<Users />}
         title="Members"
-        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines."
+        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines: choose a project chip to change them."
         action={
           <span className="text-xs text-muted-foreground tabular-nums">
             {directory.members.length}{" "}
@@ -164,7 +164,6 @@ export function People() {
                     size="sm"
                     variant="ghost"
                     disabled={lastAdmin}
-                    className="opacity-0 transition-opacity duration-100 group-hover:opacity-100 focus-visible:opacity-100 disabled:group-hover:opacity-50"
                     title={
                       lastAdmin
                         ? "An organization needs at least one administrator."
@@ -344,6 +343,7 @@ function Invite({
   const [disciplineIds, setDisciplineIds] = useState<string[]>([]);
   const [recipient, setRecipient] = useState("");
   const [url, setUrl] = useState<string>();
+  const [emailed, setEmailed] = useState(true);
   const linkField = useId();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -367,12 +367,14 @@ function Invite({
           });
           const result = (await response.json()) as {
             id?: string;
+            emailed?: boolean;
             error?: { message?: string };
           };
           if (!response.ok || !result.id)
             throw new Error(
               result.error?.message ?? "Could not send the invitation.",
             );
+          setEmailed(result.emailed !== false);
           setUrl(`${window.location.origin}/app/invitation?id=${result.id}`);
           onSent();
         } catch (error) {
@@ -467,7 +469,9 @@ function Invite({
           htmlFor={linkField}
           className="block text-xs text-muted-foreground"
         >
-          Invitation email sent. You can also share this link.
+          {emailed
+            ? "Invitation email sent. You can also share this link."
+            : "This server sends no email, so the invitation was not emailed. Send them this link."}
           <PlainInput
             id={linkField}
             className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs touch:text-base"

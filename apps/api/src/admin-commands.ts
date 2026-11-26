@@ -97,8 +97,18 @@ function onlyEmail(parsed: Parsed) {
   return parsed.positional[0]!;
 }
 
-async function readPassword(parsed: Parsed) {
-  if (!parsed.flags.has("password-stdin")) return undefined;
+// The password: the first line of stdin with --password-stdin, else the
+// variable `lictory admin` reads too (LICTORY_ADMIN_PASSWORD for setup,
+// LICTORY_USER_PASSWORD otherwise), so both spellings take the same input.
+async function readPassword(
+  parsed: Parsed,
+  variable: "LICTORY_ADMIN_PASSWORD" | "LICTORY_USER_PASSWORD",
+) {
+  if (!parsed.flags.has("password-stdin")) {
+    // An empty variable is no password, like an empty line on stdin.
+    const value = process.env[variable]?.trim();
+    return value?.length ? process.env[variable] : undefined;
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   const line = Buffer.concat(chunks).toString("utf8").split(/\r?\n/, 1)[0];
@@ -225,7 +235,7 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
             parsed.values.has("admin-email") ? "admin-email" : "email",
             "The administrator's email",
           ),
-          password: await readPassword(parsed),
+          password: await readPassword(parsed, "LICTORY_ADMIN_PASSWORD"),
         },
       });
       return {
@@ -284,7 +294,7 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
       const result = await createAccount(db, cli, {
         name: required(parsed, "name", "The person's name"),
         email: required(parsed, "email", "The person's email"),
-        password: await readPassword(parsed),
+        password: await readPassword(parsed, "LICTORY_USER_PASSWORD"),
         instanceAdmin: parsed.flags.has("admin"),
         organization: organization
           ? { id: organization.id, role: role as OrganizationRole }
@@ -297,9 +307,11 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
     }
     case "set-password": {
       const user = await userByEmail(db, onlyEmail(parsed));
-      const password = await readPassword(parsed);
+      const password = await readPassword(parsed, "LICTORY_USER_PASSWORD");
       if (!password)
-        throw new Usage("Pass the new password with --password-stdin.");
+        throw new Usage(
+          "Pass the new password with --password-stdin or LICTORY_USER_PASSWORD.",
+        );
       await setPassword(db, cli, user.id, password);
       return {
         json: { user: summary(user) },

@@ -4,6 +4,7 @@ import {
   Loader2,
   MessagesSquare,
   MoreHorizontal,
+  TriangleAlert,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
@@ -355,6 +356,7 @@ function AppSetup({
   onCancel?: () => void;
 }) {
   const manifest = JSON.stringify(reading.manifest, null, 2);
+  const unreachable = reading.urls ? notPublicHttps(reading.urls.events) : null;
   const [appId, setAppId] = useState(reading.connection.appId ?? "");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -388,6 +390,27 @@ function AppSetup({
           once the signing secret is saved.
         </li>
       </ol>
+      {unreachable && (
+        <div
+          role="note"
+          aria-label="Slack cannot reach this server"
+          className="flex gap-2 rounded-lg border border-warning/25 bg-warning/5 p-3"
+        >
+          <TriangleAlert
+            aria-hidden
+            className="mt-0.5 size-4 shrink-0 text-warning"
+          />
+          <div className="flex flex-col gap-1 text-xs leading-5">
+            <p className="font-medium">Slack cannot reach {unreachable}</p>
+            <p className="text-muted-foreground">
+              Slack sends events and sign-ins only to a public HTTPS address,
+              and this manifest uses the server&apos;s own address. Whoever runs
+              this server sets a public HTTPS address for it first (on a laptop
+              trial, Slack sync cannot work).
+            </p>
+          </div>
+        </div>
+      )}
       <CommandBlock
         label="Slack app manifest"
         copyLabel="Copy the manifest"
@@ -509,4 +532,28 @@ function CredentialField({
       )}
     </div>
   );
+}
+
+// The origin Slack cannot deliver to, when the manifest's events URL is not
+// a public HTTPS address (plain HTTP, localhost, a private or link-local
+// address, a .local or .internal name); null when it may be reachable.
+function notPublicHttps(address: string) {
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const local =
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host === "::1" ||
+    /^(127|10)\./.test(host) ||
+    host.startsWith("192.168.") ||
+    host.startsWith("169.254.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  return url.protocol !== "https:" || local ? url.origin : null;
 }

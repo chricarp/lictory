@@ -266,12 +266,16 @@ void test("a first trial runs the release's own stack on http://localhost and cr
     result.stdout,
     new RegExp(`user lictory, password ${settings.LICTORY_TRY_MAIL_PASSWORD}`),
   );
-  // Printed commands name the project, whatever the shell exports.
-  assert.match(
-    result.stdout,
-    /docker compose -p lictory-try down --volumes --rmi all/,
-  );
-  assert.match(result.stdout, /docker compose -p lictory-try stop/);
+  // Printed commands are short, and name the project whatever the shell
+  // exports.
+  const stop = /^  Stop +(.+)$/m.exec(result.stdout)![1]!;
+  assert.match(stop, /^'.+\/trial' stop$/);
+  assert.match(result.stdout, /^  Remove +'.+\/trial' remove$/m);
+  const stopped = f.command(stop);
+  assert.equal(stopped.status, 0, stopped.stderr);
+  const stopCall = stopped.calls.find((call) => call.args.includes("stop"))!;
+  assert.deepEqual(stopCall.args, ["compose", "-p", "lictory-try", "stop"]);
+  assert.equal(stopCall.shell.COMPOSE_FILE, null);
   assert.doesNotMatch(result.stdout, /Docker Engine/);
   // Only the ops image's files are kept, not the image.
   assert.ok(
@@ -405,6 +409,20 @@ void test("a release file that is not digest-pinned starts nothing", (t) => {
       ),
     );
     assert.ok(!existsSync(join(f.dir, ".env")));
+  }
+});
+
+void test("a password the server would refuse stops the trial before Docker is used", (t) => {
+  for (const password of ["short", "has a space in it"]) {
+    const f = fixture(t);
+    f.release(latest, releaseFile("0.24.0"));
+    const result = f.run({ LICTORY_ADMIN_PASSWORD: password });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /LICTORY_ADMIN_PASSWORD/);
+    assert.deepEqual(
+      result.calls.filter((call) => call.name === "docker"),
+      [],
+    );
   }
 });
 

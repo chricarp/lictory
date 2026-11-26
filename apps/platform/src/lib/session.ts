@@ -55,6 +55,8 @@ const sessionSchema = z.object({
     .default(defaultSignIn),
   // Whether the server has object storage for attachments.
   attachments: z.boolean().default(true),
+  // Whether the server sends email (invitations, notifications).
+  email: z.boolean().default(true),
   // Days between scheduling an organization's deletion and the deletion.
   organizationDeletionGraceDays: z.number().int().positive().default(30),
 });
@@ -68,6 +70,7 @@ export type Session = {
   twoFactorRequiredBy: z.infer<typeof heldSchema>[];
   signIn: SignInOptions;
   attachments: boolean;
+  email: boolean;
   organizationDeletionGraceDays: number;
 };
 
@@ -161,6 +164,7 @@ export function clearSession() {
       signIn: state.session?.signIn ?? defaultSignIn,
       twoFactorRequiredBy: [],
       attachments: state.session?.attachments ?? true,
+      email: state.session?.email ?? true,
       organizationDeletionGraceDays:
         state.session?.organizationDeletionGraceDays ?? 30,
     },
@@ -203,6 +207,11 @@ export function useTwoFactorRequiredBy() {
 // How long an organization stays locked before it is deleted.
 export function useOrganizationDeletionGraceDays(): number {
   return useSessionState().session?.organizationDeletionGraceDays ?? 30;
+}
+
+// False when the server sends no email: choices about email say so.
+export function useEmailAvailable(): boolean {
+  return useSessionState().session?.email ?? true;
 }
 
 // False when the server has no file storage: uploads are not offered.

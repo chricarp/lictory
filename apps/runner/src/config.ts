@@ -112,6 +112,9 @@ export type RunnerState = {
   updatedAt?: string | null;
   lastHeartbeatAt: string | null;
   lastError: string | null;
+  // The server refused the credential and the runner stopped: a person
+  // must register it again (status says so instead of "start it").
+  revoked?: boolean;
   sessions: { id: string; title: string; harness: string; state: string }[];
 };
 

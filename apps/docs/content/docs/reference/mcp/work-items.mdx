@@ -96,6 +96,22 @@ Every version of a project's Definition of Ready (readiness checks per work item
 }
 ```
 
+### `getAdministratorHealth`
+
+**Administrator health.** Query (read tokens too)
+
+Organization administrators: problems the server knows about in this organization's background work, the same database checks the instance monitor runs: notifications, email or Lictory Intelligence runs waiting for the worker, email that failed, Lictory Intelligence runs failing, hand-offs that failed and were not retried, and (for instance administrators) the replication slot that keeps browsers current. Empty while all is well.
+
+| Field            | Type   | Required | Description                                           |
+| ---------------- | ------ | -------- | ----------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
+
+```json title="getAdministratorHealth arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `createWorkItem`
 
 **Create work item.** Command · retry key `mutationId`

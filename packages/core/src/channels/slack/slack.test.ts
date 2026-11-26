@@ -385,6 +385,15 @@ void test("the Events API refuses bad and stale signatures, answers the URL chec
     body: challenge,
   });
   assert.equal(unsigned.status, 401);
+  // An organization without a saved app answers the same, so an
+  // unauthenticated caller learns nothing about its configuration.
+  const unknown = await receiveSlackRequest(db, {
+    organizationId: crypto.randomUUID(),
+    kind: "events",
+    headers: signSlackBody("0000000000000000aaaaaaaaaaaaaaaa", challenge),
+    body: challenge,
+  });
+  assert.deepEqual(unknown, unsigned);
 
   const event = JSON.stringify({
     type: "event_callback",

@@ -47,9 +47,9 @@ function CopyButton({
 
 // Commands, configuration or a manifest a person copies into another tool.
 // The text sits in its own scroll area under a caption bar that holds Copy,
-// so the button never covers a character at any width; the area is a tab
-// stop, so long lines scroll from the keyboard too. On phones long lines
-// wrap instead.
+// so the button never covers a character at any width; long lines wrap,
+// and the area is a tab stop, so a long manifest scrolls from the keyboard
+// too.
 export function CommandBlock({
   label,
   caption,
@@ -95,10 +95,10 @@ export function CommandBlock({
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
         tabIndex={0}
         className={cn(
-          // Phones wrap long lines instead of cutting them at the edge, so
-          // a person can read what they copy; wider screens keep each line
-          // whole and scroll.
-          "overflow-auto p-3 font-mono text-[12px] leading-5 whitespace-pre focus-ring-inset outline-none max-sm:[overflow-wrap:anywhere] max-sm:whitespace-pre-wrap",
+          // Long lines wrap at every width instead of running past the
+          // block's edge, so a person reads all of what they copy (the
+          // copied text keeps its own line breaks); long text scrolls.
+          "overflow-auto p-3 font-mono text-[12px] leading-5 [overflow-wrap:anywhere] whitespace-pre-wrap focus-ring-inset outline-none",
           maxHeight === "sm" && "max-h-40",
           maxHeight === "md" && "max-h-64",
         )}

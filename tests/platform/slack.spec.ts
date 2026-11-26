@@ -84,6 +84,10 @@ test("a channel synced with Slack shows both sides of one conversation @smoke", 
   await expect(section.getByLabel("Slack app manifest")).toContainText(
     `/api/slack/events/${seeded.organizationId}`,
   );
+  // This server's plain-HTTP localhost address is one Slack cannot reach.
+  await expect(
+    section.getByRole("note", { name: "Slack cannot reach this server" }),
+  ).toContainText(`Slack cannot reach ${process.env.E2E_PLATFORM_URL}`);
   await section.getByLabel("App ID").fill(FAKE_SLACK_APP.appId);
   await section.getByLabel("Client ID").fill(FAKE_SLACK_APP.clientId);
   await section.getByLabel("Signing Secret").fill(FAKE_SLACK_APP.signingSecret);

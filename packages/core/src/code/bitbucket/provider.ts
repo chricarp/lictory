@@ -53,6 +53,15 @@ export function createBitbucketProvider(
   const http = createCodeHttp(
     "Bitbucket",
     (_status, body) => {
+      // The OAuth token endpoint answers with RFC 6749's shape:
+      // { error: "invalid_client", error_description: "…" }.
+      const oauth = str(obj(body).error);
+      if (oauth)
+        return {
+          message: [oauth, str(obj(body).error_description)]
+            .filter(Boolean)
+            .join(": "),
+        };
       const error = obj(obj(body).error);
       const message = str(error.message);
       const detail = str(error.detail);
@@ -83,6 +92,8 @@ export function createBitbucketProvider(
         Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString("base64")}`,
       },
       form: { grant_type: "client_credentials" },
+    }).catch((error: unknown) => {
+      throw consumerError(error);
     });
     const token = str(data.access_token);
     if (!token)
@@ -96,6 +107,27 @@ export function createBitbucketProvider(
     };
     consumerTokens.set(key, minted);
     return minted;
+  };
+  // A token exchange that fails names the consumer's problem, not a generic
+  // refusal: wrong key or secret, or a consumer Bitbucket does not let act on
+  // its own (client credentials need a private consumer).
+  const consumerError = (error: unknown) => {
+    if (!(error instanceof CodeHostError)) return error;
+    if (/\b(unauthorized_client|unsupported_grant_type)\b/.test(error.message))
+      return new CodeHostError(
+        "validation",
+        "Bitbucket does not let this OAuth consumer sign in on its own. In the consumer's settings (Workspace settings → OAuth consumers → Edit), check “This is a private consumer”, give it a callback URL (any address works) and save, then connect again.",
+      );
+    if (
+      error.kind === "authentication" ||
+      error.kind === "permission" ||
+      /\binvalid_(client|grant|request|scope)\b/.test(error.message)
+    )
+      return new CodeHostError(
+        "authentication",
+        "Bitbucket rejected the connection's OAuth consumer key and secret. An organization administrator must reconnect it.",
+      );
+    return error;
   };
   const missing = () =>
     new CodeHostError(

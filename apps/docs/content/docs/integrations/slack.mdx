@@ -117,7 +117,11 @@ was said; nothing more is sent either way.
 ## Self-hosted installations
 
 - Slack must reach your installation: `PLATFORM_URL` must be a public HTTPS
-  address (for testing locally, a tunnel).
+  address (for testing locally, a tunnel). The Slack settings warn above the
+  manifest when it is not (plain HTTP, localhost or a private address).
+- The events URL answers every request it cannot verify the same way, whether
+  or not the organization saved a Slack app, so it reveals nothing about the
+  configuration.
 - Set `DELIVERY_CREDENTIALS_KEY`, which also encrypts Slack credentials
   (see the [configuration reference](/self-hosting/configuration)).
 - The worker sends and receives messages; it needs outbound HTTPS to

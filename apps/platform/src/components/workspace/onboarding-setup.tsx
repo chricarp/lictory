@@ -437,14 +437,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   options={[
                     {
                       value: "native",
-                      title: "In Lictory",
+                      title: "Deliver in Lictory",
                       description:
                         "Boards, backlog and iterations next to specs.",
                       icon: <SquareKanban />,
                     },
                     {
                       value: "external",
-                      title: "In Jira",
+                      title: "Hand off to Jira",
                       description:
                         "Hand off ready work. Jira owns status and sprints.",
                       icon: <Send />,

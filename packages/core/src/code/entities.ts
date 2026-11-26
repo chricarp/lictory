@@ -34,6 +34,10 @@ export type CodeConnectionEntity = {
   // Path of the webhook endpoint (append to the platform origin).
   webhookPath: string;
   lastWebhookAt: string | null;
+  // The latest delivery Lictory refused and why (recorded at most once a
+  // minute). Optional: projections written before it existed omit it.
+  lastWebhookRefusedAt?: string | null;
+  lastWebhookRefusal?: "signature" | "payload" | null;
   createdAt: string;
 };
 

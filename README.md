@@ -103,6 +103,19 @@ propose page changes for people to review.
 Screenshots show the application with fictional data. See the
 [team guide](https://docs.lictory.com/getting-started) for the complete workflow.
 
+## Try it on your computer
+
+With Docker, one command starts the newest release on http://localhost with
+an inbox for its email and a first administrator (evaluation only: plain HTTP,
+local secrets, no backups):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+```
+
+It prints where to sign in and the `trial stop` and `trial remove` commands.
+See [try Lictory](https://docs.lictory.com/self-hosting/try).
+
 ## Install on your server
 
 Use a Linux server (amd64 or arm64) with Docker Engine 25+ and Compose 2.24+,
@@ -151,6 +164,15 @@ drills. The [command reference](https://docs.lictory.com/self-hosting/commands)
 lists every option, variable and exit code, and
 [troubleshooting](https://docs.lictory.com/self-hosting/troubleshooting) the
 common problems.
+
+## Run agents on your own machines
+
+Agents that write code (Claude Code, Codex, OpenCode, Gemini CLI or the
+built-in agent) run on **runners**: `lictory-runner` on a server, VPS or
+laptop you control, which connects out to Lictory and runs each session in
+its own worktree. **Factory → Runners → Add runner** shows the install and
+register commands with a one-time token. See
+[runners](https://docs.lictory.com/factory/runners).
 
 ## Work with your coding agent
 

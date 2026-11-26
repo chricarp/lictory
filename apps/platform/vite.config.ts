@@ -10,6 +10,10 @@ import {
   publicConfigTag,
 } from "../../packages/core/src/lib/public-config";
 
+// The package scripts load this file with `--configLoader runner`: it
+// imports core sources without file extensions, as the rest of the
+// repository does, which Vite's default loader accepts but warns about on
+// every start (its future native loader would not).
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const workspace = (path: string) => `${root}${path}`;
 

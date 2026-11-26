@@ -7,6 +7,7 @@ import { Checkbox } from "@lictory/ui/checkbox";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Switch } from "@lictory/ui/switch";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useEmailAvailable } from "@lictory/platform/lib/session";
 import { paths } from "@lictory/core/lib/paths";
 import {
   categoryLabels,
@@ -35,6 +36,7 @@ type Rule =
 // everywhere, but mute the Mobile team" without configuring every project.
 export function NotificationSettings() {
   const { organization, projects, delivery } = useWorkspace();
+  const emailAvailable = useEmailAvailable();
   const [rules, setRules] = useState<PreferenceRule[] | null>(null);
   const [scope, setScope] = useState<Scope>({
     scope: "organization",
@@ -250,6 +252,8 @@ export function NotificationSettings() {
                   : `Overrides your project and ${organization.name} settings for items of this team.`}{" "}
               Turn a notification on to receive it in your Inbox; you can then
               also choose to get it by email.
+              {!emailAvailable &&
+                " This server sends no email yet, so your email choices take effect once whoever runs it sets up outbound email."}
             </p>
           </div>
           {error && (
