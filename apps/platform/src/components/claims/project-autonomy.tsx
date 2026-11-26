@@ -189,125 +189,133 @@ export function ProjectAutonomy({
               }))}
             />
           </Field>
-          <Field
-            label="Implementer agents"
-            hint="The dispatcher starts sessions for these runner agents, in rank order. Each acts with its person's permissions in this project."
-          >
-            {runners.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">
-                No runner agents are available to this project.{" "}
-                <Link
-                  href={`/${organization.slug}/factory`}
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  Add one under Factory
-                </Link>{" "}
-                before choosing Build or Autopilot.
-              </p>
-            ) : (
-              <ul className="space-y-1.5">
-                {runners.map((agent) => (
-                  <li key={agent.id}>
-                    <label className="flex min-h-6 items-center gap-2 text-[13px]">
-                      <Checkbox
-                        disabled={!editable}
-                        checked={draft.implementerAgentIds.includes(agent.id)}
-                        onCheckedChange={(checked) =>
-                          set({
-                            implementerAgentIds: checked
-                              ? [...draft.implementerAgentIds, agent.id]
-                              : draft.implementerAgentIds.filter(
-                                  (id) => id !== agent.id,
-                                ),
-                          })
-                        }
-                      />
-                      <AgentActor
-                        agent={agent}
-                        ownerId={agent.ownerId}
-                        avatar={false}
-                      />
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Field>
-          {/* Labels sit above their fields, so a long name never runs into
+          {/* Nothing below applies while delivery is external: no work is
+              dispatched, so no agents, reviewer, limit or channel to set. */}
+          {!external && (
+            <>
+              <Field
+                label="Implementer agents"
+                hint="The dispatcher starts sessions for these runner agents, in rank order. Each acts with its person's permissions in this project."
+              >
+                {runners.length === 0 ? (
+                  <p className="text-[13px] text-muted-foreground">
+                    No runner agents are available to this project.{" "}
+                    <Link
+                      href={`/${organization.slug}/factory`}
+                      className="underline underline-offset-2 hover:text-foreground"
+                    >
+                      Add one under Factory
+                    </Link>{" "}
+                    before choosing Build or Autopilot.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {runners.map((agent) => (
+                      <li key={agent.id}>
+                        <label className="flex min-h-6 items-center gap-2 text-[13px]">
+                          <Checkbox
+                            disabled={!editable}
+                            checked={draft.implementerAgentIds.includes(
+                              agent.id,
+                            )}
+                            onCheckedChange={(checked) =>
+                              set({
+                                implementerAgentIds: checked
+                                  ? [...draft.implementerAgentIds, agent.id]
+                                  : draft.implementerAgentIds.filter(
+                                      (id) => id !== agent.id,
+                                    ),
+                              })
+                            }
+                          />
+                          <AgentActor
+                            agent={agent}
+                            ownerId={agent.ownerId}
+                            avatar={false}
+                          />
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Field>
+              {/* Labels sit above their fields, so a long name never runs into
               its select. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid content-start gap-1.5 text-[13px]">
-              <span className="font-medium">Reviewer agent</span>
-              <DropdownSelect
-                disabled={!editable}
-                className="w-full"
-                aria-label="Reviewer agent"
-                value={draft.reviewerAgentId ?? ""}
-                placeholder="None"
-                onValueChange={(value) =>
-                  set({ reviewerAgentId: value ? value : null })
-                }
-              >
-                <DropdownSelectOption value="">None</DropdownSelectOption>
-                {eligible.map((agent) => (
-                  <DropdownSelectOption key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </DropdownSelectOption>
-                ))}
-              </DropdownSelect>
-              <span className="text-xs text-muted-foreground">
-                Reviews the implementers’ pull requests.
-              </span>
-            </label>
-            <label className="grid content-start gap-1.5 text-[13px]">
-              <span className="font-medium">Concurrent sessions</span>
-              <DropdownSelect
-                disabled={!editable}
-                className="w-full"
-                aria-label="Concurrent sessions"
-                value={draft.maxConcurrentSessions}
-                onValueChange={(value) =>
-                  set({ maxConcurrentSessions: Number(value) })
-                }
-              >
-                {Array.from(
-                  { length: maxConcurrentSessionsLimit },
-                  (_, i) => i + 1,
-                ).map((n) => (
-                  <DropdownSelectOption key={n} value={n}>
-                    {plural(n, "session")}
-                  </DropdownSelectOption>
-                ))}
-              </DropdownSelect>
-              <span className="text-xs text-muted-foreground">
-                At most this many agents work in the project at once.
-              </span>
-            </label>
-            <label className="grid content-start gap-1.5 text-[13px] sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
-              <span className="font-medium">Report to channel</span>
-              <DropdownSelect
-                disabled={!editable}
-                className="w-full"
-                aria-label="Report to channel"
-                value={draft.reportingChannelId ?? ""}
-                placeholder="None"
-                onValueChange={(value) =>
-                  set({ reportingChannelId: value ? value : null })
-                }
-              >
-                <DropdownSelectOption value="">None</DropdownSelectOption>
-                {reportable.map((channel) => (
-                  <DropdownSelectOption key={channel.id} value={channel.id}>
-                    #{channel.name}
-                  </DropdownSelectOption>
-                ))}
-              </DropdownSelect>
-              <span className="text-xs text-muted-foreground">
-                Dispatched sessions post their live card there; agents’
-                questions are announced there.
-              </span>
-            </label>
-          </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid content-start gap-1.5 text-[13px]">
+                  <span className="font-medium">Reviewer agent</span>
+                  <DropdownSelect
+                    disabled={!editable}
+                    className="w-full"
+                    aria-label="Reviewer agent"
+                    value={draft.reviewerAgentId ?? ""}
+                    placeholder="None"
+                    onValueChange={(value) =>
+                      set({ reviewerAgentId: value ? value : null })
+                    }
+                  >
+                    <DropdownSelectOption value="">None</DropdownSelectOption>
+                    {eligible.map((agent) => (
+                      <DropdownSelectOption key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </DropdownSelectOption>
+                    ))}
+                  </DropdownSelect>
+                  <span className="text-xs text-muted-foreground">
+                    Reviews the implementers’ pull requests.
+                  </span>
+                </label>
+                <label className="grid content-start gap-1.5 text-[13px]">
+                  <span className="font-medium">Concurrent sessions</span>
+                  <DropdownSelect
+                    disabled={!editable}
+                    className="w-full"
+                    aria-label="Concurrent sessions"
+                    value={draft.maxConcurrentSessions}
+                    onValueChange={(value) =>
+                      set({ maxConcurrentSessions: Number(value) })
+                    }
+                  >
+                    {Array.from(
+                      { length: maxConcurrentSessionsLimit },
+                      (_, i) => i + 1,
+                    ).map((n) => (
+                      <DropdownSelectOption key={n} value={n}>
+                        {plural(n, "session")}
+                      </DropdownSelectOption>
+                    ))}
+                  </DropdownSelect>
+                  <span className="text-xs text-muted-foreground">
+                    At most this many agents work in the project at once.
+                  </span>
+                </label>
+                <label className="grid content-start gap-1.5 text-[13px] sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+                  <span className="font-medium">Report to channel</span>
+                  <DropdownSelect
+                    disabled={!editable}
+                    className="w-full"
+                    aria-label="Report to channel"
+                    value={draft.reportingChannelId ?? ""}
+                    placeholder="None"
+                    onValueChange={(value) =>
+                      set({ reportingChannelId: value ? value : null })
+                    }
+                  >
+                    <DropdownSelectOption value="">None</DropdownSelectOption>
+                    {reportable.map((channel) => (
+                      <DropdownSelectOption key={channel.id} value={channel.id}>
+                        #{channel.name}
+                      </DropdownSelectOption>
+                    ))}
+                  </DropdownSelect>
+                  <span className="text-xs text-muted-foreground">
+                    Dispatched sessions post their live card there; agents’
+                    questions are announced there.
+                  </span>
+                </label>
+              </div>
+            </>
+          )}
           {draft.level === "autopilot" && (
             <Field
               label="Before an automatic merge"

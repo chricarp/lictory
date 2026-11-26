@@ -645,8 +645,12 @@ function ItemRow({
         >
           {item.title}
         </Link>
+        {/* Why a hand-off failed is what to act on: shown whole, never
+            cut off mid-sentence. */}
         {detail && (
-          <p className="truncate text-xs text-muted-foreground">{detail}</p>
+          <p className="text-xs [overflow-wrap:anywhere] text-muted-foreground">
+            {detail}
+          </p>
         )}
       </div>
       {meta && (

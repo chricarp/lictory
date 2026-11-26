@@ -268,11 +268,14 @@ function ReviewActions({
       icon={<Sparkles />}
       title="Lictory Intelligence on pull requests"
       description="Whether Lictory Intelligence reviews each commit of a pull request against the specification it implements."
-      footer={
-        directory.ai.enabled ? undefined : (
-          <>
-            Lictory Intelligence is turned off for this organization, so this
-            policy has no effect.
+    >
+      <SettingsBody className="space-y-3">
+        {/* A choice that cannot take effect is not offered as one: it is
+            shown, kept and explained until Intelligence is on. */}
+        {!directory.ai.enabled && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
+            Lictory Intelligence is turned off for this organization, so no pull
+            request is reviewed and this choice waits until it is on.
             {isAdmin && (
               <>
                 {" "}
@@ -284,15 +287,12 @@ function ReviewActions({
                 </Link>
               </>
             )}
-          </>
-        )
-      }
-    >
-      <SettingsBody>
+          </p>
+        )}
         <Choice
           label="Review action policy"
           value={project.aiActionPolicy}
-          disabled={!canEdit}
+          disabled={!canEdit || !directory.ai.enabled}
           onChange={(aiActionPolicy) =>
             void run({
               type: "updateProject",
