@@ -331,7 +331,11 @@ export function SessionView() {
         </span>
         {ran !== null && (
           <span className="tabular-nums">
-            {state.active ? "running for " : "ran "}
+            {!state.active
+              ? "ran "
+              : session.status === "waiting"
+                ? "open for "
+                : "running for "}
             {formatDuration(ran)}
           </span>
         )}

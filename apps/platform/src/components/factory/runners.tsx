@@ -19,6 +19,7 @@ import {
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   runnerOnline,
+  takesSlot,
   type RunnerEntity,
   type SessionEntity,
 } from "@lictory/core/factory/entities";
@@ -60,12 +61,13 @@ export function FactoryRunners() {
   const search = useSearchParams();
   const [adding, setAdding] = useState(() => search.get("add") === "1");
   const active = runners.filter((r) => !r.revokedAt);
+  // The server's rule: a session waiting on a person takes no slot.
   const busy = (runner: RunnerEntity) =>
-    sessions.filter(
-      (s) =>
-        s.runnerId === runner.id &&
-        ["assigned", "running", "waiting"].includes(s.status),
-    ).length;
+    sessions.filter((s) => s.runnerId === runner.id && takesSlot(s.status))
+      .length;
+  const waiting = (runner: RunnerEntity) =>
+    sessions.filter((s) => s.runnerId === runner.id && s.status === "waiting")
+      .length;
   // Runners on an older release than the server: said once, above the
   // lists, and on each row.
   const behind = active.filter(
@@ -79,6 +81,7 @@ export function FactoryRunners() {
       key={runner.id}
       runner={runner}
       sessions={busy(runner)}
+      waiting={waiting(runner)}
       recent={sessions
         .filter((s) => s.runnerId === runner.id)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -199,12 +202,15 @@ const RECENT_SESSIONS = 5;
 function RunnerRow({
   runner,
   sessions,
+  waiting,
   recent,
   owner,
   canRevoke,
 }: {
   runner: RunnerEntity;
+  // Sessions taking a slot, and sessions waiting on a person (no slot).
   sessions: number;
+  waiting: number;
   // Its latest sessions, newest first.
   recent: SessionEntity[];
   owner: string | null;
@@ -412,6 +418,8 @@ function RunnerRow({
             </Fact>
             <Fact label="Capacity">
               {sessions} of {runner.maxSessions} sessions running
+              {waiting > 0 &&
+                ` · ${waiting} waiting on a person (they take no slot)`}
             </Fact>
             <Fact label="Registered">
               {new Date(runner.registeredAt).toLocaleString()}
