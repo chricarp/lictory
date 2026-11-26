@@ -1042,7 +1042,9 @@ void test("a Factory agent never reaches a person's decision; a person's token k
   assert.match(init.result.instructions, /refused to agents by the server/);
   assert.equal(
     init.result.serverInfo.version,
-    process.env.APP_VERSION?.trim() || "development",
+    process.env.APP_VERSION?.trim()
+      ? process.env.APP_VERSION.trim()
+      : "development",
   );
 
   // An agent limited to projects sees nothing it would always be refused.
