@@ -226,29 +226,22 @@ export function SessionRow({
               avatar={false}
               className="shrink-0"
             />
-            <span aria-hidden>·</span>
-            <span className="shrink-0">by</span>
-            <SessionStarter session={session} />
+            <span className="flex shrink-0 items-center gap-1">
+              by <SessionStarter session={session} />
+            </span>
             {ran !== null && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="shrink-0 tabular-nums">
-                  {finished ? "ran " : "running "}
-                  {formatDuration(ran)}
-                </span>
-              </>
+              <span className="shrink-0 tabular-nums">
+                {finished ? "ran " : "running "}
+                {formatDuration(ran)}
+              </span>
             )}
             {finished && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="min-w-0 truncate">
-                  {sessionOutcome(session)}
-                </span>
-              </>
+              <span className="min-w-0 truncate">
+                {sessionOutcome(session)}
+              </span>
             )}
             {pullRequest && (
               <span className="flex shrink-0 items-center gap-1">
-                <span aria-hidden>·</span>
                 <GitPullRequest aria-hidden className="size-3" />
                 Pull request
               </span>
@@ -276,7 +269,6 @@ export function SessionRow({
             <span className="min-w-0 truncate">{sessionOutcome(session)}</span>
             {pullRequest && (
               <span className="flex shrink-0 items-center gap-1">
-                <span aria-hidden>·</span>
                 <GitPullRequest aria-hidden className="size-3" />
                 Pull request
               </span>
@@ -290,9 +282,9 @@ export function SessionRow({
               avatar={false}
               className="shrink-0"
             />
-            <span aria-hidden>·</span>
-            <span className="shrink-0">started by</span>
-            <SessionStarter session={session} />
+            <span className="flex shrink-0 items-center gap-1">
+              started by <SessionStarter session={session} />
+            </span>
           </>
         )
       }

@@ -38,6 +38,7 @@ import { EmptyState } from "@lictory/ui/primitives";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { SectionCaption } from "@lictory/platform/components/shell/panel";
+import { MetaLine } from "@lictory/platform/components/shell/meta-line";
 import { Actor } from "@lictory/platform/components/identity/actor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
@@ -630,27 +631,25 @@ function IterationHeader({
             Active
           </StatusChip>
         )}
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {shortRange(iteration)}
-        </span>
-        <span aria-hidden className="text-xs text-muted-foreground">
-          ·
-        </span>
-        <span
-          className={cn(
-            "text-xs tabular-nums",
-            over ? "text-warning" : "text-muted-foreground",
+        <MetaLine className="min-w-0">
+          <span className="tabular-nums">{shortRange(iteration)}</span>
+          <span className="tabular-nums">
+            {rows.length} {rows.length === 1 ? "item" : "items"}
+          </span>
+          {showPoints && (
+            <span
+              className={cn("tabular-nums", over && "text-warning")}
+              title={
+                capacity !== undefined
+                  ? `Recent average velocity: ${capacity} pts`
+                  : undefined
+              }
+            >
+              {points}
+              {capacity !== undefined ? ` / ~${capacity}` : ""} pts
+            </span>
           )}
-          title={
-            capacity !== undefined
-              ? `Recent average velocity: ${capacity} pts`
-              : undefined
-          }
-        >
-          {rows.length} {rows.length === 1 ? "item" : "items"}
-          {showPoints &&
-            ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
-        </span>
+        </MetaLine>
         <div className="ml-auto flex items-center gap-1">
           <ContextControl
             project={project}

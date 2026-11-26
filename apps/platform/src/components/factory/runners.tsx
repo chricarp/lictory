@@ -43,6 +43,7 @@ import {
 import { runnerVersionSkew } from "@lictory/platform/components/factory/runner-version";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { MetaPart } from "@lictory/platform/components/shell/meta-line";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   expiresIn,
@@ -110,6 +111,8 @@ export function FactoryRunners() {
         <MissingState
           headingLevel={2}
           icon={Server}
+          // The Factory's empty tabs share the Overview's art.
+          illustration="planning"
           title="No runners yet"
           action={
             <Button onClick={() => setAdding(true)}>
@@ -253,13 +256,9 @@ function RunnerRow({
         meta={
           <>
             {owner && <span className="shrink-0">{owner}’s</span>}
-            {owner && <span aria-hidden>·</span>}
-            <span className="shrink-0 max-sm:hidden">
+            <MetaPart className="shrink-0 max-sm:hidden">
               {osLabel(runner.os)} {runner.arch}
-            </span>
-            <span aria-hidden className="max-sm:hidden">
-              ·
-            </span>
+            </MetaPart>
             <span className="truncate">{harnesses}</span>
             {runner.version && (
               <span

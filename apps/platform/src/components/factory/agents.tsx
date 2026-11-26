@@ -105,6 +105,8 @@ export function FactoryAgents() {
         <MissingState
           headingLevel={2}
           icon={Bot}
+          // The Factory's empty tabs share the Overview's art.
+          illustration="planning"
           title="No agents yet"
           action={
             <Button onClick={() => setEditing("new")}>
@@ -317,16 +319,15 @@ function AgentRow({
             label="first"
             className="shrink-0"
           />
-          <span aria-hidden>·</span>
-          <span className="shrink-0">{agentKindLabel(agent)}</span>
-          {agent.model && (
-            <span className="truncate font-mono">{agent.model}</span>
-          )}
-          <span aria-hidden>·</span>
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="shrink-0">{agentKindLabel(agent)}</span>
+            {agent.model && (
+              <span className="truncate font-mono">{agent.model}</span>
+            )}
+          </span>
           <span className="shrink-0">
             {agent.access === "read" ? "Read only" : "Read and write"}
           </span>
-          <span aria-hidden>·</span>
           <span className="truncate">
             {projects?.length ? projects.join(", ") : "Every project"}
             {agent.shared && " · Shared"}

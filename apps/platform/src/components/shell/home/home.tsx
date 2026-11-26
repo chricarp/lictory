@@ -386,7 +386,6 @@ function Home() {
                           >
                             {failed ? "Failed" : "Finished"}
                           </span>
-                          <span aria-hidden>·</span>
                           <span className="truncate">
                             {failed
                               ? `${agent?.name ?? "The agent"} stopped${session.error ? `: ${asSentence(sessionOutcome(session))}` : "."} Open it to retry.`
@@ -485,21 +484,24 @@ function ItemRow({
         reason ??
         (project && (
           <>
-            <StatusIcon
-              category={deliveryCategory(
-                item,
-                project,
-                delivery,
-                links?.get(item.id),
-              )}
-              color={
-                project.deliveryMode === "external" ? undefined : status?.color
-              }
-            />
-            {project.deliveryMode === "external"
-              ? (links?.get(item.id)?.externalStatus ?? "In progress")
-              : (status?.name ?? "Started")}
-            <span aria-hidden>·</span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <StatusIcon
+                category={deliveryCategory(
+                  item,
+                  project,
+                  delivery,
+                  links?.get(item.id),
+                )}
+                color={
+                  project.deliveryMode === "external"
+                    ? undefined
+                    : status?.color
+                }
+              />
+              {project.deliveryMode === "external"
+                ? (links?.get(item.id)?.externalStatus ?? "In progress")
+                : (status?.name ?? "Started")}
+            </span>
             <span className="truncate">{project.name}</span>
           </>
         ))

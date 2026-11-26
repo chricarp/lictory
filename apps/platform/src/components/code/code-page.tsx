@@ -402,7 +402,6 @@ function PullRequestRow({
               />
             </span>
           )}
-          <span aria-hidden>·</span>
           <span className="truncate">
             <span className="font-mono">
               {p.repositoryFullName.split("/").pop()}#{p.number}

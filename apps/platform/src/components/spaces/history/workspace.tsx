@@ -160,15 +160,11 @@ export function SpacePullRequests() {
                       <span className="truncate">
                         {pages.find((page) => page.id === p.pageId)?.title}
                       </span>
-                      <span aria-hidden>·</span>
                       <span className="shrink-0 capitalize">{p.status}</span>
                       {p.reviewers.some((r) => r.userId === userId) && (
-                        <>
-                          <span aria-hidden>·</span>
-                          <span className="shrink-0 font-medium text-foreground/80">
-                            Your review requested
-                          </span>
-                        </>
+                        <span className="shrink-0 font-medium text-foreground/80">
+                          Your review requested
+                        </span>
                       )}
                     </>
                   }

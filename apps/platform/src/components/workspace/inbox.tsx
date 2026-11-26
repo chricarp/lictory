@@ -331,7 +331,6 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
               <span className="shrink-0 font-medium text-foreground/80">
                 {agent?.name ?? "The agent"} failed
               </span>
-              <span aria-hidden>·</span>
               <span className="truncate">
                 {asSentence(sessionOutcome(session))} Retry it or start over.
               </span>
@@ -386,10 +385,11 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
             <span className="shrink-0 font-medium text-foreground/80">
               {reason}
             </span>
-            <span aria-hidden>·</span>
-            <FileText aria-hidden className="size-3 shrink-0" />
-            <span className="truncate">
-              {pr.title} · {entry.space.name}
+            <span className="flex min-w-0 items-center gap-1">
+              <FileText aria-hidden className="size-3 shrink-0" />
+              <span className="truncate">
+                {pr.title} · {entry.space.name}
+              </span>
             </span>
           </>
         }
@@ -416,7 +416,6 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
           <span className="shrink-0 font-medium text-foreground/80">
             {reason}
           </span>
-          <span aria-hidden>·</span>
           <span className="truncate">{detail}</span>
         </>
       }
