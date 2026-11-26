@@ -98,7 +98,7 @@ export function ProjectMembers({
           </span>
         )
       }
-      footer="Organization administrators manage every project without being listed as members. Removing someone from the project also removes their disciplines and team memberships here."
+      footer="Organization administrators manage every project without being listed. Removing someone also removes their disciplines and teams here."
     >
       <SettingsList isEmpty={people.length === 0} empty="No members yet.">
         {people.map((m) => {

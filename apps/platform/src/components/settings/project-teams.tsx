@@ -51,7 +51,7 @@ export function ProjectTeams({
       id="teams"
       icon={<UsersRound />}
       title="Teams"
-      description="Teams are groups of people working on one vertical of this project, such as Checkout or Platform. Every team follows the project's workflow and planning; boards and backlogs can be narrowed to a team. Items don't need a team."
+      description="People working on one vertical, such as Checkout. Teams share the project's workflow; boards and backlogs can be narrowed to one."
       action={
         canEdit && !creating ? (
           <Button
