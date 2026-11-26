@@ -317,7 +317,7 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
       .click();
     await expect(
       ben.page
-        .getByRole("complementary", { name: "Review summary" })
+        .getByRole("complementary", { name: "Reviewers" })
         .getByText("Approved", { exact: true }),
     ).toBeVisible();
 

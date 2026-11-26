@@ -213,7 +213,7 @@ test("a page becomes reviewed, delivered work that proposes the page update back
       .click();
     await expect(
       ben.page
-        .getByRole("complementary", { name: "Review summary" })
+        .getByRole("complementary", { name: "Reviewers" })
         .getByText("Approved", { exact: true }),
     ).toBeVisible();
 
