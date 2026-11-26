@@ -839,6 +839,91 @@ void test("merging: authorized, refused for unmet rules and a moved head, and th
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });
 
+void test("a merge waits for CI the Definition of Done requires, and a person's review in Lictory counts", async () => {
+  const f = await fixture();
+  const repository = f.host.repositoryPayload(f.repo.externalId);
+  // PAY-1's pull request (Payments requires CI, by default) and one that
+  // delivers no item.
+  const linked = f.host.openPullRequest(f.repo.externalId, {
+    head: "pay-1-x",
+    title: "PAY-1: refunds",
+  });
+  const loose = f.host.openPullRequest(f.repo.externalId, {
+    head: "docs",
+    title: "Tidy the README",
+  });
+  for (const pr of [linked, loose])
+    await f.deliver("pull_request", {
+      repository,
+      pull_request: { number: pr.number },
+    });
+  const pr = (await f.prEntity(linked.number))!;
+  const other = (await f.prEntity(loose.number))!;
+  const merge = (pullRequestId: string, expectedHeadSha: string) =>
+    f.service.merge(
+      { userId: f.engineer },
+      { organizationId: f.organizationId, pullRequestId, expectedHeadSha },
+    );
+  const review = (decision: "approve" | "request_changes") =>
+    f.service.reviewPullRequest(
+      { userId: f.engineer },
+      {
+        organizationId: f.organizationId,
+        pullRequestId: pr.id,
+        decision,
+        body: "Read the retry path.",
+        expectedHeadSha: pr.headSha,
+        mutationId: crypto.randomUUID(),
+      },
+    );
+  const reviewOnItem = async () =>
+    (await f.links(f.pay1)).find((l) => l.target === "pull_request")
+      ?.summary as { reviewDecision: string } | undefined;
+
+  // No check reported: the item's Definition of Done needs CI, so no merge.
+  await assert.rejects(
+    merge(pr.id, pr.headSha),
+    refusal("conflict", /reported no checks/),
+  );
+  const read = await f.service.getPullRequest(
+    { userId: f.engineer },
+    f.organizationId,
+    pr.id,
+  );
+  assert.match(read.mergeBlockers.join(" "), /requires CI/);
+  // Work no Definition of Done governs merges without CI.
+  assert.ok((await merge(other.id, other.headSha)).writeId);
+
+  // A person requests changes in Lictory: the merge waits even when CI is
+  // green, and the item's Code panel says so.
+  await review("request_changes");
+  f.host.setChecks(f.repo.externalId, pr.headSha, [
+    { name: "ci", state: "success", url: null },
+  ]);
+  await f.deliver("check_suite", {
+    repository,
+    check_suite: {
+      head_sha: pr.headSha,
+      pull_requests: [{ number: linked.number }],
+    },
+  });
+  await assert.rejects(
+    merge(pr.id, pr.headSha),
+    refusal("conflict", /requested changes/),
+  );
+  assert.equal((await reviewOnItem())?.reviewDecision, "changes_requested");
+  // Their approval of the same head supersedes it.
+  await review("approve");
+  assert.equal((await reviewOnItem())?.reviewDecision, "approved");
+  const entity = (await f.prEntity(linked.number))!;
+  assert.deepEqual(
+    entity.reviews.map((r) => [r.reviewerId, r.agentId, r.decision]),
+    [[f.engineer, null, "approve"]],
+  );
+  assert.ok((await merge(pr.id, pr.headSha)).writeId);
+  assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
+});
+
 void test("autopilot merges are attributed to the policy and need its administrator", async () => {
   const f = await fixture();
   const pr = f.host.openPullRequest(f.repo.externalId, {
@@ -874,12 +959,34 @@ void test("autopilot merges are attributed to the policy and need its administra
     }),
     refusal("forbidden", /does not serve/),
   );
+  // Payments' Definition of Done requires CI: nothing reported yet is no
+  // evidence, so Autopilot's merge waits like a person's.
+  await assert.rejects(
+    executor.enqueueMerge({
+      organizationId: f.organizationId,
+      pullRequestId: stored!.id,
+      expectedHeadSha: pr.headSha,
+      policy: { projectId: f.pay, configuredById: f.owner },
+      idempotencyKey: "autopilot-3",
+    }),
+    refusal("conflict", /reported no checks/),
+  );
+  f.host.setChecks(f.repo.externalId, pr.headSha, [
+    { name: "ci", state: "success", url: null },
+  ]);
+  await f.deliver("check_suite", {
+    repository: f.host.repositoryPayload(f.repo.externalId),
+    check_suite: {
+      head_sha: pr.headSha,
+      pull_requests: [{ number: pr.number }],
+    },
+  });
   const queued = await executor.enqueueMerge({
     organizationId: f.organizationId,
     pullRequestId: stored!.id,
     expectedHeadSha: pr.headSha,
     policy: { projectId: f.pay, configuredById: f.owner },
-    idempotencyKey: "autopilot-3",
+    idempotencyKey: "autopilot-4",
   });
   const [write] = await db
     .select()

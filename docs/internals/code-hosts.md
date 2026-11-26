@@ -180,8 +180,14 @@ connection's identity.
 
 A merge is a `decision` capability. Lictory refuses it from the state machine
 (`codePullRequest`), for a draft, failing or running checks, requested changes
-or conflicts (`mergeBlockers` in `code/merge-rules.ts`, shared with the
-browser), and when the head moved since the person looked (`expectedHeadSha`).
+(on the host, or a current review recorded in Lictory) or conflicts
+(`mergeBlockers` in `code/merge-rules.ts`, shared with the browser), and when
+the head moved since the person looked (`expectedHeadSha`). When a work item
+the pull request is linked to belongs to a project whose Definition of Done
+requires CI (`definitionRequiresCi`, the default), a head the host reported
+no checks for is refused too: no check is no evidence, for a person's merge
+as for Autopilot's. Pull requests that deliver no such item merge without
+reported checks, and the merge box says none were reported.
 A second merge request while one is in flight returns the first.
 
 ## Projections
@@ -319,6 +325,16 @@ agent, supersedes the same reviewer's earlier review of that pull request
 Done. It needs "Change properties" in a project the repository serves and
 the `review` step of the `codePullRequest` machine (open only). **An agent
 never reviews its own pull request** (`agent_id` of the pull request).
+
+**People review the same way.** The pull request page offers Approve and
+Request changes to people who may work with the code; their review is
+recorded like an agent's (reviewer, no agent), supersedes their earlier one
+and is shown on the host, signed. `reviewState` joins the host's decision
+and the current reviews recorded in Lictory (requested changes outweigh
+approvals): the item's Code panel, the pull request list and board cards
+read it, so no surface says "No reviews" beside a recorded approval. When
+every approval is an agent's, the merge box says that no person has
+reviewed the code.
 
 The Definition of Done counts, per pull request, approvals of the head
 commit from reviews recorded in Lictory (agent and person) and from the

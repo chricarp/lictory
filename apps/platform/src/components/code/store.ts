@@ -127,3 +127,21 @@ export function useLoginOwner(login: string | null | undefined) {
     identities.find((i) => i.login.toLowerCase() === lower)?.userId ?? null
   );
 }
+
+// Open pull requests by the work item they deliver, for board cards and
+// backlog rows. Empty until a code host is connected.
+export function useOpenPullRequestsByItem() {
+  const { rows } = useCodeList("codePullRequest", "open");
+  return useMemo(() => {
+    const byItem = new Map<string, CodePullRequestEntity[]>();
+    for (const pr of rows)
+      for (const link of pr.links) {
+        const list = byItem.get(link.workItemId) ?? [];
+        if (!list.includes(pr)) list.push(pr);
+        byItem.set(link.workItemId, list);
+      }
+    for (const list of byItem.values())
+      list.sort((a, b) => b.hostUpdatedAt.localeCompare(a.hostUpdatedAt));
+    return byItem;
+  }, [rows]);
+}

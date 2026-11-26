@@ -1542,6 +1542,35 @@ export async function codeReviewPolicy(
   };
 }
 
+// Whether any of these projects requires CI to pass in its Definition of
+// Done (the default does). The Code module's merge rule reads it: a merge
+// into work that is only Done with green CI waits for CI to report.
+export async function definitionRequiresCi(
+  tx: Tx | Database,
+  organizationId: string,
+  projectIds: readonly string[],
+) {
+  if (!projectIds.length) return false;
+  const stored = await tx
+    .select({
+      projectId: s.definitionOfDone.projectId,
+      checks: s.definitionOfDone.checks,
+    })
+    .from(s.definitionOfDone)
+    .where(
+      and(
+        eq(s.definitionOfDone.organizationId, organizationId),
+        inArray(s.definitionOfDone.projectId, [...projectIds]),
+      ),
+    );
+  const byProject = new Map(stored.map((d) => [d.projectId, d]));
+  return projectIds.some((id) =>
+    effectiveDoneChecks(byProject.get(id)).some(
+      (c) => c.kind === "checks_passed",
+    ),
+  );
+}
+
 export async function autonomyPolicyOf(
   db: Database,
   userId: string,

@@ -21,6 +21,7 @@ import {
   type CodeReviewRef,
 } from "@lictory/core/code/entities";
 import { writeSummary } from "@lictory/core/code/write-summary";
+import { reviewState } from "@lictory/core/code/merge-rules";
 
 // Code read projections (`code_entity`), replicated to browsers by Zero and
 // kept apart from `sync_entity` and `space_entity`. Writers call
@@ -585,20 +586,20 @@ async function linkRows(
           )
       : [],
   ]);
-  const checks = await checksOf(
-    db,
-    organizationId,
-    prs.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
-  );
-  // Reviews recorded in Lictory (agents and people) of each head, so the
-  // link says what the Definition of Done counts, not only the host's word.
-  const reviews = prs.length
-    ? await reviewsOf(
-        db,
-        organizationId,
-        prs.map((p) => p.id),
-      )
-    : new Map<string, Omit<CodeReviewRef, "current">[]>();
+  const [checks, reviews] = await Promise.all([
+    checksOf(
+      db,
+      organizationId,
+      prs.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
+    ),
+    prs.length
+      ? reviewsOf(
+          db,
+          organizationId,
+          prs.map((p) => p.id),
+        )
+      : new Map<string, Omit<CodeReviewRef, "current">[]>(),
+  ]);
   const reviewedHere = (p: (typeof prs)[number]) => {
     const current = (reviews.get(p.id) ?? []).filter(
       (r) => r.headSha === p.headSha,
@@ -638,7 +639,11 @@ async function linkRows(
           draft: p.draft,
           headBranch: p.headBranch,
           checks: checks.get(`${p.repositoryId}:${p.headSha}`)?.state ?? "none",
-          reviewDecision: p.reviewDecision,
+          // The host's decision with the reviews recorded in Lictory.
+          reviewDecision: reviewState({
+            ...p,
+            reviews: reviews.get(p.id),
+          }),
           reviewedHere: reviewedHere(p),
           webUrl: p.webUrl,
         };

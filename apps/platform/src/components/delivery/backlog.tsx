@@ -42,6 +42,9 @@ import { Actor } from "@lictory/platform/components/identity/actor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import { useLiveClaims } from "@lictory/platform/components/claims/claims";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import {
@@ -160,6 +163,7 @@ function ProjectBacklog({ project }: { project: Project }) {
   );
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<{ section: string; index: number }>();
+  const pullRequests = useOpenPullRequestsByItem();
   const move = (sectionId: string, rows: WorkItem[], index: number) => {
     const item = teamItems.find((i) => i.id === drag);
     setDrag(undefined);
@@ -254,6 +258,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 )}
                 <BacklogRow
                   item={item}
+                  pullRequests={pullRequests.get(item.id)}
                   label={identifier(project, item.number)}
                   href={paths.item(
                     organization.slug,
@@ -828,10 +833,13 @@ export function BacklogRow({
   actions,
   selected,
   onOpen,
+  pullRequests,
 }: {
   item: WorkItem;
   label: string;
   href: string;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
   teamName?: string;
   estimate: string | null;
   draggable: boolean;
@@ -890,6 +898,11 @@ export function BacklogRow({
         </span>
       )}
       {claim && <ClaimBadge claim={claim} assigneeId={item.assigneeId} />}
+      {pullRequests && (
+        <span className="hidden shrink-0 text-xs sm:inline-flex">
+          <PullRequestChip pullRequests={pullRequests} />
+        </span>
+      )}
       {/* Fixed slots keep the columns aligned from row to row. */}
       <span className="inline-flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read

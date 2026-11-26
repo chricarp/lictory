@@ -51,6 +51,7 @@ import {
 } from "@lictory/core/code/entities";
 import { suggestBranchName } from "@lictory/core/code/keys";
 import { mergeBlockers } from "@lictory/core/code/merge-rules";
+import { definitionRequiresCi } from "@lictory/core/claims/service";
 import {
   CodeHostError,
   type CodeMergeMethod,
@@ -937,7 +938,14 @@ export function createCodeService(
         50,
       );
       const p = pr as CodePullRequestEntity;
-      return { ...p, mergeBlockers: mergeBlockers(p), writes };
+      return {
+        ...p,
+        mergeBlockers: mergeBlockers({
+          ...p,
+          ...(await mergeContext(db, organizationId, p.id)),
+        }),
+        writes,
+      };
     },
 
     // The files a pull request changes, read from the host now (Lictory
@@ -2275,6 +2283,49 @@ export function createCodeService(
   }
 }
 
+// What the merge rule reads beside the mirror: the reviews recorded in
+// Lictory and whether the work it delivers needs CI to pass.
+async function mergeContext(
+  tx: Tx | Database,
+  organizationId: string,
+  pullRequestId: string,
+) {
+  const [reviews, links] = await Promise.all([
+    tx
+      .select({
+        decision: s.codeReview.decision,
+        headSha: s.codeReview.headSha,
+      })
+      .from(s.codeReview)
+      .where(
+        and(
+          eq(s.codeReview.organizationId, organizationId),
+          eq(s.codeReview.pullRequestId, pullRequestId),
+          isNull(s.codeReview.supersededAt),
+        ),
+      ),
+    tx
+      .selectDistinct({ projectId: s.codeWorkLink.projectId })
+      .from(s.codeWorkLink)
+      .where(
+        and(
+          eq(s.codeWorkLink.organizationId, organizationId),
+          eq(s.codeWorkLink.target, "pull_request"),
+          eq(s.codeWorkLink.targetId, pullRequestId),
+          isNull(s.codeWorkLink.unlinkedAt),
+        ),
+      ),
+  ]);
+  return {
+    reviews,
+    ciRequired: await definitionRequiresCi(
+      tx,
+      organizationId,
+      links.map((l) => l.projectId),
+    ),
+  };
+}
+
 // What a merge sends, refused for the reasons a person's merge is.
 function mergeBuild(input: {
   organizationId: string;
@@ -2295,6 +2346,7 @@ function mergeBuild(input: {
     const blockers = mergeBlockers({
       ...pr,
       checks: checks ?? { state: "none" },
+      ...(await mergeContext(tx, input.organizationId, pr.id)),
     });
     if (blockers.length)
       throw new DomainError(
