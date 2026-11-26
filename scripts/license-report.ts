@@ -10,14 +10,27 @@ type PackageGroup = {
 };
 type Manifest = { name: string; version: string; license?: unknown };
 
+const usage = `Usage: bun run licenses:report <output directory>
+
+Writes the installed dependencies' licenses and shipped notices into the
+directory, which must be outside the repository. It reads node_modules only,
+never a registry.`;
 const destination = process.argv[2];
+if (destination === "--help" || destination === "-h") {
+  console.log(usage);
+  process.exit(0);
+}
 if (!destination) {
-  throw new Error("Usage: bun run licenses:report /absolute/output/directory");
+  console.error(usage);
+  process.exit(64);
 }
 const output = resolve(destination);
 const root = process.cwd();
 if (output === root || !relative(root, output).startsWith("..")) {
-  throw new Error("Keep generated license reports outside the repository.");
+  console.error(
+    `Keep generated license reports outside the repository: ${output} is inside ${root}. Choose a directory such as /tmp/lictory-licenses.`,
+  );
+  process.exit(64);
 }
 const groups = JSON.parse(
   execFileSync(process.execPath, ["pm", "licenses", "--json"], {

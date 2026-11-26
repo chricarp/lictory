@@ -20,6 +20,15 @@ import {
 import { loadConfiguration } from "@lictory/core/config/validate";
 import { env, envInteger } from "@lictory/core/lib/env";
 
+if (process.argv.some((a) => a === "--help" || a === "-h")) {
+  console.log(`Usage: bun run db:migrate         apply the committed migrations
+       bun run db:migrate:status  list the pending ones, change nothing
+
+The database comes from DATABASE_MIGRATION_URL, else DATABASE_URL (a .env file
+counts). See docs/operations/migrations.md.`);
+  process.exit(0);
+}
+
 loadConfiguration("migrate");
 
 const migrationsFolder = "drizzle";
