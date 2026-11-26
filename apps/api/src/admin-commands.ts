@@ -104,8 +104,11 @@ async function readPassword(
   parsed: Parsed,
   variable: "LICTORY_ADMIN_PASSWORD" | "LICTORY_USER_PASSWORD",
 ) {
-  if (!parsed.flags.has("password-stdin"))
-    return process.env[variable] || undefined;
+  if (!parsed.flags.has("password-stdin")) {
+    // An empty variable is no password, like an empty line on stdin.
+    const value = process.env[variable]?.trim();
+    return value?.length ? process.env[variable] : undefined;
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   const line = Buffer.concat(chunks).toString("utf8").split(/\r?\n/, 1)[0];

@@ -380,7 +380,7 @@ void test("Bitbucket: a refused OAuth consumer says what to fix", async () => {
     (e) =>
       e instanceof CodeHostError &&
       e.kind === "authentication" &&
-      /OAuth consumer key and secret/.test(e.message),
+      e.message.includes("OAuth consumer key and secret"),
   );
   await assert.rejects(
     verify(
@@ -392,6 +392,6 @@ void test("Bitbucket: a refused OAuth consumer says what to fix", async () => {
     (e) =>
       e instanceof CodeHostError &&
       e.kind === "validation" &&
-      /private consumer/.test(e.message),
+      e.message.includes("private consumer"),
   );
 });

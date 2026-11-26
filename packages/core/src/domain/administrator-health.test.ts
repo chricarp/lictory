@@ -121,7 +121,7 @@ void test("administrators see the server's checks of their organization's backgr
 
   // Members do not read it.
   await assert.rejects(health(member, organizationId), (error: unknown) =>
-    /administrators/.test((error as Error).message),
+    (error as Error).message.includes("administrators"),
   );
 
   // Instance administrators also see the instance-wide replication slot
