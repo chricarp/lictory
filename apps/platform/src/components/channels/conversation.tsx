@@ -14,6 +14,7 @@ import { Spinner } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  Link,
   useParams,
   useRouter,
   useSearchParams,
@@ -65,6 +66,7 @@ import {
 // opens a thread beside it and `?message=` scrolls to one message.
 
 export function ChannelConversation() {
+  const { organization } = useWorkspace();
   const { channel: param } = useParams<{ channel: string }>();
   const { byId, list, loaded } = useChannels();
   const channel =
@@ -73,7 +75,19 @@ export function ChannelConversation() {
   if (!channel)
     return loaded ? (
       // The whole page: its title is the page's h1.
-      <MissingState illustration="search" title="This channel is unavailable">
+      // Like every dead end, it offers a way on.
+      <MissingState
+        illustration="search"
+        title="This channel is unavailable"
+        action={
+          <Button
+            variant="secondary"
+            render={<Link href={paths.channels(organization.slug)} />}
+          >
+            All channels
+          </Button>
+        }
+      >
         It may be private, or the link may be wrong. Ask a member to add you.
       </MissingState>
     ) : (
