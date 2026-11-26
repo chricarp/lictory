@@ -217,7 +217,9 @@ function Section({
   );
 }
 
-// The same examples on the light and the dark tokens.
+// The same examples on the light and the dark tokens. The dark copy is for
+// the eye only: it is inert, so keyboard and screen reader users meet each
+// example (and its landmarks) once.
 function Themed({
   theme,
   children,
@@ -229,6 +231,7 @@ function Themed({
     <div
       data-theme="lictory"
       data-gallery-theme={theme}
+      inert={theme === "dark"}
       className={
         (theme === "dark" ? "dark " : "") +
         "min-w-0 rounded-2xl bg-shell p-4 text-foreground ring-1 ring-foreground/10"
