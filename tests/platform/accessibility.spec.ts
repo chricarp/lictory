@@ -470,7 +470,7 @@ test("the shell, a conversation with an agent session, the Factory and the perso
 
     // The factory lists the same requests as the Inbox, answered in place.
     await page.goto(paths.factory(seeded.slug));
-    const needs = page.getByRole("region", { name: "Needs you" });
+    const needs = page.getByRole("region", { name: "Agents need you" });
     await expect(
       needs.getByRole("button", { name: /^Review/ }).first(),
     ).toBeVisible();

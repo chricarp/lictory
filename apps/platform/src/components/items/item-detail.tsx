@@ -1098,6 +1098,11 @@ export function ItemDetail({
                         : undefined
                     }
                     onReview={() => openRailAt("[data-review-panel]")}
+                    onOpen={(place) =>
+                      place === "discussions"
+                        ? discussions.setPanelOpen(true)
+                        : openRailAt(`[data-rail-section="${place}"]`)
+                    }
                     onChanges={() => setMode({ kind: "branches" })}
                     onCompare={(from, to) =>
                       showHistory({ revision: to, compare: from })

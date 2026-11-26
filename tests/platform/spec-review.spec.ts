@@ -382,8 +382,8 @@ test("changes between revisions mark only the words that changed, and any two re
   await expect(selected.locator("del")).toHaveText(["original", "ten"]);
   await expect(page).toHaveURL(/[?&]compare=/);
 
-  // Versions list who changed what, and reading one shows its full text.
-  const versions = page.getByRole("region", { name: "Versions" });
+  // Revisions list who changed what, and reading one shows its full text.
+  const versions = page.getByRole("region", { name: "Revisions" });
   await expect(versions.getByRole("button")).toHaveCount(3);
   await expect(versions.getByRole("button").first()).toContainText("Current");
   await versions.getByRole("button", { name: /r1/ }).click();
@@ -400,7 +400,7 @@ test("changes between revisions mark only the words that changed, and any two re
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Specification history" })
-    .getByRole("button", { name: "Versions" })
+    .getByRole("button", { name: "Revisions" })
     .click();
   await expect(versions).toBeVisible();
 });

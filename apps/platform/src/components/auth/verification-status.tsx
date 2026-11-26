@@ -48,7 +48,7 @@ export function VerificationStatus({
           title="Email verified"
           description={
             callbackURL.startsWith("/invitation")
-              ? "Your account is ready. Accept the invitation to join your team’s workspace."
+              ? "Your account is ready. Accept the invitation to join your team’s organization."
               : "Your address is confirmed and your account is ready to use."
           }
         />

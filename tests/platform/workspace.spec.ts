@@ -176,7 +176,7 @@ test("work item panels collapse independently and persist across routes and relo
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, reviewerEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Panel layout",
@@ -354,7 +354,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await signIn(page);
   // Onboarding: organization, then project with a key.
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await page.getByLabel("Project", { exact: true }).fill("Payments");
   await expect(page.getByLabel("Key", { exact: true })).toHaveValue("PAYM");
@@ -926,17 +926,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   if ((await toggle.getAttribute("aria-expanded")) === "true")
     await toggle.click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
-  // Deleting a merged PR keeps the automatic branch cleanup activity.
+  // An applied review is the record of who approved which result: it
+  // offers no deletion, and it keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
-  await page
-    .getByRole("button", { name: "Delete review", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page).toHaveURL(/\?branches=1$/);
   await expect(
-    page.getByRole("button", {
-      name: /Clarify cancellation timeouts and retries/,
-    }),
+    page.getByText("Applied. The reviewed text is part of", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Delete review", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("listitem").filter({
@@ -1088,15 +1085,16 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   const lifecycle = page.getByRole("navigation", {
     name: "Specification lifecycle",
   });
-  await lifecycle.getByRole("link", { name: /Ready for delivery/ }).click();
+  await lifecycle.getByRole("link", { name: /^Ready/ }).click();
   await expect(page).toHaveURL(/stage=ready/);
   await expect(
     page.getByRole("link", { name: /Define cancellation API/ }),
   ).toBeVisible();
   await reloadWhenSaved(page);
-  await expect(
-    lifecycle.getByRole("link", { name: /Ready for delivery/ }),
-  ).toHaveAttribute("aria-current", "page");
+  await expect(lifecycle.getByRole("link", { name: /^Ready/ })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.screenshot({ path: "/tmp/lictory-refinement-lifecycle.png" });
 
   // 17. Navigate quickly between stories via keyboard in the split view.

@@ -69,7 +69,7 @@ test("page branch dropdowns preserve empty choices and keyboard selection", asyn
   await page.getByRole("button", { name: "Commit", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Commit to this branch" })
-    .getByRole("button", { name: "Commit now" })
+    .getByRole("button", { name: "Commit only" })
     .click();
   await expect(page.getByText("Committed version 2")).toBeVisible();
   await page.goto(`${url}/history?view=pulls`);

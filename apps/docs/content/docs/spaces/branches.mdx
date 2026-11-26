@@ -49,14 +49,23 @@ together, commit, sync it and open pull requests from it.
 
 On a branch, **Commit** turns what the server has stored into the branch's
 next version, exactly as **Publish** does on main: _Commit to this branch_,
-an optional message, **Commit now**. The editor then says _Committed version
-N_, or _No changes to commit_ when nothing changed. Edits typed afterwards
-stay **Uncommitted changes**.
+an optional message, then:
+
+- **Commit and send for review**, while the branch has no open pull request:
+  it commits, opens a pull request into main titled with the message's first
+  line (or the page title), and asks the **Reviewer** chosen in the same form
+  (the same suggestion as the pull request form below). One step from a
+  written change to a requested review.
+- **Commit only** (or **Commit now** once a pull request is open): the
+  version joins the branch, and an open pull request shows it.
+
+The editor then says _Committed version N_, or _No changes to commit_ when
+nothing changed. Edits typed afterwards stay **Uncommitted changes**.
 
 Committing changes nothing readers see, so the editor says what comes next:
-**Open pull request** opens the form below with this branch chosen, or, when
-the branch already has an open pull request, **View pull request** shows it
-with the new version.
+**View pull request** shows the branch's pull request with the new version,
+or, after **Commit only**, **Open pull request** opens the form below with
+this branch chosen.
 
 Only commits are reviewed. A pull request shows the branch's latest commit,
 never its live draft, and a merge waits until the branch has no uncommitted

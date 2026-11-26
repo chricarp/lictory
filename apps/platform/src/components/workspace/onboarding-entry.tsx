@@ -97,7 +97,7 @@ export function OnboardingEntry({
   const choose = (value: string) => router.replace(`/?intent=${value}`);
   return (
     <OnboardingFrame
-      // Creating a workspace is the first of setup's steps, so the count
+      // Creating an organization is the first of setup's steps, so the count
       // starts here rather than on the page after it.
       {...(intent === "create" && { labels: setupLabels, stage: 0 })}
     >
@@ -113,7 +113,7 @@ export function OnboardingEntry({
                     ? `Welcome, ${userName.split(" ")[0]}.`
                     : "Join your organization"
                 : intent === "create"
-                  ? "Create your workspace"
+                  ? "Create your organization"
                   : userName
                     ? `Welcome, ${userName.split(" ")[0]}.`
                     : "Welcome to Lictory"
@@ -126,8 +126,8 @@ export function OnboardingEntry({
                 ? undefined
                 : "You’re not a member of an organization yet. Your organization’s administrators add you with an invitation."
               : intent === "create"
-                ? "Name your company and the first thing you’ll spec."
-                : "Turn rough product ideas into specs your team has agreed to build."}
+                ? "Name your company and its first project."
+                : "From conversation to shipped code: your team and its agents agree on what to build, then build it, with people making the decisions."}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
@@ -146,7 +146,7 @@ export function OnboardingEntry({
               )}
             </Choice>
             <Choice
-              title="Create a workspace"
+              title="Create an organization"
               icon={<Building2 />}
               onClick={() => choose("create")}
             >

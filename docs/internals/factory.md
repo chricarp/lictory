@@ -141,7 +141,7 @@ agent asked something in its own words, or a person interrupted it)
 reports `awaiting_message` (running → waiting), and `working` once it goes
 on (waiting → running, unless an approval request is still pending). Either
 way the session waits on the person who started it or the agent's owner,
-and counts in their "Needs you" and To do. The session keeps its lease (the
+and counts in their "Agents need you" and To do. The session keeps its lease (the
 harness is alive, waiting) but does not take one of the runner's session
 slots.
 

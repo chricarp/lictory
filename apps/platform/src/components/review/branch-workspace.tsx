@@ -2680,15 +2680,19 @@ function PullRequestView({
                 icon: <GitCommitHorizontal />,
                 count: shownHistory.length,
               },
-              {
-                value: "checks",
-                label: "Actions",
-                icon: actionRuns.length ? (
-                  <CheckIcon state={checkState} />
-                ) : (
-                  <IntelligenceMark />
-                ),
-              },
+              ...(p.status !== "merged" || actionRuns.length > 0
+                ? [
+                    {
+                      value: "checks" as const,
+                      label: "Actions",
+                      icon: actionRuns.length ? (
+                        <CheckIcon state={checkState} />
+                      ) : (
+                        <IntelligenceMark />
+                      ),
+                    },
+                  ]
+                : []),
               { value: "changes", label: "Changes" },
             ]}
           />
@@ -3137,25 +3141,29 @@ function PullRequestView({
                 </p>
               )}
             </section>
-            <section className="space-y-2">
-              <SectionLabel>Lictory Actions</SectionLabel>
-              {actionRuns.length || policy !== "off" ? (
-                <ActionCheckRow
-                  pullRequestId={p.id}
-                  sourceHeadId={source?.headId}
-                  onDetails={() => setTab("checks")}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  onClick={() => setTab("checks")}
-                >
-                  No Lictory Actions have run on this review.
-                </button>
-              )}
-            </section>
-            <section className="space-y-2 border-t pt-4">
+            {/* Automated checks matter while the change is decided; an
+                applied review that never ran any has nothing to show. */}
+            {(p.status !== "merged" || actionRuns.length > 0) && (
+              <section className="space-y-2">
+                <SectionLabel>Lictory Actions</SectionLabel>
+                {actionRuns.length || policy !== "off" ? (
+                  <ActionCheckRow
+                    pullRequestId={p.id}
+                    sourceHeadId={source?.headId}
+                    onDetails={() => setTab("checks")}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => setTab("checks")}
+                  >
+                    No Lictory Actions have run on this review.
+                  </button>
+                )}
+              </section>
+            )}
+            <section className="space-y-2 border-t pt-4 empty:hidden">
               {manage &&
                 specificationPullRequest.allows(p.status, "markDraft") && (
                   <Button
@@ -3169,15 +3177,14 @@ function PullRequestView({
                     Convert to draft
                   </Button>
                 )}
+              {/* An applied review is the record of who approved which
+                  result: it is never deleted. */}
               {!readOnly &&
+                specificationPullRequest.allows(p.status, "close") &&
                 (p.authorId === userId || capabilities.editSpecifications) && (
                   <DeletePrompt
                     name={`review “${p.title}”`}
-                    detail={
-                      p.status === "merged"
-                        ? "The applied text stays in the specification."
-                        : "The change is kept."
-                    }
+                    detail="The change is kept."
                     onDelete={() =>
                       run(
                         {

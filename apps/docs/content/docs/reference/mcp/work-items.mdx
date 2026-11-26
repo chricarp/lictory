@@ -673,7 +673,7 @@ Mark a pull request as draft or ready for review. Mark as draft while the pull r
 
 **Close pull request.** Command · retry key `mutationId` · destructive
 
-Close a pull request and remove it from the item. Open discussions on it are resolved. The text of a merged pull request stays in the specification. Close while the pull request is draft, open or merged (it becomes closed).
+Close an unmerged pull request and remove it from the item. Open discussions on it are resolved. A merged pull request stays: it records who approved which result. Close while the pull request is draft or open (it becomes closed).
 
 | Field            | Type   | Required | Description                                                                    |
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |

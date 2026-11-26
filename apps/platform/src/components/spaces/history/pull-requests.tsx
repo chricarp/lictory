@@ -52,6 +52,26 @@ import { useMergePreview } from "./preview";
 import { ConflictResolution } from "./conflicts";
 
 type PullRequest = SpaceEntityOf<"pagePullRequest">;
+
+// A reviewed change goes to someone by default: whoever wrote the target
+// line's latest version, or else the page's latest other author (not me);
+// "" asks nobody yet. The pull request form and the branch's "Commit and
+// send for review" offer the same person.
+export function suggestReviewer(
+  branches: readonly SpaceEntityOf<"pageBranch">[],
+  commits: readonly SpaceEntityOf<"pageCommit">[],
+  userId: string,
+  targetBranchId?: string,
+) {
+  const targetBranch =
+    branches.find((b) => b.id === targetBranchId) ??
+    branches.find((b) => b.isMain);
+  const lastAuthor = commits.find(
+    (c) => c.id === targetBranch?.headCommitId,
+  )?.authorId;
+  const otherAuthor = commits.findLast((c) => c.authorId !== userId)?.authorId;
+  return lastAuthor && lastAuthor !== userId ? lastAuthor : (otherAuthor ?? "");
+}
 const blockerLabels: Record<PageMergeBlocker, string> = {
   draft: "Mark this pull request ready for review",
   no_merge_base:
@@ -92,17 +112,7 @@ export function PullRequests({
   const [offered, setOffered] = useState(initialTitle);
   const [description, setDescription] = useState("");
   const [draft, setDraft] = useState(false);
-  // A reviewed change goes to someone by default: whoever wrote the target
-  // line's latest version, or else the page's latest other author (not
-  // me); "" asks nobody yet.
-  const targetBranch =
-    branches.find((b) => b.id === target) ?? branches.find((b) => b.isMain);
-  const lastAuthor = commits.find(
-    (c) => c.id === targetBranch?.headCommitId,
-  )?.authorId;
-  const otherAuthor = commits.findLast((c) => c.authorId !== userId)?.authorId;
-  const suggestedReviewer =
-    lastAuthor && lastAuthor !== userId ? lastAuthor : (otherAuthor ?? "");
+  const suggestedReviewer = suggestReviewer(branches, commits, userId, target);
   // In a reviewed space nothing merges without a required review: say so
   // while a ready pull request would be opened with nobody asked.
   const needsReviewer = space.publishing === "reviewed" && !draft;

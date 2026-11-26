@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import {
   CircleCheckBig,
   CircleDot,
+  Compass,
   CircleX,
   FileText,
   FolderKanban,
@@ -25,6 +26,7 @@ import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { useSessionUser } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import { placeInProject } from "@lictory/platform/components/workspace/orientation";
 import { useUnread } from "@lictory/platform/components/shell/unread";
 import {
   WaitingRowView,
@@ -191,6 +193,25 @@ function Home() {
           d.projectId === p.id && !d.archivedAt && d.userIds.includes(userId),
       ),
   );
+  // A teammate who just joined has nothing waiting, in flight or ready:
+  // Home says where they are and what they do there (from the disciplines
+  // they hold), instead of an empty card.
+  const quiet =
+    !showSetup &&
+    waiting.length === 0 &&
+    flight.total === 0 &&
+    ready.total === 0 &&
+    outcomes.total === 0;
+  const places = quiet
+    ? projects
+        .filter((p) => !p.archivedAt)
+        .map((p) => ({
+          project: p,
+          place: placeInProject(directory.disciplines, userId, p.id),
+        }))
+        .filter(({ place }) => place.disciplines.length > 0)
+        .slice(0, 3)
+    : [];
   const firstName = (user.name || "").split(" ")[0];
   return (
     <div className="flex h-full flex-col">
@@ -212,7 +233,8 @@ function Home() {
               {summary(waiting.length, flight.total, ready.total, unread)}
             </p>
           </div>
-          {showSetup && (
+          {/* Setup leads a quiet Home; once people wait on me, they do. */}
+          {showSetup && waiting.length === 0 && (
             <div className="mb-4">
               <SetupChecklist setup={setup} />
             </div>
@@ -261,6 +283,41 @@ function Home() {
           )}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
             <div className="flex min-w-0 flex-col gap-4">
+              {places.length > 0 && (
+                <Panel
+                  title={`Your place in ${organization.name}`}
+                  icon={<Compass />}
+                >
+                  {places.map(({ project: p, place }) => (
+                    <li
+                      key={p.id}
+                      className="px-3.5 py-3 text-[13px] leading-5"
+                    >
+                      <Link
+                        href={paths.project(org, p.key)}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {p.name}
+                      </Link>
+                      <p className="mt-0.5 text-muted-foreground">
+                        {place.sentence} {place.whyNoProposal}
+                      </p>
+                    </li>
+                  ))}
+                  <li className="px-3.5 py-3 text-[13px] leading-5 text-muted-foreground">
+                    Review requests, questions from agents and pull requests to
+                    merge will wait here and in your Inbox. Meanwhile, read what
+                    the team is refining or join a conversation in{" "}
+                    <Link
+                      href={paths.channels(org)}
+                      className="font-medium text-foreground underline underline-offset-2"
+                    >
+                      Channels
+                    </Link>
+                    .
+                  </li>
+                </Panel>
+              )}
               <Panel
                 title="Waiting on you"
                 icon={<Inbox />}
@@ -269,9 +326,10 @@ function Home() {
                   label: "Open Inbox",
                   href: paths.inbox(org, "todo"),
                 }}
-                // A new organization's Home is its setup, not empty boxes.
+                // A new organization's Home is its setup, not empty boxes; a
+                // new teammate's says where they are instead.
                 empty={
-                  showSetup
+                  showSetup || places.length > 0
                     ? undefined
                     : "Nothing waits on you. Review requests, questions from agents and pull requests to merge appear here."
                 }
@@ -290,6 +348,9 @@ function Home() {
                   />
                 )}
               </Panel>
+              {showSetup && waiting.length > 0 && (
+                <SetupChecklist setup={setup} />
+              )}
               <Panel
                 title="In flight"
                 icon={<CircleDot />}

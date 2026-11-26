@@ -10,7 +10,7 @@ when something waits on the person, else on Updates.
 
 - **To do**: current work derived from live state (questions agents ask me
   and agent sessions waiting for my next message, the same rows as the
-  Factory's "Needs you", sessions I started that failed,
+  Factory's "Agents need you", sessions I started that failed,
   reviews waiting on me, with the blocking discussions on what I review, my
   items blocked or with changes requested, my items ready). An entry leaves
   when the state resolves; nothing needs marking as read. Home's "Waiting on

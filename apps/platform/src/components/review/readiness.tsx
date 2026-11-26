@@ -19,7 +19,7 @@ export function Readiness() {
   const passed = checks.filter((c) => c.passed).length;
   const latest = directory.readiness.find((r) => r.projectId === project.id);
   return (
-    <section>
+    <section data-rail-section="readiness" className="scroll-mt-4">
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Readiness</SectionLabel>
         {checks.length > 0 && (

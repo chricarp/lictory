@@ -105,7 +105,7 @@ void test("rules read as sentences", () => {
 });
 
 void test("declared machines end where the product says they end", () => {
-  assert.deepEqual(specificationPullRequest.final, ["closed"]);
+  assert.deepEqual(specificationPullRequest.final, ["merged", "closed"]);
   assert.deepEqual(pagePullRequest.final, ["merged", "closed"]);
   assert.deepEqual(suggestion.final, ["merged"]);
   assert.deepEqual(review.final, ["cancelled"]);
@@ -113,7 +113,7 @@ void test("declared machines end where the product says they end", () => {
   assert.deepEqual(refinement.final, []);
 });
 
-void test("pull requests: only open ones are reviewed and merged; closing differs by product", () => {
+void test("pull requests: only open ones are reviewed and merged; closing never removes a merged one", () => {
   // Each product says it in its own words: a specification's proposed
   // change is applied, a page's pull request merged.
   for (const [machine, words] of [
@@ -146,9 +146,13 @@ void test("pull requests: only open ones are reviewed and merged; closing differ
     assert.equal(machine.refusal("merged", "review"), words.merged);
     assert.doesNotMatch(machine.refusal("merged", "markReady")!, /draft/);
   }
-  // A merged specification pull request can be removed from the item; a
-  // merged page pull request is history.
-  assert.equal(specificationPullRequest.allows("merged", "close"), true);
+  // Neither product removes a merged pull request: an applied review is
+  // the record of who approved which result, a merged page pull request is
+  // history.
+  assert.equal(
+    specificationPullRequest.refusal("merged", "close"),
+    "This review is applied: it records who approved which result, so it stays on the item.",
+  );
   assert.equal(
     pagePullRequest.refusal("merged", "close"),
     "A merged pull request is history and cannot be deleted.",
