@@ -21,6 +21,7 @@ import {
   TabsTab,
 } from "@ui-sdk/react/tabs";
 import { cn } from "@lictory/core/lib/utils";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 
 export type CheckState =
@@ -181,33 +182,35 @@ export function Tabs<T extends string>({
       }}
       className={cn("block", className)}
     >
-      <TabsList
-        aria-label={label}
-        className="flex scroll-fade-x [scrollbar-width:none] gap-1 overflow-x-auto border-b"
-      >
-        {tabs.map((t) => (
-          <TabsTab
-            key={t.id}
-            value={t.id}
-            className="relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground"
-          >
-            {t.icon}
-            {t.label}
-            {t.count !== undefined && (
-              <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
-                {t.count}
-              </span>
-            )}
-            {t.dot && (
-              <span
-                role="img"
-                aria-label="has uncommitted edits"
-                className="size-1.5 rounded-full bg-warning"
-              />
-            )}
-          </TabsTab>
-        ))}
-      </TabsList>
+      <ScrollStrip>
+        <TabsList
+          aria-label={label}
+          className="flex [scrollbar-width:none] gap-1 overflow-x-auto border-b"
+        >
+          {tabs.map((t) => (
+            <TabsTab
+              key={t.id}
+              value={t.id}
+              className="relative -mb-px inline-flex h-9 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground"
+            >
+              {t.icon}
+              {t.label}
+              {t.count !== undefined && (
+                <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
+                  {t.count}
+                </span>
+              )}
+              {t.dot && (
+                <span
+                  role="img"
+                  aria-label="has uncommitted edits"
+                  className="size-1.5 rounded-full bg-warning"
+                />
+              )}
+            </TabsTab>
+          ))}
+        </TabsList>
+      </ScrollStrip>
       {children}
     </TabsRoot>
   );

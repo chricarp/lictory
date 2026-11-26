@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { usePathname } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import type { SettingsNavItem } from "@lictory/platform/components/workspace/settings-section";
 
 // The section the address names. The most specific link wins: /admin/people
@@ -65,38 +66,40 @@ export function SettingsNavigation({
       aria-label="Settings sections"
       className="mb-6 max-lg:-mx-4 max-lg:border-b max-lg:pb-2 sm:max-lg:-mx-6 lg:sticky lg:top-0 lg:mb-0 lg:self-start"
     >
-      <div
-        ref={row}
-        className="flex [scrollbar-width:none] gap-1 overflow-x-auto max-lg:scroll-fade-x max-lg:px-4 sm:max-lg:px-6 lg:block lg:space-y-4"
-      >
-        {groups.map((g, i) => (
-          <div key={g.group ?? i} className="flex gap-1 lg:block">
-            {g.group && (
-              <p className="hidden px-2.5 pb-1 text-xs font-semibold text-muted-foreground lg:block">
-                {g.group}
-              </p>
-            )}
-            <ul className="flex gap-1 lg:block lg:space-y-0.5">
-              {g.items.map((n) => (
-                <li key={n.id}>
-                  <Link
-                    href={n.href}
-                    scroll={false}
-                    aria-current={n.id === selected ? "page" : undefined}
-                    className={cn(
-                      "block rounded-lg px-2.5 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-[background-color,color,box-shadow] duration-100 outline-none hover:bg-muted hover:text-foreground",
-                      n.id === selected &&
-                        "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
-                    )}
-                  >
-                    {n.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+      <ScrollStrip>
+        <div
+          ref={row}
+          className="flex [scrollbar-width:none] gap-1 overflow-x-auto max-lg:px-4 sm:max-lg:px-6 lg:block lg:space-y-4"
+        >
+          {groups.map((g, i) => (
+            <div key={g.group ?? i} className="flex gap-1 lg:block">
+              {g.group && (
+                <p className="hidden px-2.5 pb-1 text-xs font-semibold text-muted-foreground lg:block">
+                  {g.group}
+                </p>
+              )}
+              <ul className="flex gap-1 lg:block lg:space-y-0.5">
+                {g.items.map((n) => (
+                  <li key={n.id}>
+                    <Link
+                      href={n.href}
+                      scroll={false}
+                      aria-current={n.id === selected ? "page" : undefined}
+                      className={cn(
+                        "block rounded-lg px-2.5 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-[background-color,color,box-shadow] duration-100 outline-none hover:bg-muted hover:text-foreground",
+                        n.id === selected &&
+                          "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
+                      )}
+                    >
+                      {n.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </ScrollStrip>
     </nav>
   );
 }

@@ -9,6 +9,7 @@ import { TabsList, TabsTab } from "@ui-sdk/react/tabs";
 import { cn } from "@lictory/core/lib/utils";
 import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { BranchChip } from "@lictory/platform/components/review/flow-ui";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 
 // The head of a pull request, the same for code (a code host's pull
 // request) and specifications (a branch of a specification): its title, a
@@ -130,25 +131,27 @@ export function PullRequestTabs({
   }[];
 }) {
   return (
-    <TabsList
-      aria-label={label}
-      className="flex scroll-fade-x [scrollbar-width:none] gap-1 overflow-x-auto border-b"
-    >
-      {tabs.map((t) => (
-        <TabsTab
-          key={t.value}
-          value={t.value}
-          className="relative -mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground [&_svg]:size-3.5"
-        >
-          {t.icon}
-          {t.label}
-          {t.count !== undefined && t.count > 0 && (
-            <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
-              {t.count}
-            </span>
-          )}
-        </TabsTab>
-      ))}
-    </TabsList>
+    <ScrollStrip>
+      <TabsList
+        aria-label={label}
+        className="flex [scrollbar-width:none] gap-1 overflow-x-auto border-b"
+      >
+        {tabs.map((t) => (
+          <TabsTab
+            key={t.value}
+            value={t.value}
+            className="relative -mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground [&_svg]:size-3.5"
+          >
+            {t.icon}
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
+                {t.count}
+              </span>
+            )}
+          </TabsTab>
+        ))}
+      </TabsList>
+    </ScrollStrip>
   );
 }
