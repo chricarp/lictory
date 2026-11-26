@@ -26,8 +26,18 @@ you did and the assistive technology you used.
 - Editor toolbars are one Tab stop; arrow keys move between their controls.
   The inline pickers (`/`, `#`, `[[`, `@`) are listboxes driven by the arrow
   keys while focus stays in the text.
+- A specification you read, and a published page, is one Tab stop. Inside
+  it the keyboard selects text: Arrow Left/Right select the previous or next
+  word, Arrow Up/Down a word on the line above or below, Home/End the first
+  or last word of the line, Shift with those keys extends the selection and
+  Escape clears it. The selection is the browser's own, so everything a
+  pointer selection offers works on it.
+- Mod+Alt+M comments on the selected text (or, with nothing selected, opens
+  a comment on the whole page or specification). In a specification the
+  selection's actions (comment, suggest a change) come next in the tab
+  order, and Enter on a marked passage opens its discussion.
 - Discussions on a specification are reached with Alt+Arrow Up/Down from the
-  discussion panel, and Mod+Alt+M comments on the selected text.
+  discussion panel; the thread reached marks its passage in the text.
 
 ## Screen readers
 
@@ -37,6 +47,15 @@ you did and the assistive technology you used.
   in words, never only by color.
 - Other people's carets are hidden from screen readers; who is editing is
   stated next to the save state.
+- Changes made by other people are announced through one polite live
+  region, each once: new messages and thread replies in the open
+  conversation, an agent's approval request and a session starting,
+  finishing, failing or waiting, a new revision and approvals granted,
+  withdrawn or made outdated, a pull request's checks and merge, Definition
+  of Done checks changing, something new waiting on you in the Inbox, and a
+  hand-off's results. Your own actions are confirmed where you acted.
+- Form errors are shown next to each field and tied to it, and the first
+  field to fix takes focus.
 
 ## What is checked automatically
 
@@ -55,11 +74,15 @@ problems, so the rest depends on people testing by hand.
   properties, stories reorder with Alt+Arrow keys from their grip, and space
   pages move with **Move…**, but not every drag has been audited for a
   single-pointer alternative.
-- **Selecting published text.** Readers are read-only, so selecting a passage
-  to comment on needs a pointer or the browser's caret browsing. Without a
-  selection, Mod+Alt+M opens a comment on the whole page or specification.
-- **Live changes by other people** (another person's edit, sync state) and
-  Lictory Intelligence's answers are not announced as they happen.
+- **Actions on text selected in a published page.** The keyboard selects
+  text in a page and Mod+Alt+M comments on it, but the floating bar's
+  "Create work item" and "Ask Litto" are not in the tab order (Mod+J opens
+  Litto with the selection).
+- **Other people's edits in a live draft** are not announced as they type;
+  who is editing is stated next to the save state.
+- **Screen reader pass.** The announcements above are verified by automated
+  browser tests of the live region; a recorded pass with VoiceOver or NVDA
+  over the whole workflow has not been done yet.
 - **Themes.** Light mode and the default dark mode are checked; the optional
   color themes are not.
 
