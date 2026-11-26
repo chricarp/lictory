@@ -28,7 +28,8 @@ Every five minutes the monitor checks, and alerts on:
 - a lagging, lost or orphaned replication slot, and `pg_wal` above 6 GB;
 - failed or stuck AI runs, failed or overdue notifications and notification
   email, and
-  partial, failed or stuck Jira exports;
+  partial, failed or stuck Jira hand-offs, and items whose failed hand-off
+  was not retried within an hour;
 - automatic cycles overdue by two hours;
 - a backup older than 30 hours (unless backups are disabled).
 

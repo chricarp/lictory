@@ -80,6 +80,13 @@ WHERE status = 'running' AND created_at < now() - interval '30 minutes'
   AND (lease_until IS NULL OR lease_until < now())
 HAVING count(*) > 0
 UNION ALL
+-- Items whose last hand-off failed stay failed (with the work waiting under
+-- them) until someone retries; this outlives the 24 h window above.
+SELECT 'delivery_link', format('%s item(s) whose last hand-off failed more than an hour ago and was not retried (oldest %s); retry them on the project''s Hand-off view', count(*), min(updated_at))
+FROM work_item_external_link
+WHERE status = 'failed' AND updated_at < now() - interval '1 hour'
+HAVING count(*) > 0
+UNION ALL
 -- Automatic cycles that should have been completed by the worker.
 SELECT 'iteration_automation', format('%s automatic cycle(s) past their end by more than 2 h (oldest %s)', count(*), min(i.ends_at))
 FROM iteration i

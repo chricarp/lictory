@@ -461,7 +461,8 @@ runs every five minutes and alerts on public route failures (the app's
 `/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
-overdue notification events and email, partial, failed or stuck delivery exports,
+overdue notification events and email, partial, failed or stuck delivery exports
+and items whose failed hand-off was never retried,
 automatic cycles overdue by two hours, and a backup older than 30 hours
 (not checked with `BACKUP_TARGET=none`). It checks only what is configured
 and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
