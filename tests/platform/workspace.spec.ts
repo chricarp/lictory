@@ -959,6 +959,10 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .fill("Bound the amount");
   await page.getByRole("button", { name: /Save revision 4/ }).click();
   await expect(page.getByText("0 / 1 approved")).toBeVisible();
+  // The author's card says whose approval went outdated, not only "0/1".
+  await expect(
+    page.getByRole("region", { name: "Item workflow" }),
+  ).toContainText(/approved revision 3; revision 4 needs their review again/);
   await page.getByRole("button", { name: /earlier approval/ }).click();
   await expect(page.getByText(/approved revision 3 · outdated/)).toBeVisible();
   // Reviewer sees first that their approval is outdated, and what changed

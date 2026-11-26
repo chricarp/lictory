@@ -12,6 +12,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
+import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
 import {
   externalLinksByItem,
   isAmended,
@@ -62,6 +63,8 @@ export function ItemWorkflow({
     entities,
     reviews,
     approvals,
+    memberName,
+    revisionNumber,
   } = useItem();
   // A requested reviewer sees their own step first: the decision, and
   // whether an approval they gave earlier stopped applying.
@@ -293,6 +296,25 @@ export function ItemWorkflow({
   const approvedReviews = requested.filter((r) =>
     approvals.some((a) => a.reviewId === r.id && a.status === "granted"),
   ).length;
+  // Approvals a later revision made outdated, for reviews of the current
+  // revision nobody has approved yet: "Engineering approved revision 12;
+  // revision 14 needs review" reads on the card, not only in the rail.
+  const outdated = requested.flatMap((r) => {
+    if (approvals.some((a) => a.reviewId === r.id && a.status === "granted"))
+      return [];
+    const latest = approvals
+      .filter(
+        (a) =>
+          a.status === "stale" &&
+          !isCarriedApproval(a.endReason) &&
+          reviews.find((x) => x.id === a.reviewId)?.responsibility ===
+            r.responsibility,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return latest
+      ? [{ responsibility: r.responsibility, approval: latest }]
+      : [];
+  });
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
   // The statement names the stage (the refinement state's sentence), so
@@ -421,6 +443,26 @@ export function ItemWorkflow({
           )}
         </div>
         <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
+        {!mine.review && outdated.length > 0 && current && (
+          <ul className="mt-2 space-y-0.5 pl-4 text-[12.5px] max-sm:pl-0">
+            {outdated.map(({ responsibility, approval }) => (
+              <li
+                key={approval.id}
+                className="flex items-baseline gap-1.5 text-muted-foreground"
+              >
+                <TriangleAlert
+                  aria-hidden
+                  className="size-3 shrink-0 self-center text-warning"
+                />
+                <span>
+                  {responsibility}: {memberName(approval.reviewerId)} approved
+                  revision {revisionNumber(approval.revisionId) ?? "?"};
+                  revision {current.number} needs their review again.
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {next && (
           <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
             <span className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
