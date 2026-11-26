@@ -428,6 +428,9 @@ export function NotificationFeed() {
   );
 }
 
+// Notifications about evidence changing (readiness), which nobody did.
+const evidenceKinds = new Set(["item_ready", "item_unready"]);
+
 function Row({
   row,
   showOrganization,
@@ -519,7 +522,9 @@ function Row({
               unread && "font-medium text-foreground",
             )}
           >
-            {n.actorName && (
+            {/* Readiness changes are evidence, not a person's act: no
+                avatar suggests someone made the item ready. */}
+            {n.actorName && !evidenceKinds.has(n.kind) && (
               <PersonAvatar
                 person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
                 size={20}

@@ -164,7 +164,7 @@ export const ChannelMessage = memo(function ChannelMessage({
           name: message.externalAuthorName ?? "Someone",
           external: "slack",
         }
-      : message.authorKind === "system"
+      : message.authorKind === "system" && !promotedBy(message)
         ? { id: "lictory", name: "Lictory" }
         : member;
   const time = formatTime(message.createdAt);
@@ -487,11 +487,19 @@ export const ChannelMessage = memo(function ChannelMessage({
   );
 });
 
+// A promotion card is the act of the person who promoted the message
+// ("Ada recorded a decision on PAY-11"); Lictory only posts it.
+const promotedBy = (message: MessageRow) =>
+  message.kind === "card" && message.payload?.promotion
+    ? message.authorUserId
+    : null;
+
 function authorName(
   message: MessageRow,
   nameOf: (id: string | null | undefined) => string,
 ) {
   if (message.authorKind === "agent") return "Agent";
+  if (promotedBy(message)) return nameOf(message.authorUserId);
   if (message.authorKind === "system") return "Lictory";
   // Someone in a linked Slack channel with no Lictory identity.
   if (message.authorKind === "external")
