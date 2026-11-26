@@ -861,7 +861,9 @@ export function BacklogRow({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "relative flex h-9 items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50",
+        // Phones give the states a second line, in words, instead of
+        // squeezing them into icons beside a cut title.
+        "relative flex items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2 sm:h-9",
         draggable && "cursor-grab",
         dragging && "opacity-40",
         selected &&
@@ -877,20 +879,19 @@ export function BacklogRow({
         draggable={false}
         aria-current={selected ? true : undefined}
         onClick={onOpen ? (e) => onOpen(e, label) : undefined}
-        className="min-w-0 flex-1 truncate after:absolute after:inset-0"
+        className="min-w-0 flex-1 after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate"
       >
         {item.title}
       </Link>
+      <span aria-hidden className="basis-full sm:hidden" />
       {teamName && (
         <span className="max-w-28 shrink-0 truncate rounded bg-muted px-1.5 text-xs text-muted-foreground">
           {teamName}
         </span>
       )}
-      {claim && (
-        <ClaimBadge claim={claim} assigneeId={item.assigneeId} compactOnPhone />
-      )}
+      {claim && <ClaimBadge claim={claim} assigneeId={item.assigneeId} />}
       {/* Fixed slots keep the columns aligned from row to row. */}
-      <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
+      <span className="inline-flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read
             as missing data. Plain work has no specification. */}
         {item.refinementState ? (
@@ -903,9 +904,7 @@ export function BacklogRow({
             className="inline-flex items-center gap-1"
           >
             <RefinementIcon state={item.refinementState} />
-            <span className="hidden sm:inline">
-              {refinementMeta[item.refinementState].label}
-            </span>
+            {refinementMeta[item.refinementState].label}
           </span>
         ) : (
           <span
@@ -918,7 +917,7 @@ export function BacklogRow({
         {item.blockingThreads > 0 && (
           <span
             title={`${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`}
-            className="hidden items-center gap-1 font-medium text-destructive sm:inline-flex"
+            className="inline-flex items-center gap-1 font-medium text-destructive"
           >
             <CircleAlert aria-hidden className="size-3.5" />
             {item.blockingThreads} blocker
@@ -933,7 +932,7 @@ export function BacklogRow({
         title={status ? `Delivery status: ${status.name}` : undefined}
       >
         <StatusIcon category={status?.category} color={status?.color} />
-        <span className="hidden truncate @min-[65rem]/frame:inline">
+        <span className="hidden truncate max-sm:inline @min-[65rem]/frame:inline">
           {status?.name}
         </span>
       </span>
