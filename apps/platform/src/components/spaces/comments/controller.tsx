@@ -371,6 +371,28 @@ export function PageComments({
   useEffect(() => {
     selectionRef.current = selection;
   });
+  // The bar of actions on selected text lives at the end of the document
+  // (it floats over the text), so Tab from the reader would skip it: with
+  // text selected, Tab moves into the bar, and Escape (or leaving the bar
+  // with Tab) returns to the text with the selection kept.
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editor || !hasView(editor)) return;
+    const dom = editor.view.dom;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || event.shiftKey || editor.isEditable) return;
+      const first = barRef.current?.querySelector<HTMLElement>("button");
+      if (!selectionRef.current || !first) return;
+      event.preventDefault();
+      first.focus();
+    };
+    dom.addEventListener("keydown", onKey);
+    return () => dom.removeEventListener("keydown", onKey);
+  }, [editor]);
+  const backToText = useCallback(() => {
+    if (editor && hasView(editor))
+      editor.view.dom.focus({ preventScroll: true });
+  }, [editor]);
   useEffect(() => {
     if (!editor || !canComment || !hasView(editor)) return;
     const dom = editor.view.dom;
@@ -476,8 +498,26 @@ export function PageComments({
           // it, or (on the published page) create work from it or ask
           // Litto about it.
           <div
+            ref={barRef}
             role="group"
             aria-label="Selected text"
+            onKeyDown={(event) => {
+              const buttons = [
+                ...(barRef.current?.querySelectorAll<HTMLElement>("button") ??
+                  []),
+              ];
+              const at = buttons.indexOf(document.activeElement as HTMLElement);
+              if (
+                event.key === "Escape" ||
+                (event.key === "Tab" &&
+                  !event.shiftKey &&
+                  at === buttons.length - 1) ||
+                (event.key === "Tab" && event.shiftKey && at === 0)
+              ) {
+                event.preventDefault();
+                backToText();
+              }
+            }}
             style={{
               top: Math.max(8, selection.top - 44),
               left: selection.left,

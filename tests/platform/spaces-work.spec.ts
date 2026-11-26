@@ -243,10 +243,22 @@ test("selected page text becomes a work item that remembers its source and is li
   await ada.page.goto(pageUrl);
   await expect(reader(ada.page)).toContainText("second approver");
 
+  await reader(ada.page).focus();
   await selectText(ada.page, "need a second approver from finance");
   const toolbar = ada.page.getByRole("group", { name: "Selected text" });
   await expect(toolbar.getByRole("button", { name: "Comment" })).toBeVisible();
-  await toolbar.getByRole("button", { name: "Create work item" }).click();
+  // The bar floats over the text but is reachable with the keyboard: Tab
+  // moves from the selected text into it, Escape returns to the text.
+  await ada.page.keyboard.press("Tab");
+  await expect(toolbar.getByRole("button", { name: "Comment" })).toBeFocused();
+  await ada.page.keyboard.press("Escape");
+  await expect(reader(ada.page)).toBeFocused();
+  await ada.page.keyboard.press("Tab");
+  await ada.page.keyboard.press("Tab");
+  await expect(
+    toolbar.getByRole("button", { name: "Create work item" }),
+  ).toBeFocused();
+  await ada.page.keyboard.press("Enter");
 
   const dialog = ada.page.getByRole("dialog", { name: "Create work item" });
   await expect(dialog.getByRole("textbox", { name: "Title" })).toHaveValue(
