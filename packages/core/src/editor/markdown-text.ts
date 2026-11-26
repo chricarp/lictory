@@ -180,6 +180,30 @@ export function placeQuote(
   return { kind: "found", ...pick };
 }
 
+// The Markdown with an anchored quote replaced by `replacement`, for a
+// suggestion made on selected text. Only a quote inside one text node whose
+// source is exactly its text (no formatting, links or escapes inside the
+// passage) is replaced; otherwise null, and the change needs the editor.
+export function replaceQuote(
+  markdown: string,
+  anchor: QuoteAnchor,
+  replacement: string,
+): string | null {
+  const model = textModel(parseMarkdownTree(markdown));
+  const place = placeQuote(model, anchor);
+  if (place.kind !== "found") return null;
+  const segment = model.segments.find(
+    (s) => s.node.type === "text" && s.start <= place.from && place.to <= s.end,
+  );
+  const start = segment?.node.position?.start.offset;
+  const end = segment?.node.position?.end.offset;
+  if (!segment || start === undefined || end === undefined) return null;
+  if (markdown.slice(start, end) !== segment.node.value) return null;
+  const from = start + place.from - segment.start;
+  const to = start + place.to - segment.start;
+  return markdown.slice(0, from) + replacement + markdown.slice(to);
+}
+
 // Which occurrence of `quote` ends at the end of `prefix`: the selection's
 // text with what precedes it under its heading. Counted the way placeQuote
 // counts, on collapsed whitespace.

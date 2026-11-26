@@ -959,11 +959,17 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(page.getByText("0 / 1 approved")).toBeVisible();
   await page.getByRole("button", { name: /earlier approval/ }).click();
   await expect(page.getByText(/approved revision 3 · outdated/)).toBeVisible();
-  // Reviewer sees what changed since their approval.
-  await expect(
-    reviewer.getByText(/Changed since you last looked: revision 3 → 4/),
-  ).toBeVisible();
-  await reviewer.getByRole("button", { name: "View changes" }).click();
+  // Reviewer sees first that their approval is outdated, and what changed
+  // since.
+  const reviewerWorkflow = reviewer.getByRole("region", {
+    name: "Item workflow",
+  });
+  await expect(reviewerWorkflow).toContainText(
+    "You approved revision 3. It changed since",
+  );
+  await reviewerWorkflow
+    .getByRole("button", { name: "What changed since revision 3" })
+    .click();
   await expect(
     reviewer.getByText("up to the settled total").first(),
   ).toBeVisible();
@@ -1015,7 +1021,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByText("No open discussions.", { exact: false }),
   ).toBeVisible();
-  await reviewer.getByRole("button", { name: "Approve revision 4" }).click();
+  // The reviewer's decision leads the status card.
+  await reviewer
+    .getByRole("region", { name: "Item workflow" })
+    .getByRole("button", { name: "Approve revision 4" })
+    .click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Refinement: Ready" }).first(),

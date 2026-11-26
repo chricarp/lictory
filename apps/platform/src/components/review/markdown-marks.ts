@@ -37,6 +37,26 @@ export function threadMarks(ranges: readonly Mark<ThreadMark>[]) {
     }));
 }
 
+// Passages a suggested change would rewrite: a dotted underline, so they
+// read apart from discussed passages (tints) and from diffs.
+export const suggestionAnchorClass =
+  "spec-suggestion cursor-pointer bg-transparent text-inherit underline decoration-primary decoration-dotted decoration-2 underline-offset-4";
+
+export function suggestionMarks(ranges: readonly Mark<string>[]) {
+  return () => (tree: Root) =>
+    markText(textModel(tree), ranges, (children, data): Nodes => ({
+      type: "emphasis",
+      data: {
+        hName: "mark",
+        hProperties: {
+          className: suggestionAnchorClass.split(" "),
+          dataSuggestions: data.join(" "),
+        },
+      },
+      children,
+    }));
+}
+
 // Changed words of one side of an edited block.
 export function wordMarks(
   ranges: readonly TextRange[],

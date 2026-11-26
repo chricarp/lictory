@@ -462,7 +462,7 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   await expect(toggle).toBeFocused();
 });
 
-test("suggesting a change opens a branch with the chosen passage selected in its live draft", async ({
+test("a larger suggested change opens a branch with the chosen passage selected in its live draft", async ({
   page,
 }) => {
   const { path } = await open(page);
@@ -476,6 +476,13 @@ test("suggesting a change opens a branch with the chosen passage selected in its
     .getByRole("toolbar", { name: "Selection actions" })
     .getByRole("button", { name: "Suggest a change" })
     .click();
+  // A plain passage is suggested beside the text; a larger change goes to
+  // the editor.
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await expect(composer.getByLabel("Replace with")).toHaveValue(
+    "reconciled against the first attempt",
+  );
+  await composer.getByRole("button", { name: "Larger change" }).click();
   const editor = page.locator(
     '[data-markdown-editor][aria-label="Branch specification"][contenteditable="true"]',
   );
@@ -488,4 +495,173 @@ test("suggesting a change opens a branch with the chosen passage selected in its
   await expect(editor).toContainText(
     "Late answers are matched to the first attempt.",
   );
+});
+
+test("a suggestion on selected text is accepted by the person asked and becomes the next revision", async ({
+  page,
+  browser,
+}) => {
+  const { workItemId, path } = await open(page);
+  // Ben holds no discipline: anyone in the organization may suggest.
+  await signIn(page, seeded.users[1]!.email);
+  await page.goto(path);
+  await expect(page.locator("[data-spec-root]")).toContainText(
+    "reconciled against the first attempt",
+  );
+  await selectInSpecification(page, "reconciled against the first attempt");
+  await page
+    .getByRole("toolbar", { name: "Selection actions" })
+    .getByRole("button", { name: "Suggest a change" })
+    .click();
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await composer
+    .getByLabel("Replace with")
+    .fill("matched to the first attempt");
+  await composer.getByLabel("Why").fill("Reconciliation is a batch job.");
+  // The item's author (Product: edits and reviews) is asked by default.
+  await expect(composer.getByLabel("Who accepts it")).toContainText(
+    seeded.owner.name,
+  );
+  await composer.getByRole("button", { name: "Suggest", exact: true }).click();
+  const card = page.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(card).toContainText("Reconciliation is a batch job.");
+  await expect(card).toContainText(`Waiting for ${seeded.owner.name}`);
+  await expect(card.getByRole("button", { name: "Accept" })).toHaveCount(0);
+  // The passage it rewrites is marked in the text.
+  await expect(
+    page.locator("[data-spec-root] mark[data-suggestions]"),
+  ).toHaveText("reconciled against");
+
+  const authorContext = await browser.newContext();
+  const author = await authorContext.newPage();
+  await signIn(author, seeded.owner.email);
+  await author.goto(path);
+  await author.getByRole("button", { name: /^1 suggested change/ }).click();
+  const pending = author.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(pending).toContainText("matched to the first attempt");
+  await pending.getByRole("button", { name: "Accept" }).click();
+  await expect(pending).toHaveCount(0);
+  await expect(author.locator("[data-spec-root]")).toContainText(
+    "Late answers are matched to the first attempt.",
+  );
+  await expect
+    .poll(async () => (await currentRevision(workItemId)).number)
+    .toBe(2);
+  expect((await currentRevision(workItemId)).content).toContain(
+    "Late answers are matched to the first attempt.",
+  );
+  // The suggester sees it applied too.
+  await expect(card).toHaveCount(0);
+  await expect(page.locator("[data-spec-root]")).toContainText(
+    "matched to the first attempt",
+  );
+  await authorContext.close();
+});
+
+test("a suggestion made through the API waits beside the text, and a rejection keeps the text", async ({
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const revision = await currentRevision(workItemId);
+  const suggestionId = crypto.randomUUID();
+  await seeded.command(
+    {
+      type: "createSuggestion",
+      workItemId,
+      baseRevisionId: revision.id,
+      suggestionId,
+      replacement: revision.content.replace("ten percent", "five percent"),
+      title: "Smaller first rollout",
+      rationale: "Start with fewer merchants.",
+      open: true,
+    },
+    seeded.users[1]!.id,
+  );
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  const card = page.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(card).toContainText("Start with fewer merchants.");
+  await expect(card).toContainText("Nobody is asked to accept it yet.");
+  await card.getByRole("button", { name: "Reject" }).click();
+  await expect(card).toHaveCount(0);
+  expect((await currentRevision(workItemId)).number).toBe(revision.number);
+});
+
+test("a reviewer whose approval a new revision made outdated sees it, and their decision, first", async ({
+  browser,
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const ben = seeded.users[1]!;
+  const engineering = seeded.roster.disciplines.find(
+    (d) => d.name === "Engineering",
+  )!;
+  await seeded.command({
+    type: "setDisciplineMember",
+    projectId: seeded.projectId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    member: true,
+  });
+  const first = await currentRevision(workItemId);
+  const reviewId = crypto.randomUUID();
+  await seeded.command({
+    type: "requestReview",
+    workItemId,
+    baseRevisionId: first.id,
+    reviewId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    // Optional, so the approval does not make it ready (and protect main).
+    required: false,
+  });
+  await seeded.command(
+    {
+      type: "decideReview",
+      workItemId,
+      baseRevisionId: first.id,
+      reviewId,
+      decision: "approve",
+    },
+    ben.id,
+  );
+  await revise(
+    workItemId,
+    first.content.replace("30 seconds", "20 seconds"),
+    "Shorter timeout",
+  );
+  const context = await browser.newContext();
+  const reviewer = await context.newPage();
+  await signIn(reviewer, ben.email);
+  await reviewer.goto(path);
+  const workflow = reviewer.getByRole("region", {
+    name: "Item workflow",
+    exact: true,
+  });
+  await expect(workflow).toContainText("Your Engineering review is requested");
+  await expect(workflow).toContainText(
+    "You approved revision 1. It changed since",
+  );
+  await workflow
+    .getByRole("button", { name: "What changed since revision 1" })
+    .click();
+  await expect(reviewer.getByText("20 seconds").first()).toBeVisible();
+  await reviewer.goto(path);
+  await workflow.getByRole("button", { name: "Approve revision 2" }).click();
+  await expect(workflow).not.toContainText(
+    "Your Engineering review is requested",
+  );
+  await expect(
+    reviewer
+      .getByRole("list", { name: "Requested reviews" })
+      .getByText("Approved", { exact: true }),
+  ).toBeVisible();
+  await context.close();
 });

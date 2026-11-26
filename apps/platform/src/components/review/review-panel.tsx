@@ -24,6 +24,70 @@ import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { PullRequestsWaiting } from "@lictory/platform/components/review/pull-requests-waiting";
+import { SuggestionsWaiting } from "@lictory/platform/components/review/inline-suggestions";
+
+// The review asked of me on the current revision that I have not approved
+// yet (a review someone else already completed for my discipline is not
+// mine to give again), and my latest approval that a later revision made
+// outdated. The status card leads with them.
+export function useMyReview() {
+  const {
+    reviews,
+    assignments,
+    approvals,
+    current,
+    revisions,
+    userId,
+    disciplineIds,
+    mutate,
+    base,
+    readOnly,
+  } = useItem();
+  const review = readOnly
+    ? undefined
+    : reviews.find(
+        (r) =>
+          r.revisionId === current?.id &&
+          r.status !== "cancelled" &&
+          r.status !== "completed" &&
+          assignments.some(
+            (a) =>
+              a.reviewId === r.id &&
+              !a.withdrawnAt &&
+              (a.userId === userId ||
+                (a.disciplineId && disciplineIds.includes(a.disciplineId))),
+          ) &&
+          !approvals.some(
+            (a) =>
+              a.reviewId === r.id &&
+              a.status === "granted" &&
+              a.reviewerId === userId,
+          ),
+      );
+  const staleRevision = approvals
+    .filter(
+      (a) =>
+        a.reviewerId === userId &&
+        a.status === "stale" &&
+        !isCarriedApproval(a.endReason),
+    )
+    .map((a) => revisions.find((r) => r.id === a.revisionId))
+    .filter(
+      (r): r is NonNullable<typeof r> =>
+        Boolean(r) && (current ? r!.number < current.number : false),
+    )
+    .sort((a, b) => b.number - a.number)[0];
+  const decide = (decision: "approve" | "changes_requested") => {
+    if (!review) return;
+    void mutate({
+      type: "decideReview",
+      ...base,
+      reviewId: review.id,
+      decision,
+    });
+  };
+  return { review, staleRevision, decide };
+}
 
 // Reviews live on the item. Each row is one responsibility on the current
 // revision; decisions are only offered to assigned reviewers and always name
@@ -54,6 +118,17 @@ export function ReviewPanel() {
   const history = approvals
     .filter((a) => a.status !== "granted")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Each reviewer's latest outdated approval of this responsibility.
+  const outdatedFor = (review: EntityOf<"review">) => {
+    const latest = new Map<string, EntityOf<"approval">>();
+    for (const a of history) {
+      if (a.status !== "stale" || isCarriedApproval(a.endReason)) continue;
+      const of = reviews.find((r) => r.id === a.reviewId);
+      if (of?.responsibility !== review.responsibility) continue;
+      if (!latest.has(a.reviewerId)) latest.set(a.reviewerId, a);
+    }
+    return [...latest.values()];
+  };
   const assigneesOf = (review: EntityOf<"review">) =>
     assignments.filter((a) => a.reviewId === review.id && !a.withdrawnAt);
   const canDecide = (review: EntityOf<"review">) =>
@@ -65,6 +140,7 @@ export function ReviewPanel() {
   return (
     <section>
       <PullRequestsWaiting />
+      <SuggestionsWaiting />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Review</SectionLabel>
         {active.length > 0 && (
@@ -175,6 +251,23 @@ export function ReviewPanel() {
                       revision {revisionNumber(a.revisionId)}
                     </span>
                   ))}
+                  {/* An approval of an earlier revision for the same
+                      responsibility, which this revision made outdated. */}
+                  {outdatedFor(review)
+                    .filter(
+                      (a) =>
+                        !granted.some((g) => g.reviewerId === a.reviewerId),
+                    )
+                    .map((a) => (
+                      <span
+                        key={a.id}
+                        title={a.endReason ?? undefined}
+                        className="inline-flex items-center gap-1"
+                      >
+                        {memberName(a.reviewerId)} approved revision{" "}
+                        {revisionNumber(a.revisionId)} · outdated
+                      </span>
+                    ))}
                 </div>
                 {!readOnly && canDecide(review) && (
                   <div className="mt-2 flex flex-wrap gap-1 pl-6">
@@ -220,24 +313,27 @@ export function ReviewPanel() {
             render={<ul />}
             className="mt-1 space-y-1 text-xs text-muted-foreground"
           >
+            {/* One line each: who approved which revision, and a short
+                outcome; the full reason is the line's title. */}
             {history.map((a) => {
               const review = reviews.find((r) => r.id === a.reviewId);
+              const outcome = isCarriedApproval(a.endReason)
+                ? "carried over"
+                : a.status === "stale"
+                  ? "outdated"
+                  : "revoked";
               return (
-                <li key={a.id}>
-                  {review?.responsibility ?? "Review"} ·{" "}
-                  {memberName(a.reviewerId)} approved revision{" "}
-                  {revisionNumber(a.revisionId)} ·{" "}
-                  {isCarriedApproval(a.endReason) ? (
-                    <span>{a.endReason!.toLowerCase()}</span>
-                  ) : (
-                    <span
-                      className={a.status === "stale" ? "text-warning" : ""}
-                    >
-                      {a.status === "stale"
-                        ? `outdated (${a.endReason ?? "specification revised"})`
-                        : "revoked"}
-                    </span>
-                  )}
+                <li
+                  key={a.id}
+                  title={a.endReason ?? undefined}
+                  className="flex min-w-0 items-baseline gap-1.5"
+                >
+                  <span className="min-w-0 truncate">
+                    {review?.responsibility ?? "Review"} ·{" "}
+                    {memberName(a.reviewerId)} · revision{" "}
+                    {revisionNumber(a.revisionId)}
+                  </span>
+                  <span className="ml-auto shrink-0">{outcome}</span>
                 </li>
               );
             })}
