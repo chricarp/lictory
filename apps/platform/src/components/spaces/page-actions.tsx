@@ -488,7 +488,7 @@ function MovePageDialog({
               ),
             )}
             {matches.length > shown.length && (
-              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
                 {matches.length - shown.length} more pages. Type to narrow down.
               </p>
             )}

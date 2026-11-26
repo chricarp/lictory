@@ -348,7 +348,7 @@ export function QuickCreate({
                   }
                   onChange={setParentId}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Link this {name.toLowerCase()} to the larger piece of work it
                   contributes to.
                 </p>

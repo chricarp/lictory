@@ -1024,6 +1024,9 @@ function Detail({ item, excerpt = false }: { item: Item; excerpt?: boolean }) {
         excerpt && "max-w-[45%]",
       )}
     >
+      {/* The option's name is its text: without a pause the title and the
+          key are read as one word ("Refund reasonsPAY-11"). */}
+      <span className="sr-only">, </span>
       {item.identifier && (
         <span className="shrink-0 font-mono text-[11px]">
           {item.identifier}

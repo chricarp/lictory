@@ -1616,7 +1616,7 @@ function CommitBox({
         maxLength={500}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {updatesPr
             ? `Updates pull request “${updatesPr}”.`
             : "Main is not affected."}
@@ -1833,7 +1833,7 @@ function CreatePR({
               />
             </label>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <p className="mr-auto text-[11px] text-muted-foreground">
+              <p className="mr-auto text-xs text-muted-foreground">
                 Drafts can&apos;t be approved or merged until you mark them
                 ready.
               </p>
@@ -3113,7 +3113,7 @@ function PullRequestView({
                   </div>
                 )}
               {p.status === "open" && (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Approvals apply to the exact merge result, the whole
                   specification after the merge
                   {isMain(target)

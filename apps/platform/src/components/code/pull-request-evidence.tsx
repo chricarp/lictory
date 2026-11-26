@@ -1,5 +1,6 @@
 import { sessionTitle } from "@lictory/core/factory/entities";
 import {
+  Circle,
   CircleCheckBig,
   ClipboardCheck,
   FileCheck2,
@@ -219,23 +220,35 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
         !delivered &&
         category !== "done" &&
         category !== "canceled" && (
-          // What Done will need, checked from when work starts.
+          // What Done will need, checked from when work starts: a list
+          // named once, not "Done needs:" before every line.
           <ul
             aria-label={`What Done needs for ${key}`}
             className="mt-2 space-y-0.5 text-xs text-muted-foreground"
           >
             {effectiveDoneChecks(definition).map((c) => (
-              <li key={c.id}>Done needs: {doneCheckLabel(c)}</li>
+              <li key={c.id} className="flex items-start gap-1.5">
+                <Circle aria-hidden className="mt-0.5 size-3 shrink-0" />
+                {doneCheckLabel(c)}
+              </li>
             ))}
           </ul>
         )}
       {done && done.checks.some((c) => !c.passed) && (
-        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        <ul
+          aria-label={`Done checks not met yet for ${key}`}
+          className="mt-2 space-y-0.5 text-xs text-muted-foreground"
+        >
           {done.checks
             .filter((c) => !c.passed)
             .map((c) => (
-              <li key={c.key} title={c.detail}>
-                Not yet: {c.label}
+              <li
+                key={c.key}
+                title={c.detail}
+                className="flex items-start gap-1.5"
+              >
+                <Circle aria-hidden className="mt-0.5 size-3 shrink-0" />
+                {c.label}
               </li>
             ))}
         </ul>

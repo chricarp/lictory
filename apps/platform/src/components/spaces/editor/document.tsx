@@ -84,7 +84,7 @@ export function PageReader({
       <EditorContent editor={editor} />
       <p
         id={hintId}
-        className="mt-3 hidden text-[11px] leading-4 text-muted-foreground group-has-[.page-document:focus-visible]/reader:block"
+        className="mt-3 hidden text-xs leading-4 text-muted-foreground group-has-[.page-document:focus-visible]/reader:block"
       >
         {keyboardSelectionHint} {commentShortcut} comments on the selection.
       </p>

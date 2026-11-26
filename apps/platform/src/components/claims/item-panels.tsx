@@ -499,7 +499,7 @@ export function DefinitionOfDonePanel() {
           {evaluation.held}
         </p>
       )}
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         {evaluation.passed
           ? "Every check passes."
           : "The item moves to Done by itself when every check passes."}{" "}
@@ -583,7 +583,7 @@ function DeliveredPanel({ evidence }: { evidence: DeliveredEvidence }) {
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         Every check passed {relativeTime(evidence.at)}, which moved the item to
         Done.
       </p>

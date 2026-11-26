@@ -218,7 +218,7 @@ function ItemChips({ links }: { links: CodeLinkRef[] }) {
         </Link>
       ))}
       {shown.length > 3 && (
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           +{shown.length - 3}
         </span>
       )}
