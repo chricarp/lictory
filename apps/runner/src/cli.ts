@@ -174,10 +174,14 @@ const isCommand = (name: string | undefined): name is Command =>
 
 const footer = () => [
   `Configuration and credential: ${homeDirectory()} (LICTORY_RUNNER_HOME).`,
+  "Output is plain text, never colored, in a terminal and in a log alike.",
   "",
-  `Exit codes: ${EXIT.ok} done; ${EXIT.failed} failed (a service restarts the runner);`,
-  `${EXIT.needsPerson} a person must act first: not registered, or the credential was revoked`,
-  `(a service does not restart it); ${EXIT.usage} wrong command line.`,
+  "Exit codes:",
+  `  ${String(EXIT.ok).padEnd(3)} done`,
+  `  ${String(EXIT.failed).padEnd(3)} failed (a service restarts the runner)`,
+  `  ${String(EXIT.needsPerson).padEnd(3)} a person must act first: not registered, or the credential was`,
+  "      revoked (a service does not restart it)",
+  `  ${String(EXIT.usage).padEnd(3)} wrong command line`,
 ];
 
 function overview() {
