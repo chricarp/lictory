@@ -124,7 +124,10 @@ send messages, interrupt, cancel, retry and answer approvals. `waiting`
 means the agent asked a person something: the session keeps its lease (the
 harness is alive, waiting) but does not take one of the runner's session
 slots. Cancel is immediate: the status becomes canceled and the lease is
-cleared, so the runner's next write fails and it stops. A retry starts the
+cleared, so the runner's next write fails and it stops. Because a cancel and
+an expired or reassigned lease fail the same way, the runner then asks one
+heartbeat for that session's status, so its log says "canceled" rather than
+"lost" when a person canceled it. A retry starts the
 run over from the original prompt with fresh attempts; the earlier run's
 inputs stay behind (`input_cursor`), so its cancel is not replayed.
 
@@ -300,7 +303,10 @@ with `bun build --compile` for linux, darwin and windows on x64 and arm64
 (`apps/runner/dist/lictory-runner-<os>-<arch>`), all from one machine; the
 darwin binaries come out signed ad hoc. The binary reports the product
 version (`lictory-runner --version`, its user agent and heartbeats): the root
-`package.json` version, which release builds stamp before compiling.
+`package.json` version, which release builds stamp before compiling (Release
+clients checks that the built binary reports the release's version). In Git
+that version is `0.0.0-dev`, which no release has, so a build from source
+says it is one and its add-runner dialog pins no version.
 
 Every release, nightly and stable, attaches the six binaries, their
 installers (`lictory-runner-install.sh` from `apps/runner/install.sh`,
@@ -313,8 +319,10 @@ x64 emulation), refuse one that does not match `SHA256SUMS`, install it
 `PATH`) by renaming over the old file, so a running runner is never
 truncated, and optionally register it and install the service.
 
-The add-runner dialog shows one command: the installer of the latest release
-with the server's own version, its address and the one-time token
+The add-runner dialog shows one command: download the installer of the
+latest release, then run it (never `curl … | sh`, which succeeds with nothing
+installed when the download fails) with the server's own version, its
+address and the one-time token
 (`apps/platform/src/components/factory/runner-install.ts`). The runner is
 therefore the server's exact release. A build without a release version
 installs the latest stable runner; a nightly whose release was pruned fails

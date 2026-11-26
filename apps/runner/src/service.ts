@@ -3,6 +3,7 @@ import { homedir, platform, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { run } from "@lictory/runner/process";
 import { homeDirectory } from "@lictory/runner/config";
+import { EXIT } from "@lictory/runner/output";
 
 // `lictory-runner install-service`: runs `lictory-runner start` at boot
 // (systemd on Linux, launchd on macOS) and restarts it if it stops. On
@@ -48,6 +49,9 @@ export function systemdUnit(options: {
     ...(options.system ? [`User=${options.user}`] : []),
     "Restart=always",
     "RestartSec=5",
+    // Not registered, or the credential was revoked: restarting cannot
+    // help until a person registers the runner again.
+    `RestartPreventExitStatus=${EXIT.needsPerson} ${EXIT.usage}`,
     // Sessions get time to hand back their work.
     "TimeoutStopSec=30",
     "KillSignal=SIGTERM",

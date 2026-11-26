@@ -10,13 +10,28 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import type { RunnerEvent } from "@lictory/core/factory/protocol";
-import { ProtocolError } from "@lictory/runner/client";
-import { configSchema } from "@lictory/runner/config";
+import type { Assignment, RunnerEvent } from "@lictory/core/factory/protocol";
+import {
+  ProtocolError,
+  describeNetworkError,
+  type RunnerClient,
+} from "@lictory/runner/client";
+import {
+  configSchema,
+  runnerLiveness,
+  writeState,
+  readState,
+} from "@lictory/runner/config";
+import { endLine, refuseIfRunning } from "@lictory/runner/daemon";
+import { CliError, EXIT } from "@lictory/runner/output";
+import { SessionRun } from "@lictory/runner/session";
 import { EventStream } from "@lictory/runner/events";
 import { confined, OutsideWorktree } from "@lictory/runner/harness/lictory";
 import { defaultScript, fakeHarnesses } from "@lictory/runner/harness/fake";
-import type { HarnessContext } from "@lictory/runner/harness/types";
+import type {
+  AgentHarness,
+  HarnessContext,
+} from "@lictory/runner/harness/types";
 import { hostExec, run } from "@lictory/runner/process";
 import { launchdPlist, systemdUnit } from "@lictory/runner/service";
 import {
@@ -282,6 +297,15 @@ void test("service definitions run `start` with the runner's home", () => {
     /Environment=LICTORY_RUNNER_HOME=\/home\/ada\/.config\/lictory-runner/,
   );
   assert.match(unit, /WantedBy=default.target/);
+  // Restarting cannot fix a revoked credential or a missing registration.
+  assert.match(unit, /^Restart=always$/m);
+  assert.match(
+    unit,
+    new RegExp(
+      `^RestartPreventExitStatus=${EXIT.needsPerson} ${EXIT.usage}$`,
+      "m",
+    ),
+  );
   assert.doesNotMatch(unit, /^User=/m);
   assert.match(
     systemdUnit({ system: true, home: "/srv/runner", user: "runner" }),
@@ -293,4 +317,206 @@ void test("service definitions run `start` with the runner's home", () => {
   });
   assert.match(plist, /<string>start<\/string>/);
   assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
+});
+
+const config = configSchema.parse({
+  url: "https://lictory.example.test",
+  runnerId: "r",
+  organizationId: "o",
+  name: "build-01",
+  personal: false,
+  credential: "lcr_x",
+});
+
+const assignment: Assignment = {
+  sessionId: "s-1",
+  leaseToken: "lease-1",
+  leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+  attempt: 1,
+  organizationId: "o",
+  title: "Add a changelog entry",
+  prompt: "Add a changelog entry",
+  agent: {
+    id: "a",
+    name: "Forge",
+    handle: "forge",
+    harness: "claude-code",
+    model: null,
+    instructions: "",
+    access: "write",
+  },
+  requestedBy: { id: "u", name: "Mei" },
+  workItem: null,
+  repository: null,
+  lictory: { url: "", mcpUrl: "", token: "lct_x" },
+  inputCursor: 0,
+  modelProxy: false,
+};
+
+// A harness that works until the session stops it.
+const untilStopped: AgentHarness = {
+  id: "claude-code",
+  detect: () => Promise.resolve("1"),
+  start(context) {
+    let stop = () => undefined as void;
+    const done = new Promise<{ outcome: "failed"; error: string }>(
+      (resolve) => {
+        stop = () => resolve({ outcome: "failed", error: "stopped" });
+        context.signal.addEventListener("abort", stop, { once: true });
+      },
+    );
+    return { done, stop, interrupt: () => undefined, answer: () => undefined };
+  },
+};
+
+// The server side of one session whose lease ends after the first input
+// poll, as a person's cancel (or an expired lease) ends it.
+function endingClient() {
+  let polls = 0;
+  const session = {
+    workspace: () => Promise.resolve({ repository: null }),
+    start: () => Promise.resolve({ status: "running" }),
+    events: (_lease: string, batch: { seq: number }[]) =>
+      Promise.resolve({ acked: batch.at(-1)?.seq ?? 0, status: "running" }),
+    inputs: async () => {
+      if (polls++ === 0) return { status: "running", inputs: [] };
+      throw new ProtocolError(409, "lease gone", "lease_lost");
+    },
+    complete: () => Promise.resolve({ status: "completed" }),
+    release: () => Promise.resolve({ status: "queued" }),
+    model: () => Promise.reject(new Error("no model")),
+  };
+  return { session: () => session } as unknown as RunnerClient;
+}
+
+for (const [serverStatus, outcome] of [
+  ["canceled", "canceled"],
+  ["queued", "lost"],
+  [null, "lost"],
+] as const)
+  void test(`a session whose lease ends with the session ${serverStatus ?? "unknown"} ends ${outcome}`, async () => {
+    const logs: string[] = [];
+    const run = new SessionRun(assignment, {
+      client: endingClient(),
+      config,
+      harness: untilStopped,
+      workDir: join(scratch, `ending-${outcome}-${serverStatus}`),
+      log: (line) => logs.push(line),
+      leaseStatus: () => Promise.resolve(serverStatus),
+    });
+    const end = await run.run();
+    assert.equal(end.outcome, outcome);
+    assert.ok(
+      logs.some((l) =>
+        outcome === "canceled"
+          ? l.includes("canceled in Lictory")
+          : l.includes("no longer holds the session"),
+      ),
+      logs.join("\n"),
+    );
+  });
+
+void test("the log says how each session ended", () => {
+  assert.equal(
+    endLine(
+      "s-1",
+      { outcome: "completed", branch: "lictory/kst-2", repository: true },
+      125_000,
+    ),
+    "Session s-1 completed after 2 min; pushed branch lictory/kst-2.",
+  );
+  assert.equal(
+    endLine("s-1", { outcome: "completed", repository: false }, 3_000),
+    "Session s-1 completed after 3 s (no repository linked: nothing pushed).",
+  );
+  assert.equal(
+    endLine(
+      "s-1",
+      { outcome: "failed", error: "claude exited 1\ntrace", reported: true },
+      4_000,
+    ),
+    "Session s-1 failed after 4 s: claude exited 1",
+  );
+  assert.match(
+    endLine("s-1", { outcome: "canceled" }, 1_000),
+    /canceled in Lictory/,
+  );
+  assert.match(endLine("s-1", { outcome: "returned" }, 1_000), /queue/);
+});
+
+void test("a second runner on one configuration is refused, and a stale state is not a running runner", async () => {
+  const home = join(scratch, "liveness");
+  const now = Date.now();
+  const fresh = new Date(now).toISOString();
+  // This test's process stands in for another running runner.
+  const other = { pid: process.ppid, startedAt: fresh };
+  await writeState(
+    {
+      ...other,
+      updatedAt: fresh,
+      lastHeartbeatAt: null,
+      lastError: null,
+      sessions: [],
+    },
+    home,
+  );
+  await assert.rejects(refuseIfRunning(home), (error: unknown) => {
+    assert.ok(error instanceof CliError);
+    assert.match(
+      error.message,
+      new RegExp(`already runs .*pid ${process.ppid}`),
+    );
+    return true;
+  });
+  const state = (await readState(home))!;
+  assert.equal(runnerLiveness(state, { now, staleAfterMs: 45_000 }), "running");
+  // Written long ago: a reused PID after a crash or reboot.
+  assert.equal(
+    runnerLiveness(state, { now: now + 60 * 60_000, staleAfterMs: 45_000 }),
+    "unresponsive",
+  );
+  // Stopped cleanly, or its process is gone.
+  assert.equal(
+    runnerLiveness(
+      { ...state, updatedAt: null },
+      { now, staleAfterMs: 45_000 },
+    ),
+    "stopped",
+  );
+  assert.equal(
+    runnerLiveness(
+      { ...state, pid: 2 ** 22 + 7 },
+      { now, staleAfterMs: 45_000 },
+    ),
+    "stopped",
+  );
+  await writeState({ ...state, updatedAt: null }, home);
+  await refuseIfRunning(home);
+});
+
+void test("unreachable servers are described by address and what to check", () => {
+  assert.match(
+    describeNetworkError(
+      "http://127.0.0.1:9",
+      "ConnectionRefused",
+      new Error("Unable to connect. Is the computer able to access the url?"),
+    ),
+    /^Could not connect to http:\/\/127\.0\.0\.1:9: .*port/,
+  );
+  assert.match(
+    describeNetworkError(
+      "https://example.invalid",
+      "ENOTFOUND",
+      new Error("getaddrinfo ENOTFOUND example.invalid"),
+    ),
+    /^Could not find example\.invalid: the name does not resolve/,
+  );
+  assert.match(
+    describeNetworkError(
+      "https://lictory.example.test",
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      new Error("self signed"),
+    ),
+    /NODE_EXTRA_CA_CERTS/,
+  );
 });
