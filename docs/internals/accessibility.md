@@ -53,6 +53,13 @@ rendered state with seeded data:
   a space home with a nested page tree, a published page, the live page
   editor, the editor with its comments panel, and the published page reader
 
+**The desktop app's own screens** (`apps/desktop/tests/smoke.spec.ts`, run
+by hand with the Electron binary, see [the desktop app](desktop.md#tests)):
+the connect screen and its error, add a server, settings, the offline top
+bar and the unavailable-server screen. Electron windows cannot open the extra
+page axe uses to combine frames, so they run with the helper's `singlePage`
+option (the shell page has no frames).
+
 The helper `tests/helpers/accessibility.ts` checks the WCAG 2.0, 2.1 and 2.2
 A/AA rules and fails on any **serious or critical** violation. Moderate and
 minor findings are reported by axe but do not fail the suite. Use
