@@ -1151,7 +1151,10 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
     done?.reasons.map((r) => r.code),
     ["pull_request_linked"],
   );
-  assert.match(done?.reasons[0]?.message ?? "", /#14 by octo-bo \(merged\)/);
+  assert.match(
+    done?.reasons[0]?.message ?? "",
+    /#14 by octo-bo \(merged\)\. octo-bo is a code host login no member has linked\./,
+  );
   assert.equal((await stageOf(f, retried))?.stage, "claimable");
   // An agent acting on its own is refused too.
   await assert.rejects(

@@ -318,10 +318,18 @@ const endReasons: Record<string, string> = {
   definition_of_done: "its Definition of Done passed",
 };
 
+const hostNames = {
+  github: "GitHub",
+  gitlab: "GitLab",
+  bitbucket: "Bitbucket",
+};
+
 // "PAY-4 is Done: its Definition of Done passed. Pull request #3 was merged
-// by bo. Delivered revision 2." From Lictory's own records: the item, the
-// claim's delivered revision and the session's pull request as the Code
-// module mirrors it.
+// by Bo Lind. Delivered revision 2." From Lictory's own records: the item,
+// the claim's delivered revision and the session's pull request as the Code
+// module mirrors it. Who merged: the person who merged from Lictory, or
+// Autopilot with its policy's administrator; the host's login (as the
+// member who linked it, when one did) only when nobody merged in Lictory.
 async function deliveredNotice(tx: Tx, session: SessionRow, claimId: string) {
   const [item] = session.workItemId
     ? await tx
@@ -354,30 +362,104 @@ async function deliveredNotice(tx: Tx, session: SessionRow, claimId: string) {
         eq(s.workItemClaim.id, claimId),
       ),
     );
-  const [pull] = session.pullRequestId
-    ? await tx
-        .select({
-          number: s.codePullRequest.number,
-          state: s.codePullRequest.state,
-          mergedByLogin: s.codePullRequest.mergedByLogin,
-        })
-        .from(s.codePullRequest)
-        .where(
-          and(
-            eq(s.codePullRequest.organizationId, session.organizationId),
-            eq(s.codePullRequest.id, session.pullRequestId),
-          ),
-        )
-    : [];
+  const pull = session.pullRequestId
+    ? await mergedPull(tx, session.organizationId, session.pullRequestId)
+    : undefined;
   return [
     `${item ? `${item.key}-${item.number}` : "The item"} is Done: its Definition of Done passed.`,
-    pull?.state === "merged"
-      ? `Pull request #${pull.number} was merged${pull.mergedByLogin ? ` by ${pull.mergedByLogin}` : ""}.`
-      : null,
+    pull ? `Pull request #${pull.number} was merged${pull.by}.` : null,
     revision ? `Delivered revision ${revision.number}.` : null,
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+async function mergedPull(
+  tx: Tx,
+  organizationId: string,
+  pullRequestId: string,
+) {
+  const [pull] = await tx
+    .select({
+      number: s.codePullRequest.number,
+      state: s.codePullRequest.state,
+      mergedByLogin: s.codePullRequest.mergedByLogin,
+      mergeRequestedById: s.codePullRequest.mergeRequestedById,
+      mergedVia: s.codePullRequest.mergedVia,
+      connectionId: s.codeRepository.connectionId,
+      provider: s.codeConnection.provider,
+    })
+    .from(s.codePullRequest)
+    .innerJoin(
+      s.codeRepository,
+      and(
+        eq(s.codeRepository.organizationId, s.codePullRequest.organizationId),
+        eq(s.codeRepository.id, s.codePullRequest.repositoryId),
+      ),
+    )
+    .innerJoin(
+      s.codeConnection,
+      and(
+        eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+        eq(s.codeConnection.id, s.codeRepository.connectionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.codePullRequest.organizationId, organizationId),
+        eq(s.codePullRequest.id, pullRequestId),
+      ),
+    );
+  if (pull?.state !== "merged") return undefined;
+  // The host can report the merge before Lictory records the answer to
+  // its own merge request: that request is the merge's provenance too.
+  const [sent] = pull.mergeRequestedById
+    ? [{ requestedById: pull.mergeRequestedById, via: pull.mergedVia }]
+    : await tx
+        .select({
+          requestedById: s.codeWrite.requestedById,
+          via: s.codeWrite.performedVia,
+        })
+        .from(s.codeWrite)
+        .where(
+          and(
+            eq(s.codeWrite.organizationId, organizationId),
+            eq(s.codeWrite.pullRequestId, pullRequestId),
+            eq(s.codeWrite.kind, "merge"),
+            inArray(s.codeWrite.status, ["sending", "succeeded"]),
+          ),
+        )
+        .orderBy(desc(s.codeWrite.createdAt))
+        .limit(1);
+  if (sent?.via?.startsWith("Autopilot"))
+    return { number: pull.number, by: ` by ${sent.via}` };
+  if (sent) {
+    const names = await memberNames(tx, [sent.requestedById]);
+    const name = names.get(sent.requestedById) ?? "a person";
+    return {
+      number: pull.number,
+      by: ` by ${name}${sent.via ? ` via ${sent.via}` : ""}`,
+    };
+  }
+  if (!pull.mergedByLogin) return { number: pull.number, by: "" };
+  const [linked] = await tx
+    .select({ name: s.user.name })
+    .from(s.codeHostIdentity)
+    .innerJoin(s.user, eq(s.user.id, s.codeHostIdentity.userId))
+    .where(
+      and(
+        eq(s.codeHostIdentity.organizationId, organizationId),
+        eq(s.codeHostIdentity.connectionId, pull.connectionId),
+        sql`lower(${s.codeHostIdentity.login}) = lower(${pull.mergedByLogin})`,
+      ),
+    )
+    .limit(1);
+  return {
+    number: pull.number,
+    by: linked
+      ? ` by ${linked.name} on ${hostNames[pull.provider]}`
+      : ` by ${pull.mergedByLogin} on ${hostNames[pull.provider]}`,
+  };
 }
 
 async function claimSessionOf(tx: Tx, event: SessionResumeEvent) {

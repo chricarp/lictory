@@ -122,9 +122,9 @@ export const runner = pgTable(
     arch: text("arch").notNull().default(""),
     version: text("version").notNull().default(""),
     hostname: text("hostname").notNull().default(""),
-    // Harnesses detected on the machine: [{ id, version }].
+    // Harnesses detected on the machine: [{ id, version, permissions? }].
     harnesses: jsonb("harnesses")
-      .$type<{ id: string; version: string | null }[]>()
+      .$type<{ id: string; version: string | null; permissions?: string }[]>()
       .notNull()
       .default([]),
     labels: text("labels").array().notNull().default([]),

@@ -264,6 +264,9 @@ export function ProjectAutonomy({
                   <span className="text-xs text-muted-foreground">
                     Reviews the implementers’ pull requests.
                   </span>
+                  <ColleagueReviewer
+                    agent={eligible.find((a) => a.id === draft.reviewerAgentId)}
+                  />
                 </label>
                 <label className="grid content-start gap-1.5 text-[13px]">
                   <span className="font-medium">Concurrent sessions</span>
@@ -349,6 +352,28 @@ export function ProjectAutonomy({
                   </li>
                 ))}
               </ul>
+              {!draft.autopilotRequires.includes("code_review_approved") && (
+                // The one requirement whose absence lets code merge that no
+                // person and no agent reviewed: said where it is unchecked.
+                <p
+                  role="note"
+                  className="mt-2 flex items-start gap-1.5 text-xs text-foreground"
+                >
+                  <CircleAlert
+                    aria-hidden
+                    className="mt-px size-3.5 shrink-0 text-warning"
+                  />
+                  <span>
+                    Without the reviewer agent’s approval, Autopilot merges an
+                    agent’s pull request that nobody reviewed as soon as CI
+                    passes
+                    {draft.autopilotRequires.includes("definition_of_done")
+                      ? " and the other Definition of Done checks pass"
+                      : ""}
+                    . Every merge is attributed to this policy and you.
+                  </span>
+                </p>
+              )}
               <SilentRepositories projectId={project.id} />
             </Field>
           )}
@@ -439,6 +464,31 @@ export function ProjectAutonomy({
         </SettingsSection>
       )}
     </div>
+  );
+}
+
+// A colleague's agent as the reviewer acts for that colleague: its reviews
+// are recorded as theirs (via the agent), so the administrator choosing it
+// is told to ask them first. Nothing is sent: choosing it asks nobody.
+function ColleagueReviewer({
+  agent,
+}: {
+  agent: { name: string; ownerId: string } | undefined;
+}) {
+  const { userId, memberName } = useWorkspace();
+  if (!agent || agent.ownerId === userId) return null;
+  const owner = memberName(agent.ownerId);
+  return (
+    <span role="note" className="flex items-start gap-1.5 text-xs">
+      <CircleAlert
+        aria-hidden
+        className="mt-px size-3.5 shrink-0 text-warning"
+      />
+      <span>
+        {agent.name} acts for {owner}: its reviews are recorded as “{agent.name}{" "}
+        via {owner}”. Saving does not ask {owner}; agree it with them first.
+      </span>
+    </span>
   );
 }
 

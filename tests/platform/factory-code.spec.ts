@@ -283,9 +283,10 @@ async function pullRequestInThread(
   const card = page.getByRole("article", { name: /^Forge session/ }).first();
   await expect(card).toBeVisible({ timeout: 120_000 });
   await expect(card.getByText("RFD-1").first()).toBeVisible();
-  await expect(card.getByRole("link", { name: "Pull request" })).toBeVisible({
-    timeout: 120_000,
-  });
+  // Named by its number and state, not only "Pull request".
+  await expect(
+    card.getByRole("link", { name: /^Pull request #\d+ (open|merged)$/ }),
+  ).toBeVisible({ timeout: 120_000 });
   await page
     .locator("[data-message-id]")
     .filter({ has: card })

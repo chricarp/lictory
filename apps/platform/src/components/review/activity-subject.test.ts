@@ -51,12 +51,42 @@ void test("automation is the subject of what it did, with the person it acted fo
     [ready.kind, ready.name, ready.after],
     ["system", "Lictory", "after a change by Ben QA"],
   );
-  // Claim sentences name their agent themselves.
+});
+
+void test("the factory loop's entries read in the same shape: the agent for its person, or the automation", () => {
+  const claimed = activitySubject(
+    "claimed",
+    { performedVia: "runner", agentName: "Forge", automation: "dispatcher" },
+    "Ada Owner",
+  );
+  assert.deepEqual(
+    [claimed.kind, claimed.name],
+    ["agent", "Forge via Ada Owner"],
+  );
+  const completed = activitySubject(
+    "claim_completed",
+    { agentName: "Forge", reason: "definition_of_done" },
+    "Ada Owner",
+  );
+  assert.deepEqual(
+    [completed.kind, completed.name, completed.after],
+    ["system", "Definition of Done", "for Ada Owner"],
+  );
+  const merge = activitySubject(
+    "autopilot_merge_requested",
+    { agentName: "Forge" },
+    "Ada Owner",
+  );
+  assert.deepEqual(
+    [merge.kind, merge.name, merge.after],
+    ["system", "Autopilot", "policy set by Ada Owner"],
+  );
+  // A person releasing an agent's claim is the person's act.
   assert.equal(
     activitySubject(
-      "claimed",
-      { performedVia: "runner", agentName: "Forge", automation: "dispatcher" },
-      "Ada Owner",
+      "claim_released",
+      { agentName: "Forge", reason: "person" },
+      "Bo",
     ).kind,
     "person",
   );

@@ -172,12 +172,13 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
 
   // It asks for approval in the thread, where it asks: after the exchange
   // above, so the thread reads in order. The request shows its context and
-  // Ada answers it there; the card says something waits below it.
+  // Ada answers it there; the card stays one row whose chip says it waits,
+  // not a second card pointing at the request.
   const approval = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();
-  await expect(card.getByText(/Forge asks for approval below/)).toBeVisible();
+  await expect(card.getByText(/asks for approval below/)).toHaveCount(0);
   await expect(
     approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
@@ -221,7 +222,6 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   const question = panel.getByRole("article", {
     name: "Forge asks: Which release should the entry name?",
   });
-  await expect(card.getByText(/Forge asks a question below/)).toBeVisible();
   await expect(question.getByRole("button", { name: "Approve" })).toHaveCount(
     0,
   );

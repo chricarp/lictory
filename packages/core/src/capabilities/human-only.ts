@@ -477,7 +477,7 @@ export function personDecisionRefusal(
   const decision = personDecisions[capability.name];
   return new CapabilityError(
     "forbidden",
-    `${agentName} is an agent: “${capability.title}” is a person's decision, made in ${decision?.where ?? "the browser"}. ${humanOnlyReasons.decision}${decision?.alternative ? ` Instead: ${decision.alternative}.` : ""}`,
+    `${agentName} is an agent: “${capability.title}” is a person's decision, made in ${decision ? midSentence(decision.where) : "the browser"}. ${humanOnlyReasons.decision}${decision?.alternative ? ` Instead: ${decision.alternative}.` : ""}`,
     { kind: "human_only" },
   );
 }
@@ -517,3 +517,8 @@ export function humanOnlyCapability(all: () => readonly AnyCapability[]) {
       }),
   });
 }
+
+// "The work item → …" opens a sentence in the catalog; mid-sentence it
+// reads "made in the work item → …".
+const midSentence = (where: string) =>
+  where.startsWith("The ") ? `the ${where.slice(4)}` : where;

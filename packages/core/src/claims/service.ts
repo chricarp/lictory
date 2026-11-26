@@ -401,6 +401,8 @@ export async function projectFacts(
                       (pr.authorId ? name(pr.authorId) : undefined) ??
                       pr.authorLogin ??
                       null,
+                    // "ada" alone reads as if it named a teammate.
+                    unlinkedLogin: !pr.authorId && !!pr.authorLogin,
                   },
                 ],
           ),

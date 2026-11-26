@@ -8,7 +8,11 @@ import {
   Play,
   RotateCcw,
 } from "lucide-react";
-import type { AgentEntity } from "@lictory/core/factory/entities";
+import {
+  withoutAsking,
+  type AgentEntity,
+} from "@lictory/core/factory/entities";
+import { harnessLabels } from "@lictory/core/factory/protocol";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -27,6 +31,8 @@ import {
 import { SessionRow } from "@lictory/platform/components/factory/parts";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { useChannels } from "@lictory/platform/components/channels/store";
+import { channelLabel } from "@lictory/platform/components/channels/data";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import {
   AgentDialog,
@@ -236,6 +242,7 @@ function About({ agent }: { agent: AgentEntity }) {
     ],
     ...(agent.kind === "runner"
       ? ([
+          ["Without asking", <WithoutAsking key="asking" agent={agent} />],
           [
             "Sessions",
             agent.shared
@@ -282,6 +289,25 @@ type AgentCall = {
   } | null;
 };
 
+// "Scout is an agent: “Decide review” is a person's decision, made in the
+// work item's specification → Reviews (Approve or Request changes). …" →
+// its first sentence. A period inside parentheses or a name does not end it.
+function firstSentence(text: string) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "(" || c === "“") depth++;
+    else if ((c === ")" || c === "”") && depth > 0) depth--;
+    else if (
+      c === "." &&
+      depth === 0 &&
+      (i + 1 === text.length || text[i + 1] === " ")
+    )
+      return text.slice(0, i + 1);
+  }
+  return text;
+}
+
 const targetNouns: Record<string, string> = {
   sessionId: "session",
   pullRequestId: "pull request",
@@ -297,13 +323,56 @@ const targetNouns: Record<string, string> = {
   runnerId: "runner",
 };
 
+// What the agent's harness does before a person is asked, as the runners
+// that can run it report their configuration; said plainly when unknown.
+// Approval requests only reach people for what the harness asks.
+function WithoutAsking({ agent }: { agent: AgentEntity }) {
+  const { runners } = useFactory();
+  const id = agent.harness;
+  if (!id) return <span className="text-muted-foreground">Unknown</span>;
+  const harness = harnessLabels[id];
+  const able = runners.filter(
+    (r) =>
+      !r.revokedAt &&
+      (!r.ownerId || r.ownerId === agent.ownerId) &&
+      r.harnesses.some((h) => h.id === id),
+  );
+  if (!able.length)
+    return (
+      <span className="text-muted-foreground">
+        Unknown until a runner with {harness} connects: each runner’s
+        configuration decides it.
+      </span>
+    );
+  const said = able.map((r) => ({
+    runner: r.name,
+    text: withoutAsking(id, r.harnesses.find((h) => h.id === id)?.permissions),
+  }));
+  const distinct = new Set(said.map((s) => s.text));
+  const unknown = `Unknown: ${distinct.size === 1 && able.length > 1 ? "its runners do" : "the runner does"} not report it (an older runner version). The runner’s configuration decides what ${harness} does without asking.`;
+  if (distinct.size === 1) return <span>{said[0]!.text ?? unknown}</span>;
+  return (
+    <ul className="space-y-1">
+      {said.map((s) => (
+        <li key={s.runner}>
+          <span className="font-medium">{s.runner}:</span> {s.text ?? unknown}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // What the agent did with its tokens, as Lictory recorded it: each tool it
 // called, what it named, when, and whether it worked, with the refusal it
 // got (inputs are never recorded). Its owner's view; administrators see
 // every agent's calls in the audit log.
 function RecentActivity({ agent }: { agent: AgentEntity }) {
-  const { organization, items, projects } = useWorkspace();
-  // A work item reads by its key, whichever way the agent named it.
+  const { organization, items, projects, memberName } = useWorkspace();
+  const { byId: channelById } = useChannels();
+  const { agentById, sessions } = useFactory();
+  // What the call named, by its name: a work item by its key, a channel
+  // as "#field-devices", a project, an agent or a session by name. An id
+  // only for what this browser cannot name.
   const targetLabel = (target: { field: string; id: string } | undefined) => {
     if (!target) return null;
     if (target.field === "workItemId" || target.field === "key") {
@@ -313,6 +382,22 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
         ? identifier(project, item.number)
         : target.id.toUpperCase();
     }
+    const channel =
+      target.field === "channelId" ? channelById.get(target.id) : undefined;
+    const name = channel
+      ? channelLabel(
+          channel,
+          memberName,
+          (id) => agentById.get(id)?.name ?? "agent",
+        )
+      : target.field === "projectId"
+        ? projects.find((p) => p.id === target.id)?.key
+        : target.field === "agentId"
+          ? agentById.get(target.id)?.name
+          : target.field === "sessionId"
+            ? sessions.find((s) => s.id === target.id)?.title
+            : undefined;
+    if (name) return channel && channel.kind !== "direct" ? `#${name}` : name;
     return `${targetNouns[target.field] ?? "on"} ${target.id.slice(0, 8)}`;
   };
   const [calls, setCalls] = useState<AgentCall[] | null>(null);
@@ -350,7 +435,13 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
           title={<span className="font-mono text-xs">{call.capability}</span>}
           meta={
             call.detail?.message ? (
-              <span title={call.detail.message}>{call.detail.message}</span>
+              // One line per call: the refusal's first sentence says what
+              // was refused and where a person does it; the rest (the rule
+              // and what the agent may do instead) is for the agent, and
+              // stays one hover or focus away.
+              <span title={call.detail.message} className="truncate">
+                {firstSentence(call.detail.message)}
+              </span>
             ) : (
               `${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`
             )

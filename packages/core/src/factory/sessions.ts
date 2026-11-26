@@ -33,6 +33,7 @@ import { policyStarter } from "@lictory/core/claims/contracts";
 import {
   asksPermission,
   sessionEntity,
+  SLOT_STATUSES,
   type SessionStatus,
 } from "@lictory/core/factory/entities";
 import {
@@ -1151,7 +1152,7 @@ export async function claimSession(
           .where(
             and(
               eq(s.agentSession.runnerId, runner.id),
-              inArray(s.agentSession.status, ["assigned", "running"]),
+              inArray(s.agentSession.status, [...SLOT_STATUSES]),
             ),
           );
         // Waiting sessions keep their lease without taking a slot.

@@ -68,6 +68,11 @@ import {
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
 import {
+  HostLogin,
+  UnlinkedLogins,
+  useLoginMember,
+} from "@lictory/platform/components/code/host-login";
+import {
   pullRequestSnapshot,
   useAnnouncePullRequests,
 } from "@lictory/platform/components/code/announce";
@@ -182,10 +187,10 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
               author={
                 agent ? (
                   <AgentActor agent={agent} ownerId={pr.openedById} size={20} />
-                ) : (author ?? pr.openedById) ? (
-                  <Actor userId={author ?? pr.openedById} size={20} />
+                ) : !author && pr.openedById ? (
+                  <Actor userId={pr.openedById} size={20} />
                 ) : (
-                  <span>{pr.authorLogin ?? "unknown"}</span>
+                  <HostLogin login={pr.authorLogin} provider={pr.provider} />
                 )
               }
               mergedBy={<Merger pr={pr} />}
@@ -259,7 +264,6 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
 // merged through), Autopilot under its policy, or the host's login (the
 // member who claimed it, when one did).
 function Merger({ pr }: { pr: CodePullRequestEntity }) {
-  const login = useLoginOwner(pr.mergedByLogin);
   if (pr.mergeRequestedById) {
     if (pr.mergedVia?.startsWith("Autopilot"))
       return (
@@ -275,12 +279,9 @@ function Merger({ pr }: { pr: CodePullRequestEntity }) {
       </>
     );
   }
-  if (login) return <Actor userId={login} size={20} />;
-  return (
-    <span>
-      {pr.mergedByLogin ?? "Someone"} on {providerLabels[pr.provider]}
-    </span>
-  );
+  if (pr.mergedByLogin)
+    return <HostLogin login={pr.mergedByLogin} provider={pr.provider} />;
+  return <span>Someone on {providerLabels[pr.provider]}</span>;
 }
 
 // The checks, reviews and conflicts the merge depends on, as requirements
@@ -291,6 +292,8 @@ function requirements(
   pr: CodePullRequestEntity,
   memberName: (id: string | null) => string,
   ciRequired: boolean,
+  // A host login as the member who linked it, else the login itself.
+  loginName: (login: string) => string = (login) => login,
 ): MergeRequirement[] {
   const rows: MergeRequirement[] = [];
   if (pr.draft)
@@ -351,14 +354,17 @@ function requirements(
   const lictoryChanges = current
     .filter((r) => r.decision === "request_changes")
     .map(reviewer);
-  const approvers = [...pr.approvedBy, ...lictoryApprovals.map(reviewer)];
+  const approvers = [
+    ...pr.approvedBy.map(loginName),
+    ...lictoryApprovals.map(reviewer),
+  ];
   // Approvals on the host are people's logins; in Lictory, a review without
   // an agent is a person's.
   const personApproved =
     pr.approvedBy.length > 0 || lictoryApprovals.some((r) => !r.agentId);
   const asked =
     pr.requestedReviewers.length > 0 &&
-    `Asked: ${pr.requestedReviewers.join(", ")}.`;
+    `Asked: ${pr.requestedReviewers.map(loginName).join(", ")}.`;
   const decision = reviewState(pr);
   rows.push(
     decision === "changes_requested"
@@ -565,6 +571,22 @@ function useCall(pr: CodePullRequestEntity) {
 
 function Merge({ pr }: { pr: CodePullRequestEntity }) {
   const { memberName } = useWorkspace();
+  const memberOf = useLoginMember();
+  const loginName = (login: string) => {
+    const member = memberOf(login);
+    return member ? memberName(member) : login;
+  };
+  // Host logins this box names that no member has linked: said once below.
+  const unlinked = (
+    <UnlinkedLogins
+      provider={pr.provider}
+      logins={[
+        ...pr.approvedBy,
+        ...pr.requestedReviewers,
+        pr.mergeRequestedById ? null : pr.mergedByLogin,
+      ]}
+    />
+  );
   const writes = useCodeWrites().filter((w) => w.pullRequestId === pr.id);
   const canWork = useCanWork(pr);
   const [method, setMethod] = useState<"merge" | "squash" | "rebase">(
@@ -575,7 +597,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
   const { call, error } = useCall(pr);
   const ciRequired = useCiRequired(pr);
   const blockers = mergeBlockers({ ...pr, ciRequired });
-  const rows = requirements(pr, memberName, ciRequired);
+  const rows = requirements(pr, memberName, ciRequired, loginName);
   const autopilot = useAutopilotGoverns(pr);
   const merging = writes.some(
     (w) => w.kind === "merge" && w.status !== "failed",
@@ -596,7 +618,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
                 ? ` by ${pr.mergedVia}.`
                 : ` from Lictory by ${pr.mergedVia ? `${pr.mergedVia} via ` : ""}${memberName(pr.mergeRequestedById)}.`
               : pr.mergedByLogin
-                ? ` by ${pr.mergedByLogin} on the code host.`
+                ? ` by ${loginName(pr.mergedByLogin)} on the code host.`
                 : "."}
           </p>
           {/* What the merge rested on: the head's checks and reviews. */}
@@ -604,7 +626,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
             aria-label="Merged on"
             className="mt-2 space-y-1 text-xs text-muted-foreground"
           >
-            {requirements(pr, memberName, false)
+            {requirements(pr, memberName, false, loginName)
               .filter((r) => r.key !== "conflicts")
               .map((r) => (
                 <li key={r.key} className="flex items-start gap-2">
@@ -617,6 +639,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
               ))}
           </ul>
         </MergedNotice>
+        {unlinked}
       </div>
     );
   if (pr.state === "closed")
@@ -721,6 +744,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
           {error}
         </p>
       )}
+      {unlinked}
     </div>
   );
 }

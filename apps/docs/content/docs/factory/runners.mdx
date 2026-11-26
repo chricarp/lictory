@@ -182,7 +182,11 @@ The configuration and credential are in `~/.config/lictory-runner` on Linux,
 it), readable only by your account. `config.json` also holds
 `claudePermissionMode` (what Claude Code may do without asking, default
 `acceptEdits`), `codexSandbox` (default `workspace-write`),
-`containerImage` and `keepWorktrees`.
+`containerImage` and `keepWorktrees`. The runner reports the first two, and
+each agent's page says under **Without asking** what its harness does before
+a person is asked (for example, Claude Code in `acceptEdits` edits files
+without asking and asks before commands its settings do not allow). A runner
+older than this version does not report them, and the page says so.
 
 ### Container isolation
 

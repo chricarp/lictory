@@ -191,8 +191,9 @@ export const ChannelMessage = memo(function ChannelMessage({
         className="flex items-baseline gap-2 py-1 pr-4 pl-[3.75rem] text-[13px] text-muted-foreground"
       >
         <span>
+          {/* Lictory's own notes ("PAY-4 is Done…") are nobody's act. */}
           <span className="font-medium text-foreground">
-            {nameOf(message.authorUserId)}
+            {message.authorUserId ? nameOf(message.authorUserId) : "Lictory ·"}
           </span>{" "}
           <MessageMarkdown
             source={message.body}

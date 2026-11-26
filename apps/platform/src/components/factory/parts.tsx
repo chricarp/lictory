@@ -233,7 +233,12 @@ export function SessionRow({
               <>
                 <span aria-hidden>·</span>
                 <span className="shrink-0 tabular-nums">
-                  {finished ? "ran " : "running "}
+                  {/* A session waiting on a person is open, not running. */}
+                  {finished
+                    ? "ran "
+                    : session.status === "waiting"
+                      ? "open for "
+                      : "running "}
                   {formatDuration(ran)}
                 </span>
               </>
