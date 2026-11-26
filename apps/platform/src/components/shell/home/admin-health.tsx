@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
+import { agentSession } from "@lictory/core/contracts/state-machines";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -75,6 +76,15 @@ function Health() {
   const rows = [
     ...down.map((runner) => {
       const started = runner.lastSeenAt !== runner.registeredAt;
+      // Sessions it holds (they return to the queue when its lease runs
+      // out) or that asked for it: only then does its absence stop work.
+      const held = sessions.filter(
+        (s) =>
+          (s.runnerId === runner.id &&
+            agentSession.allows(s.status, "requeue")) ||
+          (s.requestedRunnerId === runner.id &&
+            agentSession.allows(s.status, "assign")),
+      ).length;
       return (
         <ListRow
           key={`runner:${runner.id}`}
@@ -87,7 +97,13 @@ function Health() {
           }
           meta={
             started && runner.lastSeenAt
-              ? `Last seen ${relativeTime(runner.lastSeenAt)}. Its sessions wait until it is back.`
+              ? `Last seen ${relativeTime(runner.lastSeenAt)}. ${
+                  held === 0
+                    ? "No session needs it now; start it again, or revoke it if it is retired."
+                    : held === 1
+                      ? "1 session waits until it is back."
+                      : `${held} sessions wait until it is back.`
+                }`
               : "Registered, but it has not connected since. Start lictory-runner on the machine."
           }
         />
