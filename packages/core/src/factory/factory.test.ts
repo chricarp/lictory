@@ -470,9 +470,14 @@ void test("registration tokens are single use, expire and respect who may add ru
   });
   assert.equal(first.personal, false);
   assert.ok(first.credential.startsWith("lcr_"));
-  await refused(
+  // Each refusal says whether to retype the token or create a new one.
+  await assert.rejects(
     registerRunner(db, { ...machine, token, name: "again" }),
-    "forbidden",
+    /already used/,
+  );
+  await assert.rejects(
+    registerRunner(db, { ...machine, token: `${token}x`, name: "typo" }),
+    /issued no such registration token/,
   );
   // Expired after an hour.
   const { token: late } = (await invoke(
@@ -490,6 +495,14 @@ void test("registration tokens are single use, expire and respect who may add ru
       new Date(Date.now() + 61 * 60_000),
     ),
     "forbidden",
+  );
+  await assert.rejects(
+    registerRunner(
+      db,
+      { ...machine, token: late, name: "late" },
+      new Date(Date.now() + 61 * 60_000),
+    ),
+    /expired/,
   );
   // Credentials are stored hashed and stop working once revoked.
   const [row] = await db

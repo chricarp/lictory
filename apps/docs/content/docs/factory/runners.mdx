@@ -75,14 +75,14 @@ organization's Lictory Intelligence model through the server.
 
 ## Commands
 
-| Command                          | What it does                                                          |
-| -------------------------------- | --------------------------------------------------------------------- |
-| `lictory-runner register`        | Exchanges a registration token for the runner's credential            |
-| `lictory-runner start`           | Connects and runs sessions until stopped (Ctrl-C hands them back)     |
-| `lictory-runner status`          | Shows whether the runner is running and what it is working on         |
-| `lictory-runner doctor`          | Checks the server, the credential, git, harnesses, Docker and clock   |
-| `lictory-runner install-service` | A systemd unit (Linux) or launchd agent (macOS); `--enable` starts it |
-| `lictory-runner version`         | Prints the runner's version (also `--version`)                        |
+| Command                          | What it does                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `lictory-runner register`        | Exchanges a registration token for the runner's credential                                                           |
+| `lictory-runner start`           | Connects and runs sessions until stopped (Ctrl-C hands them back)                                                    |
+| `lictory-runner status`          | Shows whether the runner is running and what it is working on (exit 0 running, 1 stopped or stuck, 2 not registered) |
+| `lictory-runner doctor`          | Checks the server, the credential, git, harnesses, Docker and clock                                                  |
+| `lictory-runner install-service` | A systemd unit (Linux) or launchd agent (macOS); `--enable` starts it                                                |
+| `lictory-runner version`         | Prints the runner's version (also `--version`)                                                                       |
 
 `lictory-runner <command> --help` (or `-h`, or
 `lictory-runner help <command>`) lists a command's options. `register` accepts `--name`,
