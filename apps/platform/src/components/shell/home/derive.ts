@@ -151,8 +151,7 @@ export function recentOutcomes<S extends OutcomeSession>(
       });
   }
   for (const session of sessions) {
-    if (session.status !== "completed" && session.status !== "failed")
-      continue;
+    if (session.status !== "completed" && session.status !== "failed") continue;
     const at = session.completedAt ?? session.updatedAt;
     if (!recent(at)) continue;
     if (

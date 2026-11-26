@@ -184,7 +184,9 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(
     page.getByRole("heading", { name: "Channels", level: 1 }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Factory", exact: true }).click();
+  await sidebar(page)
+    .getByRole("link", { name: "Factory", exact: true })
+    .click();
   await expect(page).toHaveURL(paths.factory(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Factory", level: 1, exact: true }),
@@ -329,14 +331,14 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
 });
 
 test("the sidebar keeps its place across navigation", async ({ page }) => {
-  // Short enough that Spaces sits below the fold.
+  // Short enough that the lower sections sit below the fold.
   await page.setViewportSize({ width: 1440, height: 560 });
   await signIn(page, seeded.owner.email);
   await page.goto(paths.spaces(seeded.slug));
   const nav = sidebar(page);
   const top = () => nav.evaluate((el) => el.scrollTop);
   // A space and then one of its pages, opened from the page: the sidebar
-  // never scrolls by itself, so Channels stays in view.
+  // never scrolls by itself, so the destinations at its top stay in view.
   await page
     .getByRole("main")
     .getByRole("link", { name: /Runbooks/ })
@@ -351,7 +353,7 @@ test("the sidebar keeps its place across navigation", async ({ page }) => {
   ).toBeVisible();
   expect(await top()).toBe(0);
   await expect(
-    nav.getByRole("link", { name: "All channels" }),
+    nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeInViewport();
 });
 

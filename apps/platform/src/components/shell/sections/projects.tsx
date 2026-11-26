@@ -207,83 +207,83 @@ function ProjectNav({ project }: { project: Project }) {
   return (
     <div className="space-y-0.5 pt-0.5">
       <SidebarGroup label="Refine" className="pt-1">
-      <SidebarLink
-        href={paths.proposals(org, key)}
-        active={active(paths.proposals(org, key)) || origin === "proposals"}
-        icon={<Lightbulb />}
-      >
-        Proposals
-      </SidebarLink>
-      <SidebarLink
-        href={paths.refinement(org, key)}
-        active={
-          active(paths.refinement(org, key)) ||
-          active(paths.view(org, key, "all")) ||
-          origin === "refinement"
-        }
-        icon={<FilePenLine />}
-      >
-        Refinement
-      </SidebarLink>
-      <SidebarLink
-        href={paths.reviews(org, key)}
-        active={active(paths.reviews(org, key)) || origin === "reviews"}
-        icon={<BookOpenCheck />}
-      >
-        Reviews
-      </SidebarLink>
+        <SidebarLink
+          href={paths.proposals(org, key)}
+          active={active(paths.proposals(org, key)) || origin === "proposals"}
+          icon={<Lightbulb />}
+        >
+          Proposals
+        </SidebarLink>
+        <SidebarLink
+          href={paths.refinement(org, key)}
+          active={
+            active(paths.refinement(org, key)) ||
+            active(paths.view(org, key, "all")) ||
+            origin === "refinement"
+          }
+          icon={<FilePenLine />}
+        >
+          Refinement
+        </SidebarLink>
+        <SidebarLink
+          href={paths.reviews(org, key)}
+          active={active(paths.reviews(org, key)) || origin === "reviews"}
+          icon={<BookOpenCheck />}
+        >
+          Reviews
+        </SidebarLink>
       </SidebarGroup>
       <SidebarGroup label="Deliver" className="pt-2">
-      {external ? (
-        <SidebarLink
-          href={paths.handoff(org, key)}
-          active={active(paths.handoff(org, key))}
-          icon={<Send />}
-          trailing={
-            // The link is named Hand-off; the tool is a visual hint.
-            <span
-              aria-hidden
-              className="shrink-0 text-[11px] text-muted-foreground"
-            >
-              {tool}
-            </span>
-          }
-        >
-          Hand-off
-        </SidebarLink>
-      ) : (
-        <>
+        {external ? (
           <SidebarLink
-            href={board}
-            active={pathname === board && !teamParam}
-            icon={<KanbanSquare />}
-          >
-            Board
-          </SidebarLink>
-          <SidebarLink
-            href={backlog}
-            active={
-              (pathname === backlog && !teamParam) ||
-              active(`/${org}/${key.toLowerCase()}/iterations`)
+            href={paths.handoff(org, key)}
+            active={active(paths.handoff(org, key))}
+            icon={<Send />}
+            trailing={
+              // The link is named Hand-off; the tool is a visual hint.
+              <span
+                aria-hidden
+                className="shrink-0 text-[11px] text-muted-foreground"
+              >
+                {tool}
+              </span>
             }
-            icon={<ListOrdered />}
           >
-            {project.iterationMode === "manual"
-              ? "Backlog & sprints"
-              : project.iterationMode === "automatic"
-                ? "Backlog & cycles"
-                : "Backlog"}
+            Hand-off
           </SidebarLink>
-          {/* The project's claimable work (docs/internals/claims.md). */}
-          <SidebarLink
-            href={paths.factoryQueue(org, key)}
-            active={active(paths.factoryQueue(org, key))}
-            icon={<Bot />}
-          >
-            Factory queue
-          </SidebarLink>
-        </>
-      )}
+        ) : (
+          <>
+            <SidebarLink
+              href={board}
+              active={pathname === board && !teamParam}
+              icon={<KanbanSquare />}
+            >
+              Board
+            </SidebarLink>
+            <SidebarLink
+              href={backlog}
+              active={
+                (pathname === backlog && !teamParam) ||
+                active(`/${org}/${key.toLowerCase()}/iterations`)
+              }
+              icon={<ListOrdered />}
+            >
+              {project.iterationMode === "manual"
+                ? "Backlog & sprints"
+                : project.iterationMode === "automatic"
+                  ? "Backlog & cycles"
+                  : "Backlog"}
+            </SidebarLink>
+            {/* The project's claimable work (docs/internals/claims.md). */}
+            <SidebarLink
+              href={paths.factoryQueue(org, key)}
+              active={active(paths.factoryQueue(org, key))}
+              icon={<Bot />}
+            >
+              Factory queue
+            </SidebarLink>
+          </>
+        )}
       </SidebarGroup>
       <div className="pt-2" />
       <SidebarLink

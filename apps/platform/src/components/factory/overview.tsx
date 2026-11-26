@@ -42,8 +42,7 @@ const RECENT = 20;
 
 export function FactoryOverview() {
   const { organization, userId } = useWorkspace();
-  const { agents, agentById, runners, sessions, complete } =
-    useFactory();
+  const { agents, agentById, runners, sessions, complete } = useFactory();
   // `?start=<work item id>` opens the dialog for that item (an item's page
   // links here); `?start=new` opens it empty.
   const search = useSearchParams();
@@ -123,7 +122,9 @@ export function FactoryOverview() {
                   (s) => agentById.get(s.agentId)?.name ?? "An agent",
                 ),
               ),
-            ].join(", ")} · answer in your Inbox, with reviews and page changes`}
+            ].join(
+              ", ",
+            )} · answer in your Inbox, with reviews and page changes`}
           />
         )}
       </Panel>

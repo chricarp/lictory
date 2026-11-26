@@ -118,8 +118,9 @@ function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, projects, delivery, links, userId, claimability],
   );
-  // Recomputed with synchronized changes; the window is days, so the hour
-  // it was computed in is precise enough.
+  // The window is days, so the current hour is precise enough: a stable
+  // snapshot of the clock, recomputed with synchronized changes.
+  const hour = useSyncExternalStore(noSubscribe, currentHour, () => 0);
   const outcomes = useMemo(
     () =>
       recentOutcomes(
@@ -127,12 +128,12 @@ function Home() {
           ...context,
           sessions,
           agentOwner: (id) => agentById.get(id)?.ownerId,
-          now: Date.now(),
+          now: hour * HOUR,
         },
         SHOWN,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, projects, delivery, links, userId, sessions, agentById],
+    [items, projects, delivery, links, userId, sessions, agentById, hour],
   );
   const recent = useMemo(() => {
     const active = new Set(
@@ -419,6 +420,8 @@ function ItemRow({
 }
 
 const noSubscribe = () => () => undefined;
+const HOUR = 3_600_000;
+const currentHour = () => Math.floor(Date.now() / HOUR);
 
 // Good morning / afternoon / evening, in the person's own time.
 function Greeting() {

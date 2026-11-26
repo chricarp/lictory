@@ -349,12 +349,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           ))}
         </ul>
         <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="ghost"
-            size="lg"
-            disabled={busy}
-            onClick={finish}
-          >
+          <Button variant="ghost" size="lg" disabled={busy} onClick={finish}>
             Continue without them
           </Button>
           <Button size="lg" disabled={busy} onClick={() => void retryInvites()}>
@@ -479,9 +474,9 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   </p>
                   {!directory.ai.available && (
                     <p>
-                      This server has no AI provider configured yet, so
-                      Lictory Intelligence starts off. If you enable it, it
-                      runs once an operator configures a provider.
+                      This server has no AI provider configured yet, so Lictory
+                      Intelligence starts off. If you enable it, it runs once an
+                      operator configures a provider.
                     </p>
                   )}
                   <p>
@@ -665,9 +660,9 @@ function Invites({
       </ul>
       {value.length > 0 && (
         <p className="mt-4 text-xs text-muted-foreground">
-          They join {project} as members and can read and discuss its work.
-          Give them a discipline (Product, Engineering, QA) in the project’s
-          settings → Members so they can edit and review specs.
+          They join {project} as members and can read and discuss its work. Give
+          them a discipline (Product, Engineering, QA) in the project’s settings
+          → Members so they can edit and review specs.
         </p>
       )}
     </div>

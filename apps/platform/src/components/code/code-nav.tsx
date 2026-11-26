@@ -72,7 +72,9 @@ export const codePalette: PaletteProvider = {
       if (!typed) return [];
       const org = organization.slug;
       const byUpdate = <T extends { hostUpdatedAt: string }>(rows: T[]) =>
-        [...rows].sort((a, b) => b.hostUpdatedAt.localeCompare(a.hostUpdatedAt));
+        [...rows].sort((a, b) =>
+          b.hostUpdatedAt.localeCompare(a.hostUpdatedAt),
+        );
       return [...byUpdate(open.rows), ...byUpdate(merged.rows)].map(
         (pr): PaletteEntry => ({
           id: `pull-request-${pr.id}`,
@@ -84,7 +86,8 @@ export const codePalette: PaletteProvider = {
             ) : (
               <GitPullRequest className="size-4" />
             ),
-          keywords: `pull request code #${pr.number} ${pr.headBranch} ${pr.state}`.toLowerCase(),
+          keywords:
+            `pull request code #${pr.number} ${pr.headBranch} ${pr.state}`.toLowerCase(),
           href: codePaths.pullRequest(org, pr.id),
         }),
       );

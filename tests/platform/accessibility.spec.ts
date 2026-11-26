@@ -426,7 +426,10 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await scan(`${scheme}: inbox`);
     // The request opened in place, with its context.
     const todo = page.getByRole("list", { name: "Waiting on you" });
-    await todo.getByRole("button", { name: /^Review/ }).first().click();
+    await todo
+      .getByRole("button", { name: /^Review/ })
+      .first()
+      .click();
     await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
     await scan(`${scheme}: inbox with a request open`);
 

@@ -45,10 +45,12 @@ export const SUPPORTED_PROTOCOL_VERSIONS = [
 ];
 // The release this server runs (the image's APP_VERSION), so clients and
 // support can tell which Lictory answered.
+// A source checkout sets none (or an empty value).
+const release = process.env.APP_VERSION?.trim() ?? "";
 const SERVER_INFO = {
   name: "lictory",
   title: "Lictory",
-  version: process.env.APP_VERSION?.trim() || "development",
+  version: release.length > 0 ? release : "development",
 };
 const EVENTS_EXTENSION = "io.modelcontextprotocol/events";
 const CAPABILITIES = {

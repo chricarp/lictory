@@ -107,55 +107,55 @@ export function SyncStatus() {
       <span role="status" className="sr-only">
         {problemShown ? label : ""}
       </span>
-    <Popover
-      width={300}
-      // Opens over the sidebar it belongs to, not over the page's content.
-      side={compact ? "right" : "top"}
-      align="end"
-      trigger={(props) => (
-        <button
-          {...props}
-          // The visible word starts the name (WCAG 2.5.3).
-          aria-label={word && word !== label ? `${word}. ${label}` : label}
-          title={label}
-          data-sync-status={presentation}
-          data-pending={pending.length}
-          className={cn(
-            "flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-            word ? "px-2 text-xs font-medium" : "w-7",
-            presentation === "idle" && "text-muted-foreground/70",
-            recovering && "text-muted-foreground",
-            presentation === "offline" && "text-warning",
-            (presentation === "attention" || presentation === "access") &&
-              "text-destructive",
-            word &&
-              (presentation === "offline"
-                ? "bg-warning/10"
-                : presentation === "recovering"
-                  ? "bg-muted"
-                  : "bg-destructive/10"),
-          )}
-        >
-          <Icon
-            aria-hidden
+      <Popover
+        width={300}
+        // Opens over the sidebar it belongs to, not over the page's content.
+        side={compact ? "right" : "top"}
+        align="end"
+        trigger={(props) => (
+          <button
+            {...props}
+            // The visible word starts the name (WCAG 2.5.3).
+            aria-label={word && word !== label ? `${word}. ${label}` : label}
+            title={label}
+            data-sync-status={presentation}
+            data-pending={pending.length}
             className={cn(
-              "size-4 shrink-0",
-              recovering &&
-                "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
+              "flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+              word ? "px-2 text-xs font-medium" : "w-7",
+              presentation === "idle" && "text-muted-foreground/70",
+              recovering && "text-muted-foreground",
+              presentation === "offline" && "text-warning",
+              (presentation === "attention" || presentation === "access") &&
+                "text-destructive",
+              word &&
+                (presentation === "offline"
+                  ? "bg-warning/10"
+                  : presentation === "recovering"
+                    ? "bg-muted"
+                    : "bg-destructive/10"),
             )}
-          />
-          {word && <span aria-hidden>{word}</span>}
-        </button>
-      )}
-    >
-      <SyncPanel
-        presentation={presentation}
-        count={pending.length}
-        errors={errors}
-        reconnect={reconnect}
-        recoverable={recoverable}
-      />
-    </Popover>
+          >
+            <Icon
+              aria-hidden
+              className={cn(
+                "size-4 shrink-0",
+                recovering &&
+                  "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
+              )}
+            />
+            {word && <span aria-hidden>{word}</span>}
+          </button>
+        )}
+      >
+        <SyncPanel
+          presentation={presentation}
+          count={pending.length}
+          errors={errors}
+          reconnect={reconnect}
+          recoverable={recoverable}
+        />
+      </Popover>
     </>
   );
 }
