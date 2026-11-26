@@ -165,7 +165,10 @@ export function useStoredDraft(draft: string) {
   return [value, set] as const;
 }
 
-// The panel on narrow frames: a modal sheet from the bottom. It takes focus
+// The panel on narrow frames (phones): a modal sheet from the bottom, never
+// taller than 60% of the screen and over a light scrim, so the title and the
+// text above it stay readable. Wider frames dock the panel beside the text
+// instead (the item page from ~664px). It takes focus
 // when it opens, keeps Tab inside, closes with Escape (unless a control inside
 // handled the key and prevented its default) and returns focus to what opened
 // it.
@@ -196,7 +199,7 @@ export function DiscussionSheet({
       }}
       container={popupContainer()}
     >
-      <DialogBackdrop className="fixed inset-0 z-50 bg-black/30" />
+      <DialogBackdrop className="fixed inset-0 z-50 bg-black/15" />
       <DialogContent
         ref={panel}
         aria-label={label}
@@ -206,7 +209,7 @@ export function DiscussionSheet({
             ? (document.activeElement as HTMLElement)
             : panel.current
         }
-        className="fixed inset-x-0 top-auto bottom-0 z-50 mx-auto my-0 block max-h-[85dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl rounded-b-none border-0 bg-background px-4 pt-0 pb-4 text-base text-foreground shadow-(--shadow-panel) outline-none"
+        className="fixed inset-x-0 top-auto bottom-0 z-50 mx-auto my-0 block max-h-[60dvh] w-full max-w-xl overflow-y-auto overscroll-contain rounded-t-2xl rounded-b-none border-0 bg-background px-4 pt-0 pb-4 text-base text-foreground shadow-(--shadow-panel) outline-none"
       >
         {children}
       </DialogContent>

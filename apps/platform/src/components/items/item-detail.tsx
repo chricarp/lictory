@@ -354,7 +354,10 @@ export function ItemDetail({
   // its last width while discussions hold its place).
   const [railElement, setRailElement] = useState<HTMLElement | null>(null);
   const railWidth = useElementWidth(railElement);
-  const wide = frameWidth >= DISCUSSIONS_WIDTH + READABLE;
+  // Docked down to a narrower text than the list and rail make room for: a
+  // sheet over the specification hides the passage being discussed, which
+  // costs more than a shorter line (200% zoom on a laptop is ~720px).
+  const wide = frameWidth >= DISCUSSIONS_WIDTH + DOCKED_READABLE;
   const room = (list: number, rail: number) =>
     frameWidth - list - rail - DISCUSSIONS_WIDTH;
   const roomy = room(listWidth, railWidth) >= ROOMY;
@@ -1412,6 +1415,8 @@ const DISCUSSIONS_WIDTH = 304;
 const DISCUSSIONS_EXTRA = 88;
 const COMFORTABLE = 680;
 const READABLE = 420;
+// The narrowest text discussions still sit beside; below it they are a sheet.
+const DOCKED_READABLE = 360;
 const ROOMY = 640;
 
 // Discussions beside the specification: 304px to 392px by the room the

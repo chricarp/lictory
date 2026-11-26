@@ -479,6 +479,29 @@ test("a wide discussions column chosen earlier gives way so the text keeps its r
   expect(await width("aside[data-discussions]")).toBeGreaterThanOrEqual(304);
 });
 
+test("at 200% zoom on a laptop the discussions stay beside the text instead of covering it", async ({
+  page,
+}) => {
+  // 1440×900 at 200% zoom lays out as 720×450 CSS pixels.
+  await page.setViewportSize({ width: 720, height: 450 });
+  const { path } = await open(page);
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  await expect(page.getByRole("dialog", { name: "Discussions" })).toHaveCount(
+    0,
+  );
+  await expect(page.locator("aside[data-discussions]")).toBeVisible();
+  const textWidth = await page
+    .locator("[data-pane-document]")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(textWidth).toBeGreaterThanOrEqual(360);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(720);
+});
+
 test("on a phone the discussions open as a sheet that closes with Escape", async ({
   page,
 }) => {
