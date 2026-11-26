@@ -473,7 +473,7 @@ const mergeCodePullRequest = defineCapability({
   name: "mergeCodePullRequest",
   decision: true,
   title: "Merge a pull request",
-  description: `Merge a pull request on its code host, only when the person explicitly asked to. \`expectedHeadSha\` is the head commit the person reviewed: the merge is refused if new commits arrived. Lictory also refuses a draft, failing or running checks, requested changes and conflicts (getCodePullRequest lists them as mergeBlockers); the host's branch protection applies on top. ${codePullRequest.rule("merge")} Needs “Change properties” in a project the repository serves.`,
+  description: `Merge a pull request on its code host, only when the person explicitly asked to. \`expectedHeadSha\` is the head commit the person reviewed: the merge is refused if new commits arrived. Lictory also refuses a draft, failing or running checks, requested changes (on the host or in a review recorded in Lictory), conflicts, and a head the host reported no checks for when the work it delivers requires CI in its Definition of Done (getCodePullRequest lists them as mergeBlockers); the host's branch protection applies on top. ${codePullRequest.rule("merge")} Needs “Change properties” in a project the repository serves.`,
   kind: "command",
   surfaces: everywhere,
   external: true,
