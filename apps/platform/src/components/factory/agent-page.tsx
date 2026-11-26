@@ -203,8 +203,13 @@ function About({ agent }: { agent: AgentEntity }) {
   const facts: [string, ReactNode][] = [
     [
       "Owner",
-      <span key="owner" className="inline-flex items-center gap-1.5">
-        <Actor userId={agent.ownerId} size={16} />
+      // The accountable person is never the part that is cut: on a
+      // narrow screen the explanation wraps below the name instead.
+      <span
+        key="owner"
+        className="inline-flex flex-wrap items-center gap-x-1.5"
+      >
+        <Actor userId={agent.ownerId} size={16} className="shrink-0" />
         <span className="text-muted-foreground">
           · acts with their permissions
         </span>

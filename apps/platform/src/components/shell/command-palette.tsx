@@ -14,7 +14,12 @@ import {
   CommandItem,
   CommandList,
 } from "@ui-sdk/react/command";
-import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+} from "@ui-sdk/react/dialog";
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
@@ -38,6 +43,7 @@ import {
   Settings2,
   Sun,
   UserRound,
+  X,
 } from "lucide-react";
 import type { Appearance } from "@lictory/core/lib/appearance";
 import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
@@ -904,7 +910,17 @@ export function CommandPalette({
                 onClose();
               }}
             />
-            <Kbd>esc</Kbd>
+            {/* A keyboard names its way out; a touch screen has no
+                Escape key, so it gets a Close button instead. */}
+            <span className="max-sm:hidden [@media(pointer:coarse)]:hidden">
+              <Kbd>esc</Kbd>
+            </span>
+            <DialogClose
+              aria-label="Close"
+              className="hidden shrink-0 place-items-center rounded-md p-1 text-muted-foreground focus-ring outline-none hover:bg-muted max-sm:grid [@media(pointer:coarse)]:grid"
+            >
+              <X className="size-4" aria-hidden />
+            </DialogClose>
           </div>
           {results.length === 0 && content.status !== "loading" && (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">

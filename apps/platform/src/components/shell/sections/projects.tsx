@@ -106,7 +106,9 @@ function ProjectSwitcher({
             title={compact ? (project?.name ?? "Choose project") : undefined}
             className={cn(
               "flex min-w-0 items-center gap-2 rounded-lg text-left text-[13px] focus-ring outline-none hover:bg-sidebar-accent/70",
-              compact ? "size-8 justify-center" : "h-[30px] flex-1 px-1.5",
+              compact
+                ? "size-8 justify-center"
+                : "h-7 flex-1 px-1.5 [@media(pointer:coarse)]:h-8",
             )}
           >
             {project ? (
