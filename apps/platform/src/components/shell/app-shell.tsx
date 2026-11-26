@@ -646,6 +646,8 @@ function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
       size="icon"
       aria-label="Open navigation"
       aria-describedby={waiting ? waitingId : undefined}
+      // The dot's meaning in words, for a pointer that hovers.
+      title={waiting ? "Something waits on you" : undefined}
       className="relative size-8 shrink-0"
       onClick={onMenu}
     >
@@ -657,7 +659,7 @@ function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
           aria-hidden
           className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
         >
-          <span className="sr-only">Unread activity</span>
+          <span className="sr-only">Something waits on you</span>
         </span>
       )}
     </Button>
