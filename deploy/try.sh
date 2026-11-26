@@ -33,7 +33,8 @@ main() {
   dir="${LICTORY_TRY_DIR:-$HOME/lictory-try}"
   admin_email="${LICTORY_ADMIN_EMAIL:-admin@example.com}"
   organization="${LICTORY_ORGANIZATION:-Evaluation}"
-  [ "$#" -eq 0 ] || fail "try.sh takes no arguments; stop or remove the trial with the docker compose commands it prints."
+  case "${1:-}" in -h | --help) usage; return 0 ;; esac
+  [ "$#" -eq 0 ] || fail "try.sh takes no arguments (--help explains it); stop or remove the trial with the docker compose commands it prints."
 
   say "Lictory trial: for evaluation on this computer, not for production."
   check_docker
@@ -439,6 +440,25 @@ set_key() {
 value_of() { grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
 secret() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
 
+usage() {
+  cat <<'EOF'
+Usage: curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+
+Runs Lictory on this computer for evaluation, from a published release, with
+Docker: http://localhost, Mailpit for email and a first administrator. Run it
+again to start a stopped trial or move it to the newest release; the data
+stays. NOT FOR PRODUCTION: servers use get.sh and `lictory install`.
+
+Settings are environment variables (curl … | LICTORY_TRY_PORT=8080 sh):
+  LICTORY_VERSION         a release such as 0.24.0 (default: the newest stable)
+  LICTORY_TRY_DIR         where the trial lives (default ~/lictory-try)
+  LICTORY_TRY_PORT        port of http://localhost (default 80, else 8080…)
+  LICTORY_TRY_MAIL_PORT   port of the Mailpit inbox (default 8025, else 8026…)
+  LICTORY_ADMIN_EMAIL     the first administrator (default admin@example.com)
+  LICTORY_ADMIN_PASSWORD  their password (default: generated and printed)
+  LICTORY_ORGANIZATION    the organization they own (default Evaluation)
+EOF
+}
 say() { printf '%s\n' "$*"; }
 step() { printf '  %s… ' "$*"; }
 done_step() { printf 'done\n'; }
