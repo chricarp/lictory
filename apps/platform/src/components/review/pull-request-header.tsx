@@ -48,6 +48,7 @@ export function PullRequestHeader({
   number,
   state,
   author,
+  mergedBy,
   commits,
   base,
   head,
@@ -64,6 +65,9 @@ export function PullRequestHeader({
   state: PullRequestState;
   // Who opened it: an `Actor`, or an `AgentActor` for agent-authored work.
   author: ReactNode;
+  // Who merged it, when not the author (a person merging an agent's work,
+  // Autopilot): the sentence names them and says who opened it after.
+  mergedBy?: ReactNode;
   // How many commits it merges, when known.
   commits?: number;
   // The branch it merges into, and the branch it merges from.
@@ -85,6 +89,7 @@ export function PullRequestHeader({
   className?: string;
 }) {
   const Heading = ({ 1: "h1", 2: "h2", 3: "h3" } as const)[headingLevel];
+  const merger = state === "merged" ? mergedBy : undefined;
   return (
     <header data-pull-request-header className={cn("min-w-0", className)}>
       <Heading className="text-xl leading-7 font-semibold tracking-[-0.01em] wrap-break-word">
@@ -98,7 +103,7 @@ export function PullRequestHeader({
       <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-[13px] text-muted-foreground [--actor-ring:var(--background)]">
         <PullRequestStateChip state={state} />
         <span className="inline-flex min-w-0 items-center font-medium text-foreground">
-          {author}
+          {merger ?? author}
         </span>
         <span>
           {state === "merged" ? "merged" : "wants to merge"}
@@ -107,6 +112,15 @@ export function PullRequestHeader({
         <BranchChip name={base} />
         <span>from</span>
         <BranchChip name={head} muted={headGone} onClick={onHeadClick} />
+        {merger && (
+          <>
+            <span aria-hidden>·</span>
+            <span>opened by</span>
+            <span className="inline-flex min-w-0 items-center font-medium text-foreground">
+              {author}
+            </span>
+          </>
+        )}
         {meta}
       </p>
       {tabs && <div className="mt-4">{tabs}</div>}

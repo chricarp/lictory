@@ -463,6 +463,11 @@ function PullRequestDetail({
           title={pr.title}
           state={pr.status}
           author={<Actor userId={pr.authorId} size={20} />}
+          mergedBy={
+            pr.mergedById && pr.mergedById !== pr.authorId ? (
+              <Actor userId={pr.mergedById} size={20} />
+            ) : undefined
+          }
           base={targetName}
           head={sourceName}
           className="flex-1"

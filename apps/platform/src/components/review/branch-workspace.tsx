@@ -2452,6 +2452,11 @@ function PullRequestView({
         title={p.title}
         state={p.status}
         author={<Actor userId={p.authorId} size={20} />}
+        mergedBy={
+          mergeActivity && mergeActivity.actorId !== p.authorId ? (
+            <Actor userId={mergeActivity.actorId} size={20} />
+          ) : undefined
+        }
         commits={sourceHistory.length || shownHistory.length}
         base={targetName}
         head={sourceName}

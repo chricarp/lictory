@@ -122,6 +122,34 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
         "Nothing blocks merging into main, but nobody approved it.",
       ),
     ).toBeVisible();
+    // Each check links to its run on the host.
+    await expect(
+      ben.page
+        .locator("[data-merge-box]")
+        .getByRole("link", { name: /^ci \(/ }),
+    ).toBeVisible();
+    // The engineer reviews the head in Lictory: recorded for that commit,
+    // counted by the merge box, and shown on GitHub signed.
+    await ben.page
+      .getByRole("textbox", { name: "Comment" })
+      .fill("Read the refund path; the transaction id is reused.");
+    await ben.page.getByRole("button", { name: "Approve" }).click();
+    const box = ben.page.locator("[data-merge-box]");
+    await expect(box.getByText(/^Approved at [0-9a-f]{7}\.$/)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(box.getByText("By Ben Engineer.")).toBeVisible();
+    await expect(
+      ben.page.getByRole("region", { name: "Reviews in Lictory" }),
+    ).toContainText("Ben Engineer");
+    // The board's card shows the pull request waiting to merge.
+    await ada.page.goto(seeded.projectPath("/board"));
+    await expect(
+      ada.page
+        .locator("[data-pull-request-chip]")
+        .filter({ hasText: "#1" })
+        .first(),
+    ).toHaveAttribute("title", "Pull request #1, checks passed, approved");
     // Opening the files view reads them from the host.
     await ben.page.getByRole("tab", { name: "Files changed" }).click();
     await expect(ben.page.getByText("src/refunds.ts")).toBeVisible();
@@ -131,6 +159,13 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await expect(ben.page.getByText("Merged", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
+    // The header names who merged it, and who opened it after.
+    await expect(ben.page.locator("[data-pull-request-header]")).toContainText(
+      /Ben Engineer\s*merged into/,
+    );
+    await expect(ben.page.locator("[data-pull-request-header]")).toContainText(
+      "opened by",
+    );
     const pulls = (await github(`/__fake/repos/${repository}/pulls`)) as {
       state: string;
     }[];

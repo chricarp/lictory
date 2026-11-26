@@ -362,8 +362,12 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     // The merge box counts the same evidence: CI and Hawk's approval.
     const box = second.page.locator("[data-merge-box]");
     await expect(box.getByText("Checks passed.")).toBeVisible();
-    await expect(box.getByText(/^Approved in Lictory at /)).toBeVisible();
+    await expect(box.getByText(/^Approved at /)).toBeVisible();
     await expect(box.getByText(/By Hawk via Bo/)).toBeVisible();
+    // Allowed by the policy, and said plainly: only an agent read the code.
+    await expect(
+      box.getByText(/No person has reviewed this code\./),
+    ).toBeVisible();
     await second.page
       .getByRole("button", { name: "Merge", exact: true })
       .click();
@@ -373,6 +377,10 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     await expect(second.page.getByText("Merged", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
+    // The header names Bo, who merged it, not the agent that opened it.
+    const header = second.page.locator("[data-pull-request-header]");
+    await expect(header).toContainText(/Bo\s*merged into/);
+    await expect(header).toContainText(/opened by.*Forge/);
   } finally {
     await second.context.close();
   }
@@ -454,4 +462,8 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
   ).toBeVisible();
   // What the merge rested on stays on the page.
   await expect(merged.getByText("Checks passed.")).toBeVisible();
+  // The header names Autopilot as the merger, and the agent as the opener.
+  const header = page.locator("[data-pull-request-header]");
+  await expect(header).toContainText(/Autopilot\s*merged into/);
+  await expect(header).toContainText(/opened by.*Forge/);
 });

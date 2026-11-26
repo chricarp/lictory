@@ -6,12 +6,17 @@ import {
   Bot,
   MessagesSquare,
 } from "lucide-react";
-import type { DoneEvaluationEntity } from "@lictory/core/claims/contracts";
+import {
+  doneCheckLabel,
+  effectiveDoneChecks,
+  type DoneEvaluationEntity,
+} from "@lictory/core/claims/contracts";
 import type { CodePullRequestEntity } from "@lictory/core/code/entities";
 import type { Entity, WorkItem } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import {
+  byType,
   identifier,
   refinementMeta,
   relativeTime,
@@ -75,7 +80,11 @@ export function PullRequestEvidence({ pr }: { pr: CodePullRequestEntity }) {
 // (the item's own, or its parent's for a Task or Subtask) with its
 // readiness, the accepted revision, and the Definition of Done.
 function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
-  const { organization, items, projects, delivery } = useWorkspace();
+  const { organization, items, projects, delivery, view } = useWorkspace();
+  const definition = byType(
+    Object.values(view.entities),
+    "definitionOfDone",
+  ).find((d) => d.projectId === project.id);
   // The item's own rows (its Definition of Done evaluation) load with it.
   const { entities } = useItemView(item.id);
   const done = entities.find(
@@ -202,18 +211,30 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
           ) : category === "canceled" ? (
             <span className={muted}>Canceled</span>
           ) : (
-            <span className={muted}>
-              Evaluated once the item is in progress
-            </span>
+            <span className={muted}>Not started yet</span>
           )}
         </Fact>
       </dl>
+      {!done &&
+        !delivered &&
+        category !== "done" &&
+        category !== "canceled" && (
+          // What Done will need, checked from when work starts.
+          <ul
+            aria-label={`What Done needs for ${key}`}
+            className="mt-2 space-y-0.5 text-xs text-muted-foreground"
+          >
+            {effectiveDoneChecks(definition).map((c) => (
+              <li key={c.id}>Done needs: {doneCheckLabel(c)}</li>
+            ))}
+          </ul>
+        )}
       {done && done.checks.some((c) => !c.passed) && (
         <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
           {done.checks
             .filter((c) => !c.passed)
             .map((c) => (
-              <li key={c.key} className="truncate" title={c.detail}>
+              <li key={c.key} title={c.detail}>
                 Not yet: {c.label}
               </li>
             ))}
@@ -273,8 +294,8 @@ function AgentSession({ sessionId }: { sessionId: string }) {
   );
 }
 
-// Reviews recorded in Lictory (agents' reviews), bound to the head commit
-// they read: a review of an older head no longer counts.
+// Reviews recorded in Lictory (people's and agents'), bound to the head
+// commit they read: a review of an older head no longer counts.
 function LictoryReviews({ pr }: { pr: CodePullRequestEntity }) {
   const { agentById } = useFactory();
   return (
