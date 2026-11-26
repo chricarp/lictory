@@ -21,6 +21,7 @@ import {
 import { Button } from "@lictory/ui/button";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import {
   RefinementIcon,
   StatusIcon,
@@ -81,10 +82,18 @@ export function ItemWorkflow({
   // Boards and backlogs show implementation work; higher levels are
   // delivered through their children.
   const container = native && isTopLevel(type);
+  const tool = projectDeliveryTool(directory, project.id);
+  // In an external project the delivery tool owns delivery status: its own
+  // words lead, named as its.
+  const externalStatus =
+    !native && delivering && link?.externalStatus
+      ? `${link.externalStatus} in ${tool.name}`
+      : null;
   const label =
-    type.hasSpecification || delivering
+    externalStatus ??
+    (type.hasSpecification || delivering
       ? labels[stage]
-      : "Ready to plan the work";
+      : "Ready to plan the work");
   const agreed = native
     ? item.committedRevisionNumber
     : link?.publishedRevisionNumber;
@@ -103,9 +112,11 @@ export function ItemWorkflow({
           : stage === "completed"
             ? "The delivered revision and its history stay here. Later changes are refined as a new revision."
             : stage === "committed" || stage === "underway"
-              ? container
-                ? "Delivery happens through the work below. Changes to the specification stay reviewable here."
-                : "Track the work in Delivery. Changes to the specification stay reviewable here."
+              ? !native
+                ? `${tool.Name} owns its delivery status and assignee; Lictory reads them back. Changes to the specification stay reviewable here.`
+                : container
+                  ? "Delivery happens through the work below. Changes to the specification stay reviewable here."
+                  : "Track the work in Delivery. Changes to the specification stay reviewable here."
               : stage === "canceled"
                 ? "The specification, reviews and decisions remain available for reference."
                 : nextRefinementAction(item);
@@ -261,34 +272,44 @@ export function ItemWorkflow({
       )}
     </>
   );
-  const deliveryEvidence = native && item.committedRevisionNumber != null && (
-    <>
-      {status && (
-        <li>
-          <Pill tone={status.category === "done" ? "good" : "neutral"}>
-            <StatusIcon
-              category={status.category}
-              color={status.color}
-              className="size-3"
-            />
-            {status.name}
-          </Pill>
-        </li>
-      )}
+  const handedOff =
+    !native && link?.externalKey && link.publishedRevisionNumber != null ? (
       <li>
         <Pill tone="neutral">
-          Accepted revision {item.committedRevisionNumber}
+          Handed off revision {link.publishedRevisionNumber}
         </Pill>
       </li>
-      {item.deliveredRevisionNumber != null && (
+    ) : null;
+  const deliveryEvidence =
+    handedOff ??
+    (native && item.committedRevisionNumber != null && (
+      <>
+        {status && (
+          <li>
+            <Pill tone={status.category === "done" ? "good" : "neutral"}>
+              <StatusIcon
+                category={status.category}
+                color={status.color}
+                className="size-3"
+              />
+              {status.name}
+            </Pill>
+          </li>
+        )}
         <li>
-          <Pill tone="good">
-            Delivered revision {item.deliveredRevisionNumber}
+          <Pill tone="neutral">
+            Accepted revision {item.committedRevisionNumber}
           </Pill>
         </li>
-      )}
-    </>
-  );
+        {item.deliveredRevisionNumber != null && (
+          <li>
+            <Pill tone="good">
+              Delivered revision {item.deliveredRevisionNumber}
+            </Pill>
+          </li>
+        )}
+      </>
+    ));
   const evidence = (
     <dl className="grid gap-1.5 text-[11.5px] sm:gap-2">
       {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}
