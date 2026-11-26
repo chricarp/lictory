@@ -451,10 +451,13 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
     await scan(`${scheme}: inbox with a request open`);
 
-    // The factory says how many requests wait and points to the Inbox.
+    // The factory lists the same requests as the Inbox, answered in place.
     await page.goto(paths.factory(seeded.slug));
     const needs = page.getByRole("region", { name: "Needs you" });
-    await expect(needs.getByRole("link", { name: /wait/ })).toHaveAttribute(
+    await expect(
+      needs.getByRole("button", { name: /^Review/ }).first(),
+    ).toBeVisible();
+    await expect(needs.getByRole("link", { name: /Inbox/ })).toHaveAttribute(
       "href",
       paths.inbox(seeded.slug, "todo"),
     );

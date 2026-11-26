@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useSearchParams } from "@lictory/platform/lib/navigation";
-import { Box, CircleOff, Laptop, Plus, Server, Trash2 } from "lucide-react";
+import {
+  Box,
+  CircleOff,
+  Laptop,
+  Plus,
+  Server,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   runnerOnline,
   type RunnerEntity,
+  type SessionEntity,
 } from "@lictory/core/factory/entities";
 import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
@@ -20,7 +29,11 @@ import { toast } from "@lictory/ui/toast";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { osLabel } from "@lictory/platform/components/factory/labels";
-import { FactoryPage } from "@lictory/platform/components/factory/parts";
+import {
+  FactoryPage,
+  SessionRow,
+} from "@lictory/platform/components/factory/parts";
+import { runnerVersionSkew } from "@lictory/platform/components/factory/runner-version";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { useFactory } from "@lictory/platform/components/factory/store";
@@ -45,6 +58,11 @@ export function FactoryRunners() {
         s.runnerId === runner.id &&
         ["assigned", "running", "waiting"].includes(s.status),
     ).length;
+  // Runners on an older release than the server: said once, above the
+  // lists, and on each row.
+  const behind = active.filter(
+    (r) => runnerVersionSkew(r.version, APP_VERSION) === "behind",
+  );
   const organization = active.filter((r) => !r.personal);
   const personal = active.filter((r) => r.personal);
   const online = active.filter((r) => runnerOnline(r)).length;
@@ -53,6 +71,10 @@ export function FactoryRunners() {
       key={runner.id}
       runner={runner}
       sessions={busy(runner)}
+      recent={sessions
+        .filter((s) => s.runnerId === runner.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, RECENT_SESSIONS)}
       owner={runner.ownerId ? memberName(runner.ownerId) : null}
       canRevoke={
         runner.ownerId ? runner.ownerId === userId || isAdmin : isAdmin
@@ -93,6 +115,26 @@ export function FactoryRunners() {
         </MissingState>
       ) : (
         <>
+          {behind.length > 0 && (
+            <div
+              role="status"
+              data-runners-behind
+              className="flex items-start gap-3 rounded-xl bg-warning/8 px-4 py-3 text-[13px] ring-1 ring-warning/25 ring-inset"
+            >
+              <TriangleAlert
+                aria-hidden
+                className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+              />
+              <span>
+                {behind.length === 1
+                  ? `${behind[0]!.name} runs`
+                  : `${behind.length} runners run`}{" "}
+                an older release than this server (v{APP_VERSION}). Update{" "}
+                {behind.length === 1 ? "it" : "them"}: rerun the installer on
+                the machine, then restart its service.
+              </span>
+            </div>
+          )}
           <Panel
             title="Organization runners"
             count={organization.length}
@@ -143,18 +185,26 @@ function Capacity({ used, max }: { used: number; max: number }) {
   );
 }
 
+// How many of a runner's sessions its detail lists.
+const RECENT_SESSIONS = 5;
+
 function RunnerRow({
   runner,
   sessions,
+  recent,
   owner,
   canRevoke,
 }: {
   runner: RunnerEntity;
   sessions: number;
+  // Its latest sessions, newest first.
+  recent: SessionEntity[];
   owner: string | null;
   canRevoke: boolean;
 }) {
   const { organization } = useWorkspace();
+  const { agentById } = useFactory();
+  const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const online = runnerOnline(runner);
   const revoke = async () => {
@@ -176,31 +226,43 @@ function RunnerRow({
   // Registering is the runner's first contact; a runner that has not
   // connected since was registered but never started.
   const started = runner.lastSeenAt !== runner.registeredAt;
+  const behind = runnerVersionSkew(runner.version, APP_VERSION) === "behind";
+  const harnesses = runner.harnesses.length
+    ? runner.harnesses
+        .map((h) => harnessLabels[h.id as HarnessId] ?? h.id)
+        .join(", ")
+    : "No harness found";
   return (
     <>
       <ListRow
-        // Phones keep the name: the time gives way. The time has a fixed
-        // width so the chips line up from row to row.
+        // Phones keep the name: the time gives way (the detail has it). The
+        // time has a fixed width so the chips line up from row to row.
         className="max-sm:[&>time]:hidden sm:[&>time]:w-28 sm:[&>time]:text-right"
+        onClick={() => setOpen((o) => !o)}
+        expanded={open}
         leading={<Icon aria-hidden className="text-muted-foreground" />}
         title={<span className="font-medium">{runner.name}</span>}
         meta={
           <>
             {owner && <span className="shrink-0">{owner}’s</span>}
             {owner && <span aria-hidden>·</span>}
-            <span className="shrink-0">
+            <span className="shrink-0 max-sm:hidden">
               {osLabel(runner.os)} {runner.arch}
             </span>
-            <span aria-hidden>·</span>
-            <span className="truncate">
-              {runner.harnesses.length
-                ? runner.harnesses
-                    .map((h) => harnessLabels[h.id as HarnessId] ?? h.id)
-                    .join(", ")
-                : "No harness found"}
+            <span aria-hidden className="max-sm:hidden">
+              ·
             </span>
+            <span className="truncate">{harnesses}</span>
             {runner.version && (
-              <span className="shrink-0 font-mono">v{runner.version}</span>
+              <span
+                className={cn(
+                  "shrink-0 font-mono",
+                  behind &&
+                    "text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]",
+                )}
+              >
+                v{runner.version}
+              </span>
             )}
           </>
         }
@@ -208,8 +270,21 @@ function RunnerRow({
           <>
             <Capacity used={sessions} max={runner.maxSessions} />
             {runner.isolation === "container" && (
-              <StatusChip tone="neutral" icon={<Box />}>
+              <StatusChip
+                tone="neutral"
+                icon={<Box />}
+                className="max-sm:hidden"
+              >
                 Containers
+              </StatusChip>
+            )}
+            {behind && (
+              <StatusChip
+                tone="attention"
+                icon={<TriangleAlert />}
+                title={`It runs v${runner.version}; the server runs v${APP_VERSION}.`}
+              >
+                Update
               </StatusChip>
             )}
             <span className="flex sm:w-24">
@@ -250,7 +325,7 @@ function RunnerRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8"
+                className="size-8 max-sm:hidden"
                 onClick={() => setConfirming(true)}
                 aria-label={`Remove ${runner.name}…`}
               >
@@ -260,6 +335,97 @@ function RunnerRow({
           ) : undefined
         }
       />
+      {open && (
+        <li data-runner-detail className="bg-muted/30 px-3.5 py-3 sm:pl-[46px]">
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+            <Fact label="State">
+              {online
+                ? `Online, seen ${relativeTime(runner.lastSeenAt!)}`
+                : !started
+                  ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
+                  : runner.lastSeenAt
+                    ? `Offline since ${new Date(runner.lastSeenAt).toLocaleString()}. Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
+                    : "It has never connected."}
+            </Fact>
+            <Fact label="Machine">
+              {[runner.hostname, `${osLabel(runner.os)} ${runner.arch}`]
+                .filter(Boolean)
+                .join(" · ")}
+            </Fact>
+            <Fact label="Version">
+              <span className="font-mono">
+                {runner.version ? `v${runner.version}` : "Unknown"}
+              </span>
+              {behind
+                ? `: older than this server (v${APP_VERSION}). Rerun the installer on the machine, then restart its service.`
+                : ""}
+            </Fact>
+            <Fact label="Harnesses">
+              {runner.harnesses.length
+                ? runner.harnesses
+                    .map(
+                      (h) =>
+                        `${harnessLabels[h.id as HarnessId] ?? h.id}${h.version ? ` ${h.version}` : ""}`,
+                    )
+                    .join(", ")
+                : "None found on the machine: install Claude Code or Codex there, then restart the runner."}
+            </Fact>
+            <Fact label="Isolation">
+              {runner.isolation === "container"
+                ? "Each session runs in a container, in its own git worktree."
+                : "Each session runs on the machine as the runner’s account, in its own git worktree."}
+            </Fact>
+            <Fact label="Labels">
+              {runner.labels.length ? (
+                <span className="flex flex-wrap gap-1">
+                  {runner.labels.map((label) => (
+                    <span
+                      key={label}
+                      className="rounded-md bg-muted px-1.5 font-mono text-[11px] leading-[18px]"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "None"
+              )}
+            </Fact>
+            <Fact label="Capacity">
+              {sessions} of {runner.maxSessions} sessions running
+            </Fact>
+            <Fact label="Registered">
+              {new Date(runner.registeredAt).toLocaleString()}
+              {owner ? ` · personal runner of ${owner}` : ""}
+            </Fact>
+          </dl>
+          <p className="mt-3 mb-1 text-xs font-semibold text-muted-foreground">
+            {recent.length ? "Latest sessions" : "No sessions on it yet."}
+          </p>
+          {recent.length > 0 && (
+            <ul className="divide-y divide-border/70 rounded-lg bg-card shadow-(--shadow-border)">
+              {recent.map((session) => (
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  agent={agentById.get(session.agentId)}
+                  log
+                />
+              ))}
+            </ul>
+          )}
+          {canRevoke && !confirming && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-3"
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 className="size-3.5" aria-hidden /> Remove runner…
+            </Button>
+          )}
+        </li>
+      )}
       {confirming && (
         <li
           role="alert"
@@ -267,7 +433,8 @@ function RunnerRow({
         >
           <span className="mr-auto">
             Remove <span className="font-medium">{runner.name}</span>? Its
-            credential stops working and its sessions return to the queue.
+            credential stops working and its sessions return to the queue. The
+            organization’s audit log keeps who removed it.
           </span>
           <Button variant="ghost" onClick={() => setConfirming(false)}>
             Keep
@@ -277,6 +444,15 @@ function RunnerRow({
           </Button>
         </li>
       )}
+    </>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words">{children}</dd>
     </>
   );
 }

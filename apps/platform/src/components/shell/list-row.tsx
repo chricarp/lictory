@@ -11,6 +11,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 export function ListRow({
   href,
   onClick,
+  expanded,
   leading,
   identifier,
   title,
@@ -25,6 +26,8 @@ export function ListRow({
   href?: string;
   // Or what pressing it does.
   onClick?: () => void;
+  // With `onClick`: the row discloses details below it, open or closed.
+  expanded?: boolean;
   // An icon (16px) or an avatar (20px, `Actor` / `AgentAvatar`).
   leading?: ReactNode;
   // A key or number before the title, in mono: "PAY-6", "#3".
@@ -56,6 +59,7 @@ export function ListRow({
     <button
       type="button"
       onClick={onClick}
+      aria-expanded={expanded}
       className={cn(target, "cursor-default")}
     >
       {title}

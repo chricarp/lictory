@@ -63,7 +63,15 @@ The runner appears in the list as soon as it registers and shows **Online**
 while it is connected. A runner that registered but has not connected since
 reads **Not started**: start it (`lictory-runner start`, or its service) on
 the machine. One that connected before and stopped reads **Offline** with
-when it was last seen.
+when it was last seen. Organization administrators also see offline
+organization runners, sessions no runner can take and broken code host or
+Slack connections on their Home, under **Needs an administrator**.
+
+Choose a runner's row to see what it reported: its machine, version,
+harnesses (with their versions), isolation, labels, capacity, when it
+registered, and its latest sessions. A runner on an older release than the
+server reads **Update**, and the page says which runners lag after you
+upgrade the server.
 
 To install the newest stable release by hand, or download a binary for
 another machine, see [lictory.com/download](https://lictory.com/download#runner).
@@ -184,7 +192,8 @@ against `SHA256SUMS.sigstore.json` (see the
 
 ## Revoke a runner
 
-Choose the trash icon on the runner's row (**Remove runner…**). Its credential stops working at
+Choose the trash icon on the runner's row, or **Remove runner…** in its
+details. The organization's audit log records who removed it. Its credential stops working at
 once and the sessions it was running return to the queue. A personal runner
 also stops working when its owner leaves the organization. A running runner
 notices within a heartbeat, says so and exits with code 2, which its service

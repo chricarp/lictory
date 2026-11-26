@@ -39,6 +39,7 @@ import type {
   SessionEntity,
 } from "@lictory/core/factory/entities";
 import {
+  asSentence,
   sessionOutcome,
   titleBeside,
   useItemKey,
@@ -324,7 +325,7 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
               </span>
               <span aria-hidden>·</span>
               <span className="truncate">
-                {sessionOutcome(session)} Retry it or start over.
+                {asSentence(sessionOutcome(session))} Retry it or start over.
               </span>
             </>
           }
