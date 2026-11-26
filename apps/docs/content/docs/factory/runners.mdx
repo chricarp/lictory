@@ -46,7 +46,10 @@ lictory-runner install-service --enable
 ```
 
 The runner appears in the list as soon as it registers and shows **Online**
-while it is connected.
+while it is connected. A runner that registered but has not connected since
+reads **Not started**: start it (`lictory-runner start`, or its service) on
+the machine. One that connected before and stopped reads **Offline** with
+when it was last seen.
 
 To install the newest stable release by hand, or download a binary for
 another machine, see [lictory.com/download](https://lictory.com/download#runner).
@@ -99,6 +102,6 @@ against `SHA256SUMS.sigstore.json` (see the
 
 ## Revoke a runner
 
-Choose the trash icon next to the runner. Its credential stops working at
+Choose the trash icon on the runner's row (**Remove runner…**). Its credential stops working at
 once and the sessions it was running return to the queue. A personal runner
 also stops working when its owner leaves the organization.

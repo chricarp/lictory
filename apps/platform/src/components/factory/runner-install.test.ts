@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runnerInstallCommand } from "@lictory/platform/components/factory/runner-install";
+import {
+  expiresIn,
+  runnerInstallCommand,
+} from "@lictory/platform/components/factory/runner-install";
 
 // The dialog installs the runner of the server's own release through the
 // published installers, whose options apps/runner/install.sh and
@@ -52,4 +55,18 @@ void test("a build without a release version installs the latest stable runner",
       ),
     );
   }
+});
+
+void test("a fresh registration token says it is valid for an hour, not that it expires now", () => {
+  const now = Date.parse("2026-11-25T12:00:00Z");
+  const hour = new Date(now + 60 * 60_000).toISOString();
+  assert.match(expiresIn(hour, now), /^in 60 minutes \(at .+\)$/);
+  assert.match(
+    expiresIn(new Date(now + 60_000).toISOString(), now),
+    /^in 1 minute /,
+  );
+  assert.match(
+    expiresIn(new Date(now - 5_000).toISOString(), now),
+    /^in less than a minute /,
+  );
 });

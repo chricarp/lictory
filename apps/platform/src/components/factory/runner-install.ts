@@ -34,3 +34,14 @@ export function runnerInstallCommand(
     `  ${pinned ? `--version ${pinned} ` : ""}--url ${server} --token ${token} --service`,
   ].join("\n");
 }
+
+// "in 60 minutes (at 14:32)": when a one-time token stops working.
+export function expiresIn(iso: string, now = Date.now()) {
+  const minutes = Math.max(0, Math.round((Date.parse(iso) - now) / 60_000));
+  const at = new Date(iso).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (minutes < 1) return `in less than a minute (at ${at})`;
+  return `in ${minutes} minute${minutes === 1 ? "" : "s"} (at ${at})`;
+}
