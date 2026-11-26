@@ -37,7 +37,11 @@ import {
   latestCursor,
   type Cursor,
 } from "@lictory/core/agent-events/feed";
-import { signingKey, webhookHeaders } from "@lictory/core/agent-events/signing";
+import {
+  bearerHeaders,
+  signingKey,
+  webhookHeaders,
+} from "@lictory/core/agent-events/signing";
 
 // Where a person's agent events go (docs/internals/agent-events.md):
 // webhooks people register in Account settings, and MCP Events webhook
@@ -691,7 +695,21 @@ export async function testWebhook(
     },
     "a test event a person sent to check this webhook.",
   );
-  const outcome = await deliverWebhook(row, eventId, body, options);
+  const outcome = await post(
+    row.url,
+    {
+      "content-type": "application/json",
+      ...bearerHeaders(
+        openSecret(row),
+        eventId,
+        "lictory.test",
+        Math.floor(Date.now() / 1000),
+        body,
+      ),
+    },
+    body,
+    options,
+  );
   await db
     .update(s.agentEventSubscription)
     .set({
@@ -702,27 +720,6 @@ export async function testWebhook(
     })
     .where(eq(s.agentEventSubscription.id, row.id));
   return outcome;
-}
-
-// One POST to a bearer webhook.
-async function deliverWebhook(
-  row: Row,
-  eventId: string,
-  body: string,
-  options: { resolve?: Resolver; timeoutMs?: number } = {},
-): Promise<TestOutcome> {
-  const timestamp = Math.floor(Date.now() / 1000);
-  return post(
-    row.url,
-    {
-      "content-type": "application/json",
-      authorization: `Bearer ${openSecret(row)}`,
-      "webhook-id": eventId,
-      "webhook-timestamp": String(timestamp),
-    },
-    body,
-    options,
-  );
 }
 
 export async function post(

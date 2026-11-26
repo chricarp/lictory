@@ -930,6 +930,134 @@ void test("MCP server lists typed tools and reports failures as tool results", a
   assert.ok(readOnly.result.tools.every((t) => t.annotations.readOnlyHint));
 });
 
+void test("a Factory agent never reaches a person's decision; a person's token keeps it", async () => {
+  const f = await fixture();
+  const scope = {
+    id: crypto.randomUUID(),
+    organizationId: f.organizationId,
+    name: "Scout",
+    handle: "scout",
+    access: "write" as const,
+    projectIds: null,
+    sessionId: null,
+  };
+  const agent = context({
+    userId: f.ownerId,
+    surface: "mcp",
+    access: "write",
+    agentName: "Scout",
+    agent: scope,
+  });
+  type Listed = {
+    result: { tools: { name: string; description: string }[] };
+  };
+  const list = async (ctx: CapabilityContext) =>
+    (
+      (await handleMcp(ctx, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+      })) as Listed
+    ).result.tools.map((t) => t.name);
+  const agentTools = await list(agent);
+  const personTools = await list(f.mcp);
+  const decisions = [
+    "decideReview",
+    "mergePullRequest",
+    "acceptDeliveryScope",
+    "recordDecision",
+    "setThreadState",
+    "publishDelivery",
+    "mergeCodePullRequest",
+    "promoteMessageToDecision",
+    "answerAgentApproval",
+  ];
+  for (const name of decisions) {
+    assert.ok(!agentTools.includes(name), `${name} is listed for an agent`);
+    assert.ok(personTools.includes(name), `${name} is missing for a person`);
+  }
+  // The reviewer agent's code review and proposals stay available.
+  for (const name of [
+    "reviewCodePullRequest",
+    "createPullRequest",
+    "askQuestion",
+  ])
+    assert.ok(agentTools.includes(name), name);
+
+  // Called anyway, the server refuses and says where the person decides.
+  await assert.rejects(
+    invoke(agent, "decideReview", {
+      organizationId: f.organizationId,
+      reviewId: crypto.randomUUID(),
+      decision: "approve",
+    }),
+    (error) => {
+      assert.ok(error instanceof CapabilityError);
+      assert.equal(error.category, "forbidden");
+      assert.equal(error.details.kind, "human_only");
+      assert.match(error.message, /Scout is an agent/);
+      assert.match(error.message, /person's decision/);
+      assert.match(error.message, /Reviews/);
+      return true;
+    },
+  );
+  const viaTool = (await handleMcp(agent, {
+    jsonrpc: "2.0",
+    id: 2,
+    method: "tools/call",
+    params: {
+      name: "mergeCodePullRequest",
+      arguments: {
+        organizationId: f.organizationId,
+        pullRequestId: crypto.randomUUID(),
+        expectedHeadSha: "abcdef1",
+      },
+    },
+  })) as { result: { isError: boolean; content: { text: string }[] } };
+  assert.equal(viaTool.result.isError, true);
+  assert.match(viaTool.result.content[0]!.text, /Autopilot/);
+
+  // The agent's policy lists them; a person's own token does not.
+  const policy = async (ctx: CapabilityContext) =>
+    (
+      (await invoke(ctx, "listHumanOnlyOperations", {})) as {
+        operations: { name: string; reason: string }[];
+      }
+    ).operations;
+  assert.ok(
+    (await policy(agent)).some(
+      (o) => o.name === "decideReview" && o.reason === "decision",
+    ),
+  );
+  assert.ok(!(await policy(f.mcp)).some((o) => o.reason === "decision"));
+
+  // Instructions say so, and name the release the server runs.
+  const init = (await handleMcp(agent, {
+    jsonrpc: "2.0",
+    id: 3,
+    method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {} },
+  })) as { result: { instructions: string; serverInfo: { version: string } } };
+  assert.match(init.result.instructions, /You are Scout/);
+  assert.match(init.result.instructions, /refused to agents by the server/);
+  assert.equal(
+    init.result.serverInfo.version,
+    process.env.APP_VERSION?.trim()
+      ? process.env.APP_VERSION.trim()
+      : "development",
+  );
+
+  // An agent limited to projects sees nothing it would always be refused.
+  const limited = context({
+    ...agent.principal,
+    agent: { ...scope, projectIds: [f.projectId] },
+  });
+  const limitedTools = await list(limited);
+  assert.ok(limitedTools.length < agentTools.length);
+  assert.ok(limitedTools.includes("getWorkItem"));
+  assert.ok(!limitedTools.includes("searchMembers"));
+});
+
 void test("insights are computed from the person's own workspace and stay inside it", async () => {
   const f = await fixture();
   for (const title of ["Safe retries", "Refund webhooks"])
@@ -1033,6 +1161,49 @@ void test("MCP work item keys survive a second project and writes name what they
       key: "NOPE-1",
     }),
     "not_found",
+  );
+  // A key works wherever a tool takes workItemId, reads and writes alike.
+  const byKey = (await invoke(f.mcp, "getWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: "pay-1",
+  })) as { item: { id: string } };
+  assert.equal(byKey.item.id, created.workItemId);
+  await invoke(f.mcp, "updateWorkItem", {
+    organizationId: f.organizationId,
+    workItemId: "PAY-1",
+    priority: "high",
+  });
+  assert.equal(
+    ((await read("PAY-1")).item as { priority?: string }).priority,
+    "high",
+  );
+  await assert.rejects(
+    invoke(f.mcp, "getWorkItem", {
+      organizationId: f.organizationId,
+      workItemId: "PAY-404",
+    }),
+    (error) => {
+      assert.ok(error instanceof CapabilityError);
+      assert.equal(error.category, "not_found");
+      assert.match(error.message, /key PAY-404/);
+      assert.match(error.message, /listWorkItems/);
+      return true;
+    },
+  );
+  // Fields a tool does not take are refused, never silently dropped.
+  await assert.rejects(
+    invoke(f.mcp, "getWorkItem", {
+      organizationId: f.organizationId,
+      key: "PAY-1",
+      mutationId: crypto.randomUUID(),
+    }),
+    (error) => {
+      assert.ok(error instanceof CapabilityError);
+      assert.equal(error.category, "validation");
+      assert.match(error.message, /Unknown field\(s\): mutationId/);
+      assert.match(error.message, /no retry key/);
+      return true;
+    },
   );
   await assert.rejects(
     invoke(f.mcp, "createWorkItem", {

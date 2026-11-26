@@ -302,6 +302,91 @@ export const transportRoutes: Readonly<Record<string, string>> = {
     "Slack's OAuth redirect finishing the install an administrator started with startSlackInstall.",
 };
 
+// Decisions stay with people (docs/internals/software-factory.md, rule 3).
+// Every `decision` capability an agent surface lists says here where the
+// person makes it. A Factory agent calling one is refused by the server
+// whatever its token allows, and does not see it in tools/list; a person's
+// own access token keeps it, to call when the person asked.
+const specification = "The work item's specification";
+export const personDecisions: Record<string, Omit<HumanOnly, "reason">> = {
+  decideReview: {
+    where: `${specification} → Reviews (Approve or Request changes)`,
+    alternative:
+      "propose changes with createBranch → commitBranch → createPullRequest, and ask with requestReview or replyToThread",
+  },
+  decidePullRequest: {
+    where: `${specification} → the pull request (Approve or Request changes)`,
+    alternative: "requestPullRequestReview, or comment with replyToThread",
+  },
+  mergePullRequest: {
+    where: `${specification} → the pull request → Merge`,
+    alternative: "requestPullRequestReview to ask the people who merge",
+  },
+  decideSuggestion: {
+    where: `${specification} → the suggestion (Approve or Request changes)`,
+  },
+  mergeSuggestion: { where: `${specification} → the suggestion → Merge` },
+  setThreadState: {
+    where: `${specification} → the discussion (Resolve, Reopen, Blocking)`,
+    alternative: "replyToThread with what you found",
+  },
+  commitSpecificationDraft: {
+    where: `${specification} → the editor (Save)`,
+    alternative: "createBranch → commitBranch → createPullRequest",
+  },
+  acceptDeliveryScope: {
+    where: "The work item → Delivery scope → Accept",
+    alternative: "askQuestion or a channel message to the person",
+  },
+  recordDecision: {
+    where: "The work item → Decisions → Record decision",
+    alternative: "replyToThread proposing the conclusion",
+  },
+  setDecisionArchived: { where: "The work item → Decisions" },
+  signOffReadinessCheck: {
+    where: "The work item → Readiness → Sign off",
+  },
+  publishReadinessChecks: {
+    where: "Project settings → Readiness",
+    alternative: "previewReadinessChecks",
+  },
+  setAiPolicy: { where: "Organization settings → Intelligence" },
+  publishDelivery: {
+    where: "The work item → Delivery → Export",
+    alternative: "previewDeliveryExport",
+  },
+  mergeCodePullRequest: {
+    where:
+      "Code → the pull request → Merge (or Autopilot, when the project's autonomy policy merges passing agent pull requests)",
+    alternative: "reviewCodePullRequest or requestCodeReview",
+  },
+  resolvePageThread: {
+    where: "The page in Spaces → the discussion → Resolve",
+    alternative: "replyToPageThread with what you found",
+  },
+  reopenPageThread: { where: "The page in Spaces → the discussion → Reopen" },
+  setPageThreadBlocking: { where: "The page in Spaces → the discussion" },
+  commitDraft: {
+    where: "The page in Spaces → Publish or Commit",
+    alternative: "proposePageChange",
+  },
+  decidePagePullRequest: {
+    where: "The page in Spaces → Pull requests (Approve or Request changes)",
+  },
+  mergePagePullRequest: {
+    where: "The page in Spaces → Pull requests → Merge",
+    alternative: "requestPageReview",
+  },
+  promoteMessageToDecision: {
+    where: "The message's More actions → Record as decision",
+    alternative: "promoteMessageToDiscussion",
+  },
+  linkSlackChannel: { where: "The channel's header → Link to a Slack channel" },
+  answerAgentApproval: {
+    where: "The approval card in the session's thread, Home or Factory",
+  },
+};
+
 export type HumanOnlyOperation = HumanOnly & {
   name: string;
   title: string;
@@ -340,6 +425,18 @@ export function assertHumanOnlyMetadata(
         `Capability ${c.name} is available to agents but declares humanOnly.`,
       );
   }
+  for (const c of capabilities) {
+    const forAgents =
+      c.surfaces.includes("mcp") || c.surfaces.includes("agent");
+    if (c.decision && forAgents && !personDecisions[c.name])
+      throw new Error(
+        `Capability ${c.name} records a person's decision; say where the person makes it in personDecisions.`,
+      );
+    if (personDecisions[c.name] && !c.decision)
+      throw new Error(
+        `Capability ${c.name} is listed in personDecisions but is not a decision.`,
+      );
+  }
   const names = new Set(capabilities.map((c) => c.name));
   for (const operation of browserOperations)
     if (names.has(operation.name))
@@ -357,6 +454,32 @@ export function humanOnlyOperations(
     ),
     ...browserOperations.map((o) => describe(o.name, o.title, o)),
   ];
+}
+
+// The decisions a Factory agent is refused, with where its person makes them.
+export function personDecisionOperations(
+  capabilities: readonly AnyCapability[],
+): HumanOnlyOperation[] {
+  return capabilities.flatMap((c) => {
+    const decision = personDecisions[c.name];
+    return decision && c.decision
+      ? [describe(c.name, c.title, { reason: "decision", ...decision })]
+      : [];
+  });
+}
+
+// The refusal a Factory agent receives for a decision: the person decides it,
+// and where.
+export function personDecisionRefusal(
+  capability: AnyCapability,
+  agentName: string,
+) {
+  const decision = personDecisions[capability.name];
+  return new CapabilityError(
+    "forbidden",
+    `${agentName} is an agent: “${capability.title}” is a person's decision, made in ${decision?.where ?? "the browser"}. ${humanOnlyReasons.decision}${decision?.alternative ? ` Instead: ${decision.alternative}.` : ""}`,
+    { kind: "human_only" },
+  );
 }
 
 // The refusal an agent receives when it calls a human-only operation by name.
@@ -380,11 +503,17 @@ export function humanOnlyCapability(all: () => readonly AnyCapability[]) {
     name: "listHumanOnlyOperations",
     title: "List human-only operations",
     description:
-      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, the audit log, organization data exports, Litto conversations, browser preferences), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
+      "What agents deliberately cannot do: operations that stay with the person in the browser (credentials, account security, organization membership and roles, the audit log, organization data exports, Litto conversations, browser preferences) and, for a Factory agent, the decisions its person makes (approvals, merges, accepted scope, resolved discussions, recorded decisions, exports), with the reason and where the person does each one. Call it before telling someone a tool is missing.",
     kind: "query",
     surfaces: everywhere,
     idempotent: true,
     input: z.object({}),
-    run: () => Promise.resolve({ operations: humanOnlyOperations(all()) }),
+    run: (ctx) =>
+      Promise.resolve({
+        operations: [
+          ...humanOnlyOperations(all()),
+          ...(ctx.principal.agent ? personDecisionOperations(all()) : []),
+        ],
+      }),
   });
 }

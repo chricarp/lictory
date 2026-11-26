@@ -1001,6 +1001,14 @@ export const declarations: readonly Declaration[] = [
 
   // ------------------------------------------------------- website and build
   {
+    name: "APP_VERSION",
+    group: "Builds",
+    services: ["api"],
+    default: "`development`",
+    description:
+      "Release the server runs, reported to MCP clients (`serverInfo.version`). Set by the production Compose file from `LICTORY_VERSION`; not configured by hand.",
+  },
+  {
     name: "NEXT_PUBLIC_APP_VERSION",
     group: "Builds",
     services: ["platform"],

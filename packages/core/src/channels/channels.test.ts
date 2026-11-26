@@ -442,11 +442,30 @@ void test("sending is idempotent by message id and retry key", async () => {
     (agentRetry as { messageId: string }).messageId,
   );
   assert.equal((again as { replayed: boolean }).replayed, true);
+  // mutationId, the key every other write tool takes, is the same retry key.
+  const mutationId = crypto.randomUUID();
+  const keyed = await call(f.ada, "postChannelMessage", {
+    organizationId: f.organizationId,
+    channelId: room,
+    body: "Retry-safe note",
+    mutationId,
+  });
+  const keyedAgain = await call(f.ada, "postChannelMessage", {
+    organizationId: f.organizationId,
+    channelId: room,
+    body: "Retry-safe note",
+    mutationId,
+  });
+  assert.equal(
+    (keyedAgain as { messageId: string }).messageId,
+    (keyed as { messageId: string }).messageId,
+  );
+  assert.equal((keyedAgain as { replayed: boolean }).replayed, true);
   const rows = await db
     .select()
     .from(s.channelMessage)
     .where(eq(s.channelMessage.channelId, room));
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 3);
   // An MCP call is the person's message, shown with the agent it came via.
   const viaAgent = rows.find((r) => r.clientMessageId === "run-7:step-3");
   assert.equal(viaAgent?.authorUserId, f.ada);

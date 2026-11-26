@@ -52,10 +52,9 @@ function track(
 }
 
 const provider = z.enum(["github", "gitlab", "bitbucket"]);
+// The same idempotency key every write tool takes (a UUID).
 const mutationId = z
-  .string()
-  .min(1)
-  .max(160)
+  .uuid()
   .optional()
   .describe(
     "Idempotency key: retrying with the same value returns the first request's write instead of queueing another.",

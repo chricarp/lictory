@@ -550,6 +550,8 @@ void test("release paths: agent, person, a moved item and closing the item", asy
     note: "Needs a database migration I cannot run.",
   });
   assert.equal(released.returnedTo, "Todo");
+  // The result echoes the note it was given.
+  assert.equal(released.note, "Needs a database migration I cannot run.");
   assert.equal((await f.claimRow(first.claimId)).endReason, "agent");
 
   // A person moved the item meanwhile: it stays where they put it.
@@ -571,6 +573,8 @@ void test("release paths: agent, person, a moved item and closing the item", asy
     },
   );
   assert.equal(kept.returnedTo, null);
+  assert.equal(kept.note, null);
+  assert.match(String(kept.returnNote), /stays where it is|moved/);
   assert.equal((await f.item(spec)).statusId, f.statuses["In Review"]);
   assert.equal((await f.claimRow(second.claimId)).endReason, "person");
 

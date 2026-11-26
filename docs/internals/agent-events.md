@@ -134,10 +134,17 @@ Two kinds of destination share one delivery engine
   their Factory agents on the agent's page (Factory → Agents → Wake-ups,
   bound to the agent, `agent_id`), or for their own tools in Account
   settings → Event webhooks (unbound) (Grok, Claude routines' `/fire`,
-  OpenClaw's `/hooks/agent`). The body carries `text` and `message` (one
-  sentence for receivers that start an agent run from a text field) and
-  `event` (id, type, time, cursor, data), with
-  `Authorization: Bearer <secret>`, `webhook-id` and `webhook-timestamp`.
+  OpenClaw's `/hooks/agent`). The body carries `text` and `message` (the
+  same sentence under both names, because receivers that start an agent run
+  read one or the other) and `event` (id, type, time, cursor, data), with
+  `Authorization: Bearer <secret>`, `webhook-id`, `webhook-timestamp`,
+  `x-lictory-event-type` (test deliveries included) and
+  `webhook-signature: v1,<base64 HMAC-SHA256>` over
+  `${webhook-id}.${webhook-timestamp}.${body}`, keyed with the secret's
+  `whsec_` key bytes when it is one and its UTF-8 bytes otherwise. The
+  secret is usually the receiver's own token, so the signature lets a
+  receiver that wants more than the token check the body and reject
+  replays outside a five-minute window.
   Creating, testing, pausing and removing them is web-only (the secret is a
   credential).
 - **MCP Events subscriptions** (below), created by MCP clients.

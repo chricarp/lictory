@@ -249,11 +249,12 @@ app's secrets and bot token. Without it the key is derived from
 
 ## Builds
 
-| Variable                  | Required | Default                | Read by  | Secret | Description                                                                           |
-| ------------------------- | -------- | ---------------------- | -------- | ------ | ------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_VERSION` | No       | `package.json` version | platform | No     | Version shown in the platform. Set by the build; not configured by hand.              |
-| `MARKETING_STATIC_EXPORT` | No       | `false`                | website  | No     | `true` builds the website as static HTML (Cloudflare) instead of a standalone server. |
-| `NEXT_DIST_DIR`           | No       | `.next`                | website  | No     | Build output directory of the website.                                                |
+| Variable                  | Required | Default                | Read by  | Secret | Description                                                                                                                                                 |
+| ------------------------- | -------- | ---------------------- | -------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_VERSION`             | No       | `development`          | api      | No     | Release the server runs, reported to MCP clients (`serverInfo.version`). Set by the production Compose file from `LICTORY_VERSION`; not configured by hand. |
+| `NEXT_PUBLIC_APP_VERSION` | No       | `package.json` version | platform | No     | Version shown in the platform. Set by the build; not configured by hand.                                                                                    |
+| `MARKETING_STATIC_EXPORT` | No       | `false`                | website  | No     | `true` builds the website as static HTML (Cloudflare) instead of a standalone server.                                                                       |
+| `NEXT_DIST_DIR`           | No       | `.next`                | website  | No     | Build output directory of the website.                                                                                                                      |
 
 ## Worker
 

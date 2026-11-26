@@ -932,11 +932,14 @@ export async function releaseClaim(
       });
       await projectClaims(tx, input.organizationId, claim.projectId, before);
       await signalWork(tx, "factory");
+      // `note` is the note given; `returnNote` says why the item stayed
+      // where it was, as activity records it.
       return {
         claimId: claim.id,
         state: "released",
         returnedTo: returned.returnedTo,
-        note: returned.note,
+        note: input.note?.trim() ? input.note.trim() : null,
+        ...(returned.note ? { returnNote: returned.note } : {}),
       };
     },
   );
