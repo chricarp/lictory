@@ -81,6 +81,7 @@ export function ApprovalRequest({
 }: Props) {
   const [open, setOpen] = useState(!compact);
   const bodyId = useId();
+  const subjectId = useId();
   const { session, approval, agent } = props;
   if (!compact)
     return (
@@ -106,7 +107,9 @@ export function ApprovalRequest({
             <ShieldQuestion aria-hidden className="size-4 text-warning" />
           )}
         </span>
-        <span className="min-w-0 flex-1">
+        {/* Describes the row's button, so "Review" buttons in a list say
+            which request each opens. */}
+        <span id={subjectId} className="min-w-0 flex-1">
           <span className="block truncate text-[13px] leading-5 font-medium">
             {approval.title}
           </span>
@@ -134,6 +137,7 @@ export function ApprovalRequest({
           size="sm"
           aria-expanded={open}
           aria-controls={bodyId}
+          aria-describedby={subjectId}
           onClick={() => setOpen((o) => !o)}
         >
           {open ? "Close" : "Review"}

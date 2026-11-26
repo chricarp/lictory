@@ -332,7 +332,9 @@ export const ChannelMessage = memo(function ChannelMessage({
                       : "bg-card hover:bg-muted",
                   )}
                 >
-                  <span aria-hidden>{r.emoji}</span>
+                  {/* Named by what it shows ("👍 2"); who reacted is its
+                      description. */}
+                  <span>{r.emoji}</span>
                   {r.count}
                 </button>
               </Tooltip>
@@ -353,21 +355,25 @@ export const ChannelMessage = memo(function ChannelMessage({
             onClick={() => actions.openThread?.(message)}
             className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
           >
-            <Facepile
-              people={replyAuthors(message).map((author) =>
-                author.kind === "agent"
-                  ? {
-                      id: author.id,
-                      name: agentNameOf(author.id),
-                      avatar: agentOf(author.id)?.avatar,
-                      agent: true as const,
-                    }
-                  : { id: author.id, name: nameOf(author.id) },
-              )}
-              max={4}
-              size={20}
-              label="Replied"
-            />
+            {/* Named by its words ("3 replies, last reply …"); the
+                faces repeat who is in the thread. */}
+            <span aria-hidden className="contents">
+              <Facepile
+                people={replyAuthors(message).map((author) =>
+                  author.kind === "agent"
+                    ? {
+                        id: author.id,
+                        name: agentNameOf(author.id),
+                        avatar: agentOf(author.id)?.avatar,
+                        agent: true as const,
+                      }
+                    : { id: author.id, name: nameOf(author.id) },
+                )}
+                max={4}
+                size={20}
+                label="Replied"
+              />
+            </span>
             <span className="font-medium text-primary">
               {replies} {replies === 1 ? "reply" : "replies"}
             </span>

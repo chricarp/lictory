@@ -389,8 +389,10 @@ export function BranchWorkspace({
           Main · revision {data.item.revisionNumber}
         </Button>
         <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+        {/* Inside the item's page, whose header holds the page's own
+            breadcrumb: this one is named for what it walks. */}
         <nav
-          aria-label="Breadcrumb"
+          aria-label="Specification changes"
           className="flex min-w-0 items-center gap-1.5"
         >
           <Button

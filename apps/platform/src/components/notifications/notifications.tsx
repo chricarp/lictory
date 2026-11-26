@@ -493,6 +493,9 @@ function Row({
           !unread && "text-muted-foreground",
         )}
       >
+        {/* Unread is said in words and shown by the headline's weight and
+            color, not by the dot alone. */}
+        {unread && <span className="sr-only">Unread: </span>}
         <span
           aria-hidden
           className={cn(
@@ -516,7 +519,7 @@ function Row({
           <p
             className={cn(
               "flex items-center gap-2 text-[13px] leading-5",
-              unread && "font-medium text-foreground",
+              unread && "font-semibold text-foreground",
             )}
           >
             {n.actorName && (

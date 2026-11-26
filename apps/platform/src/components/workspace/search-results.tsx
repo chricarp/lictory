@@ -538,7 +538,9 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <Link
             href={r.href}
-            className="line-clamp-2 min-w-0 font-medium break-words outline-none after:absolute after:inset-0 focus-visible:underline"
+            // The padding gives the link a 24px target without moving the
+            // text (WCAG 2.5.8).
+            className="-my-[3px] line-clamp-2 min-w-0 py-[3px] font-medium break-words outline-none after:absolute after:inset-0 focus-visible:underline"
           >
             <Highlighted text={r.title} highlights={r.titleHighlights} />
           </Link>
@@ -554,8 +556,8 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
             // the item as it is now.
             <Link
               href={r.currentHref}
-              aria-label={`Open ${r.key} as it is now`}
-              className="relative z-10 shrink-0 rounded-sm underline decoration-foreground/30 underline-offset-2 outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+              aria-label={`Open current ${r.key}`}
+              className="relative z-10 -my-1 inline-flex min-h-6 shrink-0 items-center rounded-sm underline decoration-foreground/30 underline-offset-2 outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
             >
               Open current
             </Link>

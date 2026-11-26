@@ -210,10 +210,13 @@ export function EstimatePicker({
       ? "No estimate"
       : (options.find((o) => o.value === item.estimate)?.label ??
         String(item.estimate));
+  // What the control shows is also what it is called (voice control users
+  // say what they see): "5 pts", named "Estimate: 5 pts".
+  const shown =
+    item.estimate !== null && scale !== "tshirt" ? `${label} pts` : label;
   const content = (
     <span className={cn(item.estimate === null && "text-muted-foreground")}>
-      {label}
-      {item.estimate !== null && scale !== "tshirt" && " pts"}
+      {shown}
     </span>
   );
   if (!onChange) return <span className={trigger}>{content}</span>;
@@ -223,7 +226,7 @@ export function EstimatePicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Estimate: ${label}`}
+          aria-label={`Estimate: ${shown}`}
           className={trigger}
         >
           {content}

@@ -31,6 +31,7 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
+import { Heading } from "@lictory/ui/heading";
 import { StatusChip } from "@lictory/ui/status-chip";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -342,9 +343,9 @@ function ConnectionRow({
       <MyLogin connection={connection} />
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <h4 className="text-xs font-medium text-muted-foreground">
+          <Heading className="text-xs font-medium text-muted-foreground">
             Repositories
-          </h4>
+          </Heading>
           {linkable.length > 0 && !linking && (
             <Button
               size="sm"

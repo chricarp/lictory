@@ -217,12 +217,16 @@ export function ChannelHeader({
                   aria-label={`${memberCount} ${memberCount === 1 ? "member" : "members"}`}
                   className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
                 >
-                  <Facepile
-                    people={facepile}
-                    max={3}
-                    size={20}
-                    className="max-sm:hidden"
-                  />
+                  {/* A picture of who is here: the button is named by its
+                      count, and the initials are not part of that name. */}
+                  <span aria-hidden className="contents">
+                    <Facepile
+                      people={facepile}
+                      max={3}
+                      size={20}
+                      className="max-sm:hidden"
+                    />
+                  </span>
                   <Users className="size-4 sm:hidden" aria-hidden />
                   {/* The facepile counts beyond three; phones show the
                       number alone. */}
