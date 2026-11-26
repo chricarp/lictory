@@ -14,6 +14,7 @@
 // second checkout. See docs/operations/development.md.
 import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { bunMismatch } from "./bun-version";
 
 // Empty variables count as unset.
@@ -37,6 +38,17 @@ if (process.platform === "win32") {
 
 const bun = bunMismatch();
 if (bun) console.warn(`warning: ${bun.message}`);
+
+// Without .env every port and the Compose project are the defaults, which
+// collide with another checkout. The first run is: bun run dev:env, then
+// docker compose up -d --wait, then bun run dev.
+if (!existsSync(".env"))
+  console.warn(
+    "No .env here yet, so the default ports and Compose project apply. " +
+      "Run `bun run dev:env` first: it writes one that fits this machine " +
+      "(free ports, its own Compose project beside another checkout), then " +
+      "`docker compose up -d --wait`.",
+  );
 
 const platformUrl = or(
   process.env.PLATFORM_URL,
