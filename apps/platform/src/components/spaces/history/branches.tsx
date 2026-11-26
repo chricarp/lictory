@@ -280,7 +280,10 @@ export function Branches({ pageId }: { pageId: string }) {
             <label className="block text-[13px] text-muted-foreground">
               Branch name
               <Input
-                className={`${field} mt-1`}
+                // One height (40px), one shape and one text size for the
+                // field, the select and the button, so the labels share a
+                // baseline and the row a bottom edge.
+                className={`${field} mt-1 rounded-xl text-[13px]`}
                 maxLength={80}
                 placeholder="e.g. retry-window"
                 value={name}
@@ -291,6 +294,8 @@ export function Branches({ pageId }: { pageId: string }) {
             <label className="block text-[13px] text-muted-foreground">
               Start from
               <DropdownSelect
+                variant="field"
+                size="lg"
                 className="mt-1 w-full"
                 value={from}
                 onValueChange={(value) => setFrom(value)}
@@ -307,6 +312,7 @@ export function Branches({ pageId }: { pageId: string }) {
             </label>
             <Button
               type="submit"
+              size="lg"
               disabled={!name.trim() || Boolean(problem) || action.pending}
             >
               Create branch

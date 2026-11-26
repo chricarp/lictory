@@ -65,7 +65,9 @@ export function Panel({
           {title}
         </Heading>
         {count !== undefined && count > 0 && (
-          <span className="rounded-full bg-muted px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground tabular-nums">
+          // A tint of the text colour, not --muted: on a dark card the muted
+          // fill is the card's own colour, and the chip became a bare number.
+          <span className="rounded-full bg-foreground/8 px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground tabular-nums">
             {count}
           </span>
         )}

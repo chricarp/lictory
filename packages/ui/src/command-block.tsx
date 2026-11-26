@@ -7,7 +7,7 @@ import { Button } from "@lictory/ui/button";
 
 // Copies `text` and says so on the button itself for a moment ("Copied"),
 // where the person is looking; the button keeps its accessible name.
-function CopyButton({
+export function CopyButton({
   text,
   label,
   iconOnly = false,

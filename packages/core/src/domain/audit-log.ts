@@ -224,10 +224,26 @@ const roleName = (role: unknown) =>
 const quoted = (value: string | null | undefined) =>
   value ? `“${value}”` : "an access token";
 
-// "updateProject" → "Update project".
+// "updateProject" → "Updated project": the log says what happened, in the
+// past tense like every other entry ("Added an agent event webhook").
 function humanize(command: string) {
-  const words = command.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  const [verb = "", ...rest] = command
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(" ");
+  const words = [pastTense(verb), ...rest].join(" ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+const unchanged = new Set(["set", "reset", "put"]);
+const doubled = new Set(["stop", "plan", "drop", "pin", "unpin", "ship"]);
+
+function pastTense(verb: string) {
+  if (unchanged.has(verb) || verb.endsWith("ed")) return verb;
+  if (doubled.has(verb)) return `${verb}${verb.at(-1)}ed`;
+  if (verb.endsWith("e")) return `${verb}d`;
+  if (/[^aeiou]y$/.test(verb)) return `${verb.slice(0, -1)}ied`;
+  return `${verb}ed`;
 }
 
 // Configuration commands in words, for the ones people look for most in the

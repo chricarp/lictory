@@ -62,7 +62,7 @@ export function InsightCards({ reports }: { reports: Insights[] }) {
       <header className="flex items-center gap-2 px-3.5 pt-3">
         <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
         <span className="text-[12px] font-medium">Insights</span>
-        <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
+        <span className="rounded-full bg-foreground/8 px-1.5 text-[11px] text-muted-foreground tabular-nums">
           {pages.length}
         </span>
         {scope && (

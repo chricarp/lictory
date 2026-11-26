@@ -13,11 +13,22 @@ import { X } from "lucide-react";
 import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
 
+// The one scrim behind every dialog, drawer and sheet. At 20% the page
+// behind a light-mode palette competed with it; 40% separates it in light
+// themes as clearly as in dark ones.
+export const scrimClass = "bg-black/40";
+
 export const dialogBackdropClass =
-  "fixed inset-0 z-50 bg-black/20 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0";
+  "fixed inset-0 z-50 bg-black/40 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0";
 
 export const dialogPanelClass =
   "fixed inset-x-0 top-[10vh] z-50 mx-auto my-0 flex max-h-[calc(100dvh-10vh-1rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-xl border bg-popover p-0 text-popover-foreground shadow-(--shadow-panel) outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-98 data-ending-style:opacity-0 data-starting-style:scale-98 data-starting-style:opacity-0";
+
+// On phones a dialog is a sheet from the bottom edge, up to nearly the
+// full height, with its actions at the bottom where the thumb is, rather
+// than a floating card with an inner scroll.
+const phoneSheet =
+  "max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]";
 
 // A modal dialog: focus moves in on open (to `[data-autofocus]`, or the first
 // control), Tab stays inside, Escape and a press outside close it, and focus
@@ -99,7 +110,7 @@ export function Dialog({
             'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
           )
         }
-        className={cn(dialogPanelClass, width, className)}
+        className={cn(dialogPanelClass, width, phoneSheet, className)}
       >
         {onSubmit ? (
           <form

@@ -81,6 +81,10 @@ test("a channel synced with Slack shows both sides of one conversation @smoke", 
   await routeSlackAuthorize(page);
   await page.goto(`/${seeded.slug}/settings/integrations`);
   const section = page.locator("#slack");
+  // Without Slack the card is one sentence and one button; the steps and
+  // the manifest open on request.
+  await section.getByRole("button", { name: "Set up Slack" }).click();
+  await section.getByText("Show the manifest").click();
   await expect(section.getByLabel("Slack app manifest")).toContainText(
     `/api/slack/events/${seeded.organizationId}`,
   );

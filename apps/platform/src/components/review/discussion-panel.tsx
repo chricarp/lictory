@@ -317,7 +317,7 @@ export function SpecDiscussionPanel({
           </Collapsible>
         )}
       </div>
-      <p className="mt-1 text-xs leading-4 text-muted-foreground touch:hidden">
+      <p className="mt-1 text-xs leading-4 text-muted-foreground max-sm:hidden touch:hidden">
         Alt+↑ / Alt+↓ move between discussions · {mod} comments on selected text
       </p>
     </section>

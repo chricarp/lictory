@@ -27,6 +27,10 @@ import { identifier, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { toast } from "@lictory/ui/toast";
 import { Link } from "@lictory/platform/lib/navigation";
+import {
+  MetaLine,
+  MetaPart,
+} from "@lictory/platform/components/shell/meta-line";
 import { firstName } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSessionEvents } from "@lictory/platform/components/factory/store";
@@ -152,51 +156,43 @@ export function ApprovalRequest({
         </span>
         {/* The request's subject, which the row's button names. */}
         <span id={subjectId} className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] leading-5">
+          {/* On phones the key and the request read as one sentence of up
+              to two lines, so a wrapped request starts its second line
+              under the key, not in a column beside it (as in ListRow). */}
+          <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] leading-5 max-sm:line-clamp-2 max-sm:break-words">
             {itemKey && (
-              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+              <span className="shrink-0 font-mono text-xs text-muted-foreground max-sm:mr-1.5">
                 {itemKey}
               </span>
             )}
-            {/* Phones give the request two lines, and the line under it
-                wraps, so rows asking alike stay apart at any zoom. */}
-            <span className="min-w-0 font-medium max-sm:line-clamp-2 max-sm:break-words sm:truncate">
+            <span className="min-w-0 font-medium sm:truncate">
               {approval.title}
             </span>
           </span>
           {/* What sets this request apart from its neighbours comes first:
               the exact action (or that it is a question), then the task it
               belongs to; the agent, usually the same on every row, last. */}
-          <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 overflow-hidden text-xs leading-4 text-muted-foreground">
+          <MetaLine className="mt-0.5">
             {action && !question ? (
-              <ActionText
-                action={action}
-                className="max-w-full sm:max-w-[45%]"
-              />
+              <MetaPart className="sm:max-w-[45%]">
+                <ActionText action={action} />
+              </MetaPart>
             ) : (
               <span className="shrink-0 font-medium text-foreground">
                 Question
               </span>
             )}
-            <span aria-hidden>·</span>
             <span className="min-w-0 truncate text-foreground/80">
               {taskBesideKey}
             </span>
-            <span aria-hidden>·</span>
             <AgentActor
               agent={agent}
               ownerId={agent?.ownerId}
               avatar={false}
               className="shrink-0"
             />
-          </span>
+          </MetaLine>
         </span>
-        <time
-          dateTime={approval.createdAt}
-          className="shrink-0 text-xs text-muted-foreground tabular-nums max-sm:hidden"
-        >
-          {relativeTime(approval.createdAt)}
-        </time>
         <Button
           variant={open ? "ghost" : "secondary"}
           size="sm"
@@ -215,6 +211,14 @@ export function ApprovalRequest({
             )}
           />
         </Button>
+        {/* The time is the last column, as in ListRow, so it lines up
+            with the rows around it. */}
+        <time
+          dateTime={approval.createdAt}
+          className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums max-sm:hidden"
+        >
+          {relativeTime(approval.createdAt)}
+        </time>
       </div>
       {open && (
         <div id={bodyId} className="px-3.5 pb-3.5 pl-[46px]">
@@ -236,7 +240,7 @@ function ActionText({
   return (
     <code
       className={cn(
-        "min-w-0 shrink-0 truncate font-mono text-[11px] text-foreground",
+        "min-w-0 truncate font-mono text-[11px] text-foreground",
         className,
       )}
     >

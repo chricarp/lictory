@@ -4,9 +4,12 @@ import { cn } from "@lictory/core/lib/utils";
 // The five meanings a state can have. Color only when it means something:
 // attention for what waits on a person, danger for what failed or blocks,
 // success for what is done, info for what is in motion. Everything else is
-// neutral.
+// neutral. One state has a colour of its own: a merged change (a code pull
+// request, a specification's proposed change) is violet, as on the code
+// hosts, wherever it appears: the pull request's chip, its icon, the merge
+// box and the item's Definition of Done.
 export type StatusTone =
-  "neutral" | "info" | "attention" | "success" | "danger";
+  "neutral" | "info" | "attention" | "success" | "danger" | "merged";
 
 export const statusToneClass: Record<StatusTone, string> = {
   // Text leans a fifth toward the foreground, so 12px labels keep 4.5:1 on
@@ -22,6 +25,8 @@ export const statusToneClass: Record<StatusTone, string> = {
     "bg-success/8 text-[color-mix(in_oklab,var(--success)_80%,var(--foreground))] ring-success/20 dark:bg-success/14 dark:ring-success/40",
   danger:
     "bg-destructive/8 text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] ring-destructive/20 dark:bg-destructive/14 dark:ring-destructive/40",
+  merged:
+    "bg-merged/8 text-[color-mix(in_oklab,var(--merged)_80%,var(--foreground))] ring-merged/25 dark:bg-merged/14 dark:ring-merged/40",
 };
 
 // One shape for every state: 20px tall, 6px corners, sans 12px medium, an

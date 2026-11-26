@@ -335,11 +335,11 @@ export const ChannelMessage = memo(function ChannelMessage({
                   onClick={() => actions.react(message, r.emoji, !r.mine)}
                   className={cn(
                     "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums focus-ring outline-none touch:h-8",
-                    // Your own reaction: a full-strength outline (3:1 or
-                    // more against the page) and bolder count, not only a
-                    // different fill.
+                    // Your own reaction: a full-strength outline in the
+                    // interactive colour (3:1 or more against the page, in
+                    // dark themes too) and a bolder count, not only a tint.
                     r.mine
-                      ? "border-primary bg-primary/10 font-semibold text-primary"
+                      ? "border-ring bg-ring/12 font-semibold text-foreground dark:bg-ring/20"
                       : "bg-card hover:bg-muted",
                   )}
                 >

@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { track } from "@lictory/core/lib/analytics/client";
 import {
   identifier,
@@ -1060,8 +1061,12 @@ export function ItemDetail({
                   <LittoLauncher />
                 </>
               )}
+              {/* On phones the shell's "+" stays in the navigation drawer
+                  (as in a channel), so the bar fits at 320px. */}
               {phone && (
-                <div className="contents lg:hidden">{phone.trailing}</div>
+                <div className="contents max-sm:hidden lg:hidden">
+                  {phone.trailing}
+                </div>
               )}
             </div>
           </header>
@@ -1378,7 +1383,8 @@ export function ItemDetail({
             >
               <DrawerBackdrop
                 className={cn(
-                  "fixed inset-0 z-40 bg-black/30",
+                  "fixed inset-0 z-40",
+                  scrimClass,
                   !railHidden && "@min-[53rem]/frame:hidden",
                 )}
               />

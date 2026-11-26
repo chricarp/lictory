@@ -29,7 +29,7 @@ const states: Record<
 > = {
   draft: { label: "Draft", tone: "neutral", icon: <GitPullRequestDraft /> },
   open: { label: "Open", tone: "success", icon: <GitPullRequest /> },
-  merged: { label: "Merged", tone: "info", icon: <GitMerge /> },
+  merged: { label: "Merged", tone: "merged", icon: <GitMerge /> },
   closed: { label: "Closed", tone: "neutral", icon: <GitPullRequestClosed /> },
 };
 
@@ -179,7 +179,7 @@ export function PullRequestTabs({
             {t.icon}
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
+              <span className="rounded-full bg-foreground/8 px-1.5 text-[11px] text-muted-foreground tabular-nums">
                 {t.count}
               </span>
             )}

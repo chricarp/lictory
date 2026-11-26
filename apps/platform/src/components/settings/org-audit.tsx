@@ -67,6 +67,13 @@ function query(filters: Filters) {
 
 // The organization audit log for administrators: newest first, filtered on
 // the server, paged, and exportable as CSV with the same filters.
+// The date filters take the shape of the selects beside them (a 32px pill,
+// 13px medium text, the surface's edge), not the browser's own field; an
+// empty date reads as a placeholder. The calendar button is styled in
+// @lictory/ui's styles.css.
+const dateFilterClass =
+  "mt-1.5 h-8 w-full rounded-full border-0 px-3 text-[13px] font-medium shadow-(--shadow-border) hover:bg-muted/60 data-empty:text-muted-foreground/70";
+
 export function OrganizationAudit() {
   const { isAdmin } = useWorkspace();
   if (!isAdmin)
@@ -151,7 +158,8 @@ function AuditLog() {
       id="audit"
       icon={<ScrollText />}
       title="Audit log"
-      description="Who changed membership, application roles, invitations, access tokens and configuration, what agents did on someone's behalf, and which Definition of Done checks people passed by hand. Entries cannot be edited or deleted."
+      description="Who changed what in this organization, and what agents did on someone's behalf. Entries cannot be edited or deleted."
+      footer="Membership, application roles, invitations, access tokens, configuration, agents' calls and Definition of Done checks passed by hand are recorded."
       action={
         <Button
           size="sm"
@@ -204,7 +212,8 @@ function AuditLog() {
             value={filters.from}
             max={filters.to || undefined}
             onChange={(e) => set({ from: e.target.value })}
-            className="mt-1.5 h-8 w-full rounded-md text-sm"
+            data-empty={!filters.from || undefined}
+            className={dateFilterClass}
           />
         </label>
         <label className="block min-w-0 text-[13px] font-medium">
@@ -214,7 +223,8 @@ function AuditLog() {
             value={filters.to}
             min={filters.from || undefined}
             onChange={(e) => set({ to: e.target.value })}
-            className="mt-1.5 h-8 w-full rounded-md text-sm"
+            data-empty={!filters.to || undefined}
+            className={dateFilterClass}
           />
         </label>
       </SettingsBody>

@@ -4,6 +4,7 @@ import {
   Archive,
   History,
   Info,
+  MoreHorizontal,
   Pencil,
   Play,
   RotateCcw,
@@ -14,6 +15,7 @@ import {
 } from "@lictory/core/factory/entities";
 import { harnessLabels } from "@lictory/core/factory/protocol";
 import { Button } from "@lictory/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { StatusChip } from "@lictory/ui/status-chip";
@@ -124,10 +126,11 @@ export function AgentPage() {
               <Button
                 variant="ghost"
                 aria-label={`Edit ${agent.name}`}
+                className="max-sm:hidden"
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="size-3.5" aria-hidden />
-                <span className="max-sm:hidden">Edit</span>
+                Edit
               </Button>
             )}
             {canArchive && (
@@ -136,6 +139,7 @@ export function AgentPage() {
                 aria-label={
                   archived ? `Restore ${agent.name}` : `Archive ${agent.name}`
                 }
+                className="max-sm:hidden"
                 onClick={() => void toggleArchived(organization.id, agent)}
               >
                 {archived ? (
@@ -143,10 +147,48 @@ export function AgentPage() {
                 ) : (
                   <Archive className="size-3.5" aria-hidden />
                 )}
-                <span className="max-sm:hidden">
-                  {archived ? "Restore" : "Archive"}
-                </span>
+                {archived ? "Restore" : "Archive"}
               </Button>
+            )}
+            {/* On phones Edit and Archive are words in one menu, not two
+                unlabelled glyphs side by side where Archive is a mis-tap
+                away from Edit. */}
+            {((mine && !archived) || canArchive) && (
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`More actions for ${agent.name}`}
+                      className="sm:hidden"
+                    >
+                      <MoreHorizontal className="size-4" aria-hidden />
+                    </Button>
+                  }
+                />
+                <MenuContent align="end">
+                  {mine && !archived && (
+                    <MenuItem onSelect={() => setEditing(true)}>
+                      <Pencil className="size-3.5" aria-hidden /> Edit
+                    </MenuItem>
+                  )}
+                  {canArchive && (
+                    <MenuItem
+                      onSelect={() =>
+                        void toggleArchived(organization.id, agent)
+                      }
+                    >
+                      {archived ? (
+                        <RotateCcw className="size-3.5" aria-hidden />
+                      ) : (
+                        <Archive className="size-3.5" aria-hidden />
+                      )}
+                      {archived ? "Restore" : "Archive"}
+                    </MenuItem>
+                  )}
+                </MenuContent>
+              </Menu>
             )}
           </>
         }

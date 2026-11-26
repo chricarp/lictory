@@ -27,9 +27,15 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
   await expect(dialog.getByText("Will be #payments-team")).toBeVisible();
   await dialog.getByRole("button", { name: "Create channel" }).click();
   await expect(page).toHaveURL(/\/channels\/[0-9a-f-]{36}$/);
-  await expect(
-    page.getByRole("heading", { name: "payments-team", level: 1 }),
-  ).toBeVisible();
+  const heading = page.getByRole("heading", {
+    name: "payments-team",
+    level: 1,
+  });
+  await expect(heading).toBeVisible();
+  // The name is whole in a header with room for it, never "payments…".
+  expect(await heading.evaluate((h1) => h1.scrollWidth <= h1.clientWidth)).toBe(
+    true,
+  );
   const channelUrl = page.url();
   // The sidebar lists the joined channel.
   await expect(

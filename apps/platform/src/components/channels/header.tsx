@@ -158,10 +158,12 @@ export function ChannelHeader({
         // at least twelve characters before the actions crowd it. The
         // shell's "+" (a new work item) stays in the navigation drawer, so
         // the bar fits at 320px. Wider, the name is the anchor: the topic
-        // beside it gives way first.
+        // beside it gives way first. Its cap is a share of the window, not
+        // of the title group (which is only as wide as its content, so a
+        // percentage of it cut "#partner-launch" to "partner…").
         ownSearch
         ownCreate
-        className="sm:[&_h1]:max-w-[50%] sm:[&_h1]:shrink-0 max-sm:[&>div:has(>h1)]:min-w-[12ch]"
+        className="sm:[&_h1]:max-w-[40vw] sm:[&_h1]:shrink-0 max-sm:[&>div:has(>h1)]:min-w-[12ch]"
         icon={
           direct ? (
             channel.others[0]?.kind === "user" ? (

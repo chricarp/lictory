@@ -173,7 +173,7 @@ export function MergedNotice({
       aria-label={label}
       className="flex items-start gap-3 rounded-xl bg-card p-4 shadow-(--shadow-border)"
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-merged text-white dark:text-background">
         <GitMerge aria-hidden className="size-4" />
       </span>
       <div className="min-w-0 text-[13px] leading-5">{children}</div>

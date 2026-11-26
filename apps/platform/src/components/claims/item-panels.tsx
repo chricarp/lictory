@@ -549,9 +549,9 @@ export function DefinitionOfDonePanel() {
               <StatusChip
                 tone={
                   pr.state === "merged"
-                    ? "success"
+                    ? "merged"
                     : pr.state === "open"
-                      ? "info"
+                      ? "success"
                       : "neutral"
                 }
                 className="ml-auto"
@@ -646,7 +646,7 @@ function DeliveredPanel({ evidence }: { evidence: DeliveredEvidence }) {
                 <span className="truncate">{pr.title}</span>
               )}
               <StatusChip
-                tone={pr.state === "merged" ? "success" : "neutral"}
+                tone={pr.state === "merged" ? "merged" : "neutral"}
                 className="ml-auto"
               >
                 {pullRequestStateLabel[pr.state]}

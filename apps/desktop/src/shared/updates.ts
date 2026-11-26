@@ -1,3 +1,5 @@
+import { describeNetworkError, networkErrorCode } from "./net-errors";
+
 // What Settings › Updates says when this build cannot update itself, and
 // when a check fails: per platform and per install, the truth and what to
 // do instead (main/updater.ts decides; the settings screen links to the
@@ -46,5 +48,14 @@ export function updateErrorMessage(error: { message: string; code?: unknown }) {
     error.code === "ERR_UPDATER_NO_PUBLISHED_VERSIONS"
   )
     return "The newest release has no update for this system yet. Lictory checks again later.";
+  // A network failure (net::ERR_INTERNET_DISCONNECTED and the like) in the
+  // same plain words as a server that does not load, never Chromium's code.
+  if (networkErrorCode(error.message)) {
+    const { summary } = describeNetworkError(
+      error.message,
+      "the update server",
+    );
+    return `Lictory could not check for updates. ${summary.charAt(0).toUpperCase()}${summary.slice(1)} It checks again later.`;
+  }
   return `Checking for updates failed: ${error.message.split("\n")[0]}`;
 }

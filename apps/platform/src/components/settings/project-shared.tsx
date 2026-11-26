@@ -68,7 +68,7 @@ export function Choice<T extends string>({
         <Radio
           key={o.value}
           value={o.value}
-          className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
+          className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:ring-2 data-checked:ring-foreground data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
         >
           <ChoiceMark />
           <span className="min-w-0">
@@ -85,9 +85,11 @@ export function Choice<T extends string>({
   );
 }
 
-// The chosen option card says so with a filled radio, not only a tint: the
-// one selected-card mark in settings. Put it in a `Radio` with the
-// `group/choice` class.
+// The chosen option card says so with a filled radio and a 2px outline in
+// the text colour, the same outline as onboarding's choice cards (never a
+// grey fill, which reads as disabled). Put it in a `Radio` with the
+// `group/choice` and `data-checked:ring-2 data-checked:ring-foreground`
+// classes.
 export function ChoiceMark({ className }: { className?: string }) {
   return (
     <span

@@ -26,6 +26,9 @@
      foregrounds (WCAG 2.2 AA; checked by the browser suite). */
   --success: #15803d;
   --warning: #b45309;
+  /* A merged change (pull requests, proposed changes): the code hosts'
+     violet, >= 4.5:1 on background and card. */
+  --merged: #7c3aed;
   --shell: #f2f3f5;
   /* Recessed groups (trays) hold raised cards. */
   --tray: #f3f4f6;
@@ -131,10 +134,12 @@
 .dark {
   color-scheme: dark;
   /* On near-black the light theme's dark ink fades into its tile: the tile
-     takes more color and the glyph is drawn mostly in foreground. */
-  --identity-tile: 28%;
-  --identity-ink: 40%;
-  --identity-edge: 50%;
+     takes more color and the glyph is drawn mostly in foreground, so an
+     agent's tile reads as clearly as a person's coloured disc. */
+  --identity-tile: 34%;
+  --identity-ink: 20%;
+  --identity-edge: 60%;
+  --merged: #a78bfa;
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;
@@ -569,6 +574,7 @@
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-merged: var(--merged);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -649,6 +655,19 @@
      reads apart from grey fills; a neutral primary at 20% was a pale grey. */
   ::selection {
     @apply bg-ring/30 text-foreground;
+  }
+  /* Date fields: the browser's calendar button as a quiet icon, like the
+     chevrons of the app's selects, and no extra inner padding. */
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.55;
+    margin-inline-end: -2px;
+  }
+  input[type="date"]:hover::-webkit-calendar-picker-indicator {
+    opacity: 0.9;
   }
 }
 

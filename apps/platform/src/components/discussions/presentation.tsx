@@ -8,6 +8,7 @@ import {
 import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
 import { popupContainer } from "@lictory/ui/popup";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 
 // Presentation shared by the discussions beside pages and beside
@@ -199,7 +200,7 @@ export function DiscussionSheet({
       }}
       container={popupContainer()}
     >
-      <DialogBackdrop className="fixed inset-0 z-50 bg-black/15" />
+      <DialogBackdrop className={cn("fixed inset-0 z-50", scrimClass)} />
       <DialogContent
         ref={panel}
         aria-label={label}

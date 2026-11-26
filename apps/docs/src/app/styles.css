@@ -17,6 +17,15 @@ body {
   background: var(--background);
 }
 
+/* The layout animates its sidebar column (a registered custom property),
+   so a column width that settles while the page loads (the stylesheet or
+   the :has() rules that set it) was caught mid-way: a 230px column with the
+   268px sidebar right-aligned in it, the first letters of every label cut.
+   The column takes its width at once. */
+#nd-docs-layout {
+  transition: none;
+}
+
 /* Sidebar: the application's shell, mono section labels, rounded rows. */
 #nd-sidebar {
   font-size: 0.875rem;

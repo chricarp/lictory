@@ -440,7 +440,6 @@ function Queue({ project }: { project: Project }) {
                       assigneeId={item.assigneeId}
                       className="shrink-0"
                     />
-                    <span aria-hidden>·</span>
                     <span className="min-w-0 truncate">
                       {noRunner(claim)
                         ? `Queued: no online runner can run ${agentById.get(claim.agentId)?.name ?? "its agent"}`

@@ -44,6 +44,7 @@ import {
 import { runnerVersionSkew } from "@lictory/platform/components/factory/runner-version";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { MetaPart } from "@lictory/platform/components/shell/meta-line";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   expiresIn,
@@ -113,6 +114,8 @@ export function FactoryRunners() {
         <MissingState
           headingLevel={2}
           icon={Server}
+          // The Factory's empty tabs share the Overview's art.
+          illustration="planning"
           title="No runners yet"
           action={
             <Button onClick={() => setAdding(true)}>
@@ -259,13 +262,9 @@ function RunnerRow({
         meta={
           <>
             {owner && <span className="shrink-0">{owner}’s</span>}
-            {owner && <span aria-hidden>·</span>}
-            <span className="shrink-0 max-sm:hidden">
+            <MetaPart className="shrink-0 max-sm:hidden">
               {osLabel(runner.os)} {runner.arch}
-            </span>
-            <span aria-hidden className="max-sm:hidden">
-              ·
-            </span>
+            </MetaPart>
             <span className="truncate">{harnesses}</span>
             {runner.version && (
               <span
@@ -667,9 +666,8 @@ function Choice({
       onClick={onSelect}
       className={cn(
         "flex items-start gap-3 rounded-xl p-3 text-left ring-1 outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
-        selected
-          ? "bg-primary/6 ring-primary/40"
-          : "ring-border hover:bg-muted/50",
+        // Selected as every choice card: a 2px outline in the text colour.
+        selected ? "ring-2 ring-foreground" : "ring-border hover:bg-muted/50",
       )}
     >
       <span className="mt-0.5 text-muted-foreground">{icon}</span>

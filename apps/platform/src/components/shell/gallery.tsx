@@ -378,6 +378,7 @@ const tones: StatusTone[] = [
   "attention",
   "success",
   "danger",
+  "merged",
 ];
 const statuses: SessionStatus[] = [
   "queued",

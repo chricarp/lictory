@@ -50,22 +50,18 @@ test("on a phone the settings sections, board columns and backlog states stay re
   const seeded = await seed("PHL");
   await signIn(page, seeded.owner.email);
 
-  // Settings: the section strip says more sections lie beyond its edge, and
-  // the arrow brings them into view.
+  // Settings: a phone names the current section in one select that lists
+  // every section in full (a sideways strip cut words at its edges), and
+  // choosing one opens it.
   await page.goto(paths.projectSettings(seeded.slug, "PHL"));
   const sections = page.getByRole("navigation", { name: "Settings sections" });
-  await expect(sections.locator('[aria-current="page"]')).toBeVisible();
-  const scroller = sections.locator(".overflow-x-auto").first();
-  const later = sections.locator('[data-scroll-cue="end"] button');
-  await expect(sections.locator('[data-scroll-cue="start"]')).toHaveCount(0);
-  await expect(later).toBeVisible();
-  await later.click();
-  await expect
-    .poll(() => scroller.evaluate((element) => element.scrollLeft))
-    .toBeGreaterThan(0);
-  await expect(
-    sections.locator('[data-scroll-cue="start"] button'),
-  ).toBeVisible();
+  const section = sections.getByRole("combobox", { name: "Settings section" });
+  await expect(section).toContainText("General");
+  await expect(sections.getByRole("link")).toHaveCount(0);
+  await section.click();
+  await page.getByRole("option", { name: "Labels & milestones" }).click();
+  await expect(page).toHaveURL(/\/settings\/labels$/);
+  await expect(section).toContainText("Labels & milestones");
   await fits(page, 390);
 
   // Board: every column by name and count above the one in view; choosing
@@ -97,6 +93,37 @@ test("on a phone the settings sections, board columns and backlog states stay re
   await fits(page, 390);
 });
 
+// No separator dot starts a line of row details: a part whose dot shows
+// has another part before it on the same line (the dot of a part that
+// starts a line falls outside the line's box).
+async function expectNoLeadingSeparators(scope: Locator) {
+  const stranded = await scope.evaluate((element) =>
+    [...element.querySelectorAll<HTMLElement>("[data-meta-line]")].flatMap(
+      (line) => {
+        const edge = line.getBoundingClientRect().left;
+        const parts = [
+          ...line.querySelectorAll<HTMLElement>("[data-meta-part]"),
+        ].filter((part) => part.getClientRects().length > 0);
+        return parts
+          .filter((part) => {
+            const box = part.getBoundingClientRect();
+            if (box.left < edge - 0.5) return false;
+            return !parts.some((other) => {
+              const before = other.getBoundingClientRect();
+              return (
+                other !== part &&
+                Math.abs(before.top - box.top) < 2 &&
+                before.right <= box.left + 1
+              );
+            });
+          })
+          .map((part) => part.textContent);
+      },
+    ),
+  );
+  expect(stranded).toEqual([]);
+}
+
 test("at 320px list rows wrap their details instead of cutting them mid-word", async ({
   page,
 }) => {
@@ -117,6 +144,13 @@ test("at 320px list rows wrap their details instead of cutting them mid-word", a
   await expect(row).toContainText("Read and write");
   await expect(row).toContainText("Every project");
   await expectWhole(row);
+  // The details wrap onto more than one line, and no line starts with a
+  // separator.
+  const meta = row.locator("[data-meta-line]");
+  expect(
+    await meta.evaluate((line) => line.getBoundingClientRect().height),
+  ).toBeGreaterThan(20);
+  await expectNoLeadingSeparators(row);
   await fits(page, 320);
 });
 
