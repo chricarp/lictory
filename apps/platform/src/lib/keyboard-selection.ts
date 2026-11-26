@@ -3,8 +3,9 @@
 // or the browser's caret browsing. The reader is one tab stop; inside it
 // a selected word stands for the cursor:
 //
-// - Arrow Left/Right move to the previous or next word, Arrow Up/Down to
-//   the line above or below; Home/End to the start or end of the line.
+// - Arrow Left/Right select the previous or next word, Arrow Up/Down the
+//   first word of the line above or below, Home/End the first or last word
+//   of the line.
 // - Shift with those keys extends the selection (by word, line or to the
 //   line's edge).
 // - Escape clears the selection.
@@ -128,10 +129,10 @@ export function keyboardSelect(
     selection.modify("move", "backward", "word");
     selection.modify("extend", "forward", "word");
   } else {
-    // The line above or below, or the start of the line: the word at the
-    // new position (to its end and back finds its start, also mid-word).
-    selection.modify("move", "forward", "word");
-    selection.modify("move", "backward", "word");
+    // The line above or below, or the start of the line: its first word.
+    // (A line move keeps the caret's horizontal position from earlier
+    // moves, so "the word under the caret" would be hard to predict.)
+    selection.modify("move", "backward", "lineboundary");
     selection.modify("extend", "forward", "word");
   }
   keepInside();

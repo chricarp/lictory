@@ -35,6 +35,12 @@ const structuralRules = new Set([
   "landmark-complementary-is-top-level",
 ]);
 
+// Popups mount under the body, outside every landmark, but belong to the
+// control that opened them, as axe already treats dialogs: content inside one
+// is not "outside the landmarks".
+const popups =
+  "[role=tooltip], [role=menu], [role=listbox], [data-reference-card]";
+
 // Violations that need a product or design decision before they can be fixed.
 // Each is excused only for its rule inside its selector, never page-wide, and
 // is listed under "Known gaps" in docs/internals/accessibility.md. Remove the
@@ -90,6 +96,7 @@ export async function expectNoAccessibilityViolations(
     const gaps = knownGaps
       .filter((gap) => gap.rule === violation.id)
       .map((gap) => gap.within);
+    if (violation.id === "region") gaps.push(popups);
     for (const node of violation.nodes) {
       const target = node.target.join(" >>> ");
       if (gaps.length && (await withinGap(page, node.target, gaps))) continue;

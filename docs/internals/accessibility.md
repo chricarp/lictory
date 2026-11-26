@@ -128,7 +128,7 @@ field, Enter or Arrow Down moves into the content.
 - **Readers.** A specification being read and a published page are one tab
   stop each (`role="document"`, described by their keys). Inside, a
   selected word stands for the cursor: Arrow Left/Right select the previous
-  or next word, Arrow Up/Down a word on the line above or below, Home/End
+  or next word, Arrow Up/Down the first word of the line above or below, Home/End
   the first or last word of the line; Shift with those keys extends the
   selection, Escape clears it (`lib/keyboard-selection.ts`). The selection
   is the browser's own, so the selection actions, Mod+Alt+M and Litto read

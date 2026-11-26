@@ -158,7 +158,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   // It asks for approval in the thread; Ada approves on the session's card,
   // where the request shows with its context. While the card shows it, the
   // request is one block: its record line returns once answered.
-  const approval = panel.getByRole("region", {
+  const approval = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();

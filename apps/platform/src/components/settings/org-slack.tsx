@@ -383,7 +383,10 @@ function AppSetup({
       </ol>
       <div className="relative">
         {/* Focusable so the manifest scrolls from the keyboard too. */}
+        {/* A named region, the pattern for a scrollable box (a <pre> may
+            not be named on its own). */}
         <pre
+          role="region"
           aria-label="Slack app manifest"
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
           tabIndex={0}

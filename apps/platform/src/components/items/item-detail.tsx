@@ -107,6 +107,7 @@ import {
 } from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
 import { ReviewAnnouncer } from "@lictory/platform/components/review/announce";
 import {
   useListPanel,
@@ -1088,15 +1089,7 @@ export function ItemDetail({
                     </Button>
                   </div>
                 )}
-                {focusScreen ? (
-                  // History, branches, pull requests and AI reviews hide the
-                  // editable title; the page still names its item.
-                  <h1 className="sr-only">
-                    {identifier(project, item.number)}: {item.title}
-                  </h1>
-                ) : (
-                  <InlineTitle />
-                )}
+                {!focusScreen && <InlineTitle />}
                 {!focusScreen && (
                   <ItemWorkflow
                     onStartRefinement={
@@ -1177,6 +1170,11 @@ export function ItemDetail({
                 <div className="mt-6">
                   {mode.kind === "history" ? (
                     <div className="space-y-6">
+                      {/* Named like the item's other screens (branches, a
+                          pull request); the tabs below say it visibly. */}
+                      <ItemScreenTitle className="sr-only">
+                        Version history of {identifier(project, item.number)}
+                      </ItemScreenTitle>
                       <HistoryNav
                         current="versions"
                         onVersions={() =>
