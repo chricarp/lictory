@@ -1,13 +1,11 @@
 import { useMemo } from "react";
 import { Factory } from "lucide-react";
-import {
-  sessionTitle,
-  type SessionStatus,
-} from "@lictory/core/factory/entities";
+import type { SessionStatus } from "@lictory/core/factory/entities";
 import { identifier } from "@lictory/core/lib/work-items";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { titleBeside } from "@lictory/platform/components/factory/parts";
 import {
   useFactory,
   waitingOnMe,
@@ -62,6 +60,8 @@ function RunningSessionsCard() {
         const project = item
           ? projects.find((p) => p.id === item.projectId)
           : undefined;
+        const key =
+          item && project ? identifier(project, item.number) : undefined;
         const state = sessionState(session, {
           claim: item ? claims.get(item.id) : null,
           decider: memberName(agent?.ownerId ?? session.requestedById),
@@ -73,10 +73,9 @@ function RunningSessionsCard() {
             leading={
               agent ? <AgentAvatar agent={agent} size={20} /> : undefined
             }
-            identifier={
-              item && project ? identifier(project, item.number) : undefined
-            }
-            title={sessionTitle(session.title)}
+            identifier={key}
+            // The key leads; the title does not repeat it.
+            title={titleBeside(session.title, key)}
             meta={
               <AgentActor
                 agent={agent}
@@ -85,7 +84,8 @@ function RunningSessionsCard() {
               />
             }
             chips={<SessionStateChip state={state} />}
-            time={session.updatedAt}
+            // A narrow column: the title keeps the room a time would take
+            // (the state says it is live).
           />
         );
       })}

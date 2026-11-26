@@ -207,7 +207,7 @@ export function ClaimPanel() {
               variant="outline"
               onClick={() => setReleasing(true)}
             >
-              Release
+              Release claim…
             </Button>
           )}
         </div>
@@ -321,7 +321,7 @@ export function ReleaseDialog({
   return (
     <Dialog
       title="Release this claim?"
-      description={`${agent} stops holding the item. It returns to the status it had before the claim, unless someone moved it since. The dispatcher does not start it again until someone retries.`}
+      description={`${agent} stops holding the item, so another agent or a person can take it. The item returns to the status it had before the claim, unless someone moved it since. The agent's session is not stopped: cancel it from the session if it should stop. The dispatcher does not start the item again until someone retries.`}
       onClose={onClose}
       onSubmit={() => void release()}
       footer={
@@ -330,7 +330,7 @@ export function ReleaseDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={pending}>
-            {pending ? "Releasing…" : "Release"}
+            {pending ? "Releasing…" : "Release claim"}
           </Button>
         </>
       }
