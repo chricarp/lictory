@@ -44,6 +44,15 @@ Jira** and enter:
 created as this account. The token is encrypted at rest and never reaches
 browsers.
 
+One account acts for the whole site: Jira shows it as the reporter of every
+handed-off issue, and its project permissions decide what Lictory may do.
+Lictory records who handed off each item in the item's history; Jira does
+not know that person. Use a dedicated Jira account for Lictory (not a
+person's), give it **Browse projects**, **Create issues**, **Edit issues** and **Link
+issues** in the Jira projects it hands off to and nothing else, and note when its API token expires (Atlassian
+asks for an expiry date): when Jira starts refusing the token, hand-offs
+fail with that reason until an administrator uses **Replace token**.
+
 </Step>
 <Step>
 
@@ -217,6 +226,14 @@ Status, its category and the assignee are read back from Jira:
 - on demand, with **Refresh from Jira** on the Hand-off view.
 
 Reading back never writes to Jira and never changes Lictory's fields.
+
+Lictory asks Jira rather than waiting for Jira to call it: a Jira webhook
+would need a Jira administrator to register Lictory's address and a public
+route into your server, and it would still miss changes made while the
+server was down. So a status changed in Jira shows in Lictory within ten
+minutes, or at once after **Refresh from Jira**. Each refresh reads up to 50
+issues per request (200 items per run), so it costs Jira's rate limit little;
+operators change the interval with `WORKER_DELIVERY_REFRESH_INTERVAL_MS`.
 
 Jira's status and assignee then appear wherever the item does: its item
 page (the **Jira** section with the issue key, status, **Assignee in Jira**
