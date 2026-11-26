@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { Input as InputPrimitive } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
-import { Archive, ArchiveRestore, Plus, ShieldCheck } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
+  Archive,
+  ArchiveRestore,
+  ChevronRight,
+  Plus,
+  ShieldCheck,
+} from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
@@ -121,6 +132,7 @@ export function ProjectDisciplines({
           }}
         />
       )}
+      {shown.length > 0 && <AbilityLegend />}
       <SettingsList isEmpty={shown.length === 0} empty="No disciplines yet.">
         {shown.map((d) => (
           <DisciplineRow
@@ -154,17 +166,76 @@ export function ProjectDisciplines({
   );
 }
 
+// What each ability allows, said once for the page rather than under every
+// discipline's checkboxes.
+function AbilityLegend() {
+  return (
+    <Collapsible className="border-b px-5 py-2.5 text-[13px]">
+      <CollapsibleTrigger className="group inline-flex cursor-pointer items-center gap-1 text-muted-foreground select-none hover:text-foreground">
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 transition-transform duration-150 group-data-open:rotate-90"
+        />
+        What each ability allows
+      </CollapsibleTrigger>
+      <CollapsiblePanel>
+        <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-[auto_1fr]">
+          {capabilityKeys.map((key) => (
+            <div key={key} className="contents">
+              <dt className="font-medium">{capabilityMeta[key].label}</dt>
+              <dd className="text-muted-foreground">
+                {capabilityMeta[key].description}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsiblePanel>
+    </Collapsible>
+  );
+}
+
 function CapabilityToggles({
   value,
   disabled,
   onChange,
   name,
+  detailed = false,
 }: {
   value: Capabilities;
   disabled: boolean;
   onChange: (next: Capabilities) => void;
   name: string;
+  /** Each ability's description under its label (when creating one). */
+  detailed?: boolean;
 }) {
+  if (!detailed)
+    // One line of abilities per discipline, so "can QA hand off?" is read
+    // from QA's row; the legend above says what each one allows.
+    return (
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        {capabilityKeys.map((key) => (
+          <label
+            key={key}
+            title={capabilityMeta[key].description}
+            className={cn(
+              "flex items-center gap-2 text-[13px]",
+              disabled && "cursor-default",
+              !value[key] && "text-muted-foreground",
+            )}
+          >
+            <Checkbox
+              disabled={disabled}
+              checked={value[key]}
+              aria-label={`${name}: ${capabilityMeta[key].label}`}
+              onCheckedChange={(checked) =>
+                onChange({ ...value, [key]: checked === true })
+              }
+            />
+            {capabilityMeta[key].label}
+          </label>
+        ))}
+      </div>
+    );
   return (
     <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
       {capabilityKeys.map((key) => (
@@ -213,7 +284,7 @@ function DisciplineRow({
 }) {
   const editable = canEdit && !d.archivedAt;
   return (
-    <div className={cn("space-y-3 px-5 py-4", d.archivedAt && "opacity-70")}>
+    <div className={cn("space-y-2 px-5 py-3", d.archivedAt && "opacity-70")}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
@@ -339,6 +410,7 @@ function NewDiscipline({
         value={capabilities}
         disabled={false}
         onChange={setCapabilities}
+        detailed
       />
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={!name.trim()}>
