@@ -418,6 +418,14 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   await expect(request.getByRole("button", { name: "Approve" })).toBeVisible({
     timeout: 60_000,
   });
+  // Several requests can be open at once: each decision names its request,
+  // starting with the word it shows.
+  await expect(
+    request.getByRole("button", { name: /^Approve: Write CHANGES\.md$/ }),
+  ).toBeVisible();
+  await expect(
+    request.getByRole("button", { name: /^Deny: Write CHANGES\.md$/ }),
+  ).toBeVisible();
   const threadPath = `${paths.channel(seeded.slug, channelId)}?thread=${await asked.getAttribute("data-message-id")}`;
   const sessionPath = await card
     .getByRole("link", { name: /Open session/ })

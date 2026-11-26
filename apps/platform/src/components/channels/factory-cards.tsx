@@ -532,6 +532,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
                 approvalId={approval.approvalId}
                 question={question}
                 agentName={approval.agentName}
+                subject={approval.title}
               />
             </div>
           ) : (

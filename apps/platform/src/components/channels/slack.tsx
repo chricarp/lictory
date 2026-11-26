@@ -64,8 +64,10 @@ export function SlackSyncStatus({ channel }: { channel: Channel }) {
       )}
     </StatusChip>
   );
+  // The name starts with the chip's words ("Slack sync failing"), so voice
+  // control users can say what they see (WCAG 2.5.3).
   const tooltip = failing
-    ? `${label}. ${link.lastError ?? "Messages are not reaching Slack."}`
+    ? `Slack sync failing. ${label}. ${link.lastError ?? "Messages are not reaching Slack."}`
     : label;
   return (
     <Tooltip label={tooltip}>
@@ -81,7 +83,9 @@ export function SlackSyncStatus({ channel }: { channel: Channel }) {
           {content}
         </a>
       ) : (
-        <span aria-label={tooltip} data-testid="slack-sync-status">
+        // A plain chip is an image of the sync state: a name on a role-less
+        // span would not be spoken.
+        <span role="img" aria-label={tooltip} data-testid="slack-sync-status">
           {content}
         </span>
       )}

@@ -85,7 +85,7 @@ when only one fits ("Review & details" then opens the rail as a drawer),
 a sheet on phones. The panel lists threads whose passage is in the current
 revision in document order, then those whose text changed or was removed,
 then discussions of the whole specification; resolved threads are folded
-away until asked for. Open passages are tinted in the text (blocking ones
+away until asked for. Open passages are tinted and underlined in the text (blocking ones
 red); pointing at a passage or a thread, or selecting one, tints both more.
 Whether the panel is open is remembered in this browser; until someone
 chooses, it opens by default beside a specification with open discussions

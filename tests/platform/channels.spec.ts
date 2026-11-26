@@ -200,3 +200,53 @@ test("a message sent while the connection is down says it is not sent yet, then 
   await expect(note).toHaveCount(0);
   await expect(message).not.toHaveAttribute("data-pending");
 });
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  test("a tap on a message shows its actions, and promoting it is reachable", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const seeded = await seedWorkspace({
+      name: "Channels touch",
+      key: "CHT",
+      users: ["Ada Product"],
+    });
+    const channelId = crypto.randomUUID();
+    await seeded.command({
+      type: "createChannel",
+      channelId,
+      kind: "public",
+      name: "payments",
+      topic: "Refunds",
+    });
+    await seeded.command(
+      { type: "joinChannel", channelId },
+      seeded.users[0]!.id,
+    );
+    await signIn(page, seeded.users[0]!.email);
+    await page.goto(`/${seeded.slug}/channels/${channelId}`);
+    const composer = await fillMarkdown(
+      page,
+      "Message #payments",
+      "Partners want refunds over the API",
+    );
+    await composer.press("Enter");
+    const message = page
+      .getByRole("log", { name: "Messages in #payments" })
+      .locator("[data-message-id]")
+      .filter({ hasText: "Partners want refunds over the API" });
+    const actions = message.getByRole("toolbar", { name: "Message actions" });
+    // No hover on a phone: the actions stay out of the way until the
+    // message is tapped.
+    await expect(actions).toHaveCSS("opacity", "0");
+    await message.getByText("Partners want refunds over the API").tap();
+    await expect(actions).toHaveCSS("opacity", "1");
+    await actions.getByRole("button", { name: "More actions" }).tap();
+    await page.getByRole("menuitem", { name: "Promote to proposal" }).tap();
+    await expect(
+      page.getByRole("dialog", { name: "Promote to proposal" }),
+    ).toBeVisible();
+  });
+});

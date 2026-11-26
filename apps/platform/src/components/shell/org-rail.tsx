@@ -76,7 +76,7 @@ function OrganizationTile({
           ? `${organization.name} · ${unread} unread`
           : organization.name
       }
-      name={organization.name}
+      described
     >
       <Link
         href={paths.org(organization.slug)}
@@ -92,6 +92,9 @@ function OrganizationTile({
           organization={organization}
           className="size-8 rounded-[9px] text-[13px]"
         />
+        {/* Named by its content, not an aria-label over the one-letter
+            mark, which voice control could not match to what is shown. */}
+        <span className="sr-only">{organization.name}</span>
         {unread > 0 && (
           <span
             aria-hidden
@@ -103,26 +106,25 @@ function OrganizationTile({
   );
 }
 
-// Names its icon-only trigger, beside the rail.
+// Names its icon-only trigger, beside the rail, or describes one named by
+// its own content (an organization, whose tooltip adds unread counts).
 function RailTooltip({
   label,
-  name,
+  described = false,
   children,
 }: {
   // What the tooltip shows.
   label: string;
-  // The trigger's accessible name, when it differs from what is shown
-  // (an unread count).
-  name?: string;
+  described?: boolean;
   children: ReactElement<Record<string, unknown>>;
 }) {
   return (
     <Tooltip
       delay={150}
       container={popupContainer()}
-      type={name ? "description" : "label"}
+      type={described ? "description" : "label"}
     >
-      <TooltipTrigger render={children} aria-label={name} />
+      <TooltipTrigger render={children} />
       <TooltipContent
         side="right"
         sideOffset={8}

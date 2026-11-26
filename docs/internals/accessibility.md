@@ -57,8 +57,9 @@ rendered state with seeded data:
 
 **The desktop app's own screens** (`apps/desktop/tests/smoke.spec.ts`, run
 by hand with the Electron binary, see [the desktop app](desktop.md#tests)):
-the connect screen and its error, add a server, settings, the offline top
-bar and the unavailable-server screen. Electron windows cannot open the extra
+the connect screen and its error, the server rail with a named server and
+its unread badge, add a server, settings, the offline top bar and the
+unavailable-server screen. Electron windows cannot open the extra
 page axe uses to combine frames, so they run with the helper's `singlePage`
 option (the shell page has no frames).
 
@@ -77,6 +78,13 @@ screen-reader-only words, not by an `aria-label`. Other moderate and minor
 findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
+
+What axe cannot decide ("needs review") is listed with `AXE_NEEDS_REVIEW=1`;
+look at it when a change touches the scanned surfaces. An `aria-label` on an
+element without a role (a `div`, `span` or `pre`) is not spoken: name it by
+visible text before it, or give it a role that takes a name. One result is
+expected and correct: a trigger that opens a popup (`aria-haspopup`) points
+at it with `aria-controls`, which axe always asks a person to confirm.
 
 ## Structure
 
@@ -101,6 +109,18 @@ moves focus past the rail and sidebar to the page (`#main`). Past the last
 control of a page (often a conversation's composer) the browser reports the
 document itself as focused before wrapping to the first stop; that is the
 browser's end of document, not a stop on the page.
+
+Controls that cannot act yet but are part of a decision (Merge while a
+requirement is unmet, Request changes before a comment says what must change)
+stay in the tab order (`focusableWhenDisabled`) and are described by the line
+that says why. Buttons repeated per request (an agent's Approve, Deny, Send
+answer; Review and Answer in the Inbox and on Home) start with their visible
+word and name the request ("Approve: Write CHANGES.md").
+
+A message's actions (react, reply, more: promote, record as decision, copy
+link, edit) are one toolbar per message: Tab reaches it, which reveals it,
+and arrow keys move inside it; on a touch screen a tap on the message shows
+it.
 
 Focus is always visible from the keyboard: one 2px ring in the theme's
 focus color, offset from the control (`focus-ring`), or drawn inside a
@@ -169,7 +189,12 @@ field, Enter or Arrow Down moves into the content.
   marked, and a thread's quote is a button that brings its passage into
   view. Mod+Alt+M comments on the text selected in the specification, or
   opens the panel at the composer when nothing is selected. Threads whose
-  text changed say so in words, not only by colour.
+  text changed say so in words, not only by colour. A discussed passage is
+  marked by a tint and a solid line under its text in the thread's colour;
+  the line keeps 3:1 against the page in every theme (the tint alone is
+  about 1.3:1), so the mark does not depend on seeing colour. The selection's
+  actions open under the selected lines (above them only when the window has
+  no room below), so the passage and what leads to it stay readable.
 - **Carets.** Other people's carets and their name labels are decorative
   (`aria-hidden`); who is editing is stated next to the save state.
 

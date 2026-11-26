@@ -451,10 +451,9 @@ function Context({
           </p>
           {action && action.kind !== "tool" ? (
             <>
-              <pre
-                aria-label="The exact action"
-                className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[12px] leading-4 whitespace-pre-wrap text-foreground"
-              >
+              {/* Read after "It wants to run" above it; a name on a <pre>
+                  (no role) would not be spoken. */}
+              <pre className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[12px] leading-4 whitespace-pre-wrap text-foreground">
                 {action.kind === "command" ? `$ ${action.text}` : action.text}
               </pre>
               {input && (
@@ -572,6 +571,7 @@ function Context({
           approvalId={approval.id}
           question={question}
           agentName={agent?.name}
+          subject={approval.title}
           onDecide={onDecide}
         />
       ) : (
@@ -628,18 +628,23 @@ function Fact({
 // Approve or Deny a permission, full-size; answer a question in words or
 // deny it. The server decides who may answer, refuses to approve a request
 // that names no action, and records the decision; the request leaves every
-// list once it has.
+// list once it has. Several requests can be open at once (a thread, the
+// Inbox), so each button's name says which one it answers: "Approve: Write
+// CHANGES.md", starting with the word it shows.
 export function Decide({
   sessionId,
   approvalId,
   question,
   agentName,
+  subject,
   onDecide,
 }: {
   sessionId: string;
   approvalId: string;
   question: boolean;
   agentName?: string;
+  // The request's title.
+  subject: string;
   onDecide?: (
     decision: "approve" | "deny" | "answer",
     note?: string,
@@ -698,7 +703,11 @@ export function Decide({
           className="min-h-16 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] leading-5 outline-none placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/20 touch:text-base"
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" disabled={sent !== null || !note.trim()}>
+          <Button
+            type="submit"
+            disabled={sent !== null || !note.trim()}
+            aria-label={`Send answer: ${subject}`}
+          >
             <Send className="size-3.5" aria-hidden /> Send answer
           </Button>
           <Button
@@ -706,6 +715,7 @@ export function Decide({
             variant="secondary"
             onClick={() => answer("deny")}
             disabled={sent !== null}
+            aria-label={`Deny: ${subject}`}
           >
             <X className="size-3.5" aria-hidden /> Deny
           </Button>
@@ -715,13 +725,18 @@ export function Decide({
     );
   return (
     <div className="flex flex-wrap items-center gap-2 pt-1">
-      <Button onClick={() => answer("approve")} disabled={sent !== null}>
+      <Button
+        onClick={() => answer("approve")}
+        disabled={sent !== null}
+        aria-label={`Approve: ${subject}`}
+      >
         <Check className="size-3.5" aria-hidden /> Approve
       </Button>
       <Button
         variant="secondary"
         onClick={() => answer("deny")}
         disabled={sent !== null}
+        aria-label={`Deny: ${subject}`}
       >
         <X className="size-3.5" aria-hidden /> Deny
       </Button>

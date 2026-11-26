@@ -1180,9 +1180,10 @@ attributed to the anonymized account, like specification threads.
   ([When a line ends](#when-a-line-ends)); the page summary's `openThreads`
   and `blockingThreads` stay page-wide, as the merge gate into main is. The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
-  merging" in Reviewed ones). Highlights are tints in the thread's colour;
-  the selected thread and the one pointed at, in the panel or in the text,
-  are tinted more on both sides.
+  merging" in Reviewed ones). Highlights are tints in the thread's colour
+  with a solid line under the text, as in specifications; the selected thread
+  and the one pointed at, in the panel or in the text, are tinted more on
+  both sides.
 - **Space settings.** Every setting applies when it changes (text fields
   when left or on Enter) and shows "Saving…", then "Saved", or the refusal
   beside it. Moving an Inherited space to another location asks first,

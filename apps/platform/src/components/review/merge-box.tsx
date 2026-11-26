@@ -38,6 +38,7 @@ export function MergeBox({
   blocked,
   readySummary,
   note,
+  noteId,
   action,
   before,
   children,
@@ -58,6 +59,8 @@ export function MergeBox({
   // Beside the merge button: what merging does, or why this person cannot
   // merge ("Merging here needs …"). Always say one of them.
   note?: ReactNode;
+  // The note's id, so a disabled merge button can be described by it.
+  noteId?: string;
   // The merge button, with its method or confirmation.
   action?: ReactNode;
   // A row above the requirements (a summary of running checks).
@@ -142,7 +145,10 @@ export function MergeBox({
       {children && <div className="border-t p-4">{children}</div>}
       {(note ?? action) && (
         <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-4 py-3">
-          <p className="min-w-0 flex-1 basis-56 text-xs text-muted-foreground">
+          <p
+            id={noteId}
+            className="min-w-0 flex-1 basis-56 text-xs text-muted-foreground"
+          >
             {note}
           </p>
           {action && (

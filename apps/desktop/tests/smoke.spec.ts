@@ -133,6 +133,11 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
     );
     const named = switcher.getByRole("button", { name: /Harborline Freight/ });
     await expect(named).toHaveText(/^HF/);
+    // Read out as the initials shown, the name and the badge in words.
+    await expect(named).toHaveAccessibleName(
+      /^HF Harborline Freight, 3 unread/,
+    );
+    await axe(shell, "server rail with a named server and its badge");
 
     // Native notifications: recorded where the app shows them. Working in
     // the app on another page of the same server, a review request still

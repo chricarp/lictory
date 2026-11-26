@@ -141,7 +141,11 @@ function headingFor(node: Node | null): Element | null {
   return null;
 }
 
+// Where the selection's actions sit: x is the centre, y the top edge.
 type Selected = QuoteDraft & { x: number; y: number };
+// The actions' height and their distance from the selected lines (px).
+const SELECTION_BAR = 34;
+const SELECTION_GAP = 6;
 
 // The selected passage as an anchor: its quote, the heading it is under and
 // which copy of those words under that heading it is (so repeated words
@@ -162,9 +166,16 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
   before.setEnd(range.startContainer, range.startOffset);
   const rect = range.getBoundingClientRect();
   const rootRect = root.getBoundingClientRect();
+  // The actions open under the selection, so the passage and the lines
+  // that lead to it stay readable while the reader decides; above it only
+  // when the window has no room below.
+  const below =
+    rect.bottom + SELECTION_GAP + SELECTION_BAR < window.innerHeight;
   return {
     x: rect.left - rootRect.left + rect.width / 2,
-    y: rect.top - rootRect.top,
+    y: below
+      ? rect.bottom - rootRect.top + SELECTION_GAP
+      : rect.top - rootRect.top - SELECTION_GAP - SELECTION_BAR,
     quote,
     section: heading?.getAttribute("data-heading") ?? "",
     occurrence: occurrenceIn(before.toString() + text, quote),
@@ -402,7 +413,7 @@ function Reader({
               {tinted
                 .map(
                   (id) =>
-                    `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:0 1px 0 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:0 1px 0 0 var(--destructive)}`,
+                    `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:inset 0 -3px 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:inset 0 -3px 0 var(--destructive)}`,
                 )
                 .join("")}
             </style>
@@ -413,13 +424,13 @@ function Reader({
             </style>
           )}
           {/* Before the text, so Tab from a keyboard selection reaches
-              it first; placed above the selection. */}
+              it first; placed under the selection (selectedPassage). */}
           {selection && (canComment || canAsk || onSuggest) && (
             <Toolbar
               ref={toolbarRef}
               aria-label="Selection actions"
               data-selection-skip
-              style={{ left: selection.x, top: selection.y - 40 }}
+              style={{ left: selection.x, top: selection.y }}
               className="absolute z-10 flex max-w-none -translate-x-1/2 flex-nowrap items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
               {canComment && (
