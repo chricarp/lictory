@@ -141,7 +141,10 @@ rebuilding. Nightly runs are serialized with retained queues. A failed build or
 publication changes nothing any installation can pull. A maintenance-only nightly remains useful
 for testing but cannot become stable without a semantic version increment.
 
-`package.json` in Git remains the development baseline. Build checkouts receive
+`package.json` in Git remains the development baseline, `0.0.0-dev`: no
+release has that version, so builds from source say they are development
+builds (the account menu, `lictory-runner --version`) and the add-runner
+dialog of such a server installs the latest stable runner. Build checkouts receive
 the calculated version without commits to `main`; images embed it, and the
 platform's account menu shows `X.Y.Z-nightly.*` on nightlies and the clean
 `X.Y.Z` on stable releases; the marketing website shows the latest stable. Release manifests and image labels record
