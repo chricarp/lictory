@@ -13,7 +13,7 @@
   },
   "hostRequirements": { "memory": "8gb" },
   "remoteUser": "node",
-  "postCreateCommand": "test -f .env || cp .env.example .env; bun install",
+  "postCreateCommand": "bun install && bun run dev:env",
   "forwardPorts": [3000, 3100, 8025],
   "portsAttributes": {
     "3000": { "label": "App" },

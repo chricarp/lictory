@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "bun scripts/dev.ts",
+    "dev:env": "bun scripts/dev-env.ts",
     "release": "bun scripts/release.ts",
     "db:generate": "drizzle-kit generate",
     "db:generate:data": "drizzle-kit generate --custom",
