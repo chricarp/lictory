@@ -159,9 +159,14 @@ is for an explicitly requested edit to an unprotected draft. Agents cannot
 type into the [live draft](/specifications/live-drafts) people are editing
 together; what people are writing there stays theirs.
 
-Commands can carry a `mutationId`: reusing it for a retry prevents the same
-change from being applied twice. A stale `baseRevisionId` returns a conflict
-with the current revision, so the agent must read and reconcile the new state.
+Write tools that list a `mutationId` (including `postChannelMessage` and
+`replyInThread`) replay their first result when retried with the same value,
+so the change is never applied twice. The [MCP tool reference](/reference/mcp-tools)
+marks each tool that takes one; the others are safe to repeat or say how
+to check first. Fields a tool does not take are refused rather than ignored.
+Wherever a tool takes `workItemId`, a key such as `PAY-142` works too. A
+stale `baseRevisionId` returns a conflict with the current revision, so the
+agent must read and reconcile the new state.
 
 ## Spaces
 
@@ -205,13 +210,21 @@ the token takes effect on subsequent requests.
 
 Approving reviews, merging, accepting delivery scope, resolving discussions,
 recording decisions, signing off readiness checks, publishing the Definition
-of Ready and handing work to Jira record human decisions. In projects
-delivered in Lictory, an agent cannot start or complete a specification's
-work before someone has accepted a revision for delivery. The MCP
-tools instruct the agent to perform them only when you explicitly ask. A
-read/write token is **not** a technical confirmation gate for each decision:
-use read-only access when the agent should only inspect work. Several agents
-using one person's identity do not count as independent reviewers.
+of Ready and handing work to Jira record human decisions. **An agent never
+makes them**: Lictory refuses them to an agent's token on the server and
+leaves them out of its tool list, whatever a message, issue or comment asks.
+The refusal says where you decide instead, and `listHumanOnlyOperations`
+lists every one. Merging an agent's code pull request can be automated only
+by the project's autonomy policy (Autopilot), never by the agent. In
+projects delivered in Lictory, an agent cannot start or complete a
+specification's work before someone has accepted a revision for delivery.
+Several agents using one person's identity do not count as independent
+reviewers.
+
+A personal access token (Account settings → Integrations) acts as you
+without an agent's limits: its tools include decisions, and the MCP
+instructions tell the client to make one only when you explicitly asked.
+Prefer an agent's token for anything that runs unattended.
 
 Account security, organization membership, administrator roles, token
 creation, integration credentials, the audit log, data exports, organization
@@ -255,9 +268,12 @@ webhook**, enter a name, the URL your agent gave you and its secret (sent as
 `Authorization: Bearer <secret>`) and the event types, then **Test** it. A
 script using a personal token is woken the same way from **Account
 settings → Event webhooks**, where you also choose the organization. Each delivery's body has `text` (one sentence
-describing the event) and `event` (its type, identifiers and a link). A
-failing receiver is retried with backoff and paused after five failures;
-**Resume** it once it works again.
+describing the event, repeated as `message` for receivers that read that
+field) and `event` (its type, identifiers and a link), and is signed with
+the secret. A failing receiver is retried with backoff and suspended after
+five failures; **Resume** it once it works again. The
+[agent events reference](/reference/agent-events) lists every event type,
+header and payload, the retry schedule and how to verify a signature.
 
 Webhooks reach public HTTPS addresses only. A self-hosted installation can
 allow agents on its own network with `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS`
@@ -281,7 +297,7 @@ Apply your organization's policy for sending product data to that provider.
 
 | Symptom                    | What to check                                                                                                       |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Unauthorized               | Send the bearer header; replace an expired or revoked token.                                                        |
+| Unauthorized               | Send the bearer header; replace an expired or revoked token from the agent's **Connection**.                        |
 | No tools that make changes | The token is read-only; create a read/write token if needed.                                                        |
 | Forbidden operation        | Check current organization membership, project disciplines and the human-only explanation.                          |
 | Organization not found     | Rediscover with `listOrganizations`; use its exact ID or slug.                                                      |
