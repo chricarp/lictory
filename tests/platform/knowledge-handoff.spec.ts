@@ -319,7 +319,7 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     await ada.page.getByRole("button", { name: "Commit", exact: true }).click();
     await ada.page
       .getByRole("dialog", { name: "Commit to this branch" })
-      .getByRole("button", { name: "Commit now" })
+      .getByRole("button", { name: "Commit only" })
       .click();
     await expect(ada.page.getByText("Committed version 2")).toBeVisible();
 

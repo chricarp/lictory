@@ -142,6 +142,18 @@ export function PageStatement({
     head !== undefined &&
     head.approverIds.length > 0 &&
     page.approvedCommitId === head.id;
+  // A new page's first version is empty: calling it published contradicts
+  // the empty page under it.
+  const blank =
+    space.publishing === "reviewed" &&
+    head !== undefined &&
+    (version ?? 1) <= 1 &&
+    !head.markdown.trim();
+  const published = blank
+    ? "Not published yet"
+    : version
+      ? `Published version ${version}`
+      : "Published";
   const author = memberName(head?.authorId ?? page.createdById);
   const at = head?.createdAt ?? page.updatedAt;
   const unpublished = Boolean(
@@ -152,9 +164,7 @@ export function PageStatement({
   return (
     <>
       <p className={cn(row, "max-sm:hidden")}>
-        <StateDot tone="published">
-          {version ? `Published version ${version}` : "Published"}
-        </StateDot>
+        <StateDot tone={blank ? "neutral" : "published"}>{published}</StateDot>
         {approved && (
           <span
             title={`Approved by ${head.approverIds.map(memberName).join(", ")}`}
@@ -177,14 +187,18 @@ export function PageStatement({
           <button
             {...props}
             type="button"
-            aria-label={`Published ${version ? `version ${version}` : ""} by ${author}, ${relativeTime(at)}. Show details`}
+            aria-label={`${published}, created by ${author}, ${relativeTime(at)}. Show details`}
             className={cn(
               row,
               "-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:hidden",
             )}
           >
-            <StateDot tone="published">
-              {version ? `Published v${version}` : "Published"}
+            <StateDot tone={blank ? "neutral" : "published"}>
+              {blank
+                ? published
+                : version
+                  ? `Published v${version}`
+                  : "Published"}
             </StateDot>
             <Fact>
               <span>{author}</span>
@@ -200,7 +214,7 @@ export function PageStatement({
         )}
       >
         <StatementDetails
-          title={version ? `Published version ${version}` : "Published"}
+          title={published}
           facts={[
             `By ${author}`,
             absoluteTime(at),

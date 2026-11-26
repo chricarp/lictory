@@ -624,7 +624,7 @@ test("a Reviewed space protects main: a branch is started and its draft commits"
   await ada.page.getByRole("button", { name: "Commit", exact: true }).click();
   await ada.page
     .getByRole("dialog", { name: "Commit to this branch" })
-    .getByRole("button", { name: "Commit now" })
+    .getByRole("button", { name: "Commit only" })
     .click();
   await expect(ada.page.getByText("Committed version 2")).toBeVisible();
   await expect(ada.page.getByText("All changes committed")).toBeVisible();
@@ -639,6 +639,48 @@ test("a Reviewed space protects main: a branch is started and its draft commits"
   await expect(
     ada.page.getByRole("combobox", { name: "Source branch" }),
   ).not.toHaveText("Choose branch");
+  await ada.context.close();
+});
+
+test("a branch commits and is sent for review in one step", async ({
+  browser,
+}) => {
+  const ada = await person(browser, owner);
+  await ada.page.goto(reviewedUrl);
+  // A new page of a Reviewed space is empty: it does not claim a published
+  // version above "Nothing has been published".
+  await expect(ada.page.getByText("Not published yet")).toBeVisible();
+  await ada.page.getByRole("button", { name: "Start a branch" }).click();
+  const start = ada.page.getByRole("dialog", { name: "Start a branch" });
+  await start.getByLabel("Branch name").fill("ada/send-for-review");
+  await start.getByRole("button", { name: "Start branch" }).click();
+  await expect(ada.page).toHaveURL(/[?&]branch=/);
+  await expect(saved(ada.page)).toBeVisible({ timeout: 20_000 });
+  await liveEditor(ada.page).click();
+  await ada.page.keyboard.type("Disputes are answered within five days.");
+  await expect(saved(ada.page)).toBeVisible();
+  await ada.page.getByRole("button", { name: "Commit", exact: true }).click();
+  const commit = ada.page.getByRole("dialog", {
+    name: "Commit to this branch",
+  });
+  await commit.getByLabel("Message").fill("Answer disputes within five days");
+  await commit.getByRole("combobox", { name: "Reviewer" }).click();
+  await ada.page
+    .getByRole("option", { name: user(editor).name, exact: true })
+    .click();
+  await commit
+    .getByRole("button", { name: "Commit and send for review" })
+    .click();
+  // The branch names its pull request; nobody opened the history's form.
+  const next = ada.page
+    .getByRole("status")
+    .filter({ hasText: "Answer disputes within five days" });
+  await expect(next).toContainText("now includes version");
+  await next.getByRole("link", { name: "View pull request" }).click();
+  await expect(
+    ada.page.getByText(user(editor).name, { exact: false }).first(),
+  ).toBeVisible();
+  await expect(ada.page.getByText("Nobody is asked yet")).toHaveCount(0);
   await ada.context.close();
 });
 
