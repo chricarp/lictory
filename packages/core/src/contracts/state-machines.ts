@@ -185,7 +185,8 @@ export const specificationPullRequest = stateMachine({
   },
 });
 
-// Legacy proposals of replacement text, reviewed like a small pull request.
+// Proposed replacement text for a small change to main: its assigned
+// reviewer accepts (approves, then merges) or someone rejects (closes) it.
 export const suggestion = stateMachine({
   name: "suggestion",
   states: {

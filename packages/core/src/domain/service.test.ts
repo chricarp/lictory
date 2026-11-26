@@ -771,13 +771,15 @@ void test("approvals target exact revisions, only assignments authorize, and sug
   const f = await fixture();
   const first = await f.current();
   const base = { workItemId: f.proposalId, baseRevisionId: first.id };
+  // Optional, so the approval does not make the item ready: a ready
+  // specification's main is protected and refuses suggestions.
   await f.command({
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
     disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
-    required: true,
+    required: false,
   });
   const review = (await f.entities()).find((e) => e.type === "review")!;
   await assert.rejects(
@@ -2252,6 +2254,24 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     f.command({ type: "mergeSuggestion", ...base, suggestionId }),
     /specification changed/,
   );
+  // Once readiness protects main, a suggestion cannot write it either.
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: true })
+    .where(eq(s.workItem.id, f.proposalId));
+  await assert.rejects(
+    f.command({
+      type: "mergeSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: second.id,
+      suggestionId,
+    }),
+    /This specification is ready/,
+  );
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: false })
+    .where(eq(s.workItem.id, f.proposalId));
   await assert.rejects(
     f.command({
       type: "mergeSuggestion",

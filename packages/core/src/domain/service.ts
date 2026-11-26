@@ -4521,6 +4521,13 @@ export async function applyMutation(
             // the editing capability they were chosen for.
             requireCapability(capabilities, "editSpecifications");
             requireStep(suggestionMachine, suggestion.status, "merge");
+            // A suggestion writes main like an edit does: once readiness
+            // protected main, changes go through a branch's pull request.
+            if (item!.mainProtected)
+              throw new DomainError(
+                "conflict",
+                "This specification is ready. Use a branch and pull request to change main.",
+              );
             if (suggestion.revisionId !== latest?.id)
               throw new DomainError(
                 "conflict",
