@@ -123,7 +123,10 @@ moves it or when its Definition of Done passes.
 whether Lictory keeps up with it: when the connection last received a
 webhook, when the repository was last read (every ten minutes, whatever the
 webhooks do), whether CI reports checks there, and its open pull requests.
-**Refresh** reads it again now.
+**Refresh** reads it again now. When Lictory refused a delivery after the
+last one it accepted (its signature does not match the webhook secret, or it
+is not JSON), the row and **Settings → Code hosts** say when and why, until
+the host's next delivery goes through.
 
 If the host refuses a change (a branch that exists, missing permissions),
 the item or pull request shows the host's reason with **Retry** and

@@ -95,6 +95,11 @@ export const codeConnection = pgTable(
     lastError: text("last_error"),
     lastVerifiedAt: timestamp("last_verified_at").notNull(),
     lastWebhookAt: timestamp("last_webhook_at"),
+    // The latest delivery Lictory refused (signature or payload), recorded at
+    // most once a minute: deliveries that stop arriving after a secret
+    // rotation or a proxy change are otherwise invisible.
+    lastWebhookRefusedAt: timestamp("last_webhook_refused_at"),
+    lastWebhookRefusal: text("last_webhook_refusal"),
     createdById: actor("created_by_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

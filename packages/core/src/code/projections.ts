@@ -255,6 +255,12 @@ async function computeCodeRows(
             longLivedCredential: c.authKind === "token",
             webhookPath: webhookPath(c.id),
             lastWebhookAt: isoOrNull(c.lastWebhookAt),
+            lastWebhookRefusedAt: isoOrNull(c.lastWebhookRefusedAt),
+            lastWebhookRefusal:
+              c.lastWebhookRefusal === "signature" ||
+              c.lastWebhookRefusal === "payload"
+                ? c.lastWebhookRefusal
+                : null,
             createdAt: iso(c.createdAt),
           },
           {},

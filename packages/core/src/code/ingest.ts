@@ -81,18 +81,18 @@ export async function receiveWebhook(
   try {
     secret = connections.webhookSecret(row);
   } catch {
-    return { status: "rejected", reason: "signature" };
+    return refuse(db, row, "signature", connections.now());
   }
   const verified = provider.verifyWebhook(
     { headers: input.headers, body: input.body },
     secret,
   );
-  if (!verified) return { status: "rejected", reason: "signature" };
+  if (!verified) return refuse(db, row, "signature", connections.now());
   let payload: unknown;
   try {
     payload = JSON.parse(input.body);
   } catch {
-    return { status: "rejected", reason: "payload" };
+    return refuse(db, row, "payload", connections.now());
   }
   return db.transaction(async (tx) => {
     const inserted = await tx
@@ -110,6 +110,52 @@ export async function receiveWebhook(
     await signalWork(tx, "code");
     return { status: "accepted" as const };
   });
+}
+
+// Records a refused delivery on its connection, at most once a minute, so
+// administrators see why deliveries stopped counting (docs/internals/
+// code-hosts.md#ingest). The request is unauthenticated: the throttle keeps
+// a flood of forged deliveries from turning into a flood of writes.
+const REFUSAL_RECORD_MS = 60_000;
+
+export type WebhookRefusal = "signature" | "payload";
+
+async function refuse(
+  db: Database,
+  row: typeof s.codeConnection.$inferSelect,
+  reason: WebhookRefusal,
+  at: Date,
+): Promise<ReceiveResult> {
+  const recent = row.lastWebhookRefusedAt
+    ? at.getTime() - row.lastWebhookRefusedAt.getTime() < REFUSAL_RECORD_MS
+    : false;
+  if (!recent || row.lastWebhookRefusal !== reason)
+    await db.transaction(async (tx) => {
+      await lock(tx, row.organizationId);
+      const updated = await tx
+        .update(s.codeConnection)
+        .set({ lastWebhookRefusedAt: at, lastWebhookRefusal: reason })
+        .where(
+          and(
+            eq(s.codeConnection.organizationId, row.organizationId),
+            eq(s.codeConnection.id, row.id),
+            or(
+              isNull(s.codeConnection.lastWebhookRefusedAt),
+              lt(
+                s.codeConnection.lastWebhookRefusedAt,
+                new Date(at.getTime() - REFUSAL_RECORD_MS),
+              ),
+              sql`${s.codeConnection.lastWebhookRefusal} is distinct from ${reason}`,
+            ),
+          ),
+        )
+        .returning({ id: s.codeConnection.id });
+      if (updated.length)
+        await writeCodeProjections(tx, row.organizationId, {
+          connectionIds: [row.id],
+        });
+    });
+  return { status: "rejected", reason };
 }
 
 type Delivery = typeof s.codeWebhookDelivery.$inferSelect;

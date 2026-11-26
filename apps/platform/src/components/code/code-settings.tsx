@@ -45,6 +45,7 @@ import { useCodeHosts } from "@lictory/platform/components/code/store";
 import {
   message,
   providerLabels,
+  webhookRefusal,
 } from "@lictory/platform/components/code/parts";
 
 // Organization settings → Code hosts. Administrators connect GitHub, GitLab
@@ -196,6 +197,7 @@ function ConnectionRow({
   onWebhook: (result: Connected) => void;
 }) {
   const { organization } = useWorkspace();
+  const refusal = webhookRefusal(connection);
   const [error, setError] = useState<string>();
   const [confirming, setConfirming] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -290,6 +292,11 @@ function ConnectionRow({
           ? `last webhook ${relativeTime(connection.lastWebhookAt)}`
           : "no webhook received yet"}
       </p>
+      {refusal && (
+        <p className="text-xs text-destructive">
+          Webhook delivery refused {relativeTime(refusal.at)}: {refusal.text}
+        </p>
+      )}
       {connection.longLivedCredential && (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info aria-hidden className="mt-px size-3.5 shrink-0" />

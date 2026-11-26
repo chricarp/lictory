@@ -25,7 +25,10 @@ import {
   createCodeMergeExecutor,
   resolveSessionWorkspace,
 } from "@lictory/core/code/ports";
-import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import type {
+  CodeConnectionEntity,
+  CodePullRequestEntity,
+} from "@lictory/core/code/entities";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -308,7 +311,7 @@ void test("connecting stores the credential encrypted; the projection carries no
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });
 
-void test("webhooks: good signatures are stored once, bad and replayed ones change nothing", async () => {
+void test("webhooks: good signatures are stored once, replays change nothing, refusals are recorded on the connection", async () => {
   const f = await fixture();
   const pr = f.host.openPullRequest(f.repo.externalId, {
     head: "pay-1-refunds",
@@ -340,6 +343,27 @@ void test("webhooks: good signatures are stored once, bad and replayed ones chan
       { providers: f.providers },
     ),
     { status: "rejected", reason: "signature" },
+  );
+  // The refusal is recorded on the connection for its administrators, once a
+  // minute at most: a flood of forged deliveries is not a flood of writes.
+  const connectionEntity = async () => {
+    const [row] = await db
+      .select({ data: s.codeEntity.data })
+      .from(s.codeEntity)
+      .where(eq(s.codeEntity.key, `codeConnection:${f.connectionId}`));
+    return row?.data as CodeConnectionEntity | undefined;
+  };
+  const refused = await connectionEntity();
+  assert.equal(refused?.lastWebhookRefusal, "signature");
+  assert.ok(refused?.lastWebhookRefusedAt);
+  await receiveWebhook(
+    db,
+    { connectionId: f.connectionId, ...forged },
+    { providers: f.providers },
+  );
+  assert.equal(
+    (await connectionEntity())?.lastWebhookRefusedAt,
+    refused?.lastWebhookRefusedAt,
   );
   // An unknown connection looks the same as a bad signature from outside.
   assert.equal(

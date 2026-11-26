@@ -49,6 +49,7 @@ import {
   codePaths,
   message,
   providerLabels,
+  webhookRefusal,
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
 import {
@@ -642,6 +643,7 @@ function RepositoryRow({
       toast({ title: "Not refreshed", description: message(e), type: "error" });
     }
   };
+  const refusal = connection ? webhookRefusal(connection) : null;
   // Readable warning text: the chip tone's mix, contrast-safe.
   const attention =
     "text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))]";
@@ -708,6 +710,10 @@ function RepositoryRow({
             <span className="text-destructive">
               The connection needs attention
               {connection.lastError ? `: ${connection.lastError}` : "."}
+            </span>
+          ) : refusal ? (
+            <span className="text-destructive">
+              Last refused {relativeTime(refusal.at)}: {refusal.text}
             </span>
           ) : connection?.lastWebhookAt ? (
             `last received ${relativeTime(connection.lastWebhookAt)}`

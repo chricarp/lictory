@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type {
   CodeChecks,
+  CodeConnectionEntity,
   CodeLinkTarget,
   CodePullRequestEntity,
 } from "@lictory/core/code/entities";
@@ -220,6 +221,23 @@ export const stateWords: Record<CodePullRequestEntity["state"], string> = {
 
 export function shortSha(sha: string | null | undefined) {
   return sha ? sha.slice(0, 7) : "";
+}
+
+// Why the host's webhook deliveries stopped counting, when Lictory refused
+// one after the last it accepted; null when nothing was refused since.
+export function webhookRefusal(connection: CodeConnectionEntity) {
+  const refusedAt = connection.lastWebhookRefusedAt;
+  if (!refusedAt || !connection.lastWebhookRefusal) return null;
+  if (connection.lastWebhookAt && connection.lastWebhookAt > refusedAt)
+    return null;
+  const host = providerLabels[connection.provider];
+  return {
+    at: refusedAt,
+    text:
+      connection.lastWebhookRefusal === "payload"
+        ? `${host} sent a delivery that is not JSON. Set the webhook's content type to application/json.`
+        : `${host} sent a delivery whose signature does not match this connection's webhook secret. Paste the secret again in the host's webhook settings, or create a new one under Settings → Code hosts.`,
+  };
 }
 
 export const message = (e: unknown) =>
