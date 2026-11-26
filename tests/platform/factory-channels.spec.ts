@@ -176,17 +176,18 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(
     approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
-  const order = await panel
-    .locator("[data-message-id]")
-    .evaluateAll((nodes) =>
-      nodes.map((node) =>
-        node.querySelector("[data-approval-record]")
+  const order = await panel.locator("[data-message-id]").evaluateAll((nodes) =>
+    nodes.map((node) =>
+      // The live card may echo the agent's last words; it is not a turn.
+      node.querySelector("[data-session-card]")
+        ? null
+        : node.querySelector("[data-approval-record]")
           ? "request"
           : node.textContent?.includes("Got it: Mention the v2 API.")
             ? "answer"
             : null,
-      ),
-    );
+    ),
+  );
   expect(order.filter(Boolean)).toEqual(["answer", "request"]);
   // The channel says where the session stands without opening the thread,
   // and the thread's count is the replies it shows.

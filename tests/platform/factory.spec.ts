@@ -85,7 +85,10 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(page.getByText("e2e-runner")).toBeVisible();
   await expect(page.getByText("Online", { exact: true })).toBeVisible();
   // Its row opens what the runner reported: machine, version, isolation.
-  const runnerRow = page.getByRole("button", { name: "e2e-runner" });
+  const runnerRow = page.getByRole("button", {
+    name: "e2e-runner",
+    exact: true,
+  });
   await runnerRow.click();
   await expect(runnerRow).toHaveAttribute("aria-expanded", "true");
   const detail = page.locator("[data-runner-detail]");
