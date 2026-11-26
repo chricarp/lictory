@@ -24,7 +24,7 @@ import type {
   ExternalStatusCategory,
   WorkItem,
 } from "@lictory/core/contracts/protocol";
-import type { Project } from "@lictory/core/lib/work-items";
+import { typeOf, type Project } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
@@ -552,8 +552,12 @@ function OutcomeBadge({
 // Sidebar section: where this item lives in the delivery tool and how
 // current it is.
 export function ExternalDelivery({ item }: { item: WorkItem }) {
-  const { organization, directory } = useWorkspace();
+  const { organization, directory, delivery } = useWorkspace();
   const links = useExternalLinks(item.id);
+  // Plain work has no specification to approve: it is exported with its
+  // parent, never on its own (delivery/service.ts).
+  const type = typeOf(delivery, item);
+  const plain = !type.hasSpecification;
   const availability = useExportAvailability(item);
   const [exporting, setExporting] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -633,23 +637,27 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
         <p className="text-[13px] text-muted-foreground">
           {!availability.configured
             ? `This project has no hand-off target in ${tool.name} yet.`
-            : ready
-              ? "Not exported yet."
-              : "Exportable once the specification is ready."}
+            : plain
+              ? `${type.name} items are exported with their parent, once the parent's specification is ready.`
+              : ready
+                ? "Not exported yet."
+                : "Exportable once the specification is ready."}
         </p>
       )}
       {availability.allowed && availability.configured && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={!ready || link?.status === "pending"}
-            title={ready ? undefined : "Only ready items can be exported."}
-            onClick={() => setExporting(true)}
-          >
-            <Upload className="size-3.5" />
-            {link?.externalKey ? "Export changes" : `Export to ${tool.name}`}
-          </Button>
+          {!plain && (
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!ready || link?.status === "pending"}
+              title={ready ? undefined : "Only ready items can be exported."}
+              onClick={() => setExporting(true)}
+            >
+              <Upload className="size-3.5" />
+              {link?.externalKey ? "Export changes" : `Export to ${tool.name}`}
+            </Button>
+          )}
           {link?.externalKey ? (
             <Button
               size="sm"
