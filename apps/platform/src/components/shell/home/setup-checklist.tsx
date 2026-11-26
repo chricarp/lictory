@@ -13,13 +13,16 @@ import { setupSteps } from "@lictory/platform/components/shell/home/setup";
 // data. `ready` is false until every source has loaded, so a set-up
 // organization never sees the checklist flash.
 export function useSetup() {
-  const { organization, directory, isAdmin } = useWorkspace();
+  const { organization, directory, isAdmin, projects, items, view } =
+    useWorkspace();
+  const project = projects.find((p) => !p.archivedAt) ?? null;
   const factory = useFactory();
   const code = useCodeHosts();
   const channels = useChannels();
   const alone = directory.members.length <= 1;
   const invited = usePendingInvitations(organization.id, isAdmin && alone);
   const ready =
+    view.status !== "hydrating" &&
     factory.complete &&
     code.complete &&
     channels.loaded &&
@@ -28,6 +31,8 @@ export function useSetup() {
     () =>
       setupSteps(
         {
+          project: project && { key: project.key },
+          workItems: items.length,
           codeConnections: code.connections,
           runners: factory.runners,
           agents: factory.agents,
@@ -47,6 +52,8 @@ export function useSetup() {
       invited,
       organization.slug,
       isAdmin,
+      project,
+      items.length,
     ],
   );
   return { ...result, ready };

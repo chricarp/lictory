@@ -44,6 +44,7 @@ import { homeCards } from "@lictory/platform/components/shell/nav-registry";
 import { HomeCardBoundary } from "@lictory/platform/components/shell/home/panel";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   SetupChecklist,
   useSetup,
@@ -88,6 +89,7 @@ function Home() {
     view,
     userId,
     isAdmin,
+    canManage,
   } = useWorkspace();
   const { project } = useShell();
   const waiting = useWaitingOnYou();
@@ -152,6 +154,19 @@ function Home() {
   const showSetup = isAdmin && setup.ready && !setup.complete;
   const outsideProjects =
     !isAdmin && !directory.projectMembers.some((m) => m.userId === userId);
+  // Projects I am a member of without any discipline: I can read and
+  // discuss there, but nobody can ask me for a review until I have one.
+  const withoutDiscipline = projects.filter(
+    (p) =>
+      !p.archivedAt &&
+      directory.projectMembers.some(
+        (m) => m.userId === userId && m.projectId === p.id,
+      ) &&
+      !directory.disciplines.some(
+        (d) =>
+          d.projectId === p.id && !d.archivedAt && d.userIds.includes(userId),
+      ),
+  );
   const firstName = (user.name || "").split(" ")[0];
   return (
     <div className="flex h-full flex-col">
@@ -184,6 +199,39 @@ function Home() {
                 title="You’re not in a project yet"
                 icon={<FolderKanban />}
                 empty={`An administrator of ${organization.name} adds you to a project and gives you a discipline there (Product, Engineering, QA) so you can write and review its specifications. Until then you can read and talk in channels and spaces.`}
+              />
+            </div>
+          )}
+          {withoutDiscipline.length > 0 && (
+            <div className="mb-4">
+              <Panel
+                title={
+                  withoutDiscipline.length === 1
+                    ? `You have no discipline in ${withoutDiscipline[0]!.name} yet`
+                    : `You have no discipline in ${withoutDiscipline.length} projects yet`
+                }
+                icon={<FolderKanban />}
+                empty={
+                  canManage(withoutDiscipline[0]!.id) ? (
+                    <>
+                      You can read and discuss its work, but reviews can’t be
+                      asked of you until you hold a discipline (Product,
+                      Engineering, QA).{" "}
+                      <Link
+                        href={paths.projectSettings(
+                          org,
+                          withoutDiscipline[0]!.key,
+                          "members",
+                        )}
+                        className="font-medium text-foreground underline underline-offset-2"
+                      >
+                        Choose yours in Members
+                      </Link>
+                    </>
+                  ) : (
+                    `You can read and discuss its work, but reviews can’t be asked of you until a project administrator gives you a discipline (Product, Engineering, QA) in the project’s settings → Members.`
+                  )
+                }
               />
             </div>
           )}

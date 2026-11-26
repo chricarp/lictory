@@ -131,9 +131,10 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     page.getByRole("region", { name: "Ready to start" }),
   ).toBeHidden();
   // A factory without code, runners, agents or channels starts with its
-  // setup, derived from its data: two people already belong to it.
+  // setup, derived from its data: two people already belong to it and its
+  // work has started.
   const setup = page.getByRole("region", { name: "Set up Factory floor" });
-  await expect(setup).toContainText("1 of 5 done");
+  await expect(setup).toContainText("2 of 6 done");
   await expect(setup.getByRole("link", { name: "Add runner" })).toHaveAttribute(
     "href",
     `/${seeded.slug}/factory/runners`,

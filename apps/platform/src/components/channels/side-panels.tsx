@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bell, BellOff, Search, X } from "lucide-react";
+import { Bell, Search, X } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
 import { Input } from "@lictory/ui/input";
@@ -145,11 +145,9 @@ export function ThreadPanel({
               following && "bg-primary/8 text-primary ring-primary/30",
             )}
           >
-            {following ? (
-              <Bell className="size-3.5" aria-hidden />
-            ) : (
-              <BellOff className="size-3.5" aria-hidden />
-            )}
+            {/* One control in two states: the same bell, tinted while
+                following. */}
+            <Bell className="size-3.5" aria-hidden />
             {following ? "Following" : "Follow"}
           </button>
         )

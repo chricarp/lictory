@@ -166,6 +166,16 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await taskPreview.getByRole("button", { name: "Close preview" }).click();
   await expect(taskPreview).toBeHidden();
   await expect(page).not.toHaveURL(/item=/);
+  // Opening a preview is a step of its own: Back closes it and stays on the
+  // board.
+  await storyCard.click();
+  await expect(storyPreview).toBeVisible();
+  await page.goBack();
+  await expect(storyPreview).toBeHidden();
+  await expect(page).toHaveURL(/\/board(\?(?!.*item=).*)?$/);
+  await expect(
+    page.getByRole("heading", { name: "Board", level: 1 }),
+  ).toBeVisible();
   await storyCard.click();
   await reloadWhenSaved(page);
   await expect(

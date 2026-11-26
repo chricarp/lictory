@@ -12,7 +12,10 @@ import {
   Sparkles,
   Trash2,
   EyeOff,
+  CloudOff,
+  Loader2,
 } from "lucide-react";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { Button } from "@lictory/ui/button";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -311,6 +314,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             {message.editedAt && (
               <span className="text-xs text-muted-foreground">(edited)</span>
             )}
+            {pending && <PendingDelivery />}
           </>
         )}
         {reactions.length > 0 && (
@@ -446,20 +450,29 @@ export const ChannelMessage = memo(function ChannelMessage({
                   <MenuItem
                     onSelect={() => actions.promote(message, "proposal")}
                   >
-                    <Lightbulb className="size-3.5 text-muted-foreground" />{" "}
-                    Promote to proposal
+                    <Lightbulb className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Promote to proposal"
+                      description="Something new the team should refine and build"
+                    />
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "decision")}
                   >
-                    <CircleDot className="size-3.5 text-muted-foreground" />{" "}
-                    Record as decision
+                    <CircleDot className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Record as decision"
+                      description="A conclusion to keep on a specification"
+                    />
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "discussion")}
                   >
-                    <MessageSquareQuote className="size-3.5 text-muted-foreground" />{" "}
-                    Discuss on a specification
+                    <MessageSquareQuote className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Discuss on a specification"
+                      description="An open question for an existing specification"
+                    />
                   </MenuItem>
                   <MenuSeparator />
                 </>
@@ -653,5 +666,51 @@ function EditMessage({
         </Button>
       </div>
     </div>
+  );
+}
+
+// A message the server has not confirmed yet says so in words, and says why
+// while the connection is down: nobody should think they posted when they
+// did not. It goes once the server answers.
+function PendingDelivery() {
+  const { connection } = useWorkspace();
+  const waiting = connection !== "connected";
+  return (
+    <p
+      data-delivery={waiting ? "waiting" : "sending"}
+      className={cn(
+        "mt-0.5 flex items-center gap-1.5 text-xs",
+        waiting ? "text-warning" : "text-muted-foreground",
+      )}
+    >
+      {waiting ? (
+        <CloudOff className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <Loader2
+          className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+          aria-hidden
+        />
+      )}
+      {waiting
+        ? "Not sent yet: it’s delivered when the connection is back"
+        : "Sending…"}
+    </p>
+  );
+}
+
+// The three promotions name when each fits, so the choice needs no prior
+// knowledge of proposals, decisions and discussions.
+function PromotionChoiceLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span>{title}</span>
+      <span className="text-xs text-muted-foreground">{description}</span>
+    </span>
   );
 }

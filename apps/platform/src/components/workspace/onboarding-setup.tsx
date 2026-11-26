@@ -15,6 +15,10 @@ import { z } from "zod";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
+import {
   PROTOCOL,
   mutationSchema,
   onboardingSetupSchema,
@@ -32,14 +36,18 @@ import {
   OnboardingHeading,
   Reveal,
   Steps,
+  setupLabels,
 } from "@lictory/platform/components/workspace/onboarding-frame";
 import { ProjectFields } from "@lictory/platform/components/workspace/onboarding";
 import {
+  defaultInviteDiscipline,
   draftKey,
   draftSchema,
   emptyDraft,
+  inviteDisciplineNames,
   steps,
   type Draft,
+  type InviteDiscipline,
 } from "@lictory/platform/components/workspace/onboarding-draft";
 
 const isEmail = (v: string) => z.email().safeParse(v).success;
@@ -163,10 +171,33 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   };
   const setupValid = flow.every((s) => valid[s]);
 
-  // Invited people join the first project, so their first screen is its
-  // work, not an organization they cannot do anything in yet.
+  // The project's disciplines arrive through synchronization shortly after
+  // the server created it; an invitation names one by its id.
+  const latestDirectory = useRef(directory);
+  useEffect(() => {
+    latestDirectory.current = directory;
+  }, [directory]);
+  const projectDisciplines = async (projectId: string) => {
+    const deadline = Date.now() + 10_000;
+    for (;;) {
+      const found = latestDirectory.current.disciplines.filter(
+        (d) => d.projectId === projectId && !d.archivedAt,
+      );
+      if (found.length || Date.now() > deadline) return found;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  };
+
+  // Invited people join the first project in the discipline chosen for
+  // them, so their first screen is its work and reviews can be asked of
+  // them, not an organization they cannot do anything in yet.
   const sendInvites = async (recipients: string[], projectId: string) => {
     const results: InviteResult[] = [];
+    const chosen = (recipient: string) =>
+      draft.inviteDisciplines[recipient] ?? defaultInviteDiscipline;
+    const disciplines = recipients.some((r) => chosen(r))
+      ? await projectDisciplines(projectId)
+      : [];
     // Sequential keeps each Better Auth invitation and email attempt independent.
     for (const recipient of recipients) {
       try {
@@ -176,7 +207,12 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           body: JSON.stringify({
             organizationId: organization.id,
             recipient: recipient.replace(/^@/, ""),
-            placement: { projectId, disciplineIds: [] },
+            placement: {
+              projectId,
+              disciplineIds: disciplines
+                .filter((d) => d.name === chosen(recipient))
+                .map((d) => d.id),
+            },
           }),
         });
         const body: unknown = await response.json().catch(() => null);
@@ -364,7 +400,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     <OnboardingFrame
       title={`Set up ${organization.name} · Lictory`}
       stage={position}
-      labels={["Project", "Delivery", "Lictory Intelligence", "People"]}
+      labels={setupLabels}
     >
       <form
         ref={container}
@@ -391,7 +427,8 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             {draft.step === steps.delivery && (
               <>
                 <OnboardingHeading title="Where does delivery happen?">
-                  Specs are always refined and approved in Lictory.
+                  Specs are always refined and approved in Lictory. You can
+                  change this later in the project’s settings.
                 </OnboardingHeading>
                 <CardOptions
                   label="Delivery"
@@ -496,8 +533,17 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 </OnboardingHeading>
                 <Invites
                   value={draft.invites}
+                  disciplines={draft.inviteDisciplines}
                   project={draft.name.trim() || "the project"}
                   onChange={(invites) => update({ invites })}
+                  onDiscipline={(recipient, discipline) =>
+                    update({
+                      inviteDisciplines: {
+                        ...draft.inviteDisciplines,
+                        [recipient]: discipline,
+                      },
+                    })
+                  }
                 />
               </>
             )}
@@ -564,12 +610,16 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
 
 function Invites({
   value,
+  disciplines,
   project,
   onChange,
+  onDiscipline,
 }: {
   value: string[];
+  disciplines: Record<string, InviteDiscipline>;
   project: string;
   onChange: (value: string[]) => void;
+  onDiscipline: (recipient: string, discipline: InviteDiscipline) => void;
 }) {
   const [text, setText] = useState("");
   const [problem, setProblem] = useState<string>();
@@ -633,36 +683,58 @@ function Invites({
       >
         {problem}
       </p>
-      <ul aria-label="People to invite" className="mt-2 flex flex-wrap gap-2">
+      <ul aria-label="People to invite" className="mt-2 divide-y">
         <AnimatePresence initial={false}>
           {value.map((r) => (
             <motion.li
               key={r}
               layout
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.16 }}
-              className="flex h-8 items-center gap-1 rounded-full border bg-card pr-1 pl-3 text-[13px]"
+              className="flex min-h-11 items-center gap-2 py-1.5 text-sm"
             >
-              <span className="max-w-[220px] truncate">{r}</span>
+              <span className="min-w-0 flex-1 truncate">{r}</span>
+              <DropdownSelect
+                size="sm"
+                className="w-36 shrink-0"
+                aria-label={`Discipline for ${r}`}
+                value={disciplines[r] ?? defaultInviteDiscipline}
+                onValueChange={(next) =>
+                  onDiscipline(
+                    r,
+                    inviteDisciplineNames.find((d) => d === next) ?? "",
+                  )
+                }
+              >
+                {inviteDisciplineNames.map((d) => (
+                  <DropdownSelectOption key={d} value={d}>
+                    {d}
+                  </DropdownSelectOption>
+                ))}
+                <DropdownSelectOption value="">
+                  No discipline
+                </DropdownSelectOption>
+              </DropdownSelect>
               <button
                 type="button"
                 aria-label={`Remove ${r}`}
                 onClick={() => onChange(value.filter((v) => v !== r))}
-                className="grid size-6 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <X className="size-3.5" />
+                <X className="size-4" />
               </button>
             </motion.li>
           ))}
         </AnimatePresence>
       </ul>
       {value.length > 0 && (
-        <p className="mt-4 text-xs text-muted-foreground">
-          They join {project} as members and can read and discuss its work. Give
-          them a discipline (Product, Engineering, QA) in the project’s settings
-          → Members so they can edit and review specs.
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          They join {project} in the discipline you choose: Product writes and
+          decides specifications, Engineering and QA review them. Without a
+          discipline they can read and discuss, and an administrator gives them
+          one later in the project’s settings → Members.
         </p>
       )}
     </div>

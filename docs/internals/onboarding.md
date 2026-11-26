@@ -83,7 +83,7 @@ make administrator decisions.
 | Cadence and estimates (native only) | Defines native delivery behavior                 | No default. Project settings                                      |
 | Automatic cycle schedule            | Establishes cadence before cycles start          | 2 weeks from Monday. Project settings; needs the server scheduler |
 | Lictory Intelligence                | Allows Litto chat, AI reviews and proposed fixes | Enabled. Organization settings → Lictory Intelligence             |
-| People to invite                    | Refinement needs engineering and QA in the loop  | Optional. Organization settings → Members                         |
+| People to invite, with a discipline | Refinement needs engineering and QA in the loop  | Optional; Engineering. Organization settings → Members            |
 
 Starter types are seeded by Better Auth's organization creation hook; the
 project's workflow, enabled types and Product, Engineering and QA disciplines are
@@ -94,8 +94,14 @@ estimates stay owned by Jira for external projects. A project with archived work
 is not a new organization: archiving every project does not repeat initial
 onboarding or silently reset project configuration.
 
-Invitees join as organization members; project administrators add them to
-projects and disciplines once they are in the organization.
+Invitees join as organization members. People invited during setup join the
+first project in the discipline chosen for each of them (Engineering unless the
+inviter changes it, or none): an invitation records its placement before the
+person accepts, and setup resolves the default discipline names to the new
+project's disciplines once they have synchronized (if they have not within ten
+seconds, the invitation carries the project only). Without a discipline a
+member can read and discuss but cannot be asked to review; Home tells them so
+until a project administrator gives them one.
 Reviewers are chosen for individual specifications when requesting review;
 onboarding does not grant approvals or preassign every discipline to every item.
 Both delivery modes include an organization-wide Lictory Intelligence choice.

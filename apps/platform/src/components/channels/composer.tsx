@@ -3,6 +3,8 @@ import { SendHorizontal } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { CHANNEL_MESSAGE_MAX } from "@lictory/core/channels/shared";
 import { Button } from "@lictory/ui/button";
+import { canWrite } from "@lictory/platform/data/connection";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   MarkdownEditor,
   type MarkdownEditorHandle,
@@ -70,9 +72,20 @@ export function Composer({
     else drafts.delete(draftKey);
   };
   const tooLong = body.length > maxLength;
+  // While the connection is down the person can keep writing; a message sent
+  // during a reconnect waits in this tab and is delivered once it is back,
+  // and with no connection at all sending waits until there is one.
+  const { connection, everConnected } = useWorkspace();
+  const offline = !canWrite(connection);
+  const reconnecting = connection === "connecting" && everConnected;
+  const connectionNote = offline
+    ? "You’re offline. Your message stays here; send it when the connection is back."
+    : reconnecting
+      ? "Reconnecting… Messages you send now are delivered when the connection is back."
+      : undefined;
   const send = () => {
     const text = body.trim();
-    if (!text || tooLong || disabled) return;
+    if (!text || tooLong || disabled || offline) return;
     onSend(text);
     change("");
     requestAnimationFrame(() => editor.current?.focus());
@@ -136,21 +149,23 @@ export function Composer({
         <Button
           size="icon"
           aria-label="Send message"
-          disabled={!body.trim() || tooLong || disabled}
+          disabled={!body.trim() || tooLong || Boolean(disabled) || offline}
           onClick={send}
         >
           <SendHorizontal className="size-3.5" aria-hidden />
         </Button>
       </div>
       <p
+        data-connection-note={connectionNote ? "" : undefined}
         className={cn(
           "mt-1 hidden px-1 text-xs text-muted-foreground sm:block",
           tooLong && "block text-destructive",
+          !tooLong && connectionNote && "block text-warning",
         )}
       >
         {tooLong
           ? `Messages are at most ${maxLength.toLocaleString()} characters; put longer text in a page.`
-          : hint}
+          : (connectionNote ?? hint)}
       </p>
     </div>
   );

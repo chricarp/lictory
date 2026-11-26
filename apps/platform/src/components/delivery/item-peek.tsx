@@ -1,7 +1,11 @@
 import { PageCount } from "@lictory/platform/components/knowledge/page-count";
 import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { Link } from "@lictory/platform/lib/navigation";
-import { usePathname, useSearchParams } from "@lictory/platform/lib/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import {
   useCallback,
   useEffect,
@@ -46,25 +50,39 @@ const PARAM = "item";
 
 // Board and backlogs open work items in a preview instead of navigating away.
 // The previewed item lives in the URL (`?item=PAY-12`) so a reload or a shared
-// link reopens it; replacing the history entry keeps flipping between items
-// out of Back.
+// link reopens it. Opening a preview is a step of its own, so Back closes it
+// and stays on the board; flipping between items replaces that entry, so Back
+// never walks through every card looked at.
 export function useItemPeek() {
   const params = useSearchParams();
   const pathname = usePathname();
+  const router = useRouter();
   const peeked = params.get(PARAM)?.toUpperCase();
+  // Whether this page added the history entry the preview is on: closing it
+  // then goes back to the board's own entry instead of stacking a new one.
+  const pushed = useRef(false);
+  useEffect(() => {
+    if (!peeked) pushed.current = false;
+  }, [peeked]);
   const set = useCallback(
     (value: string | undefined) => {
       const query = new URLSearchParams(window.location.search);
+      const open = query.has(PARAM);
+      if (!value && open && pushed.current) {
+        pushed.current = false;
+        router.back();
+        return;
+      }
       if (value) query.set(PARAM, value);
       else query.delete(PARAM);
       const search = query.toString();
-      window.history.replaceState(
-        null,
-        "",
-        search ? `${pathname}?${search}` : pathname,
-      );
+      const href = search ? `${pathname}?${search}` : pathname;
+      if (value && !open) {
+        pushed.current = true;
+        router.push(href, { scroll: false });
+      } else router.replace(href, { scroll: false });
     },
-    [pathname],
+    [pathname, router],
   );
   // Plain clicks preview; modified clicks (new tab, new window) keep the link.
   const onLinkClick = useCallback(

@@ -44,7 +44,14 @@ export function VerificationStatus({
   if (verified && !errorCode) {
     return (
       <>
-        <AuthHeading title="Email verified" />
+        <AuthHeading
+          title="Email verified"
+          description={
+            callbackURL.startsWith("/invitation")
+              ? "Your account is ready. Accept the invitation to join your team’s workspace."
+              : "Your address is confirmed and your account is ready to use."
+          }
+        />
         <Button
           size="lg"
           className="w-full"

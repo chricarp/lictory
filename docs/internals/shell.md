@@ -53,8 +53,9 @@ to the last project; a factory needs one page that answers "what waits on me
 and what is the factory doing?" before any module.
 
 - **Set up {organization}** leads Home while the factory is incomplete: a
-  checklist derived from data (a code host connected, a runner that has
-  connected, an agent, a channel, a second member), each step done when its
+  checklist derived from data (a first work item, a second member or an
+  invitation, a code host connected, a runner that has connected, an agent,
+  a channel), the refinement loop before the factory, each step done when its
   data exists and the next one the single primary action. It leaves Home by
   itself once everything exists, and while it shows, Home shows no empty
   sections beside it (`components/shell/home/setup.ts`).

@@ -1055,7 +1055,7 @@ attributed to the anonymized account, like specification threads.
   browser like the sidebar's state; "Show pages" brings it back), and it
   steps aside while comments are open on frames under 80rem. The space home
   has "Find a page" (titles anywhere in the tree, with their path) and
-  "Recently updated" with who published what (`publishedById`,
+  "Recently updated" beside the tree on wide screens, with who published what (`publishedById`,
   `publishedMessage` of the page summary). A page starts with the shell's
   `PageHeader`: its path (Spaces, the space, its parent pages), its title
   and its toolbar; phones keep the title in the bar and put the toolbar

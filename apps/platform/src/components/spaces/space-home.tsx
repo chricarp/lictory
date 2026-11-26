@@ -138,7 +138,7 @@ export function SpaceHome() {
         actions={actions}
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 pt-5 pb-16 sm:px-8 sm:pt-8">
+        <div className="mx-auto max-w-5xl px-4 pt-5 pb-16 sm:px-8 sm:pt-8">
           {space.archivedAt && <ArchivedSpaceNotice space={space} />}
           {/* What the space is for, where it lives and how it publishes: one
             quiet introduction under the header that names it. */}
@@ -177,71 +177,81 @@ export function SpaceHome() {
               )}
             </p>
           </div>
-          <section aria-labelledby="space-pages" className="mt-7 sm:mt-8">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1">
-              <h2 id="space-pages" className="text-sm font-semibold">
-                Pages{" "}
-                <span className="ml-0.5 font-normal text-muted-foreground tabular-nums">
-                  {active.length}
-                </span>
-              </h2>
-              {active.length > 1 && (
-                <PageFinder value={query} onChange={setQuery} />
-              )}
-            </div>
-            {pages.length === 0 ? (
-              <div className="rounded-2xl bg-card shadow-(--shadow-border)">
-                <EmptyState
-                  illustration="knowledge"
-                  title="No pages yet"
-                  action={
-                    canEdit ? (
-                      <Button onClick={() => createPage(null)}>
-                        <Plus className="size-3.5" aria-hidden /> New page
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  {canEdit
-                    ? "Start with the page people ask about most: a runbook, a decision record or how the team works."
-                    : "Nothing has been written here yet. Editors of this space can add the first page."}
-                </EmptyState>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-transparent bg-card p-1.5 shadow-(--shadow-border)">
-                {needle ? (
-                  <FoundPages
-                    pages={found}
-                    byId={byId}
-                    query={query.trim()}
-                    onClear={() => setQuery("")}
-                  />
+          {/* The pages beside what changed lately and who changed it, so a
+            space reads as a living place on a wide screen, not a short list
+            in an empty canvas. */}
+          <div className="mt-7 grid gap-x-8 gap-y-10 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+            <div className="min-w-0">
+              <section aria-labelledby="space-pages">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1">
+                  <h2 id="space-pages" className="text-sm font-semibold">
+                    Pages{" "}
+                    <span className="ml-0.5 font-normal text-muted-foreground tabular-nums">
+                      {active.length}
+                    </span>
+                  </h2>
+                  {active.length > 1 && (
+                    <PageFinder value={query} onChange={setQuery} />
+                  )}
+                </div>
+                {pages.length === 0 ? (
+                  <div className="rounded-2xl bg-card shadow-(--shadow-border)">
+                    <EmptyState
+                      illustration="knowledge"
+                      title="No pages yet"
+                      action={
+                        canEdit ? (
+                          <Button onClick={() => createPage(null)}>
+                            <Plus className="size-3.5" aria-hidden /> New page
+                          </Button>
+                        ) : undefined
+                      }
+                    >
+                      {canEdit
+                        ? "Start with the page people ask about most: a runbook, a decision record or how the team works."
+                        : "Nothing has been written here yet. Editors of this space can add the first page."}
+                    </EmptyState>
+                  </div>
                 ) : (
-                  <PageTree variant="home" />
+                  <div className="rounded-2xl border border-transparent bg-card p-1.5 shadow-(--shadow-border)">
+                    {needle ? (
+                      <FoundPages
+                        pages={found}
+                        byId={byId}
+                        query={query.trim()}
+                        onClear={() => setQuery("")}
+                      />
+                    ) : (
+                      <PageTree variant="home" />
+                    )}
+                  </div>
                 )}
-              </div>
+                {space.archivedAt && (
+                  <p className="mt-3 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+                    <Archive className="size-3.5" aria-hidden /> Pages of an
+                    archived space can be read but not changed.
+                  </p>
+                )}
+              </section>
+              {/* Project and team spaces: the work their pages mention. */}
+              {space.projectId && <SpaceLinkedWork spaceId={space.id} />}
+            </div>
+            {active.length > 0 && (
+              <section aria-labelledby="space-recent" className="min-w-0">
+                <h2
+                  id="space-recent"
+                  className="mb-2 flex min-h-8 items-center px-1 text-sm font-semibold"
+                >
+                  Recently updated
+                </h2>
+                <ul className="divide-y divide-border/70 overflow-hidden rounded-2xl border border-transparent bg-card shadow-(--shadow-border)">
+                  {recent.map((page) => (
+                    <RecentPage key={page.id} page={page} byId={byId} />
+                  ))}
+                </ul>
+              </section>
             )}
-            {space.archivedAt && (
-              <p className="mt-3 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-                <Archive className="size-3.5" aria-hidden /> Pages of an
-                archived space can be read but not changed.
-              </p>
-            )}
-          </section>
-          {/* Project and team spaces: the work their pages mention. */}
-          {space.projectId && <SpaceLinkedWork spaceId={space.id} />}
-          {active.length > 3 && (
-            <section aria-labelledby="space-recent" className="mt-10">
-              <h2 id="space-recent" className="mb-2 px-1 text-sm font-semibold">
-                Recently updated
-              </h2>
-              <ul className="divide-y divide-border/70 overflow-hidden rounded-2xl border border-transparent bg-card shadow-(--shadow-border)">
-                {recent.map((page) => (
-                  <RecentPage key={page.id} page={page} byId={byId} />
-                ))}
-              </ul>
-            </section>
-          )}
+          </div>
         </div>
       </div>
     </div>

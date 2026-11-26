@@ -5,6 +5,15 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { Logo } from "@lictory/ui/logo";
 
+// The steps of setting up a new organization, counted from its first form
+// (the workspace and its project) to the last, wherever setup starts.
+export const setupLabels = [
+  "Workspace",
+  "Delivery",
+  "Lictory Intelligence",
+  "People",
+];
+
 // One easing for the whole flow: a quick start that settles softly.
 export const ease = [0.23, 1, 0.32, 1] as const;
 
@@ -24,7 +33,9 @@ export function OnboardingFrame({
 }) {
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.22, ease }}>
-      <main className="onboarding min-h-dvh bg-background">
+      {/* The same ground and card as signing in, so creating an account and
+          setting up read as one flow into the app. */}
+      <main className="onboarding flex min-h-dvh flex-col bg-shell [background-image:var(--hatch)]">
         {title && <title>{title}</title>}
         <header className="flex items-center justify-between px-6 py-5 sm:px-8">
           <Logo className="[&>span]:h-6" />
@@ -37,10 +48,12 @@ export function OnboardingFrame({
             </Link>
           )}
         </header>
-        <section className="relative mx-auto w-full max-w-[460px] px-6 pt-8 pb-16 sm:px-0 sm:pt-16">
-          {labels.length > 0 && <Progress labels={labels} stage={stage} />}
-          {children}
-        </section>
+        <div className="w-full px-4 pt-4 pb-16 sm:pt-10">
+          <section className="lictory-enter relative mx-auto w-full max-w-[540px] rounded-[1.75rem] bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-10 sm:py-10">
+            {labels.length > 0 && <Progress labels={labels} stage={stage} />}
+            {children}
+          </section>
+        </div>
       </main>
     </MotionConfig>
   );
@@ -48,7 +61,7 @@ export function OnboardingFrame({
 
 function Progress({ labels, stage }: { labels: string[]; stage: number }) {
   return (
-    <div className="mb-10">
+    <div className="mb-8">
       <ol aria-label="Setup progress" className="flex gap-1.5">
         {labels.map((label, i) => (
           <li
