@@ -560,6 +560,7 @@ function EmptyExamples() {
       agents: [],
       channels: [{ kind: "public", archivedAt: null }],
       members: 1,
+      invited: 0,
     },
     organization.slug,
     true,

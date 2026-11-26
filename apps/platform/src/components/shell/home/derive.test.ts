@@ -139,7 +139,11 @@ void test("work broken down into open children starts through its children", () 
   const doneChild = item({ statusId: "done", parentId: "other" });
   const other = item({ id: "other", statusId: "unstarted" });
   const result = readyToStart(
-    { ...context([parent, child, doneChild, other]), startable: () => true },
+    {
+      ...context([parent, child, doneChild, other]),
+      // Claimability refuses started and closed work.
+      startable: (i) => i.statusId === "unstarted",
+    },
     10,
   );
   assert.deepEqual(
