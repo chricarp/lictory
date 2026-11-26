@@ -15,6 +15,8 @@ import {
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
 import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
 import {
   ClaimBadge,
   ClaimOwner,
@@ -94,6 +96,7 @@ export const ItemCard = memo(function ItemCard({
   onDragEnd,
   claim,
   claimAgent,
+  pullRequests,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -113,6 +116,8 @@ export const ItemCard = memo(function ItemCard({
   // The agent claim holding the item, and the agent's identity.
   claim?: ClaimEntity;
   claimAgent?: AgentIdentity;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -226,6 +231,7 @@ export const ItemCard = memo(function ItemCard({
             {item.blockingThreads === 1 ? "" : "s"}
           </span>
         )}
+        {pullRequests && <PullRequestChip pullRequests={pullRequests} />}
         {item.childCount > 0 && (
           <span className="tabular-nums" title="Children done">
             {item.childDoneCount}/{item.childCount} done

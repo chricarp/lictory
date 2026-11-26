@@ -18,6 +18,7 @@ import type {
   CodeLinkTarget,
   CodePullRequestEntity,
 } from "@lictory/core/code/entities";
+import { reviewState } from "@lictory/core/code/merge-rules";
 import { cn } from "@lictory/core/lib/utils";
 import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -104,7 +105,8 @@ export function ChecksIcon({
   className,
 }: {
   state: CodeChecks["state"];
-  // Its words, when they differ from the state's (a skipped run).
+  // Its words, when they differ from the state's (a skipped run); empty
+  // when words beside it say the same (the icon is then decoration).
   label?: string;
   className?: string;
 }) {
@@ -120,6 +122,10 @@ export function ChecksIcon({
             ]
           : // Nothing reported is not "pending": a flat dash, not a ring.
             [CircleMinus, "text-muted-foreground"];
+  if (!label)
+    return (
+      <Icon aria-hidden className={cn("size-3.5 shrink-0", tone, className)} />
+    );
   return (
     <Tooltip label={label}>
       <Icon
@@ -145,13 +151,16 @@ export function ChecksBadge({ checks }: { checks: CodeChecks }) {
   return (
     <StatusChip
       tone={tone}
-      icon={<ChecksIcon state={checks.state} className="size-3" />}
+      // The words say it; the icon is decoration here.
+      icon={<ChecksIcon state={checks.state} label="" className="size-3" />}
     >
       {checks.state === "failure"
-        ? `${failing} failing`
+        ? `${failing || "Checks"} failing`
         : checks.state === "pending"
-          ? `${pending} running`
-          : checkWords[checks.state]}
+          ? `${pending || "Checks"} running`
+          : checks.state === "none"
+            ? "No checks"
+            : checkWords[checks.state]}
     </StatusChip>
   );
 }
@@ -174,7 +183,8 @@ const reviewLooks: Record<
   none: ["neutral", CircleMinus],
 };
 
-// The host's review decision as a state chip.
+// A review decision as a state chip (`reviewState` joins the host's and
+// the reviews recorded in Lictory).
 export function ReviewBadge({
   decision,
 }: {
@@ -200,3 +210,55 @@ export function shortSha(sha: string | null | undefined) {
 
 export const message = (e: unknown) =>
   e instanceof Error ? e.message : "The request failed. Try again.";
+
+// An item's open pull request on a board card or backlog row: its number,
+// checks and review, so work waiting on a merge is visible where people
+// plan. It moves no status: delivery status stays a person's (or the
+// Definition of Done's) to change.
+export function PullRequestChip({
+  pullRequests,
+}: {
+  pullRequests: readonly CodePullRequestEntity[];
+}) {
+  const [pr, ...more] = pullRequests;
+  if (!pr) return null;
+  const review = reviewState(pr);
+  const reviewWord =
+    review === "approved"
+      ? "approved"
+      : review === "changes_requested"
+        ? "changes requested"
+        : null;
+  const spoken = [
+    `${pr.draft ? "Draft pull request" : "Pull request"} #${pr.number}`,
+    checkWords[pr.checks.state].toLowerCase(),
+    reviewWord ?? "not reviewed",
+    more.length > 0 && `and ${more.length} more`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <span
+      data-pull-request-chip
+      title={spoken}
+      className="inline-flex h-5 items-center gap-1 rounded-full bg-muted px-1.5 text-foreground/80"
+    >
+      <span className="sr-only">{spoken}</span>
+      <span aria-hidden className="inline-flex items-center gap-1">
+        <PullRequestIcon state={pr.state} draft={pr.draft} className="size-3" />
+        <span className="tabular-nums">#{pr.number}</span>
+        <ChecksIcon state={pr.checks.state} label="" className="size-3" />
+        {reviewWord && (
+          <span
+            className={
+              review === "approved" ? "text-success" : "text-destructive"
+            }
+          >
+            {review === "approved" ? "Approved" : "Changes"}
+          </span>
+        )}
+        {more.length > 0 && <span>+{more.length}</span>}
+      </span>
+    </span>
+  );
+}

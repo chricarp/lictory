@@ -42,6 +42,7 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 import { BacklogRow } from "@lictory/platform/components/delivery/backlog";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import {
   ItemPeek,
   useItemPeek,
@@ -98,6 +99,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
   } = useWorkspace();
   const { openCreate } = useShell();
   const capabilities = capabilitiesIn(project.id);
+  const pullRequests = useOpenPullRequestsByItem();
   const canTriage = capabilities.changeProperties;
   const canCreate =
     capabilities.editSpecifications || capabilities.changeProperties;
@@ -378,6 +380,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         <BacklogRow
                           item={item}
                           {...peekProps(item)}
+                          pullRequests={pullRequests.get(item.id)}
                           label={identifier(project, item.number)}
                           href={hrefOf(item)}
                           estimate={estimateLabel(project, item.estimate)}
@@ -503,6 +506,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         <BacklogRow
                           item={item}
                           {...peekProps(item)}
+                          pullRequests={pullRequests.get(item.id)}
                           label={identifier(project, item.number)}
                           href={hrefOf(item)}
                           estimate={estimateLabel(project, item.estimate)}

@@ -3,14 +3,17 @@ import {
   ArrowUpRight,
   FolderGit2,
   GitPullRequest,
+  RefreshCw,
   Settings2,
 } from "lucide-react";
 import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
+  CodeConnectionEntity,
   CodeIssueEntity,
   CodeLinkRef,
   CodePullRequestEntity,
+  CodeRepositoryEntity,
 } from "@lictory/core/code/entities";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -35,11 +38,14 @@ import {
   useCodeList,
   useCodeWrites,
 } from "@lictory/platform/components/code/store";
+import { reviewState } from "@lictory/core/code/merge-rules";
 import {
+  ChecksBadge,
   ChecksIcon,
   PullRequestIcon,
   ReviewBadge,
   TargetIcon,
+  changeNoun,
   codePaths,
   message,
   providerLabels,
@@ -245,7 +251,11 @@ function PullRequests() {
   );
   const [state, setState] = useState<"open" | "merged" | "closed">("open");
   const [who, setWho] = useState<Who>("all");
-  const [repositoryId, setRepositoryId] = useState("");
+  const searchParams = useSearchParams();
+  // A repository's "open pull requests" opens the list narrowed to it.
+  const [repositoryId, setRepositoryId] = useState(
+    searchParams.get("repository") ?? "",
+  );
   const [projectId, setProjectId] = useState("");
   const { rows, complete } = useCodeList("codePullRequest", state);
   const writes = useCodeWrites();
@@ -405,10 +415,14 @@ function PullRequestRow({
         <>
           <ItemChips links={p.links} />
           <span className="max-md:hidden">
-            {p.state === "open" && <ReviewBadge decision={p.reviewDecision} />}
+            {p.state === "open" && <ReviewBadge decision={reviewState(p)} />}
           </span>
-          {/* A fixed column, so the checks line up down the list. */}
-          <span className="grid w-5 place-items-center">
+          {/* Checks in words beside the icon; phones keep the icon in a
+              fixed column, so the checks line up down the list. */}
+          <span className="max-md:hidden">
+            <ChecksBadge checks={p.checks} />
+          </span>
+          <span className="grid w-5 place-items-center md:hidden">
             <ChecksIcon state={p.checks.state} />
           </span>
         </>
@@ -562,8 +576,9 @@ function IssueRow({ issue }: { issue: CodeIssueEntity }) {
 }
 
 function Repositories() {
-  const { organization, projects } = useWorkspace();
+  const { organization } = useWorkspace();
   const { repositories, connections } = useCodeHosts();
+  const { rows: open } = useCodeList("codePullRequest", "open");
   if (!repositories.length)
     return (
       <EmptyState
@@ -584,50 +599,151 @@ function Repositories() {
   return (
     <div className="h-full overflow-y-auto">
       <ul aria-label="Repositories" className={cn(column, "divide-y")}>
-        {repositories.map((r) => {
-          const connection = connections.find((c) => c.id === r.connectionId);
-          return (
-            <li
-              key={r.id}
-              className="flex flex-wrap items-center gap-3 px-4 py-3 text-[13px]"
-            >
-              <FolderGit2
-                aria-hidden
-                className="size-4 text-muted-foreground"
-              />
-              <div className="min-w-0 flex-1">
-                <a
-                  href={r.webUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-medium underline-offset-2 hover:underline"
-                >
-                  {r.fullName} <ArrowUpRight className="size-3" />
-                </a>
-                <p className="text-xs text-muted-foreground">
-                  {providerLabels[r.provider]}
-                  {connection && ` · ${connection.name}`} · {r.visibility} ·
-                  default {r.defaultBranch} ·{" "}
-                  {r.lastSyncedAt
-                    ? `read ${relativeTime(r.lastSyncedAt)}`
-                    : "reading…"}
-                </p>
-                {r.lastSyncError && (
-                  <p className="text-xs text-destructive">{r.lastSyncError}</p>
-                )}
-              </div>
-              <span className="flex flex-wrap gap-1">
-                {r.projectIds.map((id) => (
-                  <Badge key={id} tone="info">
-                    {projects.find((p) => p.id === id)?.name ??
-                      "Archived project"}
-                  </Badge>
-                ))}
-              </span>
-            </li>
-          );
-        })}
+        {repositories.map((r) => (
+          <RepositoryRow
+            key={r.id}
+            repository={r}
+            connection={connections.find((c) => c.id === r.connectionId)}
+            openPullRequests={
+              open.filter((p) => p.repositoryId === r.id).length
+            }
+          />
+        ))}
       </ul>
+    </div>
+  );
+}
+
+// One repository and how well Lictory keeps up with it, in facts: the
+// connection's webhooks (without them Lictory still reads every ten
+// minutes), when it was last read, whether CI reports, and its open pull
+// requests. Nothing here is guessed from silence.
+function RepositoryRow({
+  repository: r,
+  connection,
+  openPullRequests,
+}: {
+  repository: CodeRepositoryEntity;
+  connection: CodeConnectionEntity | undefined;
+  openPullRequests: number;
+}) {
+  const { organization, projects, isAdmin, capabilitiesIn } = useWorkspace();
+  const canRefresh =
+    isAdmin || r.projectIds.some((id) => capabilitiesIn(id).changeProperties);
+  const host = providerLabels[r.provider];
+  const refresh = async () => {
+    try {
+      await callCapability("syncCodeRepository", {
+        organizationId: organization.id,
+        repositoryId: r.id,
+      });
+      toast({ title: `Reading ${r.fullName} again`, type: "success" });
+    } catch (e) {
+      toast({ title: "Not refreshed", description: message(e), type: "error" });
+    }
+  };
+  // Readable warning text: the chip tone's mix, contrast-safe.
+  const attention =
+    "text-[color-mix(in_oklab,var(--warning)_80%,var(--foreground))]";
+  return (
+    <li className="px-4 py-3 text-[13px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <FolderGit2 aria-hidden className="size-4 text-muted-foreground" />
+        <a
+          href={r.webUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-w-0 items-center gap-1 font-medium underline-offset-2 hover:underline"
+        >
+          <span className="truncate">{r.fullName}</span>
+          <ArrowUpRight aria-hidden className="size-3 shrink-0" />
+        </a>
+        <span className="flex flex-wrap gap-1">
+          {r.projectIds.map((id) => (
+            <Badge key={id} tone="info">
+              {projects.find((p) => p.id === id)?.name ?? "Archived project"}
+            </Badge>
+          ))}
+        </span>
+        <span className="ml-auto flex items-center gap-1.5">
+          {openPullRequests > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              render={
+                <Link
+                  href={`${codePaths.index(organization.slug)}?repository=${encodeURIComponent(r.id)}`}
+                />
+              }
+            >
+              {openPullRequests} open {changeNoun(r.provider)}
+              {openPullRequests === 1 ? "" : "s"}
+            </Button>
+          )}
+          {canRefresh && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Refresh ${r.fullName} now`}
+              onClick={() => void refresh()}
+            >
+              <RefreshCw aria-hidden className="size-3.5" /> Refresh
+            </Button>
+          )}
+        </span>
+      </div>
+      <dl className="mt-1.5 grid gap-x-6 gap-y-0.5 pl-7 text-xs text-muted-foreground sm:grid-cols-2">
+        <RepositoryFact label="Host">
+          {host}
+          {connection && ` · ${connection.name}`} · {r.visibility} · default{" "}
+          <span className="font-mono">{r.defaultBranch}</span>
+        </RepositoryFact>
+        <RepositoryFact label="Read">
+          {r.lastSyncedAt
+            ? `${relativeTime(r.lastSyncedAt)}; again within ten minutes`
+            : "Reading its history…"}
+        </RepositoryFact>
+        <RepositoryFact label="Webhooks">
+          {connection?.status === "invalid" ? (
+            <span className="text-destructive">
+              The connection needs attention
+              {connection.lastError ? `: ${connection.lastError}` : "."}
+            </span>
+          ) : connection?.lastWebhookAt ? (
+            `last received ${relativeTime(connection.lastWebhookAt)}`
+          ) : (
+            <span className={attention}>
+              None received yet: changes arrive with the ten-minute read until
+              {` ${host}`} sends them.
+            </span>
+          )}
+        </RepositoryFact>
+        <RepositoryFact label="CI">
+          {r.reportsChecks
+            ? `${host} reports checks here`
+            : "No check reported for any commit yet"}
+        </RepositoryFact>
+      </dl>
+      {r.lastSyncError && (
+        <p className="mt-1 pl-7 text-xs text-destructive">
+          Last read failed: {r.lastSyncError}
+        </p>
+      )}
+    </li>
+  );
+}
+
+function RepositoryFact({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 gap-2">
+      <dt className="w-16 shrink-0">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
     </div>
   );
 }

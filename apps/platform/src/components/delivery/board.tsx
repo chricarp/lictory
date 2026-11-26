@@ -68,6 +68,7 @@ import {
   useAgents,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
@@ -186,6 +187,8 @@ function ProjectBoard({ project }: { project: Project }) {
   // Agent claims, as a compact mark on each claimed card.
   const claims = useLiveClaims();
   const agentById = useAgents();
+  // Open pull requests, as a chip on each card they deliver.
+  const pullRequests = useOpenPullRequestsByItem();
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
   const peek = useItemPeek();
@@ -783,6 +786,7 @@ function ProjectBoard({ project }: { project: Project }) {
                                 }
                                 onOpen={peek.onLinkClick}
                                 claim={claims.get(item.id)}
+                                pullRequests={pullRequests.get(item.id)}
                                 claimAgent={agentById.get(
                                   claims.get(item.id)?.agentId ?? "",
                                 )}
