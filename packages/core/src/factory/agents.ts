@@ -498,7 +498,8 @@ export async function listAgentTokens(
 
 // What an agent did, as Lictory recorded it: every capability call made with
 // one of its tokens (its own or its sessions'), newest first, with the
-// outcome. Inputs are never stored. Only its owner reads it here;
+// outcome, the subject it named and, when refused, the refusal it got.
+// Inputs are never stored. Only its owner reads it here;
 // organization administrators see every agent's calls in the audit log.
 export async function listAgentActivity(
   db: Database,
@@ -523,6 +524,7 @@ export async function listAgentActivity(
       durationMs: s.capabilityInvocation.durationMs,
       tokenName: s.accessToken.name,
       sessionId: s.accessToken.agentSessionId,
+      detail: s.capabilityInvocation.detail,
     })
     .from(s.capabilityInvocation)
     .innerJoin(

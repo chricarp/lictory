@@ -1,0 +1,1 @@
+ALTER TABLE "capability_invocation" ADD COLUMN "detail" jsonb;

@@ -300,18 +300,51 @@ void test("an agent's owner sees what it called, refusals included; nobody else 
     invoke(agent, "getWorkItem", { organizationId, key: "NOPE-1" }),
     "not_found",
   );
+  // A person's decision is refused to the agent, whatever it names.
+  await refused(
+    invoke(agent, "answerAgentApproval", {
+      organizationId,
+      sessionId: "session-1",
+      approvalId: "approval-1",
+      decision: "approve",
+    }),
+    "forbidden",
+    "human_only",
+  );
   const { calls } = (await invoke(web(ownerId), "listAgentActivity", {
     organizationId,
     agentId: scout.id,
-  })) as { calls: { capability: string; outcome: string }[] };
+  })) as {
+    calls: {
+      capability: string;
+      outcome: string;
+      detail: {
+        target?: { field: string; id: string };
+        message?: string;
+        kind?: string;
+      } | null;
+    }[];
+  };
   assert.deepEqual(
     calls.map((c) => [c.capability, c.outcome]),
     [
+      ["answerAgentApproval", "forbidden"],
       ["getWorkItem", "not_found"],
       ["getWorkspace", "ok"],
       ["listOrganizations", "ok"],
     ],
   );
+  // Its owner reads what each call named and, when refused, why.
+  const [decision, lookup, workspace] = calls;
+  assert.deepEqual(decision!.detail?.target, {
+    field: "sessionId",
+    id: "session-1",
+  });
+  assert.equal(decision!.detail?.kind, "human_only");
+  assert.match(decision!.detail?.message ?? "", /person/);
+  assert.deepEqual(lookup!.detail?.target, { field: "key", id: "NOPE-1" });
+  assert.ok(lookup!.detail?.message);
+  assert.equal(workspace!.detail, null);
   await refused(
     invoke(web(memberId), "listAgentActivity", {
       organizationId,

@@ -435,6 +435,13 @@
       "when": 1795709798869,
       "tag": "0061_agent_approval_answered",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795710610931,
+      "tag": "0062_capability_invocation_detail",
+      "breakpoints": true
     }
   ]
 }

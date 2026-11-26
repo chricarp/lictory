@@ -180,7 +180,7 @@ const listAgentActivityCapability = defineCapability({
   name: "listAgentActivity",
   title: "List agent activity",
   description:
-    "What an agent you own did, newest first: each tool it called with one of its tokens, when, and whether it succeeded. Inputs are not recorded.",
+    "What an agent you own did, newest first: each tool it called with one of its tokens, when, the subject it named (a work item key, a session id…), whether it succeeded and, when refused, the refusal it got. Inputs are not recorded.",
   kind: "query",
   surfaces: webOnly,
   humanOnly: {

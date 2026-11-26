@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -56,6 +57,12 @@ export const accessToken = pgTable(
 // Audit of capability calls made by agents (MCP clients and the embedded
 // Lictory agent). Web calls are already attributed through domain activity.
 // Inputs are not stored: they can contain specification content.
+export type CapabilityInvocationDetail = {
+  target?: { field: string; id: string };
+  message?: string;
+  kind?: string;
+};
+
 export const capabilityInvocation = pgTable(
   "capability_invocation",
   {
@@ -81,6 +88,10 @@ export const capabilityInvocation = pgTable(
     // Domain mutation id, for commands; joins to the sync receipt.
     mutationId: text("mutation_id"),
     durationMs: integer("duration_ms").notNull(),
+    // What the call was about and, when refused, why: the subject's id as
+    // the caller named it (a work item, a session…) and the refusal it got
+    // (never the call's inputs or a server error's internals).
+    detail: jsonb("detail").$type<CapabilityInvocationDetail>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
