@@ -79,10 +79,12 @@ export async function expectNoAccessibilityViolations(
         .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
-  const builder = new AxeBuilder({ page }).withTags([
-    ...wcagTags,
-    "best-practice",
-  ]);
+  const builder = new AxeBuilder({ page })
+    .withTags([...wcagTags, "best-practice"])
+    // Label in Name (WCAG 2.5.3) is marked experimental in axe and off by
+    // default; a visible label the accessible name does not contain leaves
+    // voice-control users unable to say what they see.
+    .options({ rules: { "label-content-name-mismatch": { enabled: true } } });
   if (options.include) builder.include(options.include);
   if (options.singlePage) builder.setLegacyMode(true);
   const { violations, incomplete } = await builder.analyze();
