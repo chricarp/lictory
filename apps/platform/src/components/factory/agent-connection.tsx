@@ -64,7 +64,7 @@ type Client = "claude" | "codex" | "other";
 function setupFor(client: Client, endpoint: string) {
   if (client === "claude")
     return `claude mcp add --transport http lictory ${endpoint} \\
-  --header "Authorization: Bearer $LICTORY_TOKEN"`;
+  --header 'Authorization: Bearer \${LICTORY_TOKEN}'`;
   if (client === "codex")
     return `# ~/.codex/config.toml
 [mcp_servers.lictory]
@@ -108,8 +108,9 @@ function SetupSnippet() {
       {client !== "other" && (
         <p className="text-xs text-muted-foreground">
           Set <code className="font-mono">LICTORY_TOKEN</code> to the token in
-          the client&apos;s environment, so it never lands in a file you might
-          commit.
+          the environment the client starts in. The setup stores the
+          variable&apos;s name, never the token, so the token never lands in the
+          client&apos;s configuration or a file you might commit.
         </p>
       )}
     </div>

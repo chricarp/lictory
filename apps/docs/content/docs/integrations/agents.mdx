@@ -56,9 +56,14 @@ the settings above.
 
 ```sh
 claude mcp add --transport http lictory https://lictory.example.com/api/mcp \
-  --header "Authorization: Bearer $LICTORY_TOKEN"
+  --header 'Authorization: Bearer ${LICTORY_TOKEN}'
 claude mcp list   # lictory should be listed as connected
 ```
+
+Keep the single quotes: they store `${LICTORY_TOKEN}` itself, which Claude
+Code expands each time it connects. With double quotes the shell would write
+the token into Claude Code's configuration, and an unset variable would store
+an empty `Bearer ` header.
 
 **Codex CLI** (`~/.codex/config.toml`)
 

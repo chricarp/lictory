@@ -203,6 +203,11 @@ test("an external agent is connected and woken from its own page", async ({
   await expect(connection.getByLabel("Setup", { exact: true })).toContainText(
     "claude mcp add",
   );
+  // Single quotes keep the variable's name in the client's configuration;
+  // the shell would otherwise write the token itself there.
+  await expect(connection.getByLabel("Setup", { exact: true })).toContainText(
+    "'Authorization: Bearer ${LICTORY_TOKEN}'",
+  );
   await expect(connection.getByTestId("agent-token")).toHaveCount(1);
 
   // The token authenticates as the agent: one organization, its own.
