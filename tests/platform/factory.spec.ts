@@ -57,6 +57,8 @@ test("a person runs an agent on their own runner, steers it and approves what it
     .textContent();
   const token = /lrt_[\w-]+/.exec(commands ?? "")?.[0];
   expect(token, commands ?? "").toBeTruthy();
+  // The one-time token is valid for an hour, and says so.
+  await expect(dialog.getByText(/expires in 60 minutes/)).toBeVisible();
   await dialog.getByRole("button", { name: "Done" }).click();
 
   // Register and start the real runner with the scripted harness.
@@ -153,6 +155,8 @@ test("a person runs an agent on their own runner, steers it and approves what it
   ).toBeHidden();
   // A request is reviewed with its context before it can be approved.
   await expect(asks.getByText(/Run the database migration/)).toBeVisible();
+  // The row names the exact action, not only the agent's title for it.
+  await expect(asks.getByText("$ bun run db:migrate")).toBeVisible();
   await expect(asks.getByRole("button", { name: "Approve" })).toHaveCount(0);
   await asks.getByRole("button", { name: "Review" }).click();
   await expect(asks.getByRole("button", { name: "Approve" })).toBeVisible();
@@ -182,8 +186,15 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(page.getByText("CHANGES.md").first()).toBeVisible();
   await expect(page.getByLabel("Message the agent")).toBeHidden();
 
-  // The overview shows it among recent sessions.
+  // The overview shows it among recent sessions, and so does the Sessions
+  // list, narrowed by where sessions stand.
   await page.getByRole("link", { name: "Back to the Factory" }).click();
   await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await tabs.getByRole("link", { name: "Sessions", exact: true }).click();
+  await expect(page).toHaveURL(/\/factory\/sessions$/);
+  await page.getByRole("radio", { name: "Completed" }).click();
+  await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await page.getByRole("radio", { name: "Failed" }).click();
+  await expect(page.getByText("No failed sessions")).toBeVisible();
   expect(output).toContain("Session ");
 });
