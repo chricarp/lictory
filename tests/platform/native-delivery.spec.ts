@@ -79,8 +79,11 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("In Progress"));
+  // The toast, not ui-sdk's live region that repeats it to screen readers.
+  const toast = (text: RegExp) =>
+    page.locator('[data-slot="toast"]', { hasText: text });
   await expect(
-    page.getByText(/started before its specification is ready/),
+    toast(/CHK-2 started before its specification is ready/),
   ).toBeVisible();
   await reloadWhenSaved(page);
   await expect(
@@ -111,7 +114,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("In Progress"));
-  await expect(page.getByText(/requires a ready specification/)).toBeVisible();
+  await expect(toast(/requires a ready specification/)).toBeVisible();
   await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
 
   // Cards open a preview docked over the board instead of leaving it.
@@ -177,6 +180,11 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     page.getByRole("heading", { name: "Board", level: 1 }),
   ).toBeVisible();
   await storyCard.click();
+  // Open before the reload, so what follows shows the reload kept it.
+  await expect(
+    storyPreview.getByRole("heading", { name: "Save a card for later" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/[?&]item=CHK-2(&|$)/);
   await reloadWhenSaved(page);
   await expect(
     storyPreview.getByRole("heading", { name: "Save a card for later" }),
