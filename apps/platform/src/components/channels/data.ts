@@ -324,57 +324,26 @@ export function replyAuthors(
 }
 
 /**
- * Sessions whose live card is among these messages (a thread's root and
- * replies): their pending requests are answered on the card.
+ * The agent session each thread of a channel holds, by thread root: the
+ * latest one, when several ran in it. The channel shows its state beside the
+ * thread's reply count, so a mention that started an agent says whether it
+ * runs, waits on someone or finished without opening the thread.
  */
-export function sessionCardsIn(
-  messages: readonly Pick<MessageRow, "kind" | "payload">[],
-): Set<string> {
-  const ids = new Set<string>();
-  for (const m of messages) {
-    const sessionId = m.payload?.sessionId;
-    if (
-      m.kind === "card" &&
-      m.payload?.type === "agentSession" &&
-      typeof sessionId === "string"
-    )
-      ids.add(sessionId);
-  }
-  return ids;
-}
-
-/**
- * Replies a thread holds but does not show, by thread root: while a session
- * waits on a request, its card shows it and the request's record line steps
- * aside (`ApprovalRecordGate`). Reply counts subtract these so "2 replies"
- * never opens onto one. Sessions the browser cannot read are not here, and
- * their record lines show (with their own Approve and Deny).
- */
-export function hiddenReplies(
-  sessions: readonly {
+export function threadSessions<
+  S extends {
     channelId: string | null;
     threadRootMessageId: string | null;
-    status: string;
-    approvals: readonly unknown[];
-  }[],
-  channelId: string,
-): Map<string, number> {
-  const hidden = new Map<string, number>();
+    createdAt: string;
+  },
+>(sessions: readonly S[], channelId: string): Map<string, S> {
+  const latest = new Map<string, S>();
   for (const s of sessions) {
     if (s.channelId !== channelId || !s.threadRootMessageId) continue;
-    if (s.status !== "waiting" || !s.approvals.length) continue;
-    const root = s.threadRootMessageId;
-    hidden.set(root, (hidden.get(root) ?? 0) + s.approvals.length);
+    const known = latest.get(s.threadRootMessageId);
+    if (!known || known.createdAt < s.createdAt)
+      latest.set(s.threadRootMessageId, s);
   }
-  return hidden;
-}
-
-/** The replies a thread shows: its count less the record lines set aside. */
-export function shownReplyCount(
-  message: Pick<MessageRow, "replyCount">,
-  hidden = 0,
-): number {
-  return Math.max(0, message.replyCount - hidden);
+  return latest;
 }
 
 /**

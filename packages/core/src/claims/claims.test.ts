@@ -37,6 +37,7 @@ import {
   signOffDoneCheck,
 } from "@lictory/core/claims/service";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
+import { WORK_CHANNEL } from "@lictory/core/jobs/signal";
 import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { noEffects } from "@lictory/core/capabilities/core";
@@ -1571,4 +1572,28 @@ void test("MCP agents claim through the capability layer; autonomy stays with pe
   assert.equal(done.checks.length, 2);
   assert.equal(done.evaluation?.passed, false);
   assert.deepEqual(await f.drift(), []);
+});
+
+void test("accepting a scope wakes the dispatcher on commit instead of its next round", async () => {
+  const f = await fixture();
+  const id = await f.create(f.types.Story);
+  await f.makeReady(id);
+  const signals: string[] = [];
+  const listener = postgres(url.toString(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const subscription = await listener.listen(WORK_CHANNEL, (kind) =>
+    signals.push(kind),
+  );
+  try {
+    await f.accept(id);
+    const deadline = Date.now() + 5_000;
+    while (!signals.includes("factory") && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(signals.includes("factory"), JSON.stringify(signals));
+  } finally {
+    await subscription.unlisten();
+    await listener.end();
+  }
 });

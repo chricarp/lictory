@@ -4,11 +4,12 @@ import type {
   SessionStatus,
 } from "@lictory/core/factory/entities";
 
-// The Factory overview's three blocks. Every session is in exactly one:
+// The Factory overview's blocks. Every session is in exactly one:
 // - needsYou: it waits on a person and I am the one who answers (I started
 //   it or own its agent);
-// - running: everything else still moving (queued, starting, running, or
-//   waiting on someone else);
+// - waitingOnOthers: it waits on a teammate (the team's view of who holds
+//   an agent up), longest waiting first;
+// - running: everything else still moving (queued, starting, running);
 // - recent: finished (completed, failed, canceled), newest first.
 
 const moving: ReadonlySet<SessionStatus> = new Set([
@@ -80,13 +81,16 @@ export function overviewBlocks(
   userId: string,
 ) {
   const needsYou: SessionEntity[] = [];
+  const waitingOnOthers: SessionEntity[] = [];
   const running: SessionEntity[] = [];
   const recent: SessionEntity[] = [];
   for (const session of sessions) {
     if (!moving.has(session.status)) recent.push(session);
     else if (waitsOnMe(session, agentById, userId)) needsYou.push(session);
+    else if (session.status === "waiting") waitingOnOthers.push(session);
     else running.push(session);
   }
+  waitingOnOthers.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
   // Decisions first (oldest question first: it has waited longest), then
   // what is at work before what is queued.
   needsYou.sort(
@@ -102,6 +106,7 @@ export function overviewBlocks(
   recent.sort((a, b) => finishedAt(b).localeCompare(finishedAt(a)));
   return {
     needsYou,
+    waitingOnOthers,
     running,
     recent,
     queued: running.filter((s) => s.status === "queued").length,
@@ -129,4 +134,32 @@ export function agentActivity(
     active: own.filter((s) => moving.has(s.status)).length,
     lastActive,
   };
+}
+
+// How long a session ran: from when a runner started it (or when it was
+// asked for, if it never started) to when it ended, or until now while it
+// moves. Queued time is not running time, so a session that never left the
+// queue has none.
+export function sessionDuration(
+  session: Pick<
+    SessionEntity,
+    "status" | "createdAt" | "startedAt" | "completedAt"
+  >,
+  now = Date.now(),
+): number | null {
+  if (!session.startedAt) return null;
+  const end = session.completedAt ? Date.parse(session.completedAt) : now;
+  return Math.max(0, end - Date.parse(session.startedAt));
+}
+
+// "45s", "4m", "1h 12m", "2d 3h": precise enough to compare runs.
+export function formatDuration(ms: number) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }

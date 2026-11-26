@@ -3,7 +3,11 @@ import {
   navSections,
   type NavBadge,
 } from "@lictory/platform/components/shell/nav-registry";
-import { useDesktopBadgeSource } from "@lictory/platform/lib/desktop-bridge";
+import {
+  useDesktopBadgeSource,
+  useDesktopOpenOrganization,
+} from "@lictory/platform/lib/desktop-bridge";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 
 type Badges = ReadonlyMap<string, NavBadge>;
@@ -35,11 +39,15 @@ export function NavBadgesProvider({ children }: { children: ReactNode }) {
     // The key captures every badge's content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  // Mentions and direct messages of this organization, one source of the
-  // desktop badge (the bridge sums sources and alone calls `setBadge`).
+  // What waits on me in this organization (the Inbox's To do, mentions and
+  // direct messages), one source of the desktop badge: the dock shows the
+  // numbers the sidebar shows (the bridge sums sources and alone calls
+  // `setBadge`; it leaves this organization's notifications out).
+  const { organization } = useWorkspace();
   let dock = 0;
   for (const badge of badges.values()) if (badge.dock) dock += badge.count;
   useDesktopBadgeSource("sidebar", dock);
+  useDesktopOpenOrganization(organization.id);
   // Something new waiting on me in the Inbox is announced wherever I am;
   // fewer (I handled one) is not news.
   const inbox = badges.get("inbox");

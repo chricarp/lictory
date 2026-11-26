@@ -60,27 +60,51 @@ void test("attention kinds are those that ask something of the person", () => {
     assert.ok(!attentionKinds.includes(kind), kind);
 });
 
-void test("channel mentions reach the badge from read state, not as notifications", async () => {
+void test("channel mentions reach the badge from read state, not as notifications", () => {
   // The sidebar's source counts them; reading a conversation clears it there.
   assert.ok(attentionKinds.includes("channel_mentioned"));
-  assert.ok(!badgeCounts({ kind: "channel_mentioned" }));
-  assert.ok(!badgeCounts({ kind: "direct_message" }));
-  assert.ok(badgeCounts({ kind: "assigned" }));
+  const other = { organizationId: "org-2" };
+  assert.ok(!badgeCounts({ kind: "channel_mentioned", ...other }));
+  assert.ok(!badgeCounts({ kind: "direct_message", ...other }));
+  assert.ok(badgeCounts({ kind: "assigned", ...other }));
   // An agent's question is answered in To do, never read in Updates.
   assert.ok(attentionKinds.includes("agent_approval_requested"));
-  assert.ok(!badgeCounts({ kind: "agent_approval_requested" }));
+  assert.ok(!badgeCounts({ kind: "agent_approval_requested", ...other }));
+});
+
+void test("the open organization counts through its sidebar, the others through their notifications", async () => {
+  // The window shows org-1: its To do, mentions and direct messages are the
+  // sidebar's source, so its notifications would count twice. A request in
+  // org-2, which no sidebar shows here, still raises the badge.
+  assert.ok(
+    !badgeCounts(
+      { kind: "review_requested", organizationId: "org-1" },
+      "org-1",
+    ),
+  );
+  assert.ok(
+    badgeCounts({ kind: "review_requested", organizationId: "org-2" }, "org-1"),
+  );
   const badges: number[] = [];
+  let open: string | null = null;
   const sync = createDesktopSync({
     bridge: { notify: () => undefined },
     setBadge: (count) => badges.push(count),
     fetchUnread: () =>
       Promise.resolve({
-        items: [notification(), notification({ kind: "channel_mentioned" })],
+        items: [
+          notification(),
+          notification({ organizationId: "org-2" }),
+          notification({ kind: "channel_mentioned" }),
+        ],
         next: null,
       }),
+    openOrganization: () => open,
   });
   await sync.refresh();
-  assert.deepEqual(badges, [1]);
+  open = "org-1";
+  await sync.refresh();
+  assert.deepEqual(badges, [2, 1]);
 });
 
 void test("the badge is the sum of its sources and only changes when it must", () => {

@@ -13,7 +13,9 @@ import {
 import {
   agentActivity,
   failedForMe,
+  formatDuration,
   overviewBlocks,
+  sessionDuration,
   waitsOnMe,
 } from "@lictory/platform/components/factory/overview-blocks";
 
@@ -115,17 +117,27 @@ void test("each session is in exactly one block of the overview", () => {
     blocks.needsYou.map((s) => s.id),
     ["a"],
   );
+  // Waiting on a teammate: the team's view of who holds an agent up.
+  assert.deepEqual(
+    blocks.waitingOnOthers.map((s) => s.id),
+    ["bb"],
+  );
   // At work before queued.
   assert.deepEqual(
     blocks.running.map((s) => s.id),
-    ["ccc", "bb", "dddd"],
+    ["ccc", "dddd"],
   );
   assert.deepEqual(
     blocks.recent.map((s) => s.id),
     ["ffffff", "eeeee"],
   );
   assert.equal(blocks.queued, 1);
-  const all = [...blocks.needsYou, ...blocks.running, ...blocks.recent];
+  const all = [
+    ...blocks.needsYou,
+    ...blocks.waitingOnOthers,
+    ...blocks.running,
+    ...blocks.recent,
+  ];
   assert.equal(new Set(all.map((s) => s.id)).size, sessions.length);
   // Ben sees his own waiting session as his.
   assert.deepEqual(
@@ -232,4 +244,31 @@ void test("a failed session waits on the person who started it until retried or 
     failedForMe(sessions, "ada", now).map((s) => s.id),
     ["mine"],
   );
+});
+
+void test("a session's duration is its running time, not its time in the queue", () => {
+  const base = {
+    status: "completed" as const,
+    createdAt: "2026-11-24T10:00:00.000Z",
+    startedAt: "2026-11-24T10:01:00.000Z",
+    completedAt: "2026-11-24T10:05:30.000Z",
+  };
+  assert.equal(sessionDuration(base), 270_000);
+  assert.equal(formatDuration(270_000), "4m");
+  // Still running: until now.
+  assert.equal(
+    sessionDuration(
+      { ...base, status: "running", completedAt: null },
+      Date.parse("2026-11-24T10:02:00.000Z"),
+    ),
+    60_000,
+  );
+  // Never left the queue: no duration.
+  assert.equal(
+    sessionDuration({ ...base, status: "canceled", startedAt: null }),
+    null,
+  );
+  assert.equal(formatDuration(45_000), "45s");
+  assert.equal(formatDuration(72 * 60_000), "1h 12m");
+  assert.equal(formatDuration(51 * 3_600_000), "2d 3h");
 });

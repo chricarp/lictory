@@ -462,7 +462,7 @@ function Queue({ project }: { project: Project }) {
                       variant="ghost"
                       onClick={() => setReleasing(claim)}
                     >
-                      Release
+                      Release claim…
                     </Button>
                   )
                 }

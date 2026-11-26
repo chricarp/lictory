@@ -8,12 +8,15 @@ Claude Code, Codex or Lictory's built-in harness runs on a **runner**, a
 machine you control, in its own git branch. People start sessions, steer
 them and make the decisions; agents do the work in between.
 
-Open it from **Factory** in the sidebar. The overview shows how many agent
-requests wait on you (you answer them in the [Inbox](/inbox)'s **To do**,
-or on the session's page), what agents are working on now, what is queued
-and what finished recently. Its tabs lead to **Sessions**, **Agents** and
-**Runners**; **Sessions** lists the recent sessions of the organization, so
-you can find yesterday's run or the ones that failed.
+Open it from **Factory** in the sidebar. The overview lists the agent
+requests that wait on you (the same rows as your [Inbox](/inbox)'s **To
+do** and Home, answered right there), the sessions waiting on a teammate and
+on whom, what agents are working on now, what is queued and what finished
+recently. Its tabs lead to **Sessions**, **Agents** and **Runners**;
+**Sessions** lists the recent sessions of the organization, newest started
+first, with who ran and started each, how long it ran and what came of it.
+Narrow it by state, by agent or by who started it to find yesterday's run or
+the ones that failed.
 
 ## Before you start
 
@@ -51,13 +54,14 @@ files it changed and status changes. Below it:
   it when its current step ends.
 - **Interrupt** stops the current turn; the agent keeps its work and waits
   for your next message (the session shows **Waiting on you**).
-- **Cancel** stops the session for good. **Retry** runs a failed or canceled
+- **Cancel…** stops the session for good, after you confirm. **Retry** runs a failed or canceled
   session again from its original instructions and sends it the messages you
   sent before, so you do not repeat them; its history stays.
 
 Only the person who started the session and the agent's owner can steer it.
 An organization administrator can also cancel it. In a session's channel
-thread, their replies are messages to the agent too.
+thread, their replies are messages to the agent too, and **Interrupt** and
+**Cancel…** are on the session's card there.
 
 ## Answer what the agent asks
 
@@ -65,8 +69,10 @@ When an agent needs a decision (for example a command its harness may not
 run without permission) the session is **Waiting on you** and an approval
 request appears in the session, on the Factory overview, on Home and in your
 Inbox's To do. It names the item, the agent and the exact action (the
-command it would run or the file it would write); open **Review** to see the
-evidence, then choose **Approve** or **Deny**. Only the person who started the
+command it would run or the file it would write), or says **No command
+attached** when the agent named none: approving then allows what its title
+says, so ask for the exact command first if you need it. Open **Review** to
+see the evidence, then choose **Approve** or **Deny**. Only the person who started the
 session and the agent's owner can answer, and an agent can never answer for
 them.
 
@@ -75,7 +81,9 @@ the session is **Waiting on you** too: reply in the session or in its
 thread.
 
 A session you started that fails is in your To do and on Home until you
-retry it (or for a week).
+retry it (or for a week). Retry runs the same task again; to change what it
+is asked, update its work item or reply in its thread and start a new
+session (the failed session's page links both).
 
 ## When it finishes
 

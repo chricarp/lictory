@@ -5,9 +5,9 @@ import {
   Factory,
   Hand,
   History,
-  Inbox,
   Play,
   Server,
+  Users,
   Zap,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
@@ -23,7 +23,6 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
-import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
@@ -33,10 +32,15 @@ import { StartSessionDialog } from "@lictory/platform/components/factory/start-s
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
+import {
+  WaitingRowView,
+  useWaitingOnYou,
+} from "@lictory/platform/components/workspace/inbox";
 
-// What the factory is doing, in three blocks, each session in exactly one:
-// what needs me (an agent's request, reviewed with its context), what is
-// running, and what finished recently with what it changed. The counts sit
+// What the factory is doing, in blocks, each session in exactly one: what
+// needs me (an agent's request, reviewed with its context), what waits on a
+// teammate, what is running, and what finished recently with what it
+// changed. The counts sit
 // in the header; a new organization sees one setup path instead.
 
 const RECENT = 20;
@@ -58,6 +62,13 @@ export function FactoryOverview() {
   const blocks = useMemo(
     () => overviewBlocks(sessions, agentById, userId),
     [sessions, agentById, userId],
+  );
+  // What agents ask me: one row per question, one for a session waiting for
+  // my next message, one for a session of mine that failed.
+  const waiting = useWaitingOnYou();
+  const asks = useMemo(
+    () => waiting.filter((row) => row.kind === "agent"),
+    [waiting],
   );
   const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;
   const active = runners.filter((r) => !r.revokedAt).length;
@@ -86,8 +97,10 @@ export function FactoryOverview() {
     );
 
   const counts = [
-    blocks.needsYou.length > 0 &&
-      `${blocks.needsYou.length} ${blocks.needsYou.length === 1 ? "needs" : "need"} you`,
+    asks.length > 0 &&
+      `${asks.length} ${asks.length === 1 ? "needs" : "need"} you`,
+    blocks.waitingOnOthers.length > 0 &&
+      `${blocks.waitingOnOthers.length} waiting on teammates`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,
     blocks.queued > 0 && `${blocks.queued} queued`,
     `${online} of ${active} ${active === 1 ? "runner" : "runners"} online`,
@@ -107,11 +120,6 @@ export function FactoryOverview() {
       }),
     ),
   ];
-  // One per question, or one for a session waiting for my next message.
-  const asks = blocks.needsYou.reduce(
-    (n, session) => n + Math.max(1, session.approvals.length),
-    0,
-  );
   return (
     <FactoryPage
       description={description}
@@ -144,30 +152,33 @@ export function FactoryOverview() {
           </Button>
         </div>
       )}
-      {/* One queue: what agents ask me is answered in the Inbox's To do
-          (Home shows its first rows). The factory says how many and where. */}
+      {/* One queue: the agents' rows of the Inbox's To do (and Home's
+          "Waiting on you"), the same rows answered the same way here, so
+          the Factory, Home and the Inbox never disagree. */}
       <Panel
         title="Needs you"
         icon={<Hand />}
-        count={asks}
-        empty="Nothing waits on you. When an agent needs a decision or your next message, it appears in your Inbox."
+        count={asks.length}
+        more={{ label: "Inbox", href: paths.inbox(org, "todo") }}
+        empty="Nothing waits on you. When an agent needs a decision or your next message, it appears here and in your Inbox."
       >
-        {asks > 0 && (
-          <ListRow
-            href={paths.inbox(org, "todo")}
-            leading={<Inbox aria-hidden className="size-4 text-primary" />}
-            title={`${asks} ${asks === 1 ? "request" : "requests"} from agents ${asks === 1 ? "waits" : "wait"} on you`}
-            meta={`${[
-              ...new Set(
-                blocks.needsYou.map(
-                  (s) => agentById.get(s.agentId)?.name ?? "An agent",
-                ),
-              ),
-            ].join(
-              ", ",
-            )} · answer in your Inbox, with reviews and page changes`}
+        {asks.map((row) => (
+          <WaitingRowView key={row.key} row={row} />
+        ))}
+      </Panel>
+      {/* The team's view: agents held up by someone else, and by whom. */}
+      <Panel
+        title="Waiting on teammates"
+        icon={<Users />}
+        count={blocks.waitingOnOthers.length}
+      >
+        {blocks.waitingOnOthers.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            agent={agentById.get(session.agentId)}
           />
-        )}
+        ))}
       </Panel>
       <Panel
         title="Running"

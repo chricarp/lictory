@@ -50,6 +50,10 @@ import {
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import {
+  formatDuration,
+  sessionDuration,
+} from "@lictory/platform/components/factory/overview-blocks";
+import {
   useFactory,
   useSession,
   useSessionEvents,
@@ -78,6 +82,7 @@ export function SessionView() {
   const { session, complete } = useSession(sessionId);
   const stateOf = useSessionStateOf();
   const [limit, setLimit] = useState(WINDOW);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
@@ -89,6 +94,19 @@ export function SessionView() {
           const message = (e.data as { message?: unknown } | null)?.message;
           return e.type === "error" && typeof message === "string"
             ? [message.trim()]
+            : [];
+        }),
+      ),
+    [events],
+  );
+  // Summaries the log already shows, so the outcome does not repeat them.
+  const shownSummaries = useMemo(
+    () =>
+      new Set(
+        events.flatMap((e) => {
+          const text = (e.data as { text?: unknown } | null)?.text;
+          return e.type === "summary" && typeof text === "string"
+            ? [text.trim()]
             : [];
         }),
       ),
@@ -164,9 +182,18 @@ export function SessionView() {
   const canInterrupt = steer && allows("interrupt");
   const canCancel = (steer || isAdmin) && allows("cancel");
   const interrupt = act("interruptAgentSession", "Interrupting");
-  const cancel = act("cancelAgentSession", "Canceling");
+  const cancelNow = act("cancelAgentSession", "Canceling");
+  // Cancel ends the run (Interrupt only pauses it): asked once, so the
+  // destructive one is never picked in a hurry.
+  const cancel = () => setConfirmingCancel(true);
   const asks = session.status === "waiting" ? session.approvals : [];
   const itemKey = item && project ? identifier(project, item.number) : null;
+  const ran = sessionDuration(session);
+  // Where it was asked for: its channel thread, if a mention started it.
+  const thread =
+    session.channelId && session.threadRootMessageId
+      ? `${paths.channel(org, session.channelId)}?thread=${session.threadRootMessageId}`
+      : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -179,7 +206,7 @@ export function SessionView() {
             {/* Laptops: labelled buttons. Phones: one labelled menu, so
                 the title keeps the bar. */}
             {canInterrupt && (
-              <Tooltip label={INTERRUPT_HINT}>
+              <Tooltip label={INTERRUPT_HINT} side="left">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
@@ -190,13 +217,13 @@ export function SessionView() {
               </Tooltip>
             )}
             {canCancel && (
-              <Tooltip label={CANCEL_HINT}>
+              <Tooltip label={CANCEL_HINT} side="left">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
                   onClick={cancel}
                 >
-                  <CircleStop className="size-3.5" aria-hidden /> Cancel
+                  <CircleStop className="size-3.5" aria-hidden /> Cancel…
                 </Button>
               </Tooltip>
             )}
@@ -230,7 +257,7 @@ export function SessionView() {
                     <MenuItem onSelect={() => void cancel()}>
                       <CircleStop className="size-3.5 text-muted-foreground" />{" "}
                       <span>
-                        Cancel session
+                        Cancel session…
                         <span className="block text-xs text-muted-foreground">
                           It ends; Retry starts it over
                         </span>
@@ -241,7 +268,7 @@ export function SessionView() {
               </Menu>
             )}
             {steer && allows("retry") && (
-              <Tooltip label={RETRY_HINT}>
+              <Tooltip label={RETRY_HINT} side="left">
                 <Button onClick={act("retryAgentSession", "Retrying")}>
                   <RotateCcw className="size-3.5" aria-hidden /> Retry
                 </Button>
@@ -250,6 +277,29 @@ export function SessionView() {
           </>
         }
       />
+      {confirmingCancel && canCancel && (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-destructive/5 px-4 py-2.5 text-[13px] sm:px-6"
+        >
+          <span className="mr-auto">
+            Cancel this session? It ends now; Retry starts it over from the
+            task. To pause it instead, choose Interrupt.
+          </span>
+          <Button variant="ghost" onClick={() => setConfirmingCancel(false)}>
+            Keep it running
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmingCancel(false);
+              void cancelNow();
+            }}
+          >
+            Cancel session
+          </Button>
+        </div>
+      )}
       {/* Who and where, on one line (it scrolls sideways on phones). The
           branch gives way first, cut in the middle, so who started the
           session and when stay in view. */}
@@ -270,6 +320,12 @@ export function SessionView() {
             {relativeTime(session.createdAt)}
           </time>
         </span>
+        {ran !== null && (
+          <span className="tabular-nums">
+            {state.active ? "running for " : "ran "}
+            {formatDuration(ran)}
+          </span>
+        )}
         {itemKey && (
           <Link
             href={paths.item(org, project!.key, itemKey)}
@@ -363,8 +419,50 @@ export function SessionView() {
           {Boolean(session.resultSummary ?? session.error) &&
             ["completed", "failed"].includes(session.status) &&
             !(session.error && shownErrors.has(session.error.trim())) && (
-              <Result summary={session.resultSummary} error={session.error} />
+              <Result
+                // The summary the log already shows is not repeated.
+                summary={
+                  session.resultSummary &&
+                  shownSummaries.has(session.resultSummary.trim())
+                    ? null
+                    : session.resultSummary
+                }
+                error={session.error}
+              />
             )}
+          {/* A failure is the start of a decision: retry as is, or go
+              back to the work or the conversation and change the ask. */}
+          {session.status === "failed" && steer && (itemKey ?? thread) && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Retry runs the same task again. To change what it is asked,
+              {itemKey ? (
+                <>
+                  {" "}
+                  update{" "}
+                  <Link
+                    href={paths.item(org, project!.key, itemKey)}
+                    className="font-mono text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+                  >
+                    {itemKey}
+                  </Link>
+                </>
+              ) : null}
+              {itemKey && thread ? " or" : ""}
+              {thread ? (
+                <>
+                  {" "}
+                  reply in{" "}
+                  <Link
+                    href={thread}
+                    className="text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+                  >
+                    its thread
+                  </Link>
+                </>
+              ) : null}{" "}
+              and start a new session.
+            </p>
+          )}
         </div>
       </div>
       {session.status === "waiting" && !asks.length && (

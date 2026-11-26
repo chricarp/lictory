@@ -6,7 +6,7 @@ import {
   type AgentEntity,
   type SessionEntity,
 } from "@lictory/core/factory/entities";
-import { identifier } from "@lictory/core/lib/work-items";
+import { identifier, relativeTime } from "@lictory/core/lib/work-items";
 import { cn } from "@lictory/core/lib/utils";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -26,6 +26,11 @@ import { SessionStateChip } from "@lictory/platform/components/shell/session-chi
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { activeStatuses } from "@lictory/platform/components/factory/labels";
+import {
+  formatDuration,
+  sessionDuration,
+} from "@lictory/platform/components/factory/overview-blocks";
 
 // Pieces shared by the Factory's pages: the page frame (one header with the
 // Factory's tabs), who started a session, its state and its row.
@@ -159,6 +164,13 @@ export function titleBeside(title: string, key: string | undefined) {
   return key && text.startsWith(`${key}: `) ? text.slice(key.length + 2) : text;
 }
 
+// A line of someone else's text (an agent's error) ended once, so copy can
+// follow it: "…already exists." + " Open it to retry.", never "exists..".
+export function asSentence(text: string) {
+  const trimmed = text.trim();
+  return /[.!?…:]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 // What a finished session changed, in one line: its summary or why it
 // failed, and its pull request.
 export function sessionOutcome(
@@ -177,20 +189,79 @@ export function sessionOutcome(
 
 // One session in a list: the agent, the item key and title, who started it
 // (or what it changed, once finished), its state and when it last moved.
+// As a `log` row (the Sessions tab) every row has the same shape whatever its
+// state: who ran it, who started it, how long it ran and, once finished,
+// what came of it; its time is when it started, the list's order.
 export function SessionRow({
   session,
   agent,
   showOutcome = false,
+  log = false,
 }: {
   session: SessionEntity;
   agent: AgentEntity | undefined;
   showOutcome?: boolean;
+  log?: boolean;
 }) {
   const { organization } = useWorkspace();
   const stateOf = useSessionStateOf();
   const itemKey = useItemKey();
   const pullRequest = Boolean(session.pullRequestId ?? session.pullRequestUrl);
   const key = itemKey(session.workItemId);
+  const finished = !activeStatuses.includes(session.status);
+  const ran = sessionDuration(session);
+  if (log)
+    return (
+      <ListRow
+        className="max-sm:[&>time]:hidden"
+        href={factoryPaths.session(organization.slug, session.id)}
+        leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
+        identifier={key}
+        title={titleBeside(session.title, key)}
+        meta={
+          <>
+            <AgentActor
+              agent={agent}
+              ownerId={agent?.ownerId}
+              avatar={false}
+              className="shrink-0"
+            />
+            <span aria-hidden>·</span>
+            <span className="shrink-0">by</span>
+            <SessionStarter session={session} />
+            {ran !== null && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="shrink-0 tabular-nums">
+                  {finished ? "ran " : "running "}
+                  {formatDuration(ran)}
+                </span>
+              </>
+            )}
+            {finished && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="min-w-0 truncate">
+                  {sessionOutcome(session)}
+                </span>
+              </>
+            )}
+            {pullRequest && (
+              <span className="flex shrink-0 items-center gap-1">
+                <span aria-hidden>·</span>
+                <GitPullRequest aria-hidden className="size-3" />
+                Pull request
+              </span>
+            )}
+          </>
+        }
+        chips={<SessionStateChip state={stateOf(session, agent)} />}
+        time={{
+          iso: session.createdAt,
+          label: `Started ${relativeTime(session.createdAt)}`,
+        }}
+      />
+    );
   return (
     <ListRow
       // Phones keep the title: the time gives way.

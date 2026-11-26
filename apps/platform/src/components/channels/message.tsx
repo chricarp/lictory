@@ -35,12 +35,15 @@ import {
   type AgentIdentity,
   type Person,
 } from "@lictory/platform/components/identity/actor";
-import { firstName } from "@lictory/platform/lib/session-state";
+import {
+  firstName,
+  type SessionState,
+} from "@lictory/platform/lib/session-state";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import {
   formatTime,
   groupReactions,
   replyAuthors,
-  shownReplyCount,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
@@ -104,9 +107,9 @@ type Props = {
   inThread?: boolean;
   // Why a linked Slack channel never received this message.
   syncError?: string;
-  // Replies its thread holds but does not show (requests a session card
-  // shows): left out of the count.
-  hiddenReplies?: number;
+  // Where the agent session its thread holds stands (a mention started
+  // it): shown beside the reply count, so the channel says it.
+  threadState?: SessionState;
 };
 
 const iconButton =
@@ -130,12 +133,12 @@ export const ChannelMessage = memo(function ChannelMessage({
   actions,
   inThread = false,
   syncError,
-  hiddenReplies = 0,
+  threadState,
 }: Props) {
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
-  const replies = shownReplyCount(message, hiddenReplies);
+  const replies = message.replyCount;
   // The Factory's cards speak for their agent ("Forge via Ada").
   const factory =
     message.kind === "card" ? factoryCardOf(message.payload) : undefined;
@@ -385,6 +388,11 @@ export const ChannelMessage = memo(function ChannelMessage({
               <span className="text-muted-foreground">
                 Last reply {formatTime(message.lastReplyAt)}
               </span>
+            )}
+            {/* A dispatched session's card is its own root and shows its
+                state; a mention's thread says it here. */}
+            {threadState && !factory && (
+              <SessionStateChip state={threadState} className="ml-1" />
             )}
           </button>
         )}

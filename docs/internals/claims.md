@@ -232,7 +232,9 @@ work.
 
 `runDispatcher` (`claims/dispatcher.ts`) is deterministic worker code (the
 `factory` job, every `WORKER_FACTORY_INTERVAL_MS`, default one minute, and
-woken by the `factory` work signal). It only visits organizations with live
+woken by the `factory` work signal: policy and claim changes, and accepting
+an item's delivery scope, so accepted work is dispatched within seconds
+rather than at the next round). It only visits organizations with live
 claims or a project on Build or Autopilot. Per organization, under its lock:
 
 1. Expire claims whose lease ended; return their items.

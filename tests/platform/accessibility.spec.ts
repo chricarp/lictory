@@ -408,7 +408,11 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   await asked.getByRole("button", { name: /repl(y|ies)/ }).click();
   const thread = page.getByRole("complementary", { name: /thread/i });
   const card = thread.getByRole("article", { name: /^Forge session/ });
-  await expect(card.getByRole("button", { name: "Approve" })).toBeVisible({
+  // The request is answered where it was asked, below the card.
+  const request = thread.getByRole("article", {
+    name: "Forge asks for approval",
+  });
+  await expect(request.getByRole("button", { name: "Approve" })).toBeVisible({
     timeout: 60_000,
   });
   const threadPath = `${paths.channel(seeded.slug, channelId)}?thread=${await asked.getAttribute("data-message-id")}`;
@@ -423,7 +427,9 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   const surfaces = async (scheme: "light" | "dark") => {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await page.goto(threadPath);
-    await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(
+      request.getByRole("button", { name: "Approve" }),
+    ).toBeVisible();
     await scan(`${scheme}: channel with a thread holding an agent's request`);
 
     await page.goto(paths.channels(seeded.slug));
@@ -451,10 +457,13 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
     await scan(`${scheme}: inbox with a request open`);
 
-    // The factory says how many requests wait and points to the Inbox.
+    // The factory lists the same requests as the Inbox, answered in place.
     await page.goto(paths.factory(seeded.slug));
     const needs = page.getByRole("region", { name: "Needs you" });
-    await expect(needs.getByRole("link", { name: /wait/ })).toHaveAttribute(
+    await expect(
+      needs.getByRole("button", { name: /^Review/ }).first(),
+    ).toBeVisible();
+    await expect(needs.getByRole("link", { name: /Inbox/ })).toHaveAttribute(
       "href",
       paths.inbox(seeded.slug, "todo"),
     );

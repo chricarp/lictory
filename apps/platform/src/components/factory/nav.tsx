@@ -51,23 +51,22 @@ export const factorySection: NavSection = {
   icon: Factory,
   href: factoryPaths.overview,
   // Sessions waiting on me (I started them or own their agent) for a
-  // decision or my next message: the overview's "Needs you", same count.
+  // decision or my next message, as a dot: the Inbox's count already holds
+  // them (one number for what waits on me, everywhere), so the Factory only
+  // says that some of it is here. Its overview's "Needs you" lists them.
   useBadge: () => {
     const { userId } = useWorkspace();
     const { sessions, agentById } = useFactory();
     const waiting = waitingOnMe(sessions, agentById, userId).length;
     return waiting > 0
       ? {
-          count: waiting,
-          label:
+          count: 0,
+          label: "",
+          dot:
             waiting === 1
-              ? "agent session waiting on you"
-              : "agent sessions waiting on you",
-          tone: "strong",
-          // An agent blocked on me is what the badge is for; the session's
-          // wait ends when I answer (the notification source leaves agents'
-          // requests out, lib/desktop-bridge.ts).
-          dock: true,
+              ? "1 agent session waiting on you"
+              : `${waiting} agent sessions waiting on you`,
+          tone: "quiet",
         }
       : null;
   },

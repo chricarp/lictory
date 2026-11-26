@@ -25,6 +25,7 @@ import type { WorkItem } from "@lictory/core/contracts/protocol";
 import { useSessionUser } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import { useUnread } from "@lictory/platform/components/shell/unread";
 import {
   WaitingRowView,
   useWaitingOnYou,
@@ -42,6 +43,7 @@ import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/la
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { homeCards } from "@lictory/platform/components/shell/nav-registry";
 import { HomeCardBoundary } from "@lictory/platform/components/shell/home/panel";
+import { AdminHealthCard } from "@lictory/platform/components/shell/home/admin-health";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { Link } from "@lictory/platform/lib/navigation";
@@ -55,14 +57,20 @@ import {
   readyToStart,
   recentOutcomes,
   recentPages,
+  waitingKinds,
 } from "@lictory/platform/components/shell/home/derive";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { AgentAvatar } from "@lictory/platform/components/identity/actor";
+import {
+  asSentence,
+  sessionOutcome,
+} from "@lictory/platform/components/factory/parts";
 
 const SHOWN = 6;
-// Home summarizes the queue; the Inbox's To do is the whole list.
-const WAITING_SHOWN = 3;
+// Home summarizes the queue; the Inbox's To do is the whole list. What it
+// does not show is named by kind in a last row, so the count reconciles.
+const WAITING_SHOWN = 5;
 
 // The organization's index. A brand-new organization without projects first
 // creates its first project; afterwards Home is the person's factory floor.
@@ -93,6 +101,7 @@ function Home() {
   } = useWorkspace();
   const { project } = useShell();
   const waiting = useWaitingOnYou();
+  const unread = useUnread()[organization.id] ?? 0;
   const claimability = useClaimability();
   const { sessions, agentById } = useFactory();
   const { index } = useSpaces();
@@ -185,7 +194,7 @@ function Home() {
               {firstName ? `, ${firstName}` : ""}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {summary(waiting.length, flight.total, ready.total)}
+              {summary(waiting.length, flight.total, ready.total, unread)}
             </p>
           </div>
           {showSetup && (
@@ -242,10 +251,7 @@ function Home() {
                 icon={<Inbox />}
                 count={waiting.length}
                 more={{
-                  label:
-                    waiting.length > WAITING_SHOWN
-                      ? `All ${waiting.length} in Inbox`
-                      : "Open Inbox",
+                  label: "Open Inbox",
                   href: paths.inbox(org, "todo"),
                 }}
                 // A new organization's Home is its setup, not empty boxes.
@@ -258,6 +264,16 @@ function Home() {
                 {waiting.slice(0, WAITING_SHOWN).map((row) => (
                   <WaitingRowView key={row.key} row={row} />
                 ))}
+                {waiting.length > WAITING_SHOWN && (
+                  <ListRow
+                    href={paths.inbox(org, "todo")}
+                    leading={
+                      <Inbox aria-hidden className="text-muted-foreground" />
+                    }
+                    title={`${waiting.length - WAITING_SHOWN} more in your Inbox`}
+                    meta={waitingKinds(waiting.slice(WAITING_SHOWN))}
+                  />
+                )}
               </Panel>
               <Panel
                 title="In flight"
@@ -358,7 +374,7 @@ function Home() {
                           <span aria-hidden>·</span>
                           <span className="truncate">
                             {failed
-                              ? `${agent?.name ?? "The agent"} stopped${session.error ? `: ${session.error}` : ""}. Open it to retry.`
+                              ? `${agent?.name ?? "The agent"} stopped${session.error ? `: ${asSentence(sessionOutcome(session))}` : "."} Open it to retry.`
                               : session.pullRequestId
                                 ? `${agent?.name ?? "The agent"} opened a pull request`
                                 : `${agent?.name ?? "The agent"} reported its result`}
@@ -372,6 +388,9 @@ function Home() {
               </Panel>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
+              <HomeCardBoundary name="Needs an administrator">
+                <AdminHealthCard />
+              </HomeCardBoundary>
               {homeCards.map(({ id, label, Card }) => (
                 <HomeCardBoundary key={id} name={label}>
                   <Card />
@@ -408,13 +427,21 @@ function Home() {
   );
 }
 
-function summary(waiting: number, flight: number, ready: number) {
+// One line under the greeting. "Nothing waits on you", never "caught up"
+// while the Inbox holds unread updates: those are news, said as such.
+function summary(
+  waiting: number,
+  flight: number,
+  ready: number,
+  unread: number,
+) {
   const parts = [
-    waiting && `${waiting} waiting on you`,
+    waiting ? `${waiting} waiting on you` : "Nothing waits on you",
     flight && `${flight} in flight`,
     ready && `${ready} ready to start`,
+    unread && `${unread} unread ${unread === 1 ? "update" : "updates"}`,
   ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "You are all caught up.";
+  return parts.join(" · ");
 }
 
 function ItemRow({

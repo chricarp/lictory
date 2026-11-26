@@ -149,9 +149,18 @@ export function ApprovalRequest({
             </span>
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
-            {action && (
+            {action ? (
               <>
                 <ActionText action={action} className="max-w-[45%]" />
+                <span aria-hidden>·</span>
+              </>
+            ) : (
+              // Rows that ask the same title must still say that this one
+              // names nothing to check.
+              <>
+                <span className="shrink-0 font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+                  No command attached
+                </span>
                 <span aria-hidden>·</span>
               </>
             )}
@@ -500,9 +509,12 @@ function Context({
         <p className="text-xs text-muted-foreground">Loading what it did…</p>
       )}
       {complete && !evidence.tool && !input && (
-        <p className="text-xs text-muted-foreground">
-          The agent stated no command or file with this request; its title is
-          all it asks. Ask in the session if that is not enough to decide.
+        <p className="text-[13px] leading-5">
+          <span className="font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+            No command or file attached.
+          </span>{" "}
+          Approving allows what the title says. Ask the agent for the exact
+          command first if you need it.
         </p>
       )}
       {(session.pullRequestId ?? session.pullRequestUrl) && (

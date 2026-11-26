@@ -188,10 +188,10 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
   ).toBeVisible();
 
   // Ada releases the claim; the task returns to the queue.
-  await factory.getByRole("button", { name: "Release" }).click();
+  await factory.getByRole("button", { name: "Release claim…" }).click();
   const dialog = page.getByRole("dialog", { name: "Release this claim?" });
   await dialog.getByLabel("Note (optional)").fill("Taking this one myself.");
-  await dialog.getByRole("button", { name: "Release" }).click();
+  await dialog.getByRole("button", { name: "Release claim" }).click();
   await expect(factory.getByText("Agents can claim this now.")).toBeVisible();
   await expect(
     page.getByText("Taking this one myself.", { exact: false }),

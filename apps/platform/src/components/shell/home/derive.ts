@@ -201,8 +201,11 @@ export function recentPages<P extends PageLike>(
 // Everything waiting on me, in one queue: work items (reviews, requested
 // changes, blocking discussions), page changes, and the questions agents
 // ask me. Home's "Waiting on you" and the Inbox's To do show this same list,
-// so the greeting, the card and the tab always count the same things. An
-// agent waiting on a person is stopped, so its question comes first.
+// so the greeting, the card and the tab always count the same things. It
+// is grouped by what I do about it: agents stopped on my answer first, then
+// reviews others wait on, then my own work (a failed session to retry,
+// changes requested, blockers, merges); within a group, by urgency then
+// newest first.
 
 type WaitingItem = { weight: number; item: { id: string; updatedAt: string } };
 type WaitingPage = {
@@ -272,5 +275,84 @@ export function waitingOnYou<
       entry,
     })),
   ];
-  return rows.sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at));
+  return rows.sort(
+    (a, b) =>
+      groupOrder[waitingGroup(a)] - groupOrder[waitingGroup(b)] ||
+      a.weight - b.weight ||
+      b.at.localeCompare(a.at),
+  );
+}
+
+export type WaitingGroup = "agents" | "reviews" | "yours";
+const groupOrder: Record<WaitingGroup, number> = {
+  agents: 0,
+  reviews: 1,
+  yours: 2,
+};
+// The To do's headings, in the queue's order.
+export const waitingGroupLabels: Record<WaitingGroup, string> = {
+  agents: "Agents waiting on you",
+  reviews: "Reviews",
+  yours: "Your work",
+};
+
+export function waitingGroup(
+  row: Waiting<WaitingItem & { reason: string }, WaitingPage, WaitingRequest>,
+): WaitingGroup {
+  if (row.kind === "agent") return row.request.failed ? "yours" : "agents";
+  if (row.kind === "page")
+    return row.entry.reason === "review_requested" ||
+      row.entry.reason === "review_again"
+      ? "reviews"
+      : "yours";
+  return reviewReasons.has(row.entry.reason) ? "reviews" : "yours";
+}
+
+// What a list of waiting rows holds, by kind, for rows Home does not show
+// ("2 blocked items · 1 failed session"): the count above the card and the
+// rows in it reconcile without opening the Inbox. Kinds in the queue's
+// order; each named once with its count.
+const reviewReasons = new Set([
+  "Review requested",
+  "Pull request to review",
+  "Review again",
+]);
+const itemKinds: Record<string, readonly [string, string]> = {
+  Blocked: ["blocked item", "blocked items"],
+  "Changes requested": [
+    "item with changes requested",
+    "items with changes requested",
+  ],
+  "Publish failed": ["failed hand-off", "failed hand-offs"],
+  "Ready for delivery": ["item ready for delivery", "items ready for delivery"],
+};
+
+export function waitingKinds(
+  rows: readonly Waiting<
+    WaitingItem & { reason: string },
+    WaitingPage,
+    WaitingRequest
+  >[],
+): string {
+  const counts = new Map<string, { n: number; one: string; many: string }>();
+  const add = ([one, many]: readonly [string, string]) => {
+    const entry = counts.get(one) ?? { n: 0, one, many };
+    entry.n += 1;
+    counts.set(one, entry);
+  };
+  for (const row of rows) {
+    if (row.kind === "agent")
+      add(
+        row.request.failed
+          ? ["failed agent session", "failed agent sessions"]
+          : ["request from an agent", "requests from agents"],
+      );
+    else if (row.kind === "page") add(["page change", "page changes"]);
+    else if (reviewReasons.has(row.entry.reason)) add(["review", "reviews"]);
+    else
+      add(itemKinds[row.entry.reason] ?? ["item to check", "items to check"]);
+  }
+  return [...counts.values()]
+    .map(({ n, one, many }) => `${n} ${n === 1 ? one : many}`)
+    .join(" · ");
 }

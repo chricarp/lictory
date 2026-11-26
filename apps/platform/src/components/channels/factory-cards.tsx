@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowUpRight,
   Check,
+  CircleStop,
   CircleHelp,
   FileDiff,
   GitPullRequest,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
+import { agentSession } from "@lictory/core/contracts/state-machines";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
@@ -42,10 +44,9 @@ import { titledByItem } from "@lictory/platform/components/channels/data";
 import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 
 // What the Factory writes into a channel thread
-// (docs/internals/factory.md#sessions-in-channels): a session's live card
-// (which holds what the agent asks, answered there), a record of each
-// approval request, and an agent's question pointing at the anchored
-// discussion. The card's
+// (docs/internals/factory.md#sessions-in-channels): a session's live card,
+// each approval request where it was asked (answered there, then its
+// record), and an agent's question pointing at the anchored discussion. The card's
 // payload is the server's snapshot; the session card reads the session's
 // own synchronized projection when it is in the browser's window, so it is
 // live without polling.
@@ -131,6 +132,10 @@ function SessionCard({
         }
       : null);
   const asks = session && status === "waiting" ? session.approvals : [];
+  // In its thread each request is answered where it was asked, so the
+  // thread reads in order; the card says that something waits below. In
+  // the channel (a dispatched session's report) the card holds them.
+  const holdsAsks = !detailed;
   // A dispatched session is titled after its item ("PAY-10: Refund
   // button…"); the item's chip already names it, so the title is not
   // repeated under it.
@@ -143,7 +148,8 @@ function SessionCard({
       data-session-card={card.sessionId}
       className={cardClass}
     >
-      <div className="flex min-h-10 min-w-0 items-center gap-2 px-3 py-1.5">
+      {/* Wraps in a narrow thread panel rather than running past it. */}
+      <div className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5">
         <SessionStateChip state={state} />
         {card.workItemId && card.workItemKey && (
           <ReferenceChip
@@ -171,9 +177,25 @@ function SessionCard({
       <Progress
         sessionId={card.sessionId}
         live={state.active || detailed}
-        // The request itself is below; its title is not repeated as a step.
+        // The request itself is shown; its title is not repeated as a step.
         asking={asks.length > 0}
       />
+      {!holdsAsks && asks.length > 0 && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+          <Hand className="size-3.5 shrink-0" aria-hidden />
+          {asks.length === 1
+            ? `${card.agentName} asks for approval below`
+            : `${card.agentName} asks for ${asks.length} approvals below`}
+          {decider === "you" ? "." : `; ${firstName(decider)} decides.`}
+          <button
+            type="button"
+            onClick={() => toRequest(asks[0]!.id)}
+            className="rounded-sm text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+          >
+            Go to the request
+          </button>
+        </p>
+      )}
       {status === "waiting" && session && !asks.length && (
         <p className="flex items-center gap-1.5 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
           <Hand className="size-3.5 shrink-0" aria-hidden />
@@ -192,7 +214,15 @@ function SessionCard({
           {error}
         </p>
       )}
+      {detailed && session && (
+        <SessionControls
+          session={session}
+          steer={decider === "you"}
+          agentName={card.agentName}
+        />
+      )}
       {session &&
+        holdsAsks &&
         asks.map((approval) => (
           <div key={approval.id} className="border-t">
             <ApprovalRequest
@@ -210,6 +240,93 @@ function SessionCard({
           </div>
         ))}
     </article>
+  );
+}
+
+// Stop controls where people steer: Interrupt (the agent stops its turn and
+// waits) and Cancel (the session ends; Retry starts it over), by the same
+// rules as the session page. Cancel asks once, since it ends the run.
+function SessionControls({
+  session,
+  steer,
+  agentName,
+}: {
+  session: NonNullable<ReturnType<typeof useSession>["session"]>;
+  steer: boolean;
+  agentName: string;
+}) {
+  const { organization, isAdmin } = useWorkspace();
+  const [confirming, setConfirming] = useState(false);
+  const canInterrupt =
+    steer && agentSession.allows(session.status, "interrupt");
+  const canCancel =
+    (steer || isAdmin) && agentSession.allows(session.status, "cancel");
+  if (!canInterrupt && !canCancel) return null;
+  const act = (name: string, label: string) => async () => {
+    try {
+      await callCapability(name, {
+        organizationId: organization.id,
+        sessionId: session.id,
+      });
+      setConfirming(false);
+    } catch (error) {
+      toast({
+        type: "error",
+        title: `${label} failed`,
+        description: (error as Error).message,
+      });
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2 text-xs">
+      {confirming ? (
+        <>
+          <span className="mr-auto">
+            Cancel {agentName}’s session? It ends; Retry starts it over.
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setConfirming(false)}
+          >
+            Keep it running
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={act("cancelAgentSession", "Canceling")}
+          >
+            Cancel session
+          </Button>
+        </>
+      ) : (
+        <>
+          {canInterrupt && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={act("interruptAgentSession", "Interrupting")}
+            >
+              <Hand className="size-3.5" aria-hidden /> Interrupt
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirming(true)}
+            >
+              <CircleStop className="size-3.5" aria-hidden /> Cancel…
+            </Button>
+          )}
+          {canInterrupt && (
+            <span className="text-muted-foreground max-sm:hidden">
+              Interrupt stops its turn and waits for you.
+            </span>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -299,44 +416,30 @@ const stepIcons = {
   approval: <ShieldQuestion />,
 } as const;
 
-// Whether the session's card shows this request right now (pending, and the
-// session waits on it): then the card is where it is answered.
-function shownOnCard(
-  approval: ApprovalCardPayload,
-  session: ReturnType<typeof useSession>["session"],
-) {
-  return (
-    approval.status === "pending" &&
-    session?.status === "waiting" &&
-    session.approvals.some((a) => a.id === approval.approvalId)
+// Scrolls a thread to a request's own message and focuses its first action.
+function toRequest(approvalId: string) {
+  const request = document.querySelector<HTMLElement>(
+    `[data-approval-record="${approvalId}"]`,
   );
+  request?.scrollIntoView({ block: "center", behavior: "smooth" });
+  request?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
 }
 
-// In a thread that also holds the session's card, a pending request the
-// card shows is one block, not two: its record line steps aside until it is
-// answered ("Approved by Ada" then stays as history).
-export function ApprovalRecordGate({
-  payload,
-  children,
-}: {
-  payload: ApprovalCardPayload;
-  children: ReactNode;
-}) {
-  const { session } = useSession(payload.sessionId);
-  return shownOnCard(payload, session) ? null : children;
-}
-
-// An agent's request in its thread. While the session card can show it, the
-// request is answered there (one card per session); this line records it
-// and leads to the card. Without the session (no access to the Factory),
-// it carries its own Approve and Deny.
+// An agent's request in its thread, where it was asked, so the thread reads
+// in order. While it is pending and the browser can read the session, it is
+// the shared approval request (what is asked, the evidence, then Approve and
+// Deny for the people who may decide); without the session (no access to
+// the Factory) it carries its own Approve and Deny. Once answered it is the
+// record of who decided.
 function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
   const { organization, userId, memberName } = useWorkspace();
   const { session } = useSession(approval.sessionId);
+  const { agentById, runnerById } = useFactory();
   const [sent, setSent] = useState<"approve" | "deny" | null>(null);
   const pending = approval.status === "pending";
   const mayDecide = approval.deciderIds.includes(userId);
-  const onCard = shownOnCard(approval, session);
+  const live =
+    pending && session?.approvals.find((a) => a.id === approval.approvalId);
   const answer = async (decision: "approve" | "deny") => {
     setSent(decision);
     try {
@@ -356,16 +459,28 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
     }
   };
   const deciders = approval.deciderIds.map((id) => firstName(memberName(id)));
-  const toCard = () => {
-    const card = document.querySelector<HTMLElement>(
-      `[data-session-card="${approval.sessionId}"]`,
+  if (live && session)
+    return (
+      <article
+        aria-label={`${approval.agentName} asks for approval`}
+        data-approval-record={approval.approvalId}
+        className="mt-1 max-w-2xl"
+      >
+        <ApprovalRequest
+          session={session}
+          approval={live}
+          agent={agentById.get(session.agentId)}
+          runner={
+            session.runnerId ? runnerById.get(session.runnerId) : undefined
+          }
+          linkSession={false}
+        />
+      </article>
     );
-    card?.scrollIntoView({ block: "center", behavior: "smooth" });
-    card?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
-  };
   return (
     <article
       aria-label={`${approval.agentName} asks for approval`}
+      data-approval-record={approval.approvalId}
       className="mt-0.5 flex max-w-2xl items-start gap-2 text-[13px]"
     >
       <ShieldQuestion
@@ -387,22 +502,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
           )}
         </p>
         {pending ? (
-          onCard ? (
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              {mayDecide
-                ? "Review it with its context on the session card."
-                : `${deciders.join(" or ")} decides.`}
-              {mayDecide && (
-                <button
-                  type="button"
-                  onClick={toCard}
-                  className="rounded-sm font-medium text-foreground underline-offset-2 focus-ring outline-none hover:underline"
-                >
-                  Go to the card
-                </button>
-              )}
-            </p>
-          ) : mayDecide ? (
+          mayDecide ? (
             <div className="mt-2 flex gap-2">
               <Button
                 disabled={sent !== null}

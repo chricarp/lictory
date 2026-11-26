@@ -28,6 +28,8 @@ function useInboxBadge(): NavBadge | null {
     // Unread updates alone wait on nobody (the phone's menu button marks
     // strong badges only).
     tone: todo > 0 ? "strong" : "quiet",
+    // What waits on me is what the desktop app's badge counts.
+    dock: true,
     ...(unread > 0 ? { dot: "unread updates" } : {}),
   };
 }

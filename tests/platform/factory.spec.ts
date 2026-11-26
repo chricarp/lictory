@@ -107,6 +107,19 @@ test("a person runs an agent on their own runner, steers it and approves what it
   runner.stderr?.on("data", (chunk: Buffer) => (output += chunk.toString()));
   await expect(page.getByText("e2e-runner")).toBeVisible();
   await expect(page.getByText("Online", { exact: true })).toBeVisible();
+  // Its row opens what the runner reported: machine, version, isolation.
+  const runnerRow = page.getByRole("button", {
+    name: "e2e-runner",
+    exact: true,
+  });
+  await runnerRow.click();
+  await expect(runnerRow).toHaveAttribute("aria-expanded", "true");
+  const detail = page.locator("[data-runner-detail]");
+  await expect(detail.getByText("Isolation")).toBeVisible();
+  await expect(detail.getByText(/in its own git worktree/)).toBeVisible();
+  await expect(detail.getByText("No sessions on it yet.")).toBeVisible();
+  await runnerRow.click();
+  await expect(detail).toBeHidden();
 
   // Create an agent the person owns.
   await tabs.getByRole("link", { name: "Agents", exact: true }).click();
@@ -224,6 +237,12 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(
     page.getByRole("link", { name: "Add a changelog for refunds." }),
   ).toBeVisible();
+  // Every row says who ran it, who started it and for how long.
+  const row = page
+    .locator("[data-list-row]")
+    .filter({ hasText: "Add a changelog for refunds." });
+  await expect(row.getByText(/^ran \d+(s|m)/)).toBeVisible();
+  await expect(row.getByText(/^Started /).last()).toBeVisible();
   await page.getByRole("radio", { name: "Failed" }).click();
   await expect(page.getByText("No failed sessions")).toBeVisible();
   // The runner's log says how the session ended, not only that it did.

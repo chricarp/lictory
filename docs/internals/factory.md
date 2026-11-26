@@ -52,8 +52,18 @@ name and handle, and the UI reads "Forge via Ada"; `capability_invocation`
 records the token, which names the agent.
 
 The Factory's Sessions page (`/{org}/factory/sessions`) lists the recent
-sessions of the organization, narrowed by where they stand (active,
-failed, completed, canceled); the overview shows what needs attention now.
+sessions of the organization, newest started first, every row the same
+shape (agent, who started it, how long it ran, its outcome), narrowed by
+where they stand (active, failed, completed, canceled), by agent and by who
+started it. The overview shows what needs attention now, each session in
+one block: what needs me (the agents' rows of my To do, answered in place),
+what waits on a teammate and on whom (the team's view), what runs, what
+finished. A session's duration is its running time (`startedAt` to
+`completedAt`), never its time in the queue. The Runners page opens each
+runner's detail in place (what it reported: machine, version, harnesses,
+isolation, labels, capacity, latest sessions) and says which runners run an
+older release than the server (`runner-version.ts`); comparing needs a
+release version on both sides, so source builds are never flagged.
 An agent's page (`/{org}/factory/agents/{agent}`) is the one place for
 it: what it is, its recent sessions and, for its owner, its
 **Connection** (the tokens an external MCP client acts as it with) and
@@ -445,27 +455,33 @@ author wrote it themselves and is the session's requester or the agent's
 owner. Every other reply stays conversation and never reaches the agent.
 
 **What the thread shows.** The thread is the place people act, so it shows
-only what they need; the full log stays in the Factory:
+only what they need; the full log stays in the Factory. In the channel
+itself, a thread's root shows the state of the latest session the thread
+holds beside its reply count (`threadSessions`), so a mention whose agent
+waits on someone reads differently from a quiet thread:
 
 - the live **session card** (agent via owner, status, work item, Factory
   link), updated in place on every status change; the browser renders it
   from the session's synchronized projection when it has it, with the last
-  step the agent took, the files it changed, its pull request and, while
-  it waits, each pending request as the shared approval request (what is
-  asked, where, the evidence, then Approve and Deny for the people who may
-  decide). One card per session: the prompt is the message above it and is
-  not repeated;
+  step the agent took, the files it changed, its pull request, and
+  Interrupt and Cancel (asked once) for the people who may stop it. One
+  card per session: the prompt is the message above it and is not
+  repeated. In its thread the card only says that a request waits below
+  and leads to it; where the card is a channel's own message (a dispatched
+  session's report, outside any thread) it shows each pending request as
+  the shared approval request;
 - while the agent waits for a message rather than a decision, the card
   says so ("Forge waits for your next message: reply in this thread"); a
   reply from the person who started it or the agent's owner is that
   message;
-- an **approval card** per request, naming the people who may decide (the
-  requester and the owner); it shows the answer once given. While the
-  browser can read the session, it is a record that leads to the session
-  card, where the request is answered, and in a thread that holds that
-  card it stays hidden until answered, so one ask is one block; without the
-  session (for MCP readers and people who cannot read the Factory) it
-  carries Approve and Deny itself, calling `answerAgentApproval`;
+- an **approval card** per request, where it was asked, so the thread reads
+  in order (the card never moves a request to the top). While it is pending
+  and the browser can read the session, it is the shared approval request
+  (what is asked, where, the evidence, then Approve and Deny for the
+  requester and the owner); without the session (for MCP readers and people
+  who cannot read the Factory) it names the request and carries Approve and
+  Deny itself, calling `answerAgentApproval`. Once answered it stays in
+  place as the record of who decided;
 - the agent's **first message after each steering message** (its answer to
   the person) and its **summary**, as messages authored by the agent on
   behalf of its owner (`postAgentMessage`); progress messages, tool calls

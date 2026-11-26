@@ -39,13 +39,20 @@ import type {
   SessionEntity,
 } from "@lictory/core/factory/entities";
 import {
+  asSentence,
   sessionOutcome,
   titleBeside,
   useItemKey,
 } from "@lictory/platform/components/factory/parts";
 import { failedForMe } from "@lictory/platform/components/factory/overview-blocks";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
-import { waitingOnYou } from "@lictory/platform/components/shell/home/derive";
+import {
+  waitingGroup,
+  waitingGroupLabels,
+  waitingOnYou,
+  type WaitingGroup,
+} from "@lictory/platform/components/shell/home/derive";
+import { SectionCaption } from "@lictory/platform/components/shell/panel";
 import {
   useFactory,
   waitingOnMe,
@@ -324,7 +331,7 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
               </span>
               <span aria-hidden>·</span>
               <span className="truncate">
-                {sessionOutcome(session)} Retry it or start over.
+                {asSentence(sessionOutcome(session))} Retry it or start over.
               </span>
             </>
           }
@@ -410,6 +417,18 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
   );
 }
 
+// Consecutive rows of one group (the queue is already in group order).
+function groupRows(rows: readonly WaitingRow[]) {
+  const groups: { group: WaitingGroup; rows: WaitingRow[] }[] = [];
+  for (const row of rows) {
+    const group = waitingGroup(row);
+    const last = groups.at(-1);
+    if (last?.group === group) last.rows.push(row);
+    else groups.push({ group, rows: [row] });
+  }
+  return groups;
+}
+
 export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
   // Rendered incrementally: very large organizations can have thousands of
   // items, but attention is scarce; the first page is what matters.
@@ -423,12 +442,27 @@ export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
           discussions on your items and requested changes appear here.
         </EmptyState>
       ) : (
-        <ul
-          aria-label="Waiting on you"
-          className="mx-auto w-full max-w-5xl divide-y divide-border/70"
-        >
-          {rows.slice(0, shown).map((row) => (
-            <WaitingRowView key={row.key} row={row} />
+        // One list, in groups by what I do about it (the queue's order):
+        // agents stopped on my answer, reviews others wait on, my own work.
+        <ul aria-label="Waiting on you" className="mx-auto w-full max-w-5xl">
+          {groupRows(rows.slice(0, shown)).map(({ group, rows: inGroup }) => (
+            <li key={group} className="pt-4 first:pt-2">
+              <SectionCaption
+                as="h2"
+                count={inGroup.length}
+                className="mb-1 px-3.5"
+              >
+                {waitingGroupLabels[group]}
+              </SectionCaption>
+              <ul
+                aria-label={waitingGroupLabels[group]}
+                className="divide-y divide-border/70"
+              >
+                {inGroup.map((row) => (
+                  <WaitingRowView key={row.key} row={row} />
+                ))}
+              </ul>
+            </li>
           ))}
         </ul>
       )}
