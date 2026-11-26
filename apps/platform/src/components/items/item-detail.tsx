@@ -1098,6 +1098,7 @@ export function ItemDetail({
                         : undefined
                     }
                     onReview={() => openRailAt("[data-review-panel]")}
+                    onChanges={() => setMode({ kind: "branches" })}
                     onCompare={(from, to) =>
                       showHistory({ revision: to, compare: from })
                     }
@@ -1294,7 +1295,9 @@ export function ItemDetail({
                     </>
                   </DecisionComposerScope>
                 )}
-                {!pendingCreate && (
+                {/* The item's files belong beside its specification, not
+                    under a proposed change or its review. */}
+                {!pendingCreate && !focusScreen && (
                   <Attachments
                     context={{
                       organizationId: item.organizationId,

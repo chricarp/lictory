@@ -836,7 +836,12 @@ test("a reviewer decides on a phone without a squeezed card, and a change to the
   ).toBeVisible();
   // Nothing changed in the specification: the reviewers decide first.
   expect((await currentRevision(workItemId)).number).toBe(1);
-  await page.goto(`${path}?branches=1`);
+  // The change stays findable from the item's card once the toast is gone.
+  await page
+    .getByRole("region", { name: "Item workflow" })
+    .getByRole("button", { name: "1 change in review" })
+    .click();
+  await expect(page).toHaveURL(/[?&]branches=1/);
   await expect(
     page.getByText("Change “reconciled against the first attempt”").first(),
   ).toBeVisible();

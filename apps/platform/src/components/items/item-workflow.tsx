@@ -13,6 +13,7 @@ import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
 import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
+import { pullRequestIsActive } from "@lictory/core/contracts/state-machines";
 import {
   externalLinksByItem,
   isAmended,
@@ -45,11 +46,14 @@ export function ItemWorkflow({
   onReview,
   onBreakdown,
   onCompare,
+  onChanges,
   children,
 }: {
   onStartRefinement?: () => void;
   onReview: () => void;
   onBreakdown: () => void;
+  // Opens the specification's proposed changes.
+  onChanges?: () => void;
   // Opens what changed between two revisions.
   onCompare?: (from: string, to: string) => void;
   children?: ReactNode;
@@ -296,6 +300,14 @@ export function ItemWorkflow({
   const approvedReviews = requested.filter((r) =>
     approvals.some((a) => a.reviewId === r.id && a.status === "granted"),
   ).length;
+  // Proposed changes sent for review (a suggested change on a ready
+  // specification is one): findable from the card after the toast is gone.
+  const inReview = entities.filter(
+    (e) =>
+      e.type === "pullRequest" &&
+      e.workItemId === item.id &&
+      pullRequestIsActive(e),
+  ).length;
   // Approvals a later revision made outdated, for reviews of the current
   // revision nobody has approved yet: "Engineering approved revision 12;
   // revision 14 needs review" reads on the card, not only in the rail.
@@ -345,6 +357,25 @@ export function ItemWorkflow({
           >
             {approvedReviews}/{requested.length} approved
           </Pill>
+        </li>
+      )}
+      {inReview > 0 && (
+        <li>
+          {onChanges ? (
+            <button
+              type="button"
+              onClick={onChanges}
+              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <Pill tone="info">
+                {inReview} {inReview === 1 ? "change" : "changes"} in review
+              </Pill>
+            </button>
+          ) : (
+            <Pill tone="info">
+              {inReview} {inReview === 1 ? "change" : "changes"} in review
+            </Pill>
+          )}
         </li>
       )}
       {item.blockingThreads > 0 && (
