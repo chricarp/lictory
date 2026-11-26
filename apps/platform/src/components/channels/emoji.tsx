@@ -45,13 +45,14 @@ export function EmojiPicker({
             <button
               key={emoji}
               type="button"
-              aria-label={`React with ${emoji}`}
               className="grid size-8 place-items-center rounded-md text-lg focus-ring outline-none hover:bg-muted"
               onClick={() => {
                 onPick(emoji);
                 close();
               }}
             >
+              {/* Named by the emoji it shows, after what it does. */}
+              <span className="sr-only">React with </span>
               {emoji}
             </button>
           ))}

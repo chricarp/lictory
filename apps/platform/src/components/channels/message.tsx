@@ -334,8 +334,11 @@ export const ChannelMessage = memo(function ChannelMessage({
                   onClick={() => actions.react(message, r.emoji, !r.mine)}
                   className={cn(
                     "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums focus-ring outline-none touch:h-8",
+                    // Your own reaction: a full-strength outline (3:1 or
+                    // more against the page) and bolder count, not only a
+                    // different fill.
                     r.mine
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-primary bg-primary/10 font-semibold text-primary"
                       : "bg-card hover:bg-muted",
                   )}
                 >
@@ -408,13 +411,13 @@ export const ChannelMessage = memo(function ChannelMessage({
             QUICK_REACTIONS.slice(0, 3).map((emoji) => (
               <ToolbarButton
                 key={emoji}
-                aria-label={`React with ${emoji}`}
                 className={iconButton}
                 onClick={() => actions.react(message, emoji, true)}
               >
-                <span aria-hidden className="text-[15px]">
-                  {emoji}
-                </span>
+                {/* Named by what it shows, the emoji, after words that say
+                    what it does: voice control users say what they see. */}
+                <span className="sr-only">React with </span>
+                <span className="text-[15px]">{emoji}</span>
               </ToolbarButton>
             ))}
           {canReact && (

@@ -468,7 +468,12 @@ export function PageDocument({
 }) {
   if (!commit)
     return loading ? (
-      <div aria-busy="true" aria-label="Loading page" className="space-y-3">
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Loading page"
+        className="space-y-3"
+      >
         <Bone className="h-4 w-11/12" />
         <Bone className="h-4 w-10/12" />
         <Bone className="h-4 w-8/12" />
