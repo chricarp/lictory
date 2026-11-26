@@ -42,7 +42,8 @@ type AuthEmailLayoutProps = {
   brand?: EmailBrand;
 };
 
-export const defaultEmailLinkColor = "#2563eb";
+// Lictory's own emails use the product's near-black primary, like its buttons.
+export const defaultEmailLinkColor = "#171717";
 export const emailLinkColor = (brand?: EmailBrand) =>
   brand?.tone?.color ?? defaultEmailLinkColor;
 
@@ -203,6 +204,8 @@ const fallbackText = {
 
 const fallbackLink = {
   fontSize: "12px",
+  // Near-black links stay recognizable as links.
+  textDecoration: "underline",
   lineHeight: "18px",
   overflowWrap: "anywhere" as const,
 };

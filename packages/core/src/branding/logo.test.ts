@@ -267,7 +267,7 @@ void test("organization email carries the organization's logo and color, each fa
   const plain = await invitation();
   assert.deepEqual(plain.brand, { name: "Acme", logo: null, tone: null });
   assert.match(plain.html, /lictory-logo\.png/);
-  assert.match(plain.html, /#2563eb/);
+  assert.match(plain.html, /#171717/);
 
   // A pale color is darkened until white text on it is readable.
   await setBrandColor(db, o.organizationId, o.ownerId, "#ffd600");
@@ -288,7 +288,7 @@ void test("organization email carries the organization's logo and color, each fa
   assert.notEqual(mark.brand.tone?.color, "#ffd600");
   assert.ok(mark.html.includes(mark.brand.logo.url));
   assert.ok(mark.html.includes(mark.brand.tone!.color));
-  assert.doesNotMatch(mark.html, /lictory-logo\.png|#2563eb/);
+  assert.doesNotMatch(mark.html, /lictory-logo\.png|#171717/);
 
   // The wide logo wins and keeps its proportions within the header.
   const full = await setLogo(
