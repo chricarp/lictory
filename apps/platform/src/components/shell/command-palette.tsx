@@ -967,7 +967,9 @@ export function CommandPalette({
                         </span>
                       ) : (
                         <>
-                          <span className="min-w-0 flex-1 truncate">
+                          {/* Phones give a title two lines, so results that
+                              start alike stay tell-apart-able. */}
+                          <span className="min-w-0 flex-1 max-sm:line-clamp-2 max-sm:break-words sm:truncate">
                             {r.title ?? r.label}
                           </span>
                           <Detail item={r} />
