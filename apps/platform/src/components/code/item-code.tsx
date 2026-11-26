@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, GitBranch, Link2, Loader2, Plus, X } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type {
@@ -26,11 +26,17 @@ import {
   PullRequestIcon,
   ReviewBadge,
   TargetIcon,
+  changeNoun,
   codePaths,
   message,
   shortSha,
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
+import {
+  useAnnouncePullRequests,
+  type PullRequestSnapshot,
+} from "@lictory/platform/components/code/announce";
+import { useAnnounce } from "@lictory/platform/components/shell/announcer";
 
 // A work item's Code panel: its pull requests (with checks and review
 // state), branches, issues and commits, what Lictory is sending to the host
@@ -52,8 +58,9 @@ export function ItemCode({
   project: Project | undefined;
   canChange: boolean;
 }) {
-  const { organization } = useWorkspace();
+  const { organization, userId } = useWorkspace();
   const { links, writes } = useWorkItemCode(item.id);
+  useAnnounceItemCode(links, userId);
   const { repositories, connections } = useCodeHosts();
   const serving = repositories.filter((r) =>
     r.projectIds.includes(item.projectId),
@@ -407,4 +414,52 @@ function LinkForm({
       </div>
     </form>
   );
+}
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// While the item is open, a pull request linked to it by someone else (an
+// agent opening one), its checks finishing and its merge are announced.
+function useAnnounceItemCode(links: readonly CodeLinkEntity[], userId: string) {
+  const announce = useAnnounce();
+  const known = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set(links.map((l) => l.id));
+    const before = known.current;
+    known.current = ids;
+    if (!before) return;
+    for (const link of links) {
+      if (before.has(link.id) || link.createdById === userId) continue;
+      if (link.summary.target !== "pull_request") continue;
+      const noun = changeNoun(link.provider);
+      announce(
+        `${capitalize(noun)} #${link.summary.number} linked: ${link.summary.title}`,
+        { key: `code-link:${link.id}` },
+      );
+    }
+  }, [links, userId, announce]);
+  const snapshots = useMemo(
+    () =>
+      links.flatMap((link): PullRequestSnapshot[] =>
+        link.summary.target === "pull_request"
+          ? [
+              {
+                id: link.targetId,
+                name: `${changeNoun(link.provider)} #${link.summary.number}`,
+                state: link.summary.state,
+                checks: link.summary.checks,
+                failing: [],
+                head: link.summary.headBranch,
+                mergedBy: null,
+                // Who merged is on the pull request's page; from the item,
+                // the merge is news unless this person is the one who
+                // linked it and merges (confirmed where they merged).
+                mergedByMe: false,
+              },
+            ]
+          : [],
+      ),
+    [links],
+  );
+  useAnnouncePullRequests(snapshots);
 }

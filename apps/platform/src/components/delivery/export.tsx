@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 import {
   Dialog,
   DialogBackdrop,
@@ -278,6 +279,13 @@ export function ExportDialog({
       )
     : [];
   useReturnFocus();
+  // The results replace the progress in place: their summary ("3 exported,
+  // 1 failed, 2 skipped") is announced once the worker finishes.
+  useAnnounceChange(
+    "export",
+    publication && publication.status !== "running" ? summary(publication) : "",
+    (_, next) => (next ? `Export results: ${next}` : null),
+  );
   return (
     <Dialog
       open

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   ChevronRight,
@@ -61,6 +61,10 @@ import {
   shortSha,
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
+import {
+  pullRequestSnapshot,
+  useAnnouncePullRequests,
+} from "@lictory/platform/components/code/announce";
 import { PullRequestEvidence } from "@lictory/platform/components/code/pull-request-evidence";
 
 // One pull request: what it changes (the files are read from the host when
@@ -108,9 +112,15 @@ export function PullRequestPage() {
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
-  const { organization } = useWorkspace();
+  const { organization, userId } = useWorkspace();
   const { agentById } = useFactory();
   const noun = changeNoun(pr.provider);
+  // Check results and the merge are announced while the page is open.
+  const snapshot = useMemo(
+    () => [pullRequestSnapshot(pr, noun, userId)],
+    [pr, noun, userId],
+  );
+  useAnnouncePullRequests(snapshot);
   const [tab, setTab] = useState<"conversation" | "files">("conversation");
   const agent = pr.agentId ? agentById.get(pr.agentId) : undefined;
   const author = useLoginOwner(pr.authorLogin);

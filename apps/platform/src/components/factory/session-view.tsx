@@ -18,6 +18,7 @@ import {
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { sessionTitle } from "@lictory/core/factory/entities";
+import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 import { cn } from "@lictory/core/lib/utils";
 import {
   absoluteTime,
@@ -91,6 +92,13 @@ export function SessionView() {
         }),
       ),
     [events],
+  );
+  // Its requests and its outcome are announced while the page is open.
+  useAnnounceSession(
+    session,
+    (session && agentById.get(session.agentId)?.name) ?? "The agent",
+    session ? sessionTitle(session.title) : "",
+    session?.error,
   );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
