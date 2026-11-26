@@ -1,5 +1,8 @@
-/* The shell page: Lictory's tokens (packages/ui/src/styles.css, default
-   theme) for the frame around servers' pages. */
+/* The shell page: Lictory's tokens and type (packages/ui/src/styles.css,
+   default theme: Geist, 14px body, 12-13px secondary text) for the frame
+   around servers' pages, so the app's own screens read like the web app.
+   The page's content security policy must allow the bundled font
+   (font-src 'self'), or Chromium silently falls back to a system font. */
 
 @font-face {
   font-family: Geist;
@@ -16,22 +19,23 @@
   --foreground: #111214;
   --card: #ffffff;
   --muted: #f4f4f6;
-  --muted-foreground: #6b6e76;
+  --muted-foreground: #63666e;
   --accent: #e7e8eb;
-  --border: #e4e5e9;
+  --border: #e7e8eb;
   --input: #dcdee2;
   --primary: #111214;
   --primary-foreground: #ffffff;
   --destructive: #c81e1e;
   --warning: #b45309;
   --ring: #3b5bdb;
-  --badge: #e5484d;
+  /* White text on it reaches 4.5:1. */
+  --badge: #dc2626;
   --rail: 68px;
   --top: 40px;
   --radius: 10px;
-  font-family: Geist, ui-sans-serif, system-ui, sans-serif;
-  font-size: 13px;
-  line-height: 1.45;
+  font-family: Geist, ui-sans-serif, sans-serif, system-ui;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -72,6 +76,37 @@ input,
 select {
   font: inherit;
   color: inherit;
+}
+
+/* Slim scrollbars in the token colors instead of the platform's classic
+   ones (Linux and Windows draw arrows and a wide gutter); macOS keeps its
+   overlay scrollbars. */
+:root:not([data-platform="darwin"]) ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+:root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: var(--input) padding-box;
+}
+:root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground) padding-box;
+}
+:root:not([data-platform="darwin"]) ::-webkit-scrollbar-button,
+:root:not([data-platform="darwin"]) ::-webkit-scrollbar-corner {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 :focus-visible {
@@ -127,6 +162,19 @@ select {
 }
 .topbar-server {
   color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--muted);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -198,7 +246,8 @@ select {
   padding: 0;
   border: 0;
   border-radius: var(--radius);
-  background: hsl(var(--hue) 45% 42%);
+  /* 4.5:1 or more for the white initials at every hue. */
+  background: hsl(var(--hue) 45% 32%);
   color: #fff;
   font-weight: 600;
   font-size: 14px;
@@ -228,17 +277,21 @@ select {
     0 0 0 2px var(--shell),
     0 0 0 4px var(--foreground);
 }
+.server-item {
+  position: relative;
+}
 .server-badge {
   position: absolute;
   top: -5px;
-  right: -7px;
+  right: 7px;
+  pointer-events: none;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
   background: var(--badge);
   color: #fff;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 18px;
   box-shadow: 0 0 0 2px var(--shell);
@@ -314,18 +367,19 @@ select {
   color: var(--warning);
 }
 h1 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 6px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  margin: 0 0 8px;
 }
 h2 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   margin: 0 0 10px;
 }
 h3 {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   margin: 16px 0 6px;
   color: var(--muted-foreground);
@@ -342,7 +396,7 @@ h3 {
 }
 .input {
   width: 100%;
-  height: 34px;
+  height: 36px;
   padding: 0 10px;
   border: 1px solid var(--input);
   border-radius: 8px;
@@ -353,9 +407,18 @@ h3 {
 }
 .hint {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 13px;
   margin: 6px 0 0;
   overflow-wrap: anywhere;
+}
+.hint.detail {
+  font:
+    12px/1.5 "Geist Mono",
+    ui-monospace,
+    monospace;
+}
+.hint.detail:empty {
+  display: none;
 }
 .form-error {
   color: var(--destructive);
@@ -377,7 +440,7 @@ h3 {
   margin-top: 12px;
 }
 .button {
-  height: 32px;
+  height: 34px;
   padding: 0 14px;
   border: 1px solid var(--input);
   border-radius: 8px;
@@ -405,24 +468,48 @@ h3 {
   text-underline-offset: 3px;
 }
 
-/* Settings. */
+/* Settings: a centred column of titled cards, like the web app's. */
 .settings {
-  max-width: 640px;
-  padding: 28px 32px 48px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 32px 56px;
 }
 .settings > h1 {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
-.settings-section {
-  padding: 18px 0;
+.settings-section + .settings-section {
+  margin-top: 28px;
+}
+.settings-card {
+  padding: 4px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.settings-card > * {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.settings-card > :not([hidden]) ~ :not([hidden]) {
   border-top: 1px solid var(--border);
+}
+/* Buttons and errors belong to the row above them. */
+.settings-card > .form-actions:not([hidden]),
+.settings-card > .form-error:not([hidden]) {
+  border-top: 0;
+  padding-top: 0;
+}
+.settings-card > .log {
+  margin-bottom: 14px;
+  padding: 10px;
 }
 .setting {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 8px 0;
 }
 .setting[hidden],
 .settings-section[hidden] {
@@ -437,6 +524,12 @@ h3 {
 }
 .setting-status {
   margin: 0 0 4px;
+}
+.setting-status.warning {
+  color: var(--warning);
+}
+.setting-status[hidden] {
+  display: none;
 }
 .switch {
   appearance: none;
@@ -473,9 +566,10 @@ h3 {
 .server-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding-left: 0;
+  padding-right: 0;
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 .server-row {
   display: flex;

@@ -11,6 +11,7 @@ import { seedWorkspace, signIn } from "../helpers/seed";
 type Recorded = {
   notified: { title: string; body: string; path?: string; tag?: string }[];
   badges: number[];
+  organizations: (string | null)[];
   navigate: (path: string) => void;
 };
 
@@ -24,6 +25,7 @@ async function installBridge(page: Page) {
     const recorded = {
       notified: [] as unknown[],
       badges: [] as number[],
+      organizations: [] as (string | null)[],
       navigate: (path: string) => {
         for (const listener of listeners) listener(path);
       },
@@ -35,6 +37,8 @@ async function installBridge(page: Page) {
         version: "0.0.0-test",
         notify: (notification: unknown) => recorded.notified.push(notification),
         setBadge: (count: number) => recorded.badges.push(count),
+        setOrganizationName: (name: string | null) =>
+          recorded.organizations.push(name),
         onNavigate: (listener: (path: string) => void) => {
           listeners.add(listener);
           return () => listeners.delete(listener);
@@ -48,7 +52,11 @@ const recorded = (page: Page) =>
   page.evaluate(() => {
     const r = (window as unknown as { desktopRecorded: Recorded })
       .desktopRecorded;
-    return { notified: r.notified, badges: r.badges };
+    return {
+      notified: r.notified,
+      badges: r.badges,
+      organizations: r.organizations,
+    };
   });
 
 test("@smoke an assignment reaches the desktop notification and badge", async ({
@@ -68,6 +76,11 @@ test("@smoke an assignment reaches the desktop notification and badge", async ({
 
   // Nothing asks for Ana yet: the badge is cleared, nothing is shown.
   await expect.poll(async () => (await recorded(page)).badges.at(-1)).toBe(0);
+  // Her only organization names the server in the app's switcher, once
+  // (never the host first while memberships load).
+  await expect
+    .poll(async () => (await recorded(page)).organizations)
+    .toEqual([`Desktop ${run}`]);
 
   // The owner assigns Ana a new story.
   await seeded.command({

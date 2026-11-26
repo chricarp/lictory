@@ -41,16 +41,31 @@ export function sanitizeNotification(
   };
 }
 
-// A person looking at the server already sees what happened in its inbox, so
-// its notifications are not repeated while its view is the one in front.
+// The page a notification opens, without its query and fragment: a thread
+// or tab of the page the person is on counts as that page.
+function pageOf(path: string | null) {
+  return path ? (path.split(/[?#]/, 1)[0] ?? "").replace(/\/+$/, "") : null;
+}
+
+// A notification is shown unless the person turned them off or is already
+// looking at what it is about: the window focused on that server's page that
+// the notification opens. Working on something else in the app, even on
+// the same server, is exactly when a review request or a mention should
+// interrupt (only the Inbox count and the badge would change otherwise).
 export function shouldShowNotification(state: {
   enabled: boolean;
   windowFocused: boolean;
   activeServerId: string | null;
   serverId: string;
+  // The in-app path of the active server's page, and the notification's.
+  activePath: string | null;
+  path: string | null;
 }) {
   if (!state.enabled) return false;
-  return !(state.windowFocused && state.activeServerId === state.serverId);
+  if (!state.windowFocused || state.activeServerId !== state.serverId)
+    return true;
+  const target = pageOf(state.path);
+  return target === null || target !== pageOf(state.activePath);
 }
 
 // At most `limit` notifications per server in any `windowMs`.
