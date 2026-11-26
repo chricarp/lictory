@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { newPerson, seedWorkspace, signIn } from "../helpers/seed";
 import { fillMarkdown, richEditor } from "../helpers/editor";
+import { controlZeroConnection } from "../helpers/zero-socket";
 
 // Lictory Channels end to end: a channel is created, a message reaches a
 // second person live, a thread reply mentions the author, the mention lands
@@ -151,4 +152,51 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
     page.getByRole("link", { name: "view the conversation" }),
   ).toHaveAttribute("href", /\/channels\/[0-9a-f-]{36}\?/);
   await second.context.close();
+});
+
+test("a message sent while the connection is down says it is not sent yet, then is delivered", async ({
+  page,
+}) => {
+  const seeded = await seedWorkspace({
+    name: "Channels offline",
+    key: "CHO",
+    users: ["Ada Product"],
+  });
+  await signIn(page, seeded.users[0]!.email);
+  const zero = await controlZeroConnection(page);
+  await page.goto(`/${seeded.slug}/channels`);
+  await page.getByRole("button", { name: "New channel" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "New channel" });
+  await dialog.getByLabel("Name").fill("Ops");
+  await dialog.getByRole("button", { name: "Create channel" }).click();
+  await expect(
+    page.getByRole("heading", { name: "ops", level: 1 }),
+  ).toBeVisible();
+  const log = page.getByRole("log", { name: "Messages in #ops" });
+  await richEditor(page, "Message #ops");
+
+  // The connection drops: the composer says so, and a message sent now says
+  // in words that it has not reached anyone yet.
+  await zero.interrupt();
+  const note = page.locator("[data-connection-note]");
+  await expect(note).toHaveText(
+    /Reconnecting… Messages you send now are delivered/,
+  );
+  const composer = await fillMarkdown(page, "Message #ops", "Deploy paused");
+  await composer.press("Enter");
+  const message = log
+    .locator("[data-message-id]")
+    .filter({ hasText: "Deploy paused" });
+  await expect(message).toBeVisible();
+  await expect(message.locator('[data-delivery="waiting"]')).toHaveText(
+    "Not sent yet: it’s delivered when the connection is back",
+  );
+
+  // Back: the message is delivered and the notes go away.
+  zero.restore();
+  await expect(message.locator("[data-delivery]")).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect(note).toHaveCount(0);
+  await expect(message).not.toHaveAttribute("data-pending");
 });

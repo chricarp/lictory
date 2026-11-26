@@ -12,7 +12,10 @@ import {
   Sparkles,
   Trash2,
   EyeOff,
+  CloudOff,
+  Loader2,
 } from "lucide-react";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { Button } from "@lictory/ui/button";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -311,6 +314,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             {message.editedAt && (
               <span className="text-xs text-muted-foreground">(edited)</span>
             )}
+            {pending && <PendingDelivery />}
           </>
         )}
         {reactions.length > 0 && (
@@ -653,5 +657,34 @@ function EditMessage({
         </Button>
       </div>
     </div>
+  );
+}
+
+// A message the server has not confirmed yet says so in words, and says why
+// while the connection is down: nobody should think they posted when they
+// did not. It goes once the server answers.
+function PendingDelivery() {
+  const { connection } = useWorkspace();
+  const waiting = connection !== "connected";
+  return (
+    <p
+      data-delivery={waiting ? "waiting" : "sending"}
+      className={cn(
+        "mt-0.5 flex items-center gap-1.5 text-xs",
+        waiting ? "text-warning" : "text-muted-foreground",
+      )}
+    >
+      {waiting ? (
+        <CloudOff className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <Loader2
+          className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+          aria-hidden
+        />
+      )}
+      {waiting
+        ? "Not sent yet: it’s delivered when the connection is back"
+        : "Sending…"}
+    </p>
   );
 }

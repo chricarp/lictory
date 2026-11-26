@@ -174,8 +174,13 @@ scrolls up), one thread at a time, and its own memberships. Writes go through
 Zero's `channels.*` mutators: the client run predicts the message (same id,
 predicted next sequence), the reaction or the cursor; the API runs the
 conversation writer inside Zero's transaction, and the stored rows replace the
-predictions. A refused write removes its prediction and says why. Channel
-structure commands go through `workspace.apply` and predict nothing.
+predictions. A refused write removes its prediction and says why. A message
+the server has not answered yet says so in words under its text (sending, or
+not sent yet while the connection is down), and the composer names the
+connection state: during a reconnect sends are queued by Zero and delivered
+once it is back; while writes are refused (offline) sending waits, keeping the
+text in the composer. Channel structure commands go through `workspace.apply`
+and predict nothing.
 
 Rendering is virtualized by the browser: rows are rendered in blocks of fifty
 sequences with `content-visibility: auto`, so off-screen blocks cost no
