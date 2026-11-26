@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
   ArrowUpRight,
   Loader2,
@@ -6,6 +6,10 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
+import {
+  slackCredentialProblems,
+  type SlackCredentialField,
+} from "@lictory/core/channels/slack/credentials";
 import { Button } from "@lictory/ui/button";
 import { CommandBlock } from "@lictory/ui/command-block";
 import { Input } from "@lictory/ui/input";
@@ -355,6 +359,9 @@ function AppSetup({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
+  const [problems, setProblems] = useState<
+    Partial<Record<SlackCredentialField, string>>
+  >({});
   return (
     <SettingsBody className="space-y-4 border-t bg-muted/40 text-[13px]">
       <ol className="list-decimal space-y-1 pl-5">
@@ -390,55 +397,59 @@ function AppSetup({
       </CommandBlock>
       <form
         className="grid gap-3 sm:grid-cols-2"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ appId, clientId, clientSecret, signingSecret });
+          const fields = { appId, clientId, clientSecret, signingSecret };
+          // A malformed field is named where it is, before anything is sent;
+          // the server checks the same and asks Slack about the rest.
+          const found = slackCredentialProblems(fields);
+          setProblems(
+            Object.fromEntries(found.map((p) => [p.field, p.message])),
+          );
+          if (found.length) {
+            e.currentTarget
+              .querySelector<HTMLInputElement>(`[name="${found[0]!.field}"]`)
+              ?.focus();
+            return;
+          }
+          onSave(fields);
           setClientSecret("");
           setSigningSecret("");
         }}
       >
-        <label className="grid gap-1">
-          App ID
-          <Input
-            value={appId}
-            onChange={(e) => setAppId(e.target.value)}
-            placeholder="A0123ABCDEF"
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Client ID
-          <Input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="1234567890.1234567890"
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Client Secret
-          <Input
-            type="password"
-            autoComplete="off"
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Signing Secret
-          <Input
-            type="password"
-            autoComplete="off"
-            value={signingSecret}
-            onChange={(e) => setSigningSecret(e.target.value)}
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
+        <CredentialField
+          name="appId"
+          label="App ID"
+          value={appId}
+          onChange={setAppId}
+          placeholder="A0123ABCDEF"
+          problem={problems.appId}
+        />
+        <CredentialField
+          name="clientId"
+          label="Client ID"
+          value={clientId}
+          onChange={setClientId}
+          placeholder="1234567890.1234567890"
+          problem={problems.clientId}
+        />
+        <CredentialField
+          name="clientSecret"
+          label="Client Secret"
+          secret
+          value={clientSecret}
+          onChange={setClientSecret}
+          problem={problems.clientSecret}
+        />
+        <CredentialField
+          name="signingSecret"
+          label="Signing Secret"
+          secret
+          value={signingSecret}
+          onChange={setSigningSecret}
+          problem={problems.signingSecret}
+        />
         <div className="flex gap-2 sm:col-span-2">
           <Button type="submit" disabled={busy !== undefined}>
             {busy === "save" && <Loader2 className="size-3.5 animate-spin" />}
@@ -452,5 +463,50 @@ function AppSetup({
         </div>
       </form>
     </SettingsBody>
+  );
+}
+
+// One credential: its label, the input, and what is wrong with it right
+// under it, tied to the input so a screen reader reads it with the field.
+function CredentialField({
+  name,
+  label,
+  value,
+  onChange,
+  placeholder,
+  secret = false,
+  problem,
+}: {
+  name: SlackCredentialField;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  secret?: boolean;
+  problem?: string;
+}) {
+  const id = useId();
+  return (
+    <div className="grid content-start gap-1">
+      <label htmlFor={id}>{label}</label>
+      <Input
+        id={id}
+        name={name}
+        type={secret ? "password" : "text"}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-9 text-[13px] aria-invalid:border-destructive/60"
+        required
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? `${id}-problem` : undefined}
+      />
+      {problem && (
+        <p id={`${id}-problem`} className="text-xs text-destructive">
+          {problem}
+        </p>
+      )}
+    </div>
   );
 }

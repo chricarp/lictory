@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { DomainError } from "@lictory/core/domain/errors";
+import { slackCredentialProblems } from "@lictory/core/channels/slack/credentials";
 import {
   authorize,
   isAdmin,
@@ -225,9 +226,6 @@ export async function readSlackConnection(
   });
 }
 
-const appIdPattern = /^A[A-Z0-9]{6,20}$/;
-const clientIdPattern = /^\d{6,20}\.\d{6,20}$/;
-
 /**
  * Saves (or replaces) the app's credentials from its Basic Information
  * page. Replacing the secrets of the installed app keeps the installation;
@@ -252,26 +250,13 @@ export async function saveSlackApp(
   const clientId = input.clientId.trim();
   const clientSecret = input.clientSecret.trim();
   const secret = input.signingSecret.trim();
-  if (!appIdPattern.test(appId))
-    throw new DomainError(
-      "validation",
-      "The App ID starts with A, as shown on the app's Basic Information page.",
-    );
-  if (!clientIdPattern.test(clientId))
-    throw new DomainError(
-      "validation",
-      "The Client ID looks like 1234567890.1234567890 (Basic Information → App Credentials).",
-    );
-  if (!/^[a-f0-9]{16,64}$/i.test(clientSecret))
-    throw new DomainError(
-      "validation",
-      "The Client Secret is not in Slack's format. Copy it again from Basic Information → App Credentials (Show, then copy).",
-    );
-  if (!/^[a-f0-9]{16,64}$/i.test(secret))
-    throw new DomainError(
-      "validation",
-      "The Signing Secret is not in Slack's format. Copy it again from Basic Information → App Credentials (Show, then copy).",
-    );
+  const [problem] = slackCredentialProblems({
+    appId,
+    clientId,
+    clientSecret,
+    signingSecret: secret,
+  });
+  if (problem) throw new DomainError("validation", problem.message);
   // Only an administrator may make Lictory ask Slack about an app.
   await db.transaction((tx) => requireAdmin(tx, userId, input.organizationId));
   // Slack checks the Client ID and Secret now, outside any transaction, so
