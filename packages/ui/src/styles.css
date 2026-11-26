@@ -645,8 +645,10 @@
   [role="button"] {
     touch-action: manipulation;
   }
+  /* Selected text in the focus colour (blue in the default themes), so it
+     reads apart from grey fills; a neutral primary at 20% was a pale grey. */
   ::selection {
-    @apply bg-primary/20 text-foreground;
+    @apply bg-ring/30 text-foreground;
   }
 }
 

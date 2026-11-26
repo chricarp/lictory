@@ -122,7 +122,9 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
     return null;
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2">
+      {/* Wraps at 320px (WCAG 1.4.10): the actions take the next line
+          rather than running past the edge. */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <SectionLabel>Children</SectionLabel>
         {stories.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -141,7 +143,7 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         )}
         {/* Proposing the breakdown for review is the step a specification
             leads to; adding one child directly is the quieter option. */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
           {!readOnly && !composing && childType && (
             <Button
               variant="ghost"
