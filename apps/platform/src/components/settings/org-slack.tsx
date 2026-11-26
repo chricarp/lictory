@@ -552,8 +552,8 @@ function notPublicHttps(address: string) {
     host.endsWith(".internal") ||
     host === "::1" ||
     /^(127|10)\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
+    host.startsWith("192.168.") ||
+    host.startsWith("169.254.") ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host);
   return url.protocol !== "https:" || local ? url.origin : null;
 }
