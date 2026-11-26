@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  CapabilityError,
   defineCapability,
   everywhere,
   id,
@@ -74,6 +75,14 @@ const clientMessageId = z
   .optional()
   .describe(
     "Retry key: posting again with the same value returns the first message instead of a duplicate.",
+  );
+// Agents use the idempotency key every write tool takes; the browser keeps
+// its own client message id. Both name the same retry key.
+const messageMutationId = z
+  .uuid()
+  .optional()
+  .describe(
+    "Idempotency key: posting again with the same value returns the first message instead of a duplicate. The same key as clientMessageId; give one of them.",
   );
 const attachmentIds = z
   .array(id)
@@ -189,6 +198,19 @@ const badgeCapability = defineCapability({
   run: (ctx) => attentionCounts(ctx.db, ctx.principal.userId),
 });
 
+function retryKey<T extends { clientMessageId?: string }>(
+  input: T,
+  mutationId: string | undefined,
+): T {
+  if (!mutationId) return input;
+  if (input.clientMessageId && input.clientMessageId !== mutationId)
+    throw new CapabilityError(
+      "validation",
+      "mutationId and clientMessageId are the same retry key; give one of them.",
+    );
+  return { ...input, clientMessageId: mutationId };
+}
+
 const postCapability = defineCapability({
   name: "postChannelMessage",
   title: "Post message",
@@ -202,11 +224,12 @@ const postCapability = defineCapability({
     channelId: id,
     body,
     clientMessageId,
+    mutationId: messageMutationId,
     attachmentIds,
   }),
-  async run(ctx, q) {
+  async run(ctx, { mutationId, ...q }) {
     const { message, replayed } = await ctx.db.transaction((tx) =>
-      postMessage(tx, actorOf(ctx), q),
+      postMessage(tx, actorOf(ctx), retryKey(q, mutationId)),
     );
     return messageResult(message, replayed);
   },
@@ -226,11 +249,12 @@ const replyCapability = defineCapability({
     threadRootId: id,
     body,
     clientMessageId,
+    mutationId: messageMutationId,
     attachmentIds,
   }),
-  async run(ctx, q) {
+  async run(ctx, { mutationId, ...q }) {
     const { message, replayed } = await ctx.db.transaction((tx) =>
-      postMessage(tx, actorOf(ctx), q),
+      postMessage(tx, actorOf(ctx), retryKey(q, mutationId)),
     );
     return messageResult(message, replayed);
   },
