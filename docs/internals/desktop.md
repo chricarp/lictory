@@ -230,7 +230,16 @@ in-app path; anything else is refused.
 - **Title bar.** macOS uses the hidden-inset style: the traffic lights sit in
   the app's own top bar, which is the drag area. Windows draws its own
   window controls over the top bar (`titleBarOverlay`, colored to match the
-  theme). Linux keeps the native frame, which window managers expect.
+  theme). Linux keeps the native frame, which window managers expect. The
+  top bar names the page in front (its title, with the server's name only
+  when several servers are added and the title does not already say it);
+  a page without a title of its own, or one that failed to load, is named
+  after its server, never by its address.
+- **Scrollbars.** On Windows and Linux, Chromium gives web pages a browser's
+  classic scrollbars. The shell draws slim ones in its colors, and injects
+  the same colors and `scrollbar-width: thin` into servers' pages
+  (`src/main/scrollbars.ts`, standard properties only, so a page's own
+  `scrollbar-width` still wins). macOS keeps its overlay scrollbars.
 - **Shortcuts** (Ctrl instead of ⌘ on Windows and Linux): ⌘1 to ⌘9 open the
   server at that position, ⌘K is left to the page (its command palette; the
   menu item types it when chosen with the mouse), ⌘, settings, ⌘⇧N add a

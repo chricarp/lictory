@@ -67,14 +67,20 @@ await Promise.all([
   }),
 ]);
 
+// Static specifiers, so the dependency checker sees them used.
 const font = path.join(
   path.dirname(require.resolve("@fontsource-variable/geist/package.json")),
   "files/geist-latin-wght-normal.woff2",
+);
+const monoFont = path.join(
+  path.dirname(require.resolve("@fontsource-variable/geist-mono/package.json")),
+  "files/geist-mono-latin-wght-normal.woff2",
 );
 await Promise.all([
   cp("src/renderer/index.html", `${dist}/shell/index.html`),
   cp("src/renderer/shell.css", `${dist}/shell/shell.css`),
   cp(font, `${dist}/shell/geist-latin-wght-normal.woff2`),
+  cp(monoFont, `${dist}/shell/geist-mono-latin-wght-normal.woff2`),
   cp("static/tray.png", `${dist}/assets/tray.png`),
   cp("static/trayTemplate.png", `${dist}/assets/trayTemplate.png`),
   cp("static/trayTemplate@2x.png", `${dist}/assets/trayTemplate@2x.png`),

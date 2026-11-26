@@ -11,6 +11,13 @@
   font-weight: 100 900;
   src: url("geist-latin-wght-normal.woff2") format("woff2-variations");
 }
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("geist-mono-latin-wght-normal.woff2") format("woff2-variations");
+}
 
 :root {
   color-scheme: light dark;
@@ -28,8 +35,8 @@
   --destructive: #c81e1e;
   --warning: #b45309;
   --ring: #3b5bdb;
-  /* White text on it reaches 4.5:1. */
-  --badge: #dc2626;
+  /* Scrollbar thumbs, here and in servers' pages (main/scrollbars.ts). */
+  --scrollbar: #c9ccd1;
   --rail: 68px;
   --top: 40px;
   --radius: 10px;
@@ -54,6 +61,7 @@
     --destructive: #f87171;
     --warning: #fbbf24;
     --ring: #7c93ff;
+    --scrollbar: #3d4046;
   }
 }
 
@@ -89,7 +97,7 @@ select {
 :root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 5px;
-  background: var(--input) padding-box;
+  background: var(--scrollbar) padding-box;
 }
 :root:not([data-platform="darwin"]) ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground) padding-box;
@@ -271,11 +279,9 @@ select {
 .server[aria-current="page"]::before {
   height: 28px;
 }
+/* The bar beside it marks the server in front (and aria-current names it). */
 .server[aria-current="page"] {
   border-radius: 12px;
-  box-shadow:
-    0 0 0 2px var(--shell),
-    0 0 0 4px var(--foreground);
 }
 .server-item {
   position: relative;
@@ -285,15 +291,19 @@ select {
   top: -5px;
   right: 7px;
   pointer-events: none;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--badge);
-  color: #fff;
-  font-size: 11px;
+  /* The web app's own count pill (its compact sidebar), so the window has
+     one badge language. */
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 10.5px;
   font-weight: 600;
-  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 16px;
   box-shadow: 0 0 0 2px var(--shell);
 }
 .rail-actions {
@@ -416,6 +426,15 @@ h3 {
     12px/1.5 "Geist Mono",
     ui-monospace,
     monospace;
+}
+.opening {
+  text-align: center;
+}
+.opening-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  margin: 0 0 4px;
 }
 .hint.detail:empty {
   display: none;

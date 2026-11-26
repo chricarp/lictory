@@ -131,7 +131,9 @@ function topBar(current: ShellState) {
       : current.screen.kind === "add-server" ||
           current.screen.kind === "welcome"
         ? "Add a server"
-        : current.title;
+        : current.screen.kind === "error"
+          ? (active?.name ?? "Lictory")
+          : current.title;
   return h(
     "header",
     { class: `topbar platform-${current.platform}` },
@@ -169,7 +171,10 @@ function topBar(current: ShellState) {
       "div",
       { class: "topbar-title" },
       h("span", { class: "topbar-page" }, title),
-      onServer && active && current.servers.length > 1
+      onServer &&
+        active &&
+        current.servers.length > 1 &&
+        !title.includes(active.name)
         ? h("span", { class: "topbar-server" }, active.name)
         : null,
       onServer && active?.loading && !active.offline
@@ -375,13 +380,29 @@ function errorScreen(
   return { element, update };
 }
 
+// Under the server's own view, which covers it once the page has loaded: the
+// shell page still names what it shows (one level-one heading, like every
+// screen), and says it is opening only while it is.
 function serverScreen(current: ShellState) {
   const server = current.servers.find((s) => s.id === current.activeId);
-  return h(
+  const status = h("p", { class: "lead" });
+  const update = (state: ShellState) => {
+    const loading =
+      state.servers.find((s) => s.id === state.activeId)?.loading ?? false;
+    status.textContent = loading ? "Opening…" : "";
+  };
+  update(current);
+  const element = h(
     "main",
     { class: "screen centered muted", id: "main", tabIndex: -1 },
-    h("p", {}, server ? `Opening ${server.name}…` : ""),
+    h(
+      "div",
+      { class: "opening" },
+      h("h1", { class: "opening-title" }, server?.name ?? "Lictory"),
+      status,
+    ),
   );
+  return { element, update };
 }
 
 function renderScreen(current: ShellState) {
@@ -414,8 +435,11 @@ function renderScreen(current: ShellState) {
       screenUpdate = view.update;
       return view.element;
     }
-    case "server":
-      return serverScreen(current);
+    case "server": {
+      const view = serverScreen(current);
+      screenUpdate = view.update;
+      return view.element;
+    }
   }
 }
 

@@ -116,6 +116,17 @@ export type ShellHooks = {
 const hueOf = (text: string) =>
   [...text].reduce((hash, c) => (hash * 31 + c.charCodeAt(0)) >>> 0, 7) % 360;
 
+// A page without a title of its own (loading, Chromium's error page) is
+// titled with its address by Chromium: the server's name reads better.
+function pageTitle(contents: WebContents, server: Server) {
+  const title = contents.getTitle().trim();
+  const address =
+    !title ||
+    contents.getURL().includes(title) ||
+    title.startsWith(new URL(server.origin).host);
+  return address ? server.name : title;
+}
+
 export class Shell {
   window: BaseWindow | null = null;
   private chrome: WebContentsView | null = null;
@@ -358,9 +369,7 @@ export class Shell {
       })),
       activeId: this.servers.activeId,
       screen: this.screen(),
-      title: active
-        ? active.contents.getTitle() || active.server.name
-        : "Lictory",
+      title: active ? pageTitle(active.contents, active.server) : "Lictory",
       canGoBack: history?.canGoBack() ?? false,
       canGoForward: history?.canGoForward() ?? false,
       settings: this.settings,
