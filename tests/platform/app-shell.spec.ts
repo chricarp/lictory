@@ -226,6 +226,18 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(palette).toBeHidden();
   await expect(page).toHaveURL(paths.org(seeded.slug));
 
+  // Settings and Factory pages are destinations of their own.
+  await page.keyboard.press("ControlOrMeta+k");
+  await search.fill("audit");
+  await palette
+    .getByRole("option", { name: "Organization settings · Audit log" })
+    .click();
+  await expect(page).toHaveURL(paths.settings(seeded.slug, "audit"));
+  await page.keyboard.press("ControlOrMeta+k");
+  await search.fill("runners");
+  await palette.getByRole("option", { name: "Factory · Runners" }).click();
+  await expect(page).toHaveURL(`/${seeded.slug}/factory/runners`);
+
   // Jump to a project by name.
   await page.keyboard.press("ControlOrMeta+k");
   await search.fill("Factory floor project");
