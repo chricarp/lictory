@@ -401,11 +401,12 @@ export function AgentWakeUps({ agent }: { agent: AgentEntity }) {
       >
         <li className="space-y-3 px-3.5 py-3">
           <p className="text-[13px] leading-5 text-muted-foreground">
-            Wake {agent.name} when something waits on it or on you: a mention, a
-            review request, a stale approval, an answered question, a decided
-            pull request. Each event carries identifiers and a short title,
-            never the content, and says what happened, never what to do. A
-            client that keeps a connection open can call{" "}
+            Lictory calls a URL you choose as soon as something waits on{" "}
+            {agent.name} or on you: a mention, a review request, a stale
+            approval, an answered question, a decided pull request. Each call
+            says what happened and where, with a short title; {agent.name} reads
+            the details with its own tools. A client that keeps a connection
+            open can call{" "}
             <code className="font-mono text-xs">waitForEvents</code> instead.
           </p>
           {creating && (

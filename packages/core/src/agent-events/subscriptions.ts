@@ -247,6 +247,9 @@ export type SubscriptionView = {
   lastError: string | null;
   lastErrorDetail: string | null;
   failedSince: string | null;
+  // While an active destination fails: attempts at the event it is stuck
+  // on, and when the next one is due.
+  retry: { failedAttempts: number; nextAttemptAt: string } | null;
   deliveredCount: number;
   // Events waiting after the cursor (at most 100 counted).
   pending: number;
@@ -275,6 +278,14 @@ function viewOf(row: Row, pending: number): SubscriptionView {
     lastError: row.lastError,
     lastErrorDetail: row.lastErrorDetail,
     failedSince: iso(row.failedSince),
+    // Still delivering (failures can still suspend it), and failing.
+    retry:
+      machine.allows(row.status, "suspend") && row.attempts > 0
+        ? {
+            failedAttempts: row.attempts,
+            nextAttemptAt: row.nextAttemptAt.toISOString(),
+          }
+        : null,
     deliveredCount: row.deliveredCount,
     pending,
     createdAt: row.createdAt.toISOString(),

@@ -462,8 +462,9 @@ export function SubscriptionDetails({
           ? ` · renew before ${when(subscription.refreshBefore)}`
           : ""}
       </p>
+      {/* Why the chip is not green: the sentence the person acts on. */}
       {subscription.statusReason && subscription.status !== "active" && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-medium text-foreground">
           {subscription.statusReason}
         </p>
       )}
@@ -478,6 +479,9 @@ export function SubscriptionDetails({
               ? ` (${when(subscription.lastAttemptAt)})`
               : ""}
             : {subscription.lastErrorDetail}
+            {subscription.retry
+              ? ` ${subscription.retry.failedAttempts} failed ${subscription.retry.failedAttempts === 1 ? "attempt" : "attempts"}; trying again ${when(subscription.retry.nextAttemptAt)}.`
+              : ""}
           </p>
         )}
       {notice && (
