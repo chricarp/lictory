@@ -113,7 +113,9 @@ export function createFakeSlack(
   const people = new Map<string, Person>([
     [app.botUserId, { id: app.botUserId, name: "Lictory", isBot: true }],
   ]);
-  let clock = 1_800_000_000;
+  // Slack's ts is the message's time: start at the real clock, so a synced
+  // message is not dated in the future beside the ones written in Lictory.
+  let clock = Math.floor(Date.now() / 1000);
   let eventSequence = 0;
   let revoked = false;
   const delivered: { eventId: string; status: number; type: string }[] = [];
