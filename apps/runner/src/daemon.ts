@@ -127,6 +127,7 @@ export async function startDaemon(
     startedAt: new Date().toISOString(),
     lastHeartbeatAt: null as string | null,
     lastError: null as string | null,
+    revoked: false,
   };
   let running = true;
   const saveState = () =>
@@ -170,6 +171,7 @@ export async function startDaemon(
       state.lastError = error instanceof Error ? error.message : String(error);
       if (error instanceof ProtocolError && error.status === 401) {
         revoked = true;
+        state.revoked = true;
         log(REVOKED_MESSAGE(config));
         stopping.abort();
       } else heartbeatFailures.fail(state.lastError);
@@ -262,6 +264,7 @@ export async function startDaemon(
       if (error instanceof ProtocolError && error.status === 401) {
         if (!revoked) log(REVOKED_MESSAGE(config));
         revoked = true;
+        state.revoked = true;
         break;
       }
       failures++;

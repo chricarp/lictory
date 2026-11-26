@@ -103,7 +103,7 @@ const commands = {
       "Reads the state the running runner writes on every heartbeat; it does not",
       "contact the server (lictory-runner doctor does). For scripts: exits 0 while",
       `it runs, ${EXIT.failed} when it is stopped or not responding, and ${EXIT.needsPerson} when this machine`,
-      "is not registered.",
+      "is not registered or the server refused its credential.",
     ],
     options: {},
     help: [],
@@ -374,10 +374,18 @@ async function status(args: string[]) {
   );
   const state = await readState();
   const liveness = runnerLiveness(state, { staleAfterMs: STATE_STALE_MS });
+  if (state?.revoked && liveness === "stopped") {
+    say(
+      `Stopped: ${REVOKED_MESSAGE(config).replace(/ It exits with code.*$/, "")}`,
+    );
+    process.exitCode = EXIT.needsPerson;
+    return;
+  }
   if (!state || liveness === "stopped") {
     say(
       "Not running. Start it with `lictory-runner start` (or start its service).",
     );
+    if (state?.lastError) say(`Last error: ${state.lastError}`);
     process.exitCode = EXIT.failed;
     return;
   }
@@ -403,8 +411,10 @@ async function status(args: string[]) {
 async function doctor(args: string[]) {
   if (!options("doctor", args)) return;
   let problems = 0;
+  // A word next to each mark, so a failing line reads as one without the
+  // glyph (screen readers name it differently, logs may lose it).
   const check = (ok: boolean, line: string, fix?: string) => {
-    say(`${ok ? "✓" : "✗"} ${line}`);
+    say(`${ok ? "✓ ok  " : "✗ FAIL"} ${line}`);
     if (!ok) {
       problems++;
       if (fix) say(`  → ${fix}`);
@@ -429,7 +439,9 @@ async function doctor(args: string[]) {
     gitVersion.code === 0 ? gitVersion.stdout.trim() : "git is not installed",
     "Install git 2.30 or newer.",
   );
-  if (!config) return void (process.exitCode = EXIT.failed);
+  // Not registered: a person must act first, the same code status and
+  // start use.
+  if (!config) return void (process.exitCode = EXIT.needsPerson);
   const detected = await detectHarnesses(harnesses, config);
   try {
     const client = new RunnerClient(config.url, config.credential);
@@ -455,19 +467,23 @@ async function doctor(args: string[]) {
     else {
       const refused = error instanceof ProtocolError && error.status === 401;
       check(true, `${config.url} answers`);
-      check(
-        false,
-        `The server refused the runner: ${error instanceof Error ? error.message : String(error)}`,
-        refused
-          ? REVOKED_MESSAGE(config).replace(/ It exits with code.*$/, "")
-          : undefined,
-      );
+      // A refused credential is said once, with what to do.
+      if (refused)
+        check(
+          false,
+          REVOKED_MESSAGE(config).replace(/ It exits with code.*$/, ""),
+        );
+      else
+        check(
+          false,
+          `The server refused the runner: ${error instanceof Error ? error.message : String(error)}`,
+        );
     }
   }
   for (const id of ["claude-code", "codex", "lictory"]) {
     const found = detected.find((d) => d.id === id);
     say(
-      `${found ? "✓" : "·"} ${id}${found ? ` ${found.version ?? ""}` : " not found"}`,
+      `${found ? "✓ ok  " : "· info"} ${id}${found ? ` ${found.version ?? ""}` : " not found"}`,
     );
   }
   if (!detected.some((d) => d.id !== "lictory"))
@@ -491,7 +507,7 @@ async function doctor(args: string[]) {
       check(true, `Container image ${config.containerImage}`);
     else
       say(
-        `! Container image ${config.containerImage} is not pinned by digest: pin it (image@sha256:…) in config.json so a moved tag cannot change what sessions run in.`,
+        `! warn Container image ${config.containerImage} is not pinned by digest: pin it (image@sha256:…) in config.json so a moved tag cannot change what sessions run in.`,
       );
     const docker = await run("docker", [
       "version",

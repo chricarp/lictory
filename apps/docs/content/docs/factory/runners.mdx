@@ -132,6 +132,11 @@ runners on one machine, register each with its own `LICTORY_RUNNER_HOME`.
 | 2    | A person must act first: the machine is not registered, or its credential was revoked           |
 | 64   | Wrong command line (unknown command or option)                                                  |
 
+`start`, `status` and `doctor` agree on these codes: an unregistered machine
+is 2 for each, and after the server refused the credential `status` says so
+(and exits 2) instead of suggesting `start`. `doctor` marks each line `ok` or
+`FAIL` as well as with ✓ and ✗.
+
 The systemd unit restarts the runner five seconds after it fails, but not on
 codes 2 and 64 (`RestartPreventExitStatus`): after a revocation, create a
 token in **Factory → Runners**, run `lictory-runner register --url <server>

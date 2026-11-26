@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   mkdir,
   mkdtemp,
@@ -21,6 +22,7 @@ import {
   containerImageProblem,
   pinnedImage,
   runnerLiveness,
+  writeConfig,
   writeState,
   readState,
 } from "@lictory/runner/config";
@@ -636,4 +638,53 @@ void test("the scripted harness's interrupt stops the step and waits for the nex
   ]);
   // Both waits are for a person, long enough to be shown as waiting.
   assert.ok(waits.every((ms) => ms > 60_000));
+});
+
+void test("status and doctor say what a person must do, with the exit code start uses", async () => {
+  const cli = (home: string, command: string) =>
+    spawnSync("bun", [join(import.meta.dirname, "cli.ts"), command], {
+      env: { ...process.env, LICTORY_RUNNER_HOME: home },
+      encoding: "utf8",
+    });
+
+  // Not registered: 2 for status and doctor alike.
+  const empty = join(scratch, "unregistered");
+  assert.equal(cli(empty, "status").status, EXIT.needsPerson);
+  const unregistered = cli(empty, "doctor");
+  assert.equal(unregistered.status, EXIT.needsPerson);
+  assert.match(unregistered.stdout, /^✗ FAIL Not registered$/m);
+
+  // Stopped after the server refused the credential: status says so instead
+  // of suggesting start, which would be refused again.
+  const home = join(scratch, "revoked");
+  await writeConfig(
+    configSchema.parse({
+      url: "http://127.0.0.1:9",
+      runnerId: "r-1",
+      organizationId: "o-1",
+      name: "build-01",
+      personal: false,
+      credential: "synthetic",
+    }),
+    home,
+  );
+  await writeState(
+    {
+      pid: 2 ** 22 + 7,
+      startedAt: new Date().toISOString(),
+      updatedAt: null,
+      lastHeartbeatAt: null,
+      lastError: "This runner credential is invalid or revoked.",
+      revoked: true,
+      sessions: [],
+    },
+    home,
+  );
+  const revoked = cli(home, "status");
+  assert.equal(revoked.status, EXIT.needsPerson);
+  assert.match(
+    revoked.stdout,
+    /Stopped: The server refused this runner's credential/,
+  );
+  assert.doesNotMatch(revoked.stdout, /Start it with/);
 });
