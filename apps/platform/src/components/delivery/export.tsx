@@ -288,6 +288,10 @@ export function ExportDialog({
         ["failed", "conflict"].includes(publication.results[id]?.outcome ?? ""),
       )
     : [];
+  const overwriting =
+    !!publication &&
+    failed.every((id) => overwrite.has(id)) &&
+    failed.some((id) => publication.results[id]?.outcome === "conflict");
   useReturnFocus();
   // The results replace the progress in place: their summary ("3 created,
   // 1 failed") is announced once the worker finishes.
@@ -430,16 +434,16 @@ export function ExportDialog({
             </Button>
             {publication ? (
               failed.length > 0 && (
+                // Recovery is this dialog's point: retrying is the primary
+                // action. Overwriting what changed in the delivery tool
+                // stays a deliberate, secondary choice.
                 <Button
-                  variant="secondary"
+                  variant={overwriting ? "secondary" : undefined}
                   disabled={busy}
                   onClick={() => void run(failed)}
                 >
                   {busy && <Loader2 className="size-3.5 animate-spin" />}
-                  {failed.every((id) => overwrite.has(id)) &&
-                  failed.some(
-                    (id) => publication.results[id]?.outcome === "conflict",
-                  )
+                  {overwriting
                     ? "Overwrite and hand off"
                     : `Retry ${failed.length} ${failed.length === 1 ? "item" : "items"}`}
                 </Button>
