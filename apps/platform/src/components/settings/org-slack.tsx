@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import {
   ArrowUpRight,
+  ChevronRight,
   Loader2,
   MessagesSquare,
   MoreHorizontal,
@@ -12,7 +13,7 @@ import {
   type SlackCredentialField,
 } from "@lictory/core/channels/slack/credentials";
 import { Button } from "@lictory/ui/button";
-import { CommandBlock } from "@lictory/ui/command-block";
+import { CommandBlock, CopyButton } from "@lictory/ui/command-block";
 import { Input } from "@lictory/ui/input";
 import { Switch } from "@lictory/ui/switch";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
@@ -131,8 +132,10 @@ export function SlackConnection() {
   const connection = reading?.connection;
   const status = connection?.status ?? "none";
   const mayDisconnect = status !== "disconnected" && status !== "pending";
-  const showSetup =
-    isAdmin && (editing || status === "none" || status === "disconnected");
+  // Setting up is a few steps with a manifest: they open on request, so an
+  // organization without Slack sees one sentence and one button.
+  const showSetup = isAdmin && editing;
+  const unconnected = status === "none" || status === "disconnected";
   return (
     <SettingsSection
       id="slack"
@@ -173,7 +176,16 @@ export function SlackConnection() {
                   : "linked channels"}
               </span>
             )}
-            {isAdmin && status !== "none" && !showSetup && (
+            {isAdmin && unconnected && !showSetup && (
+              <Button
+                size="sm"
+                className="ml-auto"
+                onClick={() => setEditing(true)}
+              >
+                Set up Slack
+              </Button>
+            )}
+            {isAdmin && !unconnected && !showSetup && (
               <span className="ml-auto flex gap-1">
                 {confirming ? (
                   <>
@@ -314,11 +326,7 @@ export function SlackConnection() {
         <AppSetup
           reading={reading}
           busy={busy}
-          onCancel={
-            status === "none" || status === "disconnected"
-              ? undefined
-              : () => setEditing(false)
-          }
+          onCancel={() => setEditing(false)}
           onSave={(fields) =>
             act("save", async () => {
               await callCapability("saveSlackApp", {
@@ -353,7 +361,7 @@ function AppSetup({
     clientSecret: string;
     signingSecret: string;
   }) => void;
-  onCancel?: () => void;
+  onCancel: () => void;
 }) {
   const manifest = JSON.stringify(reading.manifest, null, 2);
   const unreachable = reading.urls ? notPublicHttps(reading.urls.events) : null;
@@ -377,8 +385,13 @@ function AppSetup({
           >
             api.slack.com/apps
           </a>
-          , choose <em>From a manifest</em>, pick your workspace and paste this
-          manifest.
+          , choose <em>From a manifest</em>, pick your workspace and paste
+          Lictory&apos;s manifest.{" "}
+          <CopyButton
+            text={manifest}
+            label="Copy the manifest"
+            className="ml-1 align-middle"
+          />
         </li>
         <li>
           Copy the App ID, Client ID, Client Secret and Signing Secret from the
@@ -411,13 +424,25 @@ function AppSetup({
           </div>
         </div>
       )}
-      <CommandBlock
-        label="Slack app manifest"
-        copyLabel="Copy the manifest"
-        maxHeight="md"
-      >
-        {manifest}
-      </CommandBlock>
+      {/* The manifest is copied, not read: its JSON stays behind a
+          disclosure for whoever wants to check it. */}
+      <details className="group">
+        <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-muted-foreground focus-ring outline-none select-none hover:text-foreground">
+          <ChevronRight
+            aria-hidden
+            className="size-3.5 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+          />
+          Show the manifest
+        </summary>
+        <CommandBlock
+          label="Slack app manifest"
+          copyLabel="Copy the manifest from the block"
+          maxHeight="md"
+          className="mt-2"
+        >
+          {manifest}
+        </CommandBlock>
+      </details>
       <form
         className="grid gap-3 sm:grid-cols-2"
         noValidate
@@ -478,11 +503,9 @@ function AppSetup({
             {busy === "save" && <Loader2 className="size-3.5 animate-spin" />}
             Save app
           </Button>
-          {onCancel && (
-            <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
         </div>
       </form>
     </SettingsBody>
