@@ -434,6 +434,8 @@ function Conversation({ channel }: { channel: Channel }) {
                 mentions={mentions}
                 onSend={(body) => send(body, threadId)}
                 onEscape={closeThread}
+                // The narrow panel keeps the keys that matter on one line.
+                hint="Enter to send · Shift+Enter for a new line"
                 autoFocus
               />
             ) : null
