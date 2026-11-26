@@ -74,9 +74,10 @@ Threads retain their originating revision, quoted text or editor anchor, and
 optional review or pull request context. Resolution and reopening preserve
 messages and record activity. Decisions can retain the source discussion.
 
-Legacy suggestions and their versioned decisions remain readable for historical
-records. New proposals use branches and pull requests; merging creates a new
-main revision. Child work proposed in a commit is applied atomically only when
+Suggestions (replacement text with versioned reviewer decisions) are the
+short path for a small change to main; accepting one creates a new main
+revision. Larger proposals use branches and pull requests; merging creates a
+new main revision. Child work proposed in a commit is applied atomically only when
 the pull request merges.
 
 Readiness is evaluated from current evidence: text, sections, blocking threads,

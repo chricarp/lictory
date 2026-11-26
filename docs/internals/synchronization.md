@@ -438,8 +438,16 @@ including PR review/discussion projections. Commits, decisions in activity,
 merged main revisions and approvals remain durable. Main cannot be deleted.
 There are no close/reopen or archive/restore branch/PR actions.
 
-The legacy suggestion tables and commands remain for existing history and
-compatibility tests; the user-facing workflow uses branches and PRs. Internal
+Suggestions are the short path for a small text change: someone selects a
+passage, writes its replacement (the browser applies it to main's Markdown
+only when the passage is plain text inside one text node,
+`replaceQuote` in `editor/markdown-text.ts`; anything else opens a branch),
+and asks one eligible reviewer to accept it. Accepting is the assigned
+reviewer's approval followed by `mergeSuggestion`, which creates the next
+revision like an edit (approvals stale, reviews re-requested) and is refused
+while main is protected: a ready specification changes only through a PR.
+Suggestions made through MCP appear beside the text the same way. Larger
+changes use branches and PRs. Internal
 list fields `openSuggestions` and `suggestionReviewerIds` include active PRs so
 existing filters continue working. Protocol version **9** adds commit, branch,
 PR and PR-review projections. All new commands preserve the shared organization

@@ -14,6 +14,10 @@ import {
   ThreadComposer,
 } from "@lictory/platform/components/review/threads";
 import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
+import {
+  SuggestionComposer,
+  SuggestionList,
+} from "@lictory/platform/components/review/inline-suggestions";
 
 // The specification's discussions beside its text, like a page's comments:
 // threads whose passage is on screen in document order, then those whose
@@ -167,6 +171,9 @@ export function SpecDiscussionPanel({
     pending,
     setPending,
     showRevision,
+    suggesting,
+    startSuggestion,
+    editSuggestion,
   } = discussions;
   const openThreads = located.filter((l) => l.thread.status === "open");
   const anchored = openThreads.filter((l) => l.placement !== "general");
@@ -253,6 +260,18 @@ export function SpecDiscussionPanel({
           Blocking discussions hold readiness back until they are resolved.
         </p>
       )}
+      {/* A change suggested on selected text is written first, beside
+        its passage; suggested changes wait for a decision above the
+        discussions. */}
+      {!readOnly && suggesting && (
+        <SuggestionComposer
+          key={`${suggesting.section}:${suggesting.occurrence}:${suggesting.quote}`}
+          draft={suggesting}
+          onClose={() => startSuggestion(null)}
+          onOpenEditor={(quote) => editSuggestion.current?.(quote)}
+        />
+      )}
+      <SuggestionList />
       {/* One composer, on top: a comment on selected text fills it with
         the passage; otherwise it starts a discussion of the whole text. */}
       {!readOnly && (

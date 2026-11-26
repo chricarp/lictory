@@ -28,7 +28,14 @@ import {
 import type { LiveControls } from "@lictory/platform/components/items/live-specification";
 import { SPECIFICATION_CLOSE_REASONS } from "@lictory/core/spaces/collaboration-protocol";
 import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
-import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
+import {
+  suggestionMarks,
+  threadMarks,
+} from "@lictory/platform/components/review/markdown-marks";
+import {
+  suggestionRanges,
+  useOpenSuggestions,
+} from "@lictory/platform/components/review/inline-suggestions";
 
 type Mode = "read" | "edit";
 
@@ -42,8 +49,8 @@ export function Specification({
   setMode: (mode: Mode) => void;
   // Starts a discussion on the selected passage.
   onQuote: (draft: QuoteDraft) => void;
-  // Starts a branch to change the selected text (reviewable specifications).
-  onSuggest?: (quote: string) => void;
+  // Suggests a change of the selected text (reviewable specifications).
+  onSuggest?: (draft: QuoteDraft) => void;
 }) {
   const { current, readOnly, canEdit, memberName, reviewable } = useItem();
   const mainDraft = useSpecificationDraft();
@@ -144,7 +151,7 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
   };
 }
 
-type QuoteDraft = { quote: string; section: string; occurrence: number };
+export type QuoteDraft = { quote: string; section: string; occurrence: number };
 
 // The thread under a pointer event, from the marks of discussed passages.
 const selectionAction = buttonClass({ variant: "ghost", size: "sm" });
@@ -155,16 +162,23 @@ const threadAt = (target: EventTarget | null) =>
     ?.getAttribute("data-threads")
     ?.split(" ")[0] ?? null;
 
+const suggestionAt = (target: EventTarget | null) =>
+  (target as HTMLElement | null)
+    ?.closest?.("mark[data-suggestions]")
+    ?.getAttribute("data-suggestions")
+    ?.split(" ")[0] ?? null;
+
 function Reader({
   onQuote,
   onSuggest,
   onEdit,
 }: {
   onQuote: (draft: QuoteDraft) => void;
-  onSuggest?: (quote: string) => void;
+  onSuggest?: (draft: QuoteDraft) => void;
   onEdit: () => void;
 }) {
   const { item, current, readOnly, canEdit, reviewable } = useItem();
+  const suggestions = useOpenSuggestions();
   const discussions = useSpecDiscussions();
   const dock = useDock();
   const { directory } = useWorkspace();
@@ -244,8 +258,20 @@ function Reader({
         to: l.to!,
         data: { threadId: l.thread.id, blocking: l.thread.blocking },
       }));
-    return ranges.length ? [threadMarks(ranges)] : undefined;
-  }, [located]);
+    // Passages a suggested change rewrites (reviewable specifications).
+    const suggested = reviewable
+      ? suggestionRanges(
+          content,
+          current?.id,
+          suggestions.filter((x) => x.status === "open"),
+        )
+      : [];
+    const plugins = [
+      ...(ranges.length ? [threadMarks(ranges)] : []),
+      ...(suggested.length ? [suggestionMarks(suggested)] : []),
+    ];
+    return plugins.length ? plugins : undefined;
+  }, [located, reviewable, content, current?.id, suggestions]);
   // The selected thread and the one pointed at read stronger, here and in
   // the panel.
   const tinted = [discussions?.active, discussions?.hovered].filter(
@@ -291,9 +317,23 @@ function Reader({
           data-spec-root
           onMouseUp={onMouseUp}
           onClick={(event) => {
-            const id = threadAt(event.target);
-            if (!id || !discussions) return;
+            if (!discussions) return;
             if (!window.getSelection()?.isCollapsed) return;
+            const suggestion = suggestionAt(event.target);
+            if (suggestion) {
+              discussions.setActiveSuggestion(suggestion);
+              discussions.setPanelOpen(true);
+              requestAnimationFrame(() =>
+                document
+                  .querySelector<HTMLElement>(
+                    `[data-suggestion-id="${CSS.escape(suggestion)}"]`,
+                  )
+                  ?.focus(),
+              );
+              return;
+            }
+            const id = threadAt(event.target);
+            if (!id) return;
             discussions.setActive(id);
             discussions.setPanelOpen(true);
           }}
@@ -316,6 +356,11 @@ function Reader({
                     `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:0 1px 0 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:0 1px 0 0 var(--destructive)}`,
                 )
                 .join("")}
+            </style>
+          )}
+          {discussions?.activeSuggestion && (
+            <style>
+              {`[data-spec-root] mark[data-suggestions~="${CSS.escape(discussions.activeSuggestion)}"]{background-color:color-mix(in oklch,var(--primary) 12%,transparent)}`}
             </style>
           )}
           <Markdown source={content} marks={marks} />
@@ -346,7 +391,8 @@ function Reader({
                   className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
-                    onSuggest(selection.quote);
+                    const { quote, section, occurrence } = selection;
+                    onSuggest({ quote, section, occurrence });
                     setSelection(undefined);
                     window.getSelection()?.removeAllRanges();
                   }}

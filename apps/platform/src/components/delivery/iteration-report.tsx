@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { IterationContext } from "@lictory/platform/components/knowledge/context";
 import { LoadingState } from "@lictory/ui/spinner";
-import { useParams } from "@lictory/platform/lib/navigation";
+import { Link, useParams } from "@lictory/platform/lib/navigation";
+import { identifier, typeOf } from "@lictory/core/lib/work-items";
+import { StatusIcon } from "@lictory/platform/components/items/status";
+import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { BarChart3 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import {
@@ -113,14 +116,15 @@ export function IterationReportPage() {
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
                   Remaining {usePoints ? "points" : "items"} per day, replayed
-                  from recorded changes. The dashed line is the ideal pace from
-                  the committed scope to the last day; the upper line shows
-                  scope changes.
+                  from recorded changes.
+                  {report.totals.atStart.count === 0 &&
+                    " Nothing was committed when it started, so the ideal pace starts from the first work added."}
                   {scaled &&
                     !usePoints &&
                     " Nothing in this iteration is estimated yet, so it burns down in items."}
                 </p>
               </section>
+              {iteration && <IterationItems iterationId={iteration.id} />}
               {report.velocity.length > 0 && scaled && (
                 <section className="rounded-xl bg-card p-4 shadow-(--shadow-border)">
                   <h2 className="mb-3 text-sm font-semibold">Velocity</h2>
@@ -218,7 +222,9 @@ function Burndown({
           `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p[key]).toFixed(1)}`,
       )
       .join(" ");
-  const start = series[0]!;
+  // The ideal pace starts from the committed scope, or from the first work
+  // added when the iteration started empty (a line along zero says nothing).
+  const start = series.find((p) => p.scope > 0) ?? series[0]!;
   // Iterations end at the start of `endsAt`; label the last working day.
   const lastDay = new Date(t1 - (iteration ? 86_400_000 : 0));
   const unit = usePoints ? "points" : "items";
@@ -348,5 +354,87 @@ function Velocity({ report }: { report: IterationReport }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// The iteration's work as it stands now, so the report has its items
+// beside it (the totals above are replayed history).
+function IterationItems({ iterationId }: { iterationId: string }) {
+  const project = useProject();
+  const { items, delivery, organization } = useWorkspace();
+  const planned = items
+    .filter(
+      (i) =>
+        i.iterationId === iterationId &&
+        i.projectId === project.id &&
+        !i.archivedAt,
+    )
+    .map((i) => ({ item: i, status: delivery.statuses.get(i.statusId) }))
+    .sort(
+      (a, b) =>
+        Number(a.status?.category === "done") -
+          Number(b.status?.category === "done") ||
+        a.item.number - b.item.number,
+    );
+  const points = planned.reduce((sum, p) => sum + (p.item.estimate ?? 0), 0);
+  return (
+    <section
+      aria-labelledby="iteration-items"
+      className="rounded-xl bg-card shadow-(--shadow-border)"
+    >
+      <h2
+        id="iteration-items"
+        className="flex items-baseline gap-2 px-4 pt-4 pb-2 text-sm font-semibold"
+      >
+        Items
+        <span className="text-xs font-normal text-muted-foreground tabular-nums">
+          {planned.length} {planned.length === 1 ? "item" : "items"}
+          {points > 0 && ` · ${points} pts`}
+        </span>
+      </h2>
+      {planned.length === 0 ? (
+        <p className="px-4 pb-4 text-[13px] text-muted-foreground">
+          Nothing is planned in this iteration.
+        </p>
+      ) : (
+        <ul className="divide-y border-t">
+          {planned.map(({ item, status }) => {
+            const key = identifier(project, item.number);
+            return (
+              <li key={item.id}>
+                <Link
+                  href={paths.item(organization.slug, project.key, key)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-[13px] outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset"
+                >
+                  {status && (
+                    <span title={status.name} className="shrink-0">
+                      <StatusIcon
+                        category={status.category}
+                        color={status.color}
+                      />
+                    </span>
+                  )}
+                  <TypeIcon type={typeOf(delivery, item)} />
+                  <span className="w-16 shrink-0 font-mono text-xs text-muted-foreground">
+                    {key}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  {status && (
+                    <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">
+                      {status.name}
+                    </span>
+                  )}
+                  {item.estimate != null && (
+                    <span className="w-10 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                      {item.estimate} pts
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

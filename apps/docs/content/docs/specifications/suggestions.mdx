@@ -1,15 +1,14 @@
 ---
 title: Suggest changes
-description: How to propose new wording for a specification today, what Lictory Intelligence proposes, and what happened to the older inline suggestions.
+description: How to suggest new wording for a passage, who accepts it, when a larger change goes to a branch, and what Lictory Intelligence proposes.
 ---
 
-A comment says what is wrong; a proposed change says how to fix it. In
-Lictory every proposed change to a specification is reviewed the same way:
-on a branch, through a pull request, approved by the disciplines that own the
-concern. Nothing proposed becomes part of the specification until a person
-merges it.
+A comment says what is wrong; a suggestion says how to fix it. A suggestion
+is proposed text that someone allowed to accept it accepts or rejects.
+Accepting creates the next revision; nothing suggested becomes part of the
+specification before that.
 
-## Suggest a change to a passage
+## Suggest new wording for a passage
 
 <Steps>
 <Step>
@@ -22,33 +21,43 @@ and choose **Suggest a change** in the toolbar that appears.
 </Step>
 <Step>
 
-### Rewrite it on the branch
+### Write what it should say
 
-Lictory starts a branch named `suggestion` (`suggestion-2` and so on when the
-name is taken) from main and opens its editor with the passage selected.
-Rewrite it, then commit with a message that says why.
+The suggestion opens beside the text with the passage filled in. Rewrite it,
+add why if it helps, and check **Who accepts it**: Lictory asks the item's
+owner or author by default, and you can pick anyone whose discipline both
+edits specifications and reviews. Choose **Suggest**.
 
 </Step>
 <Step>
 
-### Open a pull request
+### The person asked accepts or rejects it
 
-Choose **Open pull request**. The required reviews of the current revision
-are copied onto it, and reviewers approve the exact result.
-See [branches and pull requests](/specifications/branches).
+The passage is underlined in the text and the suggestion waits beside it,
+with the words it changes marked. The review panel says how many suggestions
+are waiting. The person asked chooses **Accept**, and the suggestion becomes
+the next revision, or **Reject**. You can **Withdraw** your own.
 
 </Step>
 </Steps>
 
-This works whether or not main is protected, and whoever can open the item
-can do it: the branch is yours, and main stays unchanged until the pull
-request is approved and merged.
+Anyone in the organization can suggest; you do not need to edit
+specifications. Suggestions made by an agent through MCP appear the same way.
 
 <Callout title="Comment or change?">
   If you are not sure what the text should say, start a
-  [discussion](/specifications/discussions) instead. Propose wording once the
-  question is settled, so reviewers approve an agreement rather than a guess.
+  [discussion](/specifications/discussions) instead. Suggest wording once the
+  question is settled, so the change records an agreement rather than a guess.
 </Callout>
+
+## Larger changes
+
+A passage with formatting or that spans several blocks, a change across the
+document, or any change once the specification is ready (main is protected)
+goes to the editor instead: **Suggest a change** then starts a branch named
+`suggestion` with the passage selected, and the composer's **Larger change**
+does the same. You commit there and open a pull request that the required
+reviews approve. See [branches and pull requests](/specifications/branches).
 
 ## Changes proposed by Lictory Intelligence
 
@@ -68,42 +77,19 @@ proposals:
 Lictory Intelligence never writes main, approves, resolves discussions or
 merges.
 
-## Older inline suggestions
-
-Before branches and pull requests, Lictory proposed changes as **inline
-suggestions**: replacement text with a title and a rationale, reviewed by
-named people who could edit specifications, and merged as the next revision.
-Pull requests replaced them; Litto and Lictory Intelligence never create
-them.
-
-Suggestions recorded before the change are kept, with their reviewers and
-versioned decisions:
-
-- **In the browser**, they remain part of the item's history: the activity
-  says who opened, updated, approved and merged each one, and a merged
-  suggestion's revision is in [Versions](/specifications/history) like any
-  other. The browser no longer has a screen to open a suggestion itself.
-- **Through an MCP agent** with your permissions, you can still read an
-  item's suggestions (they come with the item) and act on an open one: its
-  assigned reviewer approves or requests changes, and merges an approved
-  suggestion into the next revision; its author or a specification editor
-  closes it. See [AI agents and MCP](/integrations/agents).
-
-If an old suggestion is still open and you want it, the simplest path is to
-copy its wording into a branch and open a pull request.
-
 ## What to watch for
 
-- **There is no separate "accept" step.** A proposed change becomes part of
-  the specification only by a reviewed merge, which creates a new revision and
-  asks for approval of that exact text.
-- **A merge makes earlier approvals stale.** The pull request's own valid
-  approvals become approvals of the new revision; other required reviews are
-  asked again ([approvals](/review/approvals)).
+- **Accepting is a new revision.** Like any change, it makes earlier
+  approvals of the specification outdated and asks the reviews again
+  ([approvals](/review/approvals)).
+- **A suggestion written on an earlier revision** says so once the
+  specification has moved on; its author can withdraw it and suggest again.
+- **Once the specification is ready**, suggestions can no longer be accepted
+  into it: changes go through a branch and a reviewed pull request.
 
 ## Tips
 
-- Suggest the smallest change that settles the point. A focused branch is
-  reviewed faster and conflicts less with others.
-- Link the discussion that prompted the change in the pull request's
-  description, so reviewers see why.
+- Suggest the smallest change that settles the point. Focused suggestions are
+  decided faster.
+- Add why when the change answers a discussion, so the person accepting it
+  sees the reason beside the words.

@@ -1,7 +1,7 @@
 import { Input } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical, ListTree, Plus } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { externalLinksByItem } from "@lictory/core/lib/lifecycle";
 import { ExternalStatusBadge } from "@lictory/platform/components/delivery/export";
@@ -139,31 +139,31 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
             {stale} from an earlier revision
           </span>
         )}
-        {!readOnly && parentType.hasSpecification && onPropose && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={onPropose}
-          >
-            Propose breakdown
-          </Button>
-        )}
-        {!readOnly && !composing && childType && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={() => setComposing(true)}
-          >
-            <Plus className="size-3.5" /> Add {childType.name.toLowerCase()}
-          </Button>
-        )}
+        {/* Proposing the breakdown for review is the step a specification
+            leads to; adding one child directly is the quieter option. */}
+        <div className="ml-auto flex items-center gap-1">
+          {!readOnly && !composing && childType && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setComposing(true)}
+            >
+              <Plus className="size-3.5" /> Add {childType.name.toLowerCase()}
+            </Button>
+          )}
+          {!readOnly && parentType.hasSpecification && onPropose && (
+            <Button variant="secondary" size="sm" onClick={onPropose}>
+              <ListTree className="size-3.5" /> Propose breakdown
+            </Button>
+          )}
+        </div>
       </div>
       {parentType.hasSpecification && (
         <p className="mb-2 text-xs text-muted-foreground">
           Reviews approve this specification. Child readiness shows whether its
           delivery breakdown is prepared.
+          {onPropose &&
+            " A proposed breakdown is reviewed like a change to the specification: the required reviewers approve it before its items are created."}
           {item.mainProtected &&
             " The approved specification stays protected while you prepare its children."}
         </p>

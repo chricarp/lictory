@@ -1,4 +1,5 @@
 import { DropdownItem } from "@lictory/ui/dropdown";
+import { replaceQuote } from "@lictory/core/editor/markdown-text";
 import { ItemCode } from "@lictory/platform/components/code/item-code";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -96,6 +97,7 @@ import {
 } from "@lictory/platform/components/items/labels";
 import {
   ItemContext,
+  useItem,
   useItemContextValue,
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
@@ -119,7 +121,10 @@ import {
   useSuggestChange,
   type BranchScreen,
 } from "@lictory/platform/components/review/branch-workspace";
-import { ReviewPanel } from "@lictory/platform/components/review/review-panel";
+import {
+  ReviewPanel,
+  useMyReview,
+} from "@lictory/platform/components/review/review-panel";
 import { Readiness } from "@lictory/platform/components/review/readiness";
 import {
   ClaimPanel,
@@ -152,6 +157,7 @@ import {
 } from "@lictory/platform/components/review/revisions";
 import {
   SpecDiscussionsContext,
+  useSpecDiscussions,
   useSpecDiscussionsState,
 } from "@lictory/platform/components/review/spec-discussions";
 import {
@@ -1052,39 +1058,23 @@ export function ItemDetail({
                 className={
                   branchScreen
                     ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
-                    : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
+                    : discussionsColumn
+                      ? // Beside discussions the text keeps its measure:
+                        // the gutters give way first.
+                        "mx-auto max-w-3xl px-5 py-7"
+                      : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
                 }
               >
                 {changedSinceSeen && !focusScreen && (
-                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
-                    <GitCompareArrows className="size-4 text-primary" />
-                    <span>
-                      Changed since you last looked: revision{" "}
-                      {changedSinceSeen.from.number} →{" "}
-                      {changedSinceSeen.to.number}
-                      {" · "}
-                      <span className="text-success">
-                        +{changedSinceSeen.added}
-                      </span>{" "}
-                      <span className="text-destructive">
-                        −{changedSinceSeen.removed}
-                      </span>{" "}
-                      lines
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="ml-auto"
-                      onClick={() =>
-                        showHistory({
-                          revision: changedSinceSeen.to.id,
-                          compare: changedSinceSeen.from.id,
-                        })
-                      }
-                    >
-                      View changes
-                    </Button>
-                  </div>
+                  <ChangedSince
+                    changed={changedSinceSeen}
+                    onShow={() =>
+                      showHistory({
+                        revision: changedSinceSeen.to.id,
+                        compare: changedSinceSeen.from.id,
+                      })
+                    }
+                  />
                 )}
                 {!focusScreen && <InlineTitle />}
                 {!focusScreen && (
@@ -1095,6 +1085,9 @@ export function ItemDetail({
                         : undefined
                     }
                     onReview={() => openRailAt("[data-review-panel]")}
+                    onCompare={(from, to) =>
+                      showHistory({ revision: to, compare: from })
+                    }
                     onBreakdown={() =>
                       document
                         .querySelector("[data-item-breakdown]")
@@ -1404,9 +1397,11 @@ export function ItemDetail({
 // The discussions column, the document's readable minimum beside it and
 // the room from which discussions open by default.
 const DISCUSSIONS_WIDTH = 304;
-// Up to this much wider when the text keeps COMFORTABLE beside it.
+// Up to this much wider when the text keeps COMFORTABLE beside it (a
+// comfortable reading measure plus its gutters: the specification is the
+// primary surface, so the column widens only from room the text spares).
 const DISCUSSIONS_EXTRA = 88;
-const COMFORTABLE = 560;
+const COMFORTABLE = 680;
 const READABLE = 420;
 const ROOMY = 640;
 
@@ -1449,17 +1444,79 @@ function Breakdown({
   return <EpicStories onPropose={() => void propose()} />;
 }
 
-// The specification, with "Suggest a change" on selected text (it needs the
-// item context the branch commands run in).
+// "Changed since you last looked", unless the status card already tells a
+// requested reviewer what changed since their outdated approval.
+function ChangedSince({
+  changed,
+  onShow,
+}: {
+  changed: {
+    from: { number: number };
+    to: { number: number };
+    added: number;
+    removed: number;
+  };
+  onShow: () => void;
+}) {
+  const mine = useMyReview();
+  if (mine.review && mine.staleRevision) return null;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
+      <GitCompareArrows className="size-4 text-primary" />
+      <span>
+        Changed since you last looked: revision {changed.from.number} →{" "}
+        {changed.to.number}
+        {" · "}
+        <span className="text-success">+{changed.added}</span>{" "}
+        <span className="text-destructive">−{changed.removed}</span> lines
+      </span>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="ml-auto"
+        onClick={onShow}
+      >
+        View changes
+      </Button>
+    </div>
+  );
+}
+
+// The specification, with "Suggest a change" on selected text: a plain
+// passage is rewritten beside the text and accepted there; a passage with
+// formatting, or any change once main is protected, opens the editor on a
+// branch (it needs the item context the branch commands run in).
 function SuggestingSpecification({
   onNavigate,
   ...props
 }: Omit<Parameters<typeof Specification>[0], "onSuggest"> & {
   onNavigate: (screen: BranchScreen) => void;
 }) {
+  const { item, current } = useItem();
+  const discussions = useSpecDiscussions();
   const suggest = useSuggestChange(onNavigate);
+  const inEditor = (quote: string) => void suggest(quote);
+  useEffect(() => {
+    if (!discussions) return;
+    const ref = discussions.editSuggestion;
+    ref.current = inEditor;
+    return () => {
+      ref.current = null;
+    };
+  });
   return (
-    <Specification {...props} onSuggest={(quote) => void suggest(quote)} />
+    <Specification
+      {...props}
+      onSuggest={(draft) => {
+        const inline =
+          discussions &&
+          current &&
+          !item.mainProtected &&
+          replaceQuote(current.content, draft, draft.quote) !== null;
+        if (inline) discussions.startSuggestion(draft);
+        else inEditor(draft.quote);
+      }}
+    />
   );
 }
 

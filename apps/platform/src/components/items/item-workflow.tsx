@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   FilePenLine,
+  GitCompareArrows,
   ListTree,
   TriangleAlert,
 } from "lucide-react";
@@ -22,10 +23,8 @@ import { Button } from "@lictory/ui/button";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
-import {
-  RefinementIcon,
-  StatusIcon,
-} from "@lictory/platform/components/items/status";
+import { StatusIcon } from "@lictory/platform/components/items/status";
+import { useMyReview } from "@lictory/platform/components/review/review-panel";
 
 const labels: Record<LifecycleStage, string> = {
   proposal: "Shape the proposal",
@@ -44,14 +43,20 @@ export function ItemWorkflow({
   onStartRefinement,
   onReview,
   onBreakdown,
+  onCompare,
   children,
 }: {
   onStartRefinement?: () => void;
   onReview: () => void;
   onBreakdown: () => void;
+  // Opens what changed between two revisions.
+  onCompare?: (from: string, to: string) => void;
   children?: ReactNode;
 }) {
   const { item, type, project, current, readOnly, entities } = useItem();
+  // A requested reviewer sees their own step first: the decision, and
+  // whether an approval they gave earlier stopped applying.
+  const mine = useMyReview();
   const { organization, directory, delivery } = useWorkspace();
   const link = externalLinksByItem(entities, directory.delivery.targets).get(
     item.id,
@@ -70,8 +75,9 @@ export function ItemWorkflow({
     delivering &&
     stage !== "canceled" &&
     isAmended(item, project, link);
+  // Ready means refinement is done: the item waits at delivery.
   const step =
-    !type.hasSpecification || (delivering && !amendment)
+    !type.hasSpecification || (delivering && !amendment) || stage === "ready"
       ? 2
       : stage === "proposal"
         ? 0
@@ -106,8 +112,8 @@ export function ItemWorkflow({
         : stage === "ready"
           ? native
             ? container
-              ? "The checks pass. Accept this revision for delivery and break it down into work the team can pick up."
-              : "The checks pass. Accept this revision for delivery when the team is ready to build it."
+              ? `Every readiness check passes on revision ${current?.number ?? ""}. Once it is accepted, break it down into work the team can pick up.`
+              : `Every readiness check passes on revision ${current?.number ?? ""}.`
             : "The checks pass. Hand off this revision to your delivery tool."
           : stage === "completed"
             ? "The delivered revision and its history stay here. Later changes are refined as a new revision."
@@ -127,30 +133,44 @@ export function ItemWorkflow({
       : paths.backlog(organization.slug, project.key);
   // Accepting a ready native scope happens in the panel below; the other
   // stages point to the place where their next step happens.
-  const action =
-    !readOnly && stage === "proposal" && onStartRefinement ? (
-      <Button size="sm" onClick={onStartRefinement}>
-        <FilePenLine className="size-3.5" /> Start refinement
+  const action = mine.review ? (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      <Button size="sm" onClick={() => mine.decide("approve")}>
+        <Check className="size-3.5" /> Approve revision {current?.number}
       </Button>
-    ) : type.hasSpecification &&
-      ((!delivering && stage !== "ready") || amendment) ? (
-      <Button variant="secondary" size="sm" onClick={onReview}>
-        Review & checks
-      </Button>
-    ) : stage === "canceled" ? null : container &&
-      (stage === "ready" || delivering) ? (
-      <Button variant="ghost" size="sm" onClick={onBreakdown}>
-        <ListTree className="size-3.5" /> View breakdown
-      </Button>
-    ) : stage === "ready" && native ? null : (
-      <Link
-        href={destination}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
-      >
-        {native ? "Open delivery" : "Open hand-off"}
-        <ArrowRight className="size-3.5" />
-      </Link>
-    );
+      {mine.review.status !== "changes_requested" && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => mine.decide("changes_requested")}
+        >
+          Request changes
+        </Button>
+      )}
+    </div>
+  ) : !readOnly && stage === "proposal" && onStartRefinement ? (
+    <Button size="sm" onClick={onStartRefinement}>
+      <FilePenLine className="size-3.5" /> Start refinement
+    </Button>
+  ) : type.hasSpecification &&
+    ((!delivering && stage !== "ready") || amendment) ? (
+    <Button variant="secondary" size="sm" onClick={onReview}>
+      Review & checks
+    </Button>
+  ) : stage === "canceled" ? null : container &&
+    (stage === "ready" || delivering) ? (
+    <Button variant="ghost" size="sm" onClick={onBreakdown}>
+      <ListTree className="size-3.5" /> View breakdown
+    </Button>
+  ) : stage === "ready" && native ? null : (
+    <Link
+      href={destination}
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+    >
+      {native ? "Open delivery" : "Open hand-off"}
+      <ArrowRight className="size-3.5" />
+    </Link>
+  );
   const stages = (
     <ol
       aria-label="Workflow stages"
@@ -204,51 +224,44 @@ export function ItemWorkflow({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const decisionId = useId();
   const refinement = item.refinementState;
-  // What happens next, in one line: the specification's open concern first,
-  // then the delivery decision.
+  // What happens next, in one line: the specification's open concern. A
+  // ready revision's delivery decision is the panel below, and a requested
+  // reviewer's next step is their decision above.
   const next =
-    type.hasSpecification && refinement && refinement !== "ready"
+    !mine.review &&
+    type.hasSpecification &&
+    refinement &&
+    refinement !== "ready"
       ? nextRefinementAction(item)
-      : stage === "ready" && native
-        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
-        : null;
+      : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
   // delivery still uses.
-  const statement =
-    amendment && current
+  const statement = mine.review
+    ? `Your ${mine.review.responsibility} review is requested`
+    : amendment && current
       ? `Revision ${current.number} is ${refinement ? refinementMeta[refinement].label.toLowerCase() : "in refinement"}`
       : label;
   // When a NEXT line names the step, the general guidance would repeat it.
-  const subline =
-    amendment && agreed != null
+  const subline = mine.review
+    ? mine.staleRevision && current
+      ? `You approved revision ${mine.staleRevision.number}. It changed since, so that approval no longer applies to revision ${current.number}.`
+      : `Read revision ${current?.number ?? ""}, then approve it or request changes. Your decision applies to this revision only.`
+    : amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
       : next
         ? null
         : description;
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
+  // The statement names the stage (the refinement state's sentence), so
+  // the evidence lists facts only once: the revision as plain metadata,
+  // then what holds it back. Pills are states; text is metadata.
   const specEvidence = type.hasSpecification && (
     <>
-      {refinement && (
-        <li>
-          <Pill
-            tone={
-              refinement === "ready"
-                ? "good"
-                : refinement === "in_review"
-                  ? "info"
-                  : "neutral"
-            }
-          >
-            <RefinementIcon state={refinement} className="size-3" />
-            {refinementMeta[refinement].label}
-          </Pill>
-        </li>
-      )}
       {current && (
-        <li>
-          <Pill tone="neutral">Revision {current.number}</Pill>
+        <li className="pr-1 text-muted-foreground">
+          Revision {current.number}
         </li>
       )}
       {item.readinessTotal > 0 && (
@@ -274,10 +287,8 @@ export function ItemWorkflow({
   );
   const handedOff =
     !native && link?.externalKey && link.publishedRevisionNumber != null ? (
-      <li>
-        <Pill tone="neutral">
-          Handed off revision {link.publishedRevisionNumber}
-        </Pill>
+      <li className="px-1 text-muted-foreground">
+        Handed off revision {link.publishedRevisionNumber}
       </li>
     ) : null;
   const deliveryEvidence =
@@ -296,18 +307,13 @@ export function ItemWorkflow({
             </Pill>
           </li>
         )}
-        <li>
-          <Pill tone="neutral">
-            Accepted revision {item.committedRevisionNumber}
-          </Pill>
+        <li className="px-1 text-muted-foreground">
+          {item.deliveredRevisionNumber == null
+            ? `Accepted revision ${item.committedRevisionNumber}`
+            : item.deliveredRevisionNumber === item.committedRevisionNumber
+              ? `Delivered revision ${item.deliveredRevisionNumber}`
+              : `Accepted revision ${item.committedRevisionNumber} · Delivered revision ${item.deliveredRevisionNumber}`}
         </li>
-        {item.deliveredRevisionNumber != null && (
-          <li>
-            <Pill tone="good">
-              Delivered revision {item.deliveredRevisionNumber}
-            </Pill>
-          </li>
-        )}
       </>
     ));
   const evidence = (
@@ -332,7 +338,7 @@ export function ItemWorkflow({
                 aria-hidden
                 className={cn(
                   "size-2 shrink-0 rounded-full",
-                  amendment
+                  amendment || mine.review
                     ? "bg-warning"
                     : stage === "ready" || stage === "completed"
                       ? "bg-success"
@@ -345,6 +351,16 @@ export function ItemWorkflow({
               <p className="mt-1 line-clamp-3 pl-4 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
                 {subline}
               </p>
+            )}
+            {mine.review && mine.staleRevision && current && onCompare && (
+              <button
+                type="button"
+                onClick={() => onCompare(mine.staleRevision!.id, current.id)}
+                className="mt-1.5 ml-4 inline-flex items-center gap-1.5 rounded-md text-[13px] font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <GitCompareArrows aria-hidden className="size-3.5" />
+                What changed since revision {mine.staleRevision.number}
+              </button>
             )}
           </div>
           {/* On phones too the action sits beside the statement, so the

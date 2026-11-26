@@ -3,7 +3,9 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
+  type RefObject,
 } from "react";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import {
@@ -74,6 +76,12 @@ export function locateThreads(
   );
 }
 
+export type SuggestionDraft = {
+  quote: string;
+  section: string;
+  occurrence: number;
+} | null;
+
 type Value = {
   located: LocatedThread[];
   open: number;
@@ -89,6 +97,14 @@ type Value = {
   pending: Draft;
   startDiscussion: (draft: Draft) => void;
   setPending: (draft: Draft) => void;
+  // A suggested change being written on a selection (its passage).
+  suggesting: SuggestionDraft;
+  startSuggestion: (draft: SuggestionDraft) => void;
+  // The suggestion picked from its passage in the text.
+  activeSuggestion: string | null;
+  setActiveSuggestion: (id: string | null) => void;
+  // Opens a larger change of a passage in the editor (set by the page).
+  editSuggestion: RefObject<((quote: string) => void) | null>;
   // Opens the revision a thread was written on, its quote marked.
   showRevision: (revisionId: string, threadId?: string) => void;
 };
@@ -153,6 +169,16 @@ export function useSpecDiscussionsState({
     },
     [setPanelOpen],
   );
+  const [suggesting, setSuggesting] = useState<SuggestionDraft>(null);
+  const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
+  const editSuggestion = useRef<((quote: string) => void) | null>(null);
+  const startSuggestion = useCallback(
+    (draft: SuggestionDraft) => {
+      setSuggesting(draft);
+      if (draft) setPanelOpen(true);
+    },
+    [setPanelOpen],
+  );
   // A thread that no longer exists is not selected.
   if (active && !threads.some((t) => t.id === active)) setActive(null);
   return useMemo<Value>(
@@ -169,6 +195,11 @@ export function useSpecDiscussionsState({
       pending,
       startDiscussion,
       setPending,
+      suggesting,
+      startSuggestion,
+      activeSuggestion,
+      setActiveSuggestion,
+      editSuggestion,
       showRevision: onShowRevision,
     }),
     [
@@ -181,6 +212,9 @@ export function useSpecDiscussionsState({
       hovered,
       pending,
       startDiscussion,
+      suggesting,
+      startSuggestion,
+      activeSuggestion,
       onShowRevision,
     ],
   );

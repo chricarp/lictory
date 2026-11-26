@@ -10,8 +10,10 @@ new one.
 
 ## Decide a review
 
-When a review is asked of you or your discipline, its row in the item's
-**Review** rail offers:
+When a review is asked of you or your discipline, the item's workflow card
+leads with it (_Your Engineering review is requested_) and offers your
+decision at the top of the page; its row in the **Review** rail offers the
+same:
 
 - **Approve revision N**: the current revision satisfies your discipline's
   concerns.
@@ -56,10 +58,13 @@ Current revision: 14.
 Engineering approval requires review.
 ```
 
-In the rail, the Engineering review of revision 14 shows _Requested_, and
-**N earlier approvals** lists _Engineering · Dev Patel approved revision 12 ·
-outdated (Specification revised (revision 13))_. The footer always names the
-revision the current approvals apply to.
+The reviewer sees it first: the workflow card says _You approved revision 12. It changed since, so that approval no longer applies to revision 14._ with
+**What changed since revision 12**, beside the decision. In the rail, the
+Engineering review of revision 14 shows _Requested_ with _Dev Patel approved
+revision 12 · outdated_ under it, and **N earlier approvals** lists one line
+per earlier approval (_Engineering · Dev Patel · revision 12_, _outdated_;
+the reason is the line's tooltip). The footer always names the revision the
+current approvals apply to.
 
 ![The review rail of PAY-2 after revision 2: Engineering and QA requested again, and under 1 earlier approval, Dev Patel’s approval of revision 1 marked outdated because the specification was revised](/screenshots/detail-stale-approval.webp)
 

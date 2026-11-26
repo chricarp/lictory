@@ -111,7 +111,7 @@ test("reviewed page: inspect result, request independent review, approve, merge 
     page.getByRole("button", { name: "Revoke decision", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("complementary", { name: "Review summary" }),
+    page.getByRole("complementary", { name: "Reviewers" }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Request required review", exact: true })
@@ -119,10 +119,10 @@ test("reviewed page: inspect result, request independent review, approve, merge 
   await page.getByRole("option", { name: /Page Reviewer/ }).click();
   await expect(
     page
-      .getByRole("complementary", { name: "Review summary" })
+      .getByRole("complementary", { name: "Reviewers" })
       .getByText("Page Reviewer", { exact: true }),
   ).toBeVisible();
-  const summary = page.getByRole("complementary", { name: "Review summary" });
+  const summary = page.getByRole("complementary", { name: "Reviewers" });
   await expect(summary.getByText("Pending", { exact: true })).toBeVisible();
   await expect(summary.getByText(/requested just now/)).toBeVisible();
   await expect(
@@ -146,7 +146,7 @@ test("reviewed page: inspect result, request independent review, approve, merge 
   await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(
     reviewer
-      .getByRole("complementary", { name: "Review summary" })
+      .getByRole("complementary", { name: "Reviewers" })
       .getByText("Approved", { exact: true }),
   ).toBeVisible();
   await expect(

@@ -771,13 +771,15 @@ void test("approvals target exact revisions, only assignments authorize, and sug
   const f = await fixture();
   const first = await f.current();
   const base = { workItemId: f.proposalId, baseRevisionId: first.id };
+  // Optional, so the approval does not make the item ready: a ready
+  // specification's main is protected and refuses suggestions.
   await f.command({
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
     disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
-    required: true,
+    required: false,
   });
   const review = (await f.entities()).find((e) => e.type === "review")!;
   await assert.rejects(
@@ -2252,6 +2254,24 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     f.command({ type: "mergeSuggestion", ...base, suggestionId }),
     /specification changed/,
   );
+  // Once readiness protects main, a suggestion cannot write it either.
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: true })
+    .where(eq(s.workItem.id, f.proposalId));
+  await assert.rejects(
+    f.command({
+      type: "mergeSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: second.id,
+      suggestionId,
+    }),
+    /This specification is ready/,
+  );
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: false })
+    .where(eq(s.workItem.id, f.proposalId));
   await assert.rejects(
     f.command({
       type: "mergeSuggestion",
@@ -2699,11 +2719,25 @@ void test("sprints: one active per project, carry-over on completion, frozen rep
     workItemId: done,
     statusId: f.statuses.Done,
   });
+  // Planned and sized in one change counts at its estimate, as the backlog
+  // shows it (it was recorded unestimated before).
+  const sized = await create(f, f.types.Bug);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: sprint,
+    estimate: 1,
+  });
   const report = await iterationReport(db, f.userId, f.organizationId, sprint);
   assert.deepEqual(report.totals.atStart, { count: 2, points: 8 });
-  assert.deepEqual(report.totals.addedAfterStart, { count: 1, points: 2 });
+  assert.deepEqual(report.totals.addedAfterStart, { count: 2, points: 3 });
   assert.deepEqual(report.totals.completed, { count: 1, points: 3 });
-  assert.equal(report.series.at(-1)!.remaining, 7);
+  assert.equal(report.series.at(-1)!.remaining, 8);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: null,
+  });
   await f.command({
     type: "completeIteration",
     projectId: f.projectId,
