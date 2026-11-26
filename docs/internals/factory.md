@@ -509,7 +509,13 @@ waits on someone reads differently from a quiet thread:
   and commands are not posted;
 - **question cards** for `askQuestion`, in the session's thread and at the
   top of the reporting channel, linking the anchored discussion, marked
-  resolved when a person resolves it.
+  resolved when a person resolves it;
+- a **delivered note** when the Definition of Done completes the session's
+  claim: the item is Done, the session's pull request merged (and by whom,
+  as the code host reported it) and the delivered revision, posted once by
+  Lictory beside a dispatched session's card in the channel, or in a
+  mention's thread, so the conversation that started the work hears how it
+  ended.
 
 Every write has a stable id (`factory/thread-ids.ts`), so a retried publish
 or a replayed hook changes a card in place and never adds a message. Card

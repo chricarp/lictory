@@ -141,11 +141,16 @@ function threadOf(session: SessionRow) {
 // Lictory's own note in a session's thread (not the agent's words), once
 // per `key`: what happened that people must know, such as a pull request
 // Lictory could not open.
+//
+// `besideCard`: where the session's card is a channel message of its own (a
+// dispatched session's report), the note goes beside it in the channel, so
+// people following the channel read it without opening a thread.
 export async function postSessionNotice(
   tx: Tx,
   session: SessionRow,
   key: string,
   body: string,
+  options: { besideCard?: boolean } = {},
 ) {
   const thread = threadOf(session);
   if (!thread) return null;
@@ -157,7 +162,7 @@ export async function postSessionNotice(
     actorId: session.requestedById,
     kind: "system",
     body,
-    threadRootId: thread.rootId,
+    threadRootId: options.besideCard && thread.topLevel ? null : thread.rootId,
     messageId: stableId("notice", session.id, key),
   });
   return message.id;

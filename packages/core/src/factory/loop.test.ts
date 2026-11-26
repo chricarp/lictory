@@ -479,7 +479,12 @@ void test("replies steer only for the requester and the owner; approvals only th
     {
       seq: 3,
       type: "approval_request",
-      data: { requestId: "r1", title: "Run the migration" },
+      data: {
+        requestId: "r1",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
     },
   ]);
   const messages = await f.thread(root);
@@ -801,6 +806,43 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
   assert.ok(
     held.leaseExpiresAt.getTime() > Date.now() + DELIVERY_HOLD_MS - 60 * 60_000,
   );
+
+  // The work lands: the Definition of Done completes the claim with the
+  // delivered revision, and the reporting channel hears it beside the card,
+  // once, however often the end is replayed.
+  const [revision] = await db
+    .select()
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.workItemId, story))
+    .orderBy(desc(s.specificationRevision.number))
+    .limit(1);
+  await db
+    .update(s.workItemClaim)
+    .set({ deliveredRevisionId: revision!.id })
+    .where(eq(s.workItemClaim.id, claim.id));
+  const landed = {
+    kind: "claim_ended" as const,
+    organizationId: f.organizationId,
+    claimId: claim.id,
+    agentSessionId: session!.id,
+    workItemId: story,
+    state: "completed" as const,
+    reason: "definition_of_done",
+  };
+  for (let i = 0; i < 2; i++)
+    await db.transaction((tx) => claimPorts().resumer.resume(tx, landed));
+  const delivered = (
+    await db
+      .select()
+      .from(s.channelMessage)
+      .where(eq(s.channelMessage.channelId, f.channelId))
+  ).filter((m) => m.body.includes("is Done"));
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0]!.threadRootId, null);
+  assert.equal(
+    delivered[0]!.body,
+    `PAY-1 is Done: its Definition of Done passed. Delivered revision ${revision!.number}.`,
+  );
 });
 
 void test("a claim waits on people while its session waits on a person's approval, and works again after the answer", async () => {
@@ -836,7 +878,12 @@ void test("a claim waits on people while its session waits on a person's approva
     {
       seq: 1,
       type: "approval_request",
-      data: { requestId: "r1", title: "Run the migration on staging" },
+      data: {
+        requestId: "r1",
+        title: "Run the migration on staging",
+        tool: "Bash",
+        input: { command: "bun run db:migrate --env staging" },
+      },
     },
   ]);
   const [waiting] = await f.sessions();
