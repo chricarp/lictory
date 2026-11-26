@@ -163,6 +163,10 @@ export type CodeLinkSummary =
       headBranch: string;
       checks: CodeChecks["state"];
       reviewDecision: CodePullRequestEntity["reviewDecision"];
+      // The decision recorded in Lictory on the head commit (a reviewer
+      // agent's or a person's), null when none. Optional: rows written
+      // before it existed lack it until they are projected again.
+      reviewedHere?: CodeReviewRef["decision"] | null;
       webUrl: string;
     }
   | {

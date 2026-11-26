@@ -922,6 +922,24 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
   const entity = await f.prEntity(pr.id);
   assert.equal(entity?.reviews[0]?.agentId, f.hawk.id);
   assert.equal(entity?.reviews[0]?.current, true);
+  // The item's Code panel says what the Definition of Done counts: the
+  // review recorded in Lictory on the head, whatever the host decided.
+  const links = await db
+    .select({ data: s.codeEntity.data })
+    .from(s.codeEntity)
+    .where(
+      and(
+        eq(s.codeEntity.organizationId, f.organizationId),
+        eq(s.codeEntity.type, "codeLink"),
+        eq(s.codeEntity.workItemId, story.workItemId),
+      ),
+    );
+  const prLink = links
+    .map(
+      (l) => l.data as { summary?: { target: string; reviewedHere?: string } },
+    )
+    .find((l) => l.summary?.target === "pull_request");
+  assert.equal(prLink?.summary?.reviewedHere, "approve");
   // Build: nothing merges by itself.
   assert.equal((await f.writes()).filter((w) => w.kind === "merge").length, 0);
 
