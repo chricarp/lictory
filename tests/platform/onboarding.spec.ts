@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { platformOrigin } from "../helpers/app-urls";
 import { seedOrganization } from "@lictory/core/domain/organization";
@@ -61,6 +61,8 @@ for (const mode of ["native", "external"] as const)
     await page
       .getByRole("button", { name: "Create a workspace", exact: false })
       .click();
+    // Creating the workspace is the first counted step of setup.
+    await expect(page.getByText("1 of 4")).toBeVisible();
     await page
       .getByLabel("Organization", { exact: true })
       .fill(`Onboarding ${mode}`);
@@ -104,6 +106,12 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("list", { name: "People to invite" }).getByText(invitee),
     ).toBeVisible();
+    // Each invitation names the discipline the person starts with, so a
+    // review can be asked of them on their first day.
+    await page
+      .getByRole("combobox", { name: `Discipline for ${invitee}` })
+      .click();
+    await page.getByRole("option", { name: "QA", exact: true }).click();
     // Lose the connection right after the setup was sent: Zero reconnects and
     // the server answers the same mutation from its receipt, once.
     let interrupted = false;
@@ -177,8 +185,21 @@ for (const mode of ["native", "external"] as const)
       .select()
       .from(s.invitationPlacement)
       .where(eq(s.invitationPlacement.organizationId, org.id));
+    const [qa] = await db
+      .select()
+      .from(s.discipline)
+      .where(
+        and(
+          eq(s.discipline.projectId, projects[0]!.id),
+          eq(s.discipline.name, "QA"),
+        ),
+      );
     expect(placements).toMatchObject([
-      { invitationId: invitations[0]!.id, projectId: projects[0]!.id },
+      {
+        invitationId: invitations[0]!.id,
+        projectId: projects[0]!.id,
+        disciplineIds: [qa!.id],
+      },
     ]);
     await client.end();
   });

@@ -20,6 +20,7 @@ import {
   OnboardingHeading,
   Choice,
   Steps,
+  setupLabels,
 } from "@lictory/platform/components/workspace/onboarding-frame";
 
 type Invite = {
@@ -95,7 +96,11 @@ export function OnboardingEntry({
   const pending = invites.filter((i) => i.status === "pending");
   const choose = (value: string) => router.replace(`/?intent=${value}`);
   return (
-    <OnboardingFrame>
+    <OnboardingFrame
+      // Creating a workspace is the first of setup's steps, so the count
+      // starts here rather than on the page after it.
+      {...(intent === "create" && { labels: setupLabels, stage: 0 })}
+    >
       <Steps step={intent ?? "discover"} direction={intent ? 1 : -1}>
         <OnboardingHeading
           title={

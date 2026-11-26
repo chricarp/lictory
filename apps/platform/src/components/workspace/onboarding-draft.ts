@@ -13,6 +13,13 @@ export const steps = {
   people: 3,
   intelligence: 4,
 } as const;
+// A new project starts with these disciplines (see the domain's
+// `defaultDisciplines`); an invitation can place someone in one of them.
+export const inviteDisciplineNames = ["Product", "Engineering", "QA"] as const;
+export type InviteDiscipline = (typeof inviteDisciplineNames)[number] | "";
+// Most invitations during setup bring in the people who review what Product
+// writes; the choice is shown on every invitation and can be changed.
+export const defaultInviteDiscipline: InviteDiscipline = "Engineering";
 export const draftSchema = z.object({
   step: z.number().int().min(0).max(4),
   name: z.string().max(120),
@@ -24,6 +31,12 @@ export const draftSchema = z.object({
   // AI provider configured.
   aiChosen: z.boolean().default(false),
   invites: z.array(z.string().max(320)).max(50),
+  // The discipline each invited person starts with in the new project, by
+  // its default name ("" for none); setup resolves names to the project's
+  // disciplines once it exists.
+  inviteDisciplines: z
+    .record(z.string().max(320), z.enum(["", ...inviteDisciplineNames]))
+    .default({}),
 });
 export type Draft = z.infer<typeof draftSchema>;
 export const emptyDraft: Draft = {
@@ -35,6 +48,7 @@ export const emptyDraft: Draft = {
   aiEnabled: true,
   aiChosen: false,
   invites: [],
+  inviteDisciplines: {},
 };
 export const draftKey = (userId: string, organizationId: string) =>
   `lictory:setup:${userId}:${organizationId}`;
