@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, FilePenLine, PenLine, X } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { byType, relativeTime } from "@lictory/core/lib/work-items";
@@ -36,6 +36,16 @@ import {
 // accepting creates the next revision. A small change on selected text is
 // written right here; a larger one goes to the editor. Suggestions made
 // elsewhere (an agent through the API) appear the same way.
+
+// Resolves with `read()`'s first value within ten seconds, else undefined.
+async function waitFor<T>(read: () => T | undefined): Promise<T | undefined> {
+  for (let waited = 0; waited < 10_000; waited += 100) {
+    const value = read();
+    if (value !== undefined) return value;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return read();
+}
 
 const short = (text: string, max: number) =>
   text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
@@ -103,6 +113,10 @@ export function SuggestionComposer({
   onOpenEditor?: (quote: string) => void;
 }) {
   const { current, item, userId, mutateConfirmed, base, entities } = useItem();
+  const latestEntities = useRef(entities);
+  useEffect(() => {
+    latestEntities.current = entities;
+  }, [entities]);
   const discussions = useSpecDiscussions();
   const acceptors = useAcceptors(userId);
   // A ready specification is protected: the same change is then reviewed
@@ -127,22 +141,29 @@ export function SuggestionComposer({
   const proposeReviewedChange = async (replacement: string, title: string) => {
     if (!current) return;
     const branches = byType(entities, "specBranch");
-    const main = branches.find((b) => b.name === "main");
-    if (!main)
-      throw new Error(
-        "The specification's history is still loading. Try again.",
-      );
     let name = "change";
     for (let n = 2; branches.some((b) => b.name === name); n++)
       name = `change-${n}`;
     const branchId = crypto.randomUUID();
     const reason = why.trim() || title;
     await mutateConfirmed({ type: "createBranch", ...base, branchId, name });
+    // Main's line is recorded on the server with the first branch; the new
+    // branch (at main's head) and main arrive with the next sync.
+    const synced = await waitFor(() => {
+      const now = byType(latestEntities.current, "specBranch");
+      const branch = now.find((b) => b.id === branchId);
+      const main = now.find((b) => b.name === "main");
+      return branch && main ? { branch, main } : undefined;
+    });
+    if (!synced)
+      throw new Error(
+        "The change's branch was created but has not arrived yet. Open Branches & pull requests to send it for review.",
+      );
     await mutateConfirmed({
       type: "commitBranch",
       workItemId: item.id,
       branchId,
-      baseCommitId: main.headId,
+      baseCommitId: synced.branch.headId,
       title: current.title,
       content: replacement,
       message: short(reason, 500),
@@ -152,7 +173,7 @@ export function SuggestionComposer({
       workItemId: item.id,
       pullRequestId: crypto.randomUUID(),
       sourceId: branchId,
-      targetId: main.id,
+      targetId: synced.main.id,
       title,
       description: short(reason, 10_000),
       draft: false,

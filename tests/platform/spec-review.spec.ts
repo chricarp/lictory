@@ -638,7 +638,8 @@ test("a suggestion made through the API waits beside the text, and a rejection k
     name: `Suggested change by ${seeded.users[1]!.name}`,
   });
   await expect(card).toContainText("Start with fewer merchants.");
-  await expect(card).toContainText("Nobody is asked to accept it yet.");
+  // Nobody was asked, so someone who could accept it may take it.
+  await expect(card.getByRole("button", { name: "Accept" })).toBeVisible();
   await card.getByRole("button", { name: "Reject" }).click();
   await expect(card).toHaveCount(0);
   expect((await currentRevision(workItemId)).number).toBe(revision.number);
