@@ -367,6 +367,7 @@ export function ItemDetail({
     threads: ctx.threads,
     reviewable: ctx.reviewable,
     roomy,
+    docked: wide,
     onShowRevision: useCallback(
       (revision: string, thread?: string) =>
         setMode({ kind: "history", revision, compare: "none", thread }),

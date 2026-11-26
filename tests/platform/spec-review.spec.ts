@@ -533,6 +533,13 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(toggle).toBeFocused();
+  // A sheet left open does not reopen over the page on the next visit:
+  // it would cover the item and its controls until closed.
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  await page.reload();
+  await expect(discussionsToggle(page)).toBeVisible();
+  await expect(sheet).toHaveCount(0);
 });
 
 test("a larger suggested change opens a branch with the chosen passage selected in its live draft", async ({

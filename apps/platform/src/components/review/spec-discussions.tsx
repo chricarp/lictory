@@ -125,21 +125,26 @@ function readChoice(): boolean | undefined {
   }
 }
 
-// The discussions state of one item. Whether the panel is open is
-// remembered in this browser, like pane widths; until someone chooses, it
-// opens beside a specification with open discussions when the frame is
-// roomy enough for it next to the review rail.
+// The discussions state of one item. Whether the panel is open beside the
+// text is remembered in this browser, like pane widths; until someone
+// chooses, it opens beside a specification with open discussions when the
+// frame is roomy enough for it next to the review rail. Where the panel is
+// a sheet over the text (phones), it opens only when asked on this page:
+// a remembered "open" would cover the page and its controls on arrival.
 export function useSpecDiscussionsState({
   content,
   threads,
   reviewable,
   roomy,
+  docked,
   onShowRevision,
 }: {
   content: string;
   threads: readonly Thread[];
   reviewable: boolean;
   roomy: boolean;
+  // The panel sits beside the text (not a sheet over it).
+  docked: boolean;
   onShowRevision: (revisionId: string, threadId?: string) => void;
 }): Value {
   const located = useMemo(
@@ -150,15 +155,21 @@ export function useSpecDiscussionsState({
   const open = openThreads.length;
   const blocking = openThreads.filter((l) => l.thread.blocking).length;
   const [choice, setChoice] = useState<boolean | undefined>(readChoice);
-  const setPanelOpen = useCallback((next: boolean) => {
-    setChoice(next);
-    try {
-      localStorage.setItem(storageKey, next ? "open" : "closed");
-    } catch {
-      // Private windows: the choice lasts for this page.
-    }
-  }, []);
-  const panelOpen = reviewable && (choice ?? (roomy && open > 0));
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const setPanelOpen = useCallback(
+    (next: boolean) => {
+      if (!docked) return setSheetOpen(next);
+      setChoice(next);
+      try {
+        localStorage.setItem(storageKey, next ? "open" : "closed");
+      } catch {
+        // Private windows: the choice lasts for this page.
+      }
+    },
+    [docked],
+  );
+  const panelOpen =
+    reviewable && (docked ? (choice ?? (roomy && open > 0)) : sheetOpen);
   const [active, setActive] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [pending, setPending] = useState<Draft>(null);
