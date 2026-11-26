@@ -40,12 +40,16 @@ const exportScope = {
   organizationId,
   rootId: id
     .optional()
-    .describe("Export this item and its subtree (usually a ready Epic)."),
+    .describe(
+      "Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.",
+    ),
   itemIds: z
     .array(id)
     .max(500)
     .optional()
-    .describe("Or export exactly these items."),
+    .describe(
+      "Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira.",
+    ),
 };
 
 // Credentials are entered by an integration manager in the browser only: an API
@@ -199,9 +203,9 @@ const removeDeliveryTarget = defineCapability({
 
 const previewDeliveryExport = defineCapability({
   name: "previewDeliveryExport",
-  title: "Preview export",
+  title: "Preview hand-off",
   description:
-    "What exporting would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.",
+    "What handing off would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -218,9 +222,9 @@ const previewDeliveryExport = defineCapability({
 const publishDelivery = defineCapability({
   name: "publishDelivery",
   decision: true,
-  title: "Export to delivery tool",
+  title: "Hand off to delivery tool",
   description:
-    "Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to export. Requires the hand-off capability in the project. Returns per-item results; failed items can be exported again on their own. Items edited externally are only overwritten when listed in overwriteItemIds.",
+    "Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to hand off. Requires the hand-off capability in the project. Returns per-item results; retrying a failed item (itemIds) hands it off again with its subtree and never creates a second issue. Items edited externally are only overwritten when listed in overwriteItemIds.",
   kind: "command",
   surfaces: everywhere,
   external: true,
@@ -282,7 +286,7 @@ const linkExternalItem = defineCapability({
   name: "linkExternalItem",
   title: "Link existing issue",
   description:
-    "Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is exported with overwrite confirmed.",
+    "Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is handed off with overwrite confirmed.",
   kind: "command",
   surfaces: everywhere,
   external: true,

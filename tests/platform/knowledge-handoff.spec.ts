@@ -27,8 +27,9 @@ import { documentEnd } from "../helpers/keyboard";
 // against the browser suite's stand-in for a Jira Cloud site
 // (scripts/e2e-fakes/jira.ts, through the real Jira adapter): the
 // specification cites a page at the version it was read, is approved and
-// handed off; a lost answer to the issue create is retried without a second
-// issue; Jira moves the issue and Lictory reads its status and assignee back
+// handed off with its breakdown; a lost answer to the parent's issue create
+// holds its Tasks back, and Retry adopts the parent's issue (no second one)
+// and hands the Tasks off with it, so none is stranded; Jira moves the issue and Lictory reads its status and assignee back
 // into every place that shows the item, never offering native iteration
 // controls; the page update is proposed from the item, reviewed from the
 // Inbox and merged, and the item still cites the exact version it read.
@@ -81,6 +82,21 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     title: "Second approver for large refunds",
   });
   const key = "HAND-1";
+  // Its breakdown: plain Tasks that go to Jira with it.
+  const taskIds: string[] = [];
+  for (const title of ["Finance approver lookup", "Approval reminder email"]) {
+    const workItemId = crypto.randomUUID();
+    taskIds.push(workItemId);
+    await seeded.command({
+      type: "createWorkItem",
+      projectId: seeded.projectId,
+      workItemId,
+      typeId: seeded.typeId("Task"),
+      parentId: itemId,
+      title,
+      description: "",
+    });
+  }
   const ops = await createSpace(seeded, "Payments runbooks", {
     publishing: "reviewed",
   });
@@ -163,40 +179,64 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
         .getByText("Approved", { exact: true }),
     ).toBeVisible();
 
-    // 2. Hand-off: the answer to the issue create is lost (the issue exists
-    // in Jira); retrying adopts that issue instead of creating a second one.
+    // 2. Hand-off: the answer to the parent's issue create is lost (the
+    // issue exists in Jira), so its Tasks wait; retrying adopts that issue
+    // instead of creating a second one and hands the Tasks off with it.
     await jira(`/__fake/projects/${jiraKey}/lose-next-create`, {});
     await ada.page.goto(seeded.projectPath("/handoff"));
     const ready = ada.page.getByRole("region", { name: "Ready to hand off" });
     await expect(ready).toContainText("Second approver for large refunds");
+    // The header acts on a selection; with none it offers nothing.
+    await expect(
+      ada.page.getByRole("button", { name: /^Hand off \d/ }),
+    ).toHaveCount(0);
     await ready.getByRole("button", { name: "Hand off", exact: true }).click();
     const exportDialog = ada.page.getByRole("dialog", {
-      name: "Export to Jira",
+      name: "Hand off to Jira",
     });
     await exportDialog
-      .getByRole("button", { name: "Export 1 item", exact: true })
+      .getByRole("button", { name: "Hand off 3 items", exact: true })
       .click();
-    await expect(exportDialog).toContainText("1 failed", { timeout: 30_000 });
+    await expect(exportDialog).toContainText("1 failed, 2 skipped", {
+      timeout: 30_000,
+    });
     await expect(exportDialog).toContainText(
-      "Jira returned an error (502). Try again later.",
+      "HAND-1 was not handed off. Jira returned an error (502). Try again later. Retrying is safe",
+    );
+    await expect(exportDialog).toContainText(
+      "HAND-2 waits for HAND-1, which was not handed off.",
     );
     await exportDialog
       .getByRole("button", { name: "Retry 1 item", exact: true })
       .click();
-    await expect(exportDialog).toContainText(`Created ${jiraKey}-1`, {
+    await expect(exportDialog).toContainText("3 created.", {
       timeout: 30_000,
     });
+    await expect(exportDialog).toContainText(`Created ${jiraKey}-1`);
     await exportDialog.getByRole("button", { name: "Done" }).click();
     const issues = (await jira(
       `/__fake/issues?project=${jiraKey}`,
     )) as JiraIssue[];
-    expect(issues).toEqual([
+    expect(issues).toHaveLength(3);
+    expect(issues).toContainEqual(
       expect.objectContaining({
         key: `${jiraKey}-1`,
         summary: "Second approver for large refunds",
         lictoryItemId: itemId,
       }),
-    ]);
+    );
+    expect(issues.map((i) => i.lictoryItemId).sort()).toEqual(
+      [itemId, ...taskIds].sort(),
+    );
+    // Nothing is stranded: the hand-off view has every item in Jira.
+    const inJira = ada.page.getByRole("region", { name: "In Jira" });
+    for (const title of [
+      "Second approver for large refunds",
+      "Finance approver lookup",
+      "Approval reminder email",
+    ])
+      await expect(inJira).toContainText(title);
+    await expect(ready).toContainText("Nothing is waiting");
 
     // 3. Work moves in Jira; Lictory reads it back on request.
     await jira(`/__fake/issues/${jiraKey}-1/progress`, {
@@ -208,7 +248,7 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
       .getByRole("button", { name: "Refresh from Jira", exact: true })
       .click();
     await expect(
-      ada.page.getByText("1 issue refreshed from Jira."),
+      ada.page.getByText("3 issues refreshed from Jira."),
     ).toBeVisible();
 
     // 4. The item: Jira's status and assignee, no native delivery controls.
@@ -354,8 +394,8 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     await expect(
       ada.page.getByRole("button", { name: /^Iteration:/ }),
     ).toHaveCount(0);
-    // Nothing was handed off twice.
-    expect(await jira(`/__fake/issues?project=${jiraKey}`)).toHaveLength(1);
+    // Nothing was handed off twice: one issue for the item and each Task.
+    expect(await jira(`/__fake/issues?project=${jiraKey}`)).toHaveLength(3);
   } finally {
     await Promise.all([ada.context.close(), ben.context.close()]);
   }

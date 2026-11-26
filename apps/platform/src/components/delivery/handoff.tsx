@@ -19,6 +19,7 @@ import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
+  categoryOf,
   identifier,
   relativeTime,
   typeOf,
@@ -73,6 +74,8 @@ export function Handoff() {
 }
 
 type Row = { item: WorkItem; link?: ExternalLink };
+// A plain item (Task, Subtask) that goes under a parent already handed off.
+type ReadyRow = Row & { changed: boolean; under?: WorkItem };
 
 function ExternalHandoff({ project }: { project: Project }) {
   const {
@@ -105,7 +108,8 @@ function ExternalHandoff({ project }: { project: Project }) {
         )
           links.set(e.workItemId, e);
       }
-    const ready: (Row & { changed: boolean })[] = [];
+    const ready: ReadyRow[] = [];
+    const byId = new Map(items.map((i) => [i.id, i]));
     const delivered: Row[] = [];
     const attention: Row[] = [];
     const refining: WorkItem[] = [];
@@ -124,7 +128,20 @@ function ExternalHandoff({ project }: { project: Project }) {
       }
       if (link && (link.externalKey || link.status === "pending"))
         delivered.push({ item, link });
-      if (!spec) continue;
+      if (!spec) {
+        // Plain work goes with its parent; once the parent is in the
+        // delivery tool, work added under it (or left behind) goes on its
+        // own, so it must not vanish from this view.
+        const parent = item.parentId ? byId.get(item.parentId) : undefined;
+        if (
+          !link &&
+          parent &&
+          links.get(parent.id)?.externalKey &&
+          categoryOf(delivery, item) !== "canceled"
+        )
+          ready.push({ item, changed: false, under: parent });
+        continue;
+      }
       const changed = Boolean(
         link?.externalKey &&
         link.publishedRevisionNumber != null &&
@@ -231,16 +248,15 @@ function ExternalHandoff({ project }: { project: Project }) {
                 Refresh from {tool.name}
               </Button>
             )}
-            {canHandOff && (
+            {/* Rows carry their own Hand off; this one acts on a selection. */}
+            {canHandOff && chosen.length > 0 && (
               <Button
                 size="sm"
-                disabled={!chosen.length}
                 onClick={() => setExporting({ itemIds: chosen })}
               >
                 <Upload className="size-3.5" />
-                {chosen.length
-                  ? `Hand off ${chosen.length} ${chosen.length === 1 ? "item" : "items"}`
-                  : "Hand off"}
+                Hand off {chosen.length}{" "}
+                {chosen.length === 1 ? "item" : "items"}
               </Button>
             )}
           </>
@@ -289,7 +305,7 @@ function ExternalHandoff({ project }: { project: Project }) {
           {availability.configured && !availability.allowed && (
             <p className="text-[13px] text-muted-foreground">
               Your disciplines in {project.name} cannot hand off work. People
-              with the hand-off capability export ready specifications here.
+              with the hand-off capability hand off ready specifications here.
             </p>
           )}
           {loading ? (
@@ -343,10 +359,10 @@ function ExternalHandoff({ project }: { project: Project }) {
                 {groups.ready.length === 0 ? (
                   <p className="px-4 py-4 text-[13px] text-muted-foreground">
                     Nothing is waiting. Specifications appear here once their
-                    readiness checks pass.
+                    readiness checks pass, with the work under them.
                   </p>
                 ) : (
-                  groups.ready.map(({ item, link, changed }) => (
+                  groups.ready.map(({ item, link, changed, under }) => (
                     <ItemRow
                       key={item.id}
                       item={item}
@@ -377,9 +393,11 @@ function ExternalHandoff({ project }: { project: Project }) {
                         )
                       }
                       detail={
-                        changed && link
-                          ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
-                          : `Revision ${item.revisionNumber} · ${item.readinessPassed}/${item.readinessTotal} checks pass`
+                        under
+                          ? `${typeOf(delivery, item).name} under ${label(under)}, which is in ${tool.name}`
+                          : changed && link
+                            ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
+                            : `Revision ${item.revisionNumber} · ${item.readinessPassed}/${item.readinessTotal} checks pass`
                       }
                       action={
                         canHandOff && (
@@ -514,7 +532,7 @@ function deliveredDetail(link: ExternalLink, item: WorkItem, tool: string) {
       ? link.publishedRevisionNumber < item.revisionNumber
         ? `Revision ${link.publishedRevisionNumber} handed off · current ${item.revisionNumber}`
         : `Revision ${link.publishedRevisionNumber} handed off`
-      : "Linked, not exported",
+      : "Linked, not handed off",
     link.syncedAt ? `checked ${relativeTime(link.syncedAt)}` : undefined,
   ];
   return parts.filter(Boolean).join(" · ");
