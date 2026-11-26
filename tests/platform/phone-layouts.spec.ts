@@ -50,22 +50,18 @@ test("on a phone the settings sections, board columns and backlog states stay re
   const seeded = await seed("PHL");
   await signIn(page, seeded.owner.email);
 
-  // Settings: the section strip says more sections lie beyond its edge, and
-  // the arrow brings them into view.
+  // Settings: a phone names the current section in one select that lists
+  // every section in full (a sideways strip cut words at its edges), and
+  // choosing one opens it.
   await page.goto(paths.projectSettings(seeded.slug, "PHL"));
   const sections = page.getByRole("navigation", { name: "Settings sections" });
-  await expect(sections.locator('[aria-current="page"]')).toBeVisible();
-  const scroller = sections.locator(".overflow-x-auto").first();
-  const later = sections.locator('[data-scroll-cue="end"] button');
-  await expect(sections.locator('[data-scroll-cue="start"]')).toHaveCount(0);
-  await expect(later).toBeVisible();
-  await later.click();
-  await expect
-    .poll(() => scroller.evaluate((element) => element.scrollLeft))
-    .toBeGreaterThan(0);
-  await expect(
-    sections.locator('[data-scroll-cue="start"] button'),
-  ).toBeVisible();
+  const section = sections.getByRole("combobox", { name: "Settings section" });
+  await expect(section).toContainText("General");
+  await expect(sections.getByRole("link")).toHaveCount(0);
+  await section.click();
+  await page.getByRole("option", { name: "Labels & milestones" }).click();
+  await expect(page).toHaveURL(/\/settings\/labels$/);
+  await expect(section).toContainText("Labels & milestones");
   await fits(page, 390);
 
   // Board: every column by name and count above the one in view; choosing
