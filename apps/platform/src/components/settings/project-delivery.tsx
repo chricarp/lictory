@@ -120,7 +120,7 @@ function DeliveryModeSection({
             <Radio
               key={m.value}
               value={m.value}
-              className="group/choice block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60"
+              className="group/choice block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:ring-2 data-checked:ring-foreground data-unchecked:not-data-disabled:hover:bg-muted/60"
             >
               <span className="flex items-center gap-2 text-sm font-semibold">
                 <ChoiceMark className="mt-0" />
