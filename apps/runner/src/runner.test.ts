@@ -24,7 +24,7 @@ import {
   writeState,
   readState,
 } from "@lictory/runner/config";
-import { endLine, refuseIfRunning } from "@lictory/runner/daemon";
+import { endLine, failureLog, refuseIfRunning } from "@lictory/runner/daemon";
 import { CliError, EXIT } from "@lictory/runner/output";
 import { SessionRun } from "@lictory/runner/session";
 import { EventStream } from "@lictory/runner/events";
@@ -494,6 +494,33 @@ void test("a second runner on one configuration is refused, and a stale state is
   );
   await writeState({ ...state, updatedAt: null }, home);
   await refuseIfRunning(home);
+});
+
+void test("a repeating failure is logged once, reminded every five minutes, and its recovery logged", () => {
+  const lines: string[] = [];
+  let clock = Date.UTC(2026, 10, 26, 9, 0, 0);
+  const failures = failureLog(
+    (l) => lines.push(l),
+    "Heartbeat",
+    300_000,
+    () => clock,
+  );
+  const down =
+    "Could not connect to http://127.0.0.1:9: nothing accepted the connection.";
+  failures.fail(down, " Next try in 2 s.");
+  for (let i = 0; i < 20; i++) {
+    clock += 10_000;
+    failures.fail(down, " Next try in 4 s.");
+  }
+  clock += 200_000;
+  failures.fail(down);
+  failures.ok();
+  failures.ok();
+  assert.deepEqual(lines, [
+    `Heartbeat failed: ${down} Next try in 2 s.`,
+    "Heartbeat still failing: 22 attempts since 2026-11-26T09:00:00.000Z.",
+    "Heartbeat works again after 22 failed attempts.",
+  ]);
 });
 
 void test("unreachable servers are described by address and what to check", () => {
