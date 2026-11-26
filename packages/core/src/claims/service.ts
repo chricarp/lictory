@@ -397,13 +397,12 @@ export async function projectFacts(
                     number: pr.number ?? null,
                     state: pr.state,
                     openedByAgent: pr.openedByAgent,
-                    // A member, or a host login nobody linked, said so
-                    // ("ada" alone reads as if it named a teammate).
                     author:
                       (pr.authorId ? name(pr.authorId) : undefined) ??
-                      (pr.authorLogin
-                        ? `${pr.authorLogin} (a code host login no member has linked)`
-                        : null),
+                      pr.authorLogin ??
+                      null,
+                    // "ada" alone reads as if it named a teammate.
+                    unlinkedLogin: !pr.authorId && !!pr.authorLogin,
                   },
                 ],
           ),

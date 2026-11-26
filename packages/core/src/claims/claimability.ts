@@ -68,6 +68,8 @@ export type LinkedPullRequestFact = {
   openedByAgent: boolean;
   // Who opened it, in words: a member's name or the host login.
   author: string | null;
+  // The author is a host login no member has linked.
+  unlinkedLogin?: boolean;
 };
 
 export const claimRefusalCodes = [
@@ -286,7 +288,7 @@ export function claimability(
   if (human)
     refuse(
       "pull_request_linked",
-      `A pull request is already linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""}${human.state === "merged" ? " (merged)" : ""}. Someone is already doing this work; a person can still start an agent on it.`,
+      `A pull request is already linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""}${human.state === "merged" ? " (merged)" : ""}.${human.unlinkedLogin ? ` ${human.author} is a code host login no member has linked.` : ""} Someone is already doing this work; a person can still start an agent on it.`,
     );
   if (!facts.hasStartedStatus)
     refuse(
