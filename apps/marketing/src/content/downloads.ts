@@ -107,7 +107,8 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu",
     label: "Debian and Ubuntu x64, .deb",
-    detail: "Installs with your package manager, which also updates it.",
+    detail:
+      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
     file: "lictory_amd64.deb",
   }),
   desktop({
@@ -115,7 +116,8 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu (arm64)",
     label: "Debian and Ubuntu arm64, .deb",
-    detail: "Installs with your package manager, which also updates it.",
+    detail:
+      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
     file: "lictory_arm64.deb",
   }),
 ] as const satisfies readonly DesktopDownload[];

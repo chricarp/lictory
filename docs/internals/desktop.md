@@ -267,7 +267,8 @@ when the app quits or on **Restart to update**. Pre-releases (nightlies) are
 ignored.
 
 A build updates itself only when it can do so safely, and otherwise settings
-say why and link to the releases page:
+say why, per platform, and link to lictory.com/download
+(`src/shared/updates.ts`, with its tests):
 
 - not in development builds, and not with `LICTORY_DESKTOP_UPDATES=off`
   (for managed computers);
@@ -275,8 +276,14 @@ say why and link to the releases page:
   `package.mjs` records this in the packaged `package.json`
   (`lictory.updatable`). Squirrel.Mac refuses unsigned apps, and an unsigned
   Windows installer cannot be verified;
-- Linux: only the AppImage (checked against the release's SHA-512); a
-  `.deb` belongs to the package manager.
+- Linux: only the AppImage (checked against the release's SHA-512). A
+  `.deb` belongs to the package manager, and no apt repository serves
+  Lictory, so it never updates: settings say to install the newest `.deb`
+  over it, never that the package manager will.
+
+A release without this system's `latest*.yml` (or no stable release at all)
+reads as "the newest release has no update for this system yet", not as a
+failed check.
 
 **Releases.** Every release, nightly and stable, carries the installers,
 their `.blockmap` files and the `latest*.yml` files, built by

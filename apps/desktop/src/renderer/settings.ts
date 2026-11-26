@@ -7,7 +7,8 @@ import type {
   UpdateState,
 } from "../shared/ipc";
 
-const RELEASES_URL = "https://github.com/chricarp/lictory/releases";
+// Every installer of the newest stable release, and which ones it lacks.
+const DOWNLOAD_URL = "https://lictory.com/download";
 
 // The settings screen. It is built once and updated in place when the state
 // changes, so focus and typed text survive updates.
@@ -139,8 +140,8 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
   );
   const releases = h(
     "a",
-    { href: RELEASES_URL, target: "_blank", rel: "noreferrer", class: "link" },
-    "Releases page",
+    { href: DOWNLOAD_URL, target: "_blank", rel: "noreferrer", class: "link" },
+    "Download the newest version",
   );
 
   const serverList = h("ul", { class: "server-list" });

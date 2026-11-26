@@ -3,15 +3,20 @@ import path from "node:path";
 import { app } from "electron";
 import type { AppUpdater } from "electron-updater";
 import type { UpdateState } from "../shared/ipc";
+import {
+  updateErrorMessage,
+  updateSupport as decideSupport,
+} from "../shared/updates";
 
 // Updates come from the GitHub releases of chricarp/lictory through
 // electron-updater (the `publish` setting of package.mjs writes
 // app-update.yml into the package). A build updates itself only when it can
 // do so safely: packaged, signed (Squirrel.Mac refuses unsigned apps and an
 // unsigned Windows installer cannot be verified), installed in a form that
-// can be replaced (the AppImage, not a .deb owned by the package manager),
-// and not turned off by LICTORY_DESKTOP_UPDATES=off. Otherwise the settings
-// screen says why and links to the releases page.
+// can be replaced (the AppImage; a .deb belongs to the package manager and
+// no apt repository serves Lictory), and not turned off by
+// LICTORY_DESKTOP_UPDATES=off. Otherwise the settings screen says why and
+// what to do instead, with a link to the download page.
 
 const CHECK_EVERY_MS = 6 * 60 * 60_000;
 const FIRST_CHECK_MS = 30_000;
@@ -29,36 +34,15 @@ function buildInfo(): BuildInfo {
   }
 }
 
-export function updateSupport():
-  { supported: true } | { supported: false; reason: string } {
-  if (!app.isPackaged)
-    return {
-      supported: false,
-      reason: "Updates are off in development builds.",
-    };
-  if (process.env.LICTORY_DESKTOP_UPDATES === "off")
-    return {
-      supported: false,
-      reason:
-        "Updates are turned off on this computer (LICTORY_DESKTOP_UPDATES=off).",
-    };
-  if (process.mas || process.windowsStore)
-    return {
-      supported: false,
-      reason: "Your app store keeps Lictory up to date.",
-    };
-  if (process.platform === "linux" && !process.env.APPIMAGE)
-    return {
-      supported: false,
-      reason: "Update Lictory with your package manager.",
-    };
-  if (buildInfo().updatable !== true)
-    return {
-      supported: false,
-      reason:
-        "This build is not signed, so it cannot update itself. Download new versions from the releases page.",
-    };
-  return { supported: true };
+function updateSupport() {
+  return decideSupport({
+    packaged: app.isPackaged,
+    platform: process.platform,
+    turnedOff: process.env.LICTORY_DESKTOP_UPDATES === "off",
+    appStore: !!(process.mas || process.windowsStore),
+    appImage: !!process.env.APPIMAGE,
+    signed: buildInfo().updatable === true,
+  });
 }
 
 export function createUpdater(options: {
@@ -99,10 +83,7 @@ export function createUpdater(options: {
       set({ status: "ready", version: info.version }),
     );
     autoUpdater.on("error", (error) =>
-      set({
-        status: "error",
-        message: `Checking for updates failed: ${error.message.split("\n")[0]}`,
-      }),
+      set({ status: "error", message: updateErrorMessage(error) }),
     );
     updater = autoUpdater;
     return autoUpdater;

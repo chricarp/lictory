@@ -13,7 +13,8 @@ browser tab does not do well:
 - **Several servers** side by side, each with its own sign-in, one click (or
   ⌘1 to ⌘9) apart.
 - **Lictory links** (`lictory://`) that open straight in the app.
-- **Open at login**, a tray icon and updates that install themselves.
+- **Open at login**, a tray icon and, for signed builds and the AppImage,
+  updates that install themselves (see [Updates](#updates)).
 
 ## Install it
 
@@ -29,7 +30,11 @@ serves the newest stable release. The same files are in the
 - **Linux:** `Lictory-linux-x64.AppImage` or `Lictory-linux-arm64.AppImage`
   (make it executable and run it; it needs no installation and updates
   itself), or `lictory_amd64.deb` / `lictory_arm64.deb` for Debian and
-  Ubuntu.
+  Ubuntu (installed with apt; it does not update itself).
+
+If the download page says a file is not in the newest release, that
+release was published without it: use an earlier release that has it, or
+build the app from source (`bun run --cwd apps/desktop package`).
 
 Each release also carries the same installers with its version in the name
 (`Lictory-<version>-mac-universal.dmg`, …), for when you need a specific
@@ -42,7 +47,7 @@ If a release was built without the project's signing certificates, macOS
 says the app is from an unidentified developer (Control-click the app, then
 **Open**) and Windows SmartScreen asks before running it (**More info › Run
 anyway**). Such a build does not update itself; **Settings › Updates** says
-so and links to the releases page.
+so and links to the download page.
 
 ## Connect to your server
 
@@ -120,11 +125,23 @@ stay signed in there.
 
 ## Updates
 
-The app checks for a new version in the background and installs it the next
-time it starts; **Settings › Updates** shows the state and lets you check
-now. A `.deb` is updated by your package manager instead. If your computer
-is managed, your administrator can turn self-updating off with
-`LICTORY_DESKTOP_UPDATES=off`.
+Where the app can update itself, it checks for a new version in the
+background and installs it the next time it starts; **Settings › Updates**
+shows the state and lets you check now. Whether it can depends on how it was
+built and installed:
+
+| You installed                | Updates                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| macOS `.dmg`, Windows `.exe` | Itself, when the release was signed. An unsigned build says so in **Settings › Updates**. |
+| Linux AppImage               | Itself (each update is checked against the release's checksum).                           |
+| Debian or Ubuntu `.deb`      | Not by itself: no apt repository serves Lictory. Install the newest `.deb` over it.       |
+
+When the app does not update itself, **Settings › Updates** says why and
+links to [lictory.com/download](https://lictory.com/download); installing
+the new version over the old one keeps your servers and sign-ins. If the
+newest release has no update for your system yet, Settings says so and the
+app checks again later. If your computer is managed, your administrator can
+turn self-updating off with `LICTORY_DESKTOP_UPDATES=off`.
 
 ## For administrators
 
