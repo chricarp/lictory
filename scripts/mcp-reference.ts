@@ -103,7 +103,7 @@ group(
 );
 group(
   "events",
-  "Agent events",
+  "Event feed",
   "Be woken when something waits on you or your agent, instead of polling.",
   named(agentEventCapabilities),
 );
