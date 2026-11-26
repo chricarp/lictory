@@ -158,7 +158,8 @@ function AuditLog() {
       id="audit"
       icon={<ScrollText />}
       title="Audit log"
-      description="Who changed membership, application roles, invitations, access tokens and configuration, what agents did on someone's behalf, and which Definition of Done checks people passed by hand. Entries cannot be edited or deleted."
+      description="Who changed what in this organization, and what agents did on someone's behalf. Entries cannot be edited or deleted."
+      footer="Membership, application roles, invitations, access tokens, configuration, agents' calls and Definition of Done checks passed by hand are recorded."
       action={
         <Button
           size="sm"
