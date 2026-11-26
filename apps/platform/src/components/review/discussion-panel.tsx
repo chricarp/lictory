@@ -4,6 +4,8 @@ import { Collapsible } from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
+import { HeadingScope } from "@lictory/ui/heading";
+import { commentShortcut } from "@lictory/platform/lib/keyboard-selection";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { DiscussionCounts } from "@lictory/platform/components/discussions/presentation";
@@ -22,10 +24,7 @@ import { useSpecDiscussions } from "@lictory/platform/components/review/spec-dis
 // folded away until asked for; resolving never deletes a message.
 // Pull request and suggestion threads stay with their change.
 
-const mod =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? "⌘⌥M"
-    : "Ctrl+Alt+M";
+const mod = commentShortcut;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // Header toggle: the open discussions of the current revision, with a
@@ -276,9 +275,11 @@ export function SpecDiscussionPanel({
         )}
         {anchored.map(card)}
         {general.length > 0 && (
-          <SectionLabel className="mt-2">
-            On the whole specification
-          </SectionLabel>
+          <HeadingScope level={3}>
+            <SectionLabel className="mt-2">
+              On the whole specification
+            </SectionLabel>
+          </HeadingScope>
         )}
         {general.map(card)}
         {resolved.length > 0 && (
