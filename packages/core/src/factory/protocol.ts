@@ -91,6 +91,14 @@ export const runnerEventTypes = [
   "status",
 ] as const satisfies readonly SessionEventType[];
 
+// Status phases a runner reports that move the session: the harness waits
+// on a person's next message (running → waiting), and works again
+// (waiting → running, once no approval request is pending).
+export const runnerPhases = {
+  awaitingMessage: "awaiting_message",
+  working: "working",
+} as const;
+
 const text = (max: number) => z.string().max(max * 2);
 const shortText = z.string().max(400);
 

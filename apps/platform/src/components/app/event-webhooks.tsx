@@ -401,21 +401,26 @@ export function SubscriptionDetails({
               Test
             </Button>
           )}
-          {subscription.steps.includes("pause") && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => onAct("pause")}
-              aria-label={`Pause ${subscription.name}`}
-            >
-              Pause
-            </Button>
-          )}
+          {/* A suspended one is already stopped: its next step is Resume,
+              once the receiver works again. */}
+          {subscription.steps.includes("pause") &&
+            subscription.status !== "suspended" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onAct("pause")}
+                aria-label={`Pause ${subscription.name}`}
+              >
+                Pause
+              </Button>
+            )}
           {subscription.steps.includes("resume") && (
             <Button
               size="sm"
-              variant="ghost"
+              variant={
+                subscription.status === "suspended" ? "secondary" : "ghost"
+              }
               disabled={busy}
               onClick={() => onAct("resume")}
               aria-label={`Resume ${subscription.name}`}
@@ -462,15 +467,19 @@ export function SubscriptionDetails({
           {subscription.statusReason}
         </p>
       )}
-      {subscription.lastErrorDetail && (
-        <p className="text-xs text-destructive" role="status">
-          Last problem
-          {subscription.lastAttemptAt
-            ? ` (${when(subscription.lastAttemptAt)})`
-            : ""}
-          : {subscription.lastErrorDetail}
-        </p>
-      )}
+      {subscription.lastErrorDetail &&
+        !(
+          subscription.status !== "active" &&
+          subscription.statusReason?.includes(subscription.lastErrorDetail)
+        ) && (
+          <p className="text-xs text-destructive" role="status">
+            Last problem
+            {subscription.lastAttemptAt
+              ? ` (${when(subscription.lastAttemptAt)})`
+              : ""}
+            : {subscription.lastErrorDetail}
+          </p>
+        )}
       {notice && (
         <p
           role="status"

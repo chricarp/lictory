@@ -106,6 +106,10 @@ const claimMeanings: Record<ClaimEntity["state"], string> = {
     "The agent asked questions on the item's discussions that people have not resolved yet.",
 };
 
+// Why a queued session does not start, and what starts it.
+export const noRunnerMeaning =
+  "Queued, but no online runner can run this agent. Start a runner that has its harness, or add one.";
+
 export const firstName = (name: string) => {
   return name.trim().split(/\s+/)[0] ?? name;
 };
@@ -121,10 +125,21 @@ export function sessionState(
   options: {
     claim?: ClaimLike | null;
     decider?: string | null;
+    // Queued, and no online runner may take it (`waitsForRunner`).
+    noRunner?: boolean;
   } = {},
 ): SessionState {
-  const { claim, decider } = options;
+  const { claim, decider, noRunner } = options;
   const waitingOn = decider ? `Waiting on ${firstName(decider)}` : null;
+  if (session?.status === "queued" && noRunner)
+    return {
+      label: "No runner",
+      tone: "attention",
+      glyph: "queued",
+      meaning: noRunnerMeaning,
+      active: true,
+      needsPerson: false,
+    };
   if (session) {
     const status = session.status;
     const waiting = status === "waiting";

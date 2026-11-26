@@ -19,7 +19,7 @@ import { postMessage } from "@lictory/core/channels/writer";
 import { PROTOCOL } from "@lictory/core/contracts/protocol";
 import { executeMutation } from "@lictory/core/domain/service";
 import { decodeWire } from "@lictory/core/factory/model-wire";
-import { sessionTitle } from "@lictory/core/factory/entities";
+import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
 import { describeNotification } from "@lictory/core/notifications/format";
 import { proxyModelStream } from "@lictory/core/factory/model-proxy";
 import {
@@ -786,6 +786,114 @@ void test("the session state machine refuses steps from the wrong state", async 
   assert.equal(inputs.inputs.length, 0);
 });
 
+void test("an agent waiting for a person's next message waits on them, and a retry sends the earlier messages again", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const published: SessionThreadEvent[] = [];
+  setSessionThreadPublisher({
+    publish: async (e) => {
+      published.push(e);
+    },
+  });
+  const session = await start(ownerId, organizationId, agent.id);
+  const ctx = web(ownerId);
+  const ids = { organizationId, sessionId: session.id };
+  const lease = (await claimSession(db, machineRow))!;
+  await startRun(db, machineRow, session.id, lease.leaseToken);
+  // The agent asks in its own words and its harness waits for an answer:
+  // the session waits on the person, like an approval request.
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    event(1, "Should I quarantine the test or fix the timeout?"),
+    {
+      seq: 2,
+      type: "status",
+      data: {
+        phase: "awaiting_message",
+        message: "Waiting for the next message.",
+      },
+    },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  assert.ok(
+    published.some((e) => e.kind === "status" && e.sessionId === session.id),
+    "the card and the claim hear that it waits",
+  );
+  // The person answers; the harness works again.
+  await invoke(ctx, "sendAgentSessionMessage", {
+    ...ids,
+    text: "Fix the timeout.",
+  });
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    { seq: 3, type: "status", data: { phase: "working" } },
+    event(4, "Got it: Fix the timeout."),
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "running");
+  // An approval request still pending keeps it waiting, whatever the
+  // harness reports about messages.
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    {
+      seq: 5,
+      type: "approval_request",
+      data: {
+        requestId: "tool-1",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
+    },
+    { seq: 6, type: "status", data: { phase: "working" } },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  // Interrupt says what it does: the turn stops and the agent waits.
+  await invoke(ctx, "interruptAgentSession", ids);
+  assert.ok(
+    (await eventsOf(session.id)).some((e) =>
+      String((e.data as { message?: string }).message).includes(
+        "stops its current turn and waits for the next message",
+      ),
+    ),
+  );
+  await invoke(ctx, "cancelAgentSession", ids);
+  // A retry starts over from the task with the person's messages, in
+  // order, and without the old run's interrupt, cancel or answers.
+  await invoke(ctx, "retryAgentSession", ids);
+  const retried = await eventsOf(session.id);
+  assert.match(
+    String((retried.at(-1)?.data as { message?: string }).message),
+    /starts over from the task with the message sent to it before/,
+  );
+  const again = (await claimSession(db, machineRow))!;
+  const inbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    again.leaseToken,
+    again.inputCursor,
+  );
+  assert.deepEqual(
+    inbox.inputs.map((i) => [i.kind, i.data.text]),
+    [["message", "Fix the timeout."]],
+  );
+  // A second retry sends each message once.
+  await invoke(ctx, "cancelAgentSession", ids);
+  await invoke(ctx, "retryAgentSession", ids);
+  const third = (await claimSession(db, machineRow))!;
+  const thirdInbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    third.leaseToken,
+    third.inputCursor,
+  );
+  assert.deepEqual(
+    thirdInbox.inputs.map((i) => i.data.text),
+    ["Fix the timeout."],
+  );
+  setSessionThreadPublisher(null);
+});
+
 void test("approval requests are answered only by the requester or the agent's owner", async () => {
   const ownerId = await user("Ada");
   const memberId = await user("Grace");
@@ -1110,5 +1218,53 @@ void test("session titles stored with a doubled mention read with one @, whereve
       "Ada",
     ).headline,
     "Forge finished: @forge draft docs",
+  );
+});
+
+void test("a queued session waits for a runner when no online runner may take it", () => {
+  const now = Date.parse("2026-11-25T12:00:00Z");
+  const seen = new Date(now - 30_000).toISOString();
+  const agent = {
+    kind: "runner" as const,
+    harness: "claude-code" as const,
+    ownerId: "ada",
+    archivedAt: null,
+  };
+  const session = { status: "queued" as const, requestedRunnerId: null };
+  const runner = (extra: Record<string, unknown> = {}) => ({
+    id: "r1",
+    lastSeenAt: seen,
+    revokedAt: null,
+    harnesses: [{ id: "claude-code", version: "2" }],
+    ownerId: null,
+    ...extra,
+  });
+  assert.equal(waitsForRunner(session, agent, [runner()], now), false);
+  // Offline, without the harness, someone else's laptop, or not the
+  // runner the session asked for: nobody takes it.
+  for (const other of [
+    runner({ lastSeenAt: new Date(now - 10 * 60_000).toISOString() }),
+    runner({ harnesses: [{ id: "codex", version: "1" }] }),
+    runner({ ownerId: "ben" }),
+    runner({ revokedAt: seen }),
+  ])
+    assert.equal(waitsForRunner(session, agent, [other], now), true);
+  assert.equal(
+    waitsForRunner(
+      { status: "queued", requestedRunnerId: "r2" },
+      agent,
+      [runner()],
+      now,
+    ),
+    true,
+  );
+  // Its owner's own laptop runs it; a running session waits for nothing.
+  assert.equal(
+    waitsForRunner(session, agent, [runner({ ownerId: "ada" })], now),
+    false,
+  );
+  assert.equal(
+    waitsForRunner({ ...session, status: "running" }, agent, [], now),
+    false,
   );
 });

@@ -1,4 +1,8 @@
-import type { Assignment, SessionInput } from "@lictory/core/factory/protocol";
+import {
+  runnerPhases,
+  type Assignment,
+  type SessionInput,
+} from "@lictory/core/factory/protocol";
 import {
   ProtocolError,
   delay,
@@ -8,12 +12,13 @@ import {
 import type { RunnerConfig } from "@lictory/runner/config";
 import { EventStream } from "@lictory/runner/events";
 import { proxyModel } from "@lictory/runner/harness/model-client";
-import type {
-  AgentHarness,
-  Exec,
-  HarnessContext,
-  HarnessResult,
-  HarnessRun,
+import {
+  IDLE_GRACE_MS,
+  type AgentHarness,
+  type Exec,
+  type HarnessContext,
+  type HarnessResult,
+  type HarnessRun,
 } from "@lictory/runner/harness/types";
 import { containerExec, hostExec } from "@lictory/runner/process";
 import {
@@ -49,6 +54,9 @@ export type SessionEnd =
 class MessageQueue {
   private items: string[] = [];
   private waiters: ((text: string) => void)[] = [];
+  get queued() {
+    return this.items.length;
+  }
   push(text: string) {
     const waiter = this.waiters.shift();
     if (waiter) waiter(text);
@@ -179,6 +187,31 @@ export class SessionRun {
     }
   }
 
+  // The harness waits for a steering message. A wait longer than the short
+  // grace after a turn waits on a person (the agent asked something, or a
+  // person interrupted it): the server shows the session as waiting on
+  // them until a message arrives or the harness stops waiting.
+  private async nextMessage(waitMs: number, signal?: AbortSignal) {
+    const stop = signal
+      ? AbortSignal.any([signal, this.abort.signal])
+      : this.abort.signal;
+    const onPerson = waitMs > IDLE_GRACE_MS && this.messages.queued === 0;
+    if (onPerson) {
+      this.events.push("status", {
+        phase: runnerPhases.awaitingMessage,
+        message: "Waiting for the next message.",
+      });
+      if (this.state === "running") this.state = "waiting";
+    }
+    const text = await this.messages.take(waitMs, stop);
+    if (onPerson && !this.abort.signal.aborted) {
+      this.events.push("status", { phase: runnerPhases.working });
+      if (this.state === "waiting" && !this.pendingApprovals.size)
+        this.state = "running";
+    }
+    return text;
+  }
+
   // The steering inbox, long-polled for as long as the session runs.
   private async steer() {
     const api = this.deps.client.session(this.id);
@@ -268,13 +301,7 @@ export class SessionRun {
         },
         emit: this.emit,
         emitText: (type, delta) => this.events.pushText(type, delta),
-        nextMessage: (waitMs, signal) =>
-          this.messages.take(
-            waitMs,
-            signal
-              ? AbortSignal.any([signal, this.abort.signal])
-              : this.abort.signal,
-          ),
+        nextMessage: (waitMs, signal) => this.nextMessage(waitMs, signal),
         languageModel: assignment.modelProxy
           ? proxyModel(
               client,

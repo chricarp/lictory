@@ -28,6 +28,10 @@ import { firstName } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSessionEvents } from "@lictory/platform/components/factory/store";
 import {
+  approvalAction,
+  type ApprovalAction,
+} from "@lictory/platform/components/factory/progress";
+import {
   useAutonomy,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
@@ -69,9 +73,8 @@ type Props = {
   linkSession?: boolean;
   // Show the work item (off where the surrounding card already names it).
   linkItem?: boolean;
-  // Draw its own card (off inside a card that already frames it, such as a
-  // session card in a thread: one frame around the request, not two).
-  framed?: boolean;
+  // Inside another card (a channel's session card): no card of its own.
+  embedded?: boolean;
   // Replaces the server call (the design gallery's examples).
   onDecide?: (decision: "approve" | "deny") => Promise<void>;
 };
@@ -80,25 +83,44 @@ export function ApprovalRequest({
   compact = false,
   linkSession = true,
   linkItem = true,
-  framed = true,
+  embedded = false,
   ...props
 }: Props) {
   const [open, setOpen] = useState(!compact);
   const bodyId = useId();
   const { session, approval, agent } = props;
+  const { items, projects } = useWorkspace();
   if (!compact)
     return (
       <div
         data-approval-request
         className={cn(
           "[--actor-ring:var(--card)]",
-          framed && "rounded-xl bg-card p-4 shadow-(--shadow-border)",
+          embedded
+            ? "px-3 py-3"
+            : "rounded-xl bg-card p-4 shadow-(--shadow-border)",
         )}
       >
         <Ask approval={approval} agent={agent} session={session} />
         <Context {...props} linkSession={linkSession} linkItem={linkItem} />
       </div>
     );
+  // Rows asking the same thing ("Run the migration" for three items) must
+  // differ where people scan: the item leads the title, and the line under
+  // it says the exact action and the session's task.
+  const item = session.workItemId
+    ? items.find((i) => i.id === session.workItemId)
+    : undefined;
+  const project = item
+    ? projects.find((p) => p.id === item.projectId)
+    : undefined;
+  const itemKey = item && project ? identifier(project, item.number) : null;
+  const action = approvalAction(approval.detail);
+  const task = sessionTitle(session.title);
+  const taskBesideKey =
+    itemKey && task.startsWith(`${itemKey}: `)
+      ? task.slice(itemKey.length + 2)
+      : task;
   return (
     <li
       data-approval-request
@@ -114,10 +136,23 @@ export function ApprovalRequest({
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] leading-5 font-medium">
-            {approval.title}
+          <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] leading-5">
+            {itemKey && (
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {itemKey}
+              </span>
+            )}
+            <span className="min-w-0 truncate font-medium">
+              {approval.title}
+            </span>
           </span>
           <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4 text-muted-foreground">
+            {action && (
+              <>
+                <ActionText action={action} className="max-w-[45%]" />
+                <span aria-hidden>·</span>
+              </>
+            )}
             <AgentActor
               agent={agent}
               ownerId={agent?.ownerId}
@@ -125,9 +160,7 @@ export function ApprovalRequest({
               className="shrink-0"
             />
             <span aria-hidden>·</span>
-            <span className="min-w-0 truncate">
-              {sessionTitle(session.title)}
-            </span>
+            <span className="min-w-0 truncate">{taskBesideKey}</span>
           </span>
         </span>
         <time
@@ -141,6 +174,8 @@ export function ApprovalRequest({
           size="sm"
           aria-expanded={open}
           aria-controls={bodyId}
+          // Several rows can ask the same thing: the name says which.
+          aria-label={`${open ? "Close" : "Review"}: ${approval.title}, ${itemKey ?? `“${task}”`}`}
           onClick={() => setOpen((o) => !o)}
         >
           {open ? "Close" : "Review"}
@@ -159,6 +194,30 @@ export function ApprovalRequest({
         </div>
       )}
     </li>
+  );
+}
+
+// The exact action, in one line: "$ bun run db:migrate", "Write CHANGES.md".
+function ActionText({
+  action,
+  className,
+}: {
+  action: ApprovalAction;
+  className?: string;
+}) {
+  return (
+    <code
+      className={cn(
+        "min-w-0 shrink-0 truncate font-mono text-[11px] text-foreground",
+        className,
+      )}
+    >
+      {action.kind === "command"
+        ? `$ ${action.text}`
+        : action.kind === "file"
+          ? `${action.tool} ${action.text}`
+          : action.text}
+    </code>
   );
 }
 
@@ -291,6 +350,10 @@ function Context({
         ? evidence.input
         : JSON.stringify(evidence.input, null, 2);
   const reason = evidence.reason;
+  const action = approvalAction({
+    tool: evidence.tool,
+    input: evidence.input,
+  });
   return (
     <div className="mt-3 space-y-3 text-[13px]">
       {reason && <p className="leading-5">{reason}</p>}
@@ -337,12 +400,39 @@ function Context({
       {(evidence.tool || input) && (
         <div>
           <p className="mb-1 text-xs font-semibold text-muted-foreground">
-            {evidence.tool ? `It wants to run ${evidence.tool}` : "Its request"}
+            {action?.kind === "command"
+              ? "It wants to run"
+              : action?.kind === "file"
+                ? `It wants to use ${action.tool} on`
+                : evidence.tool
+                  ? `It wants to use ${evidence.tool}`
+                  : "Its request"}
           </p>
-          {input && (
-            <pre className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap">
-              {input}
-            </pre>
+          {action && action.kind !== "tool" ? (
+            <>
+              <pre
+                aria-label="The exact action"
+                className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[12px] leading-4 whitespace-pre-wrap text-foreground"
+              >
+                {action.kind === "command" ? `$ ${action.text}` : action.text}
+              </pre>
+              {input && (
+                <details className="mt-1 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer rounded-sm focus-ring outline-none">
+                    The full request
+                  </summary>
+                  <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap">
+                    {input}
+                  </pre>
+                </details>
+              )}
+            </>
+          ) : (
+            input && (
+              <pre className="max-h-40 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap">
+                {input}
+              </pre>
+            )
           )}
         </div>
       )}
@@ -406,6 +496,12 @@ function Context({
       )}
       {!complete && !reason && !input && (
         <p className="text-xs text-muted-foreground">Loading what it did…</p>
+      )}
+      {complete && !evidence.tool && !input && (
+        <p className="text-xs text-muted-foreground">
+          The agent stated no command or file with this request; its title is
+          all it asks. Ask in the session if that is not enough to decide.
+        </p>
       )}
       {(session.pullRequestId ?? session.pullRequestUrl) && (
         <p className="text-xs">

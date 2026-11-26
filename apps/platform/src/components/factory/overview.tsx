@@ -10,7 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { runnerOnline } from "@lictory/core/factory/entities";
+import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { LoadingState } from "@lictory/ui/spinner";
 import { MissingState } from "@lictory/ui/status-page";
@@ -34,6 +34,7 @@ import {
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
+import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
 
@@ -99,12 +100,52 @@ export function FactoryOverview() {
     `${online} of ${active} ${active === 1 ? "runner" : "runners"} online`,
   ].filter(Boolean);
   const recent = blocks.recent.slice(0, RECENT);
+  // Queued work no online runner can take waits silently otherwise.
+  const stranded = blocks.running.filter((s) =>
+    waitsForRunner(s, agentById.get(s.agentId), runners),
+  );
+  const strandedAgents = [
+    ...new Set(
+      stranded.map((s) => {
+        const agent = agentById.get(s.agentId);
+        return agent
+          ? `${agent.name} (${harnessLabel(agent.harness)})`
+          : "its agent";
+      }),
+    ),
+  ];
   return (
     <FactoryPage
       description={description}
       meta={<span data-factory-counts>{counts.join(" · ")}</span>}
       actions={start}
     >
+      {stranded.length > 0 && (
+        <div
+          role="status"
+          data-no-runner
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-warning/8 px-4 py-3 text-[13px] ring-1 ring-warning/25 ring-inset"
+        >
+          <Server
+            className="size-4 shrink-0 text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1">
+            {stranded.length === 1
+              ? "1 queued session waits for a runner"
+              : `${stranded.length} queued sessions wait for a runner`}
+            : no online runner can run {strandedAgents.join(", ")}. Start one,
+            or add a runner that has the harness.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            render={<Link href={factoryPaths.runners(org)} />}
+          >
+            Runners
+          </Button>
+        </div>
+      )}
       <Panel
         title="Needs you"
         icon={<Hand />}

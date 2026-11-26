@@ -251,6 +251,13 @@ const RichMarkdownEditor = forwardRef<
 
   // Everything the editor's callbacks read, current after every render,
   // so the editor is created once.
+  // The placeholder follows the context too ("Steer Forge…" once a queued
+  // session starts); the editor reads it on every redraw.
+  const placeholderText =
+    placeholder ??
+    (references
+      ? "Write, or type / for blocks, # for a work item, [[ for a page"
+      : "Write…");
   const latest = useRef({
     enterSubmits,
     onValueChange,
@@ -260,6 +267,7 @@ const RichMarkdownEditor = forwardRef<
     mentions,
     resolver,
     fileContext,
+    placeholder: placeholderText,
   });
   useEffect(() => {
     latest.current = {
@@ -271,6 +279,7 @@ const RichMarkdownEditor = forwardRef<
       mentions,
       resolver,
       fileContext,
+      placeholder: placeholderText,
     };
   });
   // The Markdown the document was read from, and the last value sent up.
@@ -332,11 +341,7 @@ const RichMarkdownEditor = forwardRef<
         ...withNodeViews(markdownExtensions()),
         UndoRedo,
         Placeholder.configure({
-          placeholder:
-            placeholder ??
-            (references
-              ? "Write, or type / for blocks, # for a work item, [[ for a page"
-              : "Write…"),
+          placeholder: () => latest.current.placeholder,
         }),
         suggestionExtension("slashMenu", {
           char: "/",

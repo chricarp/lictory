@@ -113,3 +113,29 @@ export function filesChangedLabel(progress: SessionProgress) {
   const count = `${n}${progress.partial ? "+" : ""}`;
   return `${count} ${n === 1 && !progress.partial ? "file" : "files"} changed`;
 }
+
+// The exact action an approval request asks for, from the request's own
+// tool and input as the harness stated them: the command it would run, the
+// file it would write, or the tool. Null when the request names neither
+// (an agent's plain question), so a list row never guesses.
+export type ApprovalAction =
+  | { kind: "command"; text: string }
+  | { kind: "file"; tool: string; text: string }
+  | { kind: "tool"; text: string };
+
+export function approvalAction(
+  detail: Readonly<Record<string, unknown>> | null | undefined,
+): ApprovalAction | null {
+  const tool = typeof detail?.tool === "string" ? detail.tool : "";
+  const input =
+    detail?.input && typeof detail.input === "object"
+      ? (detail.input as Record<string, unknown>)
+      : {};
+  const text = (key: string) =>
+    typeof input[key] === "string" ? input[key].trim() : "";
+  const command = text("command");
+  if (command) return { kind: "command", text: command };
+  const file = text("file_path") || text("notebook_path") || text("path");
+  if (file) return { kind: "file", tool: tool || "Edit", text: file };
+  return tool ? { kind: "tool", text: tool } : null;
+}

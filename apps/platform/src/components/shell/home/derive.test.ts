@@ -190,6 +190,8 @@ void test("waiting on you is one queue: agents' questions first, each thing once
       },
       // Waiting for my next message: the session itself, once.
       { session: { id: "s2", updatedAt: "2026-10-29" } },
+      // A session I started that failed waits like a review.
+      { session: { id: "s3", updatedAt: "2026-11-03" }, failed: true },
     ],
   });
   // An agent waiting on a person is stopped: its questions lead, newest
@@ -200,6 +202,7 @@ void test("waiting on you is one queue: agents' questions first, each thing once
       "agent:a2",
       "agent:a1",
       "agent:session:s2",
+      "agent:failed:s3",
       "page:p2",
       "item:i2:Review requested",
       "item:i1:Changes requested",

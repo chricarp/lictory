@@ -413,6 +413,7 @@ const factoryRoutes = [
   factoryRoute("/factory/agents", "FactoryAgentsRoute"),
   factoryRoute("/factory/agents/$agent", "FactoryAgentRoute"),
   factoryRoute("/factory/runners", "FactoryRunnersRoute"),
+  factoryRoute("/factory/sessions", "FactorySessionsRoute"),
   factoryRoute("/factory/sessions/$session", "FactorySessionRoute"),
 ];
 // Lictory Channels. Static segments rank above `$project` ("CHANNELS" is a

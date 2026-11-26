@@ -6,6 +6,7 @@ import { Button } from "@lictory/ui/button";
 import {
   CircleAlert,
   CircleCheckBig,
+  CircleX,
   FileText,
   Inbox as InboxIcon,
   MessageSquareWarning,
@@ -32,12 +33,17 @@ import {
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import {
-  sessionTitle,
-  type AgentEntity,
-  type RunnerEntity,
-  type SessionEntity,
+import type {
+  AgentEntity,
+  RunnerEntity,
+  SessionEntity,
 } from "@lictory/core/factory/entities";
+import {
+  sessionOutcome,
+  titleBeside,
+  useItemKey,
+} from "@lictory/platform/components/factory/parts";
+import { failedForMe } from "@lictory/platform/components/factory/overview-blocks";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
 import { waitingOnYou } from "@lictory/platform/components/shell/home/derive";
 import {
@@ -120,6 +126,16 @@ export function useAttention() {
             .map((r) => r.responsibility)
             .join(", "),
           icon: <MessageSquareWarning className="size-4 text-warning" />,
+          weight: 1,
+        });
+      else if (mine(item) && link?.status === "failed")
+        // The delivery tool refused it: nothing reaches it until someone
+        // fixes the cause and retries from the item.
+        list.push({
+          item,
+          reason: "Publish failed",
+          detail: `${link.lastError ?? "The delivery tool refused it."} Retry from the item.`,
+          icon: <CircleAlert className="size-4 text-destructive" />,
           weight: 1,
         });
       else if (mine(item) && item.blockingThreads > 0)
@@ -222,6 +238,8 @@ type AgentRequest = {
   approval?: SessionEntity["approvals"][number];
   agent?: AgentEntity;
   runner?: RunnerEntity;
+  // A session I started that failed: mine to retry or leave.
+  failed?: boolean;
 };
 
 // Everything waiting on me, as one queue (see `waitingOnYou`): Home's
@@ -247,7 +265,14 @@ export function useWaitingOnYou() {
           : [{ ...context, approval: undefined }];
       },
     );
-    return waitingOnYou({ items, pages, requests });
+    const failures = failedForMe(sessions, userId).map(
+      (session): AgentRequest => ({
+        session,
+        agent: agentById.get(session.agentId),
+        failed: true,
+      }),
+    );
+    return waitingOnYou({ items, pages, requests: [...requests, ...failures] });
   }, [items, pages, sessions, agentById, runnerById, userId]);
 }
 
@@ -258,14 +283,43 @@ export type WaitingRow = ReturnType<typeof useWaitingOnYou>[number];
 // be approved). The link names why the row is here, then what it is.
 export function WaitingRowView({ row }: { row: WaitingRow }) {
   const { projects, organization } = useWorkspace();
+  const itemKey = useItemKey();
   if (row.kind === "agent") {
-    const { session, approval, agent, runner } = row.request;
+    const { session, approval, agent, runner, failed } = row.request;
+    const key = itemKey(session.workItemId);
+    if (failed)
+      return (
+        <ListRow
+          href={factoryPaths.session(organization.slug, session.id)}
+          leading={<CircleX className="size-4 text-destructive" />}
+          identifier={key}
+          title={
+            <>
+              <span className="sr-only">Failed · </span>
+              {titleBeside(session.title, key)}
+            </>
+          }
+          meta={
+            <>
+              <span className="shrink-0 font-medium text-foreground/80">
+                {agent?.name ?? "The agent"} failed
+              </span>
+              <span aria-hidden>·</span>
+              <span className="truncate">
+                {sessionOutcome(session)} Retry it or start over.
+              </span>
+            </>
+          }
+          time={session.completedAt ?? session.updatedAt}
+        />
+      );
     if (!approval)
       return (
         <ListRow
           href={factoryPaths.session(organization.slug, session.id)}
           leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
-          title={sessionTitle(session.title)}
+          identifier={key}
+          title={titleBeside(session.title, key)}
           meta={`${agent?.name ?? "An agent"} is waiting for your next message`}
           time={session.updatedAt}
         />

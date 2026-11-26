@@ -16,6 +16,7 @@ import { MissingState } from "@lictory/ui/status-page";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { toast } from "@lictory/ui/toast";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { osLabel } from "@lictory/platform/components/factory/labels";
 import { FactoryPage } from "@lictory/platform/components/factory/parts";
@@ -23,6 +24,7 @@ import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
+  expiresIn,
   runnerInstallCommand,
   type RunnerSystem,
 } from "@lictory/platform/components/factory/runner-install";
@@ -109,7 +111,8 @@ export function FactoryRunners() {
 function Capacity({ used, max }: { used: number; max: number }) {
   const share = max > 0 ? Math.min(1, used / max) : 0;
   return (
-    <span className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
+    // A fixed width, so every row's meter and state line up.
+    <span className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums sm:w-36">
       <span
         role="meter"
         aria-label="Sessions running"
@@ -167,11 +170,15 @@ function RunnerRow({
     }
   };
   const Icon = runner.personal ? Laptop : Server;
+  // Registering is the runner's first contact; a runner that has not
+  // connected since was registered but never started.
+  const started = runner.lastSeenAt !== runner.registeredAt;
   return (
     <>
       <ListRow
-        // Phones keep the name: the time gives way.
-        className="max-sm:[&>time]:hidden"
+        // Phones keep the name: the time gives way. The time has a fixed
+        // width so the chips line up from row to row.
+        className="max-sm:[&>time]:hidden sm:[&>time]:w-28 sm:[&>time]:text-right"
         leading={<Icon aria-hidden className="text-muted-foreground" />}
         title={<span className="font-medium">{runner.name}</span>}
         meta={
@@ -202,39 +209,51 @@ function RunnerRow({
                 Containers
               </StatusChip>
             )}
-            <StatusChip
-              tone={online ? "success" : "neutral"}
-              icon={online ? <StatusDot /> : <CircleOff />}
-              title={
-                runner.lastSeenAt
-                  ? `Last seen ${new Date(runner.lastSeenAt).toLocaleString()}`
-                  : "It has never connected."
-              }
-            >
-              {online ? "Online" : "Offline"}
-            </StatusChip>
+            <span className="flex sm:w-24">
+              <StatusChip
+                tone={online ? "success" : "neutral"}
+                icon={online ? <StatusDot /> : <CircleOff />}
+                title={
+                  !started
+                    ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
+                    : runner.lastSeenAt
+                      ? `Last seen ${new Date(runner.lastSeenAt).toLocaleString()}`
+                      : "It has never connected."
+                }
+              >
+                {online ? "Online" : started ? "Offline" : "Not started"}
+              </StatusChip>
+            </span>
           </>
         }
         time={
-          runner.lastSeenAt
+          !started
             ? {
-                iso: runner.lastSeenAt,
-                label: online
-                  ? `Seen ${relativeTime(runner.lastSeenAt)}`
-                  : `Last seen ${relativeTime(runner.lastSeenAt)}`,
+                iso: runner.registeredAt,
+                label: `Registered ${relativeTime(runner.registeredAt)}`,
               }
-            : undefined
+            : runner.lastSeenAt
+              ? {
+                  iso: runner.lastSeenAt,
+                  label: online
+                    ? `Seen ${relativeTime(runner.lastSeenAt)}`
+                    : `Last seen ${relativeTime(runner.lastSeenAt)}`,
+                }
+              : undefined
         }
         actions={
           canRevoke && !confirming ? (
-            <Button
-              variant="ghost"
-              onClick={() => setConfirming(true)}
-              aria-label={`Remove ${runner.name}…`}
-            >
-              <Trash2 className="size-3.5" aria-hidden />
-              <span className="max-sm:hidden">Remove runner…</span>
-            </Button>
+            <Tooltip label="Remove runner…">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={() => setConfirming(true)}
+                aria-label={`Remove ${runner.name}…`}
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </Button>
+            </Tooltip>
           ) : undefined
         }
       />
@@ -368,8 +387,9 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
             {commands}
           </CommandBlock>
           <p className="text-xs text-muted-foreground">
-            The token works once and expires {relativeTime(token.expiresAt)}.
-            The installer checks the download against the release&apos;s
+            The token works once and expires{" "}
+            <time dateTime={token.expiresAt}>{expiresIn(token.expiresAt)}</time>
+            . The installer checks the download against the release&apos;s
             checksums, registers the runner and keeps it running as a service.
             Install Claude Code or Codex on the machine for those agents;{" "}
             <code className="font-mono">lictory-runner doctor</code> checks the

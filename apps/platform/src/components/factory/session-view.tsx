@@ -30,6 +30,7 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
@@ -170,22 +171,26 @@ export function SessionView() {
             {/* Laptops: labelled buttons. Phones: one labelled menu, so
                 the title keeps the bar. */}
             {canInterrupt && (
-              <Button
-                variant="secondary"
-                className="max-md:hidden"
-                onClick={interrupt}
-              >
-                <Hand className="size-3.5" aria-hidden /> Interrupt
-              </Button>
+              <Tooltip label={INTERRUPT_HINT}>
+                <Button
+                  variant="secondary"
+                  className="max-md:hidden"
+                  onClick={interrupt}
+                >
+                  <Hand className="size-3.5" aria-hidden /> Interrupt
+                </Button>
+              </Tooltip>
             )}
             {canCancel && (
-              <Button
-                variant="secondary"
-                className="max-md:hidden"
-                onClick={cancel}
-              >
-                <CircleStop className="size-3.5" aria-hidden /> Cancel
-              </Button>
+              <Tooltip label={CANCEL_HINT}>
+                <Button
+                  variant="secondary"
+                  className="max-md:hidden"
+                  onClick={cancel}
+                >
+                  <CircleStop className="size-3.5" aria-hidden /> Cancel
+                </Button>
+              </Tooltip>
             )}
             {(canInterrupt || canCancel) && (
               <Menu>
@@ -205,22 +210,34 @@ export function SessionView() {
                   {canInterrupt && (
                     <MenuItem onSelect={() => void interrupt()}>
                       <Hand className="size-3.5 text-muted-foreground" />{" "}
-                      Interrupt
+                      <span>
+                        Interrupt
+                        <span className="block text-xs text-muted-foreground">
+                          It stops and waits for you
+                        </span>
+                      </span>
                     </MenuItem>
                   )}
                   {canCancel && (
                     <MenuItem onSelect={() => void cancel()}>
                       <CircleStop className="size-3.5 text-muted-foreground" />{" "}
-                      Cancel session
+                      <span>
+                        Cancel session
+                        <span className="block text-xs text-muted-foreground">
+                          It ends; Retry starts it over
+                        </span>
+                      </span>
                     </MenuItem>
                   )}
                 </MenuContent>
               </Menu>
             )}
             {steer && allows("retry") && (
-              <Button onClick={act("retryAgentSession", "Retrying")}>
-                <RotateCcw className="size-3.5" aria-hidden /> Retry
-              </Button>
+              <Tooltip label={RETRY_HINT}>
+                <Button onClick={act("retryAgentSession", "Retrying")}>
+                  <RotateCcw className="size-3.5" aria-hidden /> Retry
+                </Button>
+              </Tooltip>
             )}
           </>
         }
@@ -233,25 +250,25 @@ export function SessionView() {
         className="flex h-9 shrink-0 scroll-fade-x [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*:not([data-shrink])]:shrink-0"
       >
         <SessionStateChip state={state} className="sm:hidden" />
+        {/* Who and what first: the agent, who started it, the item and
+            its pull request. Then, quieter, where it runs. */}
         <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />
-        {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
-        {runner && (
-          <Meta icon={<Server />} label="Runner">
-            {runner.name}
-          </Meta>
-        )}
+        <span className="flex items-center gap-1">
+          started by <SessionStarter session={session} />
+          <time
+            dateTime={session.createdAt}
+            title={absoluteTime(session.createdAt)}
+          >
+            {relativeTime(session.createdAt)}
+          </time>
+        </span>
         {itemKey && (
           <Link
             href={paths.item(org, project!.key, itemKey)}
-            className="rounded-sm font-mono focus-ring outline-none hover:text-foreground"
+            className="rounded-sm font-mono text-foreground focus-ring outline-none hover:underline"
           >
             {itemKey}
           </Link>
-        )}
-        {session.branch && (
-          <Meta icon={<GitBranch />} label="Branch" shrink>
-            <MiddleTruncate text={session.branch} className="font-mono" />
-          </Meta>
         )}
         {session.pullRequestId ? (
           <Link
@@ -272,15 +289,18 @@ export function SessionView() {
             </a>
           )
         )}
-        <span className="flex items-center gap-1">
-          Started by <SessionStarter session={session} />
-          <time
-            dateTime={session.createdAt}
-            title={absoluteTime(session.createdAt)}
-          >
-            {relativeTime(session.createdAt)}
-          </time>
-        </span>
+        <span aria-hidden className="h-3.5 w-px bg-border" />
+        {runner && (
+          <Meta icon={<Server />} label="Runner">
+            {runner.name}
+          </Meta>
+        )}
+        {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
+        {session.branch && (
+          <Meta icon={<GitBranch />} label="Branch" shrink>
+            <MiddleTruncate text={session.branch} className="font-mono" />
+          </Meta>
+        )}
         {session.attempts > 1 && (
           <span>
             Attempt {session.attempts} of {session.maxAttempts}
@@ -339,6 +359,17 @@ export function SessionView() {
             )}
         </div>
       </div>
+      {session.status === "waiting" && !asks.length && (
+        <p
+          data-waiting-for-message
+          className="flex shrink-0 items-center justify-center gap-1.5 border-t bg-warning/5 px-4 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] sm:px-6"
+        >
+          <Hand className="size-3.5 shrink-0" aria-hidden />
+          {steer
+            ? `${agent?.name ?? "The agent"} waits for your next message. Answer below, or cancel the session.`
+            : `${state.label}: ${agent?.name ?? "the agent"} waits for the next message.`}
+        </p>
+      )}
       {asks.length > 0 && (
         <section
           aria-label={steer ? "Waiting on you" : state.label}
@@ -401,6 +432,13 @@ export function SessionView() {
     </div>
   );
 }
+
+const INTERRUPT_HINT =
+  "Stops the agent’s current turn. It keeps its work and waits for your next message.";
+const CANCEL_HINT =
+  "Ends the session. Retry starts it over from the task, with the messages you sent.";
+const RETRY_HINT =
+  "Runs the session again from the task; your earlier messages are sent again.";
 
 function Meta({
   icon,

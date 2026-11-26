@@ -2,11 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { harnessIds } from "@lictory/core/factory/protocol";
-import type {
-  AgentHarness,
-  HarnessContext,
-  HarnessResult,
-  HarnessRun,
+import {
+  INTERRUPTED_WAIT_MS,
+  type AgentHarness,
+  type HarnessContext,
+  type HarnessResult,
+  type HarnessRun,
 } from "@lictory/runner/harness/types";
 
 // A scripted harness for tests (`lictory-runner start --test-harness
@@ -32,7 +33,18 @@ const baseStep = z.union([
     }),
   }),
   z.object({ writeFile: z.object({ path: z.string(), content: z.string() }) }),
-  z.object({ ask: z.string() }),
+  // An approval request; `action` is the exact tool call it asks for, as a
+  // real harness's permission prompt states it.
+  z.object({
+    ask: z.string(),
+    action: z
+      .object({
+        tool: z.string(),
+        input: z.record(z.string(), z.unknown()).default({}),
+      })
+      .optional(),
+    reason: z.string().optional(),
+  }),
   z.object({ waitForMessage: z.literal(true) }),
   z.object({ sleep: z.number().int().min(0).max(600_000) }),
   z.object({ fail: z.string() }),
@@ -89,7 +101,10 @@ export const defaultScript: FakeScript = [
   { command: { command: "npm test", output: "12 passing", exitCode: 0 } },
   { say: "Ready for your instructions." },
   { waitForMessage: true },
-  { ask: "Run the database migration" },
+  {
+    ask: "Run the database migration",
+    action: { tool: "Bash", input: { command: "bun run db:migrate" } },
+  },
   {
     writeFile: {
       path: "CHANGES.md",
@@ -113,6 +128,9 @@ const wait = (ms: number, signal: AbortSignal) =>
     });
   });
 
+const stepText = (text: string | null) =>
+  text ? `Got it: ${text}` : "No message arrived.";
+
 export function fakeHarnesses(script: FakeScript): AgentHarness[] {
   return harnessIds.map((id) => ({
     id,
@@ -125,12 +143,28 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
   const stop = new AbortController();
   const signal = AbortSignal.any([stop.signal, ctx.signal]);
   const answers = new Map<string, (decision: string) => void>();
-  let interrupted: (() => void) | null = null;
+  // Interrupt stops the current step (a sleep) and, like a real harness,
+  // waits for the person's next message before it goes on. While the
+  // agent already waits for a message, it keeps waiting.
+  let interruptRequested = false;
+  let cutStep: (() => void) | null = null;
 
   const done = (async (): Promise<HarnessResult> => {
     let summary: string | undefined;
     let asked = 0;
+    const afterInterrupt = async () => {
+      if (!interruptRequested || signal.aborted) return;
+      interruptRequested = false;
+      ctx.emit("message", {
+        text: "Stopped. Waiting for your next message.",
+      });
+      const text = await ctx.nextMessage(INTERRUPTED_WAIT_MS, signal);
+      // It was already waiting: another interrupt meanwhile changes nothing.
+      interruptRequested = false;
+      if (!signal.aborted) ctx.emit("message", { text: stepText(text) });
+    };
     for (const item of stepsFor(script, ctx.prompt)) {
+      await afterInterrupt();
       if (signal.aborted) break;
       if ("say" in item) ctx.emit("message", { text: item.say });
       else if ("tool" in item) {
@@ -154,7 +188,14 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
         const decision = new Promise<string>((resolve) =>
           answers.set(requestId, resolve),
         );
-        ctx.emit("approval_request", { requestId, title: item.ask });
+        ctx.emit("approval_request", {
+          requestId,
+          title: item.ask,
+          ...(item.action
+            ? { tool: item.action.tool, input: item.action.input }
+            : {}),
+          ...(item.reason ? { reason: item.reason } : {}),
+        });
         const answer = await Promise.race([
           decision,
           new Promise<string>((resolve) =>
@@ -169,17 +210,11 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
               : `Denied: ${item.ask}. Skipping it.`,
         });
       } else if ("waitForMessage" in item) {
-        const text = await Promise.race([
-          ctx.nextMessage(30 * 60_000, signal),
-          new Promise<null>((resolve) => {
-            interrupted = () => resolve(null);
-          }),
-        ]);
-        interrupted = null;
+        const text = await ctx.nextMessage(30 * 60_000, signal);
+        // An interrupt while it waits for a message changes nothing.
+        interruptRequested = false;
         if (signal.aborted) break;
-        ctx.emit("message", {
-          text: text ? `Got it: ${text}` : "No message arrived.",
-        });
+        ctx.emit("message", { text: stepText(text) });
       } else if ("lictory" in item) {
         const callId = `call-${Math.random().toString(36).slice(2, 10)}`;
         ctx.emit("tool_call", {
@@ -199,18 +234,26 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
           ctx.emit("tool_result", { callId, output: message, isError: true });
           return { outcome: "failed", error: message };
         }
-      } else if ("sleep" in item) await wait(item.sleep, signal);
+      } else if ("sleep" in item)
+        await Promise.race([
+          wait(item.sleep, signal),
+          new Promise<void>((resolve) => (cutStep = () => resolve())),
+        ]).finally(() => (cutStep = null));
       else if ("fail" in item) return { outcome: "failed", error: item.fail };
       else if ("summary" in item) {
         summary = item.summary;
         ctx.emit("summary", { text: item.summary });
       }
     }
+    await afterInterrupt();
     return { outcome: "completed", summary };
   })();
 
   return {
-    interrupt: () => interrupted?.(),
+    interrupt: () => {
+      interruptRequested = true;
+      cutStep?.();
+    },
     answer: (requestId, decision) => answers.get(requestId)?.(decision),
     stop: () => stop.abort(),
     done,

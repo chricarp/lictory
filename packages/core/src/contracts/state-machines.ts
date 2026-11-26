@@ -526,7 +526,8 @@ export const agentSession = stateMachine({
     queued: "Waiting for a runner that may run its agent.",
     assigned: "Claimed by a runner, which is preparing the workspace.",
     running: "The agent is working.",
-    waiting: "The agent asked a person to decide something.",
+    waiting:
+      "The agent waits on a person: a decision it asked for, or the next message.",
     completed: "The agent finished; its result is a claim, not proof.",
     failed: "Stopped by an error or after its runner was lost too often.",
     canceled: "Stopped by a person.",
@@ -548,15 +549,15 @@ export const agentSession = stateMachine({
       refused: "This session is not assigned to a runner.",
     },
     wait: {
-      does: "Wait for a person's answer",
+      does: "Wait for a person's decision or next message",
       from: ["running"],
       to: "waiting",
       idempotent: true,
       automatic: true,
-      refused: "Only a running session can ask a person something.",
+      refused: "Only a running session can wait on a person.",
     },
     resume: {
-      does: "Resume after every question was answered",
+      does: "Work again once the person answered",
       from: ["waiting"],
       to: "running",
       idempotent: true,
@@ -584,7 +585,7 @@ export const agentSession = stateMachine({
         `This session is ${state}. Retry it or start a new session to continue.`,
     },
     interrupt: {
-      does: "Interrupt the agent's current turn",
+      does: "Stop the agent's current turn; it waits for the next message",
       from: ["running", "waiting"],
       refused: (state) =>
         state === "queued" || state === "assigned"
@@ -605,7 +606,7 @@ export const agentSession = stateMachine({
       refused: (state) => `This session is already ${state}.`,
     },
     retry: {
-      does: "Retry from the start",
+      does: "Retry from the task, with the messages sent before",
       from: ["failed", "canceled"],
       to: "queued",
       refused: (state) =>

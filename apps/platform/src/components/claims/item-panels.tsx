@@ -31,6 +31,12 @@ import {
 } from "@lictory/platform/components/claims/claim-state";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { waitsForRunner } from "@lictory/core/factory/entities";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import {
+  useFactory,
+  useSession,
+} from "@lictory/platform/components/factory/store";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   leaseLeft,
@@ -40,6 +46,28 @@ import {
   useClaimability,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+
+// A claim's session before it runs: starting, or queued with no online
+// runner that can run its agent (it would otherwise wait silently).
+function StartingSession({ sessionId }: { sessionId: string }) {
+  const { organization } = useWorkspace();
+  const { session } = useSession(sessionId);
+  const { runners, agentById } = useFactory();
+  const agent = session ? agentById.get(session.agentId) : undefined;
+  if (!session || !waitsForRunner(session, agent, runners))
+    return "A session is starting for it.";
+  return (
+    <>
+      Its session is queued: no online runner can run {agent?.name}.{" "}
+      <Link
+        href={factoryPaths.runners(organization.slug)}
+        className="rounded-sm text-foreground underline underline-offset-2 focus-ring outline-none"
+      >
+        Runners
+      </Link>
+    </>
+  );
+}
 
 const textareaClass =
   "w-full resize-y rounded-xl border bg-card px-3 py-2 text-[13px] shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/15";
@@ -111,8 +139,7 @@ export function ClaimPanel() {
           </div>
           {claim.sessionWaitingSince && claim.agentSessionId ? (
             <p className="text-xs text-muted-foreground">
-              Its session waits on {firstName(owner)}&apos;s answer to an
-              approval request.{" "}
+              Its session waits on {firstName(owner)}&apos;s answer.{" "}
               <Link
                 href={paths.factorySession(
                   organization.slug,
@@ -134,11 +161,17 @@ export function ClaimPanel() {
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {claim.state === "starting"
-                ? "A session is starting for it."
-                : leaseLeft(claim) > 0
-                  ? `Lease ends in ${leaseLeft(claim)} min unless the agent renews it.`
-                  : "Lease ended; the next sweep returns it to the queue."}
+              {claim.state === "starting" ? (
+                claim.agentSessionId ? (
+                  <StartingSession sessionId={claim.agentSessionId} />
+                ) : (
+                  "A session is starting for it."
+                )
+              ) : leaseLeft(claim) > 0 ? (
+                `Lease ends in ${leaseLeft(claim)} min unless the agent renews it.`
+              ) : (
+                "Lease ended; the next sweep returns it to the queue."
+              )}
             </p>
           )}
           {claim.lastProgress && (

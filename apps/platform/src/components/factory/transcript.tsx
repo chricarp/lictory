@@ -58,7 +58,13 @@ export function transcriptItems(events: readonly SessionEventRow[]) {
     }
   const paired = new Set<string>();
   const items: TranscriptItem[] = [];
+  // A failed run reports its error, then the status that ends it with the
+  // same words: the error is shown once.
+  const errors = new Set<string>();
   for (const event of events) {
+    const message = str((event.data as Data).message).trim();
+    if (event.type === "error" && message) errors.add(message);
+    if (event.type === "status" && message && errors.has(message)) continue;
     if (event.type === "tool_call") {
       const id = str((event.data as Data).callId);
       const result = results.get(id) ?? null;

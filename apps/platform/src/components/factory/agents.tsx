@@ -333,6 +333,7 @@ function AgentRow({
       // row's width.
       chips={
         <>
+          {/* Phones keep the agent's name: its actions are on its page. */}
           <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none max-sm:hidden touch:opacity-100">
             {actions}
           </span>

@@ -5,6 +5,7 @@ import {
   CircleHelp,
   FileDiff,
   GitPullRequest,
+  Hand,
   MessageSquareText,
   ShieldQuestion,
   SquareTerminal,
@@ -14,7 +15,7 @@ import {
 import { callCapability } from "@lictory/core/capabilities/client";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import { sessionTitle } from "@lictory/core/factory/entities";
+import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
 import type {
   ApprovalCardPayload,
   QuestionCardPayload,
@@ -100,7 +101,7 @@ function SessionCard({
 }) {
   const { organization, userId, memberName } = useWorkspace();
   const { session } = useSession(card.sessionId);
-  const { agentById, runnerById } = useFactory();
+  const { agentById, runnerById, runners } = useFactory();
   const agent = agentById.get(card.agentId);
   const status = session?.status ?? card.status;
   const summary = session?.resultSummary ?? card.summary;
@@ -111,7 +112,10 @@ function SessionCard({
     card.ownerId === userId
       ? "you"
       : memberName(session?.requestedById ?? card.requestedById);
-  const state = sessionState(session ?? { status }, { decider });
+  const state = sessionState(session ?? { status }, {
+    decider,
+    noRunner: session ? waitsForRunner(session, agent, runners) : false,
+  });
   // The session's own projection knows its pull request first; the card's
   // payload links Lictory's page.
   const pullRequest =
@@ -165,6 +169,14 @@ function SessionCard({
         // The request itself is below; its title is not repeated as a step.
         asking={asks.length > 0}
       />
+      {status === "waiting" && session && !asks.length && (
+        <p className="flex items-center gap-1.5 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+          <Hand className="size-3.5 shrink-0" aria-hidden />
+          {decider === "you"
+            ? `${card.agentName} waits for your next message: reply in this thread.`
+            : `${card.agentName} waits for ${firstName(decider)}’s next message.`}
+        </p>
+      )}
       {status === "completed" && summary && (
         <p className="line-clamp-3 border-t px-3 py-2 text-muted-foreground">
           {summary}
@@ -177,9 +189,9 @@ function SessionCard({
       )}
       {session &&
         asks.map((approval) => (
-          <div key={approval.id} className="border-t px-3 py-3">
+          <div key={approval.id} className="border-t">
             <ApprovalRequest
-              framed={false}
+              embedded
               session={session}
               approval={approval}
               agent={agent}

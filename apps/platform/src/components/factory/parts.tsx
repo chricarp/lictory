@@ -2,6 +2,7 @@ import { useCallback, type ReactNode } from "react";
 import { Factory, GitPullRequest } from "lucide-react";
 import {
   sessionTitle,
+  waitsForRunner,
   type AgentEntity,
   type SessionEntity,
 } from "@lictory/core/factory/entities";
@@ -24,6 +25,7 @@ import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { useFactory } from "@lictory/platform/components/factory/store";
 
 // Pieces shared by the Factory's pages: the page frame (one header with the
 // Factory's tabs), who started a session, its state and its row.
@@ -52,6 +54,7 @@ export function FactoryPage({
           label: "Overview",
           exact: true,
         },
+        { href: factoryPaths.sessions(org), label: "Sessions", exact: true },
         { href: factoryPaths.agents(org), label: "Agents" },
         { href: factoryPaths.runners(org), label: "Runners" },
       ]}
@@ -121,13 +124,15 @@ export function useDecider() {
 export function useSessionStateOf() {
   const claims = useLiveClaims();
   const decider = useDecider();
+  const { runners } = useFactory();
   return useCallback(
     (session: SessionEntity, agent: AgentEntity | undefined) =>
       sessionState(session, {
         claim: session.workItemId ? claims.get(session.workItemId) : null,
         decider: decider(session, agent),
+        noRunner: waitsForRunner(session, agent, runners),
       }),
-    [claims, decider],
+    [claims, decider, runners],
   );
 }
 
