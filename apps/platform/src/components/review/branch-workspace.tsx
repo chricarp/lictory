@@ -2828,6 +2828,23 @@ function PullRequestView({
                             ))}
                           </div>
                         )}
+                      {/* Approving here approves the whole merged text,
+                          which main keeps as this discipline's approval of
+                          the new revision: say so before the click. */}
+                      {assigned &&
+                        !readOnly &&
+                        specificationPullRequest.allows(p.status, "review") &&
+                        heads &&
+                        !contributed &&
+                        !r.decision &&
+                        isMain(target) && (
+                          <p className="pl-6 text-xs text-muted-foreground">
+                            Approving approves the whole specification as it
+                            reads after this merge, not only the change: it
+                            becomes {role?.name ?? "this discipline"}&apos;s
+                            approval of revision {item.revisionNumber + 1}.
+                          </p>
+                        )}
                       {assigned &&
                         !readOnly &&
                         specificationPullRequest.allows(p.status, "review") &&
@@ -2887,8 +2904,12 @@ function PullRequestView({
                 )}
               {p.status === "open" && (
                 <p className="text-[11px] text-muted-foreground">
-                  Approvals apply to the exact merge result. Any new commit on
-                  either branch asks reviewers again.
+                  Approvals apply to the exact merge result, the whole
+                  specification after the merge
+                  {isMain(target)
+                    ? `; merging records them as approvals of revision ${item.revisionNumber + 1}`
+                    : ""}
+                  . Any new commit on either branch asks reviewers again.
                 </p>
               )}
             </section>
