@@ -11,6 +11,7 @@ import {
   readyToStart,
   recentOutcomes,
   recentPages,
+  waitingGroup,
   waitingKinds,
   waitingOnYou,
 } from "@lictory/platform/components/shell/home/derive";
@@ -233,20 +234,31 @@ void test("waiting on you is one queue: agents' questions first, each thing once
     ],
   });
   // An agent waiting on a person is stopped: its questions lead, newest
-  // first; then reviews (items and pages by time), changes, merges.
+  // first; then reviews others wait on (items and pages by time); then my
+  // own work: the failed session to retry, changes, merges.
   assert.deepEqual(
     rows.map((r) => r.key),
     [
       "agent:a2",
       "agent:a1",
       "agent:session:s2",
-      "agent:failed:s3",
       "page:p2",
       "item:i2:Review requested",
+      "agent:failed:s3",
       "item:i1:Changes requested",
       "page:p1",
     ],
   );
+  assert.deepEqual(rows.map(waitingGroup), [
+    "agents",
+    "agents",
+    "agents",
+    "reviews",
+    "reviews",
+    "yours",
+    "yours",
+    "yours",
+  ]);
   assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
 });
 
@@ -280,7 +292,7 @@ void test("rows Home does not show are named by kind, so its count reconciles", 
   });
   assert.equal(
     waitingKinds(rows),
-    "1 request from an agent · 1 failed agent session · 1 review · 2 blocked items",
+    "1 request from an agent · 1 review · 1 failed agent session · 2 blocked items",
   );
   // Home shows the first rows; the rest are said, not hidden.
   assert.equal(waitingKinds(rows.slice(3)), "2 blocked items");

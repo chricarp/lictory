@@ -348,8 +348,9 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     const request = ben.page.getByRole("link", { name: /Review requested/ });
     await expect(request).toContainText("Refund runbook");
     // The row names the pull request under the page's title.
+    // (The To do groups its rows: the innermost list item is the row.)
     await expect(
-      ben.page.getByRole("listitem").filter({ has: request }),
+      ben.page.getByRole("listitem").filter({ has: request }).last(),
     ).toContainText("Document the finance approval time");
     await request.click();
     await ben.page

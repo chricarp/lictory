@@ -16,7 +16,9 @@ when something waits on the person, else on Updates.
   when the state resolves; nothing needs marking as read. Home's "Waiting on
   you" is the same list, so the two always count the same things: Home shows
   its first rows and names the rest by kind ("2 blocked items · 1 failed
-  agent session"). The sidebar's Inbox badge is this count, and so is the
+  agent session"). The list is grouped by what the person does about it
+  (`waitingGroup`): agents stopped on their answer, reviews others wait
+  on, their own work. The sidebar's Inbox badge is this count, and so is the
   desktop app's badge for the open organization (with unread mentions and
   direct messages); unread updates add a quiet dot beside it. One number
   for what waits on a person, everywhere: the Factory's sidebar row shows a

@@ -201,8 +201,11 @@ export function recentPages<P extends PageLike>(
 // Everything waiting on me, in one queue: work items (reviews, requested
 // changes, blocking discussions), page changes, and the questions agents
 // ask me. Home's "Waiting on you" and the Inbox's To do show this same list,
-// so the greeting, the card and the tab always count the same things. An
-// agent waiting on a person is stopped, so its question comes first.
+// so the greeting, the card and the tab always count the same things. It
+// is grouped by what I do about it: agents stopped on my answer first, then
+// reviews others wait on, then my own work (a failed session to retry,
+// changes requested, blockers, merges); within a group, by urgency then
+// newest first.
 
 type WaitingItem = { weight: number; item: { id: string; updatedAt: string } };
 type WaitingPage = {
@@ -272,7 +275,37 @@ export function waitingOnYou<
       entry,
     })),
   ];
-  return rows.sort((a, b) => a.weight - b.weight || b.at.localeCompare(a.at));
+  return rows.sort(
+    (a, b) =>
+      groupOrder[waitingGroup(a)] - groupOrder[waitingGroup(b)] ||
+      a.weight - b.weight ||
+      b.at.localeCompare(a.at),
+  );
+}
+
+export type WaitingGroup = "agents" | "reviews" | "yours";
+const groupOrder: Record<WaitingGroup, number> = {
+  agents: 0,
+  reviews: 1,
+  yours: 2,
+};
+// The To do's headings, in the queue's order.
+export const waitingGroupLabels: Record<WaitingGroup, string> = {
+  agents: "Agents waiting on you",
+  reviews: "Reviews",
+  yours: "Your work",
+};
+
+export function waitingGroup(
+  row: Waiting<WaitingItem & { reason: string }, WaitingPage, WaitingRequest>,
+): WaitingGroup {
+  if (row.kind === "agent") return row.request.failed ? "yours" : "agents";
+  if (row.kind === "page")
+    return row.entry.reason === "review_requested" ||
+      row.entry.reason === "review_again"
+      ? "reviews"
+      : "yours";
+  return reviewReasons.has(row.entry.reason) ? "reviews" : "yours";
 }
 
 // What a list of waiting rows holds, by kind, for rows Home does not show
