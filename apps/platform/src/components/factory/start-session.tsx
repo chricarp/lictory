@@ -179,6 +179,7 @@ export function StartSessionDialog({
               id={ids.agent}
               value={agentId}
               onValueChange={setAgentId}
+              size="lg"
               className="w-full"
             >
               {startable.map((agent) => (
@@ -252,6 +253,7 @@ export function StartSessionDialog({
                 id={ids.repository}
                 value={choice}
                 onValueChange={setRepository}
+                size="lg"
                 className="w-full"
               >
                 <DropdownSelectOption

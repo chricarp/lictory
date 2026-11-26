@@ -3,6 +3,7 @@ import { useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   Archive,
   Bot,
+  Check,
   Moon,
   Pencil,
   Play,
@@ -592,6 +593,7 @@ export function AgentDialog({
                   id={ids.harness}
                   value={harness}
                   onValueChange={setHarness}
+                  size="lg"
                   className="w-full"
                 >
                   {harnessIds
@@ -633,6 +635,7 @@ export function AgentDialog({
                 id={ids.runner}
                 value={defaultRunnerId}
                 onValueChange={setDefaultRunnerId}
+                size="lg"
                 className="w-full"
                 placeholder="Any runner that can run it"
               >
@@ -752,13 +755,17 @@ function ProjectToggle({
       title={title}
       aria-pressed={pressed}
       onClick={onToggle}
+      // Chosen looks like the chosen segment of the access control above
+      // (a raised chip with the control edge), plus a check: one "selected"
+      // in the dialog.
       className={cn(
-        "h-7 rounded-full px-3 text-xs ring-1 outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring/60",
+        "inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs font-medium focus-ring outline-none",
         pressed
-          ? "bg-primary/10 font-medium text-foreground ring-primary/30"
-          : "text-muted-foreground ring-border hover:bg-muted",
+          ? "bg-card text-foreground inset-ring inset-ring-input"
+          : "text-muted-foreground inset-ring inset-ring-border hover:bg-muted hover:text-foreground",
       )}
     >
+      {pressed && <Check aria-hidden className="size-3" />}
       {label}
     </button>
   );
