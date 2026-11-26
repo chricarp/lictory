@@ -157,10 +157,11 @@ export function ChannelHeader({
         // The channel searches its own messages; on phones its name keeps
         // at least twelve characters before the actions crowd it. The
         // shell's "+" (a new work item) stays in the navigation drawer, so
-        // the bar fits at 320px.
+        // the bar fits at 320px. Wider, the name is the anchor: the topic
+        // beside it gives way first.
         ownSearch
         ownCreate
-        className="max-sm:[&>div:has(>h1)]:min-w-[12ch]"
+        className="sm:[&_h1]:max-w-[50%] sm:[&_h1]:shrink-0 max-sm:[&>div:has(>h1)]:min-w-[12ch]"
         icon={
           direct ? (
             channel.others[0]?.kind === "user" ? (
