@@ -27,7 +27,7 @@ const sections = [
   { id: "disciplines", label: "Disciplines", group: "People" },
   { id: "teams", label: "Teams", group: "People" },
   { id: "workflow", label: "Workflow & types", group: "Work" },
-  { id: "readiness", label: "Readiness", group: "Work" },
+  { id: "readiness", label: "Definition of Ready", group: "Work" },
   { id: "done", label: "Definition of Done", group: "Work" },
   { id: "planning", label: "Planning", group: "Work" },
   { id: "delivery", label: "Delivery", group: "Work" },

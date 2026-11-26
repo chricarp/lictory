@@ -13,11 +13,14 @@ export function OnboardingFrame({
   stage = 0,
   labels = [],
   title,
+  accountLink = true,
 }: {
   children: ReactNode;
   stage?: number;
   labels?: string[];
   title?: string;
+  // Account settings need a handle, so the handle step has none.
+  accountLink?: boolean;
 }) {
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.22, ease }}>
@@ -25,12 +28,14 @@ export function OnboardingFrame({
         {title && <title>{title}</title>}
         <header className="flex items-center justify-between px-6 py-5 sm:px-8">
           <Logo className="[&>span]:h-6" />
-          <Link
-            href="/account"
-            className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Account
-          </Link>
+          {accountLink && (
+            <Link
+              href="/account"
+              className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Account
+            </Link>
+          )}
         </header>
         <section className="relative mx-auto w-full max-w-[460px] px-6 pt-8 pb-16 sm:px-0 sm:pt-16">
           {labels.length > 0 && <Progress labels={labels} stage={stage} />}

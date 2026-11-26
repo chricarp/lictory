@@ -21,6 +21,7 @@ import {
 } from "@lictory/platform/components/workspace/organization-handle-field";
 import { organizationHandleError } from "@lictory/core/lib/organization-handles";
 import { paths } from "@lictory/core/lib/paths";
+import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
@@ -66,6 +67,14 @@ export function OrganizationGeneral() {
           </dl>
         )}
         <Branding />
+        {/* Support and upgrades ask which release this is; the web app and
+            the server ship together in one release. */}
+        <dl className="mt-6 grid gap-1 border-t pt-4 text-[13px]">
+          <dt className="text-xs text-muted-foreground">Lictory release</dt>
+          <dd className="font-medium tabular-nums" data-release>
+            {APP_VERSION ? `v${APP_VERSION}` : "Development build"}
+          </dd>
+        </dl>
       </SettingsBody>
     </SettingsSection>
   );

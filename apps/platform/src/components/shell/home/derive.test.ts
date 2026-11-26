@@ -9,6 +9,7 @@ import { deliveryIndex, type Project } from "@lictory/core/lib/work-items";
 import {
   inFlight,
   readyToStart,
+  recentOutcomes,
   recentPages,
   waitingOnYou,
 } from "@lictory/platform/components/shell/home/derive";
@@ -104,30 +105,50 @@ void test("in flight is my started work, newest first, in either delivery mode",
   assert.equal(result.total, 3);
 });
 
-void test("ready to start lists ready work that is mine or unassigned, mine first", () => {
+void test("ready to start lists startable work that is mine or unassigned, mine first", () => {
   const unassigned = item({
-    refinementState: "ready",
+    statusId: "unstarted",
     updatedAt: "2026-11-05T00:00:00Z",
   });
   const mine = item({
-    refinementState: "ready",
+    statusId: "unstarted",
     assigneeId: me,
     updatedAt: "2026-11-01T00:00:00Z",
   });
-  const theirs = item({ refinementState: "ready", assigneeId: "grace" });
-  const committed = item({
-    refinementState: "ready",
-    committedRevisionId: "revision",
-  });
-  const inReview = item({ refinementState: "in_review" });
-  const started = item({ refinementState: "ready", statusId: "started" });
+  const theirs = item({ statusId: "unstarted", assigneeId: "grace" });
+  // Ready, but nobody accepted its scope: not startable, so not listed.
+  const unaccepted = item({ refinementState: "ready" });
+  const external = item({ projectId: "jira", statusId: "unstarted" });
+  const startable = new Set([unassigned.id, mine.id, theirs.id, external.id]);
   const result = readyToStart(
-    context([unassigned, mine, theirs, committed, inReview, started]),
+    {
+      ...context([unassigned, mine, theirs, unaccepted, external]),
+      startable: (i) => startable.has(i.id),
+    },
     10,
   );
   assert.deepEqual(
     result.rows.map((r) => r.id),
     [mine.id, unassigned.id],
+  );
+});
+
+void test("work broken down into open children starts through its children", () => {
+  const parent = item({ statusId: "unstarted", committedRevisionId: "r5" });
+  const child = item({ statusId: "unstarted", parentId: parent.id });
+  const doneChild = item({ statusId: "done", parentId: "other" });
+  const other = item({ id: "other", statusId: "unstarted" });
+  const result = readyToStart(
+    {
+      ...context([parent, child, doneChild, other]),
+      // Claimability refuses started and closed work.
+      startable: (i) => i.statusId === "unstarted",
+    },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.id).sort(),
+    [child.id, other.id].sort(),
   );
 });
 
@@ -210,4 +231,75 @@ void test("waiting on you is one queue: agents' questions first, each thing once
     ],
   );
   assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
+});
+
+void test("recent outcomes are my delivered work and my agents' finished sessions, newest first", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const delivered = item({
+    statusId: "done",
+    assigneeId: me,
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const theirs = item({
+    statusId: "done",
+    assigneeId: "grace",
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const old = item({
+    statusId: "done",
+    assigneeId: me,
+    updatedAt: "2026-11-01T00:00:00Z",
+  });
+  const open = item({
+    statusId: "started",
+    assigneeId: me,
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const session = (
+    id: string,
+    status: string,
+    completedAt: string,
+    requestedById: string | null,
+    agentId = "forge",
+  ) => ({
+    id,
+    agentId,
+    requestedById,
+    status,
+    completedAt,
+    updatedAt: completedAt,
+  });
+  const failed = session("failed", "failed", "2026-11-20T08:00:00Z", me);
+  // A policy started it; I own the agent.
+  const finished = session(
+    "finished",
+    "completed",
+    "2026-11-18T00:00:00Z",
+    null,
+  );
+  const running = session("running", "running", "2026-11-20T09:00:00Z", me);
+  const someoneElses = session(
+    "other",
+    "failed",
+    "2026-11-20T09:00:00Z",
+    "grace",
+    "hawk",
+  );
+  const result = recentOutcomes(
+    {
+      ...context([delivered, theirs, old, open]),
+      sessions: [failed, finished, running, someoneElses],
+      agentOwner: (id) => (id === "forge" ? me : "grace"),
+      now,
+    },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.key),
+    ["session:failed", `item:${delivered.id}`, "session:finished"],
+  );
+  assert.equal(
+    result.rows[0]!.kind === "session" && result.rows[0]!.failed,
+    true,
+  );
 });

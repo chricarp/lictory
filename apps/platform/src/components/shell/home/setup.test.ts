@@ -11,6 +11,7 @@ const empty: SetupFacts = {
   agents: [],
   channels: [],
   members: 1,
+  invited: 0,
 };
 
 const done = (facts: SetupFacts, admin = true) =>
@@ -86,6 +87,7 @@ void test("the checklist is complete when everything exists", () => {
       agents: [{ archivedAt: null }],
       channels: [{ kind: "private", archivedAt: null }],
       members: 4,
+      invited: 0,
     },
     "acme",
     false,
@@ -101,4 +103,13 @@ void test("steps only administrators can take offer no action to others", () => 
   assert.equal(action.team, null);
   assert.equal(action.agent?.href, "/acme/factory/agents");
   assert.equal(action.channel?.href, "/acme/channels");
+});
+
+void test("inviting someone completes the team step before they join", () => {
+  const result = setupSteps({ ...empty, invited: 2 }, "acme", true);
+  const team = result.steps.find((s) => s.id === "team")!;
+  assert.equal(team.done, true);
+  assert.equal(team.note, "2 invited, not joined yet");
+  const joined = setupSteps({ ...empty, members: 3, invited: 1 }, "acme", true);
+  assert.equal(joined.steps.find((s) => s.id === "team")!.note, undefined);
 });

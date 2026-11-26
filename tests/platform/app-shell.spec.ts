@@ -148,8 +148,9 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     sidebar(page).getByRole("link", { name: "Home" }),
   ).toHaveAttribute("aria-current", "page");
 
-  // The sections keep their order: Home, Inbox, Channels, Direct messages,
-  // Factory, Code, Projects, Spaces.
+  // The sections keep their order: the single-row destinations (Home,
+  // Inbox, Factory, Code), the project's work, Spaces, then the
+  // conversations, whose lists grow.
   expect(
     await sidebar(page)
       .locator("[data-nav-section]")
@@ -159,12 +160,12 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   ).toEqual([
     "home",
     "inbox",
-    "channels",
-    "direct-messages",
     "factory",
     "code",
     "projects",
     "spaces",
+    "channels",
+    "direct-messages",
   ]);
 
   // Every organization I belong to is on the rail; the current one is marked.
@@ -183,14 +184,25 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(
     page.getByRole("heading", { name: "Channels", level: 1 }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Overview" }).click();
+  await sidebar(page)
+    .getByRole("link", { name: "Factory", exact: true })
+    .click();
   await expect(page).toHaveURL(paths.factory(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Factory", level: 1, exact: true }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Agents" }).click();
+  // Agents and runners are the Factory page's tabs; the sidebar row stays
+  // current on them.
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: "Agents", exact: true })
+    .first()
+    .click();
   await expect(page).toHaveURL(`${paths.factory(seeded.slug)}/agents`);
-  await sidebar(page).getByRole("link", { name: "Pull requests" }).click();
+  await expect(
+    sidebar(page).getByRole("link", { name: "Factory", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await sidebar(page).getByRole("link", { name: "Code", exact: true }).click();
   await expect(page).toHaveURL(paths.code(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Code", level: 1 }),
@@ -310,14 +322,7 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
   await expect(
     page.getByRole("navigation", { name: "Organizations" }),
   ).toHaveCount(0);
-  for (const name of [
-    "Home",
-    "Inbox",
-    "All channels",
-    "Overview",
-    "Agents",
-    "Pull requests",
-  ])
+  for (const name of ["Home", "Inbox", "All channels", "Factory", "Code"])
     await expect(
       sidebar(page).getByRole("link", { name, exact: true }),
     ).toBeVisible();
@@ -326,14 +331,14 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
 });
 
 test("the sidebar keeps its place across navigation", async ({ page }) => {
-  // Short enough that Spaces sits below the fold.
+  // Short enough that the lower sections sit below the fold.
   await page.setViewportSize({ width: 1440, height: 560 });
   await signIn(page, seeded.owner.email);
   await page.goto(paths.spaces(seeded.slug));
   const nav = sidebar(page);
   const top = () => nav.evaluate((el) => el.scrollTop);
   // A space and then one of its pages, opened from the page: the sidebar
-  // never scrolls by itself, so Channels stays in view.
+  // never scrolls by itself, so the destinations at its top stay in view.
   await page
     .getByRole("main")
     .getByRole("link", { name: /Runbooks/ })
@@ -348,7 +353,7 @@ test("the sidebar keeps its place across navigation", async ({ page }) => {
   ).toBeVisible();
   expect(await top()).toBe(0);
   await expect(
-    nav.getByRole("link", { name: "All channels" }),
+    nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeInViewport();
 });
 

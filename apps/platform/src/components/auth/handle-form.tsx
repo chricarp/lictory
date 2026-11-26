@@ -190,7 +190,9 @@ export function HandleForm({
         size={current ? "sm" : "lg"}
         variant={current ? "secondary" : "primary"}
         type="submit"
-        className={current ? "mt-1 justify-self-start" : "mt-1 w-full"}
+        className={
+          current ? "mt-1 justify-self-start" : "mt-6 justify-self-end"
+        }
         disabled={blocked}
       >
         {pending ? "Saving…" : submitLabel}

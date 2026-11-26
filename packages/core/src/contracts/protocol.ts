@@ -127,6 +127,9 @@ export const reviewSummarySchema = z.object({
   // Users and roles currently assigned; the client derives "needs my review".
   assigneeIds: z.array(id),
   approved: z.boolean(),
+  // Who asked for the review, so a reviewer knows who waits on them.
+  // Absent in projections written before it was recorded.
+  requestedById: id.nullable().optional(),
 });
 export const readinessCheckSchema = z.object({
   key: z.string(),

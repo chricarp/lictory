@@ -13,7 +13,10 @@ import {
   factorySection,
 } from "@lictory/platform/components/factory/nav";
 import { agentHomeCards } from "@lictory/platform/components/shell/home/agent-cards";
-import { codeSection } from "@lictory/platform/components/code/code-nav";
+import {
+  codePalette,
+  codeSection,
+} from "@lictory/platform/components/code/code-nav";
 
 // The navigation registry: what each module contributes to the shell. A
 // module adds itself by exporting a definition and listing it here; replacing
@@ -60,18 +63,23 @@ export type NavSection = {
   Section: ComponentType<NavSectionProps>;
 };
 
-// Sidebar order: Home, Inbox, Channels, Direct messages, Factory, Code,
-// Projects, Spaces. Account and settings sit below them.
+// Sidebar order: the organization-wide destinations as single rows (Home,
+// Inbox, Factory, Code), then the project in context with its work, its
+// knowledge (Spaces), and last the conversations, whose lists grow with the
+// organization (Channels, Direct messages). Account and settings sit below.
 export const navSections: readonly NavSection[] = [
   homeSection,
   inboxSection,
-  channelsSection,
-  directMessagesSection,
   factorySection,
   codeSection,
   projectsSection,
   spacesSection,
+  channelsSection,
+  directMessagesSection,
 ];
+
+// The leading sections drawn as one block of single rows.
+export const topSections = 4;
 
 // One result in the command palette.
 export type PaletteEntry = {
@@ -98,10 +106,12 @@ export type PaletteProvider = {
   useEntries: (query: string) => readonly PaletteEntry[];
 };
 
-// Conversations, then agent sessions and agents.
+// Conversations, then agent sessions, agents and the factory's actions,
+// then pull requests.
 export const paletteProviders: readonly PaletteProvider[] = [
   channelsPalette,
   factoryPalette,
+  codePalette,
 ];
 
 export type HomeCard = {

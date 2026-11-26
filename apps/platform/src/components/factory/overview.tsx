@@ -5,11 +5,13 @@ import {
   Factory,
   Hand,
   History,
+  Inbox,
   Play,
   Server,
   Zap,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { paths } from "@lictory/core/lib/paths";
 import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -22,16 +24,10 @@ import {
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
-import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
-import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
-import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
   SessionRow,
-  titleBeside,
-  useItemKey,
-  useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
@@ -47,8 +43,7 @@ const RECENT = 20;
 
 export function FactoryOverview() {
   const { organization, userId } = useWorkspace();
-  const { agents, agentById, runners, runnerById, sessions, complete } =
-    useFactory();
+  const { agents, agentById, runners, sessions, complete } = useFactory();
   // `?start=<work item id>` opens the dialog for that item (an item's page
   // links here); `?start=new` opens it empty.
   const search = useSearchParams();
@@ -59,8 +54,6 @@ export function FactoryOverview() {
     setStarting(false);
     if (startParam) router.replace(factoryPaths.overview(organization.slug));
   };
-  const stateOf = useSessionStateOf();
-  const itemKey = useItemKey();
   const org = organization.slug;
   const blocks = useMemo(
     () => overviewBlocks(sessions, agentById, userId),
@@ -114,6 +107,11 @@ export function FactoryOverview() {
       }),
     ),
   ];
+  // One per question, or one for a session waiting for my next message.
+  const asks = blocks.needsYou.reduce(
+    (n, session) => n + Math.max(1, session.approvals.length),
+    0,
+  );
   return (
     <FactoryPage
       description={description}
@@ -146,43 +144,30 @@ export function FactoryOverview() {
           </Button>
         </div>
       )}
+      {/* One queue: what agents ask me is answered in the Inbox's To do
+          (Home shows its first rows). The factory says how many and where. */}
       <Panel
         title="Needs you"
         icon={<Hand />}
-        count={blocks.needsYou.length}
-        empty="Nothing waits on you. Agents ask here when they need a decision."
+        count={asks}
+        empty="Nothing waits on you. When an agent needs a decision or your next message, it appears in your Inbox."
       >
-        {blocks.needsYou.flatMap((session) => {
-          const agent = agentById.get(session.agentId);
-          if (!session.approvals.length)
-            // Waiting for my next message, not for a decision.
-            return [
-              <ListRow
-                key={session.id}
-                href={factoryPaths.session(org, session.id)}
-                leading={
-                  agent ? <AgentAvatar agent={agent} size={20} /> : undefined
-                }
-                identifier={itemKey(session.workItemId)}
-                title={titleBeside(session.title, itemKey(session.workItemId))}
-                meta="Waiting for your next message"
-                chips={<SessionStateChip state={stateOf(session, agent)} />}
-                time={session.updatedAt}
-              />,
-            ];
-          return session.approvals.map((approval) => (
-            <ApprovalRequest
-              key={approval.id}
-              compact
-              session={session}
-              approval={approval}
-              agent={agent}
-              runner={
-                session.runnerId ? runnerById.get(session.runnerId) : undefined
-              }
-            />
-          ));
-        })}
+        {asks > 0 && (
+          <ListRow
+            href={paths.inbox(org, "todo")}
+            leading={<Inbox aria-hidden className="size-4 text-primary" />}
+            title={`${asks} ${asks === 1 ? "request" : "requests"} from agents ${asks === 1 ? "waits" : "wait"} on you`}
+            meta={`${[
+              ...new Set(
+                blocks.needsYou.map(
+                  (s) => agentById.get(s.agentId)?.name ?? "An agent",
+                ),
+              ),
+            ].join(
+              ", ",
+            )} · answer in your Inbox, with reviews and page changes`}
+          />
+        )}
       </Panel>
       <Panel
         title="Running"

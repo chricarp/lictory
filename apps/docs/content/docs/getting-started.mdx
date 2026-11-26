@@ -43,23 +43,28 @@ Open your organization and name its first project. The project **key**
 becomes part of every identifier (`PAY-142`) and does not change, so pick it
 with care; the name can change later.
 
-Guided setup then asks only for the decisions that change how the project
-behaves:
+Guided setup then asks only what a team must decide before its first day:
 
 - **Where does delivery happen?** _In Lictory_ (boards, backlog and
   iterations next to the specifications) or _In Jira_ (export ready work;
   Jira owns status and sprints). See [delivery](/concepts/delivery).
-- **When work starts before it's ready** (in Lictory only): block, warn
-  (the default) or allow. See [readiness policy](/concepts/readiness#readiness-policy).
-- **How does the project plan?** (in Lictory only): continuously, in sprints
-  or in automatic cycles, and which estimate scale to use.
 - **Lictory Intelligence**: whether AI may review specifications, chat and
-  propose fixes. Everything works without it.
-- **Invite people**: optional, you can do it later.
+  propose fixes. Everything works without it. On a server without an AI
+  provider it starts off.
+- **Invite people**: optional, you can do it later. People you invite here
+  join the new project as members.
 
-Work item types, the workflow and the Product, Engineering and QA
-disciplines are created for you, and you become a project administrator in
-Product. Every choice can be changed later in settings.
+Everything else starts from defaults: work item types, the workflow and the
+Product, Engineering and QA disciplines are created for you, and you become
+a project administrator in Product. A project delivered in Lictory plans
+continuously (a board and a ranked backlog) with story points, and work may
+start before its specification is ready while Lictory records what was
+missing ([readiness policy](/concepts/readiness#readiness-policy)). Change
+any of it in **Project settings** (**Planning**, **Definition of Ready**).
+
+Setup ends on **Home**, whose checklist continues where setup stops:
+connect a code host, a runner and an agent, start a channel and invite your
+team ([the Factory](/factory)). Only administrators see the checklist.
 
 <Callout title="More than one organization">
   Where the access policy lets everyone create organizations, people without one
@@ -78,7 +83,8 @@ and to the disciplines they work in: an engineer to Engineering, a tester to
 QA. Disciplines decide who can be asked to review and what each person may do
 with work items ([disciplines](/organization/disciplines)). You can also
 choose the project and disciplines in the invitation itself
-([members](/organization/members)).
+([members](/organization/members)). People invited during setup are already
+members of the first project; give them their disciplines there.
 
 </Step>
 <Step>

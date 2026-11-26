@@ -1,8 +1,4 @@
 import { LoadingState } from "@lictory/ui/spinner";
-import {
-  DropdownSelect,
-  DropdownSelectOption,
-} from "@lictory/ui/dropdown-select";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter as useTanStackRouter } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
@@ -35,7 +31,6 @@ import {
   OnboardingFrame,
   OnboardingHeading,
   Reveal,
-  Segmented,
   Steps,
 } from "@lictory/platform/components/workspace/onboarding-frame";
 import { ProjectFields } from "@lictory/platform/components/workspace/onboarding";
@@ -47,34 +42,6 @@ import {
   type Draft,
 } from "@lictory/platform/components/workspace/onboarding-draft";
 
-const readinessHints = {
-  block: "Spec-backed work can’t start until every readiness check passes.",
-  warn: "Work can start early; Lictory records what was missing.",
-  off: "Readiness is shown but never gates starting work.",
-};
-const planningHints = {
-  off: "A board and ranked backlog, no time boxes.",
-  manual: "Your team starts and completes each sprint.",
-  automatic: "Cycles roll over on a schedule; unfinished work carries forward.",
-};
-const estimateHints = {
-  none: "Skip sizing work. Items have no estimates.",
-  fibonacci:
-    "Story points: 0, 1, 2, 3, 5, 8, 13, 21. Bigger gaps reflect more uncertainty in larger work. Points compare effort and complexity, not hours.",
-  linear:
-    "Points from 0 to 8 in equal steps. Use this for finer distinctions between similarly sized items. Points compare effort and complexity, not hours.",
-  tshirt:
-    "Sizes: XS, S, M, L, XL. Compare work from extra small to extra large without choosing a point number or estimating hours.",
-};
-const days = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
 const isEmail = (v: string) => z.email().safeParse(v).success;
 function parseRecipient(raw: string): string | undefined {
   const value = raw.trim().toLowerCase();
@@ -101,7 +68,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   const [uncertain, setUncertain] = useState(false);
   // Setup is saved; these invitations still need delivery confirmation.
   const [invited, setInvited] = useState<{
-    key: string;
+    projectId: string;
     results: InviteResult[];
   }>();
   const container = useRef<HTMLFormElement>(null);
@@ -119,10 +86,13 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           // Lictory Intelligence.
           const legacy = !z.object({ aiEnabled: z.boolean() }).safeParse(raw)
             .success;
+          // Planning is no longer asked; a draft saved there resumes at
+          // the next question.
           setDraft({
             ...parsed.data,
             step:
-              legacy && parsed.data.step === steps.people
+              (legacy && parsed.data.step === steps.people) ||
+              parsed.data.step === steps.planning
                 ? steps.intelligence
                 : parsed.data.step,
           });
@@ -165,15 +135,15 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
   const update = (patch: Partial<Draft>) =>
     setDraft((d) => ({ ...d, ...patch }));
   const external = draft.deliveryMode === "external";
-  const flow = external
-    ? [steps.project, steps.delivery, steps.intelligence, steps.people]
-    : [
-        steps.project,
-        steps.delivery,
-        steps.planning,
-        steps.intelligence,
-        steps.people,
-      ];
+  const flow = [
+    steps.project,
+    steps.delivery,
+    steps.intelligence,
+    steps.people,
+  ];
+  // Until the person chooses, Lictory Intelligence follows the server: on
+  // an installation without an AI provider it starts off.
+  const aiEnabled = draft.aiChosen ? draft.aiEnabled : directory.ai.available;
   const position = Math.max(0, flow.indexOf(draft.step as never));
   const go = (offset: number) => {
     const next = flow[position + offset];
@@ -188,18 +158,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       draft.name.trim() && /^[A-Z][A-Z0-9]{1,9}$/.test(effectiveKey),
     ),
     [steps.delivery]: Boolean(draft.deliveryMode),
-    [steps.planning]: Boolean(
-      draft.estimateScale &&
-      draft.iterationMode &&
-      (draft.iterationMode !== "automatic" ||
-        (draft.iterationWeeks && draft.iterationStartDay)),
-    ),
     [steps.people]: true,
     [steps.intelligence]: true,
   };
   const setupValid = flow.every((s) => valid[s]);
 
-  const sendInvites = async (recipients: string[]) => {
+  // Invited people join the first project, so their first screen is its
+  // work, not an organization they cannot do anything in yet.
+  const sendInvites = async (recipients: string[], projectId: string) => {
     const results: InviteResult[] = [];
     // Sequential keeps each Better Auth invitation and email attempt independent.
     for (const recipient of recipients) {
@@ -210,6 +176,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           body: JSON.stringify({
             organizationId: organization.id,
             recipient: recipient.replace(/^@/, ""),
+            placement: { projectId, disciplineIds: [] },
           }),
         });
         const body: unknown = await response.json().catch(() => null);
@@ -234,19 +201,16 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     }
     return results;
   };
-  const finish = (key: string) => {
+  const finish = () => {
     try {
       sessionStorage.removeItem(storageKey);
       sessionStorage.removeItem(`${storageKey}:attempt`);
     } catch {}
-    // The organization layout keeps setup in place until it is told it is
-    // done; leaving only after the project's address is current keeps the
-    // organization home from redirecting first.
+    // Setup ends on Home, whose checklist carries on where setup stops
+    // (code host, runner, agent). The organization layout keeps setup in
+    // place until it is told it is done.
     void navigator
-      .navigate({
-        href: paths.proposals(organization.slug, key),
-        replace: true,
-      })
+      .navigate({ href: paths.org(organization.slug), replace: true })
       .finally(finishSetup);
   };
   const retryInvites = async () => {
@@ -255,13 +219,13 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     const failed = invited.results
       .filter((r) => r.error)
       .map((r) => r.recipient);
-    const retried = await sendInvites(failed);
+    const retried = await sendInvites(failed, invited.projectId);
     const merged = invited.results.map(
       (r) => retried.find((x) => x.recipient === r.recipient) ?? r,
     );
-    setInvited({ key: invited.key, results: merged });
+    setInvited({ projectId: invited.projectId, results: merged });
     setBusy(false);
-    if (merged.every((r) => !r.error)) finish(invited.key);
+    if (merged.every((r) => !r.error)) finish();
   };
 
   const submit = async () => {
@@ -269,14 +233,17 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     setError(undefined);
     try {
       if (!attempt.current) {
+        // Planning and readiness start from strong defaults (continuous
+        // flow, story points, warn when work starts early); the project's
+        // settings change them once the team has met them.
         const setup = onboardingSetupSchema.parse({
           deliveryMode: draft.deliveryMode,
-          readinessPolicy: draft.readinessPolicy,
-          iterationMode: external ? "off" : draft.iterationMode,
-          estimateScale: external ? "none" : draft.estimateScale,
-          aiEnabled: draft.aiEnabled,
-          iterationWeeks: Number(draft.iterationWeeks) || 2,
-          iterationStartDay: Number(draft.iterationStartDay) || 0,
+          readinessPolicy: "warn",
+          iterationMode: "off",
+          estimateScale: external ? "none" : "fibonacci",
+          aiEnabled,
+          iterationWeeks: 2,
+          iterationStartDay: 1,
           invitations: draft.invites.length,
         });
         attempt.current = mutationSchema.parse({
@@ -323,14 +290,14 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
       const command = attempt.current.command;
       if (command.type !== "createProject") return;
       if (draft.invites.length) {
-        const results = await sendInvites(draft.invites);
+        const results = await sendInvites(draft.invites, command.projectId);
         if (results.some((r) => r.error)) {
           // The workspace exists; report each invitation instead of one failure.
-          setInvited({ key: command.key, results });
+          setInvited({ projectId: command.projectId, results });
           return;
         }
       }
-      finish(command.key);
+      finish();
     } catch (e) {
       setError(
         e instanceof Error
@@ -382,12 +349,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
           ))}
         </ul>
         <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="ghost"
-            size="lg"
-            disabled={busy}
-            onClick={() => finish(invited.key)}
-          >
+          <Button variant="ghost" size="lg" disabled={busy} onClick={finish}>
             Continue without them
           </Button>
           <Button size="lg" disabled={busy} onClick={() => void retryInvites()}>
@@ -402,17 +364,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     <OnboardingFrame
       title={`Set up ${organization.name} · Lictory`}
       stage={position}
-      labels={
-        external
-          ? ["Project", "Delivery", "Lictory Intelligence", "People"]
-          : [
-              "Project",
-              "Delivery",
-              "Planning",
-              "Lictory Intelligence",
-              "People",
-            ]
-      }
+      labels={["Project", "Delivery", "Lictory Intelligence", "People"]}
     >
       <form
         ref={container}
@@ -463,21 +415,12 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   ]}
                 />
                 <Reveal show={draft.deliveryMode === "native"}>
-                  <div className="pt-8">
-                    <Segmented
-                      label="When work starts before it’s ready"
-                      value={draft.readinessPolicy}
-                      onChange={(readinessPolicy) =>
-                        update({ readinessPolicy })
-                      }
-                      options={[
-                        { value: "block", label: "Block" },
-                        { value: "warn", label: "Warn" },
-                        { value: "off", label: "Allow" },
-                      ]}
-                      hint={readinessHints[draft.readinessPolicy]}
-                    />
-                  </div>
+                  <p className="pt-6 text-xs leading-relaxed text-muted-foreground">
+                    The project starts with a board and a ranked backlog, story
+                    points, and work that may start before its specification is
+                    ready (Lictory records what was missing). Sprints, cycles
+                    and the readiness policy are in the project’s settings.
+                  </p>
                 </Reveal>
                 <Reveal show={external}>
                   <p className="pt-6 text-xs leading-relaxed text-muted-foreground">
@@ -489,69 +432,6 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 </Reveal>
               </>
             )}
-            {draft.step === steps.planning && (
-              <>
-                <OnboardingHeading title="How does the project plan?" />
-                <div className="space-y-8">
-                  <div>
-                    <Segmented
-                      label="Cadence"
-                      value={draft.iterationMode}
-                      onChange={(iterationMode) => update({ iterationMode })}
-                      options={[
-                        { value: "off", label: "Continuous" },
-                        { value: "manual", label: "Sprints" },
-                        { value: "automatic", label: "Cycles" },
-                      ]}
-                      hint={
-                        draft.iterationMode
-                          ? planningHints[draft.iterationMode]
-                          : "Pick one to continue."
-                      }
-                    />
-                    <Reveal show={draft.iterationMode === "automatic"}>
-                      <div className="grid grid-cols-2 gap-3 pt-4">
-                        <Select
-                          label="Length"
-                          value={draft.iterationWeeks}
-                          onChange={(iterationWeeks) =>
-                            update({ iterationWeeks })
-                          }
-                          options={Array.from({ length: 8 }, (_, i) => [
-                            String(i + 1),
-                            `${i + 1} week${i ? "s" : ""}`,
-                          ])}
-                        />
-                        <Select
-                          label="Starts on"
-                          value={draft.iterationStartDay}
-                          onChange={(iterationStartDay) =>
-                            update({ iterationStartDay })
-                          }
-                          options={days.map((name, i) => [String(i), name])}
-                        />
-                      </div>
-                    </Reveal>
-                  </div>
-                  <Segmented
-                    label="Estimates"
-                    value={draft.estimateScale}
-                    onChange={(estimateScale) => update({ estimateScale })}
-                    options={[
-                      { value: "none", label: "None" },
-                      { value: "fibonacci", label: "Fibonacci" },
-                      { value: "linear", label: "Linear" },
-                      { value: "tshirt", label: "T-shirt" },
-                    ]}
-                    hint={
-                      draft.estimateScale
-                        ? estimateHints[draft.estimateScale]
-                        : "Choose how your team compares the size of work: story points, T-shirt sizes, or no estimates. Select a scale to see examples."
-                    }
-                  />
-                </div>
-              </>
-            )}
             {draft.step === steps.intelligence && (
               <>
                 <OnboardingHeading title="Lictory Intelligence">
@@ -560,9 +440,9 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 </OnboardingHeading>
                 <CardOptions
                   label="Lictory Intelligence"
-                  value={draft.aiEnabled ? "enabled" : "disabled"}
+                  value={aiEnabled ? "enabled" : "disabled"}
                   onChange={(value) =>
-                    update({ aiEnabled: value === "enabled" })
+                    update({ aiEnabled: value === "enabled", aiChosen: true })
                   }
                   options={[
                     {
@@ -594,9 +474,9 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                   </p>
                   {!directory.ai.available && (
                     <p>
-                      Lictory Intelligence is not available on this server yet.
-                      Your choice will be saved and it can run once a provider
-                      is configured.
+                      This server has no AI provider configured yet, so Lictory
+                      Intelligence starts off. If you enable it, it runs once an
+                      operator configures a provider.
                     </p>
                   )}
                   <p>
@@ -616,6 +496,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 </OnboardingHeading>
                 <Invites
                   value={draft.invites}
+                  project={draft.name.trim() || "the project"}
                   onChange={(invites) => update({ invites })}
                 />
               </>
@@ -683,9 +564,11 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
 
 function Invites({
   value,
+  project,
   onChange,
 }: {
   value: string[];
+  project: string;
   onChange: (value: string[]) => void;
 }) {
   const [text, setText] = useState("");
@@ -777,42 +660,11 @@ function Invites({
       </ul>
       {value.length > 0 && (
         <p className="mt-4 text-xs text-muted-foreground">
-          They join the organization as members. Add them to the project’s
-          disciplines once they’re in.
+          They join {project} as members and can read and discuss its work. Give
+          them a discipline (Product, Engineering, QA) in the project’s settings
+          → Members so they can edit and review specs.
         </p>
       )}
     </div>
-  );
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: [string, string][];
-}) {
-  return (
-    <label className="block text-sm font-medium">
-      {label}
-      <DropdownSelect
-        value={value}
-        required
-        onValueChange={(value) => onChange(value)}
-        size="lg"
-        className="mt-2 w-full"
-        aria-label={label}
-      >
-        {options.map(([value, label]) => (
-          <DropdownSelectOption key={value} value={value}>
-            {label}
-          </DropdownSelectOption>
-        ))}
-      </DropdownSelect>
-    </label>
   );
 }

@@ -190,21 +190,23 @@ export function CreateOrganization({ userId }: { userId?: string }) {
           {error}
         </p>
       )}
-      <Button
-        type="submit"
-        size="lg"
-        className="w-full"
-        disabled={
-          pending ||
-          handleStatus.blocked ||
-          !name.trim() ||
-          !project.trim() ||
-          !keyPattern.test(effectiveKey)
-        }
-      >
-        {pending ? "Creating…" : "Continue"}
-        {!pending && <ArrowRight className="size-4" />}
-      </Button>
+      {/* Where every later setup step keeps its Continue. */}
+      <div className="flex justify-end pt-4">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={
+            pending ||
+            handleStatus.blocked ||
+            !name.trim() ||
+            !project.trim() ||
+            !keyPattern.test(effectiveKey)
+          }
+        >
+          {pending ? "Creating…" : "Continue"}
+          {!pending && <ArrowRight className="size-4" />}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -82,7 +82,7 @@ for (const mode of ["native", "external"] as const)
       "Payments",
     );
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await configureFirstProject(page, mode, "off", mode === "native");
+    await configureFirstProject(page, mode, mode === "native");
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await reloadWhenSaved(page);
     await expect(
@@ -115,7 +115,16 @@ for (const mode of ["native", "external"] as const)
     await page
       .getByRole("button", { name: "Invite 1 and finish", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/pay\/proposals$/);
+    // Setup ends on Home: its checklist names what setup did not ask
+    // (code host, runner, agent), and counts the invitation just sent.
+    await expect(
+      page.getByRole("heading", { name: "Home", level: 1 }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/[^/]+$/);
+    await expect(
+      page.locator('[data-setup-step="team"][data-done]'),
+    ).toContainText("1 invited");
+    await expect(page.locator('[data-setup-step="runner"]')).toBeVisible();
     expect(interrupted).toBe(true);
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     const db = drizzle(client);
@@ -163,6 +172,14 @@ for (const mode of ["native", "external"] as const)
       .where(eq(s.organizationAiPolicy.organizationId, org.id));
     expect(aiPolicy!.enabled).toBe(mode === "native");
     expect(invitations.map((i) => i.email)).toEqual([invitee]);
+    // The invitee joins the first project, not only the organization.
+    const placements = await db
+      .select()
+      .from(s.invitationPlacement)
+      .where(eq(s.invitationPlacement.organizationId, org.id));
+    expect(placements).toMatchObject([
+      { invitationId: invitations[0]!.id, projectId: projects[0]!.id },
+    ]);
     await client.end();
   });
 
@@ -481,42 +498,13 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
   await page
     .getByRole("button", { name: "Create a workspace", exact: false })
     .click();
+  // Setup no longer asks how the project plans: it starts continuous with
+  // story points, and the project's planning settings change that.
   await createWorkspace(page, {
     organization: "Cycle select verification",
     project: "Payments",
     key: "PAY",
-    finish: false,
   });
-  // Revisit planning to exercise the conditional cycle controls.
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  for (const [name, description] of [
-    ["None", "Items have no estimates."],
-    ["Linear", "Points from 0 to 8 in equal steps."],
-    ["T-shirt", "Sizes: XS, S, M, L, XL."],
-    ["Fibonacci", "Bigger gaps reflect more uncertainty in larger work."],
-  ]) {
-    await page.getByRole("radio", { name, exact: true }).click();
-    await expect(page.getByText(description!, { exact: false })).toBeVisible();
-  }
-  await page.getByRole("radio", { name: "Cycles", exact: true }).click();
-  const length = page.getByRole("combobox", { name: "Length" });
-  await length.click();
-  await page.getByRole("option", { name: "3 weeks", exact: true }).click();
-  const startDay = page.getByRole("combobox", { name: "Starts on" });
-  await expect(startDay).toHaveText("Monday");
-  await startDay.focus();
-  await startDay.press("Enter");
-  await page.getByRole("option", { name: "Sunday", exact: true }).click();
-  await expect(startDay).toHaveText("Sunday");
-  await expect(startDay).toBeFocused();
-  await expect(startDay).toHaveCSS("height", "40px");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Skip and finish", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/pay\/proposals$/);
   const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -529,11 +517,32 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
     .from(s.project)
     .where(eq(s.project.organizationId, organization!.id));
   expect(project).toMatchObject({
-    iterationWeeks: 3,
-    iterationStartDay: 0,
+    iterationMode: "off",
+    readinessPolicy: "warn",
     estimateScale: "fibonacci",
   });
   await page.goto(paths.projectSettings(orgSlug, "PAY", "planning"));
+  await page.getByRole("radio", { name: /^Cycles/ }).click();
+  const length = page.getByRole("combobox", { name: "Iteration length" });
+  await length.click();
+  await page.getByRole("option", { name: "3 weeks", exact: true }).click();
+  await expect(length).toHaveText("3 weeks");
+  const startDay = page.getByRole("combobox", { name: "Cycle start day" });
+  await expect(startDay).toHaveText("Monday");
+  await startDay.focus();
+  await startDay.press("Enter");
+  await page.getByRole("option", { name: "Sunday", exact: true }).click();
+  await expect(startDay).toHaveText("Sunday");
+  await expect(startDay).toBeFocused();
+  await expect
+    .poll(async () => {
+      const [saved] = await db
+        .select()
+        .from(s.project)
+        .where(eq(s.project.id, project!.id));
+      return saved && [saved.iterationWeeks, saved.iterationStartDay];
+    })
+    .toEqual([3, 0]);
   const upcoming = page.getByRole("combobox", { name: "Upcoming cycles" });
   await expect(upcoming).toHaveCSS("height", "32px");
   await upcoming.click();

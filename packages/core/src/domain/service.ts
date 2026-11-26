@@ -1329,6 +1329,7 @@ function summarize(
       approved: (ctx.approvalsByReview.get(r.id) ?? []).some(
         (a) => a.status === "granted",
       ),
+      requestedById: r.requestedById ?? null,
     })),
     readinessPassed: checks.filter((c) => c.passed).length,
     readinessTotal: checks.length,

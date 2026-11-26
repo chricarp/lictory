@@ -12,16 +12,24 @@ parts so the rest of the guide can refer to them.
 Opening an organization lands on **Home**, which answers "what needs me, and
 what is moving?":
 
-- **Waiting on you**: reviews requested of you, pull requests and page
-  changes that wait for your approval or a merge, and items of yours with
-  changes requested or blocking discussions. **Open Inbox** shows all of
-  them ([Inbox](/inbox)).
+- **Waiting on you**: the first few of everything that waits on you:
+  questions and approvals from agents, reviews requested of you, pull
+  requests and page changes that wait for your approval or a merge, and
+  items of yours with changes requested or blocking discussions. The
+  Inbox's **To do** is the whole list ([Inbox](/inbox)).
 - **In flight**: work assigned to you that has started.
-- **Ready to start**: ready work that is yours or nobody's yet.
+- **Ready to start**: work that can start now and is yours or nobody's yet,
+  by the same rule agents claim by: its scope accepted, nothing blocking it.
+  A ready specification nobody accepted yet waits on its owner instead.
+- **Recent outcomes**: what finished in the last seven days: your work that
+  was delivered, and agent sessions you started (or whose agent you own)
+  that finished or failed. Open a failed one to retry it.
 - **Recently edited pages** in your [spaces](/spaces).
-- **Agents ask you** and **Agents at work**, once your organization has
-  agents: the questions and approvals agents wait on you for, and the
-  agent sessions running now ([the Factory](/factory)).
+- **Agents at work**, once your organization has agents: the agent sessions
+  running now ([the Factory](/factory)).
+
+A new organization's administrators also see its setup checklist. A member
+who belongs to no project yet is told so, and who adds them.
 
 Everything on Home updates as the work changes; there is nothing to refresh.
 
@@ -51,20 +59,21 @@ From top to bottom:
   need you. Its badge counts unread notifications, or, when everything is
   read, your open to-dos. **Litto** opens the conversations with Lictory's
   assistant ([Litto](/ai/litto)).
-- **Channels** lists **All channels** and the channels you joined, bold when
-  something is unread, with a count when you were mentioned. **Direct
-  messages** lists your recent conversations with people and agents. The
-  **+** beside each heading starts a channel or a conversation.
-- **Factory** has its **Overview**, your **Agents** and the **Runners**
-  they work on. Its count is the agent sessions waiting for your answer or
-  approval ([the Factory](/factory)). **Code** shows repositories and pull
-  requests.
+- **Factory**: its page has tabs for the overview, your **Agents** and the
+  **Runners** they work on. Its count is the agent sessions waiting for your
+  answer or approval ([the Factory](/factory)). **Code** shows repositories
+  and pull requests.
 - **Projects**: the project you are in, with its views (below). Open the
   project switcher to choose another; the gear beside it opens **Project
   settings**.
 - **Spaces** lists **All spaces** and the organization's spaces and those
   of your projects and teams. The **+** beside the heading creates a space.
   See [Spaces](/spaces).
+- **Channels** lists **All channels** and the channels you joined, bold when
+  something is unread, with a count when you were mentioned. **Direct
+  messages** lists your recent conversations with people and agents. The
+  **+** beside each heading starts a channel or a conversation. They come
+  last because their lists grow with the organization.
 - **Organization settings** sits at the bottom.
 - **Your account menu** (your name at the very bottom) has **Account
   settings**, **Privacy preferences**, **Sign out** and the version of
@@ -76,7 +85,9 @@ browser. A folded section still shows its count.
 
 ### A project's views
 
-Under the project switcher the views follow what you do with the work:
+Under the project switcher the views follow what you do with the work,
+under **Refine** (agreeing on what to build) and **Deliver** (building it or
+handing it off):
 
 | Views                                                                                                     | What for                                                                                |
 | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -193,8 +204,10 @@ keep working.
 
 `Ctrl K` (`⌘ K` on a Mac) or `/` opens the command palette anywhere. Type to
 find work items (by title or key, such as `PAY-142`), pages, spaces,
-projects and their views, and commands: **New proposal**, **New page in …**,
-create an item or a space, **Go to** any part of the sidebar, settings,
+projects and their views, pull requests of the connected code hosts, agent
+sessions and agents, and commands: **New proposal**, **New page in …**,
+**Start agent session**, **Add runner**, **New agent**, create an item or a
+space, **Go to** any part of the sidebar, settings,
 switch organization, switch to the light or dark appearance, ask Litto, and,
 while an item is open, **Assign PAY-142 to me** or **Set status: …**. See
 [search](/search).
@@ -203,7 +216,10 @@ while an item is open, **Assign PAY-142 to me** or **Set status: …**. See
 
 Lictory saves as you work; there is no save button for properties,
 comments or ordering. The indicator beside your name in the sidebar says
-where your changes are:
+where your changes are. While it is offline, reconnecting, waiting for your
+help or signed out, it says so in a word beside the icon (**Offline**,
+**Reconnecting…**, **Not saved**, **Signed out**), and screen readers
+announce the change:
 
 | Indicator                        | Meaning                                                                                                    |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |

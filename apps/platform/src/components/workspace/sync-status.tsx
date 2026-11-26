@@ -26,6 +26,7 @@ import {
   useRecoveryEntries,
 } from "@lictory/platform/components/workspace/recovery";
 import { reauthenticate } from "@lictory/platform/components/workspace/connection-notice";
+import { useCompactSidebar } from "@lictory/platform/components/shell/sidebar-parts";
 
 // Routine sync cycles stay quiet; connection problems are shown immediately.
 const SHOW_AFTER_MS = 400;
@@ -45,6 +46,15 @@ function useDebouncedBusy(busy: boolean) {
   }, [busy, shown]);
   return shown;
 }
+
+// A problem is said in words beside the icon, so it is not missed while
+// someone keeps editing; routine states stay an icon.
+const shortLabels: Partial<Record<Presentation, string>> = {
+  offline: "Offline",
+  recovering: "Reconnecting…",
+  attention: "Not saved",
+  access: "Signed out",
+};
 
 const titles: Record<Presentation, string> = {
   idle: "Everything is saved",
@@ -72,6 +82,8 @@ export function SyncStatus() {
     rejected: rejected.length,
   });
   const label = titles[presentation];
+  const compact = useCompactSidebar();
+  const word = compact ? undefined : shortLabels[presentation];
   const recovering = presentation === "recovering" || presentation === "busy";
   const Icon =
     presentation === "offline"
@@ -88,44 +100,63 @@ export function SyncStatus() {
     ),
   ];
 
+  const problemShown = shortLabels[presentation] !== undefined;
   return (
-    <Popover
-      width={320}
-      side="top"
-      trigger={(props) => (
-        <button
-          {...props}
-          aria-label={label}
-          title={label}
-          data-sync-status={presentation}
-          data-pending={pending.length}
-          className={cn(
-            "grid size-7 shrink-0 place-items-center rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-            presentation === "idle" && "text-muted-foreground/70",
-            recovering && "text-muted-foreground",
-            presentation === "offline" && "text-warning",
-            (presentation === "attention" || presentation === "access") &&
-              "text-destructive",
-          )}
-        >
-          <Icon
+    <>
+      {/* Said once when the connection changes, not on every save. */}
+      <span role="status" className="sr-only">
+        {problemShown ? label : ""}
+      </span>
+      <Popover
+        width={300}
+        // Opens over the sidebar it belongs to, not over the page's content.
+        side={compact ? "right" : "top"}
+        align="end"
+        trigger={(props) => (
+          <button
+            {...props}
+            // The visible word starts the name (WCAG 2.5.3).
+            aria-label={word && word !== label ? `${word}. ${label}` : label}
+            title={label}
+            data-sync-status={presentation}
+            data-pending={pending.length}
             className={cn(
-              "size-4",
-              recovering &&
-                "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
+              "flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md transition-[background-color,color] duration-150 ease-out hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+              word ? "px-2 text-xs font-medium" : "w-7",
+              presentation === "idle" && "text-muted-foreground/70",
+              recovering && "text-muted-foreground",
+              presentation === "offline" && "text-warning",
+              (presentation === "attention" || presentation === "access") &&
+                "text-destructive",
+              word &&
+                (presentation === "offline"
+                  ? "bg-warning/10"
+                  : presentation === "recovering"
+                    ? "bg-muted"
+                    : "bg-destructive/10"),
             )}
-          />
-        </button>
-      )}
-    >
-      <SyncPanel
-        presentation={presentation}
-        count={pending.length}
-        errors={errors}
-        reconnect={reconnect}
-        recoverable={recoverable}
-      />
-    </Popover>
+          >
+            <Icon
+              aria-hidden
+              className={cn(
+                "size-4 shrink-0",
+                recovering &&
+                  "animate-spin [animation-duration:1.4s] motion-reduce:animate-none",
+              )}
+            />
+            {word && <span aria-hidden>{word}</span>}
+          </button>
+        )}
+      >
+        <SyncPanel
+          presentation={presentation}
+          count={pending.length}
+          errors={errors}
+          reconnect={reconnect}
+          recoverable={recoverable}
+        />
+      </Popover>
+    </>
   );
 }
 

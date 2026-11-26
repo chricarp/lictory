@@ -1,7 +1,6 @@
 import type { WorkItem } from "@lictory/core/contracts/protocol";
 import {
   deliveryCategory,
-  readyForSelection,
   type ExternalLink,
 } from "@lictory/core/lib/lifecycle";
 import type { Delivery, Project } from "@lictory/core/lib/work-items";
@@ -45,19 +44,41 @@ export function inFlight(
   return first(started.sort(newest), limit);
 }
 
-// Ready specifications nobody has started: mine first, then unassigned ones.
-// Work assigned to someone else is theirs to start.
+// Work that can start now, by the rule agents claim by (`startable`:
+// accepted scope, not started, nothing blocking it, readiness as the
+// project's policy asks): mine first, then unassigned. Work assigned to
+// someone else is theirs to start. A ready specification nobody accepted
+// yet is not here: accepting it is its owner's act, in Waiting on you. Work
+// broken down into open children starts through the children.
 export function readyToStart(
-  { items, projects, delivery, links, userId }: Context,
+  {
+    items,
+    projects,
+    delivery,
+    links,
+    userId,
+    startable,
+  }: Context & { startable: (item: WorkItem) => boolean },
   limit: number,
 ): Listed<WorkItem> {
   const byId = new Map(projects.map((p) => [p.id, p]));
+  const parents = new Set<string>();
+  for (const child of items) {
+    if (!child.parentId || child.archivedAt) continue;
+    const project = byId.get(child.projectId);
+    const category =
+      project &&
+      deliveryCategory(child, project, delivery, links.get(child.id));
+    if (category !== "done" && category !== "canceled")
+      parents.add(child.parentId);
+  }
   const ready = items.filter((item) => {
     if (item.assigneeId && item.assigneeId !== userId) return false;
     const project = byId.get(item.projectId);
     return (
-      !!project &&
-      readyForSelection(item, project, delivery, links.get(item.id))
+      project?.deliveryMode === "native" &&
+      !parents.has(item.id) &&
+      startable(item)
     );
   });
   ready.sort(
@@ -66,6 +87,90 @@ export function readyToStart(
       newest(a, b),
   );
   return first(ready, limit);
+}
+
+// What finished lately and concerns me: my work items that reached done
+// (merged and delivered, by the Definition of Done), and agent sessions I
+// started or whose agent I own that completed or failed. A failed session
+// stays here, with its Retry, until it ages out of the window. Newest first.
+export const OUTCOME_DAYS = 7;
+
+type OutcomeSession = {
+  id: string;
+  agentId: string;
+  requestedById: string | null;
+  status: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+export type Outcome<S> =
+  | { kind: "item"; key: string; at: string; item: WorkItem }
+  | {
+      kind: "session";
+      key: string;
+      at: string;
+      session: S;
+      failed: boolean;
+    };
+
+export function recentOutcomes<S extends OutcomeSession>(
+  {
+    items,
+    projects,
+    delivery,
+    links,
+    userId,
+    sessions,
+    agentOwner,
+    now,
+  }: Context & {
+    sessions: readonly S[];
+    agentOwner: (agentId: string) => string | null | undefined;
+    now: number;
+  },
+  limit: number,
+): Listed<Outcome<S>> {
+  const since = now - OUTCOME_DAYS * 86_400_000;
+  const recent = (at: string) => Date.parse(at) >= since;
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const rows: Outcome<S>[] = [];
+  for (const item of items) {
+    if (item.archivedAt || !recent(item.updatedAt)) continue;
+    if (item.assigneeId !== userId && item.createdById !== userId) continue;
+    const project = byId.get(item.projectId);
+    if (
+      project &&
+      deliveryCategory(item, project, delivery, links.get(item.id)) === "done"
+    )
+      rows.push({
+        kind: "item",
+        key: `item:${item.id}`,
+        at: item.updatedAt,
+        item,
+      });
+  }
+  for (const session of sessions) {
+    if (session.status !== "completed" && session.status !== "failed") continue;
+    const at = session.completedAt ?? session.updatedAt;
+    if (!recent(at)) continue;
+    if (
+      session.requestedById !== userId &&
+      agentOwner(session.agentId) !== userId
+    )
+      continue;
+    rows.push({
+      kind: "session",
+      key: `session:${session.id}`,
+      at,
+      session,
+      failed: session.status === "failed",
+    });
+  }
+  return first(
+    rows.sort((a, b) => b.at.localeCompare(a.at)),
+    limit,
+  );
 }
 
 type PageLike = {
