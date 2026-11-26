@@ -18,7 +18,9 @@ test("one action requests every other reviewing discipline", async ({
   await signIn(page, seeded.owner.email);
   await page.goto(seeded.itemPath(1));
   const dialog = page.getByRole("dialog");
-  await page.getByRole("button", { name: "Request review" }).click();
+  await page
+    .getByRole("button", { name: "Request review", exact: true })
+    .click();
   await dialog
     .getByRole("button", { name: "Request Engineering and QA reviews" })
     .click();
@@ -35,7 +37,9 @@ test("one action requests every other reviewing discipline", async ({
     await expect(row.getByText(`Anyone in ${discipline}`)).toBeVisible();
   }
   // Once every other discipline is asked, the shortcut is no longer offered.
-  await page.getByRole("button", { name: "Request review" }).click();
+  await page
+    .getByRole("button", { name: "Request review", exact: true })
+    .click();
   await expect(
     dialog.getByRole("button", { name: /^Request .* reviews$/ }),
   ).toHaveCount(0);
@@ -64,7 +68,9 @@ test("a refused request keeps the popover open and names what was requested", as
       mutation.command.disciplineId = crypto.randomUUID();
   });
   const dialog = page.getByRole("dialog");
-  await page.getByRole("button", { name: "Request review" }).click();
+  await page
+    .getByRole("button", { name: "Request review", exact: true })
+    .click();
   await dialog
     .getByRole("button", { name: "Request Engineering and QA reviews" })
     .click();

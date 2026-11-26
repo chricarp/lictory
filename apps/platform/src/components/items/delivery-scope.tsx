@@ -100,9 +100,11 @@ export function DeliveryScope({
         </Button>
       )}
       {canAccept && (
+        // The one human decision that starts delivery carries the weight
+        // of the card's next step; accepting early stays a quiet exception.
         <Button
           size="sm"
-          variant="secondary"
+          variant={exception ? "secondary" : "primary"}
           disabled={pending || blocked}
           className={cn(
             exception &&

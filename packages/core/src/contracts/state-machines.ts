@@ -138,49 +138,49 @@ export const specificationPullRequest = stateMachine({
       from: ["open"],
       to: "draft",
       idempotent: true,
-      refused: "Merged pull requests cannot become drafts.",
+      refused: "An applied change cannot become a draft review.",
     },
     markReady: {
       does: "Mark ready for review",
       from: ["draft"],
       to: "open",
       idempotent: true,
-      refused: "A merged pull request cannot be marked ready for review.",
+      refused: "An applied change cannot be marked ready for review.",
     },
     requestReview: {
       does: "Request a review",
       from: ["draft", "open"],
-      refused: "This pull request is merged.",
+      refused: "This change is already applied.",
     },
     requestAction: {
       does: "Ask Lictory Intelligence for a review",
       from: ["draft", "open"],
-      refused: "This pull request is not open for review.",
+      refused: "This change is not open for review.",
     },
     discuss: {
       does: "Start a discussion",
       from: ["draft", "open"],
-      refused: "This pull request is unavailable for discussion.",
+      refused: "This review is unavailable for discussion.",
     },
     review: {
       does: "Approve, request changes or revoke a decision",
       from: ["open"],
       refused: (state) =>
         state === "draft"
-          ? "This pull request is a draft. Mark it ready for review first."
-          : "This pull request is merged.",
+          ? "This review is a draft. Mark it ready for review first."
+          : "This change is already applied.",
     },
     merge: {
       does: "Merge",
       from: ["open"],
       to: "merged",
-      refused: "Only an open pull request can be merged.",
+      refused: "Only a change open for review can be applied.",
     },
     close: {
       does: "Close",
       from: ["draft", "open", "merged"],
       to: "closed",
-      refused: "This branch or pull request is unavailable.",
+      refused: "This proposed change or its review is unavailable.",
     },
   },
 });

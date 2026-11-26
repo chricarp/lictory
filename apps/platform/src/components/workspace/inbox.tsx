@@ -131,12 +131,10 @@ export function useAttention() {
           : "";
         list.push({
           item,
-          reason: pending.length
-            ? "Review requested"
-            : "Pull request to review",
+          reason: pending.length ? "Review requested" : "Suggestion to accept",
           detail: pending.length
-            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}${blocking}`
-            : `A pull request awaits your approval to be merged${blocking}`,
+            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggested change waits for you to accept or reject it" : ""}${blocking}`
+            : `A suggested change waits for you to accept or reject it${blocking}`,
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });

@@ -33,6 +33,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function MergeBox({
   target,
+  verb = "merge",
   requirements,
   blocked,
   readySummary,
@@ -45,6 +46,9 @@ export function MergeBox({
 }: {
   // The branch it merges into, for "2 requirements into main not met yet".
   target: string;
+  // The act in the subject's words: code and pages merge into a branch; a
+  // specification's proposed change applies to the specification.
+  verb?: "merge" | "apply";
   requirements: readonly MergeRequirement[];
   // Override when something outside the rows blocks the merge (a draft).
   // Defaults to any requirement failing, pending or running.
@@ -68,6 +72,14 @@ export function MergeBox({
   const missing = requirements.filter(unmet).length;
   const isBlocked = blocked ?? missing > 0;
   const Heading = headingLevel === 2 ? "h2" : "h3";
+  const words =
+    verb === "apply"
+      ? { blocked: "Applying is blocked", ready: "Ready to apply", to: "apply" }
+      : {
+          blocked: "Merging is blocked",
+          ready: "Ready to merge",
+          to: `merge into ${target}`,
+        };
   return (
     <section
       aria-labelledby={id}
@@ -83,31 +95,28 @@ export function MergeBox({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full",
-            isBlocked
-              ? "bg-muted text-muted-foreground"
-              : "bg-success text-white",
+            isBlocked ? "bg-warning/12 text-warning" : "bg-success text-white",
           )}
         >
           <GitMerge className="size-4" />
         </span>
         <div className="min-w-0">
           <Heading id={id} className="text-sm leading-5 font-semibold">
-            {isBlocked ? "Merging is blocked" : "Ready to merge"}
+            {isBlocked ? words.blocked : words.ready}
           </Heading>
           <p className="text-xs text-muted-foreground">
             {isBlocked
               ? missing > 0
-                ? `${plural(missing, "requirement")} to merge into ${target} not met yet.`
-                : `This cannot merge into ${target} yet.`
-              : (readySummary ??
-                `Every requirement to merge into ${target} is met.`)}
+                ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
+                : `Not every requirement to ${words.to} is met yet.`
+              : (readySummary ?? `Every requirement to ${words.to} is met.`)}
           </p>
         </div>
       </div>
       {before && <div className="border-b px-4 py-2.5">{before}</div>}
       {requirements.length > 0 && (
         <ul
-          aria-label="Merge requirements"
+          aria-label={verb === "apply" ? "Requirements" : "Merge requirements"}
           className="divide-y divide-border/70"
         >
           {requirements.map((r) => (
@@ -146,10 +155,16 @@ export function MergeBox({
 }
 
 // A merged pull request: what happened to the change.
-export function MergedNotice({ children }: { children: ReactNode }) {
+export function MergedNotice({
+  children,
+  label = "Merged",
+}: {
+  children: ReactNode;
+  label?: string;
+}) {
   return (
     <section
-      aria-label="Merged"
+      aria-label={label}
       className="flex items-start gap-3 rounded-xl bg-card p-4 shadow-(--shadow-border)"
     >
       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">

@@ -33,11 +33,17 @@ const states: Record<
   closed: { label: "Closed", tone: "neutral", icon: <GitPullRequestClosed /> },
 };
 
-export function PullRequestStateChip({ state }: { state: PullRequestState }) {
+export function PullRequestStateChip({
+  state,
+  label,
+}: {
+  state: PullRequestState;
+  label?: string;
+}) {
   const s = states[state];
   return (
     <StatusChip tone={s.tone} icon={s.icon}>
-      {s.label}
+      {label ?? s.label}
     </StatusChip>
   );
 }
@@ -48,6 +54,7 @@ export function PullRequestHeader({
   title,
   number,
   state,
+  stateLabel,
   author,
   mergedBy,
   commits,
@@ -65,6 +72,9 @@ export function PullRequestHeader({
   // The host's number ("#3"), shown after the title.
   number?: number;
   state: PullRequestState;
+  // The state in the subject's words ("Applied" for a specification's
+  // change); the code host's words by default.
+  stateLabel?: string;
   // Who opened it: an `Actor`, or an `AgentActor` for agent-authored work.
   author: ReactNode;
   // Who merged it, when not the author (a person merging an agent's work,
@@ -106,7 +116,7 @@ export function PullRequestHeader({
         )}
       </Heading>
       <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-[13px] text-muted-foreground [--actor-ring:var(--background)]">
-        <PullRequestStateChip state={state} />
+        <PullRequestStateChip state={state} label={stateLabel} />
         <span className="inline-flex min-w-0 items-center font-medium text-foreground">
           {merger ?? author}
         </span>

@@ -12,6 +12,8 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
+import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
+import { pullRequestIsActive } from "@lictory/core/contracts/state-machines";
 import {
   externalLinksByItem,
   isAmended,
@@ -44,11 +46,14 @@ export function ItemWorkflow({
   onReview,
   onBreakdown,
   onCompare,
+  onChanges,
   children,
 }: {
   onStartRefinement?: () => void;
   onReview: () => void;
   onBreakdown: () => void;
+  // Opens the specification's proposed changes.
+  onChanges?: () => void;
   // Opens what changed between two revisions.
   onCompare?: (from: string, to: string) => void;
   children?: ReactNode;
@@ -62,6 +67,8 @@ export function ItemWorkflow({
     entities,
     reviews,
     approvals,
+    memberName,
+    revisionNumber,
   } = useItem();
   // A requested reviewer sees their own step first: the decision, and
   // whether an approval they gave earlier stopped applying.
@@ -140,6 +147,18 @@ export function ItemWorkflow({
     : delivering
       ? paths.board(organization.slug, project.key)
       : paths.backlog(organization.slug, project.key);
+  // The main button is the step the NEXT line names: while no required
+  // review is requested, that is requesting them (which also moves a draft
+  // into review). Starting refinement first is optional, so it is quieter.
+  const noReviewYet = !item.reviews.some(
+    (r) => r.required && r.status !== "cancelled",
+  );
+  const empty = !current?.content.trim();
+  const requestReviews = !readOnly && noReviewYet && !empty && (
+    <Button size="sm" onClick={onReview}>
+      Request reviews
+    </Button>
+  );
   // Accepting a ready native scope happens in the panel below; the other
   // stages point to the place where their next step happens.
   const action = mine.review ? (
@@ -158,14 +177,24 @@ export function ItemWorkflow({
       )}
     </div>
   ) : !readOnly && stage === "proposal" && onStartRefinement ? (
-    <Button size="sm" onClick={onStartRefinement}>
-      <FilePenLine className="size-3.5" /> Start refinement
-    </Button>
+    <div className="flex flex-wrap gap-1.5">
+      {requestReviews}
+      <Button
+        size="sm"
+        variant="secondary"
+        title="Optional: tells the team the proposal is being explored before anyone reviews it."
+        onClick={onStartRefinement}
+      >
+        <FilePenLine className="size-3.5" /> Start refinement
+      </Button>
+    </div>
   ) : type.hasSpecification &&
     ((!delivering && stage !== "ready") || amendment) ? (
-    <Button variant="secondary" size="sm" onClick={onReview}>
-      Review & checks
-    </Button>
+    requestReviews || (
+      <Button variant="secondary" size="sm" onClick={onReview}>
+        Review & checks
+      </Button>
+    )
   ) : stage === "canceled" ? null : container &&
     (stage === "ready" || delivering) ? (
     <Button variant="ghost" size="sm" onClick={onBreakdown}>
@@ -187,7 +216,9 @@ export function ItemWorkflow({
     >
       {steps.map((name, index) => {
         const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
-        const active = position === step;
+        // Ready finishes refinement; delivery starts only when a person
+        // accepts the revision, so it is next, not current.
+        const active = position === step && stage !== "ready";
         const complete = position < step;
         return (
           <li
@@ -241,7 +272,9 @@ export function ItemWorkflow({
     type.hasSpecification &&
     refinement &&
     refinement !== "ready"
-      ? nextRefinementAction(item)
+      ? stage === "proposal" && empty && noReviewYet
+        ? "Describe the intent and the expected behavior in the specification, then request the required reviews."
+        : nextRefinementAction(item)
       : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
@@ -269,6 +302,33 @@ export function ItemWorkflow({
   const approvedReviews = requested.filter((r) =>
     approvals.some((a) => a.reviewId === r.id && a.status === "granted"),
   ).length;
+  // Proposed changes sent for review (a suggested change on a ready
+  // specification is one): findable from the card after the toast is gone.
+  const inReview = entities.filter(
+    (e) =>
+      e.type === "pullRequest" &&
+      e.workItemId === item.id &&
+      pullRequestIsActive(e),
+  ).length;
+  // Approvals a later revision made outdated, for reviews of the current
+  // revision nobody has approved yet: "Engineering approved revision 12;
+  // revision 14 needs review" reads on the card, not only in the rail.
+  const outdated = requested.flatMap((r) => {
+    if (approvals.some((a) => a.reviewId === r.id && a.status === "granted"))
+      return [];
+    const latest = approvals
+      .filter(
+        (a) =>
+          a.status === "stale" &&
+          !isCarriedApproval(a.endReason) &&
+          reviews.find((x) => x.id === a.reviewId)?.responsibility ===
+            r.responsibility,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return latest
+      ? [{ responsibility: r.responsibility, approval: latest }]
+      : [];
+  });
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
   // The statement names the stage (the refinement state's sentence), so
@@ -299,6 +359,25 @@ export function ItemWorkflow({
           >
             {approvedReviews}/{requested.length} approved
           </Pill>
+        </li>
+      )}
+      {inReview > 0 && (
+        <li>
+          {onChanges ? (
+            <button
+              type="button"
+              onClick={onChanges}
+              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <Pill tone="info">
+                {inReview} {inReview === 1 ? "change" : "changes"} in review
+              </Pill>
+            </button>
+          ) : (
+            <Pill tone="info">
+              {inReview} {inReview === 1 ? "change" : "changes"} in review
+            </Pill>
+          )}
         </li>
       )}
       {item.blockingThreads > 0 && (
@@ -397,6 +476,26 @@ export function ItemWorkflow({
           )}
         </div>
         <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
+        {!mine.review && outdated.length > 0 && current && (
+          <ul className="mt-2 space-y-0.5 pl-4 text-[12.5px] max-sm:pl-0">
+            {outdated.map(({ responsibility, approval }) => (
+              <li
+                key={approval.id}
+                className="flex items-baseline gap-1.5 text-muted-foreground"
+              >
+                <TriangleAlert
+                  aria-hidden
+                  className="size-3 shrink-0 self-center text-warning"
+                />
+                <span>
+                  {responsibility}: {memberName(approval.reviewerId)} approved
+                  revision {revisionNumber(approval.revisionId) ?? "?"};
+                  revision {current.number} needs their review again.
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {next && (
           <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
             <span className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">

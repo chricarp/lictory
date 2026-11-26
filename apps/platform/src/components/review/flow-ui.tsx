@@ -81,13 +81,13 @@ export const prStatusMeta: Record<
     text: "text-muted-foreground",
   },
   open: {
-    label: "Open",
+    label: "In review",
     icon: GitPullRequest,
     pill: "bg-success/8 text-success ring-1 ring-success/20 ring-inset",
     text: "text-success",
   },
   merged: {
-    label: "Merged",
+    label: "Applied",
     icon: GitMerge,
     pill: "bg-violet-500/10 text-violet-700 ring-1 ring-violet-500/25 ring-inset dark:text-violet-300",
     text: "text-violet-600 dark:text-violet-400",

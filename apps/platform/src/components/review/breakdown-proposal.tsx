@@ -29,6 +29,7 @@ export function BreakdownProposal({
   onChange,
   includeApplied = false,
   accepted = [],
+  created = false,
 }: {
   proposals: ProposedChild[];
   onChange?: (proposals: ProposedChild[]) => void;
@@ -36,6 +37,8 @@ export function BreakdownProposal({
   includeApplied?: boolean;
   // Main's breakdown: changes it holds were already applied.
   accepted?: ProposedChild[];
+  // The reviewed breakdown was applied: these items exist now.
+  created?: boolean;
 }) {
   const { item, type } = useItem();
   const { delivery, items } = useWorkspace();
@@ -75,7 +78,9 @@ export function BreakdownProposal({
       aria-label="Proposed breakdown"
     >
       <div className="flex items-center gap-2">
-        <SectionLabel>Proposed breakdown</SectionLabel>
+        <SectionLabel>
+          {created ? "Created breakdown" : "Proposed breakdown"}
+        </SectionLabel>
         <span className="text-xs text-muted-foreground">
           {pending.length} new {pending.length === 1 ? "item" : "items"}
           {changes.length > 0 &&
@@ -83,10 +88,9 @@ export function BreakdownProposal({
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        New items and changes to existing ones are made only after the
-        specification&apos;s reviewers approve this breakdown, and only to items
-        nobody has changed since. Work already accepted or underway stays
-        unchanged.
+        {created
+          ? "The specification's reviewers approved this breakdown; its items were created and its changes made."
+          : "New items and changes to existing ones are made only after the specification's reviewers approve this breakdown, and only to items nobody has changed since. Work already accepted or underway stays unchanged."}
       </p>
       {changes.length > 0 && (
         <ul

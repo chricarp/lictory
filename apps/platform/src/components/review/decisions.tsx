@@ -272,7 +272,9 @@ export function Decisions() {
             </div>
             <Markdown source={d.body} />
             <p className="text-xs text-muted-foreground">
-              {memberName(d.authorId)} · revision{" "}
+              {/* The revision the decision was reached on, which may
+                  predate the text it now governs. */}
+              {memberName(d.authorId)} · recorded on revision{" "}
               {revisionNumber(d.revisionId) ?? "earlier"}
               {d.sourceThreadId && " · from a resolved discussion"}
             </p>

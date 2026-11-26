@@ -166,7 +166,11 @@ export function StartBranch({
   const { userId, directory } = useWorkspace();
   const me = directory.members.find((m) => m.id === userId);
   const taken = new Set(branches.map((b) => b.name.toLowerCase()));
-  const base = `${me?.handle ?? me?.name.split(" ")[0] ?? "my"}/${page.title}`;
+  // Named for people, not machines: a first name reads where the draft is
+  // shown ("Draft of amara/Provider outage"); a handle can carry an id.
+  // An empty name has no first word; the regex never yields "".
+  const firstName = /\S+/.exec(me?.name ?? "")?.[0].toLowerCase();
+  const base = `${firstName ?? me?.handle ?? "my"}/${page.title}`;
   return (
     <Popover
       width={320}

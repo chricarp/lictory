@@ -231,10 +231,11 @@ checks found has been fixed.
 Not covered automatically, and worth checking by hand when these areas change:
 
 - **Actions on text selected in a published page.** The keyboard selects
-  text in the page reader and Mod+Alt+M comments on it, but the floating
-  bar's "Create work item" and "Ask Litto" are not in the tab order (Mod+J
-  opens Litto with the selection); an open task's "Create work item" button
-  is reachable with Tab (it appears on focus).
+  text in the page reader; Mod+Alt+M comments on it, and Tab moves into the
+  floating bar (Comment, Create work item, Ask Litto), which sits at the end
+  of the document. Escape, or leaving the bar with Tab, returns to the text
+  with the selection kept. An open task's "Create work item" button is
+  reachable with Tab (it appears on focus).
 - **Drag and drop.** Board cards, backlog ranking and story order are dragged
   with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
   and a card's status and iteration can be changed from the item's properties;

@@ -60,7 +60,7 @@ const available = <T>(value: T | undefined): T => {
   if (!value)
     throw new DomainError(
       "not_found",
-      "This branch or pull request is unavailable.",
+      "This proposed change or its review is unavailable.",
     );
   return value;
 };
@@ -261,16 +261,17 @@ export async function applyBranchCommand(
   const collaborator = (b: typeof main) =>
     b.authorId === userId || b.collaboratorIds.includes(userId);
   const editBranch = (b: typeof main) => {
-    require(b.name !== "main", "Use a pull request to commit to main.");
+    require(b.name !==
+      "main", "Propose a change and send it for review to change the specification.");
     require(collaborator(
       b,
-    ), "Only invited collaborators can commit to this branch.");
+    ), "Only invited collaborators can edit this proposed change.");
   };
   const managePR = (p: (typeof prs)[number]) =>
     require(p.authorId === userId ||
       collaborator(
         branch(p.sourceId),
-      ), "Only the author or a source branch collaborator can manage this pull request.");
+      ), "Only the author or a collaborator on the change can manage this review.");
   const heads = (
     p: (typeof prs)[number],
     sourceHeadId: string,
@@ -281,7 +282,7 @@ export async function applyBranchCommand(
     if (source.headId !== sourceHeadId || target.headId !== targetHeadId)
       throw new DomainError(
         "conflict",
-        "A branch changed. Inspect the updated merge result before continuing.",
+        "The change or the specification changed. Inspect the updated result before continuing.",
       );
     return { source, target };
   };
@@ -290,7 +291,7 @@ export async function applyBranchCommand(
     if (!base)
       throw new DomainError(
         "conflict",
-        "The branches have multiple or missing common ancestors. Resolve the merge explicitly.",
+        "These lines have more than one or no common version. Resolve the conflicts explicitly.",
       );
     return mergeSnapshot(base, commit(source.headId), commit(target.headId));
   };
@@ -416,10 +417,7 @@ export async function applyBranchCommand(
         c.name.toLowerCase() === "main" ||
         branches.some((b) => b.name === c.name)
       )
-        throw new DomainError(
-          "validation",
-          "That branch name is already in use.",
-        );
+        throw new DomainError("validation", "That name is already in use.");
       const from = c.fromBranchId ? branch(c.fromBranchId) : main;
       await tx.insert(s.specificationBranch).values({
         id: c.branchId,
@@ -437,12 +435,12 @@ export async function applyBranchCommand(
       const b = branch(c.branchId);
       require(b.name !== "main" &&
         b.authorId ===
-          userId, "Only the branch author can invite or remove collaborators.");
+          userId, "Only the author of the change can invite or remove collaborators.");
       require(roster.members.some(
         (m) => m.id === c.userId,
       ), "The collaborator is outside this organization.");
       require(c.userId !== b.authorId ||
-        c.assigned, "The branch author cannot be removed.");
+        c.assigned, "The author of the change cannot be removed.");
       const ids = new Set(b.collaboratorIds);
       if (c.assigned) ids.add(c.userId);
       else ids.delete(c.userId);
@@ -468,24 +466,24 @@ export async function applyBranchCommand(
       )
         throw new DomainError(
           "conflict",
-          "Your starting commit is not in this branch's history.",
+          "Your starting version is not in this change's history.",
         );
       if (c.expectedHeadId && c.expectedHeadId !== b.headId)
         throw new DomainError(
           "conflict",
-          "The branch changed again. Resolve against its current head.",
+          "The change was saved again meanwhile. Resolve against its latest version.",
         );
       const proposedChildren = c.proposedChildren ?? base.proposedChildren;
       const result = mergeSnapshot(base, { ...c, proposedChildren }, head);
       if (result.decompositionConflict && !c.proposedChildren)
         throw new DomainError(
           "conflict",
-          "The proposed breakdown changed. Read the latest branch and explicitly choose the proposed children before committing.",
+          "The proposed breakdown changed. Read the latest version and choose the proposed items again before saving.",
         );
       if (result.conflicted && !c.expectedHeadId)
         throw new DomainError(
           "conflict",
-          "Your edits overlap another commit. Resolve the conflicts before committing.",
+          "Your edits overlap another saved version. Resolve the conflicts before saving.",
         );
       // Resolving against the current head keeps its merged breakdown unless
       // the author chose the children explicitly.
@@ -536,7 +534,7 @@ export async function applyBranchCommand(
         )
           throw new DomainError(
             "conflict",
-            "The proposed breakdown changed on this branch while you edited it. Review the branch's breakdown and choose the children again before committing.",
+            "The proposed breakdown changed while you edited it. Review the latest breakdown and choose the items again before saving.",
           );
         proposedChildren = c.proposedChildren;
       }
@@ -553,7 +551,7 @@ export async function applyBranchCommand(
       if (unchanged && c.expectedSequence === sealing!.committedSequence)
         throw new DomainError(
           "validation",
-          "Nothing to commit: the draft equals the branch's latest commit.",
+          "Nothing to save: the draft equals the latest version.",
         );
       const commitId = unchanged
         ? null
@@ -578,12 +576,12 @@ export async function applyBranchCommand(
       if (b.id === target.id)
         throw new DomainError(
           "validation",
-          "Choose another branch to merge from.",
+          "Choose another line to bring text in from.",
         );
       if (b.headId !== c.sourceHeadId || target.headId !== c.targetHeadId)
         throw new DomainError(
           "conflict",
-          "A branch changed again. Refresh the conflict resolution.",
+          "The text changed again. Refresh the conflict resolution.",
         );
       const base = mergeBase(commits, b.headId, target.headId);
       const result = base
@@ -595,7 +593,7 @@ export async function applyBranchCommand(
       )
         throw new DomainError(
           "conflict",
-          "Resolve the overlapping changes before updating the branch.",
+          "Resolve the overlapping changes before updating.",
         );
       const snapshot = {
         title: c.title ?? result!.title,
@@ -605,7 +603,7 @@ export async function applyBranchCommand(
       if (result?.decompositionConflict && c.proposedChildren === undefined)
         throw new DomainError(
           "conflict",
-          "The branches propose competing child changes. Choose the complete breakdown explicitly before syncing.",
+          "Both sides propose different breakdowns. Choose the complete breakdown explicitly before updating.",
         );
       const head = commit(b.headId);
       await validateBreakdown(snapshot.proposedChildren, head.proposedChildren);
@@ -631,7 +629,7 @@ export async function applyBranchCommand(
       const b = branch(c.branchId);
       require(b.name !== "main", "Main cannot be deleted.");
       require(b.authorId === userId ||
-        capabilities.editSpecifications, "Only the author or a specification editor can delete this branch.");
+        capabilities.editSpecifications, "Only the author or a specification editor can delete this proposed change.");
       if (
         prs.some(
           (p) =>
@@ -641,7 +639,7 @@ export async function applyBranchCommand(
       )
         throw new DomainError(
           "conflict",
-          "Delete the active pull requests for this branch first.",
+          "Apply or delete the open reviews of this change first.",
         );
       await tx
         .update(s.specificationBranch)
@@ -657,12 +655,12 @@ export async function applyBranchCommand(
       if (source.id === target.id)
         throw new DomainError(
           "validation",
-          "A pull request must target another branch.",
+          "A review must apply the change somewhere else.",
         );
       if (source.headId === target.headId)
         throw new DomainError(
           "validation",
-          "Commit changes before opening a pull request.",
+          "Save a version before sending the change for review.",
         );
       if (
         prs.some(
@@ -672,10 +670,7 @@ export async function applyBranchCommand(
             pullRequestIsActive(p),
         )
       )
-        throw new DomainError(
-          "conflict",
-          "A pull request between these branches already exists.",
-        );
+        throw new DomainError("conflict", "This change is already in review.");
       await tx.insert(s.specificationPullRequest).values({
         id: c.pullRequestId,
         organizationId,
@@ -764,7 +759,7 @@ export async function applyBranchCommand(
     case "deletePullRequest": {
       const p = pr(c.pullRequestId);
       require(p.authorId === userId ||
-        capabilities.editSpecifications, "Only the author or a specification editor can delete this pull request.");
+        capabilities.editSpecifications, "Only the author or a specification editor can delete this review.");
       const deletedAt = new Date();
       await tx
         .update(s.specificationPullRequest)
@@ -883,7 +878,7 @@ export async function applyBranchCommand(
       if (result.conflicted)
         throw new DomainError(
           "conflict",
-          "Resolve merge conflicts before reviewing the result.",
+          "Resolve the conflicts before reviewing the result.",
         );
       // Append a durable decision event to activity before changing the projection.
       await tx
@@ -918,12 +913,12 @@ export async function applyBranchCommand(
         ? capabilities.editSpecifications
         : collaborator(
             target,
-          ), "Your disciplines in this project cannot merge into the target branch.");
+          ), "Your disciplines in this project cannot apply changes here.");
       const result = merge(source, target);
       if (result.conflicted)
         throw new DomainError(
           "conflict",
-          "Resolve merge conflicts on the source branch first.",
+          "Resolve the conflicts on the change first.",
         );
       if (
         result.title === commit(target.headId).title &&
@@ -935,7 +930,7 @@ export async function applyBranchCommand(
       )
         throw new DomainError(
           "validation",
-          "The pull request has no remaining changes to merge.",
+          "The change has nothing left to apply.",
         );
       const hash = resultHash(result),
         reviews = await tx
@@ -974,7 +969,7 @@ export async function applyBranchCommand(
       )
         throw new DomainError(
           "conflict",
-          "Every required responsibility must approve the current merge result.",
+          "Every required discipline must approve the current result.",
         );
       const blocking = await tx
         .select()
@@ -990,7 +985,7 @@ export async function applyBranchCommand(
       if (blocking.length)
         throw new DomainError(
           "conflict",
-          "Resolve the blocking pull request discussions before merging.",
+          "Resolve the blocking discussions of this review before applying it.",
         );
       const actionProblem = await ctx.actionCheck?.(p.id, source.headId);
       if (actionProblem) throw new DomainError("conflict", actionProblem);

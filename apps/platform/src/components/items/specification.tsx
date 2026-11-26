@@ -82,7 +82,7 @@ export function Specification({
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           Revision {current.number} ·{" "}
           {mergedFrom && mergedFrom.authorId !== current.authorId
-            ? `${memberName(mergedFrom.authorId)}'s pull request, merged by ${memberName(current.authorId)}`
+            ? `${memberName(mergedFrom.authorId)}'s proposed change, applied by ${memberName(current.authorId)}`
             : memberName(current.authorId)}{" "}
           · {relativeTime(current.createdAt)}
         </span>
@@ -496,7 +496,7 @@ function LiveEditor({ onDone }: { onDone: () => void }) {
       >
         <p>
           {item.mainProtected
-            ? "This specification is ready, so main is protected. Changes go through a branch and a reviewed pull request."
+            ? "This specification is ready, so it is protected: changes are proposed and reviewed before they apply. Open Proposed changes to start one."
             : SPECIFICATION_CLOSE_REASONS.revoked}
         </p>
         <Button size="sm" variant="secondary" onClick={onDone}>

@@ -389,10 +389,10 @@ test("changes between revisions mark only the words that changed, and any two re
   // The same history holds branches and pull requests.
   await page
     .getByRole("navigation", { name: "Specification history" })
-    .getByRole("button", { name: "Branches & pull requests" })
+    .getByRole("button", { name: "Proposed changes" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Branches & pull requests" }),
+    page.getByRole("heading", { name: "Proposed changes" }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Specification history" })
@@ -533,6 +533,13 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(toggle).toBeFocused();
+  // A sheet left open does not reopen over the page on the next visit:
+  // it would cover the item and its controls until closed.
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  await page.reload();
+  await expect(discussionsToggle(page)).toBeVisible();
+  await expect(sheet).toHaveCount(0);
 });
 
 test("a larger suggested change opens a branch with the chosen passage selected in its live draft", async ({
@@ -557,7 +564,7 @@ test("a larger suggested change opens a branch with the chosen passage selected 
   );
   await composer.getByRole("button", { name: "Larger change" }).click();
   const editor = page.locator(
-    '[data-markdown-editor][aria-label="Branch specification"][contenteditable="true"]',
+    '[data-markdown-editor][aria-label="Proposed specification"][contenteditable="true"]',
   );
   await expect(editor).toBeFocused();
   await expect
@@ -829,7 +836,12 @@ test("a reviewer decides on a phone without a squeezed card, and a change to the
   ).toBeVisible();
   // Nothing changed in the specification: the reviewers decide first.
   expect((await currentRevision(workItemId)).number).toBe(1);
-  await page.goto(`${path}?branches=1`);
+  // The change stays findable from the item's card once the toast is gone.
+  await page
+    .getByRole("region", { name: "Item workflow" })
+    .getByRole("button", { name: "1 change in review" })
+    .click();
+  await expect(page).toHaveURL(/[?&]branches=1/);
   await expect(
     page.getByText("Change “reconciled against the first attempt”").first(),
   ).toBeVisible();

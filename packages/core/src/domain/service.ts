@@ -2454,34 +2454,36 @@ export async function applyMutation(
         // approved by the pull request's required reviewers.
         const textUnchanged =
           previous.title === title && previous.content === content;
-        // Approvals the revised text outdates are recorded in the item's
-        // history: who approved which revision for what, and that it no
-        // longer counts (carried approvals of unchanged text are not).
-        if (!textUnchanged) {
-          const outdated = before.filter(
-            (e): e is EntityOf<"approval"> =>
-              e.type === "approval" && e.status === "granted",
-          );
-          if (outdated.length)
-            log("approvals_outdated", {
-              revision: number,
-              approvals: outdated.map((a) => {
-                const review = before.find(
-                  (e): e is EntityOf<"review"> =>
-                    e.type === "review" && e.id === a.reviewId,
-                );
-                const approved = before.find(
-                  (e) => e.type === "revision" && e.id === a.revisionId,
-                );
-                return {
+        // What the new revision did to the approvals in force, for the
+        // item's history: outdated by a text change, or carried over.
+        const granted = before.filter(
+          (e): e is EntityOf<"approval"> =>
+            e.type === "approval" &&
+            e.workItemId === workItemId &&
+            e.status === "granted",
+        );
+        const approvalEffect = !granted.length
+          ? {}
+          : textUnchanged
+            ? { carriedApprovals: granted.length }
+            : {
+                outdatedApprovals: granted.map((a) => ({
                   reviewerId: a.reviewerId,
-                  responsibility: review?.responsibility ?? null,
-                  revision:
-                    approved?.type === "revision" ? approved.number : null,
-                };
-              }),
-            });
-        }
+                  responsibility:
+                    before.find(
+                      (e): e is EntityOf<"review"> =>
+                        e.type === "review" && e.id === a.reviewId,
+                    )?.responsibility ?? null,
+                  revision: (() => {
+                    const approved = before.find(
+                      (e) => e.type === "revision" && e.id === a.revisionId,
+                    );
+                    return approved?.type === "revision"
+                      ? approved.number
+                      : previous.number;
+                  })(),
+                })),
+              };
         await tx
           .update(s.approval)
           .set({
@@ -2576,6 +2578,7 @@ export async function applyMutation(
         log("revised", {
           number,
           summary: summary?.trim() ? summary.trim() : null,
+          ...approvalEffect,
         });
       }
       return revisionId;
@@ -4077,7 +4080,7 @@ export async function applyMutation(
           if (!branch || branch.name === "main")
             throw new DomainError(
               "not_found",
-              "This branch or pull request is unavailable.",
+              "This proposed change or its review is unavailable.",
             );
           require(branch.authorId === userId ||
             branch.collaboratorIds.includes(

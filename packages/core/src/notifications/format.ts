@@ -73,7 +73,7 @@ export function describeNotification(
       return {
         headline: `Your approval of ${item} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed the merge result of “${str(d.pullRequestTitle)}”.`
+          ? `${actor} changed the proposed change “${str(d.pullRequestTitle)}”.`
           : `${actor} revised the specification to revision ${num(d.revision)}.`,
       };
     case "specification_revised":
@@ -114,25 +114,28 @@ export function describeNotification(
       };
     case "pull_request_review_requested":
       return {
-        headline: `${actor} requested ${responsibility ?? ""} review of pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} requested ${responsibility ?? ""} review of the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
         body: null,
       };
     case "pull_request_decided":
       return {
-        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
         body: responsibility,
       };
     case "pull_request_mergeable":
       return {
-        headline: `Pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to merge`,
-        body: str(d.target)
-          ? `Every requirement to merge into ${str(d.target)} is met.`
-          : "Every merge requirement is met.",
+        headline: `The proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to apply`,
+        body: "Every requirement to apply it is met.",
       };
     case "pull_request_merged":
       return {
-        headline: `${actor} merged pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
-        body: str(d.target) ? `Merged into ${str(d.target)}` : null,
+        headline: `${actor} applied the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        body:
+          str(d.target) === "main"
+            ? "Applied to the specification"
+            : str(d.target)
+              ? `Applied to ${str(d.target)}`
+              : null,
       };
     case "suggestion_review_requested":
       return {
@@ -151,7 +154,7 @@ export function describeNotification(
       };
     case "suggestion_merged":
       return {
-        headline: `${actor} ${d.merged ? "merged" : "closed"} ${suggestion} on ${item}`,
+        headline: `${actor} ${d.merged ? "accepted" : "rejected"} ${suggestion} on ${item}`,
         body: null,
       };
     case "assigned":

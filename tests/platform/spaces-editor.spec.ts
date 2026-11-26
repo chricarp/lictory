@@ -628,6 +628,17 @@ test("a Reviewed space protects main: a branch is started and its draft commits"
     .click();
   await expect(ada.page.getByText("Committed version 2")).toBeVisible();
   await expect(ada.page.getByText("All changes committed")).toBeVisible();
+  // Committing changes nothing readers see: the editor names the review
+  // step and opens the pull request form with this branch chosen.
+  const next = ada.page
+    .getByRole("status")
+    .filter({ hasText: "is committed to this branch" });
+  await expect(next).toContainText("Readers still see the published page.");
+  await next.getByRole("link", { name: "Open pull request" }).click();
+  await expect(ada.page).toHaveURL(/\/history\?view=pulls&source=/);
+  await expect(
+    ada.page.getByRole("combobox", { name: "Source branch" }),
+  ).not.toHaveText("Choose branch");
   await ada.context.close();
 });
 

@@ -112,14 +112,39 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         <>created this {(str(d.type) ?? str(d.kind) ?? "item").toLowerCase()}</>
       );
       break;
-    case "revised":
+    case "revised": {
+      // What the revision did to the approvals in force (recorded since
+      // round 3; older entries carry neither).
+      const outdated = Array.isArray(d.outdatedApprovals)
+        ? (d.outdatedApprovals as Record<string, unknown>[])
+        : [];
+      const carried = num(d.carriedApprovals) ?? 0;
       body = (
         <>
           saved <b>revision {num(d.number)}</b>
           {str(d.summary) ? <> — {str(d.summary)}</> : null}
+          {outdated.length > 0 && (
+            <span className="block text-xs text-muted-foreground">
+              Now outdated:{" "}
+              {outdated
+                .map(
+                  (a) =>
+                    `${str(a.responsibility) ?? "an"} approval by ${memberName(str(a.reviewerId))} (revision ${num(a.revision) ?? "?"})`,
+                )
+                .join(", ")}
+            </span>
+          )}
+          {carried > 0 && (
+            <span className="block text-xs text-muted-foreground">
+              The text did not change, so{" "}
+              {carried === 1 ? "its approval carries" : "its approvals carry"}{" "}
+              over to this revision.
+            </span>
+          )}
         </>
       );
       break;
+    }
     case "delivery_scope_committed":
       body = (
         <>
@@ -453,14 +478,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_accepted":
       body = (
         <>
-          merged <b>{memberName(str(d.authorId))}</b>’s suggestion
+          accepted <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
     case "suggestion_rejected":
       body = (
         <>
-          closed <b>{memberName(str(d.authorId))}</b>’s suggestion
+          rejected <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
@@ -487,32 +512,6 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         </>
       );
       break;
-    // A material revision outdated these approvals: the record that an
-    // approval no longer counts, and which revision it was for.
-    case "approvals_outdated": {
-      const outdated = Array.isArray(d.approvals)
-        ? (d.approvals as {
-            reviewerId?: string;
-            responsibility?: string | null;
-            revision?: number | null;
-          }[])
-        : [];
-      body = (
-        <>
-          <b className="text-warning">outdated</b>{" "}
-          {outdated.map((a, i) => (
-            <span key={`${a.reviewerId}-${i}`}>
-              {i > 0 && (i === outdated.length - 1 ? " and " : ", ")}
-              <b>{memberName(a.reviewerId ?? "")}</b>’s{" "}
-              {a.responsibility ? `${a.responsibility} ` : ""}approval
-              {a.revision ? ` of revision ${a.revision}` : ""}
-            </span>
-          ))}{" "}
-          with revision {num(d.revision)}
-        </>
-      );
-      break;
-    }
     case "approved":
       body = (
         <>
@@ -675,24 +674,24 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "branch_created":
       body = (
         <>
-          created branch <b>{str(d.branch)}</b> from {str(d.from)}
+          started the proposed change <b>{str(d.branch)}</b>
         </>
       );
       break;
     case "branch_committed":
       body = (
         <>
-          committed to <b>{str(d.branch)}</b> — {str(d.message)}
+          saved a version of <b>{str(d.branch)}</b> — {str(d.message)}
         </>
       );
       break;
     case "branch_deleted":
       body = (
         <>
-          {auto ? "automatically deleted branch" : "deleted branch"}{" "}
+          {auto ? "closed the change" : "deleted the change"}{" "}
           <b>{str(d.branch)}</b>
           {auto && d.reason === "pull_request_merged" && (
-            <> after its pull request was merged into main</>
+            <> after it was applied to the specification</>
           )}
         </>
       );
@@ -701,38 +700,45 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       body = (
         <>
           {d.assigned ? "invited" : "removed"}{" "}
-          <b>{memberName(str(d.userId))}</b> {d.assigned ? "to" : "from"} branch{" "}
-          <b>{str(d.branch)}</b>
+          <b>{memberName(str(d.userId))}</b> {d.assigned ? "to" : "from"} the
+          change <b>{str(d.branch)}</b>
         </>
       );
       break;
     case "pull_request_created":
       body = (
         <>
-          opened {d.draft ? "draft " : ""}pull request <b>{str(d.title)}</b> ·{" "}
-          {str(d.source)} → {str(d.target)}
+          {d.draft ? "drafted a review of" : "sent for review"}{" "}
+          <b>{str(d.title)}</b>
+          {str(d.target) && str(d.target) !== "main" && (
+            <> · to apply to {str(d.target)}</>
+          )}
         </>
       );
       break;
     case "pull_request_ready_to_merge":
       body = (
         <>
-          found <b>{str(d.title)}</b> ready to merge: every merge requirement is
-          met
+          found <b>{str(d.title)}</b> ready to apply: every requirement is met
         </>
       );
       break;
     case "pull_request_deleted":
       body = (
         <>
-          deleted pull request <b>{str(d.title)}</b>
+          deleted the review <b>{str(d.title)}</b>
         </>
       );
       break;
     case "pull_request_merged":
       body = (
         <>
-          merged <b>{str(d.title)}</b> into {str(d.target)}
+          applied <b>{str(d.title)}</b>
+          {str(d.target) === "main" ? (
+            <> to the specification</>
+          ) : (
+            <> to {str(d.target)}</>
+          )}
         </>
       );
       break;
@@ -767,15 +773,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "pull_request_approval_invalidated":
       body = (
         <>
-          invalidated approvals of <b>{str(d.title)}</b> by changing the merge
-          result
+          outdated the approvals of <b>{str(d.title)}</b> by changing its result
         </>
       );
       break;
     case "revision_restored":
       body = (
         <>
-          restored revision <b>{num(d.revision)}</b> as a new main revision
+          restored revision <b>{num(d.revision)}</b> as a new revision
         </>
       );
       break;
@@ -799,27 +804,27 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "ai_corrective_pr_created":
       body = (
         <>
-          opened a pull request proposing fixes for {num(d.findings)}{" "}
+          proposed a change that fixes {num(d.findings)}{" "}
           {num(d.findings) === 1 ? "concern" : "concerns"}
         </>
       );
       break;
     case "ai_action_requested":
-      body = (
-        <>re-ran the Lictory Intelligence review action on a pull request</>
-      );
+      body = <>re-ran the Lictory Intelligence review of a proposed change</>;
       break;
     case "ai_action_completed":
       body = (
         <>
-          reviewed commit <b>{str(d.commitId)?.slice(0, 7)}</b>:{" "}
-          <b>{num(d.score)}/100</b> with {num(d.findings)}{" "}
+          reviewed a version of a proposed change: <b>{num(d.score)}/100</b>{" "}
+          with {num(d.findings)}{" "}
           {num(d.findings) === 1 ? "finding" : "findings"}
         </>
       );
       break;
     case "ai_suggestion_applied":
-      body = <>committed a Lictory Intelligence suggestion</>;
+      body = (
+        <>applied a Lictory Intelligence suggestion to a proposed change</>
+      );
       break;
     default:
       body = claimActivity(entry.action, d) ?? (

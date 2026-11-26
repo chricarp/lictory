@@ -4,16 +4,17 @@ description: Co-edit a specification's live draft with your team, see who is wri
 ---
 
 Several people can edit the same specification at once. Each line of a
-specification (main, or one [branch](/specifications/branches)) has one
+specification (the specification itself, or one [proposed
+change](/specifications/branches)) has one
 shared **live draft**: everyone editing it sees the others' carets and names,
 and what they type is saved as they type.
 
 A live draft is a working copy, never history. Only **Save revision** (on
-main) or **Commit** (on a branch) turns it into an immutable revision or
-commit. Everything that matters for review happens from there: approvals
+the specification) or **Save version** (on a proposed change) turns it into
+an immutable revision or version. Everything that matters for review happens from there: approvals
 belong to revisions, discussions are written on revisions, readiness reads
 the current revision. Nobody's keystroke is a revision, an approval or a
-commit.
+saved version.
 
 ## When to use it
 
@@ -83,15 +84,16 @@ Use it when the draft has gone in the wrong direction; **Keep them** cancels.
 
 ## Who can edit
 
-- **Main**: people whose discipline in the project may _edit
-  specifications_, while main is not protected. Once the specification has
-  been ready, main is [protected](/specifications#main-and-protected-main)
-  and its draft closes: changes go through a branch.
-- **A branch**: its author and the collaborators they invited, while the
-  branch exists.
+- **The specification**: people whose discipline in the project may _edit
+  specifications_, while it is not protected. Once the specification has
+  been ready, it is [protected](/specifications#protected-specifications) and
+  its draft closes: changes are proposed instead.
+- **A proposed change**: its author and the collaborators they invited, while
+  the change exists.
 
 Only these people open a live draft. Everyone else reads the latest
-revision (or the branch's latest commit), never someone's half-typed text.
+revision (or the change's latest saved version), never someone's half-typed
+text.
 If you lose the right to edit while the editor is open, it closes with _You
 can no longer edit this specification draft._
 
@@ -166,16 +168,16 @@ server.
 - **Saving re-requests reviews.** Every saved revision marks approvals
   outdated. Write in the draft as long as you need, and save when the change
   is ready to be reviewed, not after every sentence.
-- **Protected main has no live draft.** After the specification has been
-  ready, editing main directly is refused; open a branch, which has its own
-  live draft.
+- **A protected specification has no live draft.** After the specification
+  has been ready, editing it directly is refused; start a proposed change,
+  which has its own live draft.
 - **Offline is for short interruptions.** A dropped connection keeps your
   edits in the open tab and sends them when it returns, merged with what
   others typed. Closing the tab while offline loses edits that were never
   saved, and the editor lets you type only once it has joined the draft. Wait for **Draft
   saved** before you close the page.
 - **Agents do not type into live drafts.** Agents connected through MCP save
-  revisions or commit to branches directly, which replaces the draft for
+  revisions or save versions of proposed changes directly, which replaces the draft for
   anyone editing it, as described above.
 
 ## Tips

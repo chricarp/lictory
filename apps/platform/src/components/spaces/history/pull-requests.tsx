@@ -67,10 +67,13 @@ const blockerLabels: Record<PageMergeBlocker, string> = {
 };
 export function PullRequests({
   pageId,
+  initialSource,
   selected,
   onSelect,
 }: {
   pageId: string;
+  // A branch to open the pull request from (?source=, after a commit).
+  initialSource?: string | null;
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
@@ -79,23 +82,30 @@ export function PullRequests({
   const { userId, directory } = useWorkspace();
   const space = useSpace();
   const { canEdit } = usePageActions();
-  const [source, setSource] = useState("");
+  const [source, setSource] = useState(initialSource ?? "");
   const [target, setTarget] = useState("");
-  const [title, setTitle] = useState("");
   // The title a branch opened from a work item was named with ("Propose
   // page update"), offered as its pull request's title.
-  const [offered, setOffered] = useState("");
+  const initialTitle =
+    origins.find((o) => o.branchId === initialSource)?.title ?? "";
+  const [title, setTitle] = useState(initialTitle);
+  const [offered, setOffered] = useState(initialTitle);
   const [description, setDescription] = useState("");
   const [draft, setDraft] = useState(false);
   // A reviewed change goes to someone by default: whoever wrote the target
-  // line's latest version (not me); "" asks nobody yet.
+  // line's latest version, or else the page's latest other author (not
+  // me); "" asks nobody yet.
   const targetBranch =
     branches.find((b) => b.id === target) ?? branches.find((b) => b.isMain);
   const lastAuthor = commits.find(
     (c) => c.id === targetBranch?.headCommitId,
   )?.authorId;
+  const otherAuthor = commits.findLast((c) => c.authorId !== userId)?.authorId;
   const suggestedReviewer =
-    lastAuthor && lastAuthor !== userId ? lastAuthor : "";
+    lastAuthor && lastAuthor !== userId ? lastAuthor : (otherAuthor ?? "");
+  // In a reviewed space nothing merges without a required review: say so
+  // while a ready pull request would be opened with nobody asked.
+  const needsReviewer = space.publishing === "reviewed" && !draft;
   const [reviewer, setReviewer] = useState<string | null>(null);
   const chosenReviewer = reviewer ?? suggestedReviewer;
   const action = useHistoryAction();
@@ -240,7 +250,7 @@ export function PullRequests({
             >
               <DropdownSelectOption value="">
                 {space.publishing === "reviewed"
-                  ? "Ask someone later"
+                  ? "Choose a reviewer"
                   : "No review"}
               </DropdownSelectOption>
               {directory.members
@@ -252,6 +262,13 @@ export function PullRequests({
                 ))}
             </DropdownSelect>
           </label>
+          {needsReviewer && !chosenReviewer && (
+            <p role="status" className="text-xs text-warning">
+              Nobody will be asked to review it, and changes to this space merge
+              only after a review. Choose a reviewer now, or start it as a
+              draft.
+            </p>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={draft}

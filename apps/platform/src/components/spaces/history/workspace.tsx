@@ -93,6 +93,7 @@ export function PageHistoryWorkspace() {
           ) : view === "pulls" ? (
             <PullRequests
               pageId={page.id}
+              initialSource={search.get("source")}
               selected={search.get("pr")}
               onSelect={(id) => change({ pr: id })}
             />

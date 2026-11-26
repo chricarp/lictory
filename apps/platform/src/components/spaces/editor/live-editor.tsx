@@ -634,6 +634,14 @@ function DraftEditor({
           </span>
         </div>
       </div>
+      {!line.isMain && line.branch && shownOutcome?.kind === "published" && (
+        <BranchNextStep
+          history={history}
+          branchId={line.branch.id}
+          version={publishedVersion}
+          pagePath={pathname}
+        />
+      )}
       {actionsSlot &&
         createPortal(
           <>
@@ -1059,6 +1067,58 @@ function ClosedNotice({
           </Button>
         )
       )}
+    </div>
+  );
+}
+
+// After a commit on a branch, the step that matters is review: committing
+// changes nothing readers see. Point at the open pull request, or offer to
+// open one from this branch (the form starts with it chosen).
+function BranchNextStep({
+  history,
+  branchId,
+  version,
+  pagePath,
+}: {
+  history: PageHistory;
+  branchId: string;
+  version: number | undefined;
+  pagePath: string;
+}) {
+  const open = history.pullRequests.find(
+    (p) => p.sourceBranchId === branchId && p.status !== "merged",
+  );
+  const href = open
+    ? `${pagePath}/history?view=pulls&pr=${open.id}`
+    : `${pagePath}/history?view=pulls&source=${branchId}`;
+  return (
+    <div
+      role="status"
+      className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-3 py-2 text-[13px]"
+    >
+      <p className="min-w-0 flex-1 basis-60">
+        {open ? (
+          <>
+            Pull request <span className="font-medium">“{open.title}”</span> now
+            includes {version ? `version ${version}` : "this version"}.
+            Reviewers approve the new result.
+          </>
+        ) : (
+          <>
+            <span className="font-medium">
+              {version ? `Version ${version}` : "This version"} is committed to
+              this branch.
+            </span>{" "}
+            <span className="text-muted-foreground">
+              Readers still see the published page. Open a pull request to ask
+              for review.
+            </span>
+          </>
+        )}
+      </p>
+      <Button size="sm" render={<Link href={href} />}>
+        {open ? "View pull request" : "Open pull request"}
+      </Button>
     </div>
   );
 }

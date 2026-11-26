@@ -157,7 +157,7 @@ export function SuggestionComposer({
     });
     if (!synced)
       throw new Error(
-        "The change's branch was created but has not arrived yet. Open Branches & pull requests to send it for review.",
+        "The change was started but has not arrived yet. Open Proposed changes to send it for review.",
       );
     await mutateConfirmed({
       type: "commitBranch",

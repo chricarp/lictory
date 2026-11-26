@@ -296,10 +296,10 @@ export function Thread({
   // discussions say which revision (or branch commit) they were written on.
   const versioned = reviewable || Boolean(thread.commitId);
   const writtenOn = thread.commitId
-    ? `commit ${thread.commitId.slice(0, 8)}`
+    ? "a proposed change"
     : `revision ${revision ?? "?"}`;
   const writtenOnLabel = thread.commitId
-    ? `Written on commit ${thread.commitId.slice(0, 8)}`
+    ? `Written on a version of a proposed change (${thread.commitId.slice(0, 8)})`
     : `Written on revision ${revision ?? "?"}`;
   const revisionLink = !versioned ? null : !thread.commitId &&
     revision !== undefined &&
@@ -359,7 +359,7 @@ export function Thread({
     );
   const blockingTitle =
     thread.pullRequestId || thread.suggestionId
-      ? "Must be resolved before this change can merge."
+      ? "Must be resolved before this change can apply."
       : "Must be resolved before the specification is ready.";
   const foldable = own.length >= FOLD_FROM;
   const opening = own[0];
@@ -1101,13 +1101,13 @@ export function ThreadComposer({
               onCheckedChange={(checked) => setBlocking(checked === true)}
               title={
                 change
-                  ? "The change cannot merge until this discussion is resolved."
+                  ? "The change cannot apply until this discussion is resolved."
                   : "The specification cannot become ready until this discussion is resolved."
               }
               className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground ring-1 ring-foreground/10 transition-colors outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-destructive/8 data-checked:text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] data-checked:ring-destructive/25 data-checked:focus-visible:ring-ring/60 touch:h-11 touch:px-3"
             >
               <CircleAlert className="size-3.5" aria-hidden />
-              {change ? "Blocks merging" : "Blocks readiness"}
+              {change ? "Blocks applying" : "Blocks readiness"}
             </Checkbox>
           )}
           {reviewable && current && !change && (
