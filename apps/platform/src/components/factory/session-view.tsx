@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MissingState } from "@lictory/ui/status-page";
 import {
   CircleStop,
   GitBranch,
@@ -28,7 +29,6 @@ import {
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
-import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -119,12 +119,20 @@ export function SessionView() {
       <div className="flex h-full min-h-0 flex-col">
         <PageHeader title="Session" back={back} />
         {complete ? (
-          <EmptyState title="This session does not exist">
-            It may belong to another organization.{" "}
-            <Link href={back.href} className="underline">
-              Back to the Factory
-            </Link>
-          </EmptyState>
+          // The same not-found as items and channels: what is missing, why
+          // it may be, and the way back.
+          <MissingState
+            illustration="search"
+            headingLevel={2}
+            title="This session does not exist"
+            action={
+              <Button variant="secondary" render={<Link href={back.href} />}>
+                Back to the Factory
+              </Button>
+            }
+          >
+            It may belong to another organization, or the link may be wrong.
+          </MissingState>
         ) : (
           <LoadingState label="Loading the session" />
         )}

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { MissingState } from "@lictory/ui/status-page";
 import {
   ArrowUpRight,
   Bot,
@@ -27,7 +28,6 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
@@ -95,15 +95,21 @@ export function PullRequestPage() {
           }}
         />
         {complete ? (
-          <EmptyState title="This pull request is unavailable">
-            It may belong to a code host that was disconnected.{" "}
-            <Link
-              className="underline"
-              href={codePaths.index(organization.slug)}
-            >
-              Back to Code
-            </Link>
-          </EmptyState>
+          <MissingState
+            illustration="search"
+            headingLevel={2}
+            title="This pull request is unavailable"
+            action={
+              <Button
+                variant="secondary"
+                render={<Link href={codePaths.index(organization.slug)} />}
+              >
+                Back to Code
+              </Button>
+            }
+          >
+            It may belong to a code host that was disconnected.
+          </MissingState>
         ) : (
           <LoadingState label="Loading the pull request" />
         )}
