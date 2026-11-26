@@ -823,7 +823,10 @@ test("a reviewer decides on a phone without a squeezed card, and a change to the
     .getByRole("button", { name: "Send for review", exact: true })
     .click();
   await expect(composer).toHaveCount(0);
-  await expect(page.getByText("Change sent for review")).toBeVisible();
+  // The toast, not ui-sdk's announcement of it (both carry the words).
+  await expect(
+    page.locator('[data-slot="toast"]', { hasText: "Change sent for review" }),
+  ).toBeVisible();
   // Nothing changed in the specification: the reviewers decide first.
   expect((await currentRevision(workItemId)).number).toBe(1);
   await page.goto(`${path}?branches=1`);
