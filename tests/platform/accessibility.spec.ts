@@ -343,7 +343,10 @@ async function startRunner(seeded: Seeded, baseURL: string) {
     script,
     JSON.stringify([
       { say: "Reading the refunds module." },
-      { ask: "Write CHANGES.md" },
+      {
+        ask: "Write CHANGES.md",
+        action: { tool: "Write", input: { file_path: "CHANGES.md" } },
+      },
       { summary: "Added CHANGES.md." },
     ]),
   );

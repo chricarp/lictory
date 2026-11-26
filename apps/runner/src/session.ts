@@ -179,7 +179,11 @@ export class SessionRun {
           this.state = "running";
         this.harnessRun?.answer(
           requestId,
-          input.data.decision === "approve" ? "approve" : "deny",
+          input.data.decision === "approve"
+            ? "approve"
+            : input.data.decision === "answer"
+              ? "answer"
+              : "deny",
           typeof input.data.note === "string" ? input.data.note : null,
         );
         break;

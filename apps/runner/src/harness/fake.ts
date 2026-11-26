@@ -34,7 +34,8 @@ const baseStep = z.union([
   }),
   z.object({ writeFile: z.object({ path: z.string(), content: z.string() }) }),
   // An approval request; `action` is the exact tool call it asks for, as a
-  // real harness's permission prompt states it.
+  // real harness's permission prompt states it. Without one it is a
+  // question, which a person answers in words or denies.
   z.object({
     ask: z.string(),
     action: z
@@ -142,7 +143,10 @@ export function fakeHarnesses(script: FakeScript): AgentHarness[] {
 function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
   const stop = new AbortController();
   const signal = AbortSignal.any([stop.signal, ctx.signal]);
-  const answers = new Map<string, (decision: string) => void>();
+  const answers = new Map<
+    string,
+    (decision: string, note: string | null) => void
+  >();
   // Interrupt stops the current step (a sleep) and, like a real harness,
   // waits for the person's next message before it goes on. While the
   // agent already waits for a message, it keeps waiting.
@@ -185,8 +189,11 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
         });
       } else if ("ask" in item) {
         const requestId = `ask-${++asked}`;
-        const decision = new Promise<string>((resolve) =>
-          answers.set(requestId, resolve),
+        const decision = new Promise<{ decision: string; note: string | null }>(
+          (resolve) =>
+            answers.set(requestId, (decision, note) =>
+              resolve({ decision, note }),
+            ),
         );
         ctx.emit("approval_request", {
           requestId,
@@ -198,16 +205,18 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
         });
         const answer = await Promise.race([
           decision,
-          new Promise<string>((resolve) =>
-            signal.addEventListener("abort", () => resolve("stopped")),
+          new Promise<null>((resolve) =>
+            signal.addEventListener("abort", () => resolve(null)),
           ),
         ]);
-        if (answer === "stopped") break;
+        if (!answer) break;
         ctx.emit("message", {
           text:
-            answer === "approve"
+            answer.decision === "approve"
               ? `Approved: ${item.ask}.`
-              : `Denied: ${item.ask}. Skipping it.`,
+              : answer.decision === "answer"
+                ? `Got your answer: ${answer.note ?? ""}`
+                : `Denied: ${item.ask}. Skipping it.`,
         });
       } else if ("waitForMessage" in item) {
         const text = await ctx.nextMessage(30 * 60_000, signal);
@@ -254,7 +263,8 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
       interruptRequested = true;
       cutStep?.();
     },
-    answer: (requestId, decision) => answers.get(requestId)?.(decision),
+    answer: (requestId, decision, note) =>
+      answers.get(requestId)?.(decision, note),
     stop: () => stop.abort(),
     done,
   };

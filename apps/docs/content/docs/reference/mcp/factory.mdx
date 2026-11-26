@@ -443,15 +443,15 @@ Queue the session again from its original instructions; its history stays. Retry
 
 **Answer agent approval request.** Command · no retry key: read before repeating · **a person's decision**: refused to agents (the person decides in The approval card in the session's thread, Home or Factory)
 
-Approve or deny what an agent session asked for. A person's decision: only the person who started the session or the agent's owner, never an agent. Approve or deny what the agent asked for while the agent session is waiting.
+Answer what an agent session asked. A request that names its action (a tool and its input) is a permission: approve or deny it. One that names none is a question: answer it in words (decision answer, with the note) or deny it; it cannot be approved. A person's decision: only the person who started the session or the agent's owner, never an agent. Approve or deny what the agent asked for while the agent session is waiting.
 
-| Field            | Type                  | Required | Description                                                                     |
-| ---------------- | --------------------- | -------- | ------------------------------------------------------------------------------- |
-| `organizationId` | string                | Yes      | Exact organization id or slug from listOrganizations.                           |
-| `sessionId`      | string                | Yes      | Agent session id (see listAgentSessions).                                       |
-| `approvalId`     | string                | Yes      | The pending approval request id (getAgentSession or listAgentApprovalsWaiting). |
-| `decision`       | `"approve"`, `"deny"` | Yes      | approve or deny what the agent asked for.                                       |
-| `note`           | string or null        |          | A message to the agent with your answer.                                        |
+| Field            | Type                              | Required | Description                                                                     |
+| ---------------- | --------------------------------- | -------- | ------------------------------------------------------------------------------- |
+| `organizationId` | string                            | Yes      | Exact organization id or slug from listOrganizations.                           |
+| `sessionId`      | string                            | Yes      | Agent session id (see listAgentSessions).                                       |
+| `approvalId`     | string                            | Yes      | The pending approval request id (getAgentSession or listAgentApprovalsWaiting). |
+| `decision`       | `"approve"`, `"deny"`, `"answer"` | Yes      | approve or deny a permission; answer (with the note) or deny a question.        |
+| `note`           | string or null                    |          | A message to the agent with your answer; required to answer a question.         |
 
 ```json title="answerAgentApproval arguments"
 {

@@ -113,7 +113,12 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await startRunner(seeded, baseURL!, [
     { say: "Reading the task." },
     { waitForMessage: true },
-    { ask: "Write CHANGES.md" },
+    {
+      ask: "Write CHANGES.md",
+      action: { tool: "Write", input: { file_path: "CHANGES.md" } },
+    },
+    // A request naming no action is a question: answered in words.
+    { ask: "Which release should the entry name?" },
     {
       writeFile: {
         path: "CHANGES.md",
@@ -204,10 +209,27 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
       return inThread + summary;
     })
     .toBe(2);
+  // The exact action is what Ada approves, not the title alone.
+  await expect(approval.getByText("CHANGES.md", { exact: true })).toBeVisible();
   await approval.getByRole("button", { name: "Approve" }).click();
   // Answered, it stays where it was asked, as the record of who decided.
   await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
   await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
+
+  // A request that names no command or file is a question: nothing to
+  // approve, so Ada answers it in words and the agent hears her words.
+  const question = panel.getByRole("article", {
+    name: "Forge asks: Which release should the entry name?",
+  });
+  await expect(card.getByText(/Forge asks a question below/)).toBeVisible();
+  await expect(question.getByRole("button", { name: "Approve" })).toHaveCount(
+    0,
+  );
+  await question.getByLabel("Your answer to Forge").fill("Name 2.1.");
+  await question.getByRole("button", { name: "Send answer" }).click();
+  await expect(
+    question.getByText(/Answered by Ada: “Name 2.1.”/),
+  ).toBeVisible();
 
   // The summary arrives as Forge's message and the card completes.
   await expect(

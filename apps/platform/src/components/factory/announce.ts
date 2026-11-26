@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { SessionEntity } from "@lictory/core/factory/entities";
+import {
+  asksPermission,
+  type SessionEntity,
+} from "@lictory/core/factory/entities";
 import { useAnnounce } from "@lictory/platform/components/shell/announcer";
 
 type AnnouncedSession = Pick<
@@ -25,7 +28,9 @@ export function sessionAnnouncements(
     if (!known.has(approval.id))
       said.push({
         key: `approval:${approval.id}`,
-        text: `${agentName} asks for approval: ${approval.title}`,
+        text: asksPermission(approval.detail)
+          ? `${agentName} asks for approval: ${approval.title}`
+          : `${agentName} asks: ${approval.title}`,
       });
   if (previous.status === next.status) return said;
   const attempt = `session:${next.id}:${next.attempts}`;

@@ -292,7 +292,7 @@ export const notificationKinds = {
     category: "agents",
     label: "An agent asks for your decision",
     description:
-      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something. The question waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
+      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something, or to answer its question. The request waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
     inApp: true,
     email: true,
   },

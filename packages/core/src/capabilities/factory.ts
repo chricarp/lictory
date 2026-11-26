@@ -558,7 +558,7 @@ const retryCapability = defineCapability({
 const answerCapability = defineCapability({
   name: "answerAgentApproval",
   title: "Answer agent approval request",
-  description: `Approve or deny what an agent session asked for. A person's decision: only the person who started the session or the agent's owner, never an agent. ${agentSession.rule("answerApproval")}`,
+  description: `Answer what an agent session asked. A request that names its action (a tool and its input) is a permission: approve or deny it. One that names none is a question: answer it in words (decision answer, with the note) or deny it; it cannot be approved. A person's decision: only the person who started the session or the agent's owner, never an agent. ${agentSession.rule("answerApproval")}`,
   kind: "command",
   surfaces: everywhere,
   decision: true,
@@ -569,14 +569,18 @@ const answerCapability = defineCapability({
       "The pending approval request id (getAgentSession or listAgentApprovalsWaiting).",
     ),
     decision: z
-      .enum(["approve", "deny"])
-      .describe("approve or deny what the agent asked for."),
+      .enum(["approve", "deny", "answer"])
+      .describe(
+        "approve or deny a permission; answer (with the note) or deny a question.",
+      ),
     note: z
       .string()
       .max(2000)
       .nullable()
       .optional()
-      .describe("A message to the agent with your answer."),
+      .describe(
+        "A message to the agent with your answer; required to answer a question.",
+      ),
   }),
   async run(ctx, input) {
     return { session: await answerApproval(ctx.db, actor(ctx), input) };

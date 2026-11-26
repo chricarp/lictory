@@ -172,6 +172,27 @@ week, until they retry it or a later session works on its item.
 done through evidence (merged pull requests, checks, the Definition of
 Done), never because a session completed.
 
+### Approval requests
+
+A runner raises an approval request (`approval_request`: a request id, a
+title and, for a permission, the `tool` and its `input`, as a harness's
+permission prompt states them). Text is never permission, so what a person
+can do with a request depends on whether it names its action
+(`asksPermission`):
+
+- **A permission** (a tool and its input: the command it would run, the
+  file it would write) is approved or denied. A denial can carry a message.
+- **A question** (no tool: only a title) has nothing to approve. A person
+  answers it in words (`answer`, with the note) or denies it; the server
+  refuses `approve`. The answer reaches the harness as a non-grant: Claude
+  Code hears it as a denial carrying the person's words.
+
+Harnesses that ask for a permission attach the action. Claude Code always
+does; the scripted test harness asks a question when its step has no
+`action`. Answering is a person's decision (`agentApproval` in the state
+machines: approved, denied or answered) that only the session's requester or
+the agent's owner may take.
+
 ### The event log
 
 `agent_session_event` is the session's append-only log, keyed by session and

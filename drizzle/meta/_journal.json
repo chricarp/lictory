@@ -428,6 +428,13 @@
       "when": 1795552492662,
       "tag": "0060_story_task_hierarchy",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795709798869,
+      "tag": "0061_agent_approval_answered",
+      "breakpoints": true
     }
   ]
 }

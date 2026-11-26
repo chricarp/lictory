@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   ArrowUpRight,
-  Check,
   CircleStop,
   CircleHelp,
   FileDiff,
@@ -11,13 +10,16 @@ import {
   ShieldQuestion,
   SquareTerminal,
   Wrench,
-  X,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
-import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
+import {
+  asksPermission,
+  sessionTitle,
+  waitsForRunner,
+} from "@lictory/core/factory/entities";
 import type {
   ApprovalCardPayload,
   QuestionCardPayload,
@@ -39,7 +41,10 @@ import {
 } from "@lictory/platform/components/factory/progress";
 import { firstName, sessionState } from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
-import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
+import {
+  ApprovalRequest,
+  Decide,
+} from "@lictory/platform/components/shell/approval-request";
 import { titledByItem } from "@lictory/platform/components/channels/data";
 import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 
@@ -183,9 +188,11 @@ function SessionCard({
       {!holdsAsks && asks.length > 0 && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
           <Hand className="size-3.5 shrink-0" aria-hidden />
-          {asks.length === 1
-            ? `${card.agentName} asks for approval below`
-            : `${card.agentName} asks for ${asks.length} approvals below`}
+          {asks.length > 1
+            ? `${card.agentName} asks ${asks.length} things below`
+            : asksPermission(asks[0]!.detail)
+              ? `${card.agentName} asks for approval below`
+              : `${card.agentName} asks a question below`}
           {decider === "you" ? "." : `; ${firstName(decider)} decides.`}
           <button
             type="button"
@@ -432,37 +439,25 @@ function toRequest(approvalId: string) {
 // the Factory) it carries its own Approve and Deny. Once answered it is the
 // record of who decided.
 function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
-  const { organization, userId, memberName } = useWorkspace();
+  const { userId, memberName } = useWorkspace();
   const { session } = useSession(approval.sessionId);
   const { agentById, runnerById } = useFactory();
-  const [sent, setSent] = useState<"approve" | "deny" | null>(null);
   const pending = approval.status === "pending";
   const mayDecide = approval.deciderIds.includes(userId);
+  // A request that names no tool is a question: answered in words, never
+  // approved.
+  const question = !approval.tool;
   const live =
     pending && session?.approvals.find((a) => a.id === approval.approvalId);
-  const answer = async (decision: "approve" | "deny") => {
-    setSent(decision);
-    try {
-      await callCapability("answerAgentApproval", {
-        organizationId: organization.id,
-        sessionId: approval.sessionId,
-        approvalId: approval.approvalId,
-        decision,
-      });
-    } catch (error) {
-      setSent(null);
-      toast({
-        type: "error",
-        title: "The answer was not recorded",
-        description: (error as Error).message,
-      });
-    }
-  };
   const deciders = approval.deciderIds.map((id) => firstName(memberName(id)));
   if (live && session)
     return (
       <article
-        aria-label={`${approval.agentName} asks for approval`}
+        aria-label={
+          question
+            ? `${approval.agentName} asks: ${approval.title}`
+            : `${approval.agentName} asks for approval`
+        }
         data-approval-record={approval.approvalId}
         className="mt-1 max-w-2xl"
       >
@@ -479,7 +474,11 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
     );
   return (
     <article
-      aria-label={`${approval.agentName} asks for approval`}
+      aria-label={
+        question
+          ? `${approval.agentName} asks: ${approval.title}`
+          : `${approval.agentName} asks for approval`
+      }
       data-approval-record={approval.approvalId}
       className="mt-0.5 flex max-w-2xl items-start gap-2 text-[13px]"
     >
@@ -492,7 +491,9 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
       />
       <div className="min-w-0 flex-1">
         <p>
-          <span className="text-muted-foreground">Asks to approve </span>
+          <span className="text-muted-foreground">
+            {question ? "Asks " : "Asks to approve "}
+          </span>
           <span className="font-medium">{approval.title}</span>
           {approval.tool && (
             <span className="text-muted-foreground">
@@ -503,20 +504,13 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
         </p>
         {pending ? (
           mayDecide ? (
-            <div className="mt-2 flex gap-2">
-              <Button
-                disabled={sent !== null}
-                onClick={() => void answer("approve")}
-              >
-                <Check className="size-3.5" aria-hidden /> Approve
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={sent !== null}
-                onClick={() => void answer("deny")}
-              >
-                <X className="size-3.5" aria-hidden /> Deny
-              </Button>
+            <div className="mt-1">
+              <Decide
+                sessionId={approval.sessionId}
+                approvalId={approval.approvalId}
+                question={question}
+                agentName={approval.agentName}
+              />
             </div>
           ) : (
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -529,7 +523,9 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
               ? `Approved by ${memberName(approval.decidedById)}`
               : approval.status === "denied"
                 ? `Denied by ${memberName(approval.decidedById)}`
-                : "Expired: the session ended before anyone answered."}
+                : approval.status === "answered"
+                  ? `Answered by ${memberName(approval.decidedById)}`
+                  : "Expired: the session ended before anyone answered."}
             {approval.note ? `: “${approval.note}”` : ""}
           </p>
         )}

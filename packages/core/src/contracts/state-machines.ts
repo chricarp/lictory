@@ -618,20 +618,24 @@ export const agentSession = stateMachine({
   },
 });
 
-// A question an agent session asked a person. Answering it is a decision.
+// Something an agent session asked a person. Answering it is a decision. A
+// request that names its action (a tool and its input) is a permission, which
+// a person approves or denies; one that names none is a question, which a
+// person answers in words or denies: a title is never approved.
 export const agentApproval = stateMachine({
   name: "approval request",
   states: {
     pending: "Waiting for the requester or the agent's owner.",
     approved: "Approved by a person.",
     denied: "Denied by a person.",
+    answered: "Answered in words by a person (a question, not a permission).",
     expired: "The session ended before anyone answered.",
   },
   steps: {
     answer: {
-      does: "Approve or deny",
+      does: "Approve, deny or answer in words",
       from: ["pending"],
-      to: ["approved", "denied"],
+      to: ["approved", "denied", "answered"],
       refused: (state) => `This request was already ${state}.`,
     },
     expire: {
