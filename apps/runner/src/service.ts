@@ -137,10 +137,19 @@ export async function installService(options: ServiceOptions) {
         log("The runner service is enabled and running.");
       } else
         log(`Start it with:\n  ${steps.map((s) => s.join(" ")).join("\n  ")}`);
-      if (!options.system)
-        log(
-          "A user service stops when you log out unless lingering is on: loginctl enable-linger $USER",
-        );
+      // A user service ends with the last login session unless lingering
+      // is on: on a build server that is the moment its admin logs out.
+      if (!options.system) {
+        const linger = await run("loginctl", [
+          "show-user",
+          userInfo().username,
+          "--property=Linger",
+        ]);
+        if (linger.stdout.trim() !== "Linger=yes")
+          log(
+            "Warning: this user service stops when you log out. Keep it running with `loginctl enable-linger $USER`, or install a system service instead (`install-service --system`; see the runner documentation).",
+          );
+      }
       return;
     }
     case "darwin": {
