@@ -85,17 +85,44 @@ function set(next: State) {
   for (const listener of listeners) listener();
 }
 
+// Every page waits for the session check, so a check that gets no answer
+// ends in an error with a retry instead of waiting forever.
+const sessionTimeoutMs = 15_000;
+
+// The server did not answer the session check: the connection dropped or
+// the check timed out. A retry may succeed.
+export class ServerUnreachableError extends Error {
+  constructor() {
+    super("Couldn’t reach the server. Check your connection and retry.");
+    this.name = "ServerUnreachableError";
+  }
+}
+
 async function fetchSession(): Promise<Session> {
-  const response = await fetch("/api/session", {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok)
-    throw new Error(
-      `Your session could not be checked (HTTP ${response.status}). Reload to try again.`,
-    );
-  return sessionSchema.parse(await response.json());
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), sessionTimeoutMs);
+  let body: unknown;
+  try {
+    const response = await fetch("/api/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok)
+      throw new Error(
+        `Your session could not be checked (HTTP ${response.status}). Reload to try again.`,
+      );
+    body = await response.json();
+  } catch (error) {
+    // fetch rejects with a TypeError when the network fails.
+    if (controller.signal.aborted || error instanceof TypeError)
+      throw new ServerUnreachableError();
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  return sessionSchema.parse(body);
 }
 
 // Resolves the current session, reusing a request already in flight. `force`
