@@ -149,7 +149,7 @@ export function Composer({
         <Button
           size="icon"
           aria-label="Send message"
-          disabled={!body.trim() || tooLong || disabled || offline}
+          disabled={!body.trim() || tooLong || Boolean(disabled) || offline}
           onClick={send}
         >
           <SendHorizontal className="size-3.5" aria-hidden />
