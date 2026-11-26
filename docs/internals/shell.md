@@ -98,9 +98,10 @@ hooks the shell calls for each entry run in a stable order.
 - **Badges** (`useBadge` on a section) are a count, what it counts, a tone
   and whether it counts toward the desktop dock. `strong` is addressed to the
   person (mentions, direct messages, requests); `quiet` is activity worth a
-  glance. Only mentions and direct messages count toward the dock or taskbar
-  badge: the shell sums them into one source of the desktop bridge (see
-  [Desktop app](#desktop-app)).
+  glance. Mentions, direct messages and agent sessions waiting on the person
+  count toward the dock or taskbar badge: live counts that clear when read
+  or answered. The shell sums them into one source of the desktop bridge
+  (see [Desktop app](#desktop-app)).
 - **Palette providers** (`paletteProviders`) return candidates for the typed
   query; the palette matches, ranks, caps and groups them, and every section
   automatically gets a "Go to" command.
@@ -113,7 +114,7 @@ Registered today:
 | --------------- | ----------------------------------------------------------------------------- | ------------------------------------------ | ---------------- |
 | Channels        | joined channels, unread bold; mentions in channels (strong, dock)             | conversations, unread first                | none             |
 | Direct messages | recent conversations; everything unread in them (strong, dock)                | (with conversations)                       | none             |
-| Factory         | overview, agents, runners; sessions waiting on me (strong, not dock)          | sessions (active first), agents            | Agents at work   |
+| Factory         | overview, agents, runners; sessions waiting on me (strong, dock)              | sessions (active first), agents            | Agents at work   |
 | Work            | the project in context with its queues (and its Factory queue in native mode) | projects, items, views (the palette's own) | Home's own lists |
 | Code            | pull requests; open ones requesting my review (strong, not dock)              | none                                       | none             |
 
@@ -140,10 +141,11 @@ owner, `lib/desktop-bridge.ts` (mounted once in the signed-in layout; see
 - **The badge is a sum of sources**, and the bridge alone calls
   `setBadge`. Unread notifications that ask something of the person are one
   source; the shell's `dock` badges (channel mentions and direct messages of
-  the open organization, from read state) are another
-  (`useDesktopBadgeSource("sidebar", …)`). Channel notifications are left
-  out of the first so a mention never counts twice or outlives reading the
-  conversation; they still arrive as native notifications.
+  the open organization, from read state, and agent sessions waiting on the
+  person) are another (`useDesktopBadgeSource("sidebar", …)`). Channel
+  notifications and agents' requests are left out of the first so they never
+  count twice or outlive reading the conversation or answering the agent;
+  they still arrive as native notifications.
 - **`onNavigate`** requests (deep links, notification clicks, the tray) go
   through the router, only to paths inside the app: other origins and the
   account flows are refused.

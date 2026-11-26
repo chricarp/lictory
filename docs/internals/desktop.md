@@ -187,11 +187,12 @@ in the signed-in layout by `components/app/desktop-connector.tsx`):
   `setBadge`. Notifications are one source; another feature adds its own
   unread count with `useDesktopBadgeSource(source, count)`. The shell adds
   its sidebar's `dock` badges (channel mentions and direct messages of the
-  open organization, from read state; see [the shell](shell.md#desktop-app)),
-  so notifications of the Channels category are left out of the
-  notification source: reading a conversation clears its mentions without
-  marking their notifications read. They are still forwarded as native
-  notifications.
+  open organization, from read state, and the agent sessions waiting on the
+  person; see [the shell](shell.md#desktop-app)), so notifications of the
+  Channels category and agents' requests are left out of the notification
+  source: reading a conversation clears its mentions without marking their
+  notifications read, and answering an agent clears its session's wait.
+  They are still forwarded as native notifications.
 - `onNavigate` paths go through the router only when they are pages of the
   app: other origins and the account flows are refused.
 - The page is a view under the window's top bar and beside the server
@@ -229,7 +230,16 @@ in-app path; anything else is refused.
 - **Title bar.** macOS uses the hidden-inset style: the traffic lights sit in
   the app's own top bar, which is the drag area. Windows draws its own
   window controls over the top bar (`titleBarOverlay`, colored to match the
-  theme). Linux keeps the native frame, which window managers expect.
+  theme). Linux keeps the native frame, which window managers expect. The
+  top bar names the page in front (its title, with the server's name only
+  when several servers are added and the title does not already say it);
+  a page without a title of its own, or one that failed to load, is named
+  after its server, never by its address.
+- **Scrollbars.** On Windows and Linux, Chromium gives web pages a browser's
+  classic scrollbars. The shell draws slim ones in its colors, and injects
+  the same colors and `scrollbar-width: thin` into servers' pages
+  (`src/main/scrollbars.ts`, standard properties only, so a page's own
+  `scrollbar-width` still wins). macOS keeps its overlay scrollbars.
 - **Shortcuts** (Ctrl instead of ⌘ on Windows and Linux): ⌘1 to ⌘9 open the
   server at that position, ⌘K is left to the page (its command palette; the
   menu item types it when chosen with the mouse), ⌘, settings, ⌘⇧N add a
@@ -257,7 +267,8 @@ when the app quits or on **Restart to update**. Pre-releases (nightlies) are
 ignored.
 
 A build updates itself only when it can do so safely, and otherwise settings
-say why and link to the releases page:
+say why, per platform, and link to lictory.com/download
+(`src/shared/updates.ts`, with its tests):
 
 - not in development builds, and not with `LICTORY_DESKTOP_UPDATES=off`
   (for managed computers);
@@ -265,8 +276,14 @@ say why and link to the releases page:
   `package.mjs` records this in the packaged `package.json`
   (`lictory.updatable`). Squirrel.Mac refuses unsigned apps, and an unsigned
   Windows installer cannot be verified;
-- Linux: only the AppImage (checked against the release's SHA-512); a
-  `.deb` belongs to the package manager.
+- Linux: only the AppImage (checked against the release's SHA-512). A
+  `.deb` belongs to the package manager, and no apt repository serves
+  Lictory, so it never updates: settings say to install the newest `.deb`
+  over it, never that the package manager will.
+
+A release without this system's `latest*.yml` (or no stable release at all)
+reads as "the newest release has no update for this system yet", not as a
+failed check.
 
 **Releases.** Every release, nightly and stable, carries the installers,
 their `.blockmap` files and the `latest*.yml` files, built by

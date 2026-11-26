@@ -72,7 +72,9 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
     const address = shell.getByLabel("Server address");
     await address.fill("ftp://lictory.example.com");
     await shell.getByRole("button", { name: "Connect" }).click();
-    await expect(shell.getByRole("alert")).toContainText("https://");
+    await expect(shell.getByRole("alert")).toHaveText(
+      "A Lictory server address starts with https:// (or http://), not ftp://.",
+    );
     await address.fill("http://127.0.0.1:1");
     await shell.getByRole("button", { name: "Connect" }).click();
     // Plain words and the next step; Chromium's code only as a detail.
@@ -80,6 +82,16 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
       "127.0.0.1:1 uses a port that Lictory never opens, for safety. Use the address you open Lictory at in your browser, usually without a port number.",
     );
     await expect(shell.getByText("Details: ERR_UNSAFE_PORT")).toBeVisible();
+    // In the product's code face, bundled like the text face.
+    await expect
+      .poll(() =>
+        shell.evaluate(() =>
+          [...document.fonts].some(
+            (f) => f.family === "Geist Mono" && f.status === "loaded",
+          ),
+        ),
+      )
+      .toBe(true);
     await axe(shell, "welcome with an error");
     await address.fill(server.origin);
     await shell.getByRole("button", { name: "Connect" }).click();
@@ -94,6 +106,16 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
         () => (window as { nodeVisible?: string }).nodeVisible,
       ),
     ).toBe("undefined/undefined");
+    // Slim scrollbars in the app's colors, not a browser's classic ones
+    // (macOS keeps its overlay scrollbars).
+    if (process.platform !== "darwin")
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => getComputedStyle(document.documentElement).scrollbarColor,
+          ),
+        )
+        .not.toBe("auto");
 
     // Its badge (3) shows on its button in the switcher.
     const switcher = shell.getByRole("navigation", { name: "Servers" });
@@ -233,6 +255,10 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
       name: "Harborline Freight is not available",
     });
     await expect(unavailable).toBeVisible();
+    // The top bar names the server, not Chromium's error page's address.
+    await expect(shell.locator(".topbar-page")).toHaveText(
+      "Harborline Freight",
+    );
     await expect(
       shell.getByText(`${server.host} refused the connection.`),
     ).toBeVisible();

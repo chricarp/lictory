@@ -39,7 +39,9 @@ export function parseServerAddress(input: string): AddressResult {
   if (url.protocol !== "https:" && url.protocol !== "http:")
     return {
       ok: false,
-      error: "Use an https:// address for your Lictory server.",
+      // http:// is accepted too (on this computer, or with a warning on a
+      // network), so the message does not say https:// only.
+      error: `A Lictory server address starts with https:// (or http://), not ${url.protocol}//.`,
     };
   if (url.username || url.password)
     return {

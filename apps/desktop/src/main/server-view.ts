@@ -7,6 +7,7 @@ import {
   type WebContents,
 } from "electron";
 import { attachContextMenu } from "./context-menu";
+import { serverViewScrollbars, styleScrollbars } from "./scrollbars";
 import {
   decideNavigation,
   decideWindowOpen,
@@ -267,6 +268,10 @@ export function createServerView(
     if (isMainFrame) navigated(event, url);
   });
   contents.on("page-title-updated", () => host.titleChanged(server.id));
+  if (styleScrollbars)
+    contents.on("dom-ready", () => {
+      void contents.insertCSS(serverViewScrollbars).catch(() => undefined);
+    });
   contents.on("did-start-loading", () => host.loadingChanged(server.id));
   contents.on("did-stop-loading", () => host.loadingChanged(server.id));
   attachContextMenu(contents, {

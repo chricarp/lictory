@@ -58,6 +58,12 @@ void test("a typed address becomes a server origin", () => {
     const result = parseServerAddress(input);
     assert.equal(result.ok, false, input);
   }
+  // The message names both schemes the form accepts.
+  assert.deepEqual(parseServerAddress("ftp://lictory.example.com"), {
+    ok: false,
+    error:
+      "A Lictory server address starts with https:// (or http://), not ftp://.",
+  });
 });
 
 const lictoryBody = {
