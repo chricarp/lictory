@@ -172,7 +172,7 @@ test("custom types move from proposal through refinement to native delivery, wit
   );
   await page
     .getByRole("navigation", { name: "Specification lifecycle" })
-    .getByRole("link", { name: /^Ready\b/ })
+    .getByRole("link", { name: /^Ready/ })
     .click();
   await expect(
     page.getByRole("link", { name: new RegExp(`^${proposalTitle}`) }),

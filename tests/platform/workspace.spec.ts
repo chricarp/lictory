@@ -1085,15 +1085,16 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   const lifecycle = page.getByRole("navigation", {
     name: "Specification lifecycle",
   });
-  await lifecycle.getByRole("link", { name: /^Ready\b/ }).click();
+  await lifecycle.getByRole("link", { name: /^Ready/ }).click();
   await expect(page).toHaveURL(/stage=ready/);
   await expect(
     page.getByRole("link", { name: /Define cancellation API/ }),
   ).toBeVisible();
   await reloadWhenSaved(page);
-  await expect(
-    lifecycle.getByRole("link", { name: /^Ready\b/ }),
-  ).toHaveAttribute("aria-current", "page");
+  await expect(lifecycle.getByRole("link", { name: /^Ready/ })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.screenshot({ path: "/tmp/lictory-refinement-lifecycle.png" });
 
   // 17. Navigate quickly between stories via keyboard in the split view.

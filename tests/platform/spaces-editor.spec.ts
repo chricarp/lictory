@@ -649,7 +649,9 @@ test("a branch commits and is sent for review in one step", async ({
   await ada.page.goto(reviewedUrl);
   // A new page of a Reviewed space is empty: it does not claim a published
   // version above "Nothing has been published".
-  await expect(ada.page.getByText("Not published yet")).toBeVisible();
+  await expect(
+    ada.page.getByText("Not published yet", { exact: true }).first(),
+  ).toBeVisible();
   await ada.page.getByRole("button", { name: "Start a branch" }).click();
   const start = ada.page.getByRole("dialog", { name: "Start a branch" });
   await start.getByLabel("Branch name").fill("ada/send-for-review");
