@@ -202,11 +202,15 @@ test("a person runs an agent on their own runner, steers it and approves what it
   // The overview shows it among recent sessions, and so does the Sessions
   // list, narrowed by where sessions stand.
   await page.getByRole("link", { name: "Back to the Factory" }).click();
-  await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Add a changelog for refunds." }),
+  ).toBeVisible();
   await tabs.getByRole("link", { name: "Sessions", exact: true }).click();
   await expect(page).toHaveURL(/\/factory\/sessions$/);
   await page.getByRole("radio", { name: "Completed" }).click();
-  await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Add a changelog for refunds." }),
+  ).toBeVisible();
   // Every row says who ran it, who started it and for how long.
   const row = page
     .locator("[data-list-row]")

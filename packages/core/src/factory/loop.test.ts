@@ -493,6 +493,12 @@ void test("replies steer only for the requester and the owner; approvals only th
   const approvalCard = messages.find(
     (m) => (m.payload as { type?: string } | null)?.type === "agentApproval",
   )!;
+  // The thread hears them in the order the agent said them: its answer to
+  // the steer, then the request that followed.
+  assert.ok(
+    messages.indexOf(agentPosts[0]!) < messages.indexOf(approvalCard),
+    messages.map((m) => m.body || (m.payload as { type?: string })?.type),
+  );
   const payload = approvalCard.payload as {
     approvalId: string;
     deciderIds: string[];

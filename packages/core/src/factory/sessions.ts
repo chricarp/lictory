@@ -1363,6 +1363,8 @@ export async function appendRunnerEvents(
     let status = session.status;
     let summary = session.resultSummary;
     const approvals: string[] = [];
+    // Each request's place in the log, so the thread hears it in order.
+    const asks: { id: string; index: number }[] = [];
     const stored: { type: RunnerEvent["type"]; data: unknown; at?: Date }[] =
       [];
     for (const event of fresh) {
@@ -1397,6 +1399,7 @@ export async function appendRunnerEvents(
           .returning({ id: s.agentApproval.id });
         if (inserted) {
           approvals.push(inserted.id);
+          asks.push({ id: inserted.id, index: stored.length });
           stored.push({
             type: event.type,
             data: { ...data, approvalId: inserted.id },
@@ -1507,16 +1510,26 @@ export async function appendRunnerEvents(
         })),
       );
     }
-    for (const approvalId of approvals)
-      publish(threadEvent(row, "approval_requested", approvalId));
     // Waiting on a message (or working again) changes the card and the claim.
     if (!approvals.length && row.status !== session.status)
       publish(threadEvent(row, "status"));
-    for (const sequence of replies)
-      publish({
-        ...threadEvent(row, "agent_message"),
-        eventSequence: sequence,
-      });
+    // The thread hears the agent's answers and its requests in the order it
+    // said them (an answer to a steer, then the request that followed), so
+    // the conversation reads in order; events publish one after the other.
+    const said = [
+      ...asks.map(({ id, index }) => ({
+        sequence: session.eventSequence + 1 + index,
+        event: threadEvent(row, "approval_requested", id),
+      })),
+      ...replies.map((sequence) => ({
+        sequence,
+        event: {
+          ...threadEvent(row, "agent_message"),
+          eventSequence: sequence,
+        },
+      })),
+    ].sort((a, b) => a.sequence - b.sequence);
+    for (const { event } of said) publish(event);
     return { acked: row.runnerSequence, status: row.status };
   });
 }

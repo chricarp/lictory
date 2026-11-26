@@ -153,7 +153,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
-      .getByRole("link", { name: "Overview" }),
+      .getByRole("link", { name: "Factory", exact: true }),
   ).toHaveAccessibleDescription(/1 agent session waiting on you/);
 
   // A reply by the person who asked steers the agent; its answer arrives.
