@@ -207,7 +207,7 @@ void test("another reviewer's approval and a new revision by someone else are an
   );
 });
 
-void test("my own approval and my own revision are not announced", () => {
+void test("my own approval and my own revision are not announced, but approvals my revision outdated are", () => {
   const r1 = { id: "v1", number: 1, authorId: "me" };
   const r2 = { id: "v2", number: 2, authorId: "me" };
   assert.deepEqual(
@@ -219,14 +219,17 @@ void test("my own approval and my own revision are not announced", () => {
     ),
     [],
   );
+  // The save itself is not news to me; what it did to others' approvals is.
   assert.deepEqual(
     reviewAnnouncements(
       reviewState(r1, [["p1", { status: "granted", reviewerId: "bo" }]]),
       reviewState(r2, [["p1", { status: "stale", reviewerId: "bo" }]]),
       "me",
       names,
-    ),
-    [],
+    ).map((s) => s.text),
+    [
+      "Revision 2 outdated earlier approvals: Engineering review needs review again",
+    ],
   );
 });
 

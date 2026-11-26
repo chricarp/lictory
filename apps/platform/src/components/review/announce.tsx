@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAnnounce } from "@lictory/platform/components/shell/announcer";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { useShell } from "@lictory/platform/components/workspace/shell";
 
 type ReviewState = {
   revision: { id: string; number: number; authorId: string } | null;
@@ -57,11 +58,16 @@ export function reviewAnnouncements(
       outdated.push(what);
     }
   }
-  // A revision that outdates several approvals is one announcement.
-  if (outdated.length && revision?.authorId !== userId)
+  // A revision that outdates several approvals is one announcement. Its
+  // author is told too: the card saying so may be scrolled out of view
+  // after a save at the end of a long specification.
+  if (outdated.length)
     said.push({
       key: `outdated:${revision?.id ?? "none"}:${outdated.join(",")}`,
-      text: `Approvals need review again: ${outdated.join(", ")}`,
+      text:
+        revision?.authorId === userId
+          ? `Revision ${revision.number} outdated earlier approvals: ${outdated.join(", ")} need${outdated.length === 1 ? "s" : ""} review again`
+          : `Approvals need review again: ${outdated.join(", ")}`,
     });
   return said;
 }
@@ -70,6 +76,7 @@ export function reviewAnnouncements(
 function useAnnounceReview() {
   const { current, approvals, reviews, userId, memberName } = useItem();
   const announce = useAnnounce();
+  const { toast } = useShell();
   const revision = current
     ? { id: current.id, number: current.number, authorId: current.authorId }
     : null;
@@ -106,8 +113,12 @@ function useAnnounceReview() {
       userId,
       { member: memberName, responsibility },
     ))
-      announce(text, { key });
-  }, [signature, announce]);
+      // The author's own save is shown, not only said: a toast is visible
+      // wherever the page is scrolled, and is announced as well.
+      if (key.startsWith("outdated:") && revision?.authorId === userId)
+        toast(text);
+      else announce(text, { key });
+  }, [signature, announce, toast]);
 }
 
 // Rendered once inside the item's page.

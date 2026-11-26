@@ -23,6 +23,7 @@ import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { useShell } from "@lictory/platform/components/workspace/shell";
 import { PullRequestsWaiting } from "@lictory/platform/components/review/pull-requests-waiting";
 import { SuggestionsWaiting } from "@lictory/platform/components/review/inline-suggestions";
 
@@ -39,10 +40,11 @@ export function useMyReview() {
     revisions,
     userId,
     disciplineIds,
-    mutate,
+    mutateConfirmed,
     base,
     readOnly,
   } = useItem();
+  const { toast } = useShell();
   const review = readOnly
     ? undefined
     : reviews.find(
@@ -77,14 +79,30 @@ export function useMyReview() {
         Boolean(r) && (current ? r!.number < current.number : false),
     )
     .sort((a, b) => b.number - a.number)[0];
+  // The card's decision is confirmed in words once the server recorded
+  // it: the card itself moves on to the item's next step.
   const decide = (decision: "approve" | "changes_requested") => {
     if (!review) return;
-    void mutate({
+    const number = current?.number;
+    mutateConfirmed({
       type: "decideReview",
       ...base,
       reviewId: review.id,
       decision,
-    });
+    }).then(
+      () =>
+        toast(
+          decision === "approve"
+            ? `You approved revision ${number} for ${review.responsibility}`
+            : `You requested changes to revision ${number} for ${review.responsibility}`,
+        ),
+      (e: unknown) =>
+        toast(
+          e instanceof Error
+            ? e.message
+            : "Your decision was not recorded. Try again.",
+        ),
+    );
   };
   return { review, staleRevision, decide };
 }
@@ -138,7 +156,7 @@ export function ReviewPanel() {
         (a.disciplineId && disciplineIds.includes(a.disciplineId)),
     );
   return (
-    <section>
+    <section data-rail-section="review" className="scroll-mt-4">
       <PullRequestsWaiting />
       <SuggestionsWaiting />
       <div className="mb-2 flex items-center gap-2">

@@ -29,7 +29,7 @@ import {
 } from "@lictory/platform/components/review/spec-diff";
 import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
 
-// A specification's history, like a page's: Versions (every revision with
+// A specification's history, like a page's: Revisions (every revision with
 // who wrote it, why, the approvals given on it and the revisions accepted
 // for and delivered by delivery), and Proposed changes. Any two
 // revisions can be compared; restoring makes a new revision, it never
@@ -61,7 +61,7 @@ export function HistoryNav({
     >
       {(
         [
-          ["versions", "Versions", onVersions],
+          ["versions", "Revisions", onVersions],
           ["branches", "Proposed changes", onBranches],
         ] as const
       ).map(([key, title, go]) => (
@@ -275,11 +275,11 @@ export function SpecVersions({
     shown.id !== base.baseRevisionId;
   return (
     <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <section aria-label="Versions">
-        <h2 className="mb-3 text-sm font-semibold">Versions</h2>
+      <section aria-label="Revisions">
+        <h2 className="mb-3 text-sm font-semibold">Revisions</h2>
         {/* Choosing the version on screen again reads it on its own. */}
         <ToggleGroup
-          aria-label="Versions"
+          aria-label="Revisions"
           orientation="vertical"
           value={[shown.id]}
           onValueChange={([next]) => select(next ?? shown.id)}

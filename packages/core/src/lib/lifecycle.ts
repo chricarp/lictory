@@ -29,7 +29,7 @@ export const lifecycleStages: {
 }[] = [
   {
     id: "proposal",
-    label: "Proposals",
+    label: "Draft",
     description: "Rough intent, waiting to be refined.",
   },
   {
@@ -44,7 +44,7 @@ export const lifecycleStages: {
   },
   {
     id: "ready",
-    label: "Ready for delivery",
+    label: "Ready",
     description: "The checks pass; not yet accepted for delivery.",
   },
   {

@@ -11,7 +11,11 @@ import {
 import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
+import {
+  isTopLevel,
+  refinementMeta,
+  refinementOrder,
+} from "@lictory/core/lib/work-items";
 import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
 import { pullRequestIsActive } from "@lictory/core/contracts/state-machines";
 import {
@@ -34,7 +38,8 @@ const labels: Record<LifecycleStage, string> = {
   review: "Review the current specification",
   ready: "Ready for delivery",
   committed: "Accepted for delivery",
-  underway: "In progress",
+  // Not "In progress": that is a delivery status name in most workflows.
+  underway: "Delivery underway",
   completed: "Delivered",
   canceled: "Canceled",
 };
@@ -47,9 +52,13 @@ export function ItemWorkflow({
   onBreakdown,
   onCompare,
   onChanges,
+  onOpen,
   children,
 }: {
   onStartRefinement?: () => void;
+  // The card summarizes; the checks, the reviews and the discussions each
+  // have one authoritative place, and each summary opens it.
+  onOpen?: (place: "readiness" | "review" | "discussions") => void;
   onReview: () => void;
   onBreakdown: () => void;
   // Opens the specification's proposed changes.
@@ -91,16 +100,21 @@ export function ItemWorkflow({
     delivering &&
     stage !== "canceled" &&
     isAmended(item, project, link);
-  // Ready means refinement is done: the item waits at delivery.
-  const step =
-    !type.hasSpecification || (delivering && !amendment) || stage === "ready"
-      ? 2
-      : stage === "proposal"
-        ? 0
-        : 1;
+  // The stages are the refinement states, named as the Refinement property
+  // and the Refinement tabs name them, then delivery: one vocabulary for
+  // where an item stands. An amendment is refined while delivery continues,
+  // so its stage is the current revision's refinement state.
   const steps = type.hasSpecification
-    ? ["Proposal", "Refinement", "Delivery"]
+    ? [...refinementOrder.map((s) => refinementMeta[s].label), "Delivery"]
     : ["Create", "Delivery"];
+  // A task without a specification is created, then delivered.
+  const step =
+    !type.hasSpecification || (delivering && !amendment)
+      ? steps.length - 1
+      : Math.max(
+          0,
+          refinementOrder.indexOf(item.refinementState ?? "refinement"),
+        );
   // Boards and backlogs show implementation work; higher levels are
   // delivered through their children.
   const container = native && isTopLevel(type);
@@ -212,14 +226,11 @@ export function ItemWorkflow({
   const stages = (
     <ol
       aria-label="Workflow stages"
-      className="flex items-center gap-1.5 text-xs text-muted-foreground max-sm:hidden"
+      className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground max-sm:hidden"
     >
       {steps.map((name, index) => {
-        const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
-        // Ready finishes refinement; delivery starts only when a person
-        // accepts the revision, so it is next, not current.
-        const active = position === step && stage !== "ready";
-        const complete = position < step;
+        const active = index === step;
+        const complete = index < step;
         return (
           <li
             key={name}
@@ -274,7 +285,10 @@ export function ItemWorkflow({
     refinement !== "ready"
       ? stage === "proposal" && empty && noReviewYet
         ? "Describe the intent and the expected behavior in the specification, then request the required reviews."
-        : nextRefinementAction(item)
+        : // Two buttons for one draft: say what the quieter one is for.
+          stage === "proposal" && noReviewYet && !readOnly && onStartRefinement
+          ? "Request the required reviews when the intent is clear. To explore it with the team before anyone is asked to decide, start refinement first."
+          : nextRefinementAction(item)
       : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
@@ -343,22 +357,34 @@ export function ItemWorkflow({
       )}
       {item.readinessTotal > 0 && (
         <li>
-          <Pill
-            tone={
-              item.readinessPassed === item.readinessTotal ? "good" : "neutral"
-            }
+          <Opens
+            to={onOpen && (() => onOpen("readiness"))}
+            hint="Show the readiness checks"
           >
-            {item.readinessPassed}/{item.readinessTotal} checks
-          </Pill>
+            <Pill
+              tone={
+                item.readinessPassed === item.readinessTotal
+                  ? "good"
+                  : "neutral"
+              }
+            >
+              {item.readinessPassed}/{item.readinessTotal} checks
+            </Pill>
+          </Opens>
         </li>
       )}
       {requested.length > 0 && (
         <li>
-          <Pill
-            tone={approvedReviews === requested.length ? "good" : "neutral"}
+          <Opens
+            to={onOpen && (() => onOpen("review"))}
+            hint="Show the reviews"
           >
-            {approvedReviews}/{requested.length} approved
-          </Pill>
+            <Pill
+              tone={approvedReviews === requested.length ? "good" : "neutral"}
+            >
+              {approvedReviews}/{requested.length} approved
+            </Pill>
+          </Opens>
         </li>
       )}
       {inReview > 0 && (
@@ -382,10 +408,15 @@ export function ItemWorkflow({
       )}
       {item.blockingThreads > 0 && (
         <li>
-          <Pill tone="danger">
-            {item.blockingThreads} blocking discussion
-            {item.blockingThreads === 1 ? "" : "s"}
-          </Pill>
+          <Opens
+            to={onOpen && (() => onOpen("discussions"))}
+            hint="Show the discussions"
+          >
+            <Pill tone="danger">
+              {item.blockingThreads} blocking discussion
+              {item.blockingThreads === 1 ? "" : "s"}
+            </Pill>
+          </Opens>
         </li>
       )}
     </>
@@ -567,6 +598,30 @@ function EvidenceRow({
         <ul className="flex flex-wrap items-center gap-1.5">{children}</ul>
       </dd>
     </div>
+  );
+}
+
+// A summary chip that opens the place where its facts are kept.
+function Opens({
+  to,
+  hint,
+  children,
+}: {
+  to?: () => void;
+  hint: string;
+  children: ReactNode;
+}) {
+  if (!to) return children;
+  return (
+    <button
+      type="button"
+      onClick={to}
+      title={hint}
+      className="rounded-full outline-none hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      {children}
+      <span className="sr-only">. {hint}</span>
+    </button>
   );
 }
 
