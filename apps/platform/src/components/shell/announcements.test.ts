@@ -103,7 +103,7 @@ const approval = {
   id: "a1",
   requestKey: "k",
   title: "Run the migration on staging",
-  detail: null,
+  detail: { tool: "Bash", input: { command: "bun run db:migrate" } },
   status: "pending",
   decidedById: null,
   note: null,
@@ -123,6 +123,19 @@ void test("an agent's approval request is announced once, keyed by the request",
       key: "approval:a1",
       text: "Forge asks for approval: Run the migration on staging",
     },
+  ]);
+  // A request naming no action is a question, and is announced as one.
+  const asked = sessionAnnouncements(
+    session({}),
+    session({
+      status: "waiting",
+      approvals: [{ ...approval, id: "a2", detail: { tool: null } }],
+    }),
+    "Forge",
+    "Refund button",
+  );
+  assert.deepEqual(asked, [
+    { key: "approval:a2", text: "Forge asks: Run the migration on staging" },
   ]);
 });
 
