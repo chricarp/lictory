@@ -118,7 +118,11 @@ agent's approval of the head commit and every other Definition of Done check;
 passing CI is always required. A commit the code host has reported no checks
 for has not passed CI: Autopilot waits until CI reports on the head commit,
 and the pull request page says so. If a linked repository has never reported
-a check, the Autonomy settings warn you before you choose Autopilot.
+a check, the Autonomy settings warn you before you choose Autopilot. They
+also warn when the reviewer agent's approval is not required (Autopilot then
+merges code nobody reviewed once CI passes), and when the reviewer agent
+belongs to a colleague: its reviews are recorded as that colleague's agent's,
+and choosing it does not ask them.
 
 Every change is recorded in the audit log, and **History** restores an
 earlier policy. Lowering the level releases nothing: claims in flight
