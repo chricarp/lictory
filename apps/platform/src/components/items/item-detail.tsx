@@ -109,6 +109,8 @@ import {
 } from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { ReviewAnnouncer } from "@lictory/platform/components/review/announce";
 import {
   useListPanel,
   WorkItemListToggle,
@@ -769,6 +771,7 @@ export function ItemDetail({
   return (
     <ItemContext.Provider value={ctx}>
       <SpecDiscussionsContext.Provider value={discussions}>
+        {!pendingCreate && ctx.reviewable && <ReviewAnnouncer />}
         {!pendingCreate && (
           <DockItemSource
             viewing={mode.kind === "ai" ? mode.id : null}
@@ -1160,6 +1163,11 @@ export function ItemDetail({
                 <div className="mt-6">
                   {mode.kind === "history" ? (
                     <div className="space-y-6">
+                      {/* Named like the item's other screens (branches, a
+                          pull request); the tabs below say it visibly. */}
+                      <ItemScreenTitle className="sr-only">
+                        Version history of {identifier(project, item.number)}
+                      </ItemScreenTitle>
                       <HistoryNav
                         current="versions"
                         onVersions={() =>
@@ -1326,6 +1334,7 @@ export function ItemDetail({
                 <aside
                   id={rail.pane.id}
                   ref={attachMeasuredRail}
+                  aria-label="Details"
                   style={rail.pane.style}
                   data-desktop-item-panel
                   className={cn(

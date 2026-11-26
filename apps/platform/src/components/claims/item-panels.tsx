@@ -37,6 +37,7 @@ import {
   useFactory,
   useSession,
 } from "@lictory/platform/components/factory/store";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   leaseLeft,
@@ -84,6 +85,18 @@ export function ClaimPanel() {
   const verdict = useClaimability()(item);
   const { policy } = useAutonomy(project.id);
   const [releasing, setReleasing] = useState(false);
+  // An agent claiming the item, waiting on people or letting it go is
+  // announced while the item is open.
+  useAnnounceChange(
+    item.id,
+    claim ? `${claim.agentName}\u0000${claimState(claim).label}` : "",
+    (previous, next) => {
+      const [agent, state] = next.split("\u0000");
+      if (!next) return `${previous.split("\u0000")[0]} released the item`;
+      if (!previous) return `${agent} claimed the item`;
+      return `${agent}: ${state}`;
+    },
+  );
   if (project.deliveryMode !== "native") return null;
   // Work still being refined belongs to readiness and the delivery scope
   // panel; the factory speaks up once only the scope decision, a blocker or
@@ -358,6 +371,23 @@ export function DefinitionOfDonePanel() {
   const evaluation = entities.find(
     (e): e is DoneEvaluationEntity =>
       e.type === "doneEvaluation" && e.workItemId === item.id,
+  );
+  // A check passing (or failing again) is announced while the item is open.
+  useAnnounceChange(
+    item.id,
+    evaluation?.checks
+      .map((c) => `${c.passed ? "+" : "-"}${c.label}`)
+      .join("\u0000"),
+    (previous, next) => {
+      const before = new Set(previous.split("\u0000"));
+      const changed = next
+        .split("\u0000")
+        .filter((c) => c && !before.has(c))
+        .map((c) => `${c.slice(1)}: ${c.startsWith("+") ? "met" : "not met"}`);
+      return changed.length
+        ? `Definition of Done: ${changed.join("; ")}`
+        : null;
+    },
   );
   if (project.deliveryMode !== "native") return null;
   if (!evaluation) {

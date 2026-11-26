@@ -6,6 +6,7 @@ import {
 } from "@lictory/platform/components/workspace/settings-navigation";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { cn } from "@lictory/core/lib/utils";
+import { Heading, HeadingScope } from "@lictory/ui/heading";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
 // "People & access"); a section is one card inside it with a stable anchor id
@@ -23,14 +24,18 @@ export function SettingsGroup({
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
+        <Heading className="text-xs font-semibold text-muted-foreground">
+          {title}
+        </Heading>
         {description && (
           <p className="mt-1 text-[13px] text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      <div className="space-y-4">{children}</div>
+      <HeadingScope>
+        <div className="space-y-4">{children}</div>
+      </HeadingScope>
     </div>
   );
 }
@@ -70,9 +75,9 @@ export function SettingsSection({
           {icon}
         </div>
         <div className="min-w-0 flex-1 basis-48">
-          <h3 id={`${id}-title`} className="text-sm font-semibold">
+          <Heading id={`${id}-title`} className="text-sm font-semibold">
             {title}
-          </h3>
+          </Heading>
           {description && (
             <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
               {description}
@@ -81,7 +86,9 @@ export function SettingsSection({
         </div>
         {action && <div className="flex shrink-0 items-center">{action}</div>}
       </div>
-      <div className="border-t border-border">{children}</div>
+      <HeadingScope>
+        <div className="border-t border-border">{children}</div>
+      </HeadingScope>
       {footer && (
         <div className="border-t border-border px-5 py-3 text-xs leading-5 text-muted-foreground">
           {footer}
@@ -132,7 +139,7 @@ export function SettingsSubheading({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
-      <h4 className="text-[13px] font-medium">{children}</h4>
+      <Heading className="text-[13px] font-medium">{children}</Heading>
       {action}
     </div>
   );

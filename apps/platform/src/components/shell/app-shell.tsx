@@ -60,6 +60,7 @@ import {
   type SidebarUser,
 } from "@lictory/platform/components/shell/sidebar";
 import { UnreadProvider } from "@lictory/platform/components/shell/unread";
+import { AnnouncerProvider } from "@lictory/platform/components/shell/announcer";
 import {
   NavBadgesProvider,
   useNavBadges,
@@ -128,11 +129,13 @@ export function Shell({
 }) {
   const { organization } = useWorkspace();
   return (
-    <UnreadProvider organizationId={organization.id}>
-      <NavBadgesProvider>
-        <ShellFrame user={user}>{children}</ShellFrame>
-      </NavBadgesProvider>
-    </UnreadProvider>
+    <AnnouncerProvider>
+      <UnreadProvider organizationId={organization.id}>
+        <NavBadgesProvider>
+          <ShellFrame user={user}>{children}</ShellFrame>
+        </NavBadgesProvider>
+      </UnreadProvider>
+    </AnnouncerProvider>
   );
 }
 
@@ -461,13 +464,17 @@ function ShellFrame({
                 <OrganizationRail />
               </div>
             )}
+            {/* Named, so it stays apart from a page's own complementary
+                parts (an item's details). Its resizer sits inside it, on
+                its edge, so every control belongs to a landmark. */}
             <aside
               id={sidebarId}
               ref={sidebarElement}
+              aria-label="Sidebar"
               style={sidebarCollapsed ? undefined : resize.pane.style}
               data-sidebar={sidebarCollapsed ? "compact" : "full"}
               className={cn(
-                "flex shrink-0 flex-col bg-sidebar",
+                "relative flex shrink-0 flex-col bg-sidebar",
                 sidebarCollapsed
                   ? "w-12"
                   : resize.pane.sized
@@ -476,8 +483,13 @@ function ShellFrame({
               )}
             >
               {sidebar(sidebarCollapsed)}
+              {!sidebarCollapsed && (
+                <PaneResizer
+                  resize={resize.handle}
+                  className="absolute inset-y-0 right-0"
+                />
+              )}
             </aside>
-            {!sidebarCollapsed && <PaneResizer resize={resize.handle} />}
           </div>
           <Drawer
             open={drawer}

@@ -4,6 +4,7 @@ import {
   type NavBadge,
 } from "@lictory/platform/components/shell/nav-registry";
 import { useDesktopBadgeSource } from "@lictory/platform/lib/desktop-bridge";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 
 type Badges = ReadonlyMap<string, NavBadge>;
 const NavBadgesContext = createContext<Badges>(new Map());
@@ -39,6 +40,18 @@ export function NavBadgesProvider({ children }: { children: ReactNode }) {
   let dock = 0;
   for (const badge of badges.values()) if (badge.dock) dock += badge.count;
   useDesktopBadgeSource("sidebar", dock);
+  // Something new waiting on me in the Inbox is announced wherever I am;
+  // fewer (I handled one) is not news.
+  const inbox = badges.get("inbox");
+  useAnnounceChange(
+    "inbox",
+    inbox?.count ?? 0,
+    (previous, next) =>
+      next > previous && inbox
+        ? `New in your inbox: ${next} ${inbox.label}`
+        : null,
+    { settleMs: 5000 },
+  );
   return <NavBadgesContext value={badges}>{children}</NavBadgesContext>;
 }
 

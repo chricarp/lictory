@@ -851,7 +851,10 @@ export function CommandPalette({
           onAction={(id) => run(results.find((r) => r.id === id))}
           className="flex min-h-0 w-full flex-1 flex-col rounded-none bg-transparent"
         >
-          <div className="flex shrink-0 items-center gap-2 border-b px-3">
+          {/* The field's focus is marked by a 2px line in the focus color
+              under it (the field has no ring of its own), and the chosen
+              option by a bar at its start, not only its tint. */}
+          <div className="flex shrink-0 items-center gap-2 border-b px-3 focus-within:shadow-[inset_0_-2px_0_0_var(--ring)]">
             <CommandInput
               ref={inputRef}
               placeholder="Search items, pages or commands…"
@@ -887,7 +890,7 @@ export function CommandPalette({
                       value={r.id}
                       label={r.label}
                       className={cn(
-                        "group flex w-full cursor-default gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] select-none data-highlighted:bg-muted",
+                        "group flex w-full cursor-default gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] select-none data-highlighted:bg-muted data-highlighted:shadow-[inset_2px_0_0_0_var(--ring)]",
                         r.excerpt ? "items-start" : "items-center",
                       )}
                     >

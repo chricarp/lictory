@@ -229,6 +229,56 @@ test("anchored discussions sit beside the text in document order, marked, and re
   await expect(panelOf(page)).toBeVisible();
 });
 
+const selectionText = (page: Page) =>
+  page.evaluate(() => window.getSelection()?.toString().trim() ?? "");
+
+test("a keyboard-only reviewer anchors a discussion to a passage, and hears a revision someone else saves", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { workItemId, path } = await open(page);
+  const reviewer = seeded.users[1]!;
+  await signIn(page, reviewer.email);
+  await page.goto(path);
+  // The text is one tab stop that explains its keys.
+  const reader = page.getByRole("document", { name: "Specification text" });
+  await expect(reader).toHaveAccessibleDescription(/Arrow keys select a word/);
+  await reader.focus();
+  // Arrow keys move a selected word; Shift extends it.
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => selectionText(page)).toBe("Behavior");
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => selectionText(page)).toBe("Retries");
+  await page.keyboard.press("Shift+End");
+  await expect
+    .poll(() => selectionText(page))
+    .toBe("Retries reuse the original transaction ID.");
+  // Tab reaches the selection's actions first.
+  await page.keyboard.press("Tab");
+  await expect(
+    page
+      .getByRole("toolbar", { name: "Selection actions" })
+      .getByRole("button", { name: "Comment on selection" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  const composer = await fillMarkdown(
+    page,
+    "Comment on selection",
+    "Is the ID reused across providers?",
+  );
+  await composer.press("ControlOrMeta+Enter");
+  await expect(marked(page)).toHaveText([
+    "Retries reuse the original transaction ID.",
+  ]);
+  await expectNoAccessibilityViolations(page, "keyboard-anchored discussion");
+
+  // Someone else's revision is announced politely; the page stays put.
+  await revise(workItemId, `${first}\nA second note.\n`, "Add a note");
+  await expect(page.locator("[data-announcer]")).toContainText(
+    `${seeded.owner.name} saved revision 2`,
+  );
+});
+
 test("a discussion whose text changed says so and opens the revision it was written on", async ({
   page,
 }) => {

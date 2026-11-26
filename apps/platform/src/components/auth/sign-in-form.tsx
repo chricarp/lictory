@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   FormField,
   FormMessage,
+  ValidatedForm,
 } from "@lictory/platform/components/auth/form-field";
 import { PasswordInput } from "@lictory/platform/components/auth/password-field";
 import { SecondFactorForm } from "@lictory/platform/components/auth/second-factor-form";
@@ -89,7 +90,7 @@ export function SignInForm({
     );
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <ValidatedForm onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="email"
         name="email"
@@ -128,6 +129,6 @@ export function SignInForm({
       >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
-    </form>
+    </ValidatedForm>
   );
 }

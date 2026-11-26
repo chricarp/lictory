@@ -39,6 +39,7 @@ import { firstName, sessionState } from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
 import { titledByItem } from "@lictory/platform/components/channels/data";
+import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 
 // What the Factory writes into a channel thread
 // (docs/internals/factory.md#sessions-in-channels): a session's live card
@@ -107,6 +108,8 @@ function SessionCard({
   const summary = session?.resultSummary ?? card.summary;
   const error = session?.error ?? card.error;
   const title = sessionTitle(session?.title ?? card.title);
+  // Its requests and results are announced where the card is read.
+  useAnnounceSession(session, card.agentName, title, error);
   const decider =
     (session?.requestedById ?? card.requestedById) === userId ||
     card.ownerId === userId
@@ -133,8 +136,10 @@ function SessionCard({
   // repeated under it.
   const namedByChip = titledByItem(card, title);
   return (
-    <section
-      aria-label={`${card.agentName} session`}
+    // An article, not a region: a channel holds many cards, and each is
+    // named by its agent and task so a list of them tells them apart.
+    <article
+      aria-label={`${card.agentName} session: ${title}`}
       data-session-card={card.sessionId}
       className={cardClass}
     >
@@ -204,7 +209,7 @@ function SessionCard({
             />
           </div>
         ))}
-    </section>
+    </article>
   );
 }
 
@@ -359,7 +364,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
     card?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
   };
   return (
-    <section
+    <article
       aria-label={`${approval.agentName} asks for approval`}
       className="mt-0.5 flex max-w-2xl items-start gap-2 text-[13px]"
     >
@@ -429,7 +434,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
           </p>
         )}
       </div>
-    </section>
+    </article>
   );
 }
 
@@ -437,7 +442,7 @@ function QuestionCard({ card: question }: { card: QuestionCardPayload }) {
   const { memberName } = useWorkspace();
   const resolved = question.status === "resolved";
   return (
-    <section
+    <article
       aria-label={`${question.agentName} asks a question`}
       className={cn(cardClass, "px-3 py-2.5")}
     >
@@ -471,6 +476,6 @@ function QuestionCard({ card: question }: { card: QuestionCardPayload }) {
           )}
         </div>
       </div>
-    </section>
+    </article>
   );
 }

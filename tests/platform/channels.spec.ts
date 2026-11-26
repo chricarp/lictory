@@ -76,10 +76,26 @@ test("a conversation in a channel becomes a proposal @smoke", async ({
     .locator("[data-message-id]")
     .filter({ hasText: "Customers want refunds over the API" });
   await expect(benMessage).toBeVisible();
+  // Screen readers hear it on Ben's page, once; Ada sent it, so hers is
+  // quiet.
+  await expect(second.page.locator("[data-announcer]")).toContainText(
+    "Ada Product: Customers want refunds over the API",
+  );
+  await expect(page.locator("[data-announcer]")).not.toContainText(
+    "Customers want refunds",
+  );
 
-  // Ben replies in the thread and mentions Ada.
-  await benMessage.hover();
-  await benMessage.getByRole("button", { name: "Reply in thread" }).click();
+  // Ben replies in the thread, from the keyboard: the message's actions
+  // are one tab stop that focus reveals, and arrow keys move inside it.
+  const actions = benMessage.getByRole("toolbar", { name: "Message actions" });
+  await actions.getByRole("button").first().focus();
+  await expect(actions).toBeVisible();
+  await second.page.keyboard.press("End");
+  await second.page.keyboard.press("ArrowLeft");
+  await expect(
+    actions.getByRole("button", { name: "Reply in thread" }),
+  ).toBeFocused();
+  await second.page.keyboard.press("Enter");
   await expect(second.page).toHaveURL(/\?thread=/);
   const thread = second.page.getByRole("complementary", { name: "Thread" });
   const reply = await fillMarkdown(

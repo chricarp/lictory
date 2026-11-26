@@ -208,8 +208,11 @@ function Change({
       : change.kind === "added"
         ? "Added"
         : "Removed";
+  // A group, not a region: a diff holds many of these, and landmarks are
+  // for the page's few major parts.
   return (
-    <section
+    <div
+      role="group"
       aria-label={`${label} text`}
       className="overflow-hidden rounded-xl ring-1 ring-foreground/10"
     >
@@ -243,7 +246,7 @@ function Change({
           compact={compact}
         />
       )}
-    </section>
+    </div>
   );
 }
 

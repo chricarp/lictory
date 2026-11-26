@@ -141,7 +141,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     .first();
   await message.getByRole("button", { name: /1 reply|replies/ }).click();
   const panel = thread(page);
-  const card = panel.getByRole("region", { name: "Forge session" });
+  const card = panel.getByRole("article", { name: /^Forge session/ });
   await expect(card).toBeVisible();
   await expect(card.getByRole("link", { name: /Open session/ })).toBeVisible();
   // It reads the task and waits for Ada's answer: the card says it waits on
@@ -168,7 +168,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   // It asks for approval in the thread; Ada approves on the session's card,
   // where the request shows with its context. While the card shows it, the
   // request is one block: its record line returns once answered.
-  const approval = panel.getByRole("region", {
+  const approval = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();
@@ -299,11 +299,11 @@ test("dispatched work reports to the project's channel, asks there and resumes w
   await signIn(page, ada.email);
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
   // The session's card and Forge's question arrive in the channel.
-  const card = page.getByRole("region", { name: "Forge session" }).first();
+  const card = page.getByRole("article", { name: /^Forge session/ }).first();
   await expect(card).toBeVisible({ timeout: 90_000 });
   await expect(card.getByText("DSP-1").first()).toBeVisible();
   const question = page
-    .getByRole("region", { name: "Forge asks a question" })
+    .getByRole("article", { name: "Forge asks a question" })
     .first();
   await expect(
     question.getByText("Does a partial refund reuse the original ID too?"),
@@ -314,7 +314,7 @@ test("dispatched work reports to the project's channel, asks there and resumes w
   await signIn(second.page, bo.email);
   await second.page.goto(`/${seeded.slug}/channels/${channelId}`);
   await second.page
-    .getByRole("region", { name: "Forge asks a question" })
+    .getByRole("article", { name: "Forge asks a question" })
     .first()
     .getByRole("link", { name: "Answer in the discussion" })
     .click();

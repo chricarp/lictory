@@ -175,7 +175,9 @@ export const IssueRow = memo(function IssueRow({
           )}
           <ReviewSignal item={item} compact className="ml-auto shrink-0" />
           {project?.deliveryMode !== "external" && item.assigneeId && (
-            <Actor userId={item.assigneeId} label="none" size={16} />
+            // Initials, not a bare dot: the owner is told apart by more
+            // than color.
+            <Actor userId={item.assigneeId} label="none" size={20} />
           )}
         </div>
       </li>

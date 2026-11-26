@@ -8,7 +8,7 @@ import {
   type Person,
 } from "@lictory/platform/components/identity/actor";
 import { paths } from "@lictory/core/lib/paths";
-import { EmptyState } from "@lictory/ui/primitives";
+import { MissingState } from "@lictory/ui/status-page";
 import { Button } from "@lictory/ui/button";
 import { Spinner } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
@@ -52,6 +52,7 @@ import {
   ThreadPanel,
 } from "@lictory/platform/components/channels/side-panels";
 import { PromoteDialog } from "@lictory/platform/components/channels/promote-dialog";
+import { useAnnounceMessages } from "@lictory/platform/components/channels/announce";
 import {
   TypingIndicator,
   useAnnounceTyping,
@@ -69,9 +70,10 @@ export function ChannelConversation() {
     list.find((c) => c.kind !== "direct" && c.name === param?.toLowerCase());
   if (!channel)
     return loaded ? (
-      <EmptyState illustration="search" title="This channel is unavailable">
+      // The whole page: its title is the page's h1.
+      <MissingState illustration="search" title="This channel is unavailable">
         It may be private, or the link may be wrong. Ask a member to add you.
-      </EmptyState>
+      </MissingState>
     ) : (
       <div className="grid h-full place-items-center">
         <Spinner label="Loading" />
@@ -144,6 +146,23 @@ function Conversation({ channel }: { channel: Channel }) {
     (id: string | null | undefined) =>
       id ? factory.agentById.get(id) : undefined,
     [factory.agentById],
+  );
+  // Who said a message, for the screen reader announcement of new ones.
+  const speakerOf = useCallback(
+    (message: MessageRow) =>
+      message.authorKind === "agent"
+        ? agentNameOf(message.authorAgentId)
+        : message.authorKind === "external"
+          ? (message.externalAuthorName ?? "Someone")
+          : memberName(message.authorUserId),
+    [agentNameOf, memberName],
+  );
+  useAnnounceMessages(
+    channel.id,
+    history.messages,
+    history.complete,
+    userId,
+    speakerOf,
   );
   // A thread an agent session is working in: replies by its requester or
   // the agent's owner steer it, anyone else's stay conversation.
@@ -381,6 +400,7 @@ function Conversation({ channel }: { channel: Channel }) {
           hiddenReplies={hidden.get(threadId)}
           participant={participant}
           renderMessage={renderInThread}
+          speakerOf={speakerOf}
           onClose={closeThread}
           onRead={(rootId) =>
             void conversation.thread(channel.id, rootId, { read: true })

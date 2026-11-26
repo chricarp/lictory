@@ -61,10 +61,31 @@ page axe uses to combine frames, so they run with the helper's `singlePage`
 option (the shell page has no frames).
 
 The helper `tests/helpers/accessibility.ts` checks the WCAG 2.0, 2.1 and 2.2
-A/AA rules and fails on any **serious or critical** violation. Moderate and
-minor findings are reported by axe but do not fail the suite. Use
+A/AA rules and fails on any **serious or critical** violation. It also fails,
+at any impact, on axe's structural rules: the heading outline
+(`heading-order`, `page-has-heading-one`), content outside every landmark
+(`region`) and landmarks that repeat a name or sit inside another
+(`landmark-*`). Screen reader users move through a page by its headings and
+landmarks, so these regress quietly unless they fail. Other moderate and minor
+findings are reported by axe but do not fail the suite. Use
 `expectNoAccessibilityViolations(page, "state")` in other workflows once the
 state being checked is on screen.
+
+## Structure
+
+Every page has one h1 (its `PageHeader` title, the item's title, or a
+`MissingState` when the whole page is "not found" or "no access"). Section
+headings take their level from where they sit: `SectionLabel`,
+`SettingsSection` and `Heading` from `@lictory/ui/heading` render the level of
+the surrounding `HeadingScope` (h2 under the page title), and a component
+that has a heading of its own wraps its content in a `HeadingScope`.
+
+Landmarks are the page's few major parts: the sidebar (`Sidebar`), the page
+(`main`), and named complementary parts beside it (an item's `Details` and
+`Discussions`). Repeated things inside a page (session cards in a channel,
+changed blocks in a diff) are articles or groups, never regions, and a second
+breadcrumb inside a page is named for what it walks. Controls such as pane
+resizers sit inside the landmark they resize.
 
 ## Focus
 
@@ -120,6 +141,16 @@ field, Enter or Arrow Down moves into the content.
   a button); focusing one, or pointing at it, shows its card, which describes
   the chip (`aria-describedby`) and closes with Escape. In an editor a chip is
   part of the text: moving the selection onto it shows its card.
+- **Readers.** A specification being read and a published page are one tab
+  stop each (`role="document"`, described by their keys). Inside, a
+  selected word stands for the cursor: Arrow Left/Right select the previous
+  or next word, Arrow Up/Down the first word of the line above or below, Home/End
+  the first or last word of the line; Shift with those keys extends the
+  selection, Escape clears it (`lib/keyboard-selection.ts`). The selection
+  is the browser's own, so the selection actions, Mod+Alt+M and Litto read
+  it as they read a pointer's. In a specification the selection actions
+  come first in the tab order after the text, and Enter on a marked passage
+  opens its discussion.
 - **Comments.** The comments panel is a labelled region beside the page, or
   a modal sheet on narrow frames (Escape closes it and focus returns to what
   opened it). Composers post with Mod+Enter. A specification's discussions
@@ -133,6 +164,35 @@ field, Enter or Arrow Down moves into the content.
 - **Carets.** Other people's carets and their name labels are decorative
   (`aria-hidden`); who is editing is stated next to the save state.
 
+## Announcements
+
+Realtime changes made by others are announced through one polite live
+region for the workspace (`components/shell/announcer.tsx`), so they queue
+instead of interrupting each other and each is said once, also when an
+event is replayed or two surfaces show the same thing:
+
+- a new message or thread reply in the open conversation ("Ada: …"); older
+  messages loaded by scrolling are not news, and the message lists are not
+  live regions themselves
+- an agent's approval request and a session starting, finishing, failing or
+  waiting, where its card or page is shown
+- a new revision, an approval granted or withdrawn and approvals made
+  outdated, on the item's page
+- an agent claiming or releasing the item and its Definition of Done checks
+  changing, on the item's page
+- a pull request linked to the item, its checks passing or failing and its
+  merge (with who merged, Autopilot included), on the item and pull request
+  pages
+- something new waiting on the person in the Inbox, wherever they are
+- an export's results once the worker finishes
+
+A person's own actions are confirmed where they acted (a toast, the
+control's new state, an inline message) and are not announced again. Form
+errors are shown next to each field, tied to it with `aria-describedby`, and
+the first field to fix takes focus (`ValidatedForm` in
+`components/auth/form-field.tsx`); messages after a failed request use
+`role="alert"`.
+
 ## Known gaps
 
 Violations that need a product or design decision are listed here and in
@@ -144,18 +204,11 @@ checks found has been fixed.
 
 Not covered automatically, and worth checking by hand when these areas change:
 
-- **Comments on published page text.** The page reader is read-only, so
-  selecting its text needs a pointer (or the browser's caret browsing);
-  keyboard users comment on the whole page there, or on text in the live
-  editor, where the selection is keyboard-driven (Mod+Alt+M). The same
-  holds for "Create work item" on selected text; an open task's "Create
-  work item" button is reachable with Tab (it appears on focus).
-- **Text selection comments.** Selecting specification text with a mouse
-  offers a selection toolbar (comment, ask). The reader is read-only, so a
-  keyboard selection needs the browser's caret browsing; Mod+Alt+M then
-  comments on it, and without a selection it opens the composer for a
-  discussion without a quoted anchor. Marked passages open their thread
-  with a pointer; from the keyboard, threads are reached in the panel.
+- **Actions on text selected in a published page.** The keyboard selects
+  text in the page reader and Mod+Alt+M comments on it, but the floating
+  bar's "Create work item" and "Ask Litto" are not in the tab order (Mod+J
+  opens Litto with the selection); an open task's "Create work item" button
+  is reachable with Tab (it appears on focus).
 - **Drag and drop.** Board cards, backlog ranking and story order are dragged
   with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
   and a card's status and iteration can be changed from the item's properties;
@@ -175,7 +228,9 @@ Not covered automatically, and worth checking by hand when these areas change:
   `tests/docs/accessibility.spec.ts` scan the landing page, downloads, a guide
   and a comparison, and the main documentation pages, in light and dark;
   other website pages share their components but are not scanned.
-- **Screen reader announcements** for realtime changes (another person's edit,
-  sync state) and the Lictory Intelligence conversation. The page editor's
-  save state is a status region, so its changes are announced politely;
-  other people's edits are not announced.
+- **Live drafts.** The page editor's save state is a status region, so its
+  changes are announced politely; other people's edits in a live draft are
+  not announced (who is editing is stated next to the save state).
+- **A manual screen reader pass** (VoiceOver, NVDA) over the factory loop has
+  not been recorded; the announcements above are verified by the browser
+  workflows' live region, not by a screen reader.

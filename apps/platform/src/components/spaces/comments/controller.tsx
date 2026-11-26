@@ -364,6 +364,27 @@ export function PageComments({
     dom.addEventListener(COMMENT_SELECTION_EVENT, onRequest);
     return () => dom.removeEventListener(COMMENT_SELECTION_EVENT, onRequest);
   }, [editor, canComment, startComment]);
+  // In the read-only reader, Mod+Alt+M comments on the text selected with
+  // the keyboard (or the pointer); with nothing selected it opens the
+  // comments, where the whole page can be commented on.
+  const selectionRef = useRef(selection);
+  useEffect(() => {
+    selectionRef.current = selection;
+  });
+  useEffect(() => {
+    if (!editor || !canComment || !hasView(editor)) return;
+    const dom = editor.view.dom;
+    const onKey = (event: KeyboardEvent) => {
+      if (editor.isEditable) return;
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey) return;
+      if (event.code !== "KeyM") return;
+      event.preventDefault();
+      if (selectionRef.current) startComment(selectionRef.current);
+      else onOpenChange(true);
+    };
+    dom.addEventListener("keydown", onKey);
+    return () => dom.removeEventListener("keydown", onKey);
+  }, [editor, canComment, startComment, onOpenChange]);
 
   const activate = useCallback(
     (threadId: string) => {

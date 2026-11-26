@@ -280,7 +280,7 @@ async function pullRequestInThread(
   channelId: string,
 ) {
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
-  const card = page.getByRole("region", { name: "Forge session" }).first();
+  const card = page.getByRole("article", { name: /^Forge session/ }).first();
   await expect(card).toBeVisible({ timeout: 120_000 });
   await expect(card.getByText("RFD-1").first()).toBeVisible();
   await expect(card.getByRole("link", { name: "Pull request" })).toBeVisible({

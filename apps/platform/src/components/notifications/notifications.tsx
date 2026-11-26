@@ -535,7 +535,7 @@ function Row({
           <p
             className={cn(
               "truncate text-[13px] leading-5",
-              unread && "font-medium text-foreground",
+              unread && "font-semibold text-foreground",
             )}
           >
             {unread && <span className="sr-only">Unread: </span>}

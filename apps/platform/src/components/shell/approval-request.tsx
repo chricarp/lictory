@@ -88,6 +88,7 @@ export function ApprovalRequest({
 }: Props) {
   const [open, setOpen] = useState(!compact);
   const bodyId = useId();
+  const subjectId = useId();
   const { session, approval, agent } = props;
   const { items, projects } = useWorkspace();
   if (!compact)
@@ -135,7 +136,8 @@ export function ApprovalRequest({
             <ShieldQuestion aria-hidden className="size-4 text-warning" />
           )}
         </span>
-        <span className="min-w-0 flex-1">
+        {/* The request's subject, which the row's button names. */}
+        <span id={subjectId} className="min-w-0 flex-1">
           <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] leading-5">
             {itemKey && (
               <span className="shrink-0 font-mono text-xs text-muted-foreground">

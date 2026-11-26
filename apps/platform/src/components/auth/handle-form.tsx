@@ -123,7 +123,7 @@ export function HandleForm({
   return (
     <form onSubmit={onSubmit} className="grid gap-4">
       <div className="grid gap-1.5">
-        <label htmlFor="handle" className="text-[13px] font-medium">
+        <label htmlFor="handle-field" className="text-[13px] font-medium">
           Handle
         </label>
         <div className="relative">
@@ -134,7 +134,9 @@ export function HandleForm({
             @
           </span>
           <Input
-            id="handle"
+            // Not "handle": account settings anchor their Handle section
+            // with that id.
+            id="handle-field"
             name="handle"
             value={value}
             onChange={(e) => change(e.target.value)}

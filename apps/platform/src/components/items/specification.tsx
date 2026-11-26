@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -36,6 +37,11 @@ import {
   suggestionRanges,
   useOpenSuggestions,
 } from "@lictory/platform/components/review/inline-suggestions";
+import {
+  commentShortcut,
+  keyboardSelect,
+  keyboardSelectionHint,
+} from "@lictory/platform/lib/keyboard-selection";
 
 type Mode = "read" | "edit";
 
@@ -150,8 +156,9 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
   if (quote.length < 2) return;
   const heading = headingFor(range.startContainer);
   const before = document.createRange();
+  // Counted from the text itself: the selection actions sit before it.
   if (heading) before.setStartBefore(heading);
-  else before.setStart(root, 0);
+  else before.setStart(root.querySelector(".spec-prose") ?? root, 0);
   before.setEnd(range.startContainer, range.startOffset);
   const rect = range.getBoundingClientRect();
   const rootRect = root.getBoundingClientRect();
@@ -198,6 +205,7 @@ function Reader({
   const canAsk = !!dock && directory.ai.available && directory.ai.enabled;
   const canComment = !readOnly && reviewable;
   const rootRef = useRef<HTMLDivElement>(null);
+  const hintId = useId();
   const [selection, setSelection] = useState<Selected>();
   const content = current?.content ?? "";
   const isEmpty = !content.trim();
@@ -324,10 +332,38 @@ function Reader({
             : "Nothing written yet. Click to propose a first draft for review."}
         </button>
       ) : (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- reads the text selection after a mouse selection and opens a marked passage's discussion; the panel offers both from the keyboard (docs/internals/accessibility.md).
+        // The text is one tab stop: arrow keys select words in it (Shift
+        // extends), Tab reaches the selection actions, Mod+Alt+M comments
+        // and Enter on a marked passage opens its discussion
+        // (lib/keyboard-selection.ts, docs/internals/accessibility.md).
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the keyboard path is onKeyDown below; clicks read a mouse selection or open a marked passage's discussion.
         <div
           ref={rootRef}
           data-spec-root
+          role="document"
+          aria-label={reviewable ? "Specification text" : "Description text"}
+          aria-describedby={hintId}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a document the arrow keys select text in (onKeyDown below).
+          tabIndex={0}
+          onKeyDown={(event) => {
+            const root = rootRef.current;
+            if (!root) return;
+            if (keyboardSelect(root, event.nativeEvent)) {
+              event.preventDefault();
+              setSelection(selectedPassage(root));
+              return;
+            }
+            // Enter on a marked passage opens its discussion.
+            if (event.key !== "Enter" || event.target !== root) return;
+            const node = window.getSelection()?.anchorNode;
+            const id = threadAt(
+              node instanceof Element ? node : (node?.parentElement ?? null),
+            );
+            if (!id || !discussions) return;
+            event.preventDefault();
+            discussions.setActive(id);
+            discussions.setPanelOpen(true);
+          }}
           onMouseUp={onMouseUp}
           onClick={(event) => {
             if (!discussions) return;
@@ -359,7 +395,7 @@ function Reader({
               : undefined
           }
           onMouseLeave={setHovered ? () => setHovered(null) : undefined}
-          className="relative"
+          className="group/reader relative rounded-sm focus-ring outline-none"
         >
           {tinted.length > 0 && (
             <style>
@@ -376,11 +412,13 @@ function Reader({
               {`[data-spec-root] mark[data-suggestions~="${CSS.escape(discussions.activeSuggestion)}"]{background-color:color-mix(in oklch,var(--primary) 12%,transparent)}`}
             </style>
           )}
-          <Markdown source={content} marks={marks} />
+          {/* Before the text, so Tab from a keyboard selection reaches
+              it first; placed above the selection. */}
           {selection && (canComment || canAsk || onSuggest) && (
             <Toolbar
               ref={toolbarRef}
               aria-label="Selection actions"
+              data-selection-skip
               style={{ left: selection.x, top: selection.y - 40 }}
               className="absolute z-10 flex max-w-none -translate-x-1/2 flex-nowrap items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
@@ -425,6 +463,16 @@ function Reader({
               )}
             </Toolbar>
           )}
+          <Markdown source={content} marks={marks} />
+          <p
+            id={hintId}
+            data-selection-skip
+            className="mt-3 hidden text-[11px] leading-4 text-muted-foreground group-focus-visible/reader:block"
+          >
+            {keyboardSelectionHint} Tab reaches the selection actions,{" "}
+            {commentShortcut} comments on the selection, Enter on a marked
+            passage opens its discussion.
+          </p>
         </div>
       )}
     </div>

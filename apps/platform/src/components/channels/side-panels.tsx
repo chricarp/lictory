@@ -7,6 +7,7 @@ import { Spinner } from "@lictory/ui/spinner";
 import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannelThread } from "@lictory/platform/components/channels/store";
+import { useAnnounceMessages } from "@lictory/platform/components/channels/announce";
 import {
   formatTime,
   sessionCardsIn,
@@ -73,6 +74,7 @@ export function ThreadPanel({
   hiddenReplies = 0,
   participant,
   renderMessage,
+  speakerOf,
   composer,
   onClose,
   onRead,
@@ -85,6 +87,8 @@ export function ThreadPanel({
   hiddenReplies?: number;
   participant: { following: boolean; readReplyCount: number } | undefined;
   renderMessage: (message: MessageRow, grouped: boolean) => ReactNode;
+  // Who said a reply, for the announcement of new ones.
+  speakerOf: (message: MessageRow) => string;
   composer: ReactNode;
   onClose: () => void;
   onRead: (rootMessageId: string) => void;
@@ -93,6 +97,16 @@ export function ThreadPanel({
   const { root, replies, complete } = useChannelThread(
     channel.id,
     rootMessageId,
+  );
+  const { userId } = useWorkspace();
+  // New replies in the open thread are announced; the list itself is not a
+  // live region (it would also read replies loaded with the thread).
+  useAnnounceMessages(
+    `${channel.id}:${rootMessageId}`,
+    replies,
+    complete,
+    userId,
+    speakerOf,
   );
   const end = useRef<HTMLDivElement>(null);
   const shown = root ? shownReplyCount(root, hiddenReplies) : 0;
@@ -144,6 +158,8 @@ export function ThreadPanel({
       <div
         className="min-h-0 flex-1 overflow-y-auto py-2"
         role="log"
+        // Announced one by one through the workspace's announcer instead.
+        aria-live="off"
         aria-label="Thread replies"
       >
         {!root ? (

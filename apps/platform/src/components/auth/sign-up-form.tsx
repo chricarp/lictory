@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   FormField,
   FormMessage,
+  ValidatedForm,
 } from "@lictory/platform/components/auth/form-field";
 import { NewPasswordFields } from "@lictory/platform/components/auth/password-field";
 import { Button } from "@lictory/ui/button";
@@ -57,7 +58,7 @@ export function SignUpForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <ValidatedForm onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="name"
         name="name"
@@ -86,6 +87,6 @@ export function SignUpForm({
       >
         {pending ? "Creating account…" : "Create account"}
       </Button>
-    </form>
+    </ValidatedForm>
   );
 }

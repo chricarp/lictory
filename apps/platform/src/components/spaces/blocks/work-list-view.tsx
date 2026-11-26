@@ -137,9 +137,11 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
       <section aria-labelledby={headingId} data-testid="work-list">
         <header className="work-list-header">
           <ListTodo className="size-3.5 text-muted-foreground" aria-hidden />
-          <h4 id={headingId} className="work-list-title">
+          {/* Names the list, not a heading: it sits among the page's own
+              headings, whatever their levels, and must not break them. */}
+          <p id={headingId} className="work-list-title">
             {label}
-          </h4>
+          </p>
           <span className="work-list-meta">
             {scope && <span className="work-list-scope">{scope} · </span>}
             <span data-testid="work-list-count">
