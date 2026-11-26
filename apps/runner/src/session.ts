@@ -337,10 +337,11 @@ export class SessionRun {
       this.state = "finishing";
       if (workspace && result.outcome === "completed") {
         try {
-          this.events.push("status", {
-            phase: "delivering",
-            message: "Committing and pushing the branch.",
-          });
+          if (workspace.repository)
+            this.events.push("status", {
+              phase: "delivering",
+              message: "Committing and pushing the branch.",
+            });
           const fresh = workspace.repository
             ? ((await api.workspace(lease).catch(() => null))?.repository ??
               null)
@@ -368,7 +369,13 @@ export class SessionRun {
               phase: "pushed",
               message: `Pushed ${delivered.commits} commit${delivered.commits === 1 ? "" : "s"} to ${delivered.branch}.`,
             });
-          }
+          } else if (!workspace.repository)
+            // Said plainly: the work is not anywhere a person can find it.
+            this.events.push("status", {
+              phase: "discarded",
+              message:
+                "No repository is linked to this session, so nothing was pushed: the files it changed are discarded with its workspace.",
+            });
         } catch (error) {
           keep = true;
           result = {

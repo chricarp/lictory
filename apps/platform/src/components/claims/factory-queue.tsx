@@ -44,7 +44,7 @@ import {
 } from "@lictory/platform/components/claims/claim-badge";
 import {
   claimWaitsOnPeople,
-  leaseLeft,
+  leaseLeftLabel,
   useAgentLabel,
   useAutonomy,
   useClaimability,
@@ -447,7 +447,7 @@ function Queue({ project }: { project: Project }) {
                         : claim.lastProgress
                           ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
                           : claim.state === "active"
-                            ? `Lease ends in ${Math.max(leaseLeft(claim), 0)} min`
+                            ? `Lease ends in ${leaseLeftLabel(claim)}`
                             : `Claimed ${relativeTime(claim.claimedAt)}`}
                     </span>
                   </>

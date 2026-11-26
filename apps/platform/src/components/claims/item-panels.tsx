@@ -22,7 +22,12 @@ import { Button } from "@lictory/ui/button";
 import { Dialog } from "@lictory/ui/dialog";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { StatusChip } from "@lictory/ui/status-chip";
-import { firstName } from "@lictory/platform/lib/session-state";
+import {
+  activeStatuses,
+  firstName,
+  sessionState,
+  type SessionState,
+} from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { ClaimOwner } from "@lictory/platform/components/claims/claim-badge";
 import {
@@ -42,12 +47,82 @@ import { useAnnounceChange } from "@lictory/platform/components/shell/announcer"
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   leaseLeft,
+  leaseLeftLabel,
   useAgentLabel,
   useAgents,
   useAutonomy,
   useClaimability,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+
+// The claim's state chip and when it changed.
+function ClaimStateLine({
+  claim,
+  state,
+}: {
+  claim: ClaimEntity;
+  state: SessionState;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <SessionStateChip state={state} />
+      <span className="text-xs text-muted-foreground">
+        {claim.sessionWaitingSince
+          ? `since ${relativeTime(claim.sessionWaitingSince)}`
+          : `claimed ${relativeTime(claim.claimedAt)}`}
+      </span>
+    </div>
+  );
+}
+
+function LeaseLine({ claim }: { claim: ClaimEntity }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {leaseLeft(claim) > 0
+        ? `Lease ends in ${leaseLeftLabel(claim)} unless the agent renews it.`
+        : "Lease ended; the next sweep returns it to the queue."}
+    </p>
+  );
+}
+
+// A claim held by a session: while the session runs the claim reads as it
+// does; once the session completed, the claim holds the item for delivery
+// (until the Definition of Done passes), so it says Completed, not Running.
+function ClaimSessionState({
+  claim,
+  sessionId,
+  state,
+}: {
+  claim: ClaimEntity;
+  sessionId: string;
+  state: SessionState;
+}) {
+  const { session } = useSession(sessionId);
+  const ended = session && !activeStatuses.includes(session.status);
+  if (!ended)
+    return (
+      <>
+        <ClaimStateLine claim={claim} state={state} />
+        {claim.state === "active" && <LeaseLine claim={claim} />}
+      </>
+    );
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <SessionStateChip state={sessionState(session)} />
+        <span className="text-xs text-muted-foreground">
+          {session.completedAt && relativeTime(session.completedAt)}
+        </span>
+      </div>
+      {leaseLeft(claim) > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Held for delivery for at most {leaseLeftLabel(claim)} more, until the
+          Definition of Done passes.
+        </p>
+      )}
+    </>
+  );
+}
 
 // A claim's session before it runs: starting, or queued with no online
 // runner that can run its agent (it would otherwise wait silently).
@@ -143,14 +218,15 @@ export function ClaimPanel() {
               the item is someone else's, whose work it is. It wraps rather
               than truncating the agent's name. */}
           <ClaimOwnerWithAgent claim={claim} assigneeId={item.assigneeId} />
-          <div className="flex flex-wrap items-center gap-2">
-            <SessionStateChip state={state} />
-            <span className="text-xs text-muted-foreground">
-              {claim.sessionWaitingSince
-                ? `since ${relativeTime(claim.sessionWaitingSince)}`
-                : `claimed ${relativeTime(claim.claimedAt)}`}
-            </span>
-          </div>
+          {claim.agentSessionId && !claim.sessionWaitingSince ? (
+            <ClaimSessionState
+              claim={claim}
+              sessionId={claim.agentSessionId}
+              state={state}
+            />
+          ) : (
+            <ClaimStateLine claim={claim} state={state} />
+          )}
           {claim.sessionWaitingSince && claim.agentSessionId ? (
             <p className="text-xs text-muted-foreground">
               Its session waits on {firstName(owner)}&apos;s answer.{" "}
@@ -173,20 +249,16 @@ export function ClaimPanel() {
               about the specification. It resumes when people resolve{" "}
               {claim.waitingThreadIds.length === 1 ? "it" : "them"}.
             </p>
-          ) : (
+          ) : claim.state === "starting" ? (
             <p className="text-xs text-muted-foreground">
-              {claim.state === "starting" ? (
-                claim.agentSessionId ? (
-                  <StartingSession sessionId={claim.agentSessionId} />
-                ) : (
-                  "A session is starting for it."
-                )
-              ) : leaseLeft(claim) > 0 ? (
-                `Lease ends in ${leaseLeft(claim)} min unless the agent renews it.`
+              {claim.agentSessionId ? (
+                <StartingSession sessionId={claim.agentSessionId} />
               ) : (
-                "Lease ended; the next sweep returns it to the queue."
+                "A session is starting for it."
               )}
             </p>
+          ) : claim.agentSessionId ? null : (
+            <LeaseLine claim={claim} />
           )}
           {claim.lastProgress && (
             <blockquote className="border-l-2 pl-2 text-xs text-foreground/80">

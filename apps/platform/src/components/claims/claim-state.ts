@@ -47,6 +47,22 @@ export function claimState(
   return sessionState(null, { claim });
 }
 
+// A lease's time left in the unit people read it in: "15 min", "3 h",
+// "7 days" (a completed session's delivery hold), never "10080 min".
+export function leaseLeftLabel(
+  claim: Pick<ClaimEntity, "leaseExpiresAt">,
+  now = Date.now(),
+) {
+  const minutes = Math.max(
+    Math.round((new Date(claim.leaseExpiresAt).getTime() - now) / 60_000),
+    0,
+  );
+  if (minutes < 120) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.round(hours / 24)} days`;
+}
+
 // The claim as one compact phrase, for badges: "Forge · waiting on Ada".
 export function claimBadgeLabel(
   claim: ClaimFacts & Pick<ClaimEntity, "agentName">,

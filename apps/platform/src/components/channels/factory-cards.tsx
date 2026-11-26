@@ -184,6 +184,13 @@ function SessionCard({
         live={state.active || detailed}
         // The request itself is shown; its title is not repeated as a step.
         asking={asks.length > 0}
+        // Ended with no repository: what it changed was not kept anywhere.
+        discarded={
+          !!session &&
+          !state.active &&
+          !session.repositoryId &&
+          !session.repositoryUrl
+        }
       />
       {!holdsAsks && asks.length > 0 && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
@@ -343,29 +350,40 @@ function Progress({
   sessionId,
   live,
   asking,
+  discarded,
 }: {
   sessionId: string;
   live: boolean;
   asking: boolean;
+  discarded: boolean;
 }) {
   if (!live) return null;
-  return <LiveProgress sessionId={sessionId} asking={asking} />;
+  return (
+    <LiveProgress sessionId={sessionId} asking={asking} discarded={discarded} />
+  );
 }
 
 function LiveProgress({
   sessionId,
   asking,
+  discarded,
 }: {
   sessionId: string;
   asking: boolean;
+  discarded: boolean;
 }) {
   const { events } = useSessionEvents(sessionId, LAST_EVENTS);
   const progress = useMemo(() => sessionProgress(events), [events]);
-  const step =
-    asking && progress.step?.kind === "approval" ? null : progress.step;
   // While the agent asks, the request below carries the files with its
   // evidence; they are not listed twice.
   const files = asking ? [] : progress.files;
+  // The request is shown, and a last step that only changed files is the
+  // files line below: neither is said twice.
+  const step =
+    (asking && progress.step?.kind === "approval") ||
+    (files.length > 0 && progress.step?.kind === "files")
+      ? null
+      : progress.step;
   if (!step && !files.length) return null;
   return (
     <div className="space-y-1 border-t px-3 py-2 text-xs text-muted-foreground">
@@ -397,8 +415,12 @@ function LiveProgress({
       {files.length > 0 && (
         <p className="flex min-w-0 items-center gap-1.5">
           <FileDiff aria-hidden className="size-3.5 shrink-0" />
-          <span className="shrink-0">{filesChangedLabel(progress)}</span>
-          {(progress.additions > 0 || progress.deletions > 0) && (
+          <span className="shrink-0">
+            {discarded
+              ? `${filesChangedLabel(progress)}, not kept (no repository linked):`
+              : filesChangedLabel(progress)}
+          </span>
+          {!discarded && (progress.additions > 0 || progress.deletions > 0) && (
             <span className="shrink-0 tabular-nums">
               +{progress.additions} −{progress.deletions}
             </span>
