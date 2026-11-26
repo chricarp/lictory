@@ -348,6 +348,8 @@ test("comments on draft text are seen, answered, resolved and reopened", async (
   // Ben sees the highlight and the thread beside the page.
   const highlight = liveEditor(ben.page).locator(".page-comment");
   await expect(highlight).toHaveText("five days");
+  // A solid line under the text marks it as well as the tint.
+  await expect(highlight).toHaveCSS("box-shadow", /0px -[23]px 0px 0px inset$/);
   const comments = ben.page.getByRole("complementary", {
     name: "Page comments",
   });

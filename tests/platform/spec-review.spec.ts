@@ -149,6 +149,10 @@ test("anchored discussions sit beside the text in document order, marked, and re
     "original transaction ID",
     "reported to the customer",
   ]);
+  // Marked by a solid line under the text as well as a tint, so the mark
+  // does not depend on seeing colour.
+  for (const mark of await marked(page).all())
+    await expect(mark).toHaveCSS("box-shadow", /0px -2px 0px 0px inset$/);
   // Clicking a marked passage opens its discussion.
   await marked(page).first().click();
   const panel = panelOf(page);

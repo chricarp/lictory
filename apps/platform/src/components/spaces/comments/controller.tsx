@@ -141,7 +141,12 @@ function useMountedEditor(editor: Editor | null) {
   );
 }
 
+// `top` is where the selection's bar goes (viewport coordinates): under the
+// selected lines, so the passage and the lines leading to it stay readable,
+// or above them when the window has no room below.
 type Selected = { from: number; to: number; top: number; left: number };
+const BAR_HEIGHT = 36;
+const BAR_GAP = 8;
 
 // The text selected inside the editor (DOM selection, so read-only views
 // work too), with where to show the "Comment" action.
@@ -171,10 +176,14 @@ function useEditorSelection(editor: Editor | null) {
         if (from >= to || !editor.state.doc.textBetween(from, to, " ").trim())
           return setSelected(null);
         const rect = selection.getRangeAt(0).getBoundingClientRect();
+        const below =
+          rect.bottom + BAR_GAP + BAR_HEIGHT < window.innerHeight - BAR_GAP;
         setSelected({
           from,
           to,
-          top: rect.top,
+          top: below
+            ? rect.bottom + BAR_GAP
+            : Math.max(BAR_GAP, rect.top - BAR_GAP - BAR_HEIGHT),
           left: rect.left + rect.width / 2,
         });
       } catch {
@@ -182,7 +191,12 @@ function useEditorSelection(editor: Editor | null) {
       }
     };
     document.addEventListener("selectionchange", update);
-    return () => document.removeEventListener("selectionchange", update);
+    // The bar is fixed to the window: it follows the text when it scrolls.
+    window.addEventListener("scroll", update, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("selectionchange", update);
+      window.removeEventListener("scroll", update, { capture: true });
+    };
   }, [editor]);
   return selected;
 }
@@ -521,7 +535,7 @@ export function PageComments({
             role="group"
             aria-label="Selected text"
             style={{
-              top: Math.max(8, selection.top - 44),
+              top: selection.top,
               left: selection.left,
             }}
             className="fixed z-40 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-0.5 rounded-full bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10"

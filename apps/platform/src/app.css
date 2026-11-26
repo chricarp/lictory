@@ -8,6 +8,18 @@
 @source "../../../packages/ui/src";
 @source "../../../packages/core/src/lib";
 
+/* Passages a discussion is attached to, in the specification reader: besides
+   the tint, a solid 2px line under the text in the thread's colour. The line
+   is the mark that does not depend on telling colours apart: it keeps at
+   least 3:1 against the page in every theme, where the tint alone is about
+   1.3:1. Pages draw the same mark (editor/document.css). */
+mark.spec-anchor {
+  box-shadow: inset 0 -2px 0 var(--warning);
+}
+mark.spec-anchor.spec-anchor-blocking {
+  box-shadow: inset 0 -2px 0 var(--destructive);
+}
+
 /* While a pane edge is dragged, the whole page keeps the resize cursor and
    nothing (text, embedded frames) steals the pointer. */
 :root[data-pane-resizing],
