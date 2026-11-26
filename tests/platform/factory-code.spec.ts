@@ -397,7 +397,9 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
   ).toBeVisible();
   // The runner's log names the outcome and the branch it pushed.
-  expect(output).toMatch(/Session \S+ completed after .+; pushed branch \S+\./);
+  expect(output).toMatch(
+    /Session \S+ completed after .+; pushed branch \S+, which Lictory opens or updates a pull request for\./,
+  );
 });
 
 test("on Autopilot Lictory merges the approved, green pull request itself under the policy", async ({
