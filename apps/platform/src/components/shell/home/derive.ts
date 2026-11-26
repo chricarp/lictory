@@ -17,6 +17,10 @@ type Context = {
   delivery: Delivery;
   links: ReadonlyMap<string, ExternalLink>;
   userId: string;
+  // Native delivery: whether work may start now, by the one rule the
+  // server enforces and the item and the Factory queue show
+  // (`claimability`: agreed scope, readiness, blockers, no live claim).
+  startable?: (item: WorkItem) => boolean;
 };
 
 const newest = (a: { updatedAt: string }, b: { updatedAt: string }) =>
@@ -45,20 +49,23 @@ export function inFlight(
   return first(started.sort(newest), limit);
 }
 
-// Ready specifications nobody has started: mine first, then unassigned ones.
-// Work assigned to someone else is theirs to start.
+// Work nobody has started that may start now: mine first, then unassigned
+// ones. Work assigned to someone else is theirs to start. In native
+// delivery that is the claimability rule (a ready specification whose scope
+// nobody accepted waits on a person instead, under "Waiting on you"); in
+// external delivery, ready specifications not handed off yet.
 export function readyToStart(
-  { items, projects, delivery, links, userId }: Context,
+  { items, projects, delivery, links, userId, startable }: Context,
   limit: number,
 ): Listed<WorkItem> {
   const byId = new Map(projects.map((p) => [p.id, p]));
   const ready = items.filter((item) => {
+    if (item.archivedAt) return false;
     if (item.assigneeId && item.assigneeId !== userId) return false;
     const project = byId.get(item.projectId);
-    return (
-      !!project &&
-      readyForSelection(item, project, delivery, links.get(item.id))
-    );
+    if (!project) return false;
+    if (project.deliveryMode === "native" && startable) return startable(item);
+    return readyForSelection(item, project, delivery, links.get(item.id));
   });
   ready.sort(
     (a, b) =>

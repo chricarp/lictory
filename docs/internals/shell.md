@@ -68,8 +68,13 @@ and what is the factory doing?" before any module.
   stopped.
 - **In flight** is work assigned to me whose delivery status is started (in
   Lictory, or as the delivery tool reports it).
-- **Ready to start** is ready, not yet committed work that is mine or
-  unassigned. Work assigned to someone else is theirs to start.
+- **Ready to start** is work that is mine or unassigned and may start now.
+  In native delivery that is the claimability rule
+  ([claims](claims.md#claimability)) the item page and the Factory queue
+  show: agreed scope, readiness, no blocker, no live claim. A ready
+  specification whose scope nobody accepted waits on a person under
+  Waiting on you instead, never in both. In external delivery it is ready
+  work not handed off yet. Work assigned to someone else is theirs to start.
 - **Recently edited pages** are pages whose published version changed last.
 - **Registered cards** sit beside them: **Agents at work** (sessions
   running that do not already wait on me, so a session is listed once). A

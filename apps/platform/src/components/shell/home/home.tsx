@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
   CircleCheckBig,
   CircleDot,
@@ -29,6 +29,7 @@ import {
   useWaitingOnYou,
 } from "@lictory/platform/components/workspace/inbox";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
+import { useClaimability } from "@lictory/platform/components/claims/claims";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
@@ -91,7 +92,12 @@ function Home() {
       ),
     [view.entities, directory.delivery.targets],
   );
-  const context = { items, projects, delivery, links, userId };
+  const claimabilityOf = useClaimability();
+  const startable = useCallback(
+    (item: WorkItem) => claimabilityOf(item).stage === "claimable",
+    [claimabilityOf],
+  );
+  const context = { items, projects, delivery, links, userId, startable };
   const flight = useMemo(
     () => inFlight(context, SHOWN),
     // `context` is rebuilt from these each render.
@@ -101,7 +107,7 @@ function Home() {
   const ready = useMemo(
     () => readyToStart(context, SHOWN),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, projects, delivery, links, userId],
+    [items, projects, delivery, links, userId, startable],
   );
   const recent = useMemo(() => {
     const active = new Set(

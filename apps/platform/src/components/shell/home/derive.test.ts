@@ -131,6 +131,22 @@ void test("ready to start lists ready work that is mine or unassigned, mine firs
   );
 });
 
+void test("in native delivery, ready to start follows the claimability rule the item shows", () => {
+  // Ready, but nobody accepted its scope: it waits on a person, not here.
+  const unaccepted = item({ refinementState: "ready" });
+  // A task under an accepted specification is agreed work.
+  const agreedTask = item({ statusId: "unstarted" });
+  const startable = (i: WorkItem) => i.id === agreedTask.id;
+  const result = readyToStart(
+    { ...context([unaccepted, agreedTask]), startable },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.id),
+    [agreedTask.id],
+  );
+});
+
 void test("lists keep their total beyond the rows shown", () => {
   const all = Array.from({ length: 7 }, () =>
     item({ statusId: "started", assigneeId: me }),
