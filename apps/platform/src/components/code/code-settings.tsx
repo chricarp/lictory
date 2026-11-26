@@ -73,11 +73,8 @@ export function CodeHostSettings() {
   return (
     <>
       <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        Connect the code hosts your team uses. Lictory mirrors pull requests,
-        checks, issues and the branches and commits that name a work item’s key
-        (PAY-142), links them to the items, and creates branches, opens and
-        merges pull requests when someone asks. The host stays the owner of the
-        code; Lictory owns the links.
+        Pull requests, checks and commits that name a work item’s key (PAY-142)
+        link to that item. The host owns the code; Lictory owns the links.
       </p>
       <SettingsSection
         id="code-hosts"
