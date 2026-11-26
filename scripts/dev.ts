@@ -280,6 +280,7 @@ const services: [string, string, string[], NodeJS.ProcessEnv][] = [
 ];
 
 const children: ChildProcess[] = [];
+let stopping = false;
 for (const [name, command, args, serviceEnv] of services) {
   // Own process group, so stopping also stops what the scripts spawned.
   const child = spawn(command, args, {
@@ -295,9 +296,21 @@ for (const [name, command, args, serviceEnv] of services) {
       .forEach((line) => console.log(`[${name}] ${line}`));
   child.stdout?.on("data", prefix);
   child.stderr?.on("data", prefix);
-  child.on("exit", (code) => console.log(`[${name}] exited (${code})`));
+  child.on("exit", (code, signal) => {
+    // Stopping (Ctrl-C) ends every service by signal: that is no failure.
+    if (stopping) return;
+    console.log(
+      code === 0
+        ? `[${name}] stopped.`
+        : `[${name}] exited ${code === null ? `on ${signal}` : `with code ${code}`}; the other services keep running. Stop with Ctrl-C and start again.`,
+    );
+  });
   children.push(child);
 }
+// Where to look first; the API's probes are the ones production uses.
+console.log(
+  `Starting: app ${platformUrl}, website ${siteUrl}, API health http://localhost:${apiPort}/healthz (readiness /readyz). Ctrl-C stops everything.`,
+);
 // Best effort: a failed diagnosis must not stop the supervisor, which would
 // leave the detached services running.
 checkZeroCacheReachesApi().catch((error: unknown) =>
@@ -305,6 +318,8 @@ checkZeroCacheReachesApi().catch((error: unknown) =>
 );
 
 function stop() {
+  stopping = true;
+  console.log("Stopping the services…");
   for (const child of children)
     try {
       process.kill(-child.pid!, "SIGTERM");

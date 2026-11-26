@@ -180,6 +180,7 @@ Production images and the single-server stack are described in
 | `bun run dev`                   | Applications (after `docker compose up -d --wait`)                              |
 | `bun run check`                 | Types, lint, formatting, unused code, PR assets and the configuration reference |
 | `bun run format`                | Apply Prettier                                                                  |
+| `bunx eslint <files>`           | Lint only the files you changed, in seconds, while you work                     |
 | `bun test --isolate src/<area>` | Focused domain tests while you work                                             |
 | `bun run test:domain`           | Every domain test, files in parallel                                            |
 | `bun run test:sync`             | Synchronization invariants against PostgreSQL                                   |
@@ -200,6 +201,13 @@ variables (`LICTORY_ADMIN_PASSWORD` for `setup`, `LICTORY_USER_PASSWORD` for
 the older spellings (`list-admins`, `grant-admin`, `--name`, `--email`) work
 too. Inside a server's API container the same program is
 `node apps/api/dist/admin.js`, which `lictory admin` runs for you.
+
+`bun run check` lints the whole repository with type information, which takes
+minutes and about 10 GB of memory. While you work, `bunx eslint` on the files
+you changed and the affected workspace's `bun run --cwd <workspace>
+typecheck` give the same verdict on those files in seconds; run the full check
+once before a pull request. `bun run dev` prints the app's address and the
+API's health probe (`/healthz`, readiness `/readyz`, as in production).
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and

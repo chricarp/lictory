@@ -282,8 +282,9 @@ isolate_settings() {
 # The order of a server deployment (deploy/deploy.sh): database, migrations,
 # zero-cache's initial sync, the grants on its tables, then the services.
 start_services() {
-  say "Downloading images (the first run needs about 3 GB of disk)…"
+  step "Downloading images (the first run needs about 3 GB of disk)"
   docker compose pull --quiet >>"$log" 2>&1 || fail_with_log "Could not download the images."
+  done_step
   step "Starting PostgreSQL and Mailpit"
   docker compose up -d --wait --wait-timeout 180 postgres mailpit >>"$log" 2>&1 ||
     fail_with_log "PostgreSQL or Mailpit did not start."
@@ -380,7 +381,7 @@ create_administrator() {
       ;;
   esac
   rm -f "$dir/.admin-output"
-  done_step
+  if [ "$created" = true ]; then done_step; else printf 'already there\n'; fi
 }
 
 summary() {
@@ -396,7 +397,7 @@ summary() {
   fi
   say "  Email inbox    http://localhost:$mail_port   (Mailpit: invitations and every other email)"
   say "                 user lictory, password $mail_password"
-  say "  Admin console  $url/admin"
+  say "  Admin console  $url/admin   (after your first sign-in, where you choose your handle)"
   say ""
   write_controls
   say "  Stop           '$dir/trial' stop"
