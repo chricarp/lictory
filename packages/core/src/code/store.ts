@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import type {
   CodeLinkSource,
@@ -201,6 +201,8 @@ export async function upsertPullRequest(
       .where(eq(s.codePullRequest.id, existing.id));
     touched.pullRequestIds.add(existing.id);
     await queuePullRequestTransitions(tx, repository, existing, info);
+    if (info.state === "merged" && existing.state !== "merged")
+      await recordMerged(tx, repository, existing.id, info, touched);
     return { id: existing.id, changed: true, created: false };
   }
   const [created] = await tx
@@ -554,6 +556,89 @@ export async function linkNamedItems(
       touched,
     );
   return items.length;
+}
+
+// A merge in the history of every item the pull request delivers, by who
+// merged it: the person (or Autopilot's administrator) who asked Lictory,
+// else the host's login, mapped to the person who set it as theirs.
+async function recordMerged(
+  tx: Tx,
+  repository: RepositoryRow,
+  pullRequestId: string,
+  info: CodePullRequestInfo,
+  touched: Touched,
+) {
+  const organizationId = repository.organizationId;
+  const links = await tx
+    .select({
+      workItemId: s.codeWorkLink.workItemId,
+      projectId: s.codeWorkLink.projectId,
+    })
+    .from(s.codeWorkLink)
+    .where(
+      and(
+        eq(s.codeWorkLink.organizationId, organizationId),
+        eq(s.codeWorkLink.target, "pull_request"),
+        eq(s.codeWorkLink.targetId, pullRequestId),
+        isNull(s.codeWorkLink.unlinkedAt),
+      ),
+    );
+  if (!links.length) return;
+  const [write] = await tx
+    .select({
+      requestedById: s.codeWrite.requestedById,
+      performedVia: s.codeWrite.performedVia,
+    })
+    .from(s.codeWrite)
+    .where(
+      and(
+        eq(s.codeWrite.organizationId, organizationId),
+        eq(s.codeWrite.pullRequestId, pullRequestId),
+        eq(s.codeWrite.kind, "merge"),
+        inArray(s.codeWrite.status, ["sending", "succeeded"]),
+      ),
+    )
+    .orderBy(desc(s.codeWrite.createdAt))
+    .limit(1);
+  let actorId = write?.requestedById ?? null;
+  if (!actorId && info.mergedByLogin) {
+    const [identity] = await tx
+      .select({ userId: s.codeHostIdentity.userId })
+      .from(s.codeHostIdentity)
+      .where(
+        and(
+          eq(s.codeHostIdentity.organizationId, organizationId),
+          eq(s.codeHostIdentity.connectionId, repository.connectionId),
+          sql`lower(${s.codeHostIdentity.login}) = ${info.mergedByLogin.toLowerCase()}`,
+        ),
+      )
+      .limit(1);
+    actorId = identity?.userId ?? null;
+  }
+  const autopilot = Boolean(write?.performedVia?.startsWith("Autopilot"));
+  for (const link of links) {
+    touched.workItemIds.add(link.workItemId);
+    await recordActivity(tx, {
+      organizationId,
+      projectId: link.projectId,
+      workItemId: link.workItemId,
+      actorId: actorId ?? SYSTEM_ACTOR,
+      action: "code_pull_request_merged",
+      detail: {
+        pullRequestId,
+        number: info.number,
+        title: info.title,
+        url: info.webUrl,
+        headSha: info.headSha,
+        ...(write ? { fromLictory: true } : {}),
+        ...(autopilot ? { automation: "autopilot" } : {}),
+        ...(!autopilot && write?.performedVia
+          ? { performedVia: write.performedVia }
+          : {}),
+        ...(!write && info.mergedByLogin ? { login: info.mergedByLogin } : {}),
+      },
+    });
+  }
 }
 
 export async function recordActivity(

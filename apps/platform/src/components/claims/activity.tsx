@@ -84,7 +84,8 @@ export function claimActivity(
         </>
       );
     case "definition_of_done_passed":
-      return <>· the Definition of Done passed</>;
+      // Its subject is the Definition of Done itself.
+      return <>passed: every check passed</>;
     case "done_signed_off":
       return (
         <>

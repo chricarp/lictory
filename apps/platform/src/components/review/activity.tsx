@@ -12,7 +12,9 @@ import type {
   WorkItemPriority,
 } from "@lictory/core/contracts/protocol";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
+import { Cog } from "lucide-react";
 import { Avatar, SectionLabel } from "@lictory/ui/primitives";
+import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import {
   RefinementIcon,
   StatusIcon,
@@ -21,6 +23,7 @@ import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";
 import { claimActivity } from "@lictory/platform/components/claims/activity";
+import { activitySubject } from "@lictory/platform/components/review/activity-subject";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -99,14 +102,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   };
   const d = entry.detail ?? {};
   const auto = d.automatic === true;
-  const actor =
-    ((entry.action === "branch_deleted" ||
-      entry.action === "pull_request_ready_to_merge") &&
-      auto) ||
-    // Code linked because it names the item's key.
-    (entry.action === "code_linked" && d.source === "key")
-      ? "Lictory"
-      : memberName(entry.actorId);
+  const person = memberName(entry.actorId);
+  const subject = activitySubject(entry.action, d, person);
+  const actor = subject.name;
   let body: ReactNode;
   switch (entry.action) {
     case "created":
@@ -548,6 +546,40 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     }
+    case "code_review_approved":
+    case "code_review_changes_requested":
+    case "code_pull_request_merged": {
+      const ref = <PullRequestRef url={str(d.url)} number={num(d.number)} />;
+      body =
+        entry.action === "code_pull_request_merged" ? (
+          <>
+            merged pull request {ref}
+            {str(d.login) && (
+              <span className="text-muted-foreground">
+                {" "}
+                as {str(d.login)} on the code host
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            {entry.action === "code_review_approved"
+              ? "approved"
+              : "requested changes on"}{" "}
+            pull request {ref}
+            {str(d.headSha) && (
+              <span className="text-muted-foreground">
+                {" "}
+                at{" "}
+                <code className="font-mono text-xs">
+                  {str(d.headSha)!.slice(0, 7)}
+                </code>
+              </span>
+            )}
+          </>
+        );
+      break;
+    }
     case "code_pull_request_refused":
       body = (
         <>
@@ -596,7 +628,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           </>
         ) : d.source === "import" ? (
           <>imported this from issue {ref}</>
-        ) : d.source === "lictory" ? (
+        ) : d.source === "lictory" || d.source === "agent_session" ? (
           <>
             {what === "branch" ? "created" : "opened"} {what} {ref}
           </>
@@ -770,29 +802,50 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   }
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
-      <Avatar
-        userId={entry.actorId}
-        name={actor}
-        size="xs"
-        className="mt-0.5"
-      />
+      {subject.kind === "agent" ? (
+        <AgentAvatar
+          agent={{ id: str(d.agentId) ?? subject.agent, name: subject.agent }}
+          size={16}
+          className="mt-0.5"
+        />
+      ) : subject.kind === "system" ? (
+        <span
+          aria-hidden
+          className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+        >
+          <Cog className="size-2.5" />
+        </span>
+      ) : (
+        <Avatar
+          userId={entry.actorId}
+          name={actor}
+          size="xs"
+          className="mt-0.5"
+        />
+      )}
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
-        {(d.performedVia === "agent" ||
-          d.performedVia === "mcp" ||
-          d.performedVia === "runner") && (
-          <span
-            className="ml-1 text-xs text-muted-foreground"
-            title={
-              str(d.agentClient) ? `Client: ${str(d.agentClient)}` : undefined
-            }
-          >
-            via {agentLabel(d)}
+        {subject.after && (
+          <span className="ml-1 text-xs text-muted-foreground">
+            · {subject.after}
           </span>
         )}
+        {subject.kind === "person" &&
+          (d.performedVia === "agent" ||
+            d.performedVia === "mcp" ||
+            d.performedVia === "runner") && (
+            <span
+              className="ml-1 text-xs text-muted-foreground"
+              title={
+                str(d.agentClient) ? `Client: ${str(d.agentClient)}` : undefined
+              }
+            >
+              via {agentLabel(d)}
+            </span>
+          )}
         {/* Lictory acted by itself for the person (the dispatcher, the
             Definition of Done, an expired lease). */}
-        {str(d.automation) && (
+        {str(d.automation) && subject.kind !== "system" && (
           <span className="ml-1 text-xs text-muted-foreground">
             · automatically
           </span>
@@ -805,5 +858,21 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         {relativeTime(entry.createdAt)}
       </time>
     </li>
+  );
+}
+
+function PullRequestRef({ url, number }: { url?: string; number?: number }) {
+  const label = number !== undefined ? `#${number}` : "";
+  return url ? (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium underline-offset-2 hover:underline"
+    >
+      {label}
+    </a>
+  ) : (
+    <b>{label}</b>
   );
 }

@@ -946,6 +946,19 @@ void test("Build: the reviewer agent reviews each head, the Definition of Done f
   assert.equal(claim!.state, "completed");
   const [merged] = await f.pullRequests();
   assert.equal(merged!.mergeRequestedById, f.bo);
+  // The item's history says who merged it and who reviewed it.
+  const history = await db
+    .select()
+    .from(s.activity)
+    .where(eq(s.activity.workItemId, story.workItemId));
+  const mergedEntries = history.filter(
+    (a) => a.action === "code_pull_request_merged",
+  );
+  assert.equal(mergedEntries.length, 1);
+  assert.equal(mergedEntries[0]!.actorId, f.bo);
+  const reviewed = history.find((a) => a.action === "code_review_approved");
+  assert.equal(reviewed?.actorId, f.bo);
+  assert.equal(reviewed?.detail?.performedVia, "Hawk");
   assert.deepEqual(await codeProjectionDrift(db, f.organizationId), []);
 });
 
