@@ -658,9 +658,8 @@ function Choice({
       onClick={onSelect}
       className={cn(
         "flex items-start gap-3 rounded-xl p-3 text-left ring-1 outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
-        selected
-          ? "bg-primary/6 ring-primary/40"
-          : "ring-border hover:bg-muted/50",
+        // Selected as every choice card: a 2px outline in the text colour.
+        selected ? "ring-2 ring-foreground" : "ring-border hover:bg-muted/50",
       )}
     >
       <span className="mt-0.5 text-muted-foreground">{icon}</span>
