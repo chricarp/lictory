@@ -646,7 +646,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // 6. Request Engineering review from the story page.
   const storyUrl = `/${orgSlug}/pay/items/PAY-2`;
   await page.goto(storyUrl);
-  await page.getByRole("button", { name: "Request review" }).click();
+  await page
+    .getByRole("button", { name: "Request review", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "Reviewing discipline" }),
   ).toContainText("Engineering");
@@ -654,7 +656,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page.getByRole("option", { name: /Riley Chen/ }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Request review" })
+    .getByRole("button", { name: "Request review", exact: true })
     .click();
   await expect(page.getByText("Requested", { exact: true })).toBeVisible();
   await expect(

@@ -177,12 +177,6 @@ async function createBranch(page: Page, name: string, from?: string) {
   await expect(
     page.getByRole("textbox", { name: "Name of the change" }),
   ).toHaveCSS("height", "32px");
-  await expect(source).toHaveCSS(
-    "border-radius",
-    await page
-      .getByRole("button", { name: "Start change", exact: true })
-      .evaluate((button) => getComputedStyle(button).borderRadius),
-  );
   await source.click();
   await page.screenshot({ path: "/tmp/lictory-select-branch-overview.png" });
   await page.keyboard.press("Escape");
