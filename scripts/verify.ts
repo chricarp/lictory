@@ -613,6 +613,14 @@ function revision() {
   return `${head.stdout.trim()}${dirty ? " plus uncommitted changes" : ""}`;
 }
 
+// Said under a rerun command whose database password was left out.
+const passwordNote = () =>
+  options.postgres && new URL(options.postgres).password
+    ? [
+        "(The database password is not printed: put yours in place of PASSWORD.)",
+      ]
+    : [];
+
 function rerun(flag: "--only" | "--from", name: string) {
   const reuse = (["postgres", "mailpit", "smtp"] as const).flatMap((key) => {
     const value = options[key];
@@ -686,9 +694,11 @@ try {
     const stopped = results.at(-1)?.step ?? selected[results.length];
     console.log(`\nInterrupted (${interrupted}).`);
     if (stopped)
-      console.log(
+      for (const line of [
         `Continue from ${stopped.name}: ${rerun("--from", stopped.name)}`,
-      );
+        ...passwordNote(),
+      ])
+        console.log(line);
   } else if (failed) {
     exitCode = 1;
     const index = selected.indexOf(failed.step);
@@ -702,6 +712,7 @@ try {
       console.log(
         `Rerun it and what follows: ${rerun("--from", failed.step.name)}`,
       );
+    for (const line of passwordNote()) console.log(line);
   } else if (partial) {
     console.log(
       `\nThe selected steps passed. This was a partial run; the full sequence (bun run verify) must pass on the final changes before a pull request.`,

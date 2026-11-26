@@ -70,10 +70,20 @@ export type HarnessRun = {
   done: Promise<HarnessResult>;
 };
 
+// Whether an installed harness can start a session (signed in, or holding
+// an API key it reads), from the harness's own status command. "unknown"
+// when that command gave no answer this runner understands.
+export type Readiness =
+  | { state: "ready"; detail: string }
+  | { state: "not-ready" | "unknown"; detail: string; fix: string };
+
 export type AgentHarness = {
   id: HarnessId;
   // The installed version, or null when it is not available.
   detect(config: RunnerConfig): Promise<string | null>;
+  // A harmless probe for `lictory-runner doctor`; absent when the harness
+  // offers none.
+  ready?(config: RunnerConfig): Promise<Readiness>;
   start(context: HarnessContext): HarnessRun;
 };
 

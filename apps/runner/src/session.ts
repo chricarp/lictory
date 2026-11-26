@@ -88,7 +88,8 @@ export class SessionRun {
   private readonly abort = new AbortController();
   private reason: StopReason | null = null;
   private readonly messages = new MessageQueue();
-  private readonly pendingApprovals = new Set<string>();
+  // Open approval requests and what each asks, for the log.
+  private readonly pendingApprovals = new Map<string, string>();
   private harnessRun: HarnessRun | null = null;
   private readonly events: EventStream;
   private cursor: number;
@@ -151,8 +152,12 @@ export class SessionRun {
 
   private emit: HarnessContext["emit"] = (type, data) => {
     if (type === "approval_request") {
-      this.pendingApprovals.add(String(data.requestId));
+      const title = typeof data.title === "string" ? data.title : "a tool";
+      this.pendingApprovals.set(String(data.requestId), title);
       this.state = "waiting";
+      this.deps.log(
+        `Session ${this.id} waits for a person to approve: ${title.split("\n", 1)[0]!.slice(0, 160)}`,
+      );
     }
     if (type === "summary") this.summary = String(data.text);
     this.events.push(type, data);
@@ -161,11 +166,15 @@ export class SessionRun {
   private handleInput(input: SessionInput) {
     switch (input.kind) {
       case "message":
+        this.deps.log(
+          `Session ${this.id}: a steering message arrived from its thread.`,
+        );
         this.messages.push(
           typeof input.data.text === "string" ? input.data.text : "",
         );
         break;
       case "interrupt":
+        this.deps.log(`Session ${this.id}: a person interrupted the agent.`);
         this.harnessRun?.interrupt();
         break;
       case "cancel":
@@ -174,16 +183,22 @@ export class SessionRun {
       case "approval_answer": {
         const requestId =
           typeof input.data.requestId === "string" ? input.data.requestId : "";
+        const decision =
+          input.data.decision === "approve"
+            ? "approve"
+            : input.data.decision === "answer"
+              ? "answer"
+              : "deny";
+        const asked = this.pendingApprovals.get(requestId);
+        this.deps.log(
+          `Session ${this.id}: a person ${decision === "approve" ? "approved" : decision === "answer" ? "answered" : "denied"}${asked ? ` ${asked.split("\n", 1)[0]!.slice(0, 160)}` : " a request"}.`,
+        );
         this.pendingApprovals.delete(requestId);
         if (!this.pendingApprovals.size && this.state === "waiting")
           this.state = "running";
         this.harnessRun?.answer(
           requestId,
-          input.data.decision === "approve"
-            ? "approve"
-            : input.data.decision === "answer"
-              ? "answer"
-              : "deny",
+          decision,
           typeof input.data.note === "string" ? input.data.note : null,
         );
         break;
@@ -201,6 +216,9 @@ export class SessionRun {
       : this.abort.signal;
     const onPerson = waitMs > IDLE_GRACE_MS && this.messages.queued === 0;
     if (onPerson) {
+      this.deps.log(
+        `Session ${this.id} waits for a person's message in its thread.`,
+      );
       this.events.push("status", {
         phase: runnerPhases.awaitingMessage,
         message: "Waiting for the next message.",
@@ -276,6 +294,11 @@ export class SessionRun {
           ? `Preparing a worktree of ${repository.url} on ${repository.branch}.`
           : "Preparing an empty workspace: no repository is linked to this session.",
       });
+      log(
+        repository
+          ? `Session ${this.id}: preparing a worktree of ${repository.url} on ${repository.branch}.`
+          : `Session ${this.id}: no repository is linked; it works in an empty workspace.`,
+      );
       workspace = await prepareWorkspace(workDir, this.id, repository);
       const prepared = await this.exec(workspace);
       isolation = prepared;

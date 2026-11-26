@@ -106,8 +106,9 @@ organization's Lictory Intelligence model through the server.
 | `lictory-runner register`        | Exchanges a registration token for the runner's credential                                                           |
 | `lictory-runner start`           | Connects and runs sessions until stopped (Ctrl-C hands them back)                                                    |
 | `lictory-runner status`          | Shows whether the runner is running and what it is working on (exit 0 running, 1 stopped or stuck, 2 not registered) |
-| `lictory-runner doctor`          | Checks the server, the credential, git, harnesses, Docker and clock                                                  |
+| `lictory-runner doctor`          | Checks the server, the credential, git, harnesses (and that they are signed in), Docker and clock                    |
 | `lictory-runner install-service` | A systemd unit (Linux) or launchd agent (macOS); `--enable` starts it                                                |
+| `lictory-runner logs`            | Shows the service's log (`--follow` keeps watching, `--lines <n>` how many recent lines, default 100)                |
 | `lictory-runner version`         | Prints the runner's version (also `--version`)                                                                       |
 
 `lictory-runner <command> --help` (or `-h`, or
@@ -116,7 +117,8 @@ organization's Lictory Intelligence model through the server.
 `--container-image <image@sha256:…>` (needed for container isolation),
 `--label <label>` and `--force` (replace this machine's registration). On
 Linux a user service stops when you log out unless lingering is on
-(`loginctl enable-linger`); `--system` installs a system service instead. On
+(`loginctl enable-linger`); `install-service` says whether it is on, and
+`--system` installs a system service instead. On
 Windows, `install-service` prints the Task Scheduler commands.
 
 One runner runs per configuration directory: a second `start` is refused
@@ -137,6 +139,17 @@ is 2 for each, and after the server refused the credential `status` says so
 (and exits 2) instead of suggesting `start`. `doctor` marks each line `ok` or
 `FAIL` as well as with ✓ and ✗.
 
+`doctor` also asks each installed harness whether it can sign in, without
+running a session: `claude auth status` for Claude Code and `codex login
+status` for Codex. A harness that is installed but not signed in fails the
+check, because the runner reports it to the server and its sessions would
+fail; sign in as the account the runner runs as (a service does not read
+your shell profile, so an API key belongs in the service's environment).
+In container isolation the harnesses sign in inside the image, so `doctor`
+does not check them on the machine. It ends with what agents may do there
+without asking: the isolation, Claude Code's permission mode and Codex's
+sandbox from `config.json`.
+
 The systemd unit restarts the runner five seconds after it fails, but not on
 codes 2 and 64 (`RestartPreventExitStatus`): after a revocation, create a
 token in **Factory → Runners**, run `lictory-runner register --url <server>
@@ -146,10 +159,19 @@ until you register it again or unload the agent.)
 
 `start` writes one line per event, prefixed with the time (the full ISO time
 when the output is not a terminal, as in a service's log file). Each session
-leaves a line when it starts and one when it ends, with how it ended:
-completed (and the branch it pushed), failed (and why), canceled in Lictory,
-stopped because the runner no longer held it, or returned to the queue when
-the runner stopped. Errors are plain text, never colored. When the server
+leaves a line when it starts, when it prepares its worktree, when it waits
+for a person (an approval or the next message), when a person answers,
+steers or interrupts it, and when it ends, with how it ended: completed (and
+the branch it pushed, which Lictory opens or updates a pull request for),
+failed (and why), canceled in Lictory, stopped because the runner no longer
+held it, or returned to the queue when the runner stopped. A failure that
+repeats, such as an unreachable server, is logged once in full, then as a
+reminder every five minutes, and its recovery is logged.
+
+A runner started with `start` logs to its terminal. A service logs to the
+systemd journal on Linux and to `runner.log` in the configuration directory
+on macOS; `lictory-runner logs` shows either (it runs `journalctl --user -u
+lictory-runner`, or `tail` on the file, and prints the command first). Errors are plain text, never colored. When the server
 cannot be reached, the runner says which address and what to check: the
 address and port, DNS, a proxy or firewall, or a certificate the machine does
 not trust (add its authority with `NODE_EXTRA_CA_CERTS=<ca.pem>`).

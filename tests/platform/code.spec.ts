@@ -77,6 +77,13 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     const secret = (await details.nth(1).textContent())!;
     expect(webhookUrl).toMatch(/\/api\/code\/webhooks\/[0-9a-f-]{36}$/);
     expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    // Next to them, the host's webhook settings as one block, event by
+    // event, instead of ten events picked out of a sentence.
+    const settings = ada.page.getByRole("group", {
+      name: "GitHub webhook settings",
+    });
+    await expect(settings).toContainText("application/json");
+    await expect(settings).toContainText("  Pull request review threads");
     await github("/__fake/hooks", { url: webhookUrl, secret });
     await expect(ada.page.getByText("as @lictory-bot")).toBeVisible();
 

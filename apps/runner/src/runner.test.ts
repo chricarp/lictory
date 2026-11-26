@@ -36,8 +36,14 @@ import type {
   AgentHarness,
   HarnessContext,
 } from "@lictory/runner/harness/types";
+import { claudeReadiness } from "@lictory/runner/harness/claude-code";
+import { codexReadiness } from "@lictory/runner/harness/codex";
 import { hostExec, run } from "@lictory/runner/process";
-import { launchdPlist, systemdUnit } from "@lictory/runner/service";
+import {
+  launchdPlist,
+  serviceLogCommand,
+  systemdUnit,
+} from "@lictory/runner/service";
 import {
   deliverWorkspace,
   prepareWorkspace,
@@ -427,7 +433,7 @@ void test("the log says how each session ended", () => {
       { outcome: "completed", branch: "lictory/kst-2", repository: true },
       125_000,
     ),
-    "Session s-1 completed after 2 min; pushed branch lictory/kst-2.",
+    "Session s-1 completed after 2 min; pushed branch lictory/kst-2, which Lictory opens or updates a pull request for.",
   );
   assert.equal(
     endLine("s-1", { outcome: "completed", repository: false }, 3_000),
@@ -519,7 +525,7 @@ void test("a repeating failure is logged once, reminded every five minutes, and 
   failures.ok();
   failures.ok();
   assert.deepEqual(lines, [
-    `Heartbeat failed: ${down} Next try in 2 s.`,
+    `Heartbeat failed: ${down} Next try in 2 s. The runner keeps retrying and says so every 5 min.`,
     "Heartbeat still failing: 22 attempts since 2026-11-26T09:00:00.000Z.",
     "Heartbeat works again after 22 failed attempts.",
   ]);
@@ -576,6 +582,70 @@ void test("container isolation needs an image the operator chose; Lictory names 
   );
   assert.ok(pinnedImage(image));
   assert.ok(!pinnedImage("registry.example.test/sandbox:latest"));
+});
+
+void test("the log narrates a session's waits, steering and answers", async () => {
+  // Asks for an approval, then waits for a person's message.
+  const asking: AgentHarness = {
+    id: "claude-code",
+    detect: () => Promise.resolve("1"),
+    start(context) {
+      const done = (async () => {
+        context.emit("approval_request", {
+          requestId: "req-1",
+          title: "Bash: Run the database migration",
+        });
+        await context.nextMessage(60_000);
+        return { outcome: "completed" as const };
+      })();
+      return {
+        done,
+        stop: () => undefined,
+        interrupt: () => undefined,
+        answer: () => undefined,
+      };
+    },
+  };
+  let polls = 0;
+  const session = {
+    workspace: () => Promise.resolve({ repository: null }),
+    start: () => Promise.resolve({ status: "running" }),
+    events: (_lease: string, batch: { seq: number }[]) =>
+      Promise.resolve({ acked: batch.at(-1)?.seq ?? 0, status: "running" }),
+    inputs: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      if (polls++ > 0) return { status: "running", inputs: [] };
+      return {
+        status: "running",
+        inputs: [
+          {
+            seq: 1,
+            kind: "approval_answer",
+            data: { requestId: "req-1", decision: "approve" },
+          },
+          { seq: 2, kind: "message", data: { text: "Use the v2 API" } },
+        ],
+      };
+    },
+    complete: () => Promise.resolve({ status: "completed" }),
+    release: () => Promise.resolve({ status: "queued" }),
+  };
+  const logs: string[] = [];
+  const run = new SessionRun(assignment, {
+    client: { session: () => session } as unknown as RunnerClient,
+    config,
+    harness: asking,
+    workDir: join(scratch, "narrated"),
+    log: (line) => logs.push(line),
+  });
+  assert.equal((await run.run()).outcome, "completed");
+  assert.deepEqual(logs, [
+    "Session s-1: no repository is linked; it works in an empty workspace.",
+    "Session s-1 waits for a person to approve: Bash: Run the database migration",
+    "Session s-1 waits for a person's message in its thread.",
+    "Session s-1: a person approved Bash: Run the database migration.",
+    "Session s-1: a steering message arrived from its thread.",
+  ]);
 });
 
 void test("the scripted harness's interrupt stops the step and waits for the next message", async () => {
@@ -687,4 +757,75 @@ void test("status and doctor say what a person must do, with the exit code start
     /Stopped: The server refused this runner's credential/,
   );
   assert.doesNotMatch(revoked.stdout, /Start it with/);
+});
+
+void test("doctor's harness probes tell signed in from signed out, without naming the account", async () => {
+  // Stand-ins for `claude auth status --json` and `codex login status`.
+  const script = async (name: string, body: string) => {
+    const path = join(scratch, name);
+    await writeFile(path, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+    return path;
+  };
+  const signedIn = await claudeReadiness(
+    await script(
+      "claude-in",
+      `echo '{"loggedIn": true, "authMethod": "api_key", "email": "someone@example.test"}'`,
+    ),
+  );
+  assert.deepEqual(signedIn, { state: "ready", detail: "signed in (API key)" });
+  const signedOut = await claudeReadiness(
+    await script(
+      "claude-out",
+      `echo '{"loggedIn": false, "authMethod": "none"}'; exit 1`,
+    ),
+  );
+  assert.equal(signedOut.state, "not-ready");
+  assert.match(signedOut.fix, /claude auth login/);
+  // An older Claude Code without the command: unknown, not a failure.
+  const old = await claudeReadiness(
+    await script("claude-old", `echo "error: unknown command 'auth'"; exit 1`),
+  );
+  assert.equal(old.state, "unknown");
+
+  assert.deepEqual(
+    await codexReadiness(
+      await script("codex-in", "echo 'Logged in using ChatGPT'"),
+    ),
+    { state: "ready", detail: "signed in (using ChatGPT)" },
+  );
+  const codexOut = await codexReadiness(
+    await script("codex-out", "echo 'Not logged in' >&2; exit 1"),
+  );
+  assert.equal(codexOut.state, "not-ready");
+  assert.match(codexOut.fix, /codex login/);
+});
+
+void test("logs reads the installed service's log, and says when there is none", async () => {
+  const user = join(scratch, "logs-home");
+  const options = { follow: false, lines: 50 };
+  assert.equal(await serviceLogCommand(options, "linux", "/h", user), null);
+  const unit = join(user, ".config", "systemd", "user");
+  await mkdir(unit, { recursive: true });
+  await writeFile(join(unit, "lictory-runner.service"), "");
+  assert.deepEqual(
+    await serviceLogCommand({ follow: true, lines: 50 }, "linux", "/h", user),
+    [
+      "journalctl",
+      "--user",
+      "-u",
+      "lictory-runner",
+      "-n",
+      "50",
+      "--no-pager",
+      "-f",
+    ],
+  );
+  const agents = join(user, "Library", "LaunchAgents");
+  await mkdir(agents, { recursive: true });
+  await writeFile(join(agents, "com.lictory.runner.plist"), "");
+  assert.deepEqual(
+    await serviceLogCommand(options, "darwin", "/runner-home", user),
+    ["tail", "-n", "50", "/runner-home/logs/runner.log"],
+  );
+  assert.equal(await serviceLogCommand(options, "win32", "/h", user), null);
 });

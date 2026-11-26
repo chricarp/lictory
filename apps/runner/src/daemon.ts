@@ -56,7 +56,7 @@ export function endLine(
     case "completed":
       return `Session ${id} completed ${after}${
         end.branch
-          ? `; pushed branch ${end.branch}`
+          ? `; pushed branch ${end.branch}, which Lictory opens or updates a pull request for`
           : end.repository
             ? "; nothing to push"
             : " (no repository linked: nothing pushed)"
@@ -308,7 +308,9 @@ export function failureLog(
         count = 1;
         since = at;
         reminded = at;
-        log(`${what} failed: ${message}${next}`);
+        log(
+          `${what} failed: ${message}${next} The runner keeps retrying and says so every ${duration(remindEveryMs)}.`,
+        );
         return;
       }
       count++;
