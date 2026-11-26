@@ -212,13 +212,18 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(page.getByLabel("Message the agent")).toBeHidden();
 
   // The overview shows it among recent sessions, and so does the Sessions
-  // list, narrowed by where sessions stand.
+  // list, narrowed by where sessions stand. (The workspace announcer's live
+  // region also says "Forge finished …", so the session is found as a link.)
   await page.getByRole("link", { name: "Back to the Factory" }).click();
-  await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Add a changelog for refunds." }),
+  ).toBeVisible();
   await tabs.getByRole("link", { name: "Sessions", exact: true }).click();
   await expect(page).toHaveURL(/\/factory\/sessions$/);
   await page.getByRole("radio", { name: "Completed" }).click();
-  await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Add a changelog for refunds." }),
+  ).toBeVisible();
   await page.getByRole("radio", { name: "Failed" }).click();
   await expect(page.getByText("No failed sessions")).toBeVisible();
   // The runner's log says how the session ended, not only that it did.
