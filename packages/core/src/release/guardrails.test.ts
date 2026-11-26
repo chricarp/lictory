@@ -748,10 +748,18 @@ void test("pull requests get layered checks behind one required Verify gate", ()
       ),
     ) as { scripts: Record<string, string> }
   ).scripts;
-  assert.equal(
-    scripts.check,
-    "bun scripts/check-toolchain.ts && bun run typecheck && bun run lint && bun run check:rest",
+  assert.equal(scripts.check, "bun scripts/check.ts");
+  const check = readFileSync(
+    new URL("../../../../scripts/check.ts", import.meta.url),
+    "utf8",
   );
+  for (const command of [
+    '["bun", "scripts/check-toolchain.ts"]',
+    '["bun", "run", "typecheck"]',
+    '["bun", "run", "lint"]',
+    '["bun", "run", "check:rest"]',
+  ])
+    assert.ok(check.includes(command), `bun run check runs ${command}`);
   for (const run of [
     "bun scripts/check-toolchain.ts",
     "bun run typecheck",
