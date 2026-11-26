@@ -82,6 +82,7 @@ export function SessionView() {
   const { session, complete } = useSession(sessionId);
   const stateOf = useSessionStateOf();
   const [limit, setLimit] = useState(WINDOW);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
@@ -181,7 +182,10 @@ export function SessionView() {
   const canInterrupt = steer && allows("interrupt");
   const canCancel = (steer || isAdmin) && allows("cancel");
   const interrupt = act("interruptAgentSession", "Interrupting");
-  const cancel = act("cancelAgentSession", "Canceling");
+  const cancelNow = act("cancelAgentSession", "Canceling");
+  // Cancel ends the run (Interrupt only pauses it): asked once, so the
+  // destructive one is never picked in a hurry.
+  const cancel = () => setConfirmingCancel(true);
   const asks = session.status === "waiting" ? session.approvals : [];
   const itemKey = item && project ? identifier(project, item.number) : null;
   const ran = sessionDuration(session);
@@ -219,7 +223,7 @@ export function SessionView() {
                   className="max-md:hidden"
                   onClick={cancel}
                 >
-                  <CircleStop className="size-3.5" aria-hidden /> Cancel
+                  <CircleStop className="size-3.5" aria-hidden /> Cancel…
                 </Button>
               </Tooltip>
             )}
@@ -253,7 +257,7 @@ export function SessionView() {
                     <MenuItem onSelect={() => void cancel()}>
                       <CircleStop className="size-3.5 text-muted-foreground" />{" "}
                       <span>
-                        Cancel session
+                        Cancel session…
                         <span className="block text-xs text-muted-foreground">
                           It ends; Retry starts it over
                         </span>
@@ -273,6 +277,29 @@ export function SessionView() {
           </>
         }
       />
+      {confirmingCancel && canCancel && (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-destructive/5 px-4 py-2.5 text-[13px] sm:px-6"
+        >
+          <span className="mr-auto">
+            Cancel this session? It ends now; Retry starts it over from the
+            task. To pause it instead, choose Interrupt.
+          </span>
+          <Button variant="ghost" onClick={() => setConfirmingCancel(false)}>
+            Keep it running
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmingCancel(false);
+              void cancelNow();
+            }}
+          >
+            Cancel session
+          </Button>
+        </div>
+      )}
       {/* Who and where, on one line (it scrolls sideways on phones). The
           branch gives way first, cut in the middle, so who started the
           session and when stay in view. */}

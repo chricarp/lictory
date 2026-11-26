@@ -148,7 +148,8 @@ function SessionCard({
       data-session-card={card.sessionId}
       className={cardClass}
     >
-      <div className="flex min-h-10 min-w-0 items-center gap-2 px-3 py-1.5">
+      {/* Wraps in a narrow thread panel rather than running past it. */}
+      <div className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5">
         <SessionStateChip state={state} />
         {card.workItemId && card.workItemKey && (
           <ReferenceChip
