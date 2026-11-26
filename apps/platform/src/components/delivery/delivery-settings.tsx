@@ -355,7 +355,7 @@ export function ProjectHandoffTarget({
       id="handoff"
       icon={<PlugZap />}
       title="Jira hand-off"
-      description="The Jira project ready work from this project is exported to, and which Jira issue type each work item type becomes."
+      description="The Jira project this project's ready work is handed off to, and which Jira issue type each work item type becomes."
       footer="Lictory writes the summary, description and labels. Status, assignee, sprint and comments stay owned by Jira and are read back on the hand-off view."
     >
       {connections.length === 0 ? (
@@ -474,7 +474,7 @@ function TargetSummary({
             <TypeIcon type={t} />
             <span className="w-28 truncate">{t.name}</span>
             <span className="text-muted-foreground">
-              {target.typeMapping[t.id] ? "Mapped" : "Not exported"}
+              {target.typeMapping[t.id] ? "Mapped" : "Not handed off"}
             </span>
           </li>
         ))}
@@ -482,7 +482,7 @@ function TargetSummary({
       {unmapped.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {unmapped.map((t) => t.name).join(", ")}{" "}
-          {unmapped.length === 1 ? "is" : "are"} not exported. Map{" "}
+          {unmapped.length === 1 ? "is" : "are"} not handed off. Map{" "}
           {unmapped.length === 1 ? "it" : "them"} to a Jira issue type to hand
           {unmapped.length === 1 ? " it" : " them"} off.
         </p>
@@ -491,6 +491,62 @@ function TargetSummary({
     </SettingsBody>
   );
 }
+
+// What Jira will receive for a type, said before anything is handed off:
+// a different issue type, and parents Jira cannot nest it under.
+function MappingNote({
+  type,
+  chosen,
+  types,
+  mapping,
+  external,
+}: {
+  type: ReturnType<typeof enabledTypes>[number];
+  chosen: ExternalType;
+  types: ReturnType<typeof enabledTypes>;
+  mapping: Record<string, string>;
+  external: ExternalType[];
+}) {
+  const plural = (name: string) =>
+    /s$/i.test(name)
+      ? name
+      : /[^aeiou]y$/i.test(name)
+        ? `${name.slice(0, -1)}ies`
+        : `${name}s`;
+  const renamed = chosen.name.toLowerCase() !== type.name.toLowerCase();
+  // Lictory parents whose Jira type does not sit above this one.
+  const flattened = types.filter((parent) => {
+    const mapped = external.find((x) => x.id === mapping[parent.id]);
+    return (
+      parent.level > type.level &&
+      mapped !== undefined &&
+      mapped.hierarchyLevel <= chosen.hierarchyLevel
+    );
+  });
+  if (!renamed && !flattened.length) return null;
+  return (
+    <p className="pl-36 text-xs text-muted-foreground">
+      {renamed &&
+        `${plural(type.name)} arrive in Jira as ${plural(chosen.name)}. `}
+      {flattened.length > 0 &&
+        `Jira cannot nest ${article(chosen.name)} ${chosen.name} under ${flattened
+          .map((p) => {
+            const mapped = external.find((x) => x.id === mapping[p.id])!;
+            return `${article(mapped.name)} ${mapped.name}`;
+          })
+          .filter((v, i, all) => all.indexOf(v) === i)
+          .join(
+            " or ",
+          )}, so ${plural(type.name).toLowerCase()} under ${flattened
+          .map((p) => `${article(p.name)} ${p.name}`)
+          .join(
+            " or ",
+          )} go under the nearest issue Jira accepts above them, or without a parent. In Lictory they stay where they are.`}
+    </p>
+  );
+}
+
+const article = (name: string) => (/^[aeiou]/i.test(name) ? "an" : "a");
 
 function suggestMapping(
   types: ReturnType<typeof enabledTypes>,
@@ -684,7 +740,7 @@ function TargetEditor({
                     }
                   >
                     <DropdownSelectOption value="">
-                      Not exported
+                      Not handed off
                     </DropdownSelectOption>
                     {external.types.map((x) => (
                       <DropdownSelectOption key={x.id} value={x.id}>
@@ -702,6 +758,14 @@ function TargetEditor({
                     on {chosen.name}, which Lictory cannot fill. Give it a
                     default in Jira or pick another type.
                   </p>
+                ) : chosen ? (
+                  <MappingNote
+                    type={t}
+                    chosen={chosen}
+                    types={types}
+                    mapping={mapping}
+                    external={external.types}
+                  />
                 ) : null}
               </div>
             );
