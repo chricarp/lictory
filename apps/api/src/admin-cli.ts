@@ -11,15 +11,17 @@ const usage = `Usage: bun run admin <command> [options] [--json]
   status                       Access policy and counts
   setup                        The first administrator and their organization:
                                --organization <name> [--organization-handle <handle>]
-                               --name <full name> --email <email> [--password-stdin]
-                               (--admin-name and --admin-email work too)
+                               --admin-name <full name> --admin-email <email>
+                               (--name and --email work too); password from
+                               --password-stdin or LICTORY_ADMIN_PASSWORD
   list                         Instance administrators (also list-admins)
   grant <email>                Make an account an instance administrator (also grant-admin)
   revoke <email>               Remove instance administration (also revoke-admin)
   create-user <email>          Create an account: --name <name> [--admin]
                                [--organization <handle> [--role member|admin|owner]]
-                               [--password-stdin]
-  set-password <email>         --password-stdin; also signs them out everywhere
+                               [--password-stdin or LICTORY_USER_PASSWORD]
+  set-password <email>         --password-stdin or LICTORY_USER_PASSWORD; also
+                               signs them out everywhere
   deactivate <email>           Block sign-in and end every session (reversible)
   reactivate <email>           Allow a deactivated account to sign in again
   ai-status                    AI settings and where they come from
@@ -30,7 +32,8 @@ const usage = `Usage: bun run admin <command> [options] [--json]
   ai-save < settings.json      Save AI settings (as the admin console does)
   ai-off                       No AI provider; removes stored keys
 
-Passwords are read from the first line of stdin, never from arguments. With
+Passwords come from the first line of stdin (--password-stdin) or the
+variables lictory admin reads, never from arguments. With
 --json exactly one JSON object goes to stdout. The database is DATABASE_URL
 (a checkout's .env counts).
 

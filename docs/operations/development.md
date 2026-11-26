@@ -76,7 +76,7 @@ installed Bun differs from `packageManager` (`bun install` does not).
 (`LICTORY_SIGNUP_MODE=open`, `LICTORY_ORGANIZATION_CREATION=everyone`). Remove
 both to work with the self-hosted defaults (invitations only, organizations by
 instance administrators); then create the first instance administrator with
-`echo '<password>' | bun run admin setup --organization Acme --name "Ada Admin" --email ada@example.test --password-stdin`
+`LICTORY_ADMIN_PASSWORD='<password>' bun run admin setup --organization Acme --admin-name "Ada Admin" --admin-email ada@example.test`
 and open the admin console at http://localhost:3000/admin. See
 [instance administration](../internals/instance-administration.md).
 
@@ -194,8 +194,12 @@ Production images and the single-server stack are described in
 `licenses:report` and `verify` answer `--help` without a database or
 credentials. `bun run admin` takes the same commands
 and option names as the server's `lictory admin` (`list`, `grant`, `revoke`,
-`setup --admin-name … --admin-email …`), plus the older spellings
-(`list-admins`, `grant-admin`, `--name`, `--email`).
+`setup --admin-name … --admin-email …`) and reads passwords from the same
+variables (`LICTORY_ADMIN_PASSWORD` for `setup`, `LICTORY_USER_PASSWORD` for
+`create-user` and `set-password`) or from stdin with `--password-stdin`;
+the older spellings (`list-admins`, `grant-admin`, `--name`, `--email`) work
+too. Inside a server's API container the same program is
+`node apps/api/dist/admin.js`, which `lictory admin` runs for you.
 
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and
