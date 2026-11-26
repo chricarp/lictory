@@ -53,7 +53,7 @@ async function problems() {
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000);
 
-test("the monitor reports offline runners, stranded sessions, suspended webhooks and Slack failures", async () => {
+void test("the monitor reports offline runners, stranded sessions, suspended webhooks and Slack failures", async () => {
   assert.deepEqual(await problems(), [], "an empty installation is healthy");
 
   const owner = crypto.randomUUID();

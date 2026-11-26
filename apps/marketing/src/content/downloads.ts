@@ -32,8 +32,8 @@ export function releaseFiles(list: string | undefined) {
 
 const publishedFiles = releaseFiles(process.env.NEXT_PUBLIC_RELEASE_ASSETS);
 /** The version the site was built for, when the deploy named one. */
-export const releaseVersion =
-  process.env.NEXT_PUBLIC_APP_VERSION?.trim() || null;
+const builtVersion = process.env.NEXT_PUBLIC_APP_VERSION?.trim();
+export const releaseVersion = builtVersion?.length ? builtVersion : null;
 
 export const isPublished = (file: string, published = publishedFiles) =>
   !published || published.has(file);

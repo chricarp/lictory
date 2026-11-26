@@ -180,7 +180,11 @@ async function main() {
     );
 
   // 1. The Compose project: another checkout's containers must not be ours.
-  let project = env.COMPOSE_PROJECT_NAME || "lictory";
+  // An empty COMPOSE_PROJECT_NAME counts as unset, as in Compose.
+  const configured = env.COMPOSE_PROJECT_NAME?.trim()
+    ? env.COMPOSE_PROJECT_NAME
+    : "lictory";
+  let project = configured;
   const ours = hasDocker ? projectDirectories(project) : new Set<string>();
   const taken = [...ours].some((directory) => resolve(directory) !== root);
   if (taken) {
@@ -193,7 +197,7 @@ async function main() {
       project = `${projectName(root)}-${n}`;
     changes.COMPOSE_PROJECT_NAME = project;
     notes.push(
-      `Compose project ${env.COMPOSE_PROJECT_NAME || "lictory"} belongs to another checkout; this one is ${project}.`,
+      `Compose project ${configured} belongs to another checkout; this one is ${project}.`,
     );
   }
   const running =
