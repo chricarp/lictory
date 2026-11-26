@@ -13,22 +13,28 @@ Work items, specifications and their revisions, branches, pull requests, reviews
 
 List work item summaries with review, readiness, child counts and lifecycle stage. Filter by project, team, type, local status/assignee, refinement state, lifecycle stage or title/key. lifecycle=ready means ready for delivery (checks pass) and excludes accepted, active and completed work, active delivery and completed work. External delivery facts come from the provider link; use lifecycle for cross-mode progress.
 
-| Field             | Type                                                                                                          | Required | Description                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId`  | string                                                                                                        | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`       | string                                                                                                        |          |                                                       |
-| `teamId`          | string                                                                                                        |          |                                                       |
-| `typeId`          | string                                                                                                        |          |                                                       |
-| `statusId`        | string                                                                                                        |          |                                                       |
-| `assigneeId`      | string or null                                                                                                |          | A member id, or null for unassigned items.            |
-| `parentId`        | string                                                                                                        |          |                                                       |
-| `iterationId`     | string                                                                                                        |          |                                                       |
-| `refinementState` | `"draft"`, `"refinement"`, `"in_review"`, `"ready"`                                                           |          |                                                       |
-| `lifecycle`       | `"proposal"`, `"refinement"`, `"review"`, `"ready"`, `"committed"`, `"underway"`, `"completed"`, `"canceled"` |          |                                                       |
-| `query`           | string                                                                                                        |          |                                                       |
-| `includeArchived` | boolean                                                                                                       |          |                                                       |
-| `offset`          | integer                                                                                                       |          |                                                       |
-| `limit`           | integer                                                                                                       |          |                                                       |
+| Field             | Type                                                                                                          | Required | Description                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `organizationId`  | string                                                                                                        | Yes      | Exact organization id or slug from listOrganizations.                                                            |
+| `projectId`       | string                                                                                                        |          | Project id (from getWorkspace).                                                                                  |
+| `teamId`          | string                                                                                                        |          | Team id (from getWorkspace).                                                                                     |
+| `typeId`          | string                                                                                                        |          | Work item type id (from getWorkspace).                                                                           |
+| `statusId`        | string                                                                                                        |          | Workflow status id (from getWorkspace).                                                                          |
+| `assigneeId`      | string or null                                                                                                |          | A member id, or null for unassigned items.                                                                       |
+| `parentId`        | string                                                                                                        |          | Only direct children of this work item.                                                                          |
+| `iterationId`     | string                                                                                                        |          | Iteration id (from getWorkspace).                                                                                |
+| `refinementState` | `"draft"`, `"refinement"`, `"in_review"`, `"ready"`                                                           |          | Only items in this refinement state.                                                                             |
+| `lifecycle`       | `"proposal"`, `"refinement"`, `"review"`, `"ready"`, `"committed"`, `"underway"`, `"completed"`, `"canceled"` |          | Only items at this lifecycle stage, across delivery modes; ready means checks pass and delivery has not started. |
+| `query`           | string                                                                                                        |          | Text to search for.                                                                                              |
+| `includeArchived` | boolean                                                                                                       |          | Also return archived ones.                                                                                       |
+| `offset`          | integer                                                                                                       |          | Results to skip, for paging.                                                                                     |
+| `limit`           | integer                                                                                                       |          | Most results to return.                                                                                          |
+
+```json title="listWorkItems arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `getWorkItem`
 
@@ -36,13 +42,19 @@ List work item summaries with review, readiness, child counts and lifecycle stag
 
 A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.
 
-| Field                    | Type    | Required | Description                                           |
-| ------------------------ | ------- | -------- | ----------------------------------------------------- |
-| `organizationId`         | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `workItemId`             | string  |          |                                                       |
-| `key`                    | string  |          |                                                       |
-| `includeRevisionContent` | boolean |          |                                                       |
-| `activityLimit`          | integer |          |                                                       |
+| Field                    | Type    | Required | Description                                                          |
+| ------------------------ | ------- | -------- | -------------------------------------------------------------------- |
+| `organizationId`         | string  | Yes      | Exact organization id or slug from listOrganizations.                |
+| `workItemId`             | string  |          | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+| `key`                    | string  |          | The work item key, such as PAY-142; give workItemId or key.          |
+| `includeRevisionContent` | boolean |          | true includes the content of earlier revisions.                      |
+| `activityLimit`          | integer |          | How many recent activity entries to include.                         |
+
+```json title="getWorkItem arguments"
+{
+  "organizationId": "acme"
+}
+```
 
 ### `searchEpics`
 
@@ -50,47 +62,72 @@ A work item with its current specification (Markdown), readiness checks, reviews
 
 Find parent work items in a project by title or key. Pass childTypeId to search every type strictly above the child's hierarchy level; without it, search top-level types.
 
-| Field            | Type    | Required | Description                                           |
-| ---------------- | ------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string  | Yes      |                                                       |
-| `childTypeId`    | string  |          |                                                       |
-| `q`              | string  |          |                                                       |
-| `offset`         | integer |          |                                                       |
-| `limit`          | integer |          |                                                       |
+| Field            | Type    | Required | Description                                            |
+| ---------------- | ------- | -------- | ------------------------------------------------------ |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.  |
+| `projectId`      | string  | Yes      | Project id (from getWorkspace).                        |
+| `childTypeId`    | string  |          | Work item type id of the children (from getWorkspace). |
+| `q`              | string  |          | Text to search for.                                    |
+| `offset`         | integer |          | Results to skip, for paging.                           |
+| `limit`          | integer |          | Most results to return.                                |
+
+```json title="searchEpics arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `getReadinessHistory`
 
 **Get Definition of Ready history.** Query (read tokens too)
 
-Every version of a project's Definition of Ready (readiness checks per work item type), newest first. Version 0 stands for Lictory's defaults; types missing from `rules` use the defaults. Items that were ready or done when a version was published keep the checks they met; getWorkItem shows which version an item is evaluated under.
+Every version of a project's Definition of Ready (readiness checks per work item type), newest first. Version 0 stands for Lictory's defaults; types missing from `rules` use the defaults. Items that were ready or done when a version was published keep the checks they met; [getWorkItem](/reference/mcp/work-items#getworkitem) shows which version an item is evaluated under.
 
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string | Yes      |                                                       |
+| `projectId`      | string | Yes      | Project id (from getWorkspace).                       |
+
+```json title="getReadinessHistory arguments"
+{
+  "organizationId": "acme",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10"
+}
+```
 
 ### `createWorkItem`
 
 **Create work item.** Command · retry key `mutationId`
 
-Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from getWorkspace; `description` is Markdown and becomes the first revision. Unknown fields are rejected. Specification text belongs in `description`, not `content`. Set an estimate afterwards with updateWorkItem. `source` \{ pageId, commitId, blockId?, quote? \} records committed page content the item is created from (you must be able to read the page; the commit must be one of its versions, the block one of that version's top-level blocks, the quote at most 2000 characters); only readers of the page see it. The result includes `key` and `revisionId`.
+Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in the project). Spec-backed types require edit-specifications; plain types require edit-specifications or change-properties in the project. `teamId` is optional. `typeId` and `teamId` come from [getWorkspace](/reference/mcp/organization#getworkspace); `description` is Markdown and becomes the first revision. Unknown fields are rejected. Specification text belongs in `description`, not `content`. Set an estimate afterwards with [updateWorkItem](/reference/mcp/work-items#updateworkitem). `source` \{ pageId, commitId, blockId?, quote? \} records committed page content the item is created from (you must be able to read the page; the commit must be one of its versions, the block one of that version's top-level blocks, the quote at most 2000 characters); only readers of the page see it. The result includes `key` and `revisionId`.
 
-| Field            | Type           | Required | Description                                                                    |
-| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `projectId`      | string         | Yes      |                                                                                |
-| `workItemId`     | id             |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `typeId`         | string         | Yes      |                                                                                |
-| `teamId`         | string or null |          |                                                                                |
-| `parentId`       | string or null | Yes      |                                                                                |
-| `title`          | string         | Yes      |                                                                                |
-| `description`    | string         |          |                                                                                |
-| `statusId`       | string         |          |                                                                                |
-| `iterationId`    | string or null |          |                                                                                |
-| `assigneeId`     | string or null |          |                                                                                |
-| `source`         | object         |          |                                                                                |
+| Field            | Type           | Required | Description                                                                                                        |
+| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                                              |
+| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                                     |
+| `projectId`      | string         | Yes      | Project id (from getWorkspace).                                                                                    |
+| `workItemId`     | id             |          | Identifier for the new entity. Omit to have one assigned.                                                          |
+| `typeId`         | string         | Yes      | Work item type id (from getWorkspace).                                                                             |
+| `teamId`         | string or null |          | Team id (from getWorkspace).                                                                                       |
+| `parentId`       | string or null | Yes      | Parent work item id or null for none; the parent's type level must be above this type's.                           |
+| `title`          | string         | Yes      | Work item title.                                                                                                   |
+| `description`    | string         |          | Specification or description, in Markdown.                                                                         |
+| `statusId`       | string         |          | Workflow status id (from getWorkspace).                                                                            |
+| `iterationId`    | string or null |          | Iteration id (from getWorkspace).                                                                                  |
+| `assigneeId`     | string or null |          | User id of the person to assign (from searchMembers); null unassigns.                                              |
+| `source`         | object         |          | The committed page content the item is created from, \{ pageId, commitId, blockId?, quote? \}, kept with the item. |
+
+```json title="createWorkItem arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "projectId": "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
+  "typeId": "462830bc-c392-4549-a4a6-0bf70a5228b4",
+  "parentId": "eb290249-0ee8-41d1-a9c3-f734ebc6a113",
+  "title": "Retry failed refunds once"
+}
+```
 
 ### `updateWorkItem`
 
@@ -98,22 +135,30 @@ Create a work item (Epic, Story, Task, Bug, Subtask or a custom type enabled in 
 
 Change non-material properties: status, refinement state (draft, refinement, in_review; `ready` is derived from readiness checks), type, team (or null), priority, assignee, parent, milestone, iteration, estimate, labels. An estimate must be one of the project's scale (Fibonacci, linear, or T-shirt points). Moving a ready item back is rejected while its readiness checks still pass. Never creates a revision or stales approvals. Requires change-properties in the item's project.
 
-| Field             | Type                                                | Required | Description                                                                    |
-| ----------------- | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId`  | string                                              | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`      | id                                                  |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`      | string                                              | Yes      |                                                                                |
-| `statusId`        | string                                              |          |                                                                                |
-| `refinementState` | `"draft"`, `"refinement"`, `"in_review"`            |          |                                                                                |
-| `typeId`          | string                                              |          |                                                                                |
-| `teamId`          | string or null                                      |          |                                                                                |
-| `priority`        | `"none"`, `"low"`, `"medium"`, `"high"`, `"urgent"` |          |                                                                                |
-| `assigneeId`      | string or null                                      |          |                                                                                |
-| `parentId`        | string or null                                      |          |                                                                                |
-| `milestoneId`     | string or null                                      |          |                                                                                |
-| `iterationId`     | string or null                                      |          |                                                                                |
-| `estimate`        | integer or null                                     |          |                                                                                |
-| `labelIds`        | list of string                                      |          |                                                                                |
+| Field             | Type                                                | Required | Description                                                                           |
+| ----------------- | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `organizationId`  | string                                              | Yes      | Exact organization id or slug from listOrganizations.                                 |
+| `mutationId`      | id                                                  |          | Idempotency key. Retrying with the same value never applies the command twice.        |
+| `workItemId`      | string                                              | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                  |
+| `statusId`        | string                                              |          | Workflow status id (from getWorkspace).                                               |
+| `refinementState` | `"draft"`, `"refinement"`, `"in_review"`            |          | Move refinement by hand before Ready; Ready itself follows from the readiness checks. |
+| `typeId`          | string                                              |          | Work item type id (from getWorkspace).                                                |
+| `teamId`          | string or null                                      |          | Team id (from getWorkspace).                                                          |
+| `priority`        | `"none"`, `"low"`, `"medium"`, `"high"`, `"urgent"` |          | Priority of the item.                                                                 |
+| `assigneeId`      | string or null                                      |          | User id of the person to assign (from searchMembers); null unassigns.                 |
+| `parentId`        | string or null                                      |          | New parent work item id; null detaches it.                                            |
+| `milestoneId`     | string or null                                      |          | Milestone id (from listMilestones).                                                   |
+| `iterationId`     | string or null                                      |          | Iteration id (from getWorkspace).                                                     |
+| `estimate`        | integer or null                                     |          | Estimate as a number in the project's estimate scale (getWorkspace); null clears it.  |
+| `labelIds`        | list of string                                      |          | Label ids (from listLabels).                                                          |
+
+```json title="updateWorkItem arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142"
+}
+```
 
 ### `acceptDeliveryScope`
 
@@ -121,12 +166,21 @@ Change non-material properties: status, refinement state (draft, refinement, in_
 
 Accept the current specification revision for native delivery. Requires change-properties and the exact baseRevisionId. Records the agreed revision, applies the project's readiness policy and moves unselected backlog work to an unstarted status when available. Later revisions remain proposed delivery scope until explicitly accepted. External delivery scope is accepted by publishing instead.
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `baseRevisionId` | string | Yes      |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+
+```json title="acceptDeliveryScope arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5"
+}
+```
 
 ### `rankWorkItem`
 
@@ -134,13 +188,23 @@ Accept the current specification revision for native delivery. Requires change-p
 
 Move an item in backlog/board order between two neighbours (null = open end). `afterId` is the item before this one and `beforeId` the item after it; reversed neighbours are rejected.
 
-| Field            | Type           | Required | Description                                                                    |
-| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string         | Yes      |                                                                                |
-| `afterId`        | string or null | Yes      |                                                                                |
-| `beforeId`       | string or null | Yes      |                                                                                |
+| Field            | Type           | Required | Description                                                                                         |
+| ---------------- | -------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                               |
+| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                      |
+| `workItemId`     | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                |
+| `afterId`        | string or null | Yes      | Place it directly after this sibling (same list). Omit both beforeId and afterId to place it last.  |
+| `beforeId`       | string or null | Yes      | Place it directly before this sibling (same list). Omit both beforeId and afterId to place it last. |
+
+```json title="rankWorkItem arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "afterId": "dafd9e1b-a3f2-4902-a0ce-9938a81e9b6f",
+  "beforeId": "53085753-1a03-48aa-a556-9de6d044dab6"
+}
+```
 
 ### `addRelation`
 
@@ -152,10 +216,20 @@ Link two work items: blocks, relates or duplicates (from this item to `toId`). C
 | ---------------- | --------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string                                  | Yes      |                                                                                |
+| `workItemId`     | string                                  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
 | `relationId`     | id                                      |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `toId`           | string                                  | Yes      |                                                                                |
-| `kind`           | `"blocks"`, `"relates"`, `"duplicates"` | Yes      |                                                                                |
+| `toId`           | string                                  | Yes      | The other work item's id.                                                      |
+| `kind`           | `"blocks"`, `"relates"`, `"duplicates"` | Yes      | blocks, relates or duplicates, from this item to toId.                         |
+
+```json title="addRelation arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "toId": "866e57e1-20e3-4c9f-a6a4-e182a6826799",
+  "kind": "blocks"
+}
+```
 
 ### `removeRelation`
 
@@ -167,8 +241,17 @@ Remove a relation between work items.
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `relationId`     | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `relationId`     | string | Yes      | Relation id (from getWorkItem relations).                                      |
+
+```json title="removeRelation arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "relationId": "af323738-e34e-432d-a952-dac6e40b4d25"
+}
+```
 
 ### `reorderWorkItem`
 
@@ -176,12 +259,21 @@ Remove a relation between work items.
 
 Order an item among its siblings: place before `beforeId` (null = last).
 
-| Field            | Type           | Required | Description                                                                    |
-| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string         | Yes      |                                                                                |
-| `beforeId`       | string or null | Yes      |                                                                                |
+| Field            | Type           | Required | Description                                                                                         |
+| ---------------- | -------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                               |
+| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                      |
+| `workItemId`     | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                |
+| `beforeId`       | string or null | Yes      | Place it directly before this sibling (same list). Omit both beforeId and afterId to place it last. |
+
+```json title="reorderWorkItem arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "beforeId": "53085753-1a03-48aa-a556-9de6d044dab6"
+}
+```
 
 ### `archiveWorkItem`
 
@@ -193,24 +285,44 @@ Archive (archived: true) or restore (archived: false) a work item. Archiving als
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `archived`       | boolean | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `archived`       | boolean | Yes      | true archives it; false restores it.                                           |
+
+```json title="archiveWorkItem arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "archived": true
+}
+```
 
 ### `updateSpecification`
 
 **Revise specification.** Command · retry key `mutationId`
 
-Save a new revision of an item's title and Markdown specification before main is protected. `baseRevisionId` must be current (getWorkItem); a stale base is rejected. Material changes stale approvals. Requires edit-specifications. Prefer createBranch, commitBranch and createPullRequest for reviewed changes; protected main always requires a pull request.
+Save a new revision of an item's title and Markdown specification before main is protected. `baseRevisionId` must be current ([getWorkItem](/reference/mcp/work-items#getworkitem)); a stale base is rejected. Material changes stale approvals. Requires edit-specifications. Prefer [createBranch](/reference/mcp/work-items#createbranch), [commitBranch](/reference/mcp/work-items#commitbranch) and [createPullRequest](/reference/mcp/work-items#createpullrequest) for reviewed changes; protected main always requires a pull request.
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `baseRevisionId` | string | Yes      |                                                                                |
-| `title`          | string | Yes      |                                                                                |
-| `content`        | string | Yes      |                                                                                |
-| `summary`        | string |          |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `title`          | string | Yes      | Item title in the new revision.                                                                                                                                                       |
+| `content`        | string | Yes      | The complete specification of the new revision, in Markdown.                                                                                                                          |
+| `summary`        | string |          | What changed and why, shown in the revision history.                                                                                                                                  |
+
+```json title="updateSpecification arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "title": "Retry failed refunds once",
+  "content": "## Problem\n\nRefunds that time out are never retried."
+}
+```
 
 ### `createThread`
 
@@ -218,22 +330,34 @@ Save a new revision of an item's title and Markdown specification before main is
 
 Start a discussion thread anchored to a section (and optionally a quoted range) of a revision, a suggestion, a pull request or a commit. `section` must be a heading in that text, or empty to anchor the whole text. A pull request thread requires `commitId`. `blocking` threads block readiness until resolved.
 
-| Field            | Type    | Required | Description                                                                                                                   |
-| ---------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                                         |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.                                                |
-| `workItemId`     | string  | Yes      |                                                                                                                               |
-| `baseRevisionId` | string  | Yes      |                                                                                                                               |
-| `threadId`       | id      |          | Identifier for the new entity. Omit to have one assigned.                                                                     |
-| `messageId`      | id      |          | Identifier for the new entity. Omit to have one assigned.                                                                     |
-| `body`           | string  | Yes      |                                                                                                                               |
-| `blocking`       | boolean | Yes      |                                                                                                                               |
-| `section`        | string  | Yes      | Heading this discussion is anchored to. An empty string anchors the thread to the whole text. An unknown heading is rejected. |
-| `quote`          | string  |          |                                                                                                                               |
-| `occurrence`     | integer |          | When the quote appears more than once under its section: which appearance (0 is the first).                                   |
-| `suggestionId`   | string  |          |                                                                                                                               |
-| `pullRequestId`  | string  |          |                                                                                                                               |
-| `commitId`       | string  |          | Required when pullRequestId is set: the commit this discussion concerns.                                                      |
+| Field            | Type    | Required | Description                                                                                                                                                                           |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string  | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `threadId`       | id      |          | Identifier for the new entity. Omit to have one assigned.                                                                                                                             |
+| `messageId`      | id      |          | Identifier for the new entity. Omit to have one assigned.                                                                                                                             |
+| `body`           | string  | Yes      | First message, in Markdown. Mentions (@[label](mention:USER_ID)) notify people.                                                                                                       |
+| `blocking`       | boolean | Yes      | true: the discussion blocks readiness and merging until it is resolved.                                                                                                               |
+| `section`        | string  | Yes      | Heading this discussion is anchored to. An empty string anchors the thread to the whole text. An unknown heading is rejected.                                                         |
+| `quote`          | string  |          | Exact text the discussion is about, from the section's content.                                                                                                                       |
+| `occurrence`     | integer |          | When the quote appears more than once under its section: which appearance (0 is the first).                                                                                           |
+| `suggestionId`   | string  |          | Suggestion id (from getWorkItem).                                                                                                                                                     |
+| `pullRequestId`  | string  |          | Specification pull request id (from getWorkItem).                                                                                                                                     |
+| `commitId`       | string  |          | Required when pullRequestId is set: the commit this discussion concerns.                                                                                                              |
+
+```json title="createThread arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "body": "Can a refund be retried after settlement?",
+  "blocking": true,
+  "section": "Failure behavior"
+}
+```
 
 ### `replyToThread`
 
@@ -245,10 +369,20 @@ Reply to an existing thread. Mentions notify people.
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `threadId`       | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `threadId`       | string | Yes      | Discussion id (from getWorkItem).                                              |
 | `messageId`      | id     |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `body`           | string | Yes      |                                                                                |
+| `body`           | string | Yes      | Reply, in Markdown. Mentions (@[label](mention:USER_ID)) notify people.        |
+
+```json title="replyToThread arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "threadId": "6c90fd91-6a9a-4405-a435-29bb73613fab",
+  "body": "Can a refund be retried after settlement?"
+}
+```
 
 ### `setThreadState`
 
@@ -260,10 +394,21 @@ Resolve or reopen a thread and mark it blocking or non-blocking. History is kept
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `threadId`       | string  | Yes      |                                                                                |
-| `resolved`       | boolean | Yes      |                                                                                |
-| `blocking`       | boolean | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `threadId`       | string  | Yes      | Discussion id (from getWorkItem).                                              |
+| `resolved`       | boolean | Yes      | true resolves the discussion (its history stays); false reopens it.            |
+| `blocking`       | boolean | Yes      | true: the discussion blocks readiness and merging while open.                  |
+
+```json title="setThreadState arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "threadId": "6c90fd91-6a9a-4405-a435-29bb73613fab",
+  "resolved": true,
+  "blocking": true
+}
+```
 
 ### `createBranch`
 
@@ -271,15 +416,25 @@ Resolve or reopen a thread and mark it blocking or non-blocking. History is kept
 
 Start a named line of work on a specification, from the main line or another branch. Names are at most 80 characters and use letters, numbers, “-”, “\_”, “.” and “/”, without “..”, “//”, a trailing separator, a “.lock” part, or the name main.
 
-| Field            | Type   | Required | Description                                                                                                                                                |
-| ---------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                      |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                             |
-| `workItemId`     | string | Yes      |                                                                                                                                                            |
-| `baseRevisionId` | string | Yes      |                                                                                                                                                            |
-| `branchId`       | id     |          | Identifier for the new entity. Omit to have one assigned.                                                                                                  |
-| `name`           | string | Yes      | At most 80 characters. Letters, numbers, “-”, “\_”, “.” and “/”. No “..” or “//”, no trailing separator, no part ending in “.lock”, and not the name main. |
-| `fromBranchId`   | string |          |                                                                                                                                                            |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `branchId`       | id     |          | Identifier for the new entity. Omit to have one assigned.                                                                                                                             |
+| `name`           | string | Yes      | At most 80 characters. Letters, numbers, “-”, “\_”, “.” and “/”. No “..” or “//”, no trailing separator, no part ending in “.lock”, and not the name main.                            |
+| `fromBranchId`   | string |          | Specification branch to start from or bring changes from (from getWorkItem).                                                                                                          |
+
+```json title="createBranch arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "name": "payments"
+}
+```
 
 ### `setBranchCollaborator`
 
@@ -291,10 +446,21 @@ Add or remove a collaborator on a branch.
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `branchId`       | string  | Yes      |                                                                                |
-| `userId`         | string  | Yes      |                                                                                |
-| `assigned`       | boolean | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `branchId`       | string  | Yes      | Specification branch id (from getWorkItem).                                    |
+| `userId`         | string  | Yes      | A member's user id (from getWorkspace or searchMembers).                       |
+| `assigned`       | boolean | Yes      | true invites the person to commit to the branch; false removes them.           |
+
+```json title="setBranchCollaborator arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "branchId": "9afcbf86-367d-402a-a44d-394652ce9df6",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "assigned": true
+}
+```
 
 ### `commitBranch`
 
@@ -302,50 +468,82 @@ Add or remove a collaborator on a branch.
 
 Commit a title, Markdown content and optional proposedChildren to a branch. Each entry is a new child (stable workItemId, typeId of an enabled type whose level is below the parent's, such as a Task or Bug under a Story, title, description) or a change to an existing direct child (changeId, workItemId, base \{revisionId, title\} read from the child, then title/description for children without a specification, parentId to move it (null detaches), or archive: true). Entries apply only after reviewed merge into main; a change applies only while the child still has its base revision and is not accepted, underway or handed off. Omit proposedChildren to preserve the base breakdown; supply the complete list when editing it. Entries already accepted in main must stay unchanged. `baseCommitId` identifies the inspected base; concurrent nonoverlapping changes combine and conflicts require explicit resolution.
 
-| Field              | Type           | Required | Description                                                                    |
-| ------------------ | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`       | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`       | string         | Yes      |                                                                                |
-| `branchId`         | string         | Yes      |                                                                                |
-| `baseCommitId`     | string         | Yes      |                                                                                |
-| `title`            | string         | Yes      |                                                                                |
-| `content`          | string         | Yes      |                                                                                |
-| `proposedChildren` | list of object |          |                                                                                |
-| `message`          | string         | Yes      |                                                                                |
-| `expectedHeadId`   | string         |          |                                                                                |
+| Field              | Type           | Required | Description                                                                                                                                                                       |
+| ------------------ | -------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                             |
+| `mutationId`       | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                    |
+| `workItemId`       | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                              |
+| `branchId`         | string         | Yes      | Specification branch id (from getWorkItem).                                                                                                                                       |
+| `baseCommitId`     | string         | Yes      | The branch's head commit id you edited from (getWorkItem branches).                                                                                                               |
+| `title`            | string         | Yes      | Item title in the commit.                                                                                                                                                         |
+| `content`          | string         | Yes      | The complete specification in the commit, in Markdown.                                                                                                                            |
+| `proposedChildren` | list of object |          | The proposed breakdown: new children and changes to existing direct children (see the tool description). Omit to keep the base breakdown; give the complete list when editing it. |
+| `message`          | string         | Yes      | Commit message: what changed and why.                                                                                                                                             |
+| `expectedHeadId`   | string         |          | When resolving a conflict: the exact head commit id you were shown.                                                                                                               |
+
+```json title="commitBranch arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "branchId": "9afcbf86-367d-402a-a44d-394652ce9df6",
+  "baseCommitId": "2992e850-971e-4f5a-a7f3-3607535eca4a",
+  "title": "Retry failed refunds once",
+  "content": "## Problem\n\nRefunds that time out are never retried.",
+  "message": "Define the retry window"
+}
+```
 
 ### `openSpecificationDraft`
 
 **Open specification draft.** Command · retry key `mutationId`
 
-Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. `discardChanges: true` starts the draft again from the line's latest Markdown for everyone editing it (the discarded edits stay recoverable on the server). Agents cannot type into live drafts; they change specifications with updateSpecification or a branch commit.
+Open the shared live draft of a specification line that people edit together in the browser: main (omit `branchId`; needs edit-specifications while main is not protected) or a branch (its author and collaborators). Creates it from the line's latest Markdown, or reopens a closed one; returns `draftId`, `epoch` and `documentName`. `discardChanges: true` starts the draft again from the line's latest Markdown for everyone editing it (the discarded edits stay recoverable on the server). Agents cannot type into live drafts; they change specifications with [updateSpecification](/reference/mcp/work-items#updatespecification) or a branch commit.
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `branchId`       | string  |          |                                                                                |
-| `discardChanges` | boolean |          |                                                                                |
+| Field            | Type    | Required | Description                                                                                                             |
+| ---------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                                   |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.                                          |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                    |
+| `branchId`       | string  |          | Page branch id (returned by createPageBranch).                                                                          |
+| `discardChanges` | boolean |          | true starts the draft again from the line's latest Markdown for everyone editing it (discarded edits stay recoverable). |
+
+```json title="openSpecificationDraft arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142"
+}
+```
 
 ### `commitSpecificationDraft`
 
 **Save specification draft.** Command · retry key `mutationId` · **a person's decision**: refused to agents (the person decides in The work item's specification → the editor (Save))
 
-Seal the live draft of a specification line (`draftId`, `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw: on main a new revision (`message` is its change summary; existing approvals are marked outdated and reviews re-requested, as for updateSpecification), on a branch a commit (`message` is the commit message; optional `proposedChildren` made from `breakdownBaseCommitId`). The content is what the server stored, never sent. Edits that cancel out record the cut without a revision or commit. Main of a protected specification is refused.
+Seal the live draft of a specification line (`draftId`, `epoch`) at exactly `expectedSequence`, the stored sequence the editor last saw: on main a new revision (`message` is its change summary; existing approvals are marked outdated and reviews re-requested, as for [updateSpecification](/reference/mcp/work-items#updatespecification)), on a branch a commit (`message` is the commit message; optional `proposedChildren` made from `breakdownBaseCommitId`). The content is what the server stored, never sent. Edits that cancel out record the cut without a revision or commit. Main of a protected specification is refused.
 
 | Field                   | Type           | Required | Description                                                                    |
 | ----------------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId`        | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`            | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`            | string         | Yes      |                                                                                |
-| `draftId`               | string         | Yes      |                                                                                |
-| `epoch`                 | integer        | Yes      |                                                                                |
-| `expectedSequence`      | integer        | Yes      |                                                                                |
-| `message`               | string         |          |                                                                                |
-| `proposedChildren`      | list of object |          |                                                                                |
-| `breakdownBaseCommitId` | string         |          |                                                                                |
+| `workItemId`            | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `draftId`               | string         | Yes      | Live draft id (returned when the draft was opened).                            |
+| `epoch`                 | integer        | Yes      | The draft's epoch you edited (returned by openSpecificationDraft).             |
+| `expectedSequence`      | integer        | Yes      | The draft's stored sequence you last saw; the commit seals exactly that cut.   |
+| `message`               | string         |          | Change summary of the revision (main) or commit message (branch).              |
+| `proposedChildren`      | list of object |          | Breakdown edits to commit with a branch commit (as in commitBranch).           |
+| `breakdownBaseCommitId` | string         |          | The branch commit the breakdown edits were made from.                          |
+
+```json title="commitSpecificationDraft arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "draftId": "d841f386-efe0-4bd7-a508-f63c81bae380",
+  "epoch": 1,
+  "expectedSequence": 0
+}
+```
 
 ### `syncBranch`
 
@@ -357,14 +555,26 @@ Bring changes from a target line into a branch, optionally with a resolved title
 | ------------------ | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId`   | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`       | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`       | string         | Yes      |                                                                                |
-| `branchId`         | string         | Yes      |                                                                                |
-| `targetId`         | string         | Yes      |                                                                                |
-| `sourceHeadId`     | string         | Yes      |                                                                                |
-| `targetHeadId`     | string         | Yes      |                                                                                |
-| `title`            | string         |          |                                                                                |
-| `content`          | string         |          |                                                                                |
-| `proposedChildren` | list of object |          |                                                                                |
+| `workItemId`       | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `branchId`         | string         | Yes      | Specification branch id (from getWorkItem).                                    |
+| `targetId`         | string         | Yes      | The line to bring changes from: main or another branch id (getWorkItem).       |
+| `sourceHeadId`     | string         | Yes      | The branch's head commit id you inspected.                                     |
+| `targetHeadId`     | string         | Yes      | The head commit id of targetId you inspected.                                  |
+| `title`            | string         |          | Resolved title, when the lines conflict on it.                                 |
+| `content`          | string         |          | Resolved Markdown, when the lines conflict on the text.                        |
+| `proposedChildren` | list of object |          | Resolved breakdown, when the lines conflict on it.                             |
+
+```json title="syncBranch arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "branchId": "9afcbf86-367d-402a-a44d-394652ce9df6",
+  "targetId": "d3747e24-50ff-4aab-ad0a-7730b03bc3d7",
+  "sourceHeadId": "44ac7f34-72ea-49dd-ae99-5c420120d993",
+  "targetHeadId": "9e9342ff-740f-42d4-a0a5-146e1c49ff4d"
+}
+```
 
 ### `deleteBranch`
 
@@ -376,8 +586,17 @@ Delete a branch that has no open pull request.
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `branchId`       | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `branchId`       | string | Yes      | Specification branch id (from getWorkItem).                                    |
+
+```json title="deleteBranch arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "branchId": "9afcbf86-367d-402a-a44d-394652ce9df6"
+}
+```
 
 ### `createPullRequest`
 
@@ -389,13 +608,26 @@ Propose merging a branch into a target line for review, optionally as a draft. R
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
 | `pullRequestId`  | id      |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `sourceId`       | string  | Yes      |                                                                                |
-| `targetId`       | string  | Yes      |                                                                                |
-| `title`          | string  | Yes      |                                                                                |
-| `description`    | string  | Yes      |                                                                                |
-| `draft`          | boolean | Yes      |                                                                                |
+| `sourceId`       | string  | Yes      | Branch with the changes (getWorkItem branches).                                |
+| `targetId`       | string  | Yes      | Line to merge into, usually main (getWorkItem branches).                       |
+| `title`          | string  | Yes      | Pull request title.                                                            |
+| `description`    | string  | Yes      | What the change is and why, in Markdown.                                       |
+| `draft`          | boolean | Yes      | true opens it as a draft that cannot be merged yet.                            |
+
+```json title="createPullRequest arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "sourceId": "92340ce0-9843-48dc-a014-d7c21c191b23",
+  "targetId": "d3747e24-50ff-4aab-ad0a-7730b03bc3d7",
+  "title": "Retry failed refunds once",
+  "description": "## Problem\n\nRefunds that time out are never retried.",
+  "draft": true
+}
+```
 
 ### `setPullRequestDraft`
 
@@ -407,9 +639,19 @@ Mark a pull request as draft or ready for review. Mark as draft while the pull r
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `pullRequestId`  | string  | Yes      |                                                                                |
-| `draft`          | boolean | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string  | Yes      | Page pull request id (returned by createPagePullRequest).                      |
+| `draft`          | boolean | Yes      | true marks it a draft; false marks it ready for review.                        |
+
+```json title="setPullRequestDraft arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524",
+  "draft": true
+}
+```
 
 ### `deletePullRequest`
 
@@ -421,8 +663,17 @@ Close a pull request and remove it from the item. Open discussions on it are res
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `pullRequestId`  | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string | Yes      | Specification pull request id (from getWorkItem).                              |
+
+```json title="deletePullRequest arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524"
+}
+```
 
 ### `requestPullRequestReview`
 
@@ -434,11 +685,23 @@ Ask a reviewing discipline of the item's project (optionally one member of it) t
 | ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string         | Yes      |                                                                                |
-| `pullRequestId`  | string         | Yes      |                                                                                |
-| `disciplineId`   | string         | Yes      |                                                                                |
-| `userId`         | string or null | Yes      |                                                                                |
-| `required`       | boolean        | Yes      |                                                                                |
+| `workItemId`     | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string         | Yes      | Specification pull request id (from getWorkItem).                              |
+| `disciplineId`   | string         | Yes      | Discipline id (from getWorkspace).                                             |
+| `userId`         | string or null | Yes      | A member of that discipline to ask (getWorkspace); null asks the discipline.   |
+| `required`       | boolean        | Yes      | true: merging waits for this review's approval.                                |
+
+```json title="requestPullRequestReview arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524",
+  "disciplineId": "188a283a-d2e4-4317-ac13-bea0312ca218",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "required": true
+}
+```
 
 ### `decidePullRequest`
 
@@ -450,12 +713,25 @@ Approve, request changes or revoke a decision on a pull request review assigned 
 | ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string                                         | Yes      |                                                                                |
-| `pullRequestId`  | string                                         | Yes      |                                                                                |
-| `reviewId`       | string                                         | Yes      |                                                                                |
-| `sourceHeadId`   | string                                         | Yes      |                                                                                |
-| `targetHeadId`   | string                                         | Yes      |                                                                                |
-| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      |                                                                                |
+| `workItemId`     | string                                         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string                                         | Yes      | Specification pull request id (from getWorkItem).                              |
+| `reviewId`       | string                                         | Yes      | Review id (from getWorkItem).                                                  |
+| `sourceHeadId`   | string                                         | Yes      | The source branch head commit id you reviewed.                                 |
+| `targetHeadId`   | string                                         | Yes      | The target line head commit id you reviewed.                                   |
+| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      | approve, changes_requested, or revoke your earlier decision.                   |
+
+```json title="decidePullRequest arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524",
+  "reviewId": "e55176b9-b3cf-451a-a4b7-4c8fcf4c05f4",
+  "sourceHeadId": "44ac7f34-72ea-49dd-ae99-5c420120d993",
+  "targetHeadId": "9e9342ff-740f-42d4-a0a5-146e1c49ff4d",
+  "decision": "approve"
+}
+```
 
 ### `mergePullRequest`
 
@@ -467,10 +743,21 @@ Merge an approved pull request; merging into main creates a new revision and the
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `pullRequestId`  | string | Yes      |                                                                                |
-| `sourceHeadId`   | string | Yes      |                                                                                |
-| `targetHeadId`   | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `pullRequestId`  | string | Yes      | Specification pull request id (from getWorkItem).                              |
+| `sourceHeadId`   | string | Yes      | The source branch head commit id you inspected; refused if it moved.           |
+| `targetHeadId`   | string | Yes      | The target line head commit id you inspected; refused if it moved.             |
+
+```json title="mergePullRequest arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "pullRequestId": "55d953c6-8f0f-4843-a396-6b3ce2666524",
+  "sourceHeadId": "44ac7f34-72ea-49dd-ae99-5c420120d993",
+  "targetHeadId": "9e9342ff-740f-42d4-a0a5-146e1c49ff4d"
+}
+```
 
 ### `revertSpecification`
 
@@ -478,31 +765,54 @@ Merge an approved pull request; merging into main creates a new revision and the
 
 Create a new revision restoring the content of an earlier revision. History is never rewritten. A ready specification is protected: change it through a branch and pull request. The result includes `revisionId`.
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `baseRevisionId` | string | Yes      |                                                                                |
-| `revisionId`     | string | Yes      |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `revisionId`     | string | Yes      | The earlier revision whose content to restore (getWorkItem revisions).                                                                                                                |
+
+```json title="revertSpecification arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "revisionId": "6c46ebd8-7931-46f0-a9ba-6f4dd75fd707"
+}
+```
 
 ### `createSuggestion`
 
 **Create suggestion.** Command · retry key `mutationId`
 
-Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use createBranch, commitBranch and createPullRequest instead. Anyone in the organization can suggest; `open: false` saves a draft.
+Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use [createBranch](/reference/mcp/work-items#createbranch), [commitBranch](/reference/mcp/work-items#commitbranch) and [createPullRequest](/reference/mcp/work-items#createpullrequest) instead. Anyone in the organization can suggest; `open: false` saves a draft.
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `baseRevisionId` | string  | Yes      |                                                                                |
-| `suggestionId`   | id      |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `replacement`    | string  | Yes      |                                                                                |
-| `title`          | string  | Yes      |                                                                                |
-| `rationale`      | string  | Yes      |                                                                                |
-| `open`           | boolean | Yes      |                                                                                |
+| Field            | Type    | Required | Description                                                                                                                                                                           |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string  | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `suggestionId`   | id      |          | Identifier for the new entity. Omit to have one assigned.                                                                                                                             |
+| `replacement`    | string  | Yes      | The complete proposed specification, in Markdown.                                                                                                                                     |
+| `title`          | string  | Yes      | Suggestion title.                                                                                                                                                                     |
+| `rationale`      | string  | Yes      | Why the change is needed.                                                                                                                                                             |
+| `open`           | boolean | Yes      | true opens it for review now; false saves a private draft.                                                                                                                            |
+
+```json title="createSuggestion arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "replacement": "replacement",
+  "title": "Retry failed refunds once",
+  "rationale": "rationale",
+  "open": true
+}
+```
 
 ### `updateSuggestion`
 
@@ -510,16 +820,29 @@ Legacy: propose replacement Markdown for the specification with a title and rati
 
 Author only: change a suggestion's text, title or rationale. A content change supersedes earlier decisions. Change the proposed text, title or rationale while the suggestion is draft or open.
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `baseRevisionId` | string | Yes      |                                                                                |
-| `suggestionId`   | string | Yes      |                                                                                |
-| `replacement`    | string | Yes      |                                                                                |
-| `title`          | string | Yes      |                                                                                |
-| `rationale`      | string | Yes      |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `suggestionId`   | string | Yes      | Suggestion id (from getWorkItem).                                                                                                                                                     |
+| `replacement`    | string | Yes      | The complete proposed specification, in Markdown. A content change supersedes earlier decisions.                                                                                      |
+| `title`          | string | Yes      | Suggestion title.                                                                                                                                                                     |
+| `rationale`      | string | Yes      | Why the change is needed.                                                                                                                                                             |
+
+```json title="updateSuggestion arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "suggestionId": "5cfee738-851a-41ff-a9e6-f95343996e55",
+  "replacement": "replacement",
+  "title": "Retry failed refunds once",
+  "rationale": "rationale"
+}
+```
 
 ### `setSuggestionState`
 
@@ -531,9 +854,19 @@ Move a suggestion between draft, open and closed. Return to draft while the sugg
 | ---------------- | ------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                          | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                              |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string                          | Yes      |                                                                                |
-| `suggestionId`   | string                          | Yes      |                                                                                |
-| `status`         | `"draft"`, `"open"`, `"closed"` | Yes      |                                                                                |
+| `workItemId`     | string                          | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `suggestionId`   | string                          | Yes      | Suggestion id (from getWorkItem).                                              |
+| `status`         | `"draft"`, `"open"`, `"closed"` | Yes      | draft, open (for review) or closed.                                            |
+
+```json title="setSuggestionState arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "suggestionId": "5cfee738-851a-41ff-a9e6-f95343996e55",
+  "status": "draft"
+}
+```
 
 ### `setSuggestionReviewer`
 
@@ -545,10 +878,21 @@ Author: assign or unassign a reviewer who holds a discipline in the project that
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `suggestionId`   | string  | Yes      |                                                                                |
-| `userId`         | string  | Yes      |                                                                                |
-| `assigned`       | boolean | Yes      |                                                                                |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `suggestionId`   | string  | Yes      | Suggestion id (from getWorkItem).                                              |
+| `userId`         | string  | Yes      | A member's user id (from getWorkspace or searchMembers).                       |
+| `assigned`       | boolean | Yes      | true assigns the person as a reviewer; false unassigns them.                   |
+
+```json title="setSuggestionReviewer arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "suggestionId": "5cfee738-851a-41ff-a9e6-f95343996e55",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "assigned": true
+}
+```
 
 ### `decideSuggestion`
 
@@ -560,10 +904,21 @@ Assigned reviewer: approve, request changes or revoke a decision on a suggestion
 | ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string                                         | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id                                             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string                                         | Yes      |                                                                                |
-| `suggestionId`   | string                                         | Yes      |                                                                                |
-| `version`        | integer                                        | Yes      |                                                                                |
-| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      |                                                                                |
+| `workItemId`     | string                                         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `suggestionId`   | string                                         | Yes      | Suggestion id (from getWorkItem).                                              |
+| `version`        | integer                                        | Yes      | The suggestion version you reviewed (getWorkItem).                             |
+| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      | approve, changes_requested, or revoke your earlier decision.                   |
+
+```json title="decideSuggestion arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "suggestionId": "5cfee738-851a-41ff-a9e6-f95343996e55",
+  "version": 1,
+  "decision": "approve"
+}
+```
 
 ### `mergeSuggestion`
 
@@ -571,13 +926,23 @@ Assigned reviewer: approve, request changes or revoke a decision on a suggestion
 
 Assigned reviewer: apply an approved suggestion, creating the next revision. Merge while the suggestion is open (it becomes merged).
 
-| Field            | Type   | Required | Description                                                                    |
-| ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `baseRevisionId` | string | Yes      |                                                                                |
-| `suggestionId`   | string | Yes      |                                                                                |
+| Field            | Type   | Required | Description                                                                                                                                                                           |
+| ---------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `suggestionId`   | string | Yes      | Suggestion id (from getWorkItem).                                                                                                                                                     |
+
+```json title="mergeSuggestion arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "suggestionId": "5cfee738-851a-41ff-a9e6-f95343996e55"
+}
+```
 
 ### `requestReview`
 
@@ -585,16 +950,28 @@ Assigned reviewer: apply an approved suggestion, creating the next revision. Mer
 
 Request a review of the current revision from a reviewing discipline of the item's project, optionally from one member, as required or optional. Requires request-reviews.
 
-| Field            | Type           | Required | Description                                                                    |
-| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string         | Yes      |                                                                                |
-| `baseRevisionId` | string         | Yes      |                                                                                |
-| `reviewId`       | id             |          | Identifier for the new entity. Omit to have one assigned.                      |
-| `disciplineId`   | string         | Yes      |                                                                                |
-| `userId`         | string or null | Yes      |                                                                                |
-| `required`       | boolean        | Yes      |                                                                                |
+| Field            | Type           | Required | Description                                                                                                                                                                           |
+| ---------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string         | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id             |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string         | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `reviewId`       | id             |          | Identifier for the new entity. Omit to have one assigned.                                                                                                                             |
+| `disciplineId`   | string         | Yes      | Discipline id (from getWorkspace).                                                                                                                                                    |
+| `userId`         | string or null | Yes      | A member of that discipline to ask (getWorkspace); null asks the discipline.                                                                                                          |
+| `required`       | boolean        | Yes      | true: the review is required; readiness and merging wait for its approval.                                                                                                            |
+
+```json title="requestReview arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "disciplineId": "188a283a-d2e4-4317-ac13-bea0312ca218",
+  "userId": "6ccb2121-4ffd-40b0-ac2c-1607cf6a05be",
+  "required": true
+}
+```
 
 ### `cancelReview`
 
@@ -606,8 +983,17 @@ Cancel a review request, decided or not. Cancel while the review is requested, i
 | ---------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                          |
 | `mutationId`     | id     |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string | Yes      |                                                                                |
-| `reviewId`       | string | Yes      |                                                                                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).           |
+| `reviewId`       | string | Yes      | Review id (from getWorkItem).                                                  |
+
+```json title="cancelReview arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "reviewId": "e55176b9-b3cf-451a-a4b7-4c8fcf4c05f4"
+}
+```
 
 ### `decideReview`
 
@@ -615,26 +1001,48 @@ Cancel a review request, decided or not. Cancel while the review is requested, i
 
 Approve, request changes or revoke your decision on a review assigned to you or your discipline. Approval applies to `baseRevisionId`. While the review is requested, in progress, changes requested or completed: approve (it becomes completed); request changes (it becomes changes requested); revoke a decision (it becomes requested).
 
-| Field            | Type                                           | Required | Description                                                                    |
-| ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string                                         | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id                                             |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string                                         | Yes      |                                                                                |
-| `baseRevisionId` | string                                         | Yes      |                                                                                |
-| `reviewId`       | string                                         | Yes      |                                                                                |
-| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      |                                                                                |
+| Field            | Type                                           | Required | Description                                                                                                                                                                           |
+| ---------------- | ---------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string                                         | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id                                             |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string                                         | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string                                         | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `reviewId`       | string                                         | Yes      | Review id (from getWorkItem).                                                                                                                                                         |
+| `decision`       | `"approve"`, `"changes_requested"`, `"revoke"` | Yes      | approve, changes_requested, or revoke your earlier decision.                                                                                                                          |
+
+```json title="decideReview arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "reviewId": "e55176b9-b3cf-451a-a4b7-4c8fcf4c05f4",
+  "decision": "approve"
+}
+```
 
 ### `signOffReadinessCheck`
 
 **Sign off readiness check.** Command · retry key `mutationId` · **a person's decision**: refused to agents (the person decides in The work item → Readiness → Sign off)
 
-Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in getWorkItem readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off. On a Lictory Intelligence check (intelligence_review) signing off overrides the automated result for that revision; anyone holding a discipline in the project may do so, only on the person's explicit instruction.
+Confirm (signedOff: true) or withdraw (false) a manual readiness check of an item for its current revision (`baseRevisionId`). `checkId` is the check's key in [getWorkItem](/reference/mcp/work-items#getworkitem) readiness. Only members of the check's disciplines can sign off; a new revision needs a new sign-off. On a Lictory Intelligence check (intelligence_review) signing off overrides the automated result for that revision; anyone holding a discipline in the project may do so, only on the person's explicit instruction.
 
-| Field            | Type    | Required | Description                                                                    |
-| ---------------- | ------- | -------- | ------------------------------------------------------------------------------ |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                          |
-| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice. |
-| `workItemId`     | string  | Yes      |                                                                                |
-| `baseRevisionId` | string  | Yes      |                                                                                |
-| `checkId`        | string  | Yes      |                                                                                |
-| `signedOff`      | boolean | Yes      |                                                                                |
+| Field            | Type    | Required | Description                                                                                                                                                                           |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.                                                                                                                                 |
+| `mutationId`     | id      |          | Idempotency key. Retrying with the same value never applies the command twice.                                                                                                        |
+| `workItemId`     | string  | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).                                                                                                                  |
+| `baseRevisionId` | string  | Yes      | The current revision id you read (getWorkItem). If the item changed since, the call is refused as a conflict with currentRevisionId, so nothing is applied to text you have not seen. |
+| `checkId`        | string  | Yes      | The check's key in getWorkItem readiness.                                                                                                                                             |
+| `signedOff`      | boolean | Yes      | true confirms the check for the current revision; false withdraws the sign-off.                                                                                                       |
+
+```json title="signOffReadinessCheck arguments"
+{
+  "organizationId": "acme",
+  "mutationId": "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
+  "workItemId": "PAY-142",
+  "baseRevisionId": "66fdac7b-2ec4-448a-a4d8-61e7fafcd9e5",
+  "checkId": "6074dbae-4fef-4a95-a441-15d725e86a18",
+  "signedOff": true
+}
+```

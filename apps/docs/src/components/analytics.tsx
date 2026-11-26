@@ -22,9 +22,13 @@ export function TrackedCodeBlock({
   command,
   ...props
 }: CodeBlockProps & { surface: "cli" | "mdx"; command?: string }) {
+  // Each scrollable code block is a region; its title names it, so pages
+  // with several blocks have distinguishable landmarks.
+  const label = typeof props.title === "string" ? props.title : undefined;
   return (
     <CodeBlock
       {...props}
+      viewportProps={{ "aria-label": label, ...props.viewportProps }}
       Actions={({ className, children }) => (
         <div
           className={`empty:hidden ${className ?? ""}`}

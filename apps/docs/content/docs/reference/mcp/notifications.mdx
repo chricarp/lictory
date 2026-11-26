@@ -13,15 +13,19 @@ The inbox, watching and notification preferences. Every tool takes `organization
 
 Your inbox: review requests, blocking comments, mentions, approvals invalidated and similar events, newest first. Page with `before` set to the last item's `${createdAt}|${id}`.
 
-| Field            | Type                              | Required | Description                                           |
-| ---------------- | --------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                            |          | Exact organization id or slug from listOrganizations. |
-| `projectId`      | string                            |          |                                                       |
-| `teamId`         | string                            |          |                                                       |
-| `kinds`          | list of string                    |          |                                                       |
-| `status`         | `"unread"`, `"all"`, `"archived"` |          |                                                       |
-| `before`         | string                            |          |                                                       |
-| `limit`          | integer                           |          |                                                       |
+| Field            | Type                              | Required | Description                                                                        |
+| ---------------- | --------------------------------- | -------- | ---------------------------------------------------------------------------------- |
+| `organizationId` | string                            |          | Exact organization id or slug from listOrganizations.                              |
+| `projectId`      | string                            |          | Project id (from getWorkspace).                                                    |
+| `teamId`         | string                            |          | Team id (from getWorkspace).                                                       |
+| `kinds`          | list of string                    |          | Only notifications of these kinds.                                                 |
+| `status`         | `"unread"`, `"all"`, `"archived"` |          | unread, all (default, not archived) or archived.                                   |
+| `before`         | string                            |          | Page cursor: the last notification's `${createdAt}\|${id}` from the previous page. |
+| `limit`          | integer                           |          | Most results to return.                                                            |
+
+```json title="listNotifications arguments"
+{}
+```
 
 ### `countUnreadNotifications`
 
@@ -30,6 +34,10 @@ Your inbox: review requests, blocking comments, mentions, approvals invalidated 
 Unread notification counts per organization.
 
 No fields.
+
+```json title="countUnreadNotifications arguments"
+{}
+```
 
 ### `getNotificationPreferences`
 
@@ -41,16 +49,29 @@ Your in-app and email notification rules per kind and scope in an organization.
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="getNotificationPreferences arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `getWatching`
 
 **Get watch state.** Query (read tokens too)
 
 Whether you watch a work item and why.
 
-| Field            | Type   | Required | Description                                           |
-| ---------------- | ------ | -------- | ----------------------------------------------------- |
-| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `workItemId`     | string | Yes      |                                                       |
+| Field            | Type   | Required | Description                                                          |
+| ---------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations.                |
+| `workItemId`     | string | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both). |
+
+```json title="getWatching arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142"
+}
+```
 
 ### `markNotificationsRead`
 
@@ -58,11 +79,15 @@ Whether you watch a work item and why.
 
 Mark notifications read or unread. Without ids, every unread notification (optionally in one organization).
 
-| Field            | Type           | Required | Description                                           |
-| ---------------- | -------------- | -------- | ----------------------------------------------------- |
-| `ids`            | list of string |          |                                                       |
-| `organizationId` | string         |          | Exact organization id or slug from listOrganizations. |
-| `read`           | boolean        |          |                                                       |
+| Field            | Type           | Required | Description                                                               |
+| ---------------- | -------------- | -------- | ------------------------------------------------------------------------- |
+| `ids`            | list of string |          | Notification ids (listNotifications); omitted: every unread notification. |
+| `organizationId` | string         |          | Exact organization id or slug from listOrganizations.                     |
+| `read`           | boolean        |          | true (default) marks them read; false marks them unread.                  |
+
+```json title="markNotificationsRead arguments"
+{}
+```
 
 ### `archiveNotifications`
 
@@ -70,10 +95,16 @@ Mark notifications read or unread. Without ids, every unread notification (optio
 
 Archive or unarchive notifications.
 
-| Field      | Type           | Required | Description |
-| ---------- | -------------- | -------- | ----------- |
-| `ids`      | list of string | Yes      |             |
-| `archived` | boolean        |          |             |
+| Field      | Type           | Required | Description                                          |
+| ---------- | -------------- | -------- | ---------------------------------------------------- |
+| `ids`      | list of string | Yes      | Notification ids (listNotifications).                |
+| `archived` | boolean        |          | true (default) archives them; false unarchives them. |
+
+```json title="archiveNotifications arguments"
+{
+  "ids": ["id"]
+}
+```
 
 ### `setNotificationPreferences`
 
@@ -81,12 +112,27 @@ Archive or unarchive notifications.
 
 Set in-app/email delivery per notification kind for an organization, project or team scope; `reset: true` removes a rule.
 
-| Field            | Type                                    | Required | Description                                           |
-| ---------------- | --------------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                                  | Yes      | Exact organization id or slug from listOrganizations. |
-| `scope`          | `"organization"`, `"project"`, `"team"` | Yes      |                                                       |
-| `scopeId`        | string                                  | Yes      |                                                       |
-| `rules`          | list of object                          | Yes      |                                                       |
+| Field            | Type                                    | Required | Description                                                                                                    |
+| ---------------- | --------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `organizationId` | string                                  | Yes      | Exact organization id or slug from listOrganizations.                                                          |
+| `scope`          | `"organization"`, `"project"`, `"team"` | Yes      | Where the rules apply: organization, project or team.                                                          |
+| `scopeId`        | string                                  | Yes      | The organization (id or slug), project or team id the scope names.                                             |
+| `rules`          | list of object                          | Yes      | Per notification kind: \{ kind, inApp, email \}, or \{ kind, reset: true \} to fall back to the broader scope. |
+
+```json title="setNotificationPreferences arguments"
+{
+  "organizationId": "acme",
+  "scope": "organization",
+  "scopeId": "d4c30c78-4918-43d7-a56b-e5d54501a511",
+  "rules": [
+    {
+      "kind": "kind",
+      "inApp": true,
+      "email": true
+    }
+  ]
+}
+```
 
 ### `resetNotificationPreferences`
 
@@ -94,11 +140,19 @@ Set in-app/email delivery per notification kind for an organization, project or 
 
 Remove every rule of one scope so broader defaults apply.
 
-| Field            | Type                                    | Required | Description                                           |
-| ---------------- | --------------------------------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string                                  | Yes      | Exact organization id or slug from listOrganizations. |
-| `scope`          | `"organization"`, `"project"`, `"team"` | Yes      |                                                       |
-| `scopeId`        | string                                  | Yes      |                                                       |
+| Field            | Type                                    | Required | Description                                                        |
+| ---------------- | --------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `organizationId` | string                                  | Yes      | Exact organization id or slug from listOrganizations.              |
+| `scope`          | `"organization"`, `"project"`, `"team"` | Yes      | organization, project or team.                                     |
+| `scopeId`        | string                                  | Yes      | The organization (id or slug), project or team id the scope names. |
+
+```json title="resetNotificationPreferences arguments"
+{
+  "organizationId": "acme",
+  "scope": "organization",
+  "scopeId": "d4c30c78-4918-43d7-a56b-e5d54501a511"
+}
+```
 
 ### `watchWorkItem`
 
@@ -106,8 +160,16 @@ Remove every rule of one scope so broader defaults apply.
 
 Watch (true) or unwatch (false) a work item; null returns to following involvement.
 
-| Field            | Type            | Required | Description                                           |
-| ---------------- | --------------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string          | Yes      | Exact organization id or slug from listOrganizations. |
-| `workItemId`     | string          | Yes      |                                                       |
-| `watching`       | boolean or null | Yes      |                                                       |
+| Field            | Type            | Required | Description                                                                |
+| ---------------- | --------------- | -------- | -------------------------------------------------------------------------- |
+| `organizationId` | string          | Yes      | Exact organization id or slug from listOrganizations.                      |
+| `workItemId`     | string          | Yes      | Work item id, or its key such as PAY-142 (listWorkItems shows both).       |
+| `watching`       | boolean or null | Yes      | true watches, false unwatches; null returns to following your involvement. |
+
+```json title="watchWorkItem arguments"
+{
+  "organizationId": "acme",
+  "workItemId": "PAY-142",
+  "watching": true
+}
+```

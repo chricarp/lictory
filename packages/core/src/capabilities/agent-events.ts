@@ -111,7 +111,15 @@ const waitForEvents = defineCapability({
       .min(1)
       .max(64)
       .describe("Cursor from listEvents or a previous wait."),
-    timeoutSeconds: z.number().int().min(0).max(MAX_WAIT_SECONDS).optional(),
+    timeoutSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_WAIT_SECONDS)
+      .optional()
+      .describe(
+        `How long to wait for an event, in seconds (default and most ${MAX_WAIT_SECONDS}).`,
+      ),
     limit: z.number().int().min(1).max(100).optional(),
     ...feedInput,
   }),

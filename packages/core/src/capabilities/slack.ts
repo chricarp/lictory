@@ -133,8 +133,19 @@ const linkSlackChannelCapability = defineCapability({
     channelId: id,
     slackChannelId: z
       .string()
-      .regex(/^[CG][A-Z0-9]{2,20}$/, "A Slack channel id starts with C or G."),
-    backfill: z.number().int().min(0).max(BACKFILL_MAX).default(0),
+      .regex(/^[CG][A-Z0-9]{2,20}$/, "A Slack channel id starts with C or G.")
+      .describe(
+        "The Slack channel's id (listSlackChannels), such as C0123ABCD.",
+      ),
+    backfill: z
+      .number()
+      .int()
+      .min(0)
+      .max(BACKFILL_MAX)
+      .default(0)
+      .describe(
+        "How many of the Slack channel's latest messages to import once.",
+      ),
   }),
   run: (ctx, input) =>
     linkSlackChannel(ctx.db, defaultSlackClient(), ctx.principal.userId, input),

@@ -264,9 +264,15 @@ const startAttachmentUpload = defineCapability({
     .object({
       organizationId,
       ...fileOwner,
-      filename: z.string().max(255),
-      mimeType: z.string().max(200),
-      size: z.number().int().min(1),
+      filename: z
+        .string()
+        .max(255)
+        .describe("File name with its extension, such as diagram.png."),
+      mimeType: z
+        .string()
+        .max(200)
+        .describe("The file's media type, such as image/png."),
+      size: z.number().int().min(1).describe("Size in bytes (at most 25 MB)."),
     })
     .refine(oneOwner, oneOwnerMessage),
   async run(ctx, input) {
@@ -382,7 +388,12 @@ const finishAttachmentUpload = defineCapability({
   surfaces: everywhere,
   external: true,
   idempotent: true,
-  input: z.object({ organizationId, id: z.uuid() }),
+  input: z.object({
+    organizationId,
+    id: z
+      .uuid()
+      .describe("The attachment id (returned by startAttachmentUpload)."),
+  }),
   async run(ctx, input) {
     const userId = ctx.principal.userId;
     await requireMember(ctx.db, input.organizationId, userId);
@@ -510,7 +521,12 @@ const removeAttachment = defineCapability({
   surfaces: everywhere,
   destructive: true,
   idempotent: true,
-  input: z.object({ organizationId, id: z.uuid() }),
+  input: z.object({
+    organizationId,
+    id: z
+      .uuid()
+      .describe("The attachment id (returned by startAttachmentUpload)."),
+  }),
   async run(ctx, input) {
     const userId = ctx.principal.userId;
     await requireMember(ctx.db, input.organizationId, userId);
@@ -579,8 +595,15 @@ const getAttachmentDownloadUrl = defineCapability({
   surfaces: everywhere,
   external: true,
   input: z.object({
-    fileId: id,
-    inline: z.boolean().default(false),
+    fileId: id.describe(
+      "The file id: the <id> of an /api/files/<id> reference.",
+    ),
+    inline: z
+      .boolean()
+      .default(false)
+      .describe(
+        "true: a URL that displays the file instead of downloading it.",
+      ),
   }),
   async run(ctx, input) {
     const [file] = await ctx.db

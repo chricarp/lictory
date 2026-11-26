@@ -323,7 +323,10 @@ const listSessionsCapability = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    status: z.array(z.enum(sessionStatuses)).optional(),
+    status: z
+      .array(z.enum(sessionStatuses))
+      .optional()
+      .describe("Only sessions in these statuses."),
     agentId: agentId.optional(),
     workItemId: id.optional(),
     limit: z.number().int().min(1).max(200).optional(),
@@ -343,7 +346,13 @@ const getSessionCapability = defineCapability({
   input: z.object({
     organizationId,
     sessionId,
-    events: z.number().int().min(0).max(200).optional(),
+    events: z
+      .number()
+      .int()
+      .min(0)
+      .max(200)
+      .optional()
+      .describe("How many of the latest events to include (default 50)."),
   }),
   run: (ctx, input) => getSession(ctx.db, actor(ctx), input),
 });
@@ -358,7 +367,14 @@ const sessionEventsCapability = defineCapability({
   input: z.object({
     organizationId,
     sessionId,
-    before: z.number().int().positive().optional(),
+    before: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Read the events before this sequence (the first sequence of the window you have); omitted: the latest events.",
+      ),
     limit: z.number().int().min(1).max(500).optional(),
   }),
   async run(ctx, input) {
@@ -396,15 +412,52 @@ const startSessionCapability = defineCapability({
   input: z.object({
     organizationId,
     agentId,
-    prompt: z.string().min(1).max(20_000),
-    title: z.string().max(200).optional(),
+    prompt: z.string().min(1).max(20_000).describe("What the agent should do."),
+    title: z
+      .string()
+      .max(200)
+      .optional()
+      .describe(
+        "Session title; omitted: the work item's title or the prompt's first line.",
+      ),
     workItemId: id.nullable().optional(),
-    repositoryUrl: z.string().max(500).nullable().optional(),
-    baseBranch: z.string().max(200).nullable().optional(),
-    branch: z.string().max(200).nullable().optional(),
-    runnerId: id.nullable().optional(),
+    repositoryUrl: z
+      .string()
+      .max(500)
+      .nullable()
+      .optional()
+      .describe(
+        "Repository to work in (https or ssh, no credentials in the URL).",
+      ),
+    baseBranch: z
+      .string()
+      .max(200)
+      .nullable()
+      .optional()
+      .describe(
+        "Branch to start from; omitted: the repository's default branch.",
+      ),
+    branch: z
+      .string()
+      .max(200)
+      .nullable()
+      .optional()
+      .describe(
+        "Branch the agent works on; omitted: derived from the work item key, or the agent's handle.",
+      ),
+    runnerId: id
+      .nullable()
+      .optional()
+      .describe(
+        "Runner to run on (listRunners); omitted: the agent's default runner, or any runner that may run it.",
+      ),
     channelId: id.nullable().optional(),
-    threadRootMessageId: id.nullable().optional(),
+    threadRootMessageId: id
+      .nullable()
+      .optional()
+      .describe(
+        "Message whose thread in channelId the session posts in; omitted: a new thread.",
+      ),
     mutationId: z
       .uuid()
       .optional()
@@ -430,7 +483,7 @@ const sendMessageCapability = defineCapability({
   input: z.object({
     organizationId,
     sessionId,
-    text: z.string().min(1).max(8000),
+    text: z.string().min(1).max(8000).describe("The message to the agent."),
   }),
   run: (ctx, input) => sendSessionMessage(ctx.db, actor(ctx), input),
 });
@@ -483,9 +536,18 @@ const answerCapability = defineCapability({
   input: z.object({
     organizationId,
     sessionId,
-    approvalId: id,
-    decision: z.enum(["approve", "deny"]),
-    note: z.string().max(2000).nullable().optional(),
+    approvalId: id.describe(
+      "The pending approval request id (getAgentSession or listAgentApprovalsWaiting).",
+    ),
+    decision: z
+      .enum(["approve", "deny"])
+      .describe("approve or deny what the agent asked for."),
+    note: z
+      .string()
+      .max(2000)
+      .nullable()
+      .optional()
+      .describe("A message to the agent with your answer."),
   }),
   async run(ctx, input) {
     return { session: await answerApproval(ctx.db, actor(ctx), input) };

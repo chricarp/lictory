@@ -334,7 +334,11 @@ export const searchKnowledge = defineCapability({
       .describe(
         "Narrows to this project's work and the spaces homed in it or its teams.",
       ),
-    kinds: z.array(z.enum(knowledgeKinds)).min(1).optional(),
+    kinds: z
+      .array(z.enum(knowledgeKinds))
+      .min(1)
+      .optional()
+      .describe("Only results of these kinds; omitted: every kind."),
     limit: z.number().int().min(1).max(20).default(8),
     cursor: z
       .string()

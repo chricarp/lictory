@@ -181,7 +181,14 @@ const linkCodeRepository = defineCapability({
   input: z.object({
     organizationId,
     connectionId: id,
-    repository: z.string().trim().min(1).max(300),
+    repository: z
+      .string()
+      .trim()
+      .min(1)
+      .max(300)
+      .describe(
+        "The repository's full name (owner/name, group/project) or the host's id (listCodeHostRepositories).",
+      ),
     projectId: id,
   }),
   async run(ctx, input) {
@@ -247,7 +254,10 @@ const listCodePullRequests = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    state: z.enum(["open", "closed", "merged"]).optional(),
+    state: z
+      .enum(["open", "closed", "merged"])
+      .optional()
+      .describe("Only open, closed or merged pull requests; omitted: all."),
     repositoryId: id.optional(),
     projectId: id.optional(),
     workItemId: id.optional(),
@@ -298,7 +308,10 @@ const listCodeIssues = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    state: z.enum(["open", "closed"]).optional(),
+    state: z
+      .enum(["open", "closed"])
+      .optional()
+      .describe("Only open or closed issues; omitted: both."),
     repositoryId: id.optional(),
     limit: z.number().int().min(1).max(200).optional(),
   }),
@@ -316,7 +329,10 @@ const listCodeBranches = defineCapability({
     organizationId,
     repositoryId: id.optional(),
     projectId: id.optional(),
-    includeDeleted: z.boolean().optional(),
+    includeDeleted: z
+      .boolean()
+      .optional()
+      .describe("Also list branches deleted on the host."),
   }),
   run: (ctx, input) => service(ctx).listBranches(actor(ctx), input),
 });
@@ -365,8 +381,15 @@ const linkCodeToWorkItem = defineCapability({
     organizationId,
     workItemId: id,
     repositoryId: id,
-    target: z.enum(["branch", "pull_request", "issue", "commit"]),
-    ref: z.string().trim().min(1).max(250),
+    target: z
+      .enum(["branch", "pull_request", "issue", "commit"])
+      .describe("What to link: branch, pull_request, issue or commit."),
+    ref: z
+      .string()
+      .trim()
+      .min(1)
+      .max(250)
+      .describe("Branch name, pull request or issue number, or commit SHA."),
   }),
   run: (ctx, input) => service(ctx).linkCode(actor(ctx), input),
 });
@@ -396,8 +419,20 @@ const createCodeBranch = defineCapability({
     organizationId,
     workItemId: id,
     repositoryId: id.optional(),
-    name: z.string().trim().max(80).optional(),
-    from: z.string().trim().max(200).optional(),
+    name: z
+      .string()
+      .trim()
+      .max(80)
+      .optional()
+      .describe("Branch name; omitted: suggestCodeBranchName's suggestion."),
+    from: z
+      .string()
+      .trim()
+      .max(200)
+      .optional()
+      .describe(
+        "Branch or commit to start from; omitted: the repository's default branch.",
+      ),
     mutationId,
   }),
   async run(ctx, input) {
@@ -421,11 +456,36 @@ const openCodePullRequest = defineCapability({
     organizationId,
     workItemId: id.optional(),
     repositoryId: id.optional(),
-    head: z.string().trim().min(1).max(200),
-    base: z.string().trim().max(200).optional(),
-    title: z.string().trim().max(250).optional(),
-    body: z.string().max(60_000).optional(),
-    draft: z.boolean().optional(),
+    head: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .describe("Branch with the changes."),
+    base: z
+      .string()
+      .trim()
+      .max(200)
+      .optional()
+      .describe(
+        "Branch to merge into; omitted: the repository's default branch.",
+      ),
+    title: z
+      .string()
+      .trim()
+      .max(250)
+      .optional()
+      .describe(
+        "Pull request title; with workItemId it defaults to the item's key and title.",
+      ),
+    body: z
+      .string()
+      .max(60_000)
+      .optional()
+      .describe(
+        "Pull request description, in Markdown; with workItemId it links back to the item.",
+      ),
+    draft: z.boolean().optional().describe("true opens it as a draft."),
     mutationId,
   }),
   async run(ctx, input) {
@@ -447,7 +507,14 @@ const commentOnCodePullRequest = defineCapability({
   input: z.object({
     organizationId,
     pullRequestId: id,
-    body: z.string().trim().min(1).max(60_000),
+    body: z
+      .string()
+      .trim()
+      .min(1)
+      .max(60_000)
+      .describe(
+        "The comment, in Markdown. It is signed with your name on the host.",
+      ),
     mutationId,
   }),
   run: (ctx, input) => service(ctx).comment(actor(ctx), input),
@@ -463,7 +530,11 @@ const requestCodeReview = defineCapability({
   input: z.object({
     organizationId,
     pullRequestId: id,
-    reviewers: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
+    reviewers: z
+      .array(z.string().trim().min(1).max(100))
+      .min(1)
+      .max(20)
+      .describe("The reviewers' logins on the code host."),
     mutationId,
   }),
   run: (ctx, input) => service(ctx).requestReview(actor(ctx), input),
@@ -480,8 +551,18 @@ const mergeCodePullRequest = defineCapability({
   input: z.object({
     organizationId,
     pullRequestId: id,
-    expectedHeadSha: z.string().trim().min(7).max(64),
-    method: z.enum(["merge", "squash", "rebase"]).optional(),
+    expectedHeadSha: z
+      .string()
+      .trim()
+      .min(7)
+      .max(64)
+      .describe(
+        "The head commit SHA the person reviewed; refused if new commits arrived.",
+      ),
+    method: z
+      .enum(["merge", "squash", "rebase"])
+      .optional()
+      .describe("merge (default), squash or rebase."),
     mutationId,
   }),
   async run(ctx, input) {
@@ -504,7 +585,9 @@ const setCodePullRequestState = defineCapability({
   input: z.object({
     organizationId,
     pullRequestId: id,
-    state: z.enum(["open", "closed"]),
+    state: z
+      .enum(["open", "closed"])
+      .describe("closed closes it without merging; open reopens it."),
     mutationId,
   }),
   run: (ctx, input) => service(ctx).setPullRequestState(actor(ctx), input),
@@ -520,9 +603,21 @@ const reviewCodePullRequest = defineCapability({
   input: z.object({
     organizationId,
     pullRequestId: id,
-    decision: z.enum(["approve", "request_changes"]),
-    body: z.string().max(20_000).optional(),
-    expectedHeadSha: z.string().trim().min(7).max(64).optional(),
+    decision: z
+      .enum(["approve", "request_changes"])
+      .describe("approve or request_changes, for the head commit."),
+    body: z
+      .string()
+      .max(20_000)
+      .optional()
+      .describe("What you checked and found, in Markdown."),
+    expectedHeadSha: z
+      .string()
+      .trim()
+      .min(7)
+      .max(64)
+      .optional()
+      .describe("The head commit SHA you read; refused if it moved."),
     mutationId,
   }),
   async run(ctx, input) {
@@ -596,7 +691,7 @@ const importCodeIssue = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    issueId: id,
+    issueId: id.describe("Mirrored issue id (from listCodeIssues)."),
     projectId: id,
     typeId: id.optional(),
     mutationId,
@@ -622,7 +717,12 @@ const setCodeHostLogin = defineCapability({
   input: z.object({
     organizationId,
     connectionId: id,
-    login: z.string().trim().max(100).nullable(),
+    login: z
+      .string()
+      .trim()
+      .max(100)
+      .nullable()
+      .describe("Your login on that code host; empty or null removes it."),
   }),
   run: (ctx, input) => service(ctx).setIdentity(actor(ctx), input),
 });

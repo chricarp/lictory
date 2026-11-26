@@ -17,6 +17,12 @@ Whether the organization is connected to a Slack workspace (`status`: none, pend
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="getSlackConnection arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `listSlackChannels`
 
 **List Slack channels.** Query (read tokens too) · talks to an outside system
@@ -27,18 +33,32 @@ Slack channels the Lictory app has been invited to, with whether each is already
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
 
+```json title="listSlackChannels arguments"
+{
+  "organizationId": "acme"
+}
+```
+
 ### `linkSlackChannel`
 
 **Link channel to Slack.** Command · safe to repeat · talks to an outside system · **a person's decision**: refused to agents (the person decides in The channel's header → Link to a Slack channel)
 
-Link a Lictory channel you manage (public or private, not direct) to a Slack channel the Lictory app is in (`slackChannelId` from listSlackChannels): from then on both sides see the same conversation. Public channels link to public Slack channels and private ones to private ones. `backfill` imports up to 200 of the Slack channel's latest messages once. Messages stay owned by the side they were written on. Linking shares the conversation with Slack: only call this when the person explicitly asked.
+Link a Lictory channel you manage (public or private, not direct) to a Slack channel the Lictory app is in (`slackChannelId` from [listSlackChannels](/reference/mcp/slack#listslackchannels)): from then on both sides see the same conversation. Public channels link to public Slack channels and private ones to private ones. `backfill` imports up to 200 of the Slack channel's latest messages once. Messages stay owned by the side they were written on. Linking shares the conversation with Slack: only call this when the person explicitly asked.
 
-| Field            | Type    | Required | Description                                           |
-| ---------------- | ------- | -------- | ----------------------------------------------------- |
-| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations. |
-| `channelId`      | string  | Yes      |                                                       |
-| `slackChannelId` | string  | Yes      |                                                       |
-| `backfill`       | integer |          |                                                       |
+| Field            | Type    | Required | Description                                                     |
+| ---------------- | ------- | -------- | --------------------------------------------------------------- |
+| `organizationId` | string  | Yes      | Exact organization id or slug from listOrganizations.           |
+| `channelId`      | string  | Yes      | Channel id (from listChannels).                                 |
+| `slackChannelId` | string  | Yes      | The Slack channel's id (listSlackChannels), such as C0123ABCD.  |
+| `backfill`       | integer |          | How many of the Slack channel's latest messages to import once. |
+
+```json title="linkSlackChannel arguments"
+{
+  "organizationId": "acme",
+  "channelId": "e6112029-cec1-4397-abe7-ccaae2ee924e",
+  "slackChannelId": "3bcbb262-7d98-46fb-ace7-ac35d90e9dab"
+}
+```
 
 ### `unlinkSlackChannel`
 
@@ -49,7 +69,14 @@ Stop syncing a Lictory channel with its Slack channel. Both keep their history; 
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `channelId`      | string | Yes      |                                                       |
+| `channelId`      | string | Yes      | Channel id (from listChannels).                       |
+
+```json title="unlinkSlackChannel arguments"
+{
+  "organizationId": "acme",
+  "channelId": "e6112029-cec1-4397-abe7-ccaae2ee924e"
+}
+```
 
 ### `retrySlackMessage`
 
@@ -60,5 +87,13 @@ Send again a message of a linked channel that could not reach Slack (your own, o
 | Field            | Type   | Required | Description                                           |
 | ---------------- | ------ | -------- | ----------------------------------------------------- |
 | `organizationId` | string | Yes      | Exact organization id or slug from listOrganizations. |
-| `channelId`      | string | Yes      |                                                       |
-| `messageId`      | string | Yes      |                                                       |
+| `channelId`      | string | Yes      | Channel id (from listChannels).                       |
+| `messageId`      | string | Yes      | Message id (from readChannel or readChannelThread).   |
+
+```json title="retrySlackMessage arguments"
+{
+  "organizationId": "acme",
+  "channelId": "e6112029-cec1-4397-abe7-ccaae2ee924e",
+  "messageId": "ae2bea39-b23d-4c35-a1aa-f3f821c61382"
+}
+```
