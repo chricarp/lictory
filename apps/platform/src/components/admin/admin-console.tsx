@@ -731,7 +731,12 @@ function PersonRow({
   return (
     <Collapsible data-testid="admin-person" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-        <Avatar name={user.name || user.email} image={user.image} size="sm" />
+        <Avatar
+          userId={user.id}
+          name={user.name || user.email}
+          image={user.image}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-1.5 font-medium">
             <span className="truncate">{user.name || user.email}</span>

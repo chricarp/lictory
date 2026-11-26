@@ -99,7 +99,7 @@ function Cue({
       {/* Softens the cut between the arrow and the tab beneath it. */}
       <span
         className={cn(
-          "h-full w-4",
+          "h-full w-8",
           surface,
           side === "start"
             ? "[mask-image:linear-gradient(to_right,#000,transparent)]"

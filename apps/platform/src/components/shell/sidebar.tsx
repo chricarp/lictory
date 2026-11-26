@@ -142,7 +142,11 @@ export function Sidebar({
           {!compact && (
             <>
               <span className="min-w-0 flex-1 truncate text-left">Search…</span>
-              <span aria-hidden className="flex items-center gap-0.5">
+              {/* No keyboard hint where the screen is the pointer. */}
+              <span
+                aria-hidden
+                className="flex items-center gap-0.5 max-sm:hidden [@media(pointer:coarse)]:hidden"
+              >
                 <Kbd>{shortcut}</Kbd>
               </span>
             </>

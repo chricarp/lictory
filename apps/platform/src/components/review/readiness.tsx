@@ -69,13 +69,13 @@ export function Readiness() {
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         {item.refinementState === "ready"
           ? "All checks pass for this revision."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
       {readiness?.pinned && latest && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           Kept on Definition of Ready{" "}
           {readiness.policyRevisionNumber
             ? `version ${readiness.policyRevisionNumber}`

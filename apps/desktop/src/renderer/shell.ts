@@ -137,9 +137,12 @@ function topBar(current: ShellState) {
   return h(
     "header",
     { class: `topbar platform-${current.platform}` },
+    // Back and forward belong to a server's pages; elsewhere (first
+    // launch, settings, adding a server) they would be dead arrows, so
+    // they keep their place but are not shown.
     h(
       "div",
-      { class: "topbar-nav" },
+      { class: onServer ? "topbar-nav" : "topbar-nav idle" },
       h(
         "button",
         {

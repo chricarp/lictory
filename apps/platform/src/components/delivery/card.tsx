@@ -153,14 +153,6 @@ export const ItemCard = memo(function ItemCard({
             <PersonAvatarById userId={item.assigneeId} />
           </span>
         )}
-        {claim && (
-          <ClaimBadge
-            claim={claim}
-            assigneeId={item.assigneeId}
-            withAgent={false}
-            className="ml-auto"
-          />
-        )}
       </div>
       {project && (
         <Link
@@ -174,12 +166,19 @@ export const ItemCard = memo(function ItemCard({
         </Link>
       )}
       {claim && (
-        <div className="mt-1.5 flex min-w-0">
+        // Who holds it and its state on one line that wraps, so the state
+        // ("Waiting on Amara") is never cut beside a long key.
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <ClaimOwner
             claim={claim}
             agent={claimAgent}
             assigneeId={item.assigneeId}
             className="max-w-full"
+          />
+          <ClaimBadge
+            claim={claim}
+            assigneeId={item.assigneeId}
+            withAgent={false}
           />
         </div>
       )}

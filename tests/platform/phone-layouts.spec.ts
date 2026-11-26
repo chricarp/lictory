@@ -133,3 +133,87 @@ test("at 320px the item page fits the screen with its header actions", async ({
   await expectWhole(page.locator("header[data-page-header]").first());
   await fits(page, 320);
 });
+
+test("on a phone a row's key and title wrap as one line, the Inbox filters fold into one button and an agent's owner is never cut", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const seeded = await seedWorkspace({
+    name: "Phone rows",
+    key: "PHK",
+    users: ["Annemarie Oyelaran-Castellanos"],
+    settings: { iterationMode: "off" },
+  });
+  const started = await seedItem(seeded, {
+    type: "Task",
+    title: "Run the database migration on staging before the refund backfill",
+  });
+  await seeded.command({
+    type: "updateWorkItem",
+    workItemId: started,
+    assigneeId: seeded.owner.id,
+    statusId: seeded.roster.statuses.find(
+      (status) =>
+        status.projectId === seeded.projectId && status.category === "started",
+    )!.id,
+  });
+  const agentId = crypto.randomUUID();
+  await withDb((db) =>
+    createAgent(
+      db,
+      seeded.owner.id,
+      seeded.organizationId,
+      {
+        name: "Forge",
+        handle: `forge${crypto.randomUUID().slice(0, 6)}`,
+        kind: "runner",
+        harness: "claude-code",
+        access: "write",
+      },
+      agentId,
+    ),
+  );
+  await signIn(page, seeded.owner.email);
+
+  // Home: a wrapped title continues under its key, not in a column beside
+  // it.
+  await page.goto(paths.org(seeded.slug));
+  const row = page
+    .getByRole("region", { name: "In flight" })
+    .locator("[data-list-row]")
+    .filter({ hasText: "Run the database migration" });
+  const key = row.getByText("PHK-1", { exact: true });
+  await expect(key).toBeVisible();
+  const keyLeft = await key.evaluate((e) => e.getBoundingClientRect().left);
+  const lines = await row
+    .getByRole("link", { name: /Run the database migration/ })
+    .evaluate((link) => [...link.getClientRects()].map((r) => r.left));
+  expect(lines.length).toBeGreaterThan(1);
+  expect(lines.at(-1)!).toBeLessThanOrEqual(keyLeft + 1);
+  await fits(page, 390);
+
+  // Inbox: one Filters button on the first row; the filters open under it.
+  await page.goto(paths.inbox(seeded.slug, "updates"));
+  const filters = page.getByRole("button", { name: "Filters" });
+  await expect(filters).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: /^Type: / })).toBeHidden();
+  await filters.click();
+  await expect(page.getByRole("button", { name: /^Type: / })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Mark all read" }),
+  ).toBeVisible();
+  await fits(page, 390);
+
+  // The agent page: the accountable person's name is whole; the
+  // explanation beside it wraps instead.
+  await page.goto(`${paths.factory(seeded.slug)}/agents/${agentId}`);
+  const owner = page
+    .getByRole("main")
+    .getByText("Annemarie Oyelaran-Castellanos", { exact: true })
+    .first();
+  await expect(owner).toBeVisible();
+  expect(await owner.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(
+    true,
+  );
+  await fits(page, 390);
+});

@@ -27,3 +27,13 @@ function hash(key: string) {
 export function identityColor(key: string): string {
   return identityPalette[hash(key) % identityPalette.length]!;
 }
+
+// An agent's color: the palette without its slate. A tile tinted with slate
+// reads as the neutral tile of an automated act (a policy) or of the
+// interface itself, so an agent drawn in it looked like "the system" rather
+// than a member of the room.
+const agentPalette = identityPalette.filter((color) => color !== "#5f6b7a");
+
+export function agentColor(agentId: string): string {
+  return agentPalette[hash(`agent:${agentId}`) % agentPalette.length]!;
+}

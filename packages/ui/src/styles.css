@@ -51,6 +51,10 @@
   --muted-foreground: #63666e;
   --accent: #f1f2f4;
   --accent-foreground: #111214;
+  /* The prompt inside an empty field. Often the only thing that says what a
+     field is for, so it keeps 4.5:1 like any text (WCAG 1.4.3); in dark the
+     muted text has room to step back and still hold it. */
+  --placeholder: var(--muted-foreground);
   --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
   /* Hairlines between regions: decoration, not a boundary anyone needs to
@@ -150,6 +154,7 @@
   /* Helper and evidence text is read, not skimmed: 7.5:1 or more on every
      dark surface, popovers included. */
   --muted-foreground: #b1b4bb;
+  --placeholder: color-mix(in srgb, var(--muted-foreground) 74%, transparent);
   --accent: #222327;
   --accent-foreground: #eceef1;
   --destructive: #f87171;
@@ -558,6 +563,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder: var(--placeholder);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);

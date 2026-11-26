@@ -800,64 +800,36 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
         void send();
       }}
     >
-      {/* The shared composer's frame: the rich editor with its toolbar,
-          the action at its end (as in channels and sessions). */}
-      <div className="flex items-end gap-1 rounded-xl border border-input bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
-        <div className="min-w-0 flex-1">
-          <MarkdownEditor
-            ref={editor}
-            value={comment}
-            onValueChange={setComment}
-            onSubmit={() => void send()}
-            references={false}
-            compact
-            minHeight="3rem"
-            maxHeight="20rem"
-            placeholder={
-              canReview
-                ? `Comment on ${host}, or say what you checked`
-                : `Comment on ${host}`
-            }
-            aria-label="Comment"
-            aria-describedby="code-comment-hint"
-            containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
-          />
-        </div>
-        <Button type="submit" size="sm" disabled={!comment.trim()}>
-          Comment
-        </Button>
+      {/* The shared composer's frame: the rich editor with its toolbar. */}
+      <div className="rounded-xl border border-input bg-card shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
+        <MarkdownEditor
+          ref={editor}
+          value={comment}
+          onValueChange={setComment}
+          onSubmit={() => void send()}
+          references={false}
+          compact
+          minHeight="3rem"
+          maxHeight="20rem"
+          // One short line: a longer prompt wrapped under the toolbar on
+          // phones.
+          placeholder={`Comment on ${host}`}
+          aria-label="Comment"
+          aria-describedby="code-comment-hint"
+          containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
+        />
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* One decision row under the box, like a review: a line on where
+          it goes, then the decisions, the review's own first. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
         <p
           id="code-comment-hint"
-          className="mr-auto min-w-0 basis-64 px-1 text-xs text-muted-foreground"
+          className="mr-auto min-w-0 basis-56 px-1 text-xs text-muted-foreground"
         >
           {canReview
-            ? `Comments post on ${host}, signed with your name. Approving or requesting changes (say what must change) records your review of ${shortSha(pr.headSha)} in Lictory and posts it on ${host}.`
-            : `Posted on ${host}, signed with your name.`}
+            ? `Posted on ${host} as you. A review covers ${shortSha(pr.headSha)}; say what must change to request changes.`
+            : `Posted on ${host} as you.`}
         </p>
-        {canReview && (
-          <>
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => void review("approve")}
-            >
-              <CircleCheck aria-hidden className="size-3.5" />
-              Approve
-            </Button>
-            <Button
-              variant="secondary"
-              type="button"
-              // Changes are requested with what must change.
-              disabled={!comment.trim()}
-              onClick={() => void review("request_changes")}
-            >
-              <CircleX aria-hidden className="size-3.5" />
-              Request changes
-            </Button>
-          </>
-        )}
         {codePullRequest.allows(pr.state, "close") && (
           <Button
             variant="ghost"
@@ -877,6 +849,31 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
               Reopen
             </Button>
           )}
+        {canReview && (
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              // Changes are requested with what must change.
+              disabled={!comment.trim()}
+              onClick={() => void review("request_changes")}
+            >
+              <CircleX aria-hidden className="size-3.5" />
+              Request changes
+            </Button>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => void review("approve")}
+            >
+              <CircleCheck aria-hidden className="size-3.5" />
+              Approve
+            </Button>
+          </>
+        )}
+        <Button type="submit" disabled={!comment.trim()}>
+          Comment
+        </Button>
       </div>
       {error && (
         <p role="alert" className="text-xs text-destructive">

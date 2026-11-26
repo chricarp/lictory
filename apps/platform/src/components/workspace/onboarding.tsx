@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Textarea } from "@ui-sdk/react/textarea";
 import { useRouter } from "@lictory/platform/lib/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
   OnboardingFrame,
   OnboardingHeading,
@@ -104,7 +104,15 @@ export function ProjectFields({
   );
 }
 
-export function CreateOrganization({ userId }: { userId?: string }) {
+export function CreateOrganization({
+  userId,
+  onBack,
+}: {
+  userId?: string;
+  // Back to the choice before this step, on the same row as Continue (as
+  // in every later step), so the buttons never move between steps.
+  onBack?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [handle, setHandle] = useState<string | null>(null);
@@ -190,11 +198,24 @@ export function CreateOrganization({ userId }: { userId?: string }) {
           {error}
         </p>
       )}
-      {/* Where every later setup step keeps its Continue. */}
-      <div className="flex justify-end pt-4">
+      {/* Where every later setup step keeps its Back and Continue. */}
+      <div className="flex items-center justify-between gap-3 pt-4">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="-ml-3"
+            onClick={onBack}
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
+        )}
         <Button
           type="submit"
           size="lg"
+          className="ml-auto"
           disabled={
             pending ||
             handleStatus.blocked ||
@@ -279,7 +300,7 @@ export function CreateProject({
           <span className="font-normal text-muted-foreground">(optional)</span>
           <Textarea
             name="description"
-            className="mt-2 block min-h-20 w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-[15px] shadow-[0_1px_2px_oklch(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
+            className="mt-2 block min-h-20 w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-[15px] shadow-[0_1px_2px_oklch(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-placeholder focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}

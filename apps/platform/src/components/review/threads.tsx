@@ -855,7 +855,7 @@ function ReplyField({
         </p>
       )}
       <div className="flex items-center gap-1.5">
-        <span className="min-w-0 text-[11px] leading-4 text-muted-foreground touch:hidden">
+        <span className="min-w-0 text-xs leading-4 text-muted-foreground touch:hidden">
           {sendKeys} to send · Close keeps a draft
         </span>
         {/* Closing keeps what was written (a draft); discarding is

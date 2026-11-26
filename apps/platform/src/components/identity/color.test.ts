@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  agentColor,
   identityColor,
   identityPalette,
-} from "@lictory/platform/components/identity/color";
+} from "@lictory/ui/identity-color";
 
 void test("a person's color is the same every time it is asked for", () => {
   const id = "7a0e3c1d-5b2f-4e8a-9c6d-1f2e3a4b5c6d";
@@ -24,6 +25,14 @@ void test("colors come from the palette and spread over it", () => {
     seen.add(color);
   }
   assert.equal(seen.size, identityPalette.length);
+});
+
+void test("agents are never drawn in the neutral slate", () => {
+  const seen = new Set<string>();
+  for (let i = 0; i < 200; i++) seen.add(agentColor(`agent-${i}`));
+  assert.ok(!seen.has("#5f6b7a"));
+  assert.equal(seen.size, identityPalette.length - 1);
+  assert.equal(agentColor("forge"), agentColor("forge"));
 });
 
 void test("every palette color keeps white initials at 4.5:1", () => {
@@ -73,6 +82,55 @@ void test("an agent tile's glyph keeps 4.5:1 on its tile in light and dark", () 
       const glyph = mix(hex(color), ink, foreground);
       const ratio = contrast(background, glyph);
       assert.ok(ratio >= 4.5, `${mode} ${color}: ${ratio.toFixed(2)}:1`);
+    }
+  }
+});
+
+// A placeholder is often the only thing saying what a field is for, so it
+// holds 4.5:1 like any text on every surface a field sits on. Dark mode
+// draws it as muted text at partial opacity, blended over the surface.
+void test("placeholders keep 4.5:1 on every field surface in light and dark", () => {
+  const css = readFileSync(
+    fileURLToPath(
+      new URL("../../../../../packages/ui/src/styles.css", import.meta.url),
+    ),
+    "utf8",
+  );
+  const block = (selector: string) => {
+    const start = css.indexOf(`\n${selector} {`);
+    assert.ok(start >= 0, selector);
+    return css.slice(start, css.indexOf("\n}", start));
+  };
+  const token = (text: string, name: string) => {
+    const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(text);
+    assert.ok(match, name);
+    return match[1]!.trim();
+  };
+  const light = block(":root,\n[data-theme]");
+  const dark = block(".dark");
+  for (const [mode, tokens] of [
+    ["light", light],
+    ["dark", dark],
+  ] as const) {
+    const muted = hex(token(tokens, "muted-foreground"));
+    const value = token(tokens, "placeholder");
+    const opacity =
+      value === "var(--muted-foreground)"
+        ? 1
+        : parseFloat(
+            /var\(--muted-foreground\)\s+(\d+)%,\s*transparent/.exec(
+              value,
+            )?.[1] ?? "NaN",
+          ) / 100;
+    assert.ok(opacity > 0 && opacity <= 1, `${mode} placeholder: ${value}`);
+    for (const surface of ["background", "card", "popover", "muted"]) {
+      const under = hex(token(tokens, surface));
+      // Alpha blends in sRGB, as browsers composite.
+      const shown = muted.map(
+        (c, i) => c * opacity + under[i]! * (1 - opacity),
+      ) as Rgb;
+      const ratio = contrast(shown, under);
+      assert.ok(ratio >= 4.5, `${mode} on ${surface}: ${ratio.toFixed(2)}:1`);
     }
   }
 });

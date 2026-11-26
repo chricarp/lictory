@@ -181,7 +181,7 @@ export function CreateSpaceDialog({
                   spellCheck={false}
                   aria-invalid={handle !== "" && !handleValid}
                   aria-describedby={`${ids.slug}-hint`}
-                  className="h-full min-w-0 flex-1 bg-transparent pr-3.5 outline-none placeholder:text-muted-foreground/70"
+                  className="h-full min-w-0 flex-1 bg-transparent pr-3.5 outline-none placeholder:text-placeholder"
                 />
               </div>
               <p

@@ -212,7 +212,7 @@ const PlainMarkdownField = forwardRef<
           maxHeight,
         }}
         className={cn(
-          "block w-full resize-none bg-transparent outline-none placeholder:text-muted-foreground/70 touch:text-base",
+          "block w-full resize-none bg-transparent outline-none placeholder:text-placeholder touch:text-base",
           compact
             ? "px-3 pt-2.5 pb-2 text-[13px] leading-6"
             : "px-4 py-3 text-[15px] leading-7",

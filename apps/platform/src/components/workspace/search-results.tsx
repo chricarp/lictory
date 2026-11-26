@@ -378,7 +378,7 @@ export function SearchResults() {
               onChange={(e) => setDraft(e.target.value)}
               aria-label="Search pages, specifications and decisions"
               placeholder="Search pages, specifications and decisions"
-              className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
             />
           </form>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

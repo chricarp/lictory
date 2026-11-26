@@ -14,7 +14,12 @@ import {
   CommandItem,
   CommandList,
 } from "@ui-sdk/react/command";
-import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+} from "@ui-sdk/react/dialog";
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
@@ -38,6 +43,7 @@ import {
   Settings2,
   Sun,
   UserRound,
+  X,
 } from "lucide-react";
 import type { Appearance } from "@lictory/core/lib/appearance";
 import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
@@ -894,7 +900,7 @@ export function CommandPalette({
               ref={inputRef}
               placeholder="Search items, pages or commands…"
               aria-label="Search"
-              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
               onKeyDown={(event) => {
                 // Escape closes the palette at once; left to the list, the
                 // first press would only clear what was typed.
@@ -904,7 +910,17 @@ export function CommandPalette({
                 onClose();
               }}
             />
-            <Kbd>esc</Kbd>
+            {/* A keyboard names its way out; a touch screen has no
+                Escape key, so it gets a Close button instead. */}
+            <span className="max-sm:hidden [@media(pointer:coarse)]:hidden">
+              <Kbd>esc</Kbd>
+            </span>
+            <DialogClose
+              aria-label="Close"
+              className="hidden shrink-0 place-items-center rounded-md p-1 text-muted-foreground focus-ring outline-none hover:bg-muted max-sm:grid [@media(pointer:coarse)]:grid"
+            >
+              <X className="size-4" aria-hidden />
+            </DialogClose>
           </div>
           {results.length === 0 && content.status !== "loading" && (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -951,7 +967,9 @@ export function CommandPalette({
                         </span>
                       ) : (
                         <>
-                          <span className="min-w-0 flex-1 truncate">
+                          {/* Phones give a title two lines, so results that
+                              start alike stay tell-apart-able. */}
+                          <span className="min-w-0 flex-1 max-sm:line-clamp-2 max-sm:break-words sm:truncate">
                             {r.title ?? r.label}
                           </span>
                           <Detail item={r} />
@@ -1024,6 +1042,9 @@ function Detail({ item, excerpt = false }: { item: Item; excerpt?: boolean }) {
         excerpt && "max-w-[45%]",
       )}
     >
+      {/* The option's name is its text: without a pause the title and the
+          key are read as one word ("Refund reasonsPAY-11"). */}
+      <span className="sr-only">, </span>
       {item.identifier && (
         <span className="shrink-0 font-mono text-[11px]">
           {item.identifier}

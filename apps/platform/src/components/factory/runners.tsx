@@ -8,6 +8,7 @@ import {
 import {
   Box,
   ChevronRight,
+  CircleDashed,
   CircleOff,
   Laptop,
   Plus,
@@ -295,9 +296,20 @@ function RunnerRow({
               </StatusChip>
             )}
             <span className="flex sm:w-24">
+              {/* Three situations, three looks: connected, lost (its
+                  sessions wait, someone should check the machine) and
+                  never connected yet. */}
               <StatusChip
-                tone={online ? "success" : "neutral"}
-                icon={online ? <StatusDot /> : <CircleOff />}
+                tone={online ? "success" : started ? "attention" : "neutral"}
+                icon={
+                  online ? (
+                    <StatusDot />
+                  ) : started ? (
+                    <CircleOff />
+                  ) : (
+                    <CircleDashed />
+                  )
+                }
                 title={
                   !started
                     ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."

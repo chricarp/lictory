@@ -37,9 +37,9 @@ export function ProjectGate({ children }: { children: ReactNode }) {
         action={
           <Button
             variant="secondary"
-            render={<Link href={paths.inbox(organization.slug)} />}
+            render={<Link href={paths.org(organization.slug)} />}
           >
-            Go to Inbox
+            Go to Home
           </Button>
         }
       >

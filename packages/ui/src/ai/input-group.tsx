@@ -55,7 +55,7 @@ export function InputGroupTextarea({
     <Textarea
       autoResize
       className={cn(
-        "block max-h-60 min-h-11 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed sm:min-h-[52px] touch:text-base",
+        "block max-h-60 min-h-11 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-placeholder disabled:cursor-not-allowed sm:min-h-[52px] touch:text-base",
         className,
       )}
       {...props}

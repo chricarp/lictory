@@ -73,7 +73,7 @@ function StatusesSection({
       id="workflow"
       icon={<Workflow />}
       title="Workflow"
-      description="Every item in this project moves through these statuses, whichever team works on it. Statuses belong to fixed categories so boards, reports and readiness mean the same thing everywhere. Any transition is allowed."
+      description="Statuses every item moves through, in any order. Fixed categories keep boards and reports consistent."
     >
       <div className="divide-y">
         {categoryOrder.map((category) => {

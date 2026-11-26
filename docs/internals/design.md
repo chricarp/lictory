@@ -45,15 +45,21 @@ panel for agreeing on what to build.
   vocabulary (`sessionState`), so no two panels name the same state
   differently.
 - **Identity.** A person is a circle in a color derived from their id (the
-  same on every page and device), with their photo when they have one;
-  below 20px the initials give way to a dot named by a tooltip. An agent is
-  a rounded square with its emoji (and a small robot badge from 24px), and always reads
+  same on every page and device, whichever component draws it: settings,
+  pickers and discussions included, never a grey disc), with their photo
+  when they have one; at 16px one initial, with the name on hover. An agent
+  is a rounded square tinted with its own color (never the neutral slate a
+  policy's tile uses) with its emoji (and a small robot badge from 24px), and always reads
   "Forge via Ada": an agent acts for its owner. What a policy did by itself
   reads "Build policy (set by Ada)". People seen through Slack carry the
   Slack mark.
 - **Structure.** The specification is the primary surface. Workflow state is
   one statement, its evidence as pills, and one next action. Lists name
-  their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
+  their columns and keep them aligned. Every row of a list has one 20px
+  leading slot (a 16px icon or a 20px avatar), so titles share one edge; on
+  phones a row's key and title read as one wrapped line rather than a key
+  beside a hanging column. Placeholders keep 4.5:1 like any text
+  (`text-placeholder`). A faint diagonal hatch (`--hatch`) only
   fills the trays that frame website illustrations and the sign-in backdrop.
 
 - **Layout.** On desktop the navigation sits on the gray shell and the work

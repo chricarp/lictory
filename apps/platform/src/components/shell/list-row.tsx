@@ -45,9 +45,12 @@ export function ListRow({
   current?: boolean;
   className?: string;
 }) {
-  // Phones give a title two lines before it is cut, so rows that start
-  // alike ("Run the database migration on…") stay tell-apart-able.
-  const clamp = "min-w-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate";
+  // On phones the key and the title read as one sentence of up to two lines
+  // (the line, not the title, is clamped), so a wrapped title starts its
+  // second line under the key instead of hanging in a narrow column beside
+  // it, and rows that start alike ("Run the database migration on…") stay
+  // tell-apart-able.
+  const clamp = "min-w-0 sm:truncate";
   const target =
     "text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-ring";
   const titleNode = href ? (
@@ -87,14 +90,16 @@ export function ListRow({
       )}
     >
       {leading && (
-        <span className="grid min-w-4 shrink-0 place-items-center [&>svg]:size-4">
+        // One leading slot for every row: a 16px icon and a 20px avatar take
+        // the same width, so titles share one edge down the list.
+        <span className="grid w-5 shrink-0 place-items-center [&>svg]:size-4">
           {leading}
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
+        <span className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5 max-sm:line-clamp-2 max-sm:break-words">
           {identifier && (
-            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            <span className="shrink-0 font-mono text-xs text-muted-foreground max-sm:mr-1.5">
               {identifier}
             </span>
           )}

@@ -103,28 +103,30 @@ export function PriorityIcon({
   );
 }
 
+// Each glyph keeps 3:1 on light and dark cards (WCAG 1.4.11): a shade
+// darker on light surfaces, lighter on dark ones.
 const priorityGlyphs: Record<WorkItemPriority, ReactNode> = {
   urgent: (
-    <g className="fill-red-500">
+    <g className="fill-red-600 dark:fill-red-400">
       <path d="M8 1 15 8l-1.5 1.5L8 4 2.5 9.5 1 8z" />
       <path d="M8 5.6 15 12.6l-1.5 1.5L8 8.6 2.5 14.1 1 12.6z" />
     </g>
   ),
   high: (
     <path
-      className="fill-orange-500"
+      className="fill-orange-600 dark:fill-orange-400"
       d="M8 3.2 14.4 9.6 12.6 9.6 8 5 3.4 9.6 1.6 9.6z"
     />
   ),
   medium: (
-    <g className="fill-amber-400">
+    <g className="fill-amber-600 dark:fill-amber-400">
       <rect x="2.5" y="5.1" width="11" height="1.9" rx="0.35" />
       <rect x="2.5" y="9" width="11" height="1.9" rx="0.35" />
     </g>
   ),
   low: (
     <path
-      className="fill-blue-500"
+      className="fill-blue-600 dark:fill-blue-400"
       d="M8 12.8 1.6 6.4 3.4 6.4 8 11 12.6 6.4 14.4 6.4z"
     />
   ),
