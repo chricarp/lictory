@@ -13,6 +13,7 @@ import {
   FolderOpen,
   History,
   KanbanSquare,
+  Layers,
   Lightbulb,
   ListOrdered,
   MessageSquareMore,
@@ -39,7 +40,6 @@ import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { itemOrigin } from "@lictory/platform/components/items/queues";
-import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import {
   SidebarGroup,
@@ -230,7 +230,9 @@ function ProjectNav({ project }: { project: Project }) {
           active={active(paths.reviews(org, key)) || origin === "reviews"}
           icon={<BookOpenCheck />}
         >
-          Reviews
+          {/* Reviews asked of you, not every review in the project (those
+              are under Refinement → In review). */}
+          My reviews
         </SidebarLink>
       </SidebarGroup>
       <SidebarGroup label="Deliver" className="pt-2">
@@ -289,7 +291,7 @@ function ProjectNav({ project }: { project: Project }) {
       <SidebarLink
         href={catalog}
         active={active(catalog) && !origin}
-        icon={<TypeIcon type={storyGlyph} />}
+        icon={<Layers />}
       >
         All items
       </SidebarLink>

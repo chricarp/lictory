@@ -224,7 +224,7 @@ test("work item panels collapse independently and persist across routes and relo
     "Inbox",
     "All items",
     "Refinement",
-    "Reviews",
+    "My reviews",
     "Board",
     "Backlog",
     "Needs review",
