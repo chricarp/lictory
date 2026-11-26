@@ -132,7 +132,9 @@ export const runnerInstallCommands = [
     id: "unix",
     label: "macOS and Linux",
     shell: "Terminal",
-    command: `curl -fsSL ${installScript} | sh`,
+    // Downloaded, then run, so a failed download is an error instead of an
+    // empty script that sh runs successfully.
+    command: `curl -fsSLO ${installScript} && sh lictory-runner-install.sh`,
   },
   {
     id: "windows",

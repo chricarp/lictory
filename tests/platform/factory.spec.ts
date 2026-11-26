@@ -185,5 +185,10 @@ test("a person runs an agent on their own runner, steers it and approves what it
   // The overview shows it among recent sessions.
   await page.getByRole("link", { name: "Back to the Factory" }).click();
   await expect(page.getByText("Add a changelog for refunds.")).toBeVisible();
-  expect(output).toContain("Session ");
+  // The runner's log says how the session ended, not only that it did.
+  await expect
+    .poll(() => output)
+    .toMatch(
+      /Session \S+ completed after .+ \(no repository linked: nothing pushed\)\./,
+    );
 });

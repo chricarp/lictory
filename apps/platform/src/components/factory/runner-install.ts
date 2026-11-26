@@ -29,8 +29,10 @@ export function runnerInstallCommand(
       `& ([scriptblock]::Create((irm ${RUNNER_RELEASES}/lictory-runner-install.ps1))) \``,
       `  ${pinned ? `-Version ${pinned} ` : ""}-Url ${server} -Token ${token} -Service`,
     ].join("\n");
+  // Downloaded, then run: `curl … | sh` reports success when the download
+  // fails, because sh runs the empty script it receives.
   return [
-    `curl -fsSL ${RUNNER_RELEASES}/lictory-runner-install.sh | sh -s -- \\`,
-    `  ${pinned ? `--version ${pinned} ` : ""}--url ${server} --token ${token} --service`,
+    `curl -fsSLO ${RUNNER_RELEASES}/lictory-runner-install.sh &&`,
+    `  sh lictory-runner-install.sh ${pinned ? `--version ${pinned} ` : ""}--url ${server} --token ${token} --service`,
   ].join("\n");
 }

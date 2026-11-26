@@ -16,8 +16,8 @@ void test("the install command pins the server's release and registers the runne
   assert.equal(
     unix,
     [
-      "curl -fsSL https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.sh | sh -s -- \\",
-      "  --version 0.27.0-nightly.20261124.150 --url https://lictory.example.com --token lrt_abc --service",
+      "curl -fsSLO https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.sh &&",
+      "  sh lictory-runner-install.sh --version 0.27.0-nightly.20261124.150 --url https://lictory.example.com --token lrt_abc --service",
     ].join("\n"),
   );
   assert.equal(
@@ -38,7 +38,7 @@ void test("the install command pins the server's release and registers the runne
 });
 
 void test("a build without a release version installs the latest stable runner", () => {
-  for (const version of [undefined, "", "dev", "1.2"]) {
+  for (const version of [undefined, "", "dev", "1.2", "0.0.0-dev"]) {
     const command = runnerInstallCommand(
       "linux",
       "https://l",

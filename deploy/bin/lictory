@@ -421,6 +421,15 @@ Usage: lictory database check [--json] [--env <name>]
 Guide: docs/operations/external-database.md
 USAGE
       ;;
+    version)
+      cat <<'USAGE'
+Usage: lictory version [--json]
+
+The release of the lictory tools on this server and the active release and
+channel of each environment, read from disk (no container or network needed).
+--json prints {tools, environments: [{name, version, channel}]}.
+USAGE
+      ;;
     config) config_usage ;;
     admin) admin_usage ;;
     ai) ai_usage ;;

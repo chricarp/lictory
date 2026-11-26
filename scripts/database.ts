@@ -23,10 +23,34 @@ import { applyGrants, setupDatabase } from "@lictory/core/db/database-roles";
 import { env } from "@lictory/core/lib/env";
 
 const [command = "check", ...args] = process.argv.slice(2);
+// database.mjs in the migrate image; a checkout runs this file.
+const program = import.meta.url.endsWith(".ts")
+  ? "bun scripts/database.ts"
+  : "database.mjs";
+const usage = `Usage: ${program} <command>
+
+  check [--json]                   every requirement, the exact gap and its fix
+  setup                            roles and databases (DATABASE_ADMIN_URL, once)
+  grants                           object privileges, as their owners
+  lsn                              the server's current WAL position
+  wait-replicated <lsn> [seconds]  until zero-cache confirmed it
+
+Connections: DATABASE_MIGRATION_URL (required), ZERO_UPSTREAM_DB, ZERO_CVR_DB,
+DATABASE_URL and DATABASE_MONITORING_URL. From a checkout, bun run
+db:compatibility runs check. See docs/operations/external-database.md.`;
+
+if (
+  [command, ...args].some((a) => a === "--help" || a === "-h" || a === "help")
+) {
+  console.log(usage);
+  process.exit(0);
+}
 
 function required(name: string, value: string | undefined) {
   if (!value) {
-    console.error(`${name} is required for database.mjs ${command}.`);
+    console.error(
+      `${name} is required for ${program} ${command}: the connection URL of the database to check (see --help).`,
+    );
     process.exit(64);
   }
   return value;
@@ -110,7 +134,7 @@ async function main() {
         }
         const lsn = args[0] ?? "";
         if (!/^[0-9A-F]{1,8}\/[0-9A-F]{1,8}$/i.test(lsn)) {
-          console.error("Usage: database.mjs wait-replicated <lsn> [seconds]");
+          console.error(`Usage: ${program} wait-replicated <lsn> [seconds]`);
           process.exitCode = 64;
           return;
         }
@@ -136,9 +160,7 @@ async function main() {
       }
     }
     default:
-      console.error(
-        "Usage: database.mjs check [--json] | setup | grants | lsn | wait-replicated <lsn> [seconds]",
-      );
+      console.error(`Unknown command ${command}.\n\n${usage}`);
       process.exitCode = 64;
   }
 }
@@ -171,7 +193,7 @@ try {
   await main();
 } catch (error) {
   console.error(
-    `database.mjs ${command} failed: ${redact(error instanceof Error ? error.message : String(error))}`,
+    `${program} ${command} failed: ${redact(error instanceof Error ? error.message : String(error))}`,
   );
   process.exitCode = 1;
 }

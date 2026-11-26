@@ -38,7 +38,7 @@ async function expectEveryDownload(page: Page) {
   );
   const main = page.getByRole("main");
   await expect(main).toContainText(
-    `curl -fsSL ${latest}lictory-runner-install.sh | sh`,
+    `curl -fsSLO ${latest}lictory-runner-install.sh && sh lictory-runner-install.sh`,
   );
   await expect(main).toContainText(
     `irm ${latest}lictory-runner-install.ps1 | iex`,

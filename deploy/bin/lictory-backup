@@ -2,6 +2,12 @@
 # Nightly encrypted backup (systemd: lictory-backup@<env>.timer). backup.sh
 # reports its own failures; this only covers a container that cannot start.
 set -uo pipefail
+case "${1:-}" in
+  -h | --help)
+    printf '%b\n' 'Usage: lictory-backup <environment> [scheduled|manual]\n\nTakes an encrypted backup of the environment (run by lictory-backup@<env>.timer).\nOperators use: lictory backup'
+    exit 0
+    ;;
+esac
 
 # env_value <file> <key>: the last assignment of <key>, decoded as Docker
 # Compose reads .env files: an optional "export ", spaces around "=", a

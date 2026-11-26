@@ -180,6 +180,13 @@ Production images and the single-server stack are described in
 | `bun run db:check`              | Fail when the schema has no matching migration                                  |
 | `bun run admin <cmd>`           | Instance administration against `.env`'s database                               |
 
+`bun run admin`, `db:migrate`, `db:compatibility`, `release`,
+`licenses:report` and `verify` answer `--help` without a database or
+credentials. `bun run admin` takes the same commands
+and option names as the server's `lictory admin` (`list`, `grant`, `revoke`,
+`setup --admin-name … --admin-email …`), plus the older spellings
+(`list-admins`, `grant-admin`, `--name`, `--email`).
+
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and
 [capabilities](../internals/capabilities.md).

@@ -4,6 +4,12 @@
 # monitor.sh in the ops container, which alerts and pings. If the container
 # cannot run at all (Docker or PostgreSQL down), alerts directly from here.
 set -uo pipefail
+case "${1:-}" in
+  -h | --help)
+    printf '%b\n' 'Usage: lictory-monitor <environment>\n\nThe five-minute health check (run by lictory-monitor@<env>.timer): alerts and\npings as configured. Operators use: lictory status, lictory doctor'
+    exit 0
+    ;;
+esac
 
 environment="${1:?Usage: lictory-monitor <environment>}"
 root="${LICTORY_ROOT:-/srv/lictory}"

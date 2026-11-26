@@ -31,6 +31,21 @@ import {
 export type StopReason = "canceled" | "lost" | "shutdown";
 export type SessionState = "preparing" | "running" | "waiting" | "finishing";
 
+// How a session ended on this runner, for its log line.
+export type SessionEnd =
+  | {
+      outcome: "completed";
+      // Pushed to; absent when there was nothing to push or no repository.
+      branch?: string;
+      repository: boolean;
+      summary?: string;
+    }
+  | { outcome: "failed"; error: string; reported: boolean }
+  | { outcome: "canceled" }
+  // The server took the lease away (expired, reassigned or ended there).
+  | { outcome: "lost" }
+  // The runner stopped; the session went back to the queue.
+  | { outcome: "returned" };
 class MessageQueue {
   private items: string[] = [];
   private waiters: ((text: string) => void)[] = [];
@@ -79,6 +94,9 @@ export class SessionRun {
       harness: AgentHarness;
       workDir: string;
       log: (message: string) => void;
+      // The session's status on the server, asked when the lease is gone
+      // (the heartbeat answers it): a person's cancel ends the lease too.
+      leaseStatus?: (signal: AbortSignal) => Promise<string | null>;
     },
   ) {
     const api = deps.client.session(assignment.sessionId);
@@ -89,7 +107,7 @@ export class SessionRun {
           throw new Error("The server did not acknowledge the events.");
         return result;
       },
-      () => this.stop("lost"),
+      () => void this.lose(),
     );
     this.cursor = assignment.inputCursor;
   }
@@ -101,9 +119,26 @@ export class SessionRun {
   stop(reason: StopReason) {
     if (this.reason) return;
     this.reason = reason;
-    this.deps.log(`session ${this.id}: stopping (${reason})`);
+    this.deps.log(
+      `Session ${this.id}: ${
+        reason === "canceled"
+          ? "canceled in Lictory; stopping the agent."
+          : reason === "lost"
+            ? "this runner no longer holds the session (its lease expired or it ended on the server); stopping the agent."
+            : "stopping the agent; the session returns to the queue."
+      }`,
+    );
     this.harnessRun?.stop();
     this.abort.abort();
+  }
+
+  // The server refused the lease: canceled by a person, or lost.
+  private async lose() {
+    if (this.reason) return;
+    const status = await this.deps
+      .leaseStatus?.(AbortSignal.timeout(5_000))
+      .catch(() => null);
+    this.stop(status === "canceled" ? "canceled" : "lost");
   }
 
   private emit: HarnessContext["emit"] = (type, data) => {
@@ -165,7 +200,7 @@ export class SessionRun {
       } catch (error) {
         if (this.abort.signal.aborted) return;
         if (error instanceof ProtocolError && error.fatal)
-          return this.stop("lost");
+          return void (await this.lose());
         failures++;
         await delay(Math.min(15_000, 500 * 2 ** failures), this.abort.signal);
       }
@@ -180,7 +215,7 @@ export class SessionRun {
     return { exec: hostExec(workspace.path), remove: async () => undefined };
   }
 
-  async run(): Promise<void> {
+  async run(): Promise<SessionEnd> {
     const { client, config, harness, workDir, log } = this.deps;
     const { assignment } = this;
     const api = client.session(this.id);
@@ -192,20 +227,19 @@ export class SessionRun {
     let result: HarnessResult;
     let branch: string | undefined;
     try {
-      this.events.push("status", {
-        phase: "preparing",
-        message: assignment.repository?.url
-          ? `Preparing a worktree of ${assignment.repository.url} on ${assignment.repository.branch}.`
-          : "Preparing an empty workspace.",
-      });
+      // The workspace answer names the repository the session works in;
+      // the assignment may only know it by the Code module's choice.
       const fetched = await withRetry(() => api.workspace(lease), {
         signal: this.abort.signal,
       });
-      workspace = await prepareWorkspace(
-        workDir,
-        this.id,
-        fetched?.repository ?? null,
-      );
+      const repository = fetched?.repository ?? null;
+      this.events.push("status", {
+        phase: "preparing",
+        message: repository
+          ? `Preparing a worktree of ${repository.url} on ${repository.branch}.`
+          : "Preparing an empty workspace: no repository is linked to this session.",
+      });
+      workspace = await prepareWorkspace(workDir, this.id, repository);
       const prepared = await this.exec(workspace);
       isolation = prepared;
       if (this.abort.signal.aborted) throw new Error("stopped");
@@ -262,11 +296,12 @@ export class SessionRun {
       };
     }
     try {
-      if (this.reason === "canceled" || this.reason === "lost") return;
+      if (this.reason === "canceled" || this.reason === "lost")
+        return { outcome: this.reason };
       if (this.reason === "shutdown") {
         await this.events.close();
         await api.release(lease).catch(() => undefined);
-        return;
+        return { outcome: "returned" };
       }
       this.state = "finishing";
       if (workspace && result.outcome === "completed") {
@@ -315,7 +350,9 @@ export class SessionRun {
       if (result.outcome === "failed" && result.error)
         this.events.push("error", { message: result.error });
       await this.events.close();
-      if (this.events.lost) return;
+      if (this.events.lost)
+        return { outcome: this.reason === "canceled" ? "canceled" : "lost" };
+      let reported = true;
       await withRetry(() =>
         api.complete({
           leaseToken: lease,
@@ -325,11 +362,25 @@ export class SessionRun {
           branch,
           lastSeq: this.events.lastSeq,
         }),
-      ).catch((error: unknown) =>
+      ).catch((error: unknown) => {
+        reported = false;
         log(
           `session ${this.id}: could not report its result: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
+        );
+      });
+      if (this.reason === "canceled") return { outcome: "canceled" };
+      return result.outcome === "completed"
+        ? {
+            outcome: "completed",
+            branch,
+            repository: Boolean(workspace?.repository),
+            summary: result.summary ?? this.summary,
+          }
+        : {
+            outcome: "failed",
+            error: result.error ?? "The agent stopped without saying why.",
+            reported,
+          };
     } finally {
       this.abort.abort();
       await this.events.close().catch(() => undefined);
