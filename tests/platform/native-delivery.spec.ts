@@ -160,7 +160,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     taskPreview.getByRole("button", { name: "Estimate: 5" }),
   ).toBeVisible();
-  await expect(taskCard.getByText("5", { exact: true })).toBeVisible();
+  await expect(taskCard.getByText("5 pts", { exact: true })).toBeVisible();
   // The close icon, an outside click and Escape all dismiss it; a reload
   // keeps it open.
   await taskPreview.getByRole("button", { name: "Close preview" }).click();

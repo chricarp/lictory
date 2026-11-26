@@ -22,7 +22,7 @@ import { paths } from "@lictory/core/lib/paths";
 import packageJson from "../../package.json" with { type: "json" };
 import { platformOrigin } from "../helpers/app-urls";
 import { clientAddress } from "../helpers/client-address";
-import { openDiscussions } from "../helpers/discussions";
+import { discussionsToggle, openDiscussions } from "../helpers/discussions";
 import {
   password,
   people,
@@ -923,6 +923,14 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await page.getByRole("button", { name: /Main · revision 3/ }).click();
   await reviewer.getByRole("button", { name: /Main · revision 3/ }).click();
   await expect(page.getByText("Revision 3 ·").first()).toBeVisible();
+  // The status card says the approval state even while the review rail
+  // steps aside for discussions; the rail returns once they close.
+  await expect(
+    page.getByRole("region", { name: "Item workflow", exact: true }),
+  ).toContainText("1/1 approved");
+  const toggle = discussionsToggle(page);
+  if ((await toggle.getAttribute("aria-expanded")) === "true")
+    await toggle.click();
   await expect(page.getByText("1 / 1 approved")).toBeVisible();
   // Deleting a merged PR keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
@@ -977,6 +985,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
 
   // 15-16. Resolve the blocking discussion, keeping its conclusion as a
   // decision, approve again → readiness passes → Ready.
+  await openDiscussions(page);
   await page
     .getByRole("article", { name: /discussion by/i })
     .getByRole("button", { name: "Discussion actions" })
@@ -1021,6 +1030,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByText("No open discussions.", { exact: false }),
   ).toBeVisible();
+  await toggle.click();
   // The reviewer's decision leads the status card.
   await reviewer
     .getByRole("region", { name: "Item workflow" })
@@ -1128,6 +1138,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // sent once it is back.
   const zero = await controlZeroConnection(page);
   await page.goto(storyUrl);
+  await openDiscussions(page);
   await richEditor(page, "Start a discussion");
   await waitUntilSaved(page);
   await zero.interrupt();
