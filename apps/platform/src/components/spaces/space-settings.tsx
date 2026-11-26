@@ -739,7 +739,7 @@ function GrantRow({
     });
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[13px]">
-      <Avatar image={image} name={name} size="md" />
+      <Avatar userId={grant.userId} image={image} name={name} size="md" />
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 font-medium">

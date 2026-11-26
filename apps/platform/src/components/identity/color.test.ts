@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  agentColor,
   identityColor,
   identityPalette,
-} from "@lictory/platform/components/identity/color";
+} from "@lictory/ui/identity-color";
 
 void test("a person's color is the same every time it is asked for", () => {
   const id = "7a0e3c1d-5b2f-4e8a-9c6d-1f2e3a4b5c6d";
@@ -24,6 +25,14 @@ void test("colors come from the palette and spread over it", () => {
     seen.add(color);
   }
   assert.equal(seen.size, identityPalette.length);
+});
+
+void test("agents are never drawn in the neutral slate", () => {
+  const seen = new Set<string>();
+  for (let i = 0; i < 200; i++) seen.add(agentColor(`agent-${i}`));
+  assert.ok(!seen.has("#5f6b7a"));
+  assert.equal(seen.size, identityPalette.length - 1);
+  assert.equal(agentColor("forge"), agentColor("forge"));
 });
 
 void test("every palette color keeps white initials at 4.5:1", () => {

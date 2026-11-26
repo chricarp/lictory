@@ -457,7 +457,14 @@ function Reviewers({
                     label: m.name,
                     hint: m.email,
                     keywords: m.email,
-                    icon: <Avatar image={m.image} name={m.name} size="xs" />,
+                    icon: (
+                      <Avatar
+                        userId={m.id}
+                        image={m.image}
+                        name={m.name}
+                        size="xs"
+                      />
+                    ),
                   }))}
                   onSelect={(id) => {
                     close();

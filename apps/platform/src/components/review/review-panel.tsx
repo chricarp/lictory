@@ -342,7 +342,7 @@ export function ReviewPanel() {
         </Collapsible>
       )}
       {current && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Approvals apply to revision {current.number} ·{" "}
           {relativeTime(current.createdAt)}
         </p>
@@ -476,7 +476,7 @@ export function RequestReview({
                   ? `Requesting ${listNames(requestingAll)} reviews…`
                   : `Request ${listNames(missing.map((r) => r.name))} reviews`}
               </Button>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Required, from anyone in each discipline. Or choose one
                 discipline and reviewer below.
               </p>
@@ -529,7 +529,7 @@ export function RequestReview({
                   )}
                 </Popover>
                 {role && used.has(role.name) && (
-                  <span className="mt-1 block text-[11px] text-warning">
+                  <span className="mt-1 block text-xs text-warning">
                     A {role.name} review already exists on this revision;
                     another reviewer will be added.
                   </span>
@@ -575,7 +575,12 @@ export function RequestReview({
                           hint: m.email,
                           keywords: m.email,
                           icon: (
-                            <Avatar image={m.image} name={m.name} size="xs" />
+                            <Avatar
+                              userId={m.id}
+                              image={m.image}
+                              name={m.name}
+                              size="xs"
+                            />
                           ),
                         })),
                       ]}

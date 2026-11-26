@@ -5,7 +5,7 @@ import { initials } from "@lictory/core/lib/work-items";
 import { safeProfileImage } from "@lictory/core/profile/photo";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { identityColor } from "@lictory/platform/components/identity/color";
+import { agentColor, identityColor } from "@lictory/ui/identity-color";
 import { SlackMark } from "@lictory/platform/components/identity/slack-mark";
 import { firstName } from "@lictory/platform/lib/session-state";
 
@@ -173,7 +173,7 @@ export function AgentAvatar({
   className?: string;
   ring?: boolean;
 }) {
-  const color = identityColor(`agent:${agent.id}`);
+  const color = agentColor(agent.id);
   const mark = agent.avatar?.trim();
   const style: CSSProperties = {
     width: size,

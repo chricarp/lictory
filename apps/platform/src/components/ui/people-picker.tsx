@@ -410,7 +410,14 @@ function memberOption(
     label: member.id === userId ? `${member.name} (me)` : member.name,
     hint: member.handle ? `@${member.handle}` : member.email,
     keywords: `${member.name} ${member.handle ? `@${member.handle}` : ""} ${member.email}`,
-    icon: <Avatar image={member.image} name={member.name} size="xs" />,
+    icon: (
+      <Avatar
+        userId={member.id}
+        image={member.image}
+        name={member.name}
+        size="xs"
+      />
+    ),
   };
 }
 
