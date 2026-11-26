@@ -49,6 +49,34 @@ export function sign(
   return `v1,${mac}`;
 }
 
+// Bearer webhooks carry the receiver's own token as their secret, which need
+// not be a `whsec_` key. They are signed the same way, keyed with the
+// secret's `whsec_` key bytes when it is one and its UTF-8 bytes otherwise,
+// so a receiver can check the body and timestamp, not only the token.
+export function bearerKey(secret: string): Buffer {
+  return signingKey(secret) ?? Buffer.from(secret, "utf8");
+}
+
+// The headers of a bearer webhook delivery.
+export function bearerHeaders(
+  secret: string,
+  id: string,
+  type: string,
+  timestamp: number,
+  body: string,
+) {
+  const mac = createHmac("sha256", bearerKey(secret))
+    .update(signedContent(id, timestamp, body))
+    .digest("base64");
+  return {
+    authorization: `Bearer ${secret}`,
+    "webhook-id": id,
+    "webhook-timestamp": String(timestamp),
+    "webhook-signature": `v1,${mac}`,
+    "x-lictory-event-type": type,
+  };
+}
+
 // The three Standard Webhooks headers, signed with every key given (the
 // current one first).
 export function webhookHeaders(

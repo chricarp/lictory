@@ -13,7 +13,10 @@ import {
   readAgentEvents,
   type AgentEventView,
 } from "@lictory/core/agent-events/feed";
-import { webhookHeaders } from "@lictory/core/agent-events/signing";
+import {
+  bearerHeaders,
+  webhookHeaders,
+} from "@lictory/core/agent-events/signing";
 import {
   agentEventPolicyOf,
   agentScopeOf,
@@ -48,7 +51,7 @@ const LEASE_MS = 2 * 60_000;
 // Deliveries start only while this much of the lease remains.
 const SEND_MARGIN_MS = 30_000;
 export const MAX_DELIVERY_ATTEMPTS = 5;
-const BACKOFF_MS = [30_000, 60_000, 120_000, 240_000];
+export const DELIVERY_BACKOFF_MS = [30_000, 60_000, 120_000, 240_000];
 // Events delivered per subscription per run; the rest wait for the next.
 const PER_RUN = 25;
 
@@ -121,10 +124,13 @@ async function send(
     row.url,
     {
       "content-type": "application/json",
-      authorization: `Bearer ${openSecret(row)}`,
-      "webhook-id": id,
-      "webhook-timestamp": String(Math.floor(now.getTime() / 1000)),
-      "x-lictory-event-type": event.type,
+      ...bearerHeaders(
+        openSecret(row),
+        id,
+        event.type,
+        Math.floor(now.getTime() / 1000),
+        body,
+      ),
     },
     body,
     options,
@@ -338,7 +344,9 @@ async function deliverSubscription(
         failedSince: row.failedSince ?? at,
         nextAttemptAt: new Date(
           at.getTime() +
-            BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)]!,
+            DELIVERY_BACKOFF_MS[
+              Math.min(attempts - 1, DELIVERY_BACKOFF_MS.length - 1)
+            ]!,
         ),
         leaseUntil: null,
         ...(suspend
