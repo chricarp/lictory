@@ -24,6 +24,12 @@ export const dialogBackdropClass =
 export const dialogPanelClass =
   "fixed inset-x-0 top-[10vh] z-50 mx-auto my-0 flex max-h-[calc(100dvh-10vh-1rem)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-xl border bg-popover p-0 text-popover-foreground shadow-(--shadow-panel) outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-98 data-ending-style:opacity-0 data-starting-style:scale-98 data-starting-style:opacity-0";
 
+// On phones a dialog is a sheet from the bottom edge, up to nearly the
+// full height, with its actions at the bottom where the thumb is, rather
+// than a floating card with an inner scroll.
+const phoneSheet =
+  "max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]";
+
 // A modal dialog: focus moves in on open (to `[data-autofocus]`, or the first
 // control), Tab stays inside, Escape and a press outside close it, and focus
 // returns to whatever opened it. It is open while it is rendered.
@@ -104,7 +110,7 @@ export function Dialog({
             'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
           )
         }
-        className={cn(dialogPanelClass, width, className)}
+        className={cn(dialogPanelClass, width, phoneSheet, className)}
       >
         {onSubmit ? (
           <form
