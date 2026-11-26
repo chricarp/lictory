@@ -216,7 +216,9 @@ export function ItemWorkflow({
     >
       {steps.map((name, index) => {
         const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
-        const active = position === step;
+        // Ready finishes refinement; delivery starts only when a person
+        // accepts the revision, so it is next, not current.
+        const active = position === step && stage !== "ready";
         const complete = position < step;
         return (
           <li
