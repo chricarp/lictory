@@ -154,7 +154,14 @@ export function OnboardingEntry({
             </Choice>
           </div>
         )}
-        {intent === "create" && <CreateOrganization userId={userId} />}
+        {intent === "create" && (
+          <CreateOrganization
+            userId={userId}
+            onBack={
+              !createOnly && canCreate ? () => router.replace("/") : undefined
+            }
+          />
+        )}
         {instanceAdmin && !intent && (
           <div className="mt-3">
             <Choice
@@ -239,7 +246,7 @@ export function OnboardingEntry({
             {error}
           </p>
         )}
-        {intent && !createOnly && canCreate && (
+        {intent === "join" && !createOnly && canCreate && (
           <Button
             variant="ghost"
             className="mt-6 -ml-3"

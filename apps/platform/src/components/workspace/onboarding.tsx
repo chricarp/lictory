@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { Textarea } from "@ui-sdk/react/textarea";
 import { useRouter } from "@lictory/platform/lib/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import {
   OnboardingFrame,
   OnboardingHeading,
@@ -104,7 +104,15 @@ export function ProjectFields({
   );
 }
 
-export function CreateOrganization({ userId }: { userId?: string }) {
+export function CreateOrganization({
+  userId,
+  onBack,
+}: {
+  userId?: string;
+  // Back to the choice before this step, on the same row as Continue (as
+  // in every later step), so the buttons never move between steps.
+  onBack?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [handle, setHandle] = useState<string | null>(null);
@@ -190,11 +198,24 @@ export function CreateOrganization({ userId }: { userId?: string }) {
           {error}
         </p>
       )}
-      {/* Where every later setup step keeps its Continue. */}
-      <div className="flex justify-end pt-4">
+      {/* Where every later setup step keeps its Back and Continue. */}
+      <div className="flex items-center justify-between gap-3 pt-4">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="-ml-3"
+            onClick={onBack}
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
+        )}
         <Button
           type="submit"
           size="lg"
+          className="ml-auto"
           disabled={
             pending ||
             handleStatus.blocked ||

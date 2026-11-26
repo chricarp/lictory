@@ -498,28 +498,30 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     },
                   ]}
                 />
-                <div className="mt-6 space-y-3 text-xs leading-relaxed text-muted-foreground">
+                {/* The choice is the two cards; one line under them, and
+                    what is sent behind a question for whoever asks it. */}
+                <div className="mt-5 space-y-2 text-xs leading-relaxed text-muted-foreground">
                   <p>
-                    Lictory Intelligence proposes changes. People decide what to
-                    accept and approve.
-                  </p>
-                  <p>
-                    Enabling Lictory Intelligence allows relevant specs,
-                    discussions and organization context to be sent to the
-                    configured AI provider when it runs. With Lictory
-                    Intelligence off, no content is sent to an AI provider.
+                    It proposes; people decide what to accept and approve. An
+                    administrator can change this later in organization
+                    settings.
                   </p>
                   {!directory.ai.available && (
                     <p>
-                      This server has no AI provider configured yet, so Lictory
-                      Intelligence starts off. If you enable it, it runs once an
-                      operator configures a provider.
+                      No AI provider is configured on this server yet: it runs
+                      once an operator adds one.
                     </p>
                   )}
-                  <p>
-                    An organization administrator can change this later in
-                    organization settings → Lictory Intelligence.
-                  </p>
+                  <details className="group">
+                    <summary className="w-fit cursor-default rounded-sm font-medium text-foreground focus-ring outline-none hover:underline">
+                      What is sent?
+                    </summary>
+                    <p className="mt-1">
+                      When it runs, relevant specs, discussions and organization
+                      context go to the configured AI provider. With Lictory
+                      Intelligence off, nothing is sent.
+                    </p>
+                  </details>
                 </div>
               </>
             )}
