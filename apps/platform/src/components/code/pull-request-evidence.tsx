@@ -185,7 +185,7 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
                     key={c.key}
                     className={cn(
                       "h-1.5 flex-1 rounded-full",
-                      c.passed ? "bg-success" : "bg-foreground/12",
+                      c.passed ? "bg-success" : "inset-ring inset-ring-input",
                     )}
                   />
                 ))}

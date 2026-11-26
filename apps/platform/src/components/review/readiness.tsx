@@ -47,7 +47,7 @@ export function Readiness() {
                   ? "bg-success"
                   : blocks(c)
                     ? "bg-destructive"
-                    : "bg-foreground/10",
+                    : "inset-ring inset-ring-input",
               )}
             />
           ))}
