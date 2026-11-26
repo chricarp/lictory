@@ -73,7 +73,7 @@ test("empty states show theme-aware artwork that reacts to the pointer and stays
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(appHome);
-  await page.getByRole("button", { name: /^Create a workspace/ }).click();
+  await page.getByRole("button", { name: /^Create an organization/ }).click();
   await createWorkspace(page, {
     organization: "Illustration States",
     project: "Design",

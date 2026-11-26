@@ -176,7 +176,7 @@ test("work item panels collapse independently and persist across routes and relo
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, reviewerEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Panel layout",
@@ -354,7 +354,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await signIn(page);
   // Onboarding: organization, then project with a key.
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await page.getByLabel("Project", { exact: true }).fill("Payments");
   await expect(page.getByLabel("Key", { exact: true })).toHaveValue("PAYM");

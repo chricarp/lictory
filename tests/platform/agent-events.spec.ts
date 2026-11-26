@@ -78,7 +78,7 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(inApp);
     await page
-      .getByRole("button", { name: "Create a workspace", exact: false })
+      .getByRole("button", { name: "Create an organization", exact: false })
       .click();
     await createWorkspace(page, {
       organization: "Webhook Co",

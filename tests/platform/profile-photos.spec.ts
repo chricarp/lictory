@@ -199,7 +199,7 @@ test("a saved photo appears in the workspace and online collaborators refresh it
   const colleague = await createUser(false);
   await signIn(page, owner.email);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Photo team",

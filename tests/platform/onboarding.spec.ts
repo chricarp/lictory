@@ -59,7 +59,7 @@ for (const mode of ["native", "external"] as const)
       await page.emulateMedia({ reducedMotion: "reduce" });
     }
     await page
-      .getByRole("button", { name: "Create a workspace", exact: false })
+      .getByRole("button", { name: "Create an organization", exact: false })
       .click();
     // Creating the workspace is the first counted step of setup.
     await expect(page.getByText("1 of 4")).toBeVisible();
@@ -212,7 +212,7 @@ test("organizations choose and change URL handles with server validation and adm
   const handle = `chosen-${suffix}`;
   const nextHandle = `renamed-${suffix}`;
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await page
     .getByLabel("Organization", { exact: true })
@@ -517,7 +517,7 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
   page,
 }) => {
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   // Setup no longer asks how the project plans: it starts continuous with
   // story points, and the project's planning settings change that.

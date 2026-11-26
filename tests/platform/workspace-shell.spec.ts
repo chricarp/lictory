@@ -40,10 +40,10 @@ test("an existing member can create and switch to another organization", async (
   await page.goto("/");
   await expect(page).toHaveURL(appHome);
   await expect(
-    page.getByRole("button", { name: "Create a workspace", exact: false }),
+    page.getByRole("button", { name: "Create an organization", exact: false }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "First Team",
@@ -100,7 +100,7 @@ test("navigation commits immediately inside the persistent shell and shows a loa
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, loadingEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Loading states",
@@ -155,7 +155,7 @@ test("revisiting a work item paints its local history on the first frame", async
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, revisitEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Revisits",
@@ -233,7 +233,7 @@ test("panes resize by dragging or keyboard, snap, fold, reset and persist", asyn
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, panesEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Pane widths",
