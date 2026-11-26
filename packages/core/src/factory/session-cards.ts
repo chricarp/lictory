@@ -159,7 +159,8 @@ export async function postSessionNotice(
   const message = await appendSystemMessage(tx, {
     organizationId: session.organizationId,
     channelId: thread.channelId,
-    actorId: session.requestedById,
+    // Lictory's own note, not the requester's act.
+    actorId: null,
     kind: "system",
     body,
     threadRootId: options.besideCard && thread.topLevel ? null : thread.rootId,

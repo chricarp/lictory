@@ -105,10 +105,13 @@ Project administrators choose the level in **Project settings → Autonomy**:
 dispatcher starts posts its live card. The card's thread is the session's
 thread: its agent's answers and approval requests arrive there, the agent's
 owner steers it by replying, and the agent's questions are announced in the
-channel. When the work lands, the channel says so beside the card ("PAY-4 is
-Done: its Definition of Done passed. Pull request #3 was merged by bo.
-Delivered revision 2."). Without one, dispatched sessions are followed in the
-Factory.
+channel. When the work lands, Lictory says so beside the card ("PAY-4 is
+Done: its Definition of Done passed. Pull request #3 was merged by Bo Lind.
+Delivered revision 2."). The note names who merged: the person who merged
+from Lictory, or "Autopilot · policy set by" its administrator. A merge made
+on the code host shows the host login, as the member who linked that login
+under **Code**, or as the bare login when nobody has linked it. Without a
+reporting channel, dispatched sessions are followed in the Factory.
 
 Under **Before an automatic merge**, Autopilot can also require the reviewer
 agent's approval of the head commit and every other Definition of Done check;

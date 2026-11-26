@@ -843,6 +843,113 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
     delivered[0]!.body,
     `PAY-1 is Done: its Definition of Done passed. Delivered revision ${revision!.number}.`,
   );
+  // Lictory's own note, not the act of the person who asked for the work.
+  assert.equal(delivered[0]!.authorUserId, null);
+
+  // Who merged the pull request: the person or Autopilot that merged in
+  // Lictory, else the host's login (as the member who linked it).
+  const connectionId = crypto.randomUUID();
+  const repositoryId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  await db.insert(s.codeConnection).values({
+    id: connectionId,
+    organizationId: f.organizationId,
+    provider: "github",
+    name: "GitHub",
+    baseUrl: "https://api.github.com",
+    authKind: "token",
+    accountLabel: "lictory-bot",
+    encryptedCredential: "x",
+    encryptedWebhookSecret: "x",
+    lastVerifiedAt: new Date(),
+    createdById: f.ada,
+  });
+  await db.insert(s.codeRepository).values({
+    id: repositoryId,
+    organizationId: f.organizationId,
+    connectionId,
+    externalId: "1",
+    fullName: "fjord/payments",
+    defaultBranch: "main",
+    webUrl: "https://github.test/fjord/payments",
+    cloneUrl: "https://github.test/fjord/payments.git",
+    visibility: "private",
+  });
+  await db.insert(s.codePullRequest).values({
+    id: pullRequestId,
+    organizationId: f.organizationId,
+    repositoryId,
+    externalId: "7",
+    number: 7,
+    title: "Refund retries",
+    state: "merged",
+    headBranch: "forge/pay-1",
+    headSha: "a".repeat(40),
+    baseBranch: "main",
+    webUrl: "https://github.test/fjord/payments/pull/7",
+    mergedAt: new Date(),
+    mergedByLogin: "lictory-bot",
+    hostCreatedAt: new Date(),
+    hostUpdatedAt: new Date(),
+  });
+  await db
+    .update(s.agentSession)
+    .set({ pullRequestId })
+    .where(eq(s.agentSession.id, session!.id));
+  const noteFor = async (claimId: string) => {
+    await db.transaction((tx) =>
+      claimPorts().resumer.resume(tx, { ...landed, claimId }),
+    );
+    const [note] = await db
+      .select({ body: s.channelMessage.body })
+      .from(s.channelMessage)
+      .where(eq(s.channelMessage.channelId, f.channelId))
+      .orderBy(desc(s.channelMessage.sequence))
+      .limit(1);
+    return note!.body.replace(/^PAY-1 is Done: its Definition of Done passed\. /, "");
+  };
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by lictory-bot on GitHub.",
+  );
+  await db.insert(s.codeHostIdentity).values({
+    organizationId: f.organizationId,
+    connectionId,
+    userId: f.bo,
+    login: "Lictory-Bot",
+  });
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Bo on GitHub.",
+  );
+  // The host reported the merge before Lictory recorded its own answer.
+  await db.insert(s.codeWrite).values({
+    organizationId: f.organizationId,
+    connectionId,
+    repositoryId,
+    kind: "merge",
+    payload: {},
+    pullRequestId,
+    requestedById: f.cy,
+    idempotencyKey: crypto.randomUUID(),
+    fingerprint: "merge",
+    status: "sending",
+  });
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Cy.",
+  );
+  await db
+    .update(s.codePullRequest)
+    .set({
+      mergeRequestedById: f.ada,
+      mergedVia: "Autopilot · policy set by Ada",
+    })
+    .where(eq(s.codePullRequest.id, pullRequestId));
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Autopilot · policy set by Ada.",
+  );
 });
 
 void test("a claim waits on people while its session waits on a person's approval, and works again after the answer", async () => {
