@@ -425,7 +425,9 @@ export function DefinitionOfDonePanel() {
               key={c.key}
               className={cn(
                 "h-1.5 flex-1 rounded-full",
-                c.passed ? "bg-success" : "bg-foreground/10",
+                c.passed
+                  ? "bg-success"
+                  : "ring-1 ring-muted-foreground ring-inset",
               )}
             />
           ))}

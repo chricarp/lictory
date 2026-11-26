@@ -233,9 +233,7 @@ test("custom types move from proposal through refinement to native delivery, wit
   await expect(workflow).toContainText("Accepted revision 1");
   await expect(scope).toHaveCount(0);
   await page.screenshot({ path: "/tmp/lictory-agreed-delivery-scope.png" });
-  await workflow
-    .getByRole("link", { name: "Open delivery", exact: true })
-    .click();
+  await workflow.getByRole("link", { name: "Open board", exact: true }).click();
   await expect(page).toHaveURL(paths.board(seeded.slug, "NAV"));
   await expect(
     page.locator("[data-card]", { hasText: proposalTitle }),

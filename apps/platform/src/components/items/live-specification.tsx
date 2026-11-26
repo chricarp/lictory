@@ -1037,7 +1037,9 @@ function DraftEditor({
           savedTitle="Every edit is stored in the shared draft. It becomes part of the specification's history only when someone saves a revision."
         />
         <span aria-hidden>·</span>
-        <span className={cn(uncommitted && "text-warning")}>
+        {/* Unsaved edits are the normal state of writing, not a warning:
+            plain text, so the status card keeps the only accent. */}
+        <span className={cn(uncommitted && "text-foreground")}>
           {sourceDirty
             ? "Markdown not applied yet"
             : uncommitted

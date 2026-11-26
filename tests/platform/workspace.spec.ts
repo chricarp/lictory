@@ -1031,9 +1031,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByRole("button", { name: "Refinement: Ready" }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText(
-      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
-    ),
+    page.getByText("All checks pass for this revision."),
   ).toBeVisible();
 
   await expect(

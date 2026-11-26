@@ -341,9 +341,10 @@ export function ItemDetail({
     [setMode],
   );
   // Discussions of the specification, beside its text: a column next to
-  // the review rail while the text keeps a readable measure (the item list
-  // steps aside for it first, like a page tree beside comments), in the
-  // rail's place when only one of them fits, a sheet when neither does.
+  // the review rail while the text keeps a comfortable measure (the item
+  // list steps aside for it first, like a page tree beside comments), in
+  // the rail's place when only one of them fits, a sheet when the text
+  // would not keep its readable minimum.
   const [row, setRow] = useState<HTMLElement | null>(null);
   const list = useListPanel();
   const frameWidth = useElementWidth(
@@ -374,9 +375,14 @@ export function ItemDetail({
     !pendingCreate &&
     (mode.kind === "read" || mode.kind === "edit");
   const discussionsColumn = discussionsShown && discussions.panelOpen && wide;
-  const listAside = discussionsColumn && room(listWidth, railWidth) < READABLE;
+  // The specification is the primary surface: the list, then the rail,
+  // step aside before the text drops below a comfortable measure (the
+  // rail's state is summarized in the status card and the header's
+  // "Review & details" brings it back).
+  const listAside =
+    discussionsColumn && room(listWidth, railWidth) < COMFORTABLE;
   const railHidden =
-    listAside && railWidth > 0 && room(0, railWidth) < READABLE;
+    listAside && railWidth > 0 && room(0, railWidth) < COMFORTABLE;
   // The column takes room the text does not need: wider (easier to
   // write in) when the text keeps a comfortable measure beside it.
   const discussionsWidth =
