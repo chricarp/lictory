@@ -6,11 +6,13 @@ import type {
   SessionEventRow,
 } from "@lictory/core/factory/entities";
 import {
+  approvalAction,
   filesChangedLabel,
   sessionProgress,
 } from "@lictory/platform/components/factory/progress";
 import {
   agentActivity,
+  failedForMe,
   overviewBlocks,
   waitsOnMe,
 } from "@lictory/platform/components/factory/overview-blocks";
@@ -179,4 +181,55 @@ void test("an agent's activity is the session that needs a person first", () => 
   const idle = agentActivity("sentry", sessions);
   assert.equal(idle.current, null);
   assert.equal(idle.lastActive, null);
+});
+
+void test("an approval request names the exact action it asks for", () => {
+  assert.deepEqual(
+    approvalAction({
+      tool: "Bash",
+      input: { command: " bun run db:migrate " },
+    }),
+    { kind: "command", text: "bun run db:migrate" },
+  );
+  assert.deepEqual(
+    approvalAction({ tool: "Write", input: { file_path: "CHANGES.md" } }),
+    { kind: "file", tool: "Write", text: "CHANGES.md" },
+  );
+  assert.deepEqual(approvalAction({ tool: "WebFetch", input: {} }), {
+    kind: "tool",
+    text: "WebFetch",
+  });
+  // A plain question names no action; nothing is guessed.
+  assert.equal(approvalAction({ tool: null, input: null }), null);
+  assert.equal(approvalAction(null), null);
+});
+
+void test("a failed session waits on the person who started it until retried or replaced", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const failed = (id: string, at: string, extra: Partial<SessionEntity> = {}) =>
+    ({
+      id,
+      status: "failed",
+      requestedById: "ada",
+      workItemId: null,
+      createdAt: at,
+      completedAt: at,
+      updatedAt: at,
+      ...extra,
+    }) as SessionEntity;
+  const sessions = [
+    failed("mine", "2026-11-19T10:00:00Z"),
+    failed("theirs", "2026-11-19T10:00:00Z", { requestedById: "ben" }),
+    failed("old", "2026-11-01T10:00:00Z"),
+    failed("replaced", "2026-11-18T10:00:00Z", { workItemId: "i1" }),
+    failed("later", "2026-11-19T11:00:00Z", {
+      workItemId: "i1",
+      status: "running",
+      completedAt: null,
+    }),
+  ];
+  assert.deepEqual(
+    failedForMe(sessions, "ada", now).map((s) => s.id),
+    ["mine"],
+  );
 });
