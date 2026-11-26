@@ -1020,7 +1020,7 @@ export const declarations: readonly Declaration[] = [
     name: "NEXT_PUBLIC_RELEASE_ASSETS",
     group: "Builds",
     services: ["website"],
-    default: "empty: every download is offered",
+    default: "empty: every download is offered, with a note that the page cannot tell which the release carries",
     description:
       "Comma-separated file names of the stable release the website's /download page links to. Set by the website's deploy from the GitHub Release; a file not listed is shown as not in that release.",
   },

@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { useSearchParams } from "@lictory/platform/lib/navigation";
-import { Box, CircleOff, Laptop, Plus, Server, Trash2 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsiblePanel,
+  CollapsibleTrigger,
+} from "@ui-sdk/react/collapsible";
+import {
+  Box,
+  ChevronRight,
+  CircleOff,
+  Laptop,
+  Plus,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import {
   runnerOnline,
@@ -26,6 +39,7 @@ import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   expiresIn,
+  runnerFromSourceCommand,
   runnerInstallCommand,
   type RunnerSystem,
 } from "@lictory/platform/components/factory/runner-install";
@@ -398,6 +412,43 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
             <code className="font-mono">lictory-runner doctor</code> checks the
             setup. The runner appears here as soon as it registers.
           </p>
+          {/* A release published before runner downloads existed has no
+              installer, so curl answers 404: the same runner from source. */}
+          <Collapsible className="text-xs text-muted-foreground">
+            <CollapsibleTrigger className="group inline-flex cursor-pointer items-center gap-1 font-medium text-foreground select-none hover:underline">
+              <ChevronRight
+                aria-hidden
+                className="size-3 transition-transform duration-150 group-data-open:rotate-90"
+              />
+              The download answers 404?
+            </CollapsibleTrigger>
+            <CollapsiblePanel className="mt-2 space-y-2">
+              <p>
+                {APP_VERSION && /^\d+\.\d+\.\d+/.test(APP_VERSION)
+                  ? `This server's release (${APP_VERSION}) has no runner files yet.`
+                  : "The newest release has no runner files yet."}{" "}
+                Build the same runner from source with{" "}
+                <a
+                  href="https://bun.sh"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Bun
+                </a>{" "}
+                and git, then register it with the same token:
+              </p>
+              <CommandBlock
+                label="Build from source and register"
+                copyLabel="Copy the build commands"
+              >
+                {runnerFromSourceCommand(
+                  system,
+                  window.location.origin,
+                  token.token,
+                  APP_VERSION,
+                )}
+              </CommandBlock>
+            </CollapsiblePanel>
+          </Collapsible>
         </div>
       )}
     </Dialog>

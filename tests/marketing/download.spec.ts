@@ -43,6 +43,11 @@ async function expectEveryDownload(page: Page) {
   await expect(main).toContainText(
     `irm ${latest}lictory-runner-install.ps1 | iex`,
   );
+  // This build was not told which files the release carries (the deploy
+  // passes NEXT_PUBLIC_RELEASE_ASSETS), so it offers every file and says so.
+  await expect(main).toContainText(
+    "built without that release’s list of files, so a file the release lacks answers 404",
+  );
 }
 
 test.describe("without JavaScript", () => {
