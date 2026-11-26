@@ -95,9 +95,7 @@ export function MergeBox({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full",
-            isBlocked
-              ? "bg-muted text-muted-foreground"
-              : "bg-success text-white",
+            isBlocked ? "bg-warning/12 text-warning" : "bg-success text-white",
           )}
         >
           <GitMerge className="size-4" />
