@@ -20,6 +20,10 @@ body {
 /* Sidebar: the application's shell, mono section labels, rounded rows. */
 #nd-sidebar {
   font-size: 0.875rem;
+  /* Bringing the active page into view (scroll-into-view-if-needed) also
+     scrolled the sidebar sideways, cutting the first letters of every label.
+     It never needs to scroll horizontally. */
+  overflow-x: clip;
 }
 #nd-sidebar p.inline-flex {
   color: var(--muted-foreground);
@@ -121,8 +125,21 @@ body {
 .docs-body :where(table):not(:where(.not-prose *)) {
   font-size: 0.9375rem;
 }
-.docs-body :where(figure.shiki, pre):not(:where(.not-prose *)) {
+/* Fumadocs blocks keep "not-prose", so these select them by their figure. */
+.docs-body :where(figure.shiki, pre):not(:where(.not-prose *)),
+.docs-body figure.shiki {
   border-color: var(--border);
+}
+/* Commands wrap instead of scrolling sideways, so the whole command is
+   readable at any width and zoom, and lines end before the copy button. */
+.docs-body figure.shiki pre {
+  width: auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.docs-body figure.shiki:not(:has(figcaption)) pre {
+  padding-right: 2.5rem;
 }
 /* A 65-75 character measure for reading, also inside steps and callouts;
    tables and code blocks keep the full column. */

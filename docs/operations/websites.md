@@ -29,8 +29,7 @@ and immutable caching of hashed assets are defined once:
   `/download` links each file of the newest stable release under its
   version-free name. The deploy passes the files that release carries
   (`NEXT_PUBLIC_RELEASE_ASSETS`); a file it lacks is shown as not in that
-  release, with the build-from-source steps, instead of a link that would
-  404. The site is rebuilt with every release, so links appear once a release
+  release, with the build-from-source steps, instead of a link that would 404. The site is rebuilt with every release, so links appear once a release
   carries the files.
 - **Docs** is a Fumadocs static export. Search downloads a prebuilt index
   (`/search.json`) and runs in the browser. The Worker serves files and
