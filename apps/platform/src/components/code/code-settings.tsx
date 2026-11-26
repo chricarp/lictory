@@ -23,7 +23,7 @@ import type {
 } from "@lictory/core/code/entities";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
-import { CopyValue } from "@lictory/ui/command-block";
+import { CommandBlock, CopyValue } from "@lictory/ui/command-block";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -154,6 +154,8 @@ function WebhookDetails({
   result: Connected;
   onClose: () => void;
 }) {
+  const { connections } = useCodeHosts();
+  const connection = connections.find((c) => c.id === result.connectionId);
   return (
     <SettingsBody className="space-y-3 border-b bg-muted/40">
       <div className="flex items-start gap-2">
@@ -173,10 +175,19 @@ function WebhookDetails({
       {result.webhookSecret && (
         <Copyable label="Webhook secret" value={result.webhookSecret} />
       )}
-      <p className="text-xs text-muted-foreground">
-        Content type JSON. Events: pull requests and their reviews, pushes,
-        issues, comments, checks and statuses (or pipelines on GitLab).
-      </p>
+      {connection ? (
+        <>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {webhookWhere(connection.provider, connection.authKind)}
+          </p>
+          <WebhookSettings provider={connection.provider} />
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Content type JSON. Events: pull requests and their reviews, pushes,
+          issues, comments, checks and statuses (or pipelines on GitLab).
+        </p>
+      )}
     </SettingsBody>
   );
 }
@@ -317,10 +328,27 @@ function ConnectionRow({
         <p className="text-xs text-destructive">{connection.lastError}</p>
       )}
       {canEdit && (
-        <Copyable
-          label="Webhook URL"
-          value={`${window.location.origin}${connection.webhookPath}`}
-        />
+        <>
+          <Copyable
+            label="Webhook URL"
+            value={`${window.location.origin}${connection.webhookPath}`}
+          />
+          {!connection.lastWebhookAt && (
+            <Collapsible>
+              <CollapsibleTrigger className="rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground">
+                How to add the webhook
+              </CollapsibleTrigger>
+              <CollapsiblePanel className="mt-1.5 space-y-2">
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {webhookWhere(connection.provider, connection.authKind)} The
+                  secret was shown once when you connected; if you no longer
+                  have it, choose New webhook secret.
+                </p>
+                <WebhookSettings provider={connection.provider} />
+              </CollapsiblePanel>
+            </Collapsible>
+          )}
+        </>
       )}
       <MyLogin connection={connection} />
       <div className="space-y-1.5">
@@ -908,14 +936,68 @@ function ConnectForm({
   );
 }
 
-const events = {
-  github:
-    "Pull requests, Pull request reviews, Pull request review threads, Pushes, Issues, Issue comments, Check runs, Check suites, Statuses, Repository",
-  gitlab:
-    "Push events, Merge request events, Comments, Issues events, Pipeline events, Job events",
-  bitbucket:
-    "Repository: Push, Commit status created and updated; Pull request: every event; Issue: every event",
+// The webhook settings each host's form asks for, in its own words and
+// order, one per line: a person ticks them off (or copies them) instead of
+// picking ten events out of a sentence.
+const webhookSettings: Record<Provider, string> = {
+  github: [
+    "Content type: application/json",
+    "SSL verification: Enable",
+    "Which events: Let me select individual events",
+    "  Check runs",
+    "  Check suites",
+    "  Issue comments",
+    "  Issues",
+    "  Pull request review threads",
+    "  Pull request reviews",
+    "  Pull requests",
+    "  Pushes",
+    "  Repository",
+    "  Statuses",
+  ].join("\n"),
+  gitlab: [
+    "Trigger:",
+    "  Push events (all branches)",
+    "  Comments",
+    "  Issues events",
+    "  Merge request events",
+    "  Job events",
+    "  Pipeline events",
+    "Enable SSL verification",
+  ].join("\n"),
+  bitbucket: [
+    "Status: Active",
+    "Triggers: Choose from a full list of triggers",
+    "  Repository: Push",
+    "  Repository: Build status created (repo:commit_status_created)",
+    "  Repository: Build status updated (repo:commit_status_updated)",
+    "  Pull Request: every trigger",
+    "  Issue: every trigger",
+  ].join("\n"),
 };
+
+function webhookWhere(provider: Provider, authKind: AuthKind) {
+  if (provider === "github" && authKind === "github_app")
+    return "On the GitHub App (Settings → Developer settings → GitHub Apps → Edit): under General → Webhook, tick Active and set this URL and secret; under Permissions & events, subscribe to the events below.";
+  if (provider === "github")
+    return "Organization settings → Webhooks → Add webhook, where one webhook covers every repository (an organization owner adds it); on a personal account, each repository’s Settings → Webhooks. Payload URL and secret as shown.";
+  if (provider === "gitlab")
+    return "Group or Project → Settings → Webhooks → Add new webhook, with this URL and the secret as its Secret token.";
+  return "In each repository: Repository settings → Webhooks → Add webhook, with this URL and secret.";
+}
+
+// The webhook's settings as one block to copy or tick off.
+function WebhookSettings({ provider }: { provider: Provider }) {
+  return (
+    <CommandBlock
+      label={`${providerLabels[provider]} webhook settings`}
+      caption={`Webhook settings to choose on ${providerLabels[provider]}`}
+      copyLabel={`Copy the ${providerLabels[provider]} webhook settings`}
+    >
+      {webhookSettings[provider]}
+    </CommandBlock>
+  );
+}
 
 // Exactly what to create on each host, so an administrator does not have to
 // guess scopes.
@@ -932,7 +1014,7 @@ function SetupInstructions({
       "In GitHub, open your organization's Settings → Developer settings → GitHub Apps → New GitHub App (for a personal account: your Settings → Developer settings).",
       "Homepage URL: this Lictory address. Leave the webhook inactive for now; after connecting, Lictory shows the webhook URL and secret to set on the app.",
       "Repository permissions: Contents read and write, Pull requests read and write, Issues read and write, Checks read, Commit statuses read, Metadata read.",
-      `Subscribe to events: ${events.github}.`,
+      "Subscribe to the events in the webhook settings below.",
       "Create the app, note its App ID, generate a private key (.pem), then Install App on the repositories Lictory should see. The installation ID is the number in the installation's address.",
     ];
   else if (provider === "github")
@@ -940,27 +1022,27 @@ function SetupInstructions({
       "In GitHub, open Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.",
       "Resource owner: your organization. Repository access: the repositories Lictory should see.",
       "Permissions: Contents read and write, Pull requests read and write, Issues read and write, Commit statuses read, Checks read (when offered), Metadata read.",
-      `After connecting, add the webhook Lictory shows once, to your GitHub organization (Organization settings → Webhooks → Add webhook), where one webhook covers every repository; on a personal account, to each repository (Settings → Webhooks). Payload URL and secret: as shown. Content type: application/json. Choose “Let me select individual events”: ${events.github}. Adding an organization webhook needs an organization owner; the token itself is not used for it.`,
+      "After connecting, add the webhook Lictory shows once, with the settings below, to your GitHub organization (Organization settings → Webhooks → Add webhook), where one webhook covers every repository; on a personal account, to each repository (Settings → Webhooks). Adding an organization webhook needs an organization owner; the token itself is not used for it.",
       "A token is long-lived and is handed to agent sessions as is. A GitHub App gives each session a token for one repository that expires within an hour.",
     ];
   else if (provider === "gitlab")
     steps = [
       "Create a group access token (Group → Settings → Access tokens), a project access token, or a personal access token of a bot account.",
       "Scope: api (read_api is enough for a read-only mirror, but creating branches, opening, commenting on and merging merge requests needs api). Role: Developer, or Maintainer to merge into protected branches.",
-      `After connecting, add the webhook (Group or Project → Settings → Webhooks): the URL and secret token Lictory shows, triggers: ${events.gitlab}.`,
+      "After connecting, add the webhook (Group or Project → Settings → Webhooks): the URL and secret token Lictory shows, with the settings below.",
       "Self-managed GitLab on a private network: an operator must list its host name in CODE_HOST_PRIVATE_HOSTS first.",
     ];
   else if (authKind === "oauth_consumer")
     steps = [
       "In Bitbucket, open Workspace settings → OAuth consumers → Add consumer and tick “This is a private consumer”. A callback URL is required by the form; use this Lictory address.",
       "Permissions: Account read, Repositories write, Pull requests write, Issues write, Pipelines read.",
-      `After connecting, add the webhook in each repository (Repository settings → Webhooks → Add webhook): the URL and secret Lictory shows, triggers: ${events.bitbucket}.`,
+      "After connecting, add the webhook in each repository (Repository settings → Webhooks → Add webhook): the URL and secret Lictory shows, with the settings below.",
     ];
   else
     steps = [
       "Create a repository, project or workspace access token (its settings → Access tokens), or an Atlassian API token with Bitbucket scopes (Atlassian account → Security → API tokens) and enter your account email with it.",
       "Scopes: repository write, pull request write, issue write, pipeline read (read:repository, write:repository, read:pullrequest, write:pullrequest, read:issue, write:issue, read:pipeline for API tokens).",
-      `After connecting, add the webhook in each repository (Repository settings → Webhooks → Add webhook): the URL and secret Lictory shows, triggers: ${events.bitbucket}.`,
+      "After connecting, add the webhook in each repository (Repository settings → Webhooks → Add webhook): the URL and secret Lictory shows, with the settings below.",
     ];
   return (
     <Collapsible className="rounded-lg border bg-card">
@@ -973,6 +1055,9 @@ function SetupInstructions({
             <li key={index}>{step}</li>
           ))}
         </ol>
+        <div className="px-3 pb-3">
+          <WebhookSettings provider={provider} />
+        </div>
       </CollapsiblePanel>
     </Collapsible>
   );
