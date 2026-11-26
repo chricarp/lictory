@@ -17,6 +17,7 @@ import {
   emptyServers,
   initials,
   moveServer,
+  nameFromOrganization,
   normalizeServers,
   partitionFor,
   removeServer,
@@ -113,7 +114,12 @@ void test("probing reports unreachable and silent servers", async () => {
     Promise.reject(new Error("net::ERR_NAME_NOT_RESOLVED"));
   const result = await probeServer("https://nowhere.example", unreachable);
   assert.equal(result.ok, false);
-  assert.match(!result.ok ? result.error : "", /ERR_NAME_NOT_RESOLVED/);
+  // Plain words with the next step; the code is a detail, not the message.
+  assert.equal(
+    !result.ok ? result.error : "",
+    "No server named nowhere.example could be found. Check the address for typos. If the server is on your company's network, connect to that network or its VPN.",
+  );
+  assert.equal(!result.ok ? result.detail : "", "ERR_NAME_NOT_RESOLVED");
 
   const silent: ProbeFetch = (_url, init) =>
     new Promise((_resolve, reject) =>
@@ -265,6 +271,28 @@ void test("a damaged servers file keeps its valid entries", () => {
   assert.deepEqual(normalizeServers(null), emptyServers);
 });
 
+void test("a servers file written by an administrator before the first launch", () => {
+  // The managed-computer recipe of the docs (basics/desktop): only ids and
+  // origins; everything else takes its default.
+  const state = normalizeServers({
+    servers: [{ id: "managed-lictory", origin: "https://lictory.example.com" }],
+  });
+  assert.deepEqual(state, {
+    activeId: "managed-lictory",
+    servers: [
+      {
+        id: "managed-lictory",
+        origin: "https://lictory.example.com",
+        name: "lictory.example.com",
+        organization: null,
+        addedAt: new Date(0).toISOString(),
+        lastPath: null,
+        zoomLevel: 0,
+      },
+    ],
+  });
+});
+
 void test("stored paths and names are validated on update", () => {
   const { state } = addServer(emptyServers, {
     id: "aaaaaaaa-1",
@@ -281,6 +309,45 @@ void test("stored paths and names are validated on update", () => {
     updateServer(updated, "aaaaaaaa-1", { lastPath: "https://x" }).servers[0]
       ?.lastPath,
     null,
+  );
+});
+
+void test("a server is named after its organization unless the person named it", () => {
+  const { state } = addServer(emptyServers, {
+    id: "aaaaaaaa-1",
+    origin: "http://localhost:6201",
+    now,
+  });
+  const named = nameFromOrganization(
+    state,
+    "aaaaaaaa-1",
+    " Harborline\nFreight ",
+  );
+  assert.equal(named.servers[0]?.name, "Harborline Freight");
+  assert.equal(initials(named.servers[0].name), "HF");
+  // Unchanged: the same state, so nothing is written.
+  assert.equal(
+    nameFromOrganization(named, "aaaaaaaa-1", "Harborline Freight"),
+    named,
+  );
+  // The organization renames itself; the server follows.
+  const renamed = nameFromOrganization(named, "aaaaaaaa-1", "Harborline");
+  assert.equal(renamed.servers[0]?.name, "Harborline");
+  // No single organization any more: back to the host.
+  const none = nameFromOrganization(renamed, "aaaaaaaa-1", null);
+  assert.equal(none.servers[0]?.name, "localhost:6201");
+  assert.equal(none.servers[0]?.organization, null);
+  // A name the person chose stays.
+  const chosen = updateServer(renamed, "aaaaaaaa-1", { name: "Work" });
+  assert.equal(
+    nameFromOrganization(chosen, "aaaaaaaa-1", "Acme").servers[0]?.name,
+    "Work",
+  );
+  // It survives a restart.
+  assert.equal(
+    normalizeServers(JSON.parse(JSON.stringify(named))).servers[0]
+      ?.organization,
+    "Harborline Freight",
   );
 });
 

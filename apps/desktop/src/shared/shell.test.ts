@@ -50,20 +50,50 @@ void test("a page's notification is validated and shortened", () => {
   assert.equal(sanitizeNotification({ title: "a\u0007b" })?.title, "ab");
 });
 
-void test("notifications are not repeated for the server in front", () => {
+void test("notifications interrupt unless their page is the one in front", () => {
   const base = {
     enabled: true,
     windowFocused: true,
     activeServerId: "a",
     serverId: "a",
+    activePath: "/acme/channels/c1",
+    path: "/acme/items/PAY-142",
   };
-  assert.equal(shouldShowNotification(base), false);
-  assert.equal(shouldShowNotification({ ...base, serverId: "b" }), true);
-  assert.equal(shouldShowNotification({ ...base, windowFocused: false }), true);
+  // Working in the app on the same server: a review request still shows.
+  assert.equal(shouldShowNotification(base), true);
+  // Already on the page it opens (a thread or tab of it counts): not repeated.
   assert.equal(
-    shouldShowNotification({ ...base, windowFocused: false, enabled: false }),
+    shouldShowNotification({ ...base, activePath: "/acme/items/PAY-142" }),
     false,
   );
+  assert.equal(
+    shouldShowNotification({
+      ...base,
+      activePath: "/acme/items/PAY-142/",
+      path: "/acme/items/PAY-142?tab=reviews",
+    }),
+    false,
+  );
+  // The same page of another server, or the window in the background.
+  assert.equal(
+    shouldShowNotification({
+      ...base,
+      serverId: "b",
+      activePath: base.path,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowNotification({
+      ...base,
+      windowFocused: false,
+      activePath: base.path,
+    }),
+    true,
+  );
+  // A notification without a page cannot be the page in front.
+  assert.equal(shouldShowNotification({ ...base, path: null }), true);
+  assert.equal(shouldShowNotification({ ...base, enabled: false }), false);
 });
 
 void test("a page cannot flood the notification centre", () => {

@@ -10,6 +10,9 @@ export const WEB = {
   notify: "lictory:notify",
   setBadge: "lictory:set-badge",
   navigate: "lictory:navigate",
+  // Whether the page's browser sees a network (navigator.onLine).
+  online: "lictory:online",
+  organization: "lictory:organization",
 } as const;
 
 export const SHELL = {
@@ -36,7 +39,15 @@ export type Screen =
   | { kind: "welcome" }
   | { kind: "add-server" }
   | { kind: "settings" }
-  | { kind: "error"; serverId: string; message: string };
+  | {
+      kind: "error";
+      serverId: string;
+      // What happened and what to do next, in plain words; the technical
+      // cause (a network error code) apart.
+      message: string;
+      next: string;
+      detail: string | null;
+    };
 
 export type ShellServer = {
   id: string;
@@ -47,6 +58,8 @@ export type ShellServer = {
   hue: number;
   unread: number;
   loading: boolean;
+  // Its page reports that this computer has no network.
+  offline: boolean;
   shortcut: string | null;
 };
 
@@ -76,6 +89,9 @@ export type ShellState = {
   canGoBack: boolean;
   canGoForward: boolean;
   settings: Settings;
+  // Whether this computer can show native notifications at all (Linux
+  // needs libnotify).
+  notificationsSupported: boolean;
   // Windows and Linux: whether a tray is available for closeToTray.
   trayAvailable: boolean;
   launchAtLoginSupported: boolean;
@@ -84,7 +100,8 @@ export type ShellState = {
 };
 
 export type AddServerResult =
-  { ok: true; serverId: string } | { ok: false; error: string };
+  | { ok: true; serverId: string }
+  | { ok: false; error: string; detail?: string };
 
 export type RunnerCommand =
   | { action: "start" }

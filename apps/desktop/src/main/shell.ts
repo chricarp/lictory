@@ -46,12 +46,14 @@ import {
   sanitizeNotification,
   shouldShowNotification,
 } from "../shared/notifications";
+import type { NetworkProblem } from "../shared/net-errors";
 import { mediaPrompt, type MediaKind } from "../shared/permissions";
 import { parseServerAddress, probeServer } from "../shared/server-address";
 import {
   addServer,
   initials,
   moveServer,
+  nameFromOrganization,
   removeServer,
   selectServer,
   serverForShortcut,
@@ -61,7 +63,12 @@ import {
 } from "../shared/servers";
 import { stoppedSnapshot } from "../shared/runner";
 import { patchSettings, type Settings } from "../shared/settings";
-import { isInAppPath, isSafeExternalUrl, originOf } from "../shared/urls";
+import {
+  inAppPathOf,
+  isInAppPath,
+  isSafeExternalUrl,
+  originOf,
+} from "../shared/urls";
 import {
   MIN_HEIGHT,
   MIN_WIDTH,
@@ -115,7 +122,9 @@ export class Shell {
   private views = new Map<string, ServerView>();
   private unread = new Map<string, number>();
   private loading = new Set<string>();
-  private errors = new Map<string, string>();
+  private errors = new Map<string, NetworkProblem>();
+  // Servers whose page reports no network (navigator.onLine is false).
+  private offline = new Set<string>();
   private retries = new Map<
     string,
     { attempt: number; timer: NodeJS.Timeout | null }
@@ -314,7 +323,13 @@ export class Shell {
     if (this.overlay) return { kind: this.overlay };
     const error = active ? this.errors.get(active) : undefined;
     if (active && error)
-      return { kind: "error", serverId: active, message: error };
+      return {
+        kind: "error",
+        serverId: active,
+        message: error.summary,
+        next: error.next,
+        detail: error.code,
+      };
     return { kind: "server" };
   }
 
@@ -338,6 +353,7 @@ export class Shell {
         hue: hueOf(s.origin),
         unread: this.unread.get(s.id) ?? 0,
         loading: this.loading.has(s.id),
+        offline: this.offline.has(s.id),
         shortcut: i < 9 ? String(i + 1) : null,
       })),
       activeId: this.servers.activeId,
@@ -348,6 +364,7 @@ export class Shell {
       canGoBack: history?.canGoBack() ?? false,
       canGoForward: history?.canGoForward() ?? false,
       settings: this.settings,
+      notificationsSupported: Notification.isSupported(),
       trayAvailable: this.hooks?.trayAvailable() ?? false,
       launchAtLoginSupported: this.hooks?.launchAtLoginSupported ?? false,
       update: this.hooks?.update() ?? { status: "idle" },
@@ -413,8 +430,10 @@ export class Shell {
       },
       openExternal: (url) => this.openExternal(url),
       confirmMedia: (s, kinds) => this.confirmMedia(s, kinds),
-      loadFailed: (id, message) => {
-        this.errors.set(id, message);
+      loadFailed: (id, problem) => {
+        // The error screen says it; the page that reported it is gone.
+        this.offline.delete(id);
+        this.errors.set(id, problem);
         this.scheduleRetry(id);
         this.layout();
         this.changed();
@@ -568,6 +587,7 @@ export class Shell {
     }
     this.unread.delete(id);
     this.errors.delete(id);
+    this.offline.delete(id);
     this.clearRetry(id);
     this.setServers(removeServer(this.servers, id));
     this.updateBadge();
@@ -684,6 +704,13 @@ export class Shell {
     this.changed();
   }
 
+  private setOffline(serverId: string, offline: boolean) {
+    if (this.offline.has(serverId) === offline) return;
+    if (offline) this.offline.add(serverId);
+    else this.offline.delete(serverId);
+    this.changed();
+  }
+
   totalUnread() {
     return totalCount(this.unread);
   }
@@ -721,12 +748,21 @@ export class Shell {
     const notification = sanitizeNotification(input);
     if (!notification || !Notification.isSupported()) return;
     const win = this.window;
+    const active = this.activeView();
     if (
       !shouldShowNotification({
         enabled: this.settings.notifications,
-        windowFocused: !!win && win.isVisible() && win.isFocused(),
+        windowFocused:
+          !!win &&
+          win.isVisible() &&
+          win.isFocused() &&
+          this.screen().kind === "server",
         activeServerId: this.servers.activeId,
         serverId,
+        activePath: active
+          ? inAppPathOf(active.contents.getURL(), active.server.origin)
+          : null,
+        path: notification.path,
       })
     )
       return;
@@ -867,6 +903,17 @@ export class Shell {
     ipcMain.on(WEB.setBadge, (event, count: unknown) => {
       const entry = fromServer(event);
       if (entry) this.setUnread(entry.server.id, count);
+    });
+    ipcMain.on(WEB.online, (event, online: unknown) => {
+      const entry = fromServer(event);
+      if (entry && typeof online === "boolean")
+        this.setOffline(entry.server.id, !online);
+    });
+    ipcMain.on(WEB.organization, (event, name: unknown) => {
+      const entry = fromServer(event);
+      if (!entry) return;
+      const next = nameFromOrganization(this.servers, entry.server.id, name);
+      if (next !== this.servers) this.setServers(next);
     });
   }
 

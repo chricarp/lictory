@@ -40,13 +40,14 @@ function toggle(
   return { row, input };
 }
 
+// A titled group of settings: the title above, the settings on a card.
 function section(title: string, ...children: (Node | null)[]) {
   const id = `section-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return h(
     "section",
     { class: "settings-section", "aria-labelledby": id },
     h("h2", { id }, title),
-    ...children,
+    h("div", { class: "settings-card" }, ...children),
   );
 }
 
@@ -87,6 +88,11 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     "Reviews requested, mentions, blocking discussions and other activity that needs you, from every server.",
     (checked) => set({ notifications: checked }),
   );
+  // Linux shows notifications through libnotify; without it nothing can.
+  const notificationsUnsupported = h("p", {
+    class: "setting-status warning",
+    role: "status",
+  });
   const sound = toggle(
     "setting-sound",
     "Play a sound",
@@ -221,7 +227,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     ),
   );
   const runnerSection = section(
-    "Personal runner",
+    "Personal runner (preview)",
     h(
       "p",
       { class: "hint" },
@@ -242,7 +248,12 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     "main",
     { class: "screen settings", id: "main", tabIndex: -1 },
     h("h1", {}, "Settings"),
-    section("Notifications", notifications.row, sound.row),
+    section(
+      "Notifications",
+      notificationsUnsupported,
+      notifications.row,
+      sound.row,
+    ),
     section("Window and startup", login.row, tray.row),
     section("Servers", serverList),
     section(
@@ -289,9 +300,17 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
 
   function update(state: ShellState) {
     const s = state.settings;
-    notifications.input.checked = s.notifications;
+    const supported = state.notificationsSupported;
+    notificationsUnsupported.hidden = supported;
+    notificationsUnsupported.textContent = supported
+      ? ""
+      : state.platform === "linux"
+        ? "This computer cannot show desktop notifications: Lictory needs libnotify (the libnotify4 package on Debian and Ubuntu) and a notification service. Install it and restart Lictory. The badge and the Inbox still show what needs you."
+        : "This computer cannot show desktop notifications. The badge and the Inbox still show what needs you.";
+    notifications.input.checked = s.notifications && supported;
+    notifications.input.disabled = !supported;
     sound.input.checked = s.notificationSound;
-    sound.input.disabled = !s.notifications;
+    sound.input.disabled = !s.notifications || !supported;
     login.input.checked = s.launchAtLogin;
     login.row.hidden = !state.launchAtLoginSupported;
     tray.input.checked = s.closeToTray;
@@ -352,7 +371,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
       const snap = runner.snapshot;
       runnerStatus.textContent = runner.available
         ? `${runnerStatusText[snap.status]}${snap.pid ? ` · pid ${snap.pid}` : ""}${snap.message ? ` · ${snap.message}` : ""}`
-        : `lictory-runner is not included in this build${runner.binary ? ` (looked for ${runner.binary})` : ""}.`;
+        : `This app does not include lictory-runner yet. To run agents on this computer today, install the runner from Lictory (Factory › Runners › Add runner): it runs on its own, without the app. To start and stop it from here instead, start Lictory with LICTORY_RUNNER_PATH set to where lictory-runner is installed.${runner.binary ? ` Nothing was found at ${runner.binary}.` : ""}`;
       const running = ["starting", "running", "backoff"].includes(snap.status);
       runnerStart.disabled = !runner.available || running || !s.runner.serverId;
       runnerStop.disabled = !running;

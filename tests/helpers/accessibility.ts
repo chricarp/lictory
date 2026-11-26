@@ -32,7 +32,13 @@ const knownGaps: { rule: string; within: string; reason: string }[] = [];
 export async function expectNoAccessibilityViolations(
   page: Page,
   state: string,
-  options: { include?: string } = {},
+  options: {
+    include?: string;
+    // Run axe within the page itself. Electron windows (the desktop app's
+    // shell, which has no frames) cannot open the extra page axe otherwise
+    // uses to combine the results of frames.
+    singlePage?: boolean;
+  } = {},
 ) {
   // A popover or tooltip still fading in has a blended, lighter text colour;
   // contrast is checked once finite animations have finished.
@@ -49,6 +55,7 @@ export async function expectNoAccessibilityViolations(
   );
   const builder = new AxeBuilder({ page }).withTags(wcagTags);
   if (options.include) builder.include(options.include);
+  if (options.singlePage) builder.setLegacyMode(true);
   const { violations } = await builder.analyze();
   const failures: string[] = [];
   for (const violation of violations) {

@@ -76,6 +76,12 @@ export const icons = {
     "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z",
   ],
   close: ["M18 6 6 18", "m6 6 12 12"],
+  // Lucide cloud-off.
+  offline: [
+    "m2 2 20 20",
+    "M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193",
+    "M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07",
+  ],
 };
 
 // The Lictory mark (packages/ui/public/brand/lictory-logomark.svg).

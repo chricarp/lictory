@@ -28,6 +28,9 @@ export interface DesktopBridge {
   // Called when the shell navigates the page (deep link, notification click,
   // tray menu). Returns a function that stops listening.
   onNavigate(listener: (path: string) => void): () => void;
+  // Names the server in the app's switcher after the person's organization
+  // there (null: none, or several). Optional: older apps lack it.
+  setOrganizationName?(name: string | null): void;
 }
 
 declare global {
