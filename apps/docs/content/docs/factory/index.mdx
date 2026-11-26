@@ -53,7 +53,9 @@ files it changed and status changes. Below it:
 - **Message the agent** to steer it. A message sent while it works reaches
   it when its current step ends.
 - **Interrupt** stops the current turn; the agent keeps its work and waits
-  for your next message (the session shows **Waiting on you**).
+  for your next message (the session shows **Waiting on you**). It is offered
+  only while the agent works: a session already waiting on you has nothing
+  to interrupt.
 - **Cancel…** stops the session for good, after you confirm. **Retry** runs a failed or canceled
   session again from its original instructions and sends it the messages you
   sent before, so you do not repeat them; its history stays.

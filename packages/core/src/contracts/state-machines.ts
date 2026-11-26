@@ -587,11 +587,14 @@ export const agentSession = stateMachine({
     },
     interrupt: {
       does: "Stop the agent's current turn; it waits for the next message",
-      from: ["running", "waiting"],
+      // A waiting agent has no turn to stop: it already waits on a person.
+      from: ["running"],
       refused: (state) =>
         state === "queued" || state === "assigned"
           ? "The agent has not started yet. Cancel the session instead."
-          : `This session is ${state}.`,
+          : state === "waiting"
+            ? "The agent is not working: it already waits on a person's answer or next message. Reply, answer its request, or cancel the session."
+            : `This session is ${state}.`,
     },
     answerApproval: {
       does: "Approve or deny what the agent asked for",

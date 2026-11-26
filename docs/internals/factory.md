@@ -147,7 +147,8 @@ slots.
 
 Interrupt stops the agent's current turn; the agent keeps its work and
 waits for the next message (so the session shows as waiting on the
-person). Cancel is immediate: the status becomes canceled and the lease is
+person). Only a running session can be interrupted: a waiting one already
+waits on a person and has no turn to stop. Cancel is immediate: the status becomes canceled and the lease is
 cleared, so the runner's next write fails and it stops. Because a cancel and
 an expired or reassigned lease fail the same way, the runner then asks one
 heartbeat for that session's status, so its log says "canceled" rather than

@@ -920,6 +920,15 @@ void test("an agent waiting for a person's next message waits on them, and a ret
     event(4, "Got it: Fix the timeout."),
   ]);
   assert.equal((await sessionRow(session.id)).status, "running");
+  // Interrupt says what it does: the turn stops and the agent waits.
+  await invoke(ctx, "interruptAgentSession", ids);
+  assert.ok(
+    (await eventsOf(session.id)).some((e) =>
+      String((e.data as { message?: string }).message).includes(
+        "stops its current turn and waits for the next message",
+      ),
+    ),
+  );
   // An approval request still pending keeps it waiting, whatever the
   // harness reports about messages.
   await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
@@ -936,14 +945,11 @@ void test("an agent waiting for a person's next message waits on them, and a ret
     { seq: 6, type: "status", data: { phase: "working" } },
   ]);
   assert.equal((await sessionRow(session.id)).status, "waiting");
-  // Interrupt says what it does: the turn stops and the agent waits.
-  await invoke(ctx, "interruptAgentSession", ids);
-  assert.ok(
-    (await eventsOf(session.id)).some((e) =>
-      String((e.data as { message?: string }).message).includes(
-        "stops its current turn and waits for the next message",
-      ),
-    ),
+  // Waiting on a person, it is not working: there is no turn to interrupt.
+  await refused(
+    invoke(ctx, "interruptAgentSession", ids),
+    "conflict",
+    "invalid_state",
   );
   await invoke(ctx, "cancelAgentSession", ids);
   // A retry starts over from the task with the person's messages, in
