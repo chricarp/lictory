@@ -169,7 +169,7 @@ export function Sidebar({
       <nav
         aria-label="Workspace"
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2",
+          "flex min-h-0 flex-1 [scrollbar-width:thin] flex-col overflow-y-auto overscroll-contain px-2 pb-2",
           compact ? "items-center gap-1.5" : "gap-3.5",
         )}
       >
