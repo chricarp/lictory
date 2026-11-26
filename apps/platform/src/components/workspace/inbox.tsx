@@ -3,6 +3,9 @@ import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { Button } from "@lictory/ui/button";
+import { toast } from "@lictory/ui/toast";
+import { callCapability } from "@lictory/core/capabilities/client";
+import { agentSession } from "@lictory/core/contracts/state-machines";
 import {
   CircleAlert,
   CircleCheckBig,
@@ -10,6 +13,7 @@ import {
   FileText,
   Inbox as InboxIcon,
   MessageSquareWarning,
+  RotateCcw,
   Settings2,
   ShieldAlert,
 } from "lucide-react";
@@ -336,6 +340,12 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
             </>
           }
           time={session.completedAt ?? session.updatedAt}
+          // It waits on me to retry it: the row does that in place.
+          actions={
+            agentSession.allows(session.status, "retry") && (
+              <RetrySession sessionId={session.id} />
+            )
+          }
         />
       );
     if (!approval)
@@ -546,5 +556,37 @@ export function Inbox() {
         <NotificationFeed />
       </TabsPanel>
     </Tabs>
+  );
+}
+
+// Runs a failed session again from its task, as the session page's Retry.
+function RetrySession({ sessionId }: { sessionId: string }) {
+  const { organization } = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={busy}
+      title="Runs the session again from the task; your earlier messages are sent again."
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await callCapability("retryAgentSession", {
+            organizationId: organization.id,
+            sessionId,
+          });
+        } catch (error) {
+          setBusy(false);
+          toast({
+            type: "error",
+            title: "The session was not retried",
+            description: (error as Error).message,
+          });
+        }
+      }}
+    >
+      <RotateCcw className="size-3.5" aria-hidden /> Retry
+    </Button>
   );
 }
