@@ -70,13 +70,7 @@ export function Choice<T extends string>({
           value={o.value}
           className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
         >
-          {/* The chosen card says so with a filled radio, not only a tint. */}
-          <span
-            aria-hidden
-            className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-foreground/25 bg-background group-data-checked/choice:border-primary"
-          >
-            <span className="size-2 rounded-full bg-primary opacity-0 group-data-checked/choice:opacity-100" />
-          </span>
+          <ChoiceMark />
           <span className="min-w-0">
             <span className="block font-medium">{o.label}</span>
             {o.description && (
@@ -88,6 +82,23 @@ export function Choice<T extends string>({
         </Radio>
       ))}
     </RadioGroup>
+  );
+}
+
+// The chosen option card says so with a filled radio, not only a tint: the
+// one selected-card mark in settings. Put it in a `Radio` with the
+// `group/choice` class.
+export function ChoiceMark({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-input bg-background group-data-checked/choice:border-primary",
+        className,
+      )}
+    >
+      <span className="size-2 rounded-full bg-primary opacity-0 group-data-checked/choice:opacity-100" />
+    </span>
   );
 }
 
