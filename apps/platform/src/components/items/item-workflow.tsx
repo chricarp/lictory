@@ -12,6 +12,7 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
+  identifier,
   isTopLevel,
   refinementMeta,
   refinementOrder,
@@ -82,7 +83,7 @@ export function ItemWorkflow({
   // A requested reviewer sees their own step first: the decision, and
   // whether an approval they gave earlier stopped applying.
   const mine = useMyReview();
-  const { organization, directory, delivery } = useWorkspace();
+  const { organization, directory, delivery, items } = useWorkspace();
   const link = externalLinksByItem(entities, directory.delivery.targets).get(
     item.id,
   );
@@ -421,6 +422,9 @@ export function ItemWorkflow({
       )}
     </>
   );
+  const parent = item.parentId
+    ? items.find((i) => i.id === item.parentId)
+    : undefined;
   const handedOff =
     !native && link?.externalKey && link.publishedRevisionNumber != null ? (
       <li className="px-1 text-muted-foreground">
@@ -444,11 +448,16 @@ export function ItemWorkflow({
           </li>
         )}
         <li className="px-1 text-muted-foreground">
-          {item.deliveredRevisionNumber == null
-            ? `Accepted revision ${item.committedRevisionNumber}`
-            : item.deliveredRevisionNumber === item.committedRevisionNumber
-              ? `Delivered revision ${item.deliveredRevisionNumber}`
-              : `Accepted revision ${item.committedRevisionNumber} · Delivered revision ${item.deliveredRevisionNumber}`}
+          {/* Plain work without a description of its own is agreed through
+              its parent's specification: an empty revision 1 is not the
+              agreement. */}
+          {!type.hasSpecification && parent && empty
+            ? `Part of ${identifier(project, parent.number)}’s accepted scope`
+            : item.deliveredRevisionNumber == null
+              ? `Accepted revision ${item.committedRevisionNumber}`
+              : item.deliveredRevisionNumber === item.committedRevisionNumber
+                ? `Delivered revision ${item.deliveredRevisionNumber}`
+                : `Accepted revision ${item.committedRevisionNumber} · Delivered revision ${item.deliveredRevisionNumber}`}
         </li>
       </>
     ));
@@ -590,8 +599,9 @@ function EvidenceRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <dt className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
+    // The label aligns with the first line of chips when they wrap.
+    <div className="flex items-start gap-2">
+      <dt className="w-12 shrink-0 text-xs leading-6 font-medium text-muted-foreground sm:w-16">
         {label}
       </dt>
       <dd>

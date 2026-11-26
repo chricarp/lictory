@@ -195,7 +195,7 @@ test("without an AI provider or file storage, refinement works and those feature
   // Attachments need object storage: no upload is offered, the attachment
   // list says why, and the server refuses uploads from any client.
   const unavailable =
-    "Attachments are off on this server: it has no file storage. The person who runs this installation turns them on with an S3-compatible bucket (lictory config set S3_BUCKET=… and the other S3_* settings). Until then, link to files instead.";
+    "Attachments are off on this server: it has no file storage. The person who runs this installation can turn them on with an S3-compatible bucket. Until then, link to files instead.";
   await expect(
     page.getByRole("button", { name: "Insert file or image" }),
   ).toHaveCount(0);

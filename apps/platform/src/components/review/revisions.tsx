@@ -226,7 +226,18 @@ export function SpecVersions({
     capabilities,
     readOnly,
     threads,
+    entities,
   } = useItem();
+  // A revision an accepted suggestion created was written by the
+  // suggestion's author and saved by the person who accepted it: "Who
+  // changed this?" names both.
+  const suggestedBy = new Map(
+    entities.flatMap((e) =>
+      e.type === "suggestion" && e.mergedRevisionId
+        ? [[e.mergedRevisionId, e.authorId] as const]
+        : [],
+    ),
+  );
   const [view, setView] = useState<DiffView>("changes");
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState("");
@@ -311,6 +322,13 @@ export function SpecVersions({
                   <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <Actor userId={r.authorId} label="none" size={16} />
                     {memberName(r.authorId)}
+                    {suggestedBy.has(r.id) &&
+                      suggestedBy.get(r.id) !== r.authorId && (
+                        <>
+                          <span aria-hidden>·</span>
+                          suggested by {memberName(suggestedBy.get(r.id))}
+                        </>
+                      )}
                     <span aria-hidden>·</span>
                     <time
                       dateTime={r.createdAt}
