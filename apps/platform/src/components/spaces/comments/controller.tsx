@@ -393,6 +393,25 @@ export function PageComments({
     if (editor && hasView(editor))
       editor.view.dom.focus({ preventScroll: true });
   }, [editor]);
+  const hasSelection = Boolean(selection);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const onKey = (event: KeyboardEvent) => {
+      const buttons = [...bar.querySelectorAll<HTMLElement>("button")];
+      const at = buttons.indexOf(document.activeElement as HTMLElement);
+      if (
+        event.key === "Escape" ||
+        (event.key === "Tab" && !event.shiftKey && at === buttons.length - 1) ||
+        (event.key === "Tab" && event.shiftKey && at === 0)
+      ) {
+        event.preventDefault();
+        backToText();
+      }
+    };
+    bar.addEventListener("keydown", onKey);
+    return () => bar.removeEventListener("keydown", onKey);
+  }, [hasSelection, backToText]);
   useEffect(() => {
     if (!editor || !canComment || !hasView(editor)) return;
     const dom = editor.view.dom;
@@ -501,23 +520,6 @@ export function PageComments({
             ref={barRef}
             role="group"
             aria-label="Selected text"
-            onKeyDown={(event) => {
-              const buttons = [
-                ...(barRef.current?.querySelectorAll<HTMLElement>("button") ??
-                  []),
-              ];
-              const at = buttons.indexOf(document.activeElement as HTMLElement);
-              if (
-                event.key === "Escape" ||
-                (event.key === "Tab" &&
-                  !event.shiftKey &&
-                  at === buttons.length - 1) ||
-                (event.key === "Tab" && event.shiftKey && at === 0)
-              ) {
-                event.preventDefault();
-                backToText();
-              }
-            }}
             style={{
               top: Math.max(8, selection.top - 44),
               left: selection.left,
