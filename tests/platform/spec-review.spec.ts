@@ -638,7 +638,8 @@ test("a suggestion made through the API waits beside the text, and a rejection k
     name: `Suggested change by ${seeded.users[1]!.name}`,
   });
   await expect(card).toContainText("Start with fewer merchants.");
-  await expect(card).toContainText("Nobody is asked to accept it yet.");
+  // Nobody was asked, so someone who could accept it may take it.
+  await expect(card.getByRole("button", { name: "Accept" })).toBeVisible();
   await card.getByRole("button", { name: "Reject" }).click();
   await expect(card).toHaveCount(0);
   expect((await currentRevision(workItemId)).number).toBe(revision.number);
@@ -714,4 +715,96 @@ test("a reviewer whose approval a new revision made outdated sees it, and their 
       .getByText("Approved", { exact: true }),
   ).toBeVisible();
   await context.close();
+});
+
+test("a reviewer decides on a phone without a squeezed card, and a change to the ready specification goes to its reviewers", async ({
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const ben = seeded.users[1]!;
+  const engineering = seeded.roster.disciplines.find(
+    (d) => d.name === "Engineering",
+  )!;
+  await seeded.command({
+    type: "setDisciplineMember",
+    projectId: seeded.projectId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    member: true,
+  });
+  const revision = await currentRevision(workItemId);
+  await seeded.command({
+    type: "requestReview",
+    workItemId,
+    baseRevisionId: revision.id,
+    reviewId: crypto.randomUUID(),
+    disciplineId: engineering.id,
+    userId: null,
+    required: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, ben.email);
+  await page.goto(path);
+  const workflow = page.getByRole("region", {
+    name: "Item workflow",
+    exact: true,
+  });
+  const statement = workflow.getByText("Your Engineering review is requested");
+  const approve = workflow.getByRole("button", { name: "Approve revision 1" });
+  await expect(statement).toBeVisible();
+  // The decision wraps below the statement instead of squeezing it into a
+  // one-word column (WCAG 1.4.10 reflow).
+  const said = (await statement.boundingBox())!;
+  const button = (await approve.boundingBox())!;
+  expect(said.width).toBeGreaterThan(250);
+  expect(button.y).toBeGreaterThanOrEqual(said.y + said.height);
+  await expect(workflow).toContainText("0/1 approved");
+  await approve.click();
+  await expect(workflow).toContainText("Ready for delivery");
+  await expect(workflow).toContainText(
+    "Delivery starts when a person accepts it",
+  );
+
+  // On a laptop, the rail steps aside while discussions are open so the
+  // specification keeps a comfortable measure; the card still says the
+  // approval state.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(workflow).toContainText("1/1 approved");
+  await selectInSpecification(page, "reconciled against the first attempt");
+  await page
+    .getByRole("toolbar", { name: "Selection actions" })
+    .getByRole("button", { name: "Suggest a change" })
+    .click();
+  // The same composer as before readiness; the ready specification's
+  // reviewers approve the change instead of one person.
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await expect(composer).toContainText(
+    "the change is reviewed by its reviewers",
+  );
+  await expect(composer.getByLabel("Who accepts it")).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "Details" }),
+  ).toHaveCount(0);
+  const text = await page
+    .locator("[data-pane-document]")
+    .evaluate((e) => e.getBoundingClientRect().width);
+  expect(text).toBeGreaterThanOrEqual(680);
+  await expect(
+    page.getByRole("button", { name: "Review & details" }),
+  ).toBeVisible();
+  await composer
+    .getByLabel("Replace with")
+    .fill("matched to the first attempt");
+  await composer.getByLabel("Why").fill("Reconciliation is a batch job.");
+  await composer
+    .getByRole("button", { name: "Send for review", exact: true })
+    .click();
+  await expect(composer).toHaveCount(0);
+  await expect(page.getByText("Change sent for review")).toBeVisible();
+  // Nothing changed in the specification: the reviewers decide first.
+  expect((await currentRevision(workItemId)).number).toBe(1);
+  await page.goto(`${path}?branches=1`);
+  await expect(
+    page.getByText("Change “reconciled against the first attempt”").first(),
+  ).toBeVisible();
 });

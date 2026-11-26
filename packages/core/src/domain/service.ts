@@ -4427,7 +4427,14 @@ export async function applyMutation(
             break;
           }
           case "setSuggestionReviewer": {
-            require(isAuthor, "Only the author can choose reviewers for a suggestion.");
+            // The author chooses who accepts it. A suggestion nobody is
+            // asked to accept would otherwise wait on its author: someone
+            // who can accept it may take it themselves.
+            require(isAuthor ||
+              (c.assigned &&
+                c.userId === userId &&
+                reviewers.length ===
+                  0), "Only the author can choose reviewers for a suggestion. Someone who can accept it may take one nobody is asked to accept yet.");
             requireStep(suggestionMachine, suggestion.status, "setReviewer");
             requireValue(
               roster.members.find((m) => m.id === c.userId),
@@ -4440,7 +4447,8 @@ export async function applyMutation(
                 c.userId,
                 projectId,
               ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
-              require(c.userId !== userId ||
+              require(!isAuthor ||
+                c.userId !== userId ||
                 roster.members.length ===
                   1, "You cannot review your own suggestion.", "validation");
               if (existing) break;

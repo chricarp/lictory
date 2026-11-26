@@ -590,6 +590,25 @@ async function linkRows(
     organizationId,
     prs.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
   );
+  // Reviews recorded in Lictory (agents and people) of each head, so the
+  // link says what the Definition of Done counts, not only the host's word.
+  const reviews = prs.length
+    ? await reviewsOf(
+        db,
+        organizationId,
+        prs.map((p) => p.id),
+      )
+    : new Map<string, Omit<CodeReviewRef, "current">[]>();
+  const reviewedHere = (p: (typeof prs)[number]) => {
+    const current = (reviews.get(p.id) ?? []).filter(
+      (r) => r.headSha === p.headSha,
+    );
+    return current.some((r) => r.decision === "request_changes")
+      ? ("request_changes" as const)
+      : current.some((r) => r.decision === "approve")
+        ? ("approve" as const)
+        : null;
+  };
   const branchById = new Map(branches.map((b) => [b.id, b]));
   const prById = new Map(prs.map((p) => [p.id, p]));
   const issueById = new Map(issues.map((i) => [i.id, i]));
@@ -620,6 +639,7 @@ async function linkRows(
           headBranch: p.headBranch,
           checks: checks.get(`${p.repositoryId}:${p.headSha}`)?.state ?? "none",
           reviewDecision: p.reviewDecision,
+          reviewedHere: reviewedHere(p),
           webUrl: p.webUrl,
         };
     } else if (l.target === "issue") {

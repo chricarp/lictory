@@ -313,8 +313,9 @@ export function ReviewPanel() {
             render={<ul />}
             className="mt-1 space-y-1 text-xs text-muted-foreground"
           >
-            {/* One line each: who approved which revision, and a short
-                outcome; the full reason is the line's title. */}
+            {/* One entry each: who approved which revision, and a short
+                outcome, wrapping rather than cutting the revision number;
+                the full reason is the entry's title. */}
             {history.map((a) => {
               const review = reviews.find((r) => r.id === a.reviewId);
               const outcome = isCarriedApproval(a.endReason)
@@ -326,11 +327,11 @@ export function ReviewPanel() {
                 <li
                   key={a.id}
                   title={a.endReason ?? undefined}
-                  className="flex min-w-0 items-baseline gap-1.5"
+                  className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
                 >
-                  <span className="min-w-0 truncate">
+                  <span className="min-w-0">
                     {review?.responsibility ?? "Review"} ·{" "}
-                    {memberName(a.reviewerId)} · revision{" "}
+                    {memberName(a.reviewerId)} approved revision{" "}
                     {revisionNumber(a.revisionId)}
                   </span>
                   <span className="ml-auto shrink-0">{outcome}</span>

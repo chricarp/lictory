@@ -2060,6 +2060,92 @@ void test("disciplines grant capabilities in their project; project administrato
   );
 });
 
+void test("a suggestion nobody is asked to accept can be taken and accepted by someone who can accept it", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const suggestionId = crypto.randomUUID();
+  const item = { workItemId: f.proposalId, suggestionId };
+  await f.command(
+    {
+      type: "createSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: first.id,
+      suggestionId,
+      replacement: `${first.content}\nRetries reuse the key.\n`,
+      title: "Reuse the key",
+      rationale: "Reuse the key",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  // Only themselves, never someone else, and not to withdraw the author's
+  // choice.
+  await assert.rejects(
+    f.command({
+      type: "setSuggestionReviewer",
+      ...item,
+      userId: f.reviewerId,
+      assigned: true,
+    }),
+    /Only the author/,
+  );
+  await f.command({
+    type: "setSuggestionReviewer",
+    ...item,
+    userId: f.userId,
+    assigned: true,
+  });
+  await f.command({
+    type: "decideSuggestion",
+    ...item,
+    version: 1,
+    decision: "approve",
+  });
+  await f.command({
+    type: "mergeSuggestion",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+    suggestionId,
+  });
+  const merged = (await f.entities()).find(
+    (e) => e.type === "suggestion" && e.id === suggestionId,
+  ) as Extract<Entity, { type: "suggestion" }>;
+  assert.equal(merged.status, "merged");
+  assert.equal((await f.current()).number, first.number + 1);
+  // Once someone is asked, nobody else takes it over.
+  const second = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: (await f.current()).id,
+      suggestionId: second,
+      replacement: "# Retries\n\nBounded.\n",
+      title: "Bound retries",
+      rationale: "Bound retries",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  await f.command({
+    type: "setSuggestionReviewer",
+    workItemId: f.proposalId,
+    suggestionId: second,
+    userId: f.userId,
+    assigned: true,
+  });
+  await assert.rejects(
+    f.command({
+      type: "setSuggestionReviewer",
+      workItemId: f.proposalId,
+      suggestionId: second,
+      userId: f.userId,
+      assigned: false,
+    }),
+    /Only the author/,
+  );
+});
+
 void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibility, versioned approvals, rebase and merge gates", async () => {
   const f = await fixture();
   const first = await f.current();

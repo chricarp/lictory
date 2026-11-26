@@ -88,7 +88,9 @@ a review; holding a discipline never grants approval by itself.
 Suggestion reviewers are individuals chosen by the suggestion's author and must
 hold one active discipline of the item's project that grants **both**
 `editSpecifications` and `review` (`canReviewSuggestions`); the author cannot
-review their own suggestion.
+review their own suggestion. While nobody is asked, an eligible person may ask
+themselves (and only themselves), so a suggestion never waits on its author to
+choose; once someone is asked, only the author changes who.
 
 Every project is seeded with Product (all capabilities), Engineering (requests,
 reviews and changes properties) and QA (requests, reviews and changes
@@ -445,7 +447,11 @@ only when the passage is plain text inside one text node,
 and asks one eligible reviewer to accept it. Accepting is the assigned
 reviewer's approval followed by `mergeSuggestion`, which creates the next
 revision like an edit (approvals stale, reviews re-requested) and is refused
-while main is protected: a ready specification changes only through a PR.
+while main is protected: a ready specification changes only through a PR. On
+a protected main the browser's same "Suggest a change" composer sends the
+change for review instead, with the ordinary commands (`createBranch`,
+`commitBranch` of exactly that replacement, `createPullRequest` into main), so
+one action keeps one meaning for the person and the protection holds.
 Suggestions made through MCP appear beside the text the same way. Larger
 changes use branches and PRs. Internal
 list fields `openSuggestions` and `suggestionReviewerIds` include active PRs so

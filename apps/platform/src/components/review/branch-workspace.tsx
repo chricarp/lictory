@@ -59,6 +59,8 @@ import {
   LockKeyhole,
   ChevronRight,
   MessageSquare,
+  ListTree,
+  Send,
   Users,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
@@ -80,6 +82,7 @@ import {
   reviewResultValue,
   pendingEntries,
   sameProposedChildren,
+  isNewChild,
 } from "@lictory/core/contracts/decomposition";
 import { BreakdownProposal } from "@lictory/platform/components/review/breakdown-proposal";
 import {
@@ -164,7 +167,7 @@ export function useProposeBreakdown(
   const { branches, userId, base, mutateConfirmed } = useBranchData();
   return async () => {
     const mine = branches.find(
-      (b) => b.authorId === userId && /^breakdown(-\d+)?$/.test(b.name),
+      (b) => b.authorId === userId && isBreakdownBranch(b),
     );
     if (mine) {
       breakdownFocus = mine.id;
@@ -854,9 +857,13 @@ function BranchEditorBody({
   memberName: (id: string) => string;
   onNavigate: (screen: BranchScreen) => void;
 }) {
-  const { directory } = useWorkspace();
-  const { branches, prs } = useBranchData();
+  const { directory, items: workItems } = useWorkspace();
+  const { branches, prs, item, mutateConfirmed } = useBranchData();
   const { run, error, pending } = useAction();
+  // A breakdown proposal ("Propose breakdown") speaks the language of the
+  // work it proposes: items sent for review, then created. The branch,
+  // commit and pull request underneath keep the reviewed-breakdown rule.
+  const isBreakdown = isBreakdownBranch(branch);
   // The breakdown sits below the live editor, which loads on its own: focus
   // moves there once it has mounted.
   const [focusBreakdown, setFocusBreakdown] = useState(false);
@@ -923,9 +930,12 @@ function BranchEditorBody({
     }));
   // "Commit": seals the shared draft's stored cut, with this person's
   // breakdown edits when they made any.
-  const commit = (controls: LiveControls) => {
+  const commit = (
+    controls: LiveControls,
+    then?: (outcome: "saved" | "nothing") => Promise<void>,
+    message = draft.message.trim(),
+  ) => {
     if (!liveDraft || sealing) return;
-    const message = draft.message.trim();
     setSealing(true);
     setSealError("");
     void controls
@@ -943,10 +953,11 @@ function BranchEditorBody({
             }
           : {}),
       }))
-      .then((outcome) => {
+      .then(async (outcome) => {
         setDraft((d) => ({ ...d, message: "" }));
         if (outcome === "saved") setCommitted(message);
         setTab("document");
+        await then?.(outcome);
       })
       .catch((e: unknown) =>
         setSealError(
@@ -981,20 +992,74 @@ function BranchEditorBody({
   const ahead = aheadOf(commits, head.id, (prTarget ?? main)?.headId).length;
   // Where this branch is in its lifecycle.
   const stage = pr ? (changed ? 1 : 3) : changed ? 1 : ahead > 0 ? 2 : 0;
-  const steps: Step[] = [
-    "Edit",
-    "Commit",
-    "Open pull request",
-    "Review & merge",
-  ].map((label, i) => ({
-    label,
-    state:
-      i === stage
-        ? "current"
-        : i < stage || (pr && i === 2)
-          ? "done"
-          : "upcoming",
-  }));
+  // A breakdown has three: propose the items, send them for review, and
+  // the reviewed items are created.
+  const breakdownStage = pr && !changed ? 2 : changed || ahead > 0 ? 1 : 0;
+  const steps: Step[] = isBreakdown
+    ? ["Propose items", "Send for review", "Reviewed, then created"].map(
+        (label, i) => ({
+          label,
+          state:
+            i === breakdownStage
+              ? "current"
+              : i < breakdownStage
+                ? "done"
+                : "upcoming",
+        }),
+      )
+    : ["Edit", "Commit", "Open pull request", "Review & merge"].map(
+        (label, i) => ({
+          label,
+          state:
+            i === stage
+              ? "current"
+              : i < stage || (pr && i === 2)
+                ? "done"
+                : "upcoming",
+        }),
+      );
+  // Sends the proposed items for review in one step: saves the edits, if
+  // any, and opens the review against main (the specification's reviewers
+  // are asked). Later edits update the open review.
+  const proposed = (draft.proposedChildren ?? [])
+    .filter(isNewChild)
+    .filter((child) => !workItems.some((w) => w.id === child.workItemId));
+  const openReview = async () => {
+    const main = branches.find(isMain);
+    if (!main) throw new Error("The specification is still loading.");
+    const id = crypto.randomUUID();
+    await mutateConfirmed({
+      type: "createPullRequest",
+      workItemId: itemId,
+      pullRequestId: id,
+      sourceId: branch.id,
+      targetId: main.id,
+      title: `Breakdown: ${item.title}`.slice(0, 120),
+      description: proposed.length
+        ? `Proposed items:\n${proposed
+            .map((child) => `- ${child.title}`)
+            .join("\n")}`.slice(0, 10_000)
+        : "Changes to the delivery breakdown.",
+      draft: false,
+    });
+    onNavigate({ kind: "pr", id });
+  };
+  const sendForReview = (controls: LiveControls) => {
+    if (changed)
+      return commit(
+        controls,
+        async () => {
+          if (!pr) await openReview();
+        },
+        pr ? "Update the proposed breakdown" : "Propose breakdown",
+      );
+    if (!pr && ahead > 0)
+      void openReview().catch((e: unknown) =>
+        setSealError(
+          e instanceof Error ? e.message : "The review could not be opened.",
+        ),
+      );
+  };
   const openPrButton = (
     <Button
       variant={stage === 2 ? "primary" : "secondary"}
@@ -1019,11 +1084,31 @@ function BranchEditorBody({
         status={pr.status}
         className={stage === 3 ? "text-current" : undefined}
       />
-      View pull request
+      {isBreakdown ? "View review" : "View pull request"}
     </Button>
   );
   const targetName = prTarget?.name ?? "main";
-  const guidance = !canEdit ? (
+  const breakdownGuidance = !canEdit ? (
+    <NextStep title="You're viewing someone else's breakdown proposal.">
+      Ask {memberName(branch.authorId)} to invite you to edit it.
+    </NextStep>
+  ) : pr && !changed ? (
+    <NextStep
+      title={`The breakdown is ${pr.status === "draft" ? "a draft" : "waiting for review"}.`}
+      action={viewPrButton}
+    >
+      The items are created once the specification&apos;s reviewers approve it.
+      Changes you make here update the review and ask them again.
+    </NextStep>
+  ) : (
+    <NextStep title="Propose the items that deliver this specification.">
+      Edits are saved as you type and shared with the people you invite. Nothing
+      is created until the specification&apos;s reviewers approve the breakdown.
+    </NextStep>
+  );
+  const guidance = isBreakdown ? (
+    breakdownGuidance
+  ) : !canEdit ? (
     <NextStep title="You're viewing someone else's branch.">
       Ask {memberName(branch.authorId)} to invite you as a collaborator to
       commit changes.
@@ -1074,21 +1159,36 @@ function BranchEditorBody({
     <>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <ItemScreenTitle className="flex items-center gap-2 font-mono text-lg">
-            <GitBranch aria-hidden className="size-5 shrink-0" />
-            <span className="truncate">{branch.name}</span>
-          </ItemScreenTitle>
-          <p className="text-xs text-muted-foreground">
-            {memberName(branch.authorId)}&apos;s branch ·{" "}
-            {ahead
-              ? `${plural(ahead, "commit")} ahead of ${targetName}`
-              : `matches ${targetName}`}{" "}
-            · last commit {relativeTime(head.createdAt)}
-          </p>
+          {isBreakdown ? (
+            <>
+              <ItemScreenTitle className="flex items-center gap-2 text-lg">
+                <ListTree aria-hidden className="size-5 shrink-0" />
+                <span className="truncate">Breakdown of {item.title}</span>
+              </ItemScreenTitle>
+              <p className="text-xs text-muted-foreground">
+                Proposed by {memberName(branch.authorId)} · saved{" "}
+                {relativeTime(head.createdAt)}
+              </p>
+            </>
+          ) : (
+            <>
+              <ItemScreenTitle className="flex items-center gap-2 font-mono text-lg">
+                <GitBranch aria-hidden className="size-5 shrink-0" />
+                <span className="truncate">{branch.name}</span>
+              </ItemScreenTitle>
+              <p className="text-xs text-muted-foreground">
+                {memberName(branch.authorId)}&apos;s branch ·{" "}
+                {ahead
+                  ? `${plural(ahead, "commit")} ahead of ${targetName}`
+                  : `matches ${targetName}`}{" "}
+                · last commit {relativeTime(head.createdAt)}
+              </p>
+            </>
+          )}
           <FlowSteps steps={steps} />
         </div>
         <div className="flex items-center gap-1.5">
-          {pr ? viewPrButton : stage !== 2 && openPrButton}
+          {pr ? viewPrButton : !isBreakdown && stage !== 2 && openPrButton}
           {canDelete && (
             <DeletePrompt
               name={`branch ${branch.name}`}
@@ -1242,21 +1342,40 @@ function BranchEditorBody({
                             </Button>
                           </div>
                         )}
-                        <CommitBox
-                          branchName={branch.name}
-                          changed={changed}
-                          message={draft.message}
-                          onMessage={(message) =>
-                            setDraft((d) => ({ ...d, message }))
-                          }
-                          conflicted={false}
-                          disabled={
-                            pending || sealing || !changed || !controls.editable
-                          }
-                          onDiscard={() => setConfirmDiscard(true)}
-                          onCommit={() => commit(controls)}
-                          updatesPr={pr?.title}
-                        />
+                        {isBreakdown ? (
+                          <SendBreakdown
+                            changed={changed}
+                            inReview={Boolean(pr)}
+                            items={proposed.length}
+                            disabled={
+                              pending ||
+                              sealing ||
+                              !controls.editable ||
+                              (pr ? !changed : !changed && ahead === 0)
+                            }
+                            onDiscard={() => setConfirmDiscard(true)}
+                            onSend={() => sendForReview(controls)}
+                          />
+                        ) : (
+                          <CommitBox
+                            branchName={branch.name}
+                            changed={changed}
+                            message={draft.message}
+                            onMessage={(message) =>
+                              setDraft((d) => ({ ...d, message }))
+                            }
+                            conflicted={false}
+                            disabled={
+                              pending ||
+                              sealing ||
+                              !changed ||
+                              !controls.editable
+                            }
+                            onDiscard={() => setConfirmDiscard(true)}
+                            onCommit={() => commit(controls)}
+                            updatesPr={pr?.title}
+                          />
+                        )}
                       </>
                     )}
                   />
@@ -1385,6 +1504,56 @@ function BranchEditorBody({
 }
 
 // The explicit "save a checkpoint" step, separated from editing.
+// The breakdown's one action: send the proposed items for review (or
+// update the review already open), without commit messages.
+function SendBreakdown({
+  changed,
+  inReview,
+  items,
+  disabled,
+  onDiscard,
+  onSend,
+}: {
+  changed: boolean;
+  inReview: boolean;
+  items: number;
+  disabled: boolean;
+  onDiscard: () => void;
+  onSend: () => void;
+}) {
+  return (
+    <form
+      aria-label="Send breakdown for review"
+      className={cn(
+        "sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel) max-sm:static max-sm:shadow-none",
+        !changed && "shadow-none",
+      )}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disabled) onSend();
+      }}
+    >
+      <p className="min-w-0 flex-1 basis-60 text-xs text-muted-foreground">
+        {inReview
+          ? changed
+            ? "Your changes are not in the review yet."
+            : "The review has every change."
+          : `${plural(items, "proposed item")}. The specification's reviewers approve the breakdown before the items are created.`}
+      </p>
+      <Button variant="ghost" size="sm" disabled={!changed} onClick={onDiscard}>
+        Discard changes
+      </Button>
+      <Button type="submit" size="sm" disabled={disabled}>
+        <Send aria-hidden className="size-3.5" />
+        {inReview ? "Update the review" : "Send for review"}
+      </Button>
+    </form>
+  );
+}
+
+export const isBreakdownBranch = (branch: { name: string } | undefined) =>
+  Boolean(branch && /^breakdown(-\d+)?$/.test(branch.name));
+
 function CommitBox({
   branchName,
   changed,
@@ -2207,6 +2376,9 @@ function PullRequestView({
       ? mergeActivity.detail.source
       : "Deleted branch");
   const targetName = target?.name ?? "Deleted branch";
+  // A breakdown into main reads as one: items proposed, reviewed, created.
+  const breakdown =
+    isBreakdownBranch({ name: sourceName }) && (!target || isMain(target));
   const automaticallyDeleted = activity.some(
     (a) =>
       a.action === "branch_deleted" &&
@@ -2422,7 +2594,12 @@ function PullRequestView({
         </Button>
       ),
     });
-  const mergeEffect = isMain(target) ? (
+  const mergeEffect = breakdown ? (
+    <>
+      Creating them records this breakdown as revision {item.revisionNumber + 1}{" "}
+      of the specification. Approvals carry over to that revision.
+    </>
+  ) : isMain(target) ? (
     <>
       Merging publishes this result as revision {item.revisionNumber + 1} of the
       specification. Approvals carry over to that revision
@@ -2453,6 +2630,13 @@ function PullRequestView({
         state={p.status}
         author={<Actor userId={p.authorId} size={20} />}
         commits={sourceHistory.length || shownHistory.length}
+        summary={
+          breakdown
+            ? p.status === "merged"
+              ? `created the breakdown of ${item.title}`
+              : `proposes a breakdown of ${item.title}`
+            : undefined
+        }
         base={targetName}
         head={sourceName}
         headGone={!source}
@@ -2530,7 +2714,7 @@ function PullRequestView({
                           {blockers.length === 1
                             ? "requirement"
                             : `${blockers.length} requirements`}{" "}
-                          above to merge.
+                          above to {breakdown ? "create the items" : "merge"}.
                         </span>
                       )}
                       {mergeEffect}
@@ -2555,8 +2739,12 @@ function PullRequestView({
                         }))
                     }
                   >
-                    <GitMerge className="size-3.5" aria-hidden />
-                    Merge pull request
+                    {breakdown ? (
+                      <ListTree className="size-3.5" aria-hidden />
+                    ) : (
+                      <GitMerge className="size-3.5" aria-hidden />
+                    )}
+                    {breakdown ? "Create the items" : "Merge pull request"}
                   </Button>
                 }
               >
@@ -2590,24 +2778,32 @@ function PullRequestView({
               </MergeBox>
             ) : (
               <MergedNotice>
-                <p>
-                  Merged. The reviewed content is recorded in the target branch
-                  history.
-                  {automaticallyDeleted && (
-                    <>
-                      {" "}
-                      Lictory automatically deleted the branch{" "}
-                      <BranchName>{sourceName}</BranchName>.
-                    </>
-                  )}
-                  {source && isMain(target) && !willDeleteSource && (
-                    <>
-                      {" "}
-                      The source branch is retained because another active pull
-                      request uses it.
-                    </>
-                  )}
-                </p>
+                {breakdown ? (
+                  <p>
+                    Created. The reviewed breakdown is part of the
+                    specification&apos;s history, and its items are below the
+                    specification.
+                  </p>
+                ) : (
+                  <p>
+                    Merged. The reviewed content is recorded in the target
+                    branch history.
+                    {automaticallyDeleted && (
+                      <>
+                        {" "}
+                        Lictory automatically deleted the branch{" "}
+                        <BranchName>{sourceName}</BranchName>.
+                      </>
+                    )}
+                    {source && isMain(target) && !willDeleteSource && (
+                      <>
+                        {" "}
+                        The source branch is retained because another active
+                        pull request uses it.
+                      </>
+                    )}
+                  </p>
+                )}
               </MergedNotice>
             )}
             <TabPanel value="commits">

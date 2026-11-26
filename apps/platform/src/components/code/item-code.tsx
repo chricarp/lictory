@@ -25,6 +25,7 @@ import {
   ChecksIcon,
   PullRequestIcon,
   ReviewBadge,
+  reviewDecisionOf,
   TargetIcon,
   changeNoun,
   codePaths,
@@ -273,7 +274,9 @@ function LinkRow({
             <>
               <ChecksIcon state={s.checks} />
               {s.state === "open" && (
-                <ReviewBadge decision={s.reviewDecision} />
+                <ReviewBadge
+                  decision={reviewDecisionOf(s.reviewDecision, s.reviewedHere)}
+                />
               )}
             </>
           )}

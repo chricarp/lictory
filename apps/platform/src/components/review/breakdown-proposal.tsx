@@ -83,9 +83,10 @@ export function BreakdownProposal({
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        New children and changes to existing children apply only when this pull
-        request is approved and merged into main, and only to children nobody
-        has changed since. Work already accepted or underway stays unchanged.
+        New items and changes to existing ones are made only after the
+        specification&apos;s reviewers approve this breakdown, and only to items
+        nobody has changed since. Work already accepted or underway stays
+        unchanged.
       </p>
       {changes.length > 0 && (
         <ul

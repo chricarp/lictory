@@ -506,7 +506,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   setSuggestionReviewer: {
     title: "Set suggestion reviewer",
     description:
-      "Author: assign or unassign a reviewer who holds a discipline in the project that can both edit specifications and review.",
+      "Author: assign or unassign a reviewer who holds a discipline in the project that can both edit specifications and review. While nobody is assigned, such a person may assign themselves.",
   },
   decideSuggestion: {
     title: "Review suggestion",

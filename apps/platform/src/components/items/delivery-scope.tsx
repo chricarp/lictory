@@ -71,11 +71,17 @@ export function DeliveryScope({
         </span>
       </p>
     )
-  ) : (
+  ) : closed ? (
     <p className="text-muted-foreground">
-      {closed
-        ? "No delivery scope was recorded for this historical item."
-        : "Not accepted for delivery yet. Planning an iteration alone is tentative."}
+      No delivery scope was recorded for this historical item.
+    </p>
+  ) : embedded && !early ? null : (
+    // Embedded beside a ready revision, the card above already says that
+    // delivery starts when a person accepts it; elsewhere say it once.
+    <p className="text-muted-foreground">
+      {early
+        ? "Not accepted for delivery. Plans for it stay tentative until a revision is accepted."
+        : `Delivery starts when a person accepts revision ${current.number}.`}
     </p>
   );
   // Accepting before the checks pass is allowed by policy, but it is an

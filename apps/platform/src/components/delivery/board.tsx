@@ -350,6 +350,18 @@ function ProjectBoard({ project }: { project: Project }) {
     assignees.length || typeFilter.length || teamFilter.value,
   );
   const points = scoped.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
+  // Board work without a team, for the hint when a team's board is empty.
+  const teamless = items.filter(
+    (i) =>
+      i.projectId === project.id &&
+      !i.archivedAt &&
+      !i.teamId &&
+      !isTopLevel(typeOf(delivery, i)) &&
+      (iterationId
+        ? i.iterationId === iterationId
+        : !isClosedCategory(delivery.statuses.get(i.statusId)?.category) ||
+          now - new Date(i.updatedAt).getTime() <= DONE_WINDOW),
+  ).length;
   const assigneeSummary = assignees.length
     ? `${assignees.length} ${assignees.length === 1 ? "person" : "people"}`
     : "Anyone";
@@ -818,9 +830,13 @@ function ProjectBoard({ project }: { project: Project }) {
                 filtered ? "No matching work" : "No work on this board yet"
               }
             >
-              {filtered
-                ? "Adjust the filters to see more work."
-                : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
+              {teamFilter.team && !assignees.length && !typeFilter.length
+                ? teamless > 0
+                  ? `No work on this board belongs to ${teamFilter.team.name}. ${teamless} ${teamless === 1 ? "item has" : "items have"} no team yet: choose “No team” to see ${teamless === 1 ? "it" : "them"}, and set the team on the item.`
+                  : `No work on this board belongs to ${teamFilter.team.name} yet.`
+                : filtered
+                  ? "Adjust the filters to see more work."
+                  : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
             </EmptyState>
           )}
         </BoardScroller>

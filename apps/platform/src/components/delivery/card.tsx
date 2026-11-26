@@ -190,7 +190,11 @@ export const ItemCard = memo(function ItemCard({
             title={estimateSpoken(project, estimate)}
             className="rounded-full bg-muted px-2 text-[11px] font-medium tabular-nums"
           >
-            <span aria-hidden>{estimate}</span>
+            {/* A unit, so an estimate is not read as a count. */}
+            <span aria-hidden>
+              {estimate}
+              {project?.estimateScale !== "tshirt" && " pts"}
+            </span>
             <span className="sr-only">{estimateSpoken(project, estimate)}</span>
           </span>
         )}

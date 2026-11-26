@@ -47,7 +47,9 @@ export function Readiness() {
                   ? "bg-success"
                   : blocks(c)
                     ? "bg-destructive"
-                    : "bg-foreground/10",
+                    : // An unmet check is an empty slot whose outline
+                      // keeps 3:1 against the card (WCAG 1.4.11).
+                      "ring-1 ring-muted-foreground ring-inset",
               )}
             />
           ))}
@@ -69,7 +71,7 @@ export function Readiness() {
       )}
       <p className="mt-2 text-[11px] text-muted-foreground">
         {item.refinementState === "ready"
-          ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
+          ? "All checks pass for this revision."
           : "The specification becomes Ready automatically when every check passes."}
       </p>
       {readiness?.pinned && latest && (

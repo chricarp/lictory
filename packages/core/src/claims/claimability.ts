@@ -219,7 +219,7 @@ export function claimability(
     if (!item.committedRevisionId)
       refuse(
         "scope_not_accepted",
-        `${own} has no accepted delivery scope. A person accepts revision ${item.revisionNumber} for delivery before agents can claim it.`,
+        `Agents start ${own} once a person accepts revision ${item.revisionNumber} for delivery.`,
         undefined,
         "acceptDeliveryScope",
       );
@@ -266,7 +266,7 @@ export function claimability(
       else if (!ancestor.committedRevisionId)
         refuse(
           "parent_scope_not_accepted",
-          `${own} is not covered by agreed scope: its specification ${parentKey} has no accepted revision. A person accepts it for delivery first.`,
+          `Agents start ${own} once a person accepts its specification ${parentKey} for delivery.`,
           [ancestor.id],
         );
       else if (!readinessHolds(ancestor, project.readinessPolicy))

@@ -158,14 +158,11 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
           )}
         </div>
       </div>
-      {parentType.hasSpecification && (
+      {/* Said once, before the first breakdown: what happens to one. */}
+      {parentType.hasSpecification && onPropose && stories.length === 0 && (
         <p className="mb-2 text-xs text-muted-foreground">
-          Reviews approve this specification. Child readiness shows whether its
-          delivery breakdown is prepared.
-          {onPropose &&
-            " A proposed breakdown is reviewed like a change to the specification: the required reviewers approve it before its items are created."}
-          {item.mainProtected &&
-            " The approved specification stays protected while you prepare its children."}
+          A proposed breakdown is reviewed by this specification&rsquo;s
+          reviewers before its items are created.
         </p>
       )}
       <div className="overflow-hidden rounded-md border">

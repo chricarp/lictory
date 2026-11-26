@@ -53,7 +53,16 @@ export function ItemWorkflow({
   onCompare?: (from: string, to: string) => void;
   children?: ReactNode;
 }) {
-  const { item, type, project, current, readOnly, entities } = useItem();
+  const {
+    item,
+    type,
+    project,
+    current,
+    readOnly,
+    entities,
+    reviews,
+    approvals,
+  } = useItem();
   // A requested reviewer sees their own step first: the decision, and
   // whether an approval they gave earlier stopped applying.
   const mine = useMyReview();
@@ -112,8 +121,8 @@ export function ItemWorkflow({
         : stage === "ready"
           ? native
             ? container
-              ? `Every readiness check passes on revision ${current?.number ?? ""}. Once it is accepted, break it down into work the team can pick up.`
-              : `Every readiness check passes on revision ${current?.number ?? ""}.`
+              ? `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it; then break it down into work the team can pick up.`
+              : `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it: the board, iterations and agents work from the accepted revision.`
             : "The checks pass. Hand off this revision to your delivery tool."
           : stage === "completed"
             ? "The delivered revision and its history stay here. Later changes are refined as a new revision."
@@ -134,7 +143,7 @@ export function ItemWorkflow({
   // Accepting a ready native scope happens in the panel below; the other
   // stages point to the place where their next step happens.
   const action = mine.review ? (
-    <div className="flex flex-wrap justify-end gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
       <Button size="sm" onClick={() => mine.decide("approve")}>
         <Check className="size-3.5" /> Approve revision {current?.number}
       </Button>
@@ -167,7 +176,7 @@ export function ItemWorkflow({
       href={destination}
       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
     >
-      {native ? "Open delivery" : "Open hand-off"}
+      {!native ? "Open hand-off" : delivering ? "Open board" : "Open backlog"}
       <ArrowRight className="size-3.5" />
     </Link>
   );
@@ -252,6 +261,14 @@ export function ItemWorkflow({
       : next
         ? null
         : description;
+  // The reviews of the current revision, so approval state reads here
+  // even while the review rail steps aside for discussions.
+  const requested = reviews.filter(
+    (r) => r.status !== "cancelled" && r.revisionId === current?.id,
+  );
+  const approvedReviews = requested.filter((r) =>
+    approvals.some((a) => a.reviewId === r.id && a.status === "granted"),
+  ).length;
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
   // The statement names the stage (the refinement state's sentence), so
@@ -272,6 +289,15 @@ export function ItemWorkflow({
             }
           >
             {item.readinessPassed}/{item.readinessTotal} checks
+          </Pill>
+        </li>
+      )}
+      {requested.length > 0 && (
+        <li>
+          <Pill
+            tone={approvedReviews === requested.length ? "good" : "neutral"}
+          >
+            {approvedReviews}/{requested.length} approved
           </Pill>
         </li>
       )}
@@ -331,8 +357,11 @@ export function ItemWorkflow({
     >
       {/* A tray: the state card on top, the decision it leads to beneath. */}
       <div className="rounded-2xl bg-card px-4 pt-3.5 pb-4 shadow-(--shadow-border)">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        {/* The decision sits beside the statement while both fit and wraps
+            below it on phones and at high zoom, so neither is squeezed
+            into a one-word column. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2.5">
+          <div className="min-w-0 flex-[1_1_20rem]">
             <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.015em]">
               <span
                 aria-hidden
@@ -348,7 +377,7 @@ export function ItemWorkflow({
               {statement}
             </p>
             {subline && (
-              <p className="mt-1 line-clamp-3 pl-4 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+              <p className="mt-1 pl-4 text-[13px] leading-relaxed text-muted-foreground">
                 {subline}
               </p>
             )}
@@ -363,9 +392,9 @@ export function ItemWorkflow({
               </button>
             )}
           </div>
-          {/* On phones too the action sits beside the statement, so the
-              card stays short. */}
-          {action && <div className="shrink-0">{action}</div>}
+          {action && (
+            <div className="max-w-full shrink-0 max-sm:pl-4">{action}</div>
+          )}
         </div>
         <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
         {next && (

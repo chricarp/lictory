@@ -174,7 +174,21 @@ const reviewLooks: Record<
   none: ["neutral", CircleMinus],
 };
 
-// The host's review decision as a state chip.
+// One answer to "is it reviewed?": the host's decision, unless a review
+// recorded in Lictory on the head commit (a reviewer agent's or a person's,
+// which the Definition of Done counts) says more. Requested changes on
+// either side win.
+export function reviewDecisionOf(
+  host: CodePullRequestEntity["reviewDecision"],
+  here: "approve" | "request_changes" | null | undefined,
+): CodePullRequestEntity["reviewDecision"] {
+  if (host === "changes_requested" || here === "request_changes")
+    return "changes_requested";
+  if (here === "approve") return "approved";
+  return host;
+}
+
+// The review decision as a state chip.
 export function ReviewBadge({
   decision,
 }: {
