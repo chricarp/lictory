@@ -123,6 +123,43 @@ export function waitsForRunner(
   );
 }
 
+// What a harness does without asking a person, in plain words, from the
+// permission mode its runner reports (docs/internals/factory.md#harnesses).
+// Null when the runner did not say (an older runner) or the mode is not
+// one Lictory knows: surfaces then say it is unknown rather than guess.
+export function withoutAsking(
+  harness: string,
+  permissions: string | undefined,
+): string | null {
+  if (harness === "claude-code")
+    switch (permissions) {
+      case "default":
+        return "Asks before editing files and before running commands, unless the machine's or repository's Claude Code settings allow them.";
+      case "acceptEdits":
+        return "Edits files in its worktree without asking. Asks before running commands, unless the machine's or repository's Claude Code settings allow them.";
+      case "plan":
+        return "Changes nothing: it reads and proposes a plan.";
+      case "bypassPermissions":
+        return "Never asks: it edits files and runs any command without a person's approval.";
+      default:
+        return null;
+    }
+  if (harness === "codex")
+    switch (permissions) {
+      case "read-only":
+        return "Never asks; its commands run in a read-only sandbox.";
+      case "workspace-write":
+        return "Never asks; its commands run in a sandbox that can write only to its worktree.";
+      case "danger-full-access":
+        return "Never asks; its commands run with no sandbox.";
+      default:
+        return null;
+    }
+  if (harness === "lictory")
+    return "Never asks: it edits files in its worktree and runs commands there without a person's approval.";
+  return null;
+}
+
 export type SessionStatus = SessionRow["status"];
 
 // The sessions that take one of a runner's slots: assigned or running. A

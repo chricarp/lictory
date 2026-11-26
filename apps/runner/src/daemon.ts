@@ -77,6 +77,14 @@ export function endLine(
 // runner needs no open port. SIGINT/SIGTERM stop claiming, hand running
 // sessions back to the queue and exit.
 
+// What each harness may do without asking, from the runner's own
+// configuration, so the agent page can tell people before they rely on it.
+function harnessPermissions(id: string, config: RunnerConfig) {
+  if (id === "claude-code") return { permissions: config.claudePermissionMode };
+  if (id === "codex") return { permissions: config.codexSandbox };
+  return {};
+}
+
 export function machineReport(
   config: RunnerConfig,
   detected: Detected,
@@ -86,7 +94,11 @@ export function machineReport(
     arch: arch(),
     version: RUNNER_VERSION,
     hostname: hostname().slice(0, 200),
-    harnesses: detected.map((d) => ({ id: d.id, version: d.version })),
+    harnesses: detected.map((d) => ({
+      id: d.id,
+      version: d.version,
+      ...harnessPermissions(d.id, config),
+    })),
     labels: config.labels,
     maxSessions: config.maxSessions,
     isolation: config.isolation,

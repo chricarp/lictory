@@ -343,7 +343,10 @@ stream-json --verbose --permission-prompt-tool stdio` (verified against
   interrupt is a `control_request` of subtype `interrupt`. Steering messages
   are delivered when the current turn ends, so every message has its own
   turn. The runner's `claudePermissionMode` (default `acceptEdits`) decides
-  what it may do without asking.
+  what it may do without asking. Heartbeats report it (and Codex's sandbox)
+  per harness, and the agent page states it in plain words
+  (`withoutAsking` in `factory/entities.ts`); unknown for runners that do
+  not report it.
 - **Codex**: `codex exec --json` and `codex exec resume <thread> --json`
   for follow-up messages (verified against 0.171.0). `codex exec` asks
   nobody: commands run in its sandbox (`codexSandbox`), so Codex sessions

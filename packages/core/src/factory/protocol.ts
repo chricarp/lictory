@@ -232,6 +232,10 @@ const harnessReport = z
     z.object({
       id: z.enum(harnessIds),
       version: z.string().max(80).nullable(),
+      // What the harness does without asking a person, as the runner's
+      // configuration sets it: Claude Code's permission mode, Codex's
+      // sandbox. Older runners do not report it.
+      permissions: z.string().max(40).optional(),
     }),
   )
   .max(harnessIds.length);

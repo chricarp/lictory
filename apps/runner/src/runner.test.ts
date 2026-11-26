@@ -26,7 +26,12 @@ import {
   writeState,
   readState,
 } from "@lictory/runner/config";
-import { endLine, failureLog, refuseIfRunning } from "@lictory/runner/daemon";
+import {
+  endLine,
+  failureLog,
+  machineReport,
+  refuseIfRunning,
+} from "@lictory/runner/daemon";
 import { CliError, EXIT } from "@lictory/runner/output";
 import { SessionRun } from "@lictory/runner/session";
 import { EventStream } from "@lictory/runner/events";
@@ -687,4 +692,24 @@ void test("status and doctor say what a person must do, with the exit code start
     /Stopped: The server refused this runner's credential/,
   );
   assert.doesNotMatch(revoked.stdout, /Start it with/);
+});
+
+void test("the runner reports what each harness may do without asking, from its configuration", () => {
+  const detected = fakeHarnesses(defaultScript)
+    .filter((h) => h.id === "claude-code" || h.id === "codex")
+    .map((harness) => ({ id: harness.id, version: "1.0.0", harness }));
+  const report = machineReport(
+    configSchema.parse({
+      ...config,
+      claudePermissionMode: "bypassPermissions",
+    }),
+    detected,
+  );
+  assert.deepEqual(
+    report.harnesses.map((h) => [h.id, h.permissions]),
+    [
+      ["claude-code", "bypassPermissions"],
+      ["codex", "workspace-write"],
+    ],
+  );
 });

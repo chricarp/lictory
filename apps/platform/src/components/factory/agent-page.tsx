@@ -8,7 +8,11 @@ import {
   Play,
   RotateCcw,
 } from "lucide-react";
-import type { AgentEntity } from "@lictory/core/factory/entities";
+import {
+  withoutAsking,
+  type AgentEntity,
+} from "@lictory/core/factory/entities";
+import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
 import { Button } from "@lictory/ui/button";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
@@ -238,6 +242,7 @@ function About({ agent }: { agent: AgentEntity }) {
     ],
     ...(agent.kind === "runner"
       ? ([
+          ["Without asking", <WithoutAsking key="asking" agent={agent} />],
           [
             "Sessions",
             agent.shared
@@ -317,6 +322,46 @@ const targetNouns: Record<string, string> = {
   agentId: "agent",
   runnerId: "runner",
 };
+
+// What the agent's harness does before a person is asked, as the runners
+// that can run it report their configuration; said plainly when unknown.
+// Approval requests only reach people for what the harness asks.
+function WithoutAsking({ agent }: { agent: AgentEntity }) {
+  const { runners } = useFactory();
+  const harness = harnessLabels[agent.harness as HarnessId] ?? agent.harness;
+  const able = runners.filter(
+    (r) =>
+      !r.revokedAt &&
+      (!r.ownerId || r.ownerId === agent.ownerId) &&
+      r.harnesses.some((h) => h.id === agent.harness),
+  );
+  if (!able.length)
+    return (
+      <span className="text-muted-foreground">
+        Unknown until a runner with {harness} connects: each runner’s
+        configuration decides it.
+      </span>
+    );
+  const said = able.map((r) => ({
+    runner: r.name,
+    text: withoutAsking(
+      agent.harness,
+      r.harnesses.find((h) => h.id === agent.harness)?.permissions,
+    ),
+  }));
+  const distinct = new Set(said.map((s) => s.text));
+  const unknown = `Unknown: ${distinct.size === 1 && able.length > 1 ? "its runners do" : "the runner does"} not report it (an older runner version). The runner’s configuration decides what ${harness} does without asking.`;
+  if (distinct.size === 1) return <span>{said[0]!.text ?? unknown}</span>;
+  return (
+    <ul className="space-y-1">
+      {said.map((s) => (
+        <li key={s.runner}>
+          <span className="font-medium">{s.runner}:</span> {s.text ?? unknown}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // What the agent did with its tokens, as Lictory recorded it: each tool it
 // called, what it named, when, and whether it worked, with the refusal it
