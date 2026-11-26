@@ -477,7 +477,7 @@ export function SessionView() {
       {session.status === "waiting" && !asks.length && (
         <p
           data-waiting-for-message
-          className="flex shrink-0 items-center justify-center gap-1.5 border-t bg-warning/5 px-4 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] sm:px-6"
+          className="flex shrink-0 items-center justify-center gap-1.5 border-t bg-warning/5 px-4 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] sm:px-6 dark:bg-transparent"
         >
           <Hand className="size-3.5 shrink-0" aria-hidden />
           {steer
@@ -488,7 +488,9 @@ export function SessionView() {
       {asks.length > 0 && (
         <section
           aria-label={steer ? "Waiting on you" : state.label}
-          className="max-h-[55%] shrink-0 overflow-y-auto border-t bg-warning/5 px-4 py-3 sm:px-6"
+          // Urgency is a rule in the warning color along its top; a tint
+          // over the whole band read as dirty olive on near-black.
+          className="max-h-[55%] shrink-0 overflow-y-auto border-t-2 border-warning/60 bg-warning/5 px-4 py-3 sm:px-6 dark:bg-transparent"
         >
           <div className="mx-auto max-w-3xl space-y-2">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
