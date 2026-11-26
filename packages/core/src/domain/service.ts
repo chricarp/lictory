@@ -152,6 +152,7 @@ import {
   followItemClaim,
   refuseClaimedCompletion,
 } from "@lictory/core/claims/follow";
+import { signalWork } from "@lictory/core/jobs/signal";
 import {
   assertAgentOrganization,
   assertAgentProject,
@@ -3612,6 +3613,10 @@ export async function applyMutation(
           failingChecks,
           automatic: false,
         });
+        // Accepted scope is what Build and Autopilot dispatch: wake the
+        // dispatcher on commit rather than leave the item waiting for its
+        // next minute (docs/internals/claims.md#the-dispatcher).
+        await signalWork(tx, "factory");
         if (unstarted)
           log("status_changed", {
             from: projectStatuses().find((s) => s.id === item!.statusId)?.name,
