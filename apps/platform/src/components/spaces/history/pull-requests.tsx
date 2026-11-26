@@ -103,8 +103,8 @@ export function PullRequests({
   const otherAuthor = commits.findLast((c) => c.authorId !== userId)?.authorId;
   const suggestedReviewer =
     lastAuthor && lastAuthor !== userId ? lastAuthor : (otherAuthor ?? "");
-  // In a reviewed space nothing merges without a required review: a
-  // ready pull request names its reviewer when it is opened.
+  // In a reviewed space nothing merges without a required review: say so
+  // while a ready pull request would be opened with nobody asked.
   const needsReviewer = space.publishing === "reviewed" && !draft;
   const [reviewer, setReviewer] = useState<string | null>(null);
   const chosenReviewer = reviewer ?? suggestedReviewer;
@@ -263,9 +263,10 @@ export function PullRequests({
             </DropdownSelect>
           </label>
           {needsReviewer && !chosenReviewer && (
-            <p className="text-xs text-muted-foreground">
-              Changes to this space are reviewed: choose who reviews it, or
-              start it as a draft and ask someone later.
+            <p role="status" className="text-xs text-warning">
+              Nobody will be asked to review it, and changes to this space merge
+              only after a review. Choose a reviewer now, or start it as a
+              draft.
             </p>
           )}
           <label className="flex items-center gap-2 text-sm">
@@ -278,12 +279,7 @@ export function PullRequests({
           <ActionError error={action.error} />
           <Button
             type="submit"
-            disabled={
-              action.pending ||
-              !source ||
-              !title.trim() ||
-              (needsReviewer && !chosenReviewer)
-            }
+            disabled={action.pending || !source || !title.trim()}
           >
             Create pull request
           </Button>
