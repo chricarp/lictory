@@ -27,6 +27,8 @@ import {
 import { SessionRow } from "@lictory/platform/components/factory/parts";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { useChannels } from "@lictory/platform/components/channels/store";
+import { channelLabel } from "@lictory/platform/components/channels/data";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import {
   AgentDialog,
@@ -282,6 +284,25 @@ type AgentCall = {
   } | null;
 };
 
+// "Scout is an agent: “Decide review” is a person's decision, made in the
+// work item's specification → Reviews (Approve or Request changes). …" →
+// its first sentence. A period inside parentheses or a name does not end it.
+function firstSentence(text: string) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "(" || c === "“") depth++;
+    else if ((c === ")" || c === "”") && depth > 0) depth--;
+    else if (
+      c === "." &&
+      depth === 0 &&
+      (i + 1 === text.length || text[i + 1] === " ")
+    )
+      return text.slice(0, i + 1);
+  }
+  return text;
+}
+
 const targetNouns: Record<string, string> = {
   sessionId: "session",
   pullRequestId: "pull request",
@@ -302,8 +323,12 @@ const targetNouns: Record<string, string> = {
 // got (inputs are never recorded). Its owner's view; administrators see
 // every agent's calls in the audit log.
 function RecentActivity({ agent }: { agent: AgentEntity }) {
-  const { organization, items, projects } = useWorkspace();
-  // A work item reads by its key, whichever way the agent named it.
+  const { organization, items, projects, memberName } = useWorkspace();
+  const { byId: channelById } = useChannels();
+  const { agentById, sessions } = useFactory();
+  // What the call named, by its name: a work item by its key, a channel
+  // as "#field-devices", a project, an agent or a session by name. An id
+  // only for what this browser cannot name.
   const targetLabel = (target: { field: string; id: string } | undefined) => {
     if (!target) return null;
     if (target.field === "workItemId" || target.field === "key") {
@@ -313,6 +338,22 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
         ? identifier(project, item.number)
         : target.id.toUpperCase();
     }
+    const channel =
+      target.field === "channelId" ? channelById.get(target.id) : undefined;
+    const name = channel
+      ? channelLabel(
+          channel,
+          memberName,
+          (id) => agentById.get(id)?.name ?? "agent",
+        )
+      : target.field === "projectId"
+        ? projects.find((p) => p.id === target.id)?.key
+        : target.field === "agentId"
+          ? agentById.get(target.id)?.name
+          : target.field === "sessionId"
+            ? sessions.find((s) => s.id === target.id)?.title
+            : undefined;
+    if (name) return channel && channel.kind !== "direct" ? `#${name}` : name;
     return `${targetNouns[target.field] ?? "on"} ${target.id.slice(0, 8)}`;
   };
   const [calls, setCalls] = useState<AgentCall[] | null>(null);
@@ -350,7 +391,13 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
           title={<span className="font-mono text-xs">{call.capability}</span>}
           meta={
             call.detail?.message ? (
-              <span title={call.detail.message}>{call.detail.message}</span>
+              // One line per call: the refusal's first sentence says what
+              // was refused and where a person does it; the rest (the rule
+              // and what the agent may do instead) is for the agent, and
+              // stays one hover or focus away.
+              <span title={call.detail.message} className="truncate">
+                {firstSentence(call.detail.message)}
+              </span>
             ) : (
               `${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`
             )

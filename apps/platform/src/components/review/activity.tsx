@@ -876,11 +876,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           )}
         {/* Lictory acted by itself for the person (the dispatcher, the
             Definition of Done, an expired lease). */}
-        {str(d.automation) && subject.kind !== "system" && (
-          <span className="ml-1 text-xs text-muted-foreground">
-            · automatically
-          </span>
-        )}
+        {str(d.automation) &&
+          subject.kind !== "system" &&
+          // "claimed this, dispatched by the Build policy" says it already.
+          entry.action !== "claimed" && (
+            <span className="ml-1 text-xs text-muted-foreground">
+              · automatically
+            </span>
+          )}
       </p>
       <time
         className="shrink-0 text-xs text-muted-foreground"

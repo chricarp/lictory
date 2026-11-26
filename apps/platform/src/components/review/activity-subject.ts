@@ -3,8 +3,9 @@
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
-// Factory-loop entries rendered as the agent's or the claim's own sentence
-// (claims/activity.tsx); they name the agent themselves.
+// Factory-loop entries (claims/activity.tsx): their subject is the agent
+// acting for its person, or the automation that acted, like every other
+// entry, so the history reads in one shape.
 const claimSentences = new Set([
   "claimed",
   "claim_released",
@@ -50,13 +51,24 @@ export function activitySubject(
     return system("Lictory");
   if (action === "refinement_changed" && automatic)
     return system("Lictory", `after a change by ${person}`);
-  if (!claimSentences.has(action)) {
-    if (d.automation === "definition_of_done")
-      return system("Definition of Done", `for ${person}`);
-    if (d.automation === "autopilot")
+  if (claimSentences.has(action)) {
+    const name = str(d.agentName) ?? "An agent";
+    if (action.startsWith("autopilot_"))
       return system("Autopilot", `policy set by ${person}`);
-    if (d.automation === "lease_expired") return system("Lictory");
+    if (action === "claim_completed")
+      return d.reason === "definition_of_done"
+        ? system("Definition of Done", `for ${person}`)
+        : system("Lictory", `for ${person}`);
+    // A person released the agent's claim: their act.
+    if (action === "claim_released" && d.reason === "person")
+      return { kind: "person", name: person, agent: "" };
+    return { kind: "agent", name: `${name} via ${person}`, agent: name };
   }
+  if (d.automation === "definition_of_done")
+    return system("Definition of Done", `for ${person}`);
+  if (d.automation === "autopilot")
+    return system("Autopilot", `policy set by ${person}`);
+  if (d.automation === "lease_expired") return system("Lictory");
   const surfaces = new Set(["agent", "mcp", "runner"]);
   const agent =
     d.performedVia === "runner"
@@ -64,7 +76,6 @@ export function activitySubject(
       : typeof d.performedVia === "string" && !surfaces.has(d.performedVia)
         ? d.performedVia
         : undefined;
-  if (agent && !claimSentences.has(action))
-    return { kind: "agent", name: `${agent} via ${person}`, agent };
+  if (agent) return { kind: "agent", name: `${agent} via ${person}`, agent };
   return { kind: "person", name: person, agent: "" };
 }
