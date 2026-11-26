@@ -143,8 +143,18 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   const panel = thread(page);
   const card = panel.getByRole("region", { name: "Forge session" });
   await expect(card).toBeVisible();
-  await expect(card.getByText("Running")).toBeVisible();
   await expect(card.getByRole("link", { name: /Open session/ })).toBeVisible();
+  // It reads the task and waits for Ada's answer: the card says it waits on
+  // her, not that it is running, and the Factory counts it as hers.
+  await expect(card.getByText("Waiting on you")).toBeVisible();
+  await expect(
+    card.getByText("Forge waits for your next message: reply in this thread."),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace", exact: true })
+      .getByRole("link", { name: "Overview" }),
+  ).toHaveAccessibleDescription(/1 agent session waiting on you/);
 
   // A reply by the person who asked steers the agent; its answer arrives.
   const reply = await fillMarkdown(
