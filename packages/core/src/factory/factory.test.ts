@@ -688,6 +688,12 @@ void test("leases fence every runner write and expired sessions return to the qu
   const lease = (await claimSession(db, first))!;
   assert.equal(lease.attempt, 1);
   assert.equal(lease.repository?.branch.startsWith("lictory/"), true);
+  // The runner's log links to the session's page.
+  assert.ok(
+    lease.sessionUrl?.endsWith(
+      `/${organizationId}/factory/sessions/${session.id}`,
+    ),
+  );
   // Nobody else can claim it or write with another lease.
   assert.equal(await claimSession(db, second), null);
   await refused(

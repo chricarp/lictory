@@ -616,6 +616,20 @@ const channelAgent = (a: AgentRow): ChannelAgent => ({
 // copied into a session every member of the organization can read in the
 // Factory.
 // "#payments", or "a direct conversation": where a person asked an agent.
+// The project a channel is homed in, if any.
+async function channelProject(tx: Tx, event: AgentMentionEvent) {
+  const [channel] = await tx
+    .select({ projectId: s.channel.projectId })
+    .from(s.channel)
+    .where(
+      and(
+        eq(s.channel.organizationId, event.organizationId),
+        eq(s.channel.id, event.channelId),
+      ),
+    );
+  return channel?.projectId ?? null;
+}
+
 async function askedIn(tx: Tx, channelId: string) {
   const [channel] = await tx
     .select({ kind: s.channel.kind, name: s.channel.name })
@@ -793,6 +807,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
   const prompt = plainMessage(event.body);
   let context: string | null | undefined;
   let asked: string | undefined;
+  let home: { projectId: string | null } | undefined;
   let started = 0;
   for (const agent of agents) {
     const running = live.find((l) => l.agent.id === agent.id);
@@ -836,10 +851,20 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
       }
     }
     // "… in acme/payments": the repository the person names, if Code
-    // knows it (for the item's project, when there is one).
+    // knows it (for the item's project, when there is one); else the only
+    // repository of the item's project or the channel's, within the
+    // agent's scope.
+    home ??= { projectId: await channelProject(tx, event) };
+    const homeProjectId =
+      projectId ??
+      (home.projectId &&
+      (!agent.projectIds || agent.projectIds.includes(home.projectId))
+        ? home.projectId
+        : null);
     const repositoryId = await sessionRepositoryNamed(tx, {
       organizationId: event.organizationId,
       projectId,
+      homeProjectId,
       text: plainMessage(event.body),
     });
     // The person's words are the task; where they asked and the quoted

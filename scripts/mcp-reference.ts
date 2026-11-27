@@ -4,7 +4,6 @@
 // offers.
 // Usage: bun run mcp:docs                           rewrite the reference
 //        bun scripts/mcp-reference.ts --check       fail when it is stale
-import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -20,6 +19,7 @@ import {
   listCapabilities,
 } from "@lictory/core/capabilities/registry";
 import { inputSchemaOf } from "@lictory/core/mcp/server";
+import { exampleArguments } from "@lictory/core/mcp/examples";
 import { spaceCapabilities } from "@lictory/core/capabilities/spaces";
 import { knowledgeCapabilities } from "@lictory/core/capabilities/knowledge";
 import { decisionCapabilities } from "@lictory/core/capabilities/decisions";
@@ -220,7 +220,6 @@ type Schema = {
   description?: string;
   format?: string;
   default?: unknown;
-  minimum?: number;
 };
 
 function typeOf(schema: Schema): string {
@@ -276,66 +275,6 @@ function facts(capability: AnyCapability, schema: Schema) {
   return facts.join(" · ");
 }
 
-// ------------------------------------------------------------- examples
-
-// Example values by field name, so an example call reads like one.
-const sampleValues: Record<string, unknown> = {
-  organizationId: "acme",
-  workItemId: "PAY-142",
-  projectId: "3b0f6c1e-5d2a-4e8b-9f61-2a7c4d9e8b10",
-  mutationId: "6f1d2c3b-8a9e-4f70-b1c2-d3e4f5a6b7c8",
-  title: "Retry failed refunds once",
-  name: "payments",
-  query: "refund",
-  q: "refund",
-  body: "Can a refund be retried after settlement?",
-  note: "Tests for the retry window pass; next: the settlement case.",
-  question: "Does a retry reuse the original transaction id?",
-  section: "Failure behavior",
-  content: "## Problem\n\nRefunds that time out are never retried.",
-  description: "## Problem\n\nRefunds that time out are never retried.",
-  message: "Define the retry window",
-  prompt: "Implement PAY-142 and open a pull request.",
-  after: "latest",
-};
-
-// A stable, valid-looking UUID for an example identifier.
-function sampleId(field: string) {
-  const hex = createHash("sha256").update(field).digest("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-}
-
-function sampleOf(field: string, schema: Schema): unknown {
-  if (field in sampleValues) return sampleValues[field];
-  if (schema.enum) return schema.enum[0];
-  if (schema.const !== undefined) return schema.const;
-  const variants = (schema.anyOf ?? schema.oneOf ?? []).filter(
-    (v) => v.type !== "null",
-  );
-  if (variants.length) return sampleOf(field, variants[0]!);
-  const type = Array.isArray(schema.type) ? schema.type[0] : schema.type;
-  if (type === "boolean") return true;
-  if (type === "integer" || type === "number") return schema.minimum ?? 1;
-  if (type === "array")
-    return schema.items
-      ? [sampleOf(field.replace(/s$/, ""), schema.items)]
-      : [];
-  if (type === "object") return sampleArguments(schema);
-  if (/Ids?$/.test(field) || schema.format === "uuid") return sampleId(field);
-  return field;
-}
-
-// The required fields (and the retry key, a habit worth copying).
-function sampleArguments(schema: Schema) {
-  const required = new Set(schema.required ?? []);
-  const properties = Object.entries(schema.properties ?? {}).filter(
-    ([name]) => required.has(name) || name === "mutationId",
-  );
-  return Object.fromEntries(
-    properties.map(([name, field]) => [name, sampleOf(name, field)]),
-  );
-}
-
 function tool(capability: AnyCapability) {
   const schema = inputSchemaOf(capability) as Schema;
   const properties = Object.entries(schema.properties ?? {});
@@ -361,7 +300,7 @@ function tool(capability: AnyCapability) {
   else lines.push("No fields.", "");
   lines.push(
     `\`\`\`json title="${capability.name} arguments"`,
-    JSON.stringify(sampleArguments(schema), null, 2),
+    JSON.stringify(exampleArguments(capability), null, 2),
     "```",
     "",
   );

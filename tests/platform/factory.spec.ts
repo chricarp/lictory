@@ -204,6 +204,11 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await expect(asks.getByRole("button", { name: "Approve" })).toHaveCount(0);
   await asks.getByRole("button", { name: "Review" }).click();
   await expect(asks.getByRole("button", { name: "Approve" })).toBeVisible();
+  // No repository: before approving a command, it says the work is
+  // thrown away and what the command changes elsewhere stays changed.
+  await expect(
+    asks.getByText(/the command runs in a scratch workspace/),
+  ).toBeVisible();
   await asks
     .getByRole("link", { name: "Add a changelog for refunds." })
     .click();
@@ -240,6 +245,16 @@ test("a person runs an agent on their own runner, steers it and approves what it
   ).toBeVisible();
   await expect(page.getByText("CHANGES.md").first()).toBeVisible();
   await expect(page.getByLabel("Message the agent")).toBeHidden();
+  // Not a dead end: the same task starts again, with a repository to pick.
+  await page
+    .getByRole("button", { name: "Start again with a repository…" })
+    .click();
+  const again = page.getByRole("dialog", { name: "Start an agent session" });
+  await expect(again.getByLabel("What should it do?")).toHaveValue(
+    "Add a changelog for refunds.",
+  );
+  await again.getByRole("button", { name: "Cancel" }).click();
+  await expect(again).toBeHidden();
 
   // The overview shows it among recent sessions, and so does the Sessions
   // list, narrowed by where sessions stand. (The workspace announcer's live

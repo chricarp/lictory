@@ -252,7 +252,7 @@ export const declarations: readonly Declaration[] = [
     services: ["database"],
     secret: "issued",
     description:
-      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md.",
+      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See https://docs.lictory.com/self-hosting/database.",
   },
   {
     name: "DATABASE_MIGRATION_TARGET",

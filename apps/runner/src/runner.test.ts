@@ -651,20 +651,25 @@ void test("the log narrates a session's waits, steering and answers", async () =
   const logs: string[] = [];
   // Every change of state reaches the state file `status` reads at once.
   const states: string[] = [];
-  const run: SessionRun = new SessionRun(assignment, {
-    client: { session: () => session } as unknown as RunnerClient,
-    config,
-    harness: asking,
-    workDir: join(scratch, "narrated"),
-    log: (line) => logs.push(line),
-    onStateChange: () => states.push(run.state),
-  });
+  // A line where a person must act links to the session's page.
+  const page = "https://lictory.example.test/acme/factory/sessions/s-1";
+  const run: SessionRun = new SessionRun(
+    { ...assignment, sessionUrl: page },
+    {
+      client: { session: () => session } as unknown as RunnerClient,
+      config,
+      harness: asking,
+      workDir: join(scratch, "narrated"),
+      log: (line) => logs.push(line),
+      onStateChange: () => states.push(run.state),
+    },
+  );
   assert.equal((await run.run()).outcome, "completed");
   assert.deepEqual(logs, [
     "Session s-1: no repository is linked; it works in an empty workspace.",
-    "Session s-1 waits for a person to approve “Run the database migration”.",
-    "Session s-1 waits for a person's answer to “Which release should the entry name?”.",
-    "Session s-1 waits for a person's message in its thread.",
+    `Session s-1 waits for a person to approve “Run the database migration”. Open it: ${page}`,
+    `Session s-1 waits for a person's answer to “Which release should the entry name?”. Open it: ${page}`,
+    `Session s-1 waits for a person's message in its thread. Open it: ${page}`,
     "Session s-1: a person approved “Run the database migration”.",
     "Session s-1: a person answered “Which release should the entry name?”.",
     "Session s-1: a steering message arrived from its thread.",

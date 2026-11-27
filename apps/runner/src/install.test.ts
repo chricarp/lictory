@@ -220,6 +220,20 @@ void test("a cut-off download of the installer runs nothing", async () => {
   assert.equal(result.stdout, "");
 });
 
+void test("--help says what the installer does, its options and exit codes", () => {
+  const result = spawnSync("sh", [script, "--help"], { encoding: "utf8" });
+  assert.equal(result.status, 0);
+  for (const text of [
+    /installs lictory-runner/,
+    /SHA256SUMS/,
+    /--service[\s\S]*systemd or launchd/,
+    /LICTORY_RUNNER_DOWNLOAD_URL/,
+    /\/usr\/local\/bin when writable, else\s+~\/\.local\/bin/,
+    /Exit codes:[\s\S]*64 {2}wrong command line/,
+  ])
+    assert.match(result.stdout, text);
+});
+
 void test("refusals say what to do", async () => {
   const missing = await install(["--version", "1.2.3"], { tag: "v1.2.3" });
   assert.notEqual(missing.status, 0);

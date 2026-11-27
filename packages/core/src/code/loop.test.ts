@@ -1278,3 +1278,44 @@ void test("a person who names a repository when asking an agent in a channel get
     `https://github.example/${f.repos.ops.fullName}.git`,
   );
 });
+
+void test("an agent asked in a project's channel works in that project's only repository unless the message names another", async () => {
+  const f = await fixture();
+  const channel = async (name: string, projectId: string) => {
+    const channelId = crypto.randomUUID();
+    await f.run({
+      type: "createChannel",
+      channelId,
+      kind: "public",
+      name: `${name}-${crypto.randomUUID().slice(0, 6)}`,
+      home: { projectId },
+    });
+    return channelId;
+  };
+  // Operations has one repository; Payments has two.
+  const ops = await channel("ops", f.opsId);
+  const pay = await channel("pay", f.projectId);
+  const ask = (channelId: string, body: string) =>
+    db.transaction((tx) =>
+      postMessage(
+        tx,
+        { userId: f.ada },
+        {
+          organizationId: f.organizationId,
+          channelId,
+          messageId: crypto.randomUUID(),
+          threadRootId: null,
+          body,
+        },
+      ),
+    );
+  const mention = `@[${f.forge.handle}](agent:${f.forge.id})`;
+  await ask(ops, `${mention} draft the runbook`);
+  await ask(ops, `${mention} fix the retry in ${f.repos.web.fullName}`);
+  await ask(pay, `${mention} draft the runbook`);
+  const started = await f.sessions();
+  assert.deepEqual(
+    started.map((x) => x.repositoryId),
+    [f.repositoryIds.ops, f.repositoryIds.web, null],
+  );
+});

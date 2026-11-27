@@ -30,6 +30,18 @@ the host and which permissions to give it.
 **Verify and connect** checks the credential before saving it. It is
 encrypted and never shown again.
 
+<Callout title="What agent sessions receive">
+  An agent session that works in a linked repository gets a credential to clone
+  and push. A GitHub App gives it a token for that one repository that expires
+  within an hour, and a Bitbucket OAuth consumer one that expires within two
+  hours. A **stored token** (a GitLab access token, a Bitbucket access or API
+  token, or a GitHub personal access token) is passed to every agent session as
+  is: the runner holds the organization's token while the session runs, and it
+  reaches everything the token reaches, for as long as the token is valid. Give
+  it the narrowest scope the host allows, and prefer an app or an OAuth consumer
+  where agents run. Settings say **Uses a stored token** on such a connection.
+</Callout>
+
 </Step>
 <Step>
 

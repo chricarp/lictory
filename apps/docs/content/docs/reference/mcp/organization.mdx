@@ -51,7 +51,8 @@ Files attached to a work item (workItemId), to a page (pageId; readers of its sp
 
 ```json title="listAttachments arguments"
 {
-  "organizationId": "acme"
+  "organizationId": "acme",
+  "workItemId": "PAY-142"
 }
 ```
 
@@ -76,7 +77,8 @@ Reserve an attachment on a work item (workItemId), a page (pageId; comment or ed
   "organizationId": "acme",
   "filename": "filename",
   "mimeType": "mimeType",
-  "size": 1
+  "size": 1,
+  "workItemId": "PAY-142"
 }
 ```
 
@@ -185,7 +187,7 @@ Administrators: set the color that tints primary actions and accents for everyon
 ```json title="setOrganizationBrandColor arguments"
 {
   "organizationId": "acme",
-  "color": "color"
+  "color": "#2563eb"
 }
 ```
 

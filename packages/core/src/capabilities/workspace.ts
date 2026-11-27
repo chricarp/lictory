@@ -494,7 +494,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createSuggestion: {
     title: "Create suggestion",
     description:
-      "Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use createBranch, commitBranch and createPullRequest instead. Anyone in the organization can suggest; `open: false` saves a draft.",
+      "Suggest new wording for a specification that is not ready yet: the complete proposed Markdown (usually one passage changed), a title and a rationale. One person accepts or rejects it (setSuggestionReviewer names who), and people see it beside the passage it changes, as their own Suggest does. A ready specification is protected, so its changes, and larger rewrites or child work, are pull requests: createBranch, commitBranch and createPullRequest. Anyone in the organization can suggest; `open: false` saves a draft.",
   },
   updateSuggestion: {
     title: "Update suggestion",

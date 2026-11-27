@@ -52,7 +52,8 @@ A work item with its current specification (Markdown, once, under specification)
 
 ```json title="getWorkItem arguments"
 {
-  "organizationId": "acme"
+  "organizationId": "acme",
+  "workItemId": "PAY-142"
 }
 ```
 
@@ -803,7 +804,7 @@ Create a new revision restoring the content of an earlier revision. History is n
 
 **Create suggestion.** Command · retry key `mutationId`
 
-Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use [createBranch](/reference/mcp/work-items#createbranch), [commitBranch](/reference/mcp/work-items#commitbranch) and [createPullRequest](/reference/mcp/work-items#createpullrequest) instead. Anyone in the organization can suggest; `open: false` saves a draft.
+Suggest new wording for a specification that is not ready yet: the complete proposed Markdown (usually one passage changed), a title and a rationale. One person accepts or rejects it ([setSuggestionReviewer](/reference/mcp/work-items#setsuggestionreviewer) names who), and people see it beside the passage it changes, as their own Suggest does. A ready specification is protected, so its changes, and larger rewrites or child work, are pull requests: [createBranch](/reference/mcp/work-items#createbranch), [commitBranch](/reference/mcp/work-items#commitbranch) and [createPullRequest](/reference/mcp/work-items#createpullrequest). Anyone in the organization can suggest; `open: false` saves a draft.
 
 | Field            | Type    | Required | Description                                                                                                                                                                           |
 | ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

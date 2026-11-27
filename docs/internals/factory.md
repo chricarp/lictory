@@ -184,8 +184,14 @@ outcome from that fact, not from the agent's summary: the state is "Work not
 kept" (`workNotKept` in the platform's session state), the card, the session
 page and the finished notification say how many files were discarded, and
 the agent's summary reads as its report. The Start session dialog and an
-approval request to write a file say it before the session starts and
-before the write is approved.
+approval request to write a file or run a command say it before the session
+starts and before the action is approved (a command's effects outside the
+workspace are not undone). So that a scratch workspace is a choice, not the
+default, the dialog starts at the only repository linked in the
+organization when no work item is named, and a mention in a channel homed in
+a project with exactly one repository works there (below). A session whose
+work was not kept offers to start the same task again, in Start session with
+its agent, prompt and item; Retry stays for failed and canceled sessions.
 
 ### Approval requests
 
@@ -478,7 +484,9 @@ context as a folded "Context Forge received" event (`context`), so no text
 is attributed to someone who did not write it. A message linking exactly one
 work item in the agent's scope names it, and a repository it names
 (`acme/payments` or its address) that the Code module mirrors, for that
-item's project when there is one, is the session's repository
+item's project when there is one, is the session's repository; a message
+that names none works in the only repository of the item's project, else of
+the channel's home project when the agent's scope includes it
 (`SessionRepositoryNamer`; the workspace resolver still checks the owner's
 access). The session starts in the
 message's own transaction (`startSessionIn`, under the writer's shared
