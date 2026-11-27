@@ -35,8 +35,11 @@ and immutable caching of hashed assets are defined once:
 ### Search engines and AI assistants
 
 Each page has exactly one public URL: the apex host, no trailing slash, no
-`.html`, no `/index`. Cloudflare's asset server would answer the other forms
-with temporary (307) redirects; the Worker answers them first with a single
+`.html`, no `/index`. The marketing home page is the one exception to the
+slash rule: its URL is the bare path `/` (`https://lictory.com/`), the same
+request as the origin, written that way in its canonical link, `og:url`,
+sitemap entry and JSON-LD. Cloudflare's asset server would answer the other
+forms with temporary (307) redirects; the Worker answers them first with a single
 permanent (301) redirect to the canonical URL, which is also the page's
 `<link rel="canonical">` and its sitemap entry. Next.js exports the not-found
 page as `/404` and `/_not-found`; the Worker answers both with status 404, so
@@ -55,7 +58,10 @@ included; blocking one is a single rule in `apps/*/src/app/robots.ts`.
 After every static build, `scripts/check-site-indexing.ts` reads the export
 the way a crawler does and fails the build when a sitemap page is noindexed,
 lacks a self-referencing canonical, repeats another page's title or
-description, or when an exported page is missing from the sitemap.
+description, or when an exported page is missing from the sitemap. The
+marketing build passes `--exact-canonicals`, so each canonical must equal its
+sitemap URL character for character (`https://lictory.com/`, not the bare
+origin that Next.js would write for a `/` canonical).
 
 ## GitHub configuration
 

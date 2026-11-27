@@ -3,13 +3,16 @@
 // from the index:
 //
 // - every sitemap URL is an exported page without noindex whose canonical
-//   link is that same URL (one form: no trailing slash, no .html);
+//   link is that same URL (one form: no trailing slash, no .html); with
+//   --exact-canonicals the canonical must equal the sitemap <loc> character
+//   for character, so the home page's `https://<host>/` cannot drift to the
+//   bare origin that Next.js writes for a "/" canonical;
 // - every other exported page is a not-found page and carries noindex, so no
 //   page is missing from the sitemap and none is noindexed by accident;
 // - titles and descriptions are unique, JSON-LD parses, robots.txt allows
 //   crawling and names the sitemap, and llms.txt exists.
 //
-// Usage: [SITE_URL=<origin>] bun scripts/check-site-indexing.ts <export directory>
+// Usage: [SITE_URL=<origin>] bun scripts/check-site-indexing.ts [--exact-canonicals] <export directory>
 // (`out`, or NEXT_DIST_DIR when the build sets one)
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -18,10 +21,16 @@ import path from "node:path";
 // With `output: "export"`, Next.js writes the export to a custom distDir
 // (NEXT_DIST_DIR) instead of `out`, so the check follows it there.
 const distDir = process.env.NEXT_DIST_DIR?.trim();
+const flags = process.argv.slice(2).filter((arg) => arg.startsWith("--"));
+const exactCanonicals = flags.includes("--exact-canonicals");
 const root: string =
-  (distDir && distDir !== ".next" ? distDir : process.argv[2]) ??
+  (distDir && distDir !== ".next"
+    ? distDir
+    : process.argv.slice(2).find((arg) => !arg.startsWith("--"))) ??
   (() => {
-    throw new Error("Usage: check-site-indexing.ts <export directory>");
+    throw new Error(
+      "Usage: check-site-indexing.ts [--exact-canonicals] <export directory>",
+    );
   })();
 
 const problems: string[] = [];
@@ -111,7 +120,11 @@ for (const location of locations) {
     problems.push(
       `${location}: ${canonicals.length} canonical links, expected 1`,
     );
-  else if (new URL(canonicals[0]!).href !== url.href)
+  else if (
+    exactCanonicals
+      ? canonicals[0] !== location
+      : new URL(canonicals[0]!).href !== url.href
+  )
     problems.push(`${location}: canonical is ${canonicals[0]}`);
   if (!title) problems.push(`${location}: no <title>`);
   else if (titles.has(title))
