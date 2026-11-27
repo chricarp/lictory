@@ -188,15 +188,15 @@ export function PhoneSyncNotice() {
   // A brief reconnect stays quiet; one that lasts is shown like the rest.
   const [recoveringLong, setRecoveringLong] = useState(false);
   useEffect(() => {
-    if (presentation !== "recovering") {
-      setRecoveringLong(false);
-      return;
-    }
+    if (presentation !== "recovering") return;
     const t = setTimeout(
       () => setRecoveringLong(true),
       PHONE_RECOVERING_AFTER_MS,
     );
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      setRecoveringLong(false);
+    };
   }, [presentation]);
   const shown =
     presentation === "offline" ||

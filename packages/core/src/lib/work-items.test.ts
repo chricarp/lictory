@@ -62,7 +62,7 @@ void test("an item waiting only on another discipline is not in my review queue"
   assert.equal(needsMyReview(item, "lena", [qa]), true);
 });
 
-test("dates read one way everywhere: relative, a short-month date, or a short-month date and time", () => {
+void test("dates read one way everywhere: relative, a short-month date, or a short-month date and time", () => {
   const at = "2026-11-27T04:50:49Z";
   const exact = absoluteTime(at);
   const day = formatDate(at);

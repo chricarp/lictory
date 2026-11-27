@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 // The skip links of the shell: hidden until focused, the first Tab stops of
@@ -15,6 +15,9 @@ export function SkipLinkSlot() {
   return <div id={SLOT_ID} className="contents" />;
 }
 
+// The slot never moves: nothing to subscribe to.
+const noSubscription = () => () => undefined;
+
 export function PageSkipLink({
   label,
   target,
@@ -23,8 +26,13 @@ export function PageSkipLink({
   // The element to focus, looked up when the link is used.
   target: () => HTMLElement | null | undefined;
 }) {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => setSlot(document.getElementById(SLOT_ID)), []);
+  // The shell's slot, found once it is in the document (React checks the
+  // snapshot again after mounting).
+  const slot = useSyncExternalStore(
+    noSubscription,
+    () => document.getElementById(SLOT_ID),
+    () => null,
+  );
   if (!slot) return null;
   return createPortal(
     <a
