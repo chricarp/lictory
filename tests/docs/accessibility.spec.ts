@@ -38,6 +38,19 @@ test("deep pages keep the sidebar's labels whole and commands readable beside th
     sidebar.getByRole("link", { name: "Agents, autonomy and Done" }),
   ).toHaveAttribute("data-active", "true");
   expect(await sidebar.evaluate((element) => element.scrollLeft)).toBe(0);
+  // The pages are navigation: each group a heading over a list of links.
+  const nav = sidebar.getByRole("navigation", { name: "Documentation" });
+  await expect(
+    nav.getByRole("heading", { level: 2, name: "Factory", exact: true }),
+  ).toBeVisible();
+  await expect(
+    nav
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("heading", { name: "Factory" }) })
+      .getByRole("list")
+      .getByRole("link", { name: "Agents, autonomy and Done" }),
+  ).toBeVisible();
+  await expect(sidebar.locator("p", { hasText: "Concepts" })).toHaveCount(0);
 
   await page.goto("/factory/runners");
   const block = page.locator("figure.shiki").first();

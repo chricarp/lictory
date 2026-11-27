@@ -34,7 +34,7 @@ body {
      It never needs to scroll horizontally. */
   overflow-x: clip;
 }
-#nd-sidebar p.inline-flex {
+#nd-sidebar .docs-sidebar-group {
   color: var(--muted-foreground);
   font-family: var(--font-mono);
   font-size: 11px;
