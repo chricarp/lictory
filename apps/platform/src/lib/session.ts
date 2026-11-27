@@ -14,6 +14,8 @@ const userSchema = z.object({
   handle: z.string().nullable().optional(),
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
+  // Single-character shortcuts (C, /, [, G chords, J/K/O) on or off.
+  singleKeyShortcuts: z.boolean().default(true),
   twoFactorEnabled: z.boolean().optional(),
   // Instance policy (the server enforces it either way): instance
   // administrators open the admin console; organization creation may be
@@ -189,6 +191,12 @@ export function useSessionUser(): SessionUser {
   const user = current.session?.user;
   if (!user) throw new Error("useSessionUser requires a signed-in session.");
   return user;
+}
+
+// Whether this person uses single-character shortcuts (WCAG 2.1.4: they can
+// be turned off). Shortcuts with Ctrl, Cmd or Alt do not depend on it.
+export function useSingleKeyShortcuts(): boolean {
+  return useSessionState().session?.user?.singleKeyShortcuts ?? true;
 }
 
 export function useAuthProviders(): AuthProviders {

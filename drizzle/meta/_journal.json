@@ -463,6 +463,13 @@
       "when": 1795769609629,
       "tag": "0065_agent_session_discarded_files",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795785495843,
+      "tag": "0066_single_key_shortcuts",
+      "breakpoints": true
     }
   ]
 }

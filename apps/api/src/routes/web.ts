@@ -131,6 +131,7 @@ export function webRoutes() {
               handle: user.handle ?? null,
               appearance: user.appearance,
               theme: user.theme,
+              singleKeyShortcuts: user.singleKeyShortcuts,
               twoFactorEnabled: twoFactorEnabled(user),
               // Instance policy, enforced by the server either way.
               instanceAdmin: isInstanceAdmin(user),
@@ -233,6 +234,35 @@ export function webRoutes() {
       c.req.raw.headers,
     );
     return c.json({ appearance, theme });
+  });
+
+  // Personal keyboard preferences: scoped to the signed-in user only.
+  const preferencesSchema = z.object({ singleKeyShortcuts: z.boolean() });
+  app.post("/api/preferences", async (c) => {
+    const user = await currentUser(c.req.raw);
+    if (!user)
+      return c.json(
+        { error: { message: "Sign in to change your preferences." } },
+        401,
+      );
+    const parsed = preferencesSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return c.json(
+        {
+          error: {
+            message: "Turn single-key shortcuts on or off with true or false.",
+          },
+        },
+        400,
+      );
+    const { singleKeyShortcuts } = parsed.data;
+    await db
+      .update(s.user)
+      .set({ singleKeyShortcuts })
+      .where(eq(s.user.id, user.id));
+    return c.json({ singleKeyShortcuts });
   });
 
   // Any capability on the web surface, invoked as the signed-in user. Lookups

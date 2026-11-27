@@ -13,6 +13,7 @@ export const docsPages = {
   jiraTypes: "/integrations/jira#choose-the-jira-project-and-map-types",
   slack: "/integrations/slack",
   deliveryModes: "/concepts/delivery",
+  shortcuts: "/basics/shortcuts",
 } as const;
 
 export type DocsPage = keyof typeof docsPages;

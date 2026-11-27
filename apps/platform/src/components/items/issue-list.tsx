@@ -5,6 +5,7 @@ import { DropdownItem, dropdownItemClass } from "@lictory/ui/dropdown";
 import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
+import { useSingleKeyShortcuts } from "@lictory/platform/lib/session";
 import { paths } from "@lictory/core/lib/paths";
 import {
   usePathname,
@@ -154,6 +155,8 @@ export function IssueList({
   const canCreate =
     capabilities.editSpecifications || capabilities.changeProperties;
   const router = useRouter();
+  // J, K and O can be turned off; the arrow keys and Enter always work.
+  const singleKey = useSingleKeyShortcuts();
   // Filters, sort, grouping and the archived toggle are URL state.
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -424,20 +427,20 @@ export function IssueList({
       )
         return;
       const index = order.findIndex((i) => i.id === focus);
-      if (event.key === "j" || event.key === "ArrowDown") {
+      if ((singleKey && event.key === "j") || event.key === "ArrowDown") {
         event.preventDefault();
         const next = order[Math.min(order.length - 1, index + 1)];
         if (next) setFocus(next.id);
         setCursorShown(true);
         navigatedFrom.current = target;
-      } else if (event.key === "k" || event.key === "ArrowUp") {
+      } else if ((singleKey && event.key === "k") || event.key === "ArrowUp") {
         event.preventDefault();
         const prev = order[Math.max(0, index - 1)];
         if (prev) setFocus(prev.id);
         setCursorShown(true);
         navigatedFrom.current = target;
       } else if (
-        (event.key === "Enter" || event.key === "o") &&
+        (event.key === "Enter" || (singleKey && event.key === "o")) &&
         focus &&
         cursorShown
       ) {
@@ -450,7 +453,7 @@ export function IssueList({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [order, focus, cursorShown, hrefFor, router]);
+  }, [order, focus, cursorShown, hrefFor, router, singleKey]);
   useEffect(() => {
     // Focus moving anywhere ends the Enter override: Enter then activates
     // whatever the user focused, even if it is the same control again.
@@ -952,7 +955,7 @@ export function IssueList({
                   {createIntent === "proposal"
                     ? "Create a proposal"
                     : "Create an item"}{" "}
-                  <Kbd>C</Kbd>
+                  {singleKey && <Kbd>C</Kbd>}
                 </Button>
               ) : undefined
             }
