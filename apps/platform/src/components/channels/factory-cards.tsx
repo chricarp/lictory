@@ -123,7 +123,8 @@ function SessionCard({
     card.ownerId === userId
       ? "you"
       : memberName(session?.requestedById ?? card.requestedById);
-  const state = sessionState(session ?? { status }, {
+  const discardedFiles = session?.discardedFiles ?? card.discardedFiles ?? 0;
+  const state = sessionState(session ?? { status, discardedFiles }, {
     decider,
     noRunner: session ? waitsForRunner(session, agent, runners) : false,
   });
@@ -206,8 +207,27 @@ function SessionCard({
             : `${card.agentName} waits for ${firstName(decider)}’s next message.`}
         </p>
       )}
+      {/* Where the files themselves are not listed, the card still says
+          the work was not kept, and the agent's summary reads as its
+          report, not as what happened. */}
+      {status === "completed" &&
+        discardedFiles > 0 &&
+        !(state.active || detailed) && (
+          <p className="flex items-start gap-1.5 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+            <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+            Not kept:{" "}
+            {discardedFiles === 1 ? "1 file" : `${discardedFiles} files`}{" "}
+            discarded when the session ended, because no repository is linked to
+            it.
+          </p>
+        )}
       {status === "completed" && summary && (
         <p className="line-clamp-3 border-t px-3 py-2 text-muted-foreground">
+          {discardedFiles > 0 && (
+            <span className="font-medium text-foreground">
+              {card.agentName} reported:{" "}
+            </span>
+          )}
           {summary}
         </p>
       )}
@@ -422,7 +442,7 @@ function LiveProgress({
           <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
           <span>
             Not kept: {filesChangedLabel(progress).replace(/ changed$/, "")} (
-            <span className="font-mono font-normal break-all">
+            <span className="font-mono font-normal wrap-anywhere">
               {files.map((f) => f.path).join(", ")}
             </span>
             ) discarded when the session ended, because no repository is linked

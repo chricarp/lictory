@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
@@ -88,12 +89,9 @@ export function slackRoutes() {
           ? error.message
           : "Slack could not be connected. Try again.";
       if (!(error instanceof DomainError || error instanceof SlackError))
-        console.error(
-          JSON.stringify({
-            event: "slack.install_failed",
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
+        jsonLog("error", "slack.install_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       return back(null, `slack=error&message=${encodeURIComponent(message)}`);
     }
   });

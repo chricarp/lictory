@@ -190,10 +190,12 @@ async function callTool(ctx: CapabilityContext, params: unknown) {
     throw new RpcError(-32602, `Unknown tool: ${name}`);
   try {
     const output = await invoke(ctx, name, args ?? {});
-    const content = structured(output);
+    // The output once, as JSON text in `content`: the part every MCP client
+    // reads and hands to its model. `structuredContent` is the typed twin of
+    // a declared outputSchema; no tool declares one, so repeating the JSON
+    // there only doubled every result an agent pays for.
     return {
-      content: [{ type: "text", text: JSON.stringify(content) }],
-      structuredContent: content,
+      content: [{ type: "text", text: JSON.stringify(structured(output)) }],
       isError: false,
     };
   } catch (error) {

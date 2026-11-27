@@ -264,6 +264,7 @@ async function notifyFinished(tx: Tx, session: SessionRow) {
         status: session.status,
         summary: session.resultSummary?.slice(0, 300) ?? null,
         error: session.error?.slice(0, 300) ?? null,
+        discardedFiles: session.discardedFiles,
       },
       dedupeKey: `agent-session:${session.id}:${session.attempts}:${session.status}`,
     },
@@ -1629,6 +1630,27 @@ export async function sessionStatusForRunner(
   return row?.runnerId === runner.id ? row : undefined;
 }
 
+// The distinct files a session's log says it changed; null for none.
+async function changedFileCount(tx: Tx, sessionId: string) {
+  const rows = await tx
+    .select({ data: s.agentSessionEvent.data })
+    .from(s.agentSessionEvent)
+    .where(
+      and(
+        eq(s.agentSessionEvent.sessionId, sessionId),
+        eq(s.agentSessionEvent.type, "file_change"),
+      ),
+    );
+  const paths = new Set<string>();
+  for (const { data } of rows) {
+    const changes = (data as { changes?: unknown } | null)?.changes;
+    if (!Array.isArray(changes)) continue;
+    for (const change of changes as { path?: unknown }[])
+      if (typeof change?.path === "string") paths.add(change.path);
+  }
+  return paths.size || null;
+}
+
 export async function completeRun(
   db: Database,
   runner: RunnerRow,
@@ -1674,9 +1696,17 @@ export async function completeRun(
         },
       ]);
       await endRun(tx, session);
+      // With no repository the agent worked in a scratch workspace the
+      // runner discards now: what it changed was not kept, and every
+      // surface says so instead of reading the outcome as success.
+      const discardedFiles =
+        session.repositoryId || session.repositoryUrl || body.branch
+          ? null
+          : await changedFileCount(tx, session.id);
       const row = await updateSession(tx, session.id, {
         status: body.outcome,
         resultSummary: summary,
+        discardedFiles,
         error,
         branch: body.branch ?? session.branch,
         eventSequence,

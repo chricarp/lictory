@@ -41,15 +41,16 @@ exact Bun release, and a Docker daemon of its own (the docker-in-docker
 feature) so `docker compose up -d` runs the services inside the container and
 the commands below work unchanged. Creating it runs `bun install` and
 `bun run dev:env` (which creates `.env` when there is none); the app, website and Mailpit ports
-are forwarded to the host. Give Docker at least 8 GB of memory, as below. On
+are forwarded to the host. Give Docker at least 12 GB of memory, as below. On
 macOS and Windows, a clone in a container volume ("Clone Repository in
 Container Volume") is much faster than a bind-mounted checkout. With rootless
 Docker on Linux, the container's `node` user cannot write a bind-mounted
 checkout; use a container volume there too, or the native setup.
 
-For a memory-limited container, allow at least 8 GB of Docker memory. The full
-type-aware ESLint check peaks near 4 GB, above Node's default heap on some
-machines, so `bun run lint` allows itself 6 GB (`--max-old-space-size=6144`).
+For a memory-limited container, allow at least 12 GB of Docker memory. The
+full type-aware ESLint check (`bun run lint`, part of `bun run check`) peaks
+near 10 GB with its two workers (measured on an 8-core machine), above Node's
+default heap, so it allows each worker 6 GB (`--max-old-space-size=6144`).
 A `NODE_OPTIONS` you export comes after it and wins.
 
 ```sh
@@ -67,7 +68,8 @@ installed Bun differs from `packageManager` (`bun install` does not).
 - App: http://localhost:3000 (API 3002, collaboration 3004, zero-cache 4848)
 - Website: http://localhost:3100
 - Documentation (not started by `bun run dev`):
-  `bun run --cwd apps/docs dev`, http://localhost:3200
+  `bun run --cwd apps/docs dev`, http://localhost:3200 (`PORT=13200 bun run
+--cwd apps/docs dev` beside another checkout)
 - Mailpit (verification and reset emails): http://localhost:8025
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001
@@ -123,7 +125,7 @@ address. `docker compose config` shows the resulting `host_ip`.
 creates `.env` when there is none; when the Compose project `lictory` belongs
 to another checkout it names this one `lictory-<directory>`; when a port is
 taken it moves every port in the table below, and the app's own ports (3000,
-3002, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
+3002, 3003 for the worker's health endpoint, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
 rewrites the settings that name them; on Linux it runs a short container to
 check that Docker reaches the host, and sets `COMPOSE_FILE` to the
 host-network fallback when a firewall blocks it (see
@@ -201,6 +203,11 @@ variables (`LICTORY_ADMIN_PASSWORD` for `setup`, `LICTORY_USER_PASSWORD` for
 the older spellings (`list-admins`, `grant-admin`, `--name`, `--email`) work
 too. Inside a server's API container the same program is
 `node apps/api/dist/admin.js`, which `lictory admin` runs for you.
+
+Every Lictory command line exits `64` for a usage error (an unknown command
+or option, a missing argument, a value or setting it refuses) and `1` when
+the work itself failed; a new command follows the same convention
+([exit codes](https://docs.lictory.com/self-hosting/commands#exit-codes)).
 
 `bun run check` lints the whole repository with type information, which takes
 minutes and about 10 GB of memory. While you work, `bunx eslint` on the files

@@ -11,7 +11,9 @@ case "${1:-}" in
     ;;
 esac
 
-environment="${1:?Usage: lictory-monitor <environment>}"
+# A missing argument is a usage error: exit 64, like every Lictory command.
+[ -n "${1:-}" ] || { echo "Usage: lictory-monitor <environment>" >&2; exit 64; }
+environment="$1"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"
 bin="$(cd "$(dirname "$0")" && pwd)"

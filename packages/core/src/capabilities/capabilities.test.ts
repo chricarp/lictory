@@ -567,11 +567,15 @@ void test("MCP accepts slugs, audits canonical ids and gives safe recovery error
       }
     ).result;
   };
+  // The output comes once, as JSON text in the result's content.
+  const output = (result: { content: { text: string }[] }) =>
+    JSON.parse(result.content[0]!.text) as Record<string, unknown>;
   for (const organizationId of [f.organizationId, slug]) {
     const read = await call("getWorkspace", { organizationId });
     assert.equal(read.isError, false);
+    assert.equal(read.structuredContent, undefined);
     assert.equal(
-      (read.structuredContent!.organizations as { id: string }[])[0]!.id,
+      (output(read).organizations as { id: string }[])[0]!.id,
       f.organizationId,
     );
   }
@@ -589,7 +593,7 @@ void test("MCP accepts slugs, audits canonical ids and gives safe recovery error
     ...args,
     organizationId: f.organizationId,
   });
-  assert.deepEqual(retried.structuredContent, created.structuredContent);
+  assert.deepEqual(output(retried), output(created));
   const preferences = await call("setNotificationPreferences", {
     organizationId: slug,
     scope: "organization",

@@ -181,11 +181,14 @@ test("a person registers a webhook, tests it, and their agent is woken by a ment
       const body = (await response.json()) as {
         result: {
           isError: boolean;
-          structuredContent: Record<string, unknown>;
+          content: { text: string }[];
         };
       };
       expect(body.result.isError, JSON.stringify(body)).toBe(false);
-      return body.result.structuredContent;
+      return JSON.parse(body.result.content[0]!.text) as Record<
+        string,
+        unknown
+      >;
     };
     const channelId = crypto.randomUUID();
     await tool("createChannel", {

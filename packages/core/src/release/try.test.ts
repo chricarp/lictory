@@ -417,7 +417,9 @@ void test("a password the server would refuse stops the trial before Docker is u
     const f = fixture(t);
     f.release(latest, releaseFile("0.24.0"));
     const result = f.run({ LICTORY_ADMIN_PASSWORD: password });
-    assert.notEqual(result.status, 0);
+    // A setting the trial refuses is a usage error, like every Lictory
+    // command line's.
+    assert.equal(result.status, 64);
     assert.match(result.stderr, /LICTORY_ADMIN_PASSWORD/);
     assert.deepEqual(
       result.calls.filter((call) => call.name === "docker"),

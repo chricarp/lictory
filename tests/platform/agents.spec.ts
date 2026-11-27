@@ -55,7 +55,6 @@ function mcp(request: APIRequestContext, token: string) {
           tools?: { name: string }[];
           isError?: boolean;
           content?: { text: string }[];
-          structuredContent?: Record<string, unknown>;
         };
       } | null,
     };
@@ -112,7 +111,10 @@ test("a person connects an MCP agent that works with their permissions", async (
   const tool = async (name: string, args: Record<string, unknown>) => {
     const { body } = await call("tools/call", { name, arguments: args });
     expect(body?.result?.isError, JSON.stringify(body)).toBe(false);
-    return body!.result!.structuredContent!;
+    return JSON.parse(body!.result!.content![0]!.text) as Record<
+      string,
+      unknown
+    >;
   };
   const { organizations } = (await tool("listOrganizations", {})) as {
     organizations: { id: string; name: string; slug: string }[];
@@ -218,7 +220,7 @@ test("an external agent is connected and woken from its own page", async ({
     arguments: {},
   });
   expect(body?.result?.isError, JSON.stringify(body)).toBe(false);
-  const { organizations } = body!.result!.structuredContent! as {
+  const { organizations } = JSON.parse(body!.result!.content![0]!.text) as {
     organizations: { slug: string }[];
   };
   expect(organizations.map((o) => o.slug)).toEqual([slug]);

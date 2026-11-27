@@ -101,6 +101,7 @@ function fakeSession(
     channelId: null,
     threadRootMessageId: null,
     resultSummary: null,
+    discardedFiles: null,
     pullRequestId: null,
     pullRequestUrl: null,
     error: null,

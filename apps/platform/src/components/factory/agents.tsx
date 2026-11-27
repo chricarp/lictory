@@ -537,7 +537,7 @@ export function AgentDialog({
               data-autofocus
               value={name}
               maxLength={60}
-              placeholder="Forge"
+              placeholder="For example, Forge"
               onChange={(e) => {
                 setName(e.target.value);
                 if (!handleEdited) setHandle(handleOf(e.target.value));
@@ -579,7 +579,7 @@ export function AgentDialog({
             id={ids.description}
             value={description}
             maxLength={500}
-            placeholder="Implements ready payments stories"
+            placeholder="For example, implements ready payments stories"
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
@@ -665,7 +665,7 @@ export function AgentDialog({
                 value={instructions}
                 rows={3}
                 maxLength={8000}
-                placeholder="Run the tests before you commit. Keep pull requests small."
+                placeholder="For example: run the tests before you commit."
                 onChange={(e) => setInstructions(e.target.value)}
                 className={cn(
                   inputClass,

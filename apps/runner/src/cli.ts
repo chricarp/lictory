@@ -179,7 +179,10 @@ const footer = () => [
   "",
   "Exit codes:",
   `  ${String(EXIT.ok).padEnd(3)} done`,
-  `  ${String(EXIT.failed).padEnd(3)} failed (a service restarts the runner)`,
+  // One meaning per code for every command: status's "stopped or not
+  // responding" is its failure, not a different convention.
+  `  ${String(EXIT.failed).padEnd(3)} failed; for status, the runner is stopped or not responding`,
+  "      (a service restarts start when it exits 1)",
   `  ${String(EXIT.needsPerson).padEnd(3)} a person must act first: not registered, or the credential was`,
   "      revoked (a service does not restart it)",
   `  ${String(EXIT.usage).padEnd(3)} wrong command line`,

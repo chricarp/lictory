@@ -333,7 +333,7 @@ void test("refuses settings that would narrow the browser suite in a full run", 
     const { code, output } = await machine.start([], {
       [setting]: setting === "E2E_SHARD" ? "1/4" : "1",
     }).exited;
-    assert.equal(code, 2, output);
+    assert.equal(code, 64, output);
     assert.match(
       output,
       new RegExp(`${setting} would narrow the browser suite`),
@@ -360,7 +360,8 @@ void test("explains what to do without Docker, and runs nothing", async (t) => {
 void test("rejects an unknown step before starting anything", async (t) => {
   const machine = fixture(t);
   const { code, output } = await machine.start(["--only", "lint"]).exited;
-  assert.equal(code, 2);
+  // A usage error, like every Lictory command line.
+  assert.equal(code, 64);
   assert.match(output, /Unknown step "lint"\. Steps: install, audit, check/);
   assert.deepEqual(machine.read(), []);
 });

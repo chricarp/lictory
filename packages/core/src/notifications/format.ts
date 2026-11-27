@@ -244,11 +244,22 @@ export function describeNotification(
         headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
         body: titled(d.sessionTitle),
       };
-    case "agent_session_finished":
+    case "agent_session_finished": {
+      // Finished with no repository after changing files: the work was not
+      // kept, which is the news, not the agent's own summary.
+      const discarded =
+        typeof d.discardedFiles === "number" && d.discardedFiles > 0
+          ? d.discardedFiles
+          : 0;
       return {
-        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
-        body: str(d.error) ?? str(d.summary),
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : discarded ? "finished, work not kept" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
+        body:
+          str(d.error) ??
+          (discarded
+            ? `${discarded === 1 ? "The file it changed was" : `The ${discarded} files it changed were`} discarded: no repository is linked to the session.`
+            : str(d.summary)),
       };
+    }
     case "channel_mentioned":
       return {
         headline: `${actor} mentioned you ${channelPlace(d)}`,

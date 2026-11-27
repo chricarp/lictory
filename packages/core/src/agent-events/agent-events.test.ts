@@ -622,10 +622,13 @@ void test("waitForEvents over MCP wakes on a channel mention", async () => {
       method: "tools/call",
       params: { name, arguments: args },
     })) as {
-      result: { structuredContent: Record<string, unknown>; isError: boolean };
+      result: { content: { text: string }[]; isError: boolean };
     };
     assert.equal(response.result.isError, false, JSON.stringify(response));
-    return response.result.structuredContent;
+    return JSON.parse(response.result.content[0]!.text) as Record<
+      string,
+      unknown
+    >;
   };
   const { cursor } = (await call("listEvents", { after: "latest" })) as {
     cursor: string;

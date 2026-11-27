@@ -15,10 +15,12 @@ import {
   RotateCcw,
   Server,
   SquareTerminal,
+  TriangleAlert,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { sessionTitle } from "@lictory/core/factory/entities";
+import { notKeptMeaning } from "@lictory/platform/lib/session-state";
 import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 import { cn } from "@lictory/core/lib/utils";
 import {
@@ -432,7 +434,9 @@ export function SessionView() {
             })}
           </ol>
           {/* The outcome, unless the log already ends with the same error. */}
-          {Boolean(session.resultSummary ?? session.error) &&
+          {Boolean(
+            session.resultSummary ?? session.error ?? session.discardedFiles,
+          ) &&
             ["completed", "failed"].includes(session.status) &&
             !(session.error && shownErrors.has(session.error.trim())) && (
               <Result
@@ -444,6 +448,7 @@ export function SessionView() {
                     : session.resultSummary
                 }
                 error={session.error}
+                discardedFiles={session.discardedFiles ?? 0}
               />
             )}
           {/* A failure is the start of a decision: retry as is, or go
@@ -597,30 +602,45 @@ function Meta({
 function Result({
   summary,
   error,
+  discardedFiles,
 }: {
   summary: string | null;
   error: string | null;
+  // Files it changed with no repository linked, discarded as it ended.
+  discardedFiles: number;
 }) {
+  const unkept = !error && discardedFiles > 0;
   return (
     <div
       className={cn(
         "mt-4 rounded-xl px-4 py-3 text-[13px] shadow-(--shadow-border)",
-        error ? "bg-destructive/6" : "bg-success/6",
+        error ? "bg-destructive/6" : unkept ? "bg-warning/8" : "bg-success/6",
       )}
     >
       <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <SquareTerminal className="size-3.5" aria-hidden />
-        {error ? "The session failed" : "The agent reports it is done"}
+        {error
+          ? "The session failed"
+          : unkept
+            ? "The agent reports it is done, but its work was not kept"
+            : "The agent reports it is done"}
       </p>
       {summary && <p className="mt-1 whitespace-pre-wrap">{summary}</p>}
       {error && (
         <p className="mt-1 whitespace-pre-wrap text-destructive">{error}</p>
       )}
-      {!error && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          A claim, not proof: the pull request, its checks and the Definition of
-          Done decide.
+      {unkept ? (
+        <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+          {notKeptMeaning(discardedFiles)}
         </p>
+      ) : (
+        !error && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            A claim, not proof: the pull request, its checks and the Definition
+            of Done decide.
+          </p>
+        )
       )}
     </div>
   );

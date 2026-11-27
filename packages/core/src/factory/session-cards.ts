@@ -51,6 +51,9 @@ export type SessionCardPayload = {
   workItemId: string | null;
   workItemKey: string | null;
   summary: string | null;
+  // Files it changed with no repository linked, discarded as it ended.
+  // Absent on cards written before it existed.
+  discardedFiles?: number | null;
   error: string | null;
   path: string;
   // The code pull request its branch became: Lictory's page and the host's.
@@ -197,6 +200,7 @@ export async function syncSessionCard(
     workItemId: session.workItemId,
     workItemKey: item?.key ?? null,
     summary: session.resultSummary?.slice(0, 2000) ?? null,
+    discardedFiles: session.discardedFiles,
     error: session.error?.slice(0, 1000) ?? null,
     path,
     pullRequest: session.pullRequestId
@@ -208,7 +212,7 @@ export async function syncSessionCard(
       : null,
   };
   const body = [
-    `**${agent.name}** · ${sessionStatusLabels[session.status]}`,
+    `**${agent.name}** · ${sessionStatusLabels[session.status]}${session.discardedFiles ? `, work not kept (${session.discardedFiles === 1 ? "1 file" : `${session.discardedFiles} files`} discarded: no repository is linked)` : ""}`,
     item && session.workItemId
       ? ` · ${formatReference({ kind: "item", id: session.workItemId }, item.key)}`
       : "",

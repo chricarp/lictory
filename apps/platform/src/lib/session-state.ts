@@ -21,6 +21,8 @@ export type StateGlyph =
   | "running"
   | "waiting"
   | "completed"
+  // Completed, but what it changed was discarded (no repository).
+  | "unkept"
   | "failed"
   | "canceled";
 
@@ -114,7 +116,17 @@ export const firstName = (name: string) => {
   return name.trim().split(/\s+/)[0] ?? name;
 };
 
-type SessionLike = Pick<SessionEntity, "status">;
+type SessionLike = Pick<SessionEntity, "status"> &
+  Partial<Pick<SessionEntity, "discardedFiles">>;
+
+// A completed session with no repository whose changes were discarded as
+// it ended: the outcome is that its work was not kept, never success.
+export function workNotKept(session: SessionLike | null | undefined) {
+  return session?.status === "completed" && (session.discardedFiles ?? 0) > 0;
+}
+
+export const notKeptMeaning = (files: number) =>
+  `It finished, but no repository is linked to it: the ${files === 1 ? "file" : `${files} files`} it changed ${files === 1 ? "was" : "were"} discarded with its scratch workspace. Link a repository and start it again to keep the work.`;
 type ClaimLike = Pick<ClaimEntity, "state" | "waitingThreadIds">;
 
 // Where a session (and the claim it works for, when there is one) stands.
@@ -138,6 +150,15 @@ export function sessionState(
       glyph: "queued",
       meaning: noRunnerMeaning,
       active: true,
+      needsPerson: false,
+    };
+  if (session && workNotKept(session))
+    return {
+      label: "Work not kept",
+      tone: "attention",
+      glyph: "unkept",
+      meaning: notKeptMeaning(session.discardedFiles!),
+      active: false,
       needsPerson: false,
     };
   if (session) {

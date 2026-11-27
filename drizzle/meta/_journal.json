@@ -456,6 +456,13 @@
       "when": 1795748051085,
       "tag": "0064_runner_last_error",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795769609629,
+      "tag": "0065_agent_session_discarded_files",
+      "breakpoints": true
     }
   ]
 }

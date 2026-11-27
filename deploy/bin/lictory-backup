@@ -55,7 +55,9 @@ env_value() {
   printf '%s' "$out"
 }
 
-environment="${1:?Usage: lictory-backup <environment> [scheduled|manual]}"
+# A missing argument is a usage error: exit 64, like every Lictory command.
+[ -n "${1:-}" ] || { echo "Usage: lictory-backup <environment> [scheduled|manual]" >&2; exit 64; }
+environment="$1"
 root="${LICTORY_ROOT:-/srv/lictory}"
 bin="$(cd "$(dirname "$0")" && pwd)"
 # An external database is backed up by its provider, not by this server.

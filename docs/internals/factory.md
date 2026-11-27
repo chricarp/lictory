@@ -176,6 +176,17 @@ week, until they retry it or a later session works on its item.
 done through evidence (merged pull requests, checks, the Definition of
 Done), never because a session completed.
 
+A session with no repository works in a scratch workspace the runner
+discards as the run ends. When such a session finishes after changing files,
+the server counts the distinct files its log says it changed
+(`discarded_files`) as it records the outcome, and every surface reads the
+outcome from that fact, not from the agent's summary: the state is "Work not
+kept" (`workNotKept` in the platform's session state), the card, the session
+page and the finished notification say how many files were discarded, and
+the agent's summary reads as its report. The Start session dialog and an
+approval request to write a file say it before the session starts and
+before the write is approved.
+
 ### Approval requests
 
 A runner raises an approval request (`approval_request`: a request id, a
