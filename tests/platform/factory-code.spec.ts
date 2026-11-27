@@ -369,7 +369,7 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     // reads before merging: only an agent read the code.
     await expect(
       box.getByText(
-        /^Checks passed and it merges cleanly into main\. Only an agent approved it \(Hawk via Bo .*\): no person has reviewed this code\.$/,
+        /^Checks passed and it merges cleanly into main\. Only an agent approved it \(Hawk via Bo[^)]*\): no person has reviewed this code\.$/,
       ),
     ).toBeVisible();
     await second.page

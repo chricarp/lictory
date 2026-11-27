@@ -487,6 +487,7 @@ function Reader({
             >
               {canComment && (
                 <ToolbarButton
+                  aria-label="Comment on selection"
                   className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
@@ -496,12 +497,13 @@ function Reader({
                     window.getSelection()?.removeAllRanges();
                   }}
                 >
-                  <MessageSquarePlus className="size-3.5" /> Comment on
-                  selection
+                  <MessageSquarePlus aria-hidden className="size-3.5" />
+                  Comment
                 </ToolbarButton>
               )}
               {onSuggest && (
                 <ToolbarButton
+                  aria-label="Suggest a change"
                   className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
@@ -511,7 +513,7 @@ function Reader({
                     window.getSelection()?.removeAllRanges();
                   }}
                 >
-                  <PenLine className="size-3.5" /> Suggest a change
+                  <PenLine aria-hidden className="size-3.5" /> Suggest
                 </ToolbarButton>
               )}
               {canAsk && (
