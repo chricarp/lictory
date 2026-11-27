@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activitySubject } from "@lictory/platform/components/review/activity-subject";
+import {
+  activitySubject,
+  foldActivity,
+} from "@lictory/platform/components/review/activity-subject";
 
 void test("an agent's act is shown as the agent acting for its person", () => {
   const review = activitySubject(
@@ -89,5 +92,28 @@ void test("the factory loop's entries read in the same shape: the agent for its 
       "Bo",
     ).kind,
     "person",
+  );
+});
+
+void test("a suggestion its reviewer approved and accepted reads as one act", () => {
+  const entry = (action: string, actorId: string, suggestionId = "s1") => ({
+    action,
+    actorId,
+    detail: { suggestionId },
+  });
+  const folded = foldActivity([
+    entry("suggestion_merged", "ilse"),
+    entry("suggestion_approved", "ilse"),
+    // Another reviewer's approval stays, and so does one never accepted.
+    entry("suggestion_approved", "tomas"),
+    entry("suggestion_approved", "ilse", "s2"),
+  ]);
+  assert.deepEqual(
+    folded.map((e) => `${e.action}:${e.actorId}:${e.detail.suggestionId}`),
+    [
+      "suggestion_merged:ilse:s1",
+      "suggestion_approved:tomas:s1",
+      "suggestion_approved:ilse:s2",
+    ],
   );
 });

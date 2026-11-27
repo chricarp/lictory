@@ -273,8 +273,19 @@ export function ItemDetail({
   const [mode, setModeState] = useState<DetailMode>(() =>
     modeFrom(new URLSearchParams(searchParams.toString())),
   );
+  // The document pane's scroller: a new screen opens at its top, not at
+  // the scroll position of the one it replaced (sending a breakdown for
+  // review from the bottom of the editor landed at the review's activity).
   const setMode = useCallback(
     (next: DetailMode) => {
+      if (
+        next.kind === "pr" ||
+        next.kind === "branch" ||
+        next.kind === "branches"
+      )
+        requestAnimationFrame(() =>
+          document.querySelector("[data-pane-document]")?.scrollTo({ top: 0 }),
+        );
       track("specification_mode_selected", {
         organization_id: workspace.organization.id,
         project_id: item.projectId,

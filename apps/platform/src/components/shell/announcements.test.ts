@@ -5,6 +5,7 @@ import { speakable } from "@lictory/platform/components/shell/announcer";
 import { messageAnnouncement } from "@lictory/platform/components/channels/announce";
 import type { MessageRow } from "@lictory/platform/components/channels/data";
 import { sessionAnnouncements } from "@lictory/platform/components/factory/announce";
+import { carriedApprovalReason } from "@lictory/core/contracts/decomposition";
 import { reviewAnnouncements } from "@lictory/platform/components/review/announce";
 import {
   pullRequestAnnouncements,
@@ -172,7 +173,10 @@ void test("finishing and failing are announced; resuming after an answer is not"
 
 const reviewState = (
   revision: { id: string; number: number; authorId: string },
-  approvals: [string, { status: string; reviewerId: string }][],
+  approvals: [
+    string,
+    { status: string; reviewerId: string; endReason?: string },
+  ][],
 ) => ({
   revision,
   approvals: new Map(
@@ -230,6 +234,41 @@ void test("my own approval and my own revision are not announced, but approvals 
     [
       "Revision 2 outdated earlier approvals: Engineering review needs review again",
     ],
+  );
+});
+
+void test("a revision that keeps the text says the approvals carried over, never outdated", () => {
+  const r4 = { id: "v4", number: 4, authorId: "me" };
+  const r5 = { id: "v5", number: 5, authorId: "me" };
+  const before = reviewState(r4, [
+    ["p1", { status: "granted", reviewerId: "bo" }],
+  ]);
+  const after = reviewState(r5, [
+    [
+      "p1",
+      {
+        status: "stale",
+        reviewerId: "bo",
+        endReason: carriedApprovalReason(5),
+      },
+    ],
+    // The carried decision is a new row on revision 5, not a new approval.
+    ["p2", { status: "granted", reviewerId: "bo" }],
+  ]);
+  assert.deepEqual(
+    reviewAnnouncements(before, after, "me", names).map((s) => s.text),
+    [
+      "Revision 5 kept the approvals: Engineering review. The specification text did not change.",
+    ],
+  );
+  assert.deepEqual(
+    reviewAnnouncements(
+      before,
+      { ...after, revision: { ...r5, authorId: "ada" } },
+      "me",
+      names,
+    ).map((s) => s.text),
+    ["Ada saved revision 5"],
   );
 });
 

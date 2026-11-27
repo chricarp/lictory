@@ -222,7 +222,7 @@ export function ViewPage({
       description={
         overview
           ? proposals
-            ? "A place for rough ideas. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs."
+            ? "Proposals are stories (and other specification items) in Draft: rough ideas, not a separate kind of document. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs. The same item then moves to Refinement."
             : // The queue holds specifications not yet in delivery (and
               // amendments of accepted ones): a story under way with its
               // accepted revision is delivery work, whatever its review.
@@ -260,8 +260,9 @@ export function ViewPage({
         ) : overview ? (
           proposals ? (
             <span>
-              A title and a few notes are enough. Your team can shape the
-              specification before committing to build it.
+              A proposal is a story in Draft: a title and a few notes are
+              enough. Your team can shape its specification before committing to
+              build it.
               {noProposalNote}
             </span>
           ) : (

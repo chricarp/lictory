@@ -162,7 +162,7 @@ async function fixture() {
       .filter((x) => x.projectId === project.id)
       .map((x) => [x.name, x.id]),
   ) as Record<
-    "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
+    "Backlog" | "Todo" | "In Progress" | "Code review" | "Done" | "Canceled",
     string
   >;
   const proposalId = crypto.randomUUID();
@@ -2741,21 +2741,21 @@ void test("archiving a status requires a replacement and moves its items explici
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
   });
   await assert.rejects(
     f.command({
       type: "archiveStatus",
       projectId: f.projectId,
-      statusId: f.statuses["In Review"],
-      replacementId: f.statuses["In Review"],
+      statusId: f.statuses["Code review"],
+      replacementId: f.statuses["Code review"],
     }),
     /another active status/,
   );
   await f.command({
     type: "archiveStatus",
     projectId: f.projectId,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
     replacementId: f.statuses["In Progress"],
   });
   assert.equal(

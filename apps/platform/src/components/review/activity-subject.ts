@@ -79,3 +79,29 @@ export function activitySubject(
   if (agent) return { kind: "agent", name: `${agent} via ${person}`, agent };
   return { kind: "person", name: person, agent: "" };
 }
+
+// An approval its own reviewer then accepted is one act ("accepted Juno's
+// suggestion"), not two lines: the approval folds into the acceptance.
+// Approvals by someone else, or never followed by acceptance, stay.
+export function foldActivity<
+  T extends {
+    action: string;
+    actorId: string | null;
+    detail?: Record<string, unknown> | null;
+  },
+>(entries: readonly T[]): T[] {
+  const accepted = new Set(
+    entries
+      .filter(
+        (e) =>
+          e.action === "suggestion_merged" ||
+          e.action === "suggestion_accepted",
+      )
+      .map((e) => `${String(e.detail?.suggestionId)}:${e.actorId}`),
+  );
+  return entries.filter(
+    (e) =>
+      e.action !== "suggestion_approved" ||
+      !accepted.has(`${String(e.detail?.suggestionId)}:${e.actorId}`),
+  );
+}

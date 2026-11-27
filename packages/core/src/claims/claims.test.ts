@@ -140,7 +140,7 @@ async function fixture() {
       .filter((x) => x.projectId === projectId)
       .map((x) => [x.name, x.id]),
   ) as Record<
-    "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
+    "Backlog" | "Todo" | "In Progress" | "Code review" | "Done" | "Canceled",
     string
   >;
   const latest = async (workItemId: string) =>
@@ -572,7 +572,7 @@ void test("release paths: agent, person, a moved item and closing the item", asy
   await f.run({
     type: "updateWorkItem",
     workItemId: spec,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
   });
   const kept = await releaseClaim(
     db,
@@ -585,7 +585,7 @@ void test("release paths: agent, person, a moved item and closing the item", asy
   assert.equal(kept.returnedTo, null);
   assert.equal(kept.note, null);
   assert.match(String(kept.returnNote), /stays where it is|moved/);
-  assert.equal((await f.item(spec)).statusId, f.statuses["In Review"]);
+  assert.equal((await f.item(spec)).statusId, f.statuses["Code review"]);
   assert.equal((await f.claimRow(second.claimId)).endReason, "person");
 
   // Moving claimed work back out of progress releases the claim.

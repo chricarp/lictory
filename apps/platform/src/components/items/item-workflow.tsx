@@ -303,7 +303,11 @@ export function ItemWorkflow({
   const subline = mine.review
     ? mine.staleRevision && current
       ? `You approved revision ${mine.staleRevision.number}. It changed since, so that approval no longer applies to revision ${current.number}.`
-      : `Read revision ${current?.number ?? ""}, then approve it or request changes. Your decision applies to this revision only.`
+      : `Read revision ${current?.number ?? ""}, then approve it or request changes. Your decision applies to this revision only.${
+          item.blockingThreads > 0
+            ? ` Ready also needs the ${item.blockingThreads === 1 ? "blocking discussion" : `${item.blockingThreads} blocking discussions`} resolved.`
+            : ""
+        }`
     : amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
       : next
@@ -381,9 +385,16 @@ export function ItemWorkflow({
             hint="Show the reviews"
           >
             <Pill
-              tone={approvedReviews === requested.length ? "good" : "neutral"}
+              tone={
+                approvedReviews === requested.length
+                  ? "good"
+                  : outdated.length > 0
+                    ? "warning"
+                    : "neutral"
+              }
             >
               {approvedReviews}/{requested.length} approved
+              {outdated.length > 0 && ` · ${outdated.length} outdated`}
             </Pill>
           </Opens>
         </li>
@@ -472,9 +483,14 @@ export function ItemWorkflow({
   return (
     <section
       aria-label="Item workflow"
-      className="mt-5 rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset"
+      className={cn(
+        "mt-5",
+        children &&
+          "rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset",
+      )}
     >
-      {/* A tray: the state card on top, the decision it leads to beneath. */}
+      {/* A tray when a decision sits beneath the state card; otherwise the
+          card alone, without a second frame. */}
       <div className="rounded-2xl bg-card px-4 pt-3.5 pb-4 shadow-(--shadow-border)">
         {/* The decision sits beside the statement while both fit and wraps
             below it on phones and at high zoom, so neither is squeezed
@@ -495,6 +511,13 @@ export function ItemWorkflow({
               />
               {statement}
             </p>
+            {/* What holds the item back leads, right under the statement. */}
+            {next && (
+              <p className="mt-1 pl-4 text-[13px] leading-relaxed">
+                <span className="sr-only">Next: </span>
+                {next}
+              </p>
+            )}
             {subline && (
               <p className="mt-1 pl-4 text-[13px] leading-relaxed text-muted-foreground">
                 {subline}
@@ -536,15 +559,11 @@ export function ItemWorkflow({
             ))}
           </ul>
         )}
-        {next && (
-          <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
-            <span className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
-              Next
-            </span>
-            <span className="min-w-0">{next}</span>
-          </p>
+        {/* The stages explain where a specification is on its way to
+            delivery; plain work and delivered scope say it in the statement. */}
+        {type.hasSpecification && (!delivering || amendment) && (
+          <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
         )}
-        <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
       </div>
       {children && (
         <div>
@@ -642,7 +661,7 @@ function Pill({
   mono = false,
   children,
 }: {
-  tone: "neutral" | "good" | "info" | "danger";
+  tone: "neutral" | "good" | "info" | "warning" | "danger";
   mono?: boolean;
   children: ReactNode;
 }) {
@@ -654,6 +673,8 @@ function Pill({
         tone === "neutral" && "bg-muted text-foreground/80 ring-foreground/8",
         tone === "good" && "bg-success/8 text-success ring-success/20",
         tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+        tone === "warning" &&
+          "bg-warning/10 text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] ring-warning/30",
         tone === "danger" &&
           "bg-destructive/8 text-destructive ring-destructive/20",
       )}

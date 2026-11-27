@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { GitMerge } from "lucide-react";
+import { Clock, GitMerge } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import {
   CheckIcon,
@@ -7,7 +7,8 @@ import {
 } from "@lictory/platform/components/review/flow-ui";
 
 // Whether a pull request can merge, and the merge itself, the same for code
-// and specification pull requests: a heading that says ready or blocked,
+// and specification pull requests: a heading that says ready, waiting (only
+// pending requirements) or blocked,
 // one row per requirement (each unmet one says why, in words), then what
 // merging will do, or why this person cannot merge, beside the merge
 // button. Nothing is mergeable from a summary alone: the requirements are
@@ -74,8 +75,8 @@ export function MergeBox({
   const id = useId();
   const missing = requirements.filter(unmet).length;
   const isBlocked = blocked ?? missing > 0;
-  // Nothing fails, something has yet to report (checks running, a review
-  // to come): normal progress, said as waiting, not as a block.
+  // Blocked only by what has not reported yet (checks running, a review
+  // asked for): a normal wait, said as one, not as a problem.
   const waiting =
     isBlocked &&
     missing > 0 &&
@@ -84,19 +85,21 @@ export function MergeBox({
   const words =
     verb === "apply"
       ? {
-          blocked: waiting ? "Waiting to apply" : "Applying is blocked",
+          blocked: "Applying is blocked",
+          waiting: "Waiting to apply",
           ready: "Ready to apply",
           to: "apply",
         }
       : {
-          blocked: waiting ? "Waiting to merge" : "Merging is blocked",
+          blocked: "Merging is blocked",
+          waiting: "Waiting to merge",
           ready: "Ready to merge",
           to: `merge into ${target}`,
         };
   return (
     <section
       aria-labelledby={id}
-      data-merge-box={isBlocked ? (waiting ? "waiting" : "blocked") : "ready"}
+      data-merge-box={waiting ? "waiting" : isBlocked ? "blocked" : "ready"}
       className={cn(
         "overflow-hidden rounded-xl bg-card shadow-(--shadow-border)",
         !isBlocked && "ring-1 ring-success/40",
@@ -108,25 +111,31 @@ export function MergeBox({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full",
-            !isBlocked
-              ? "bg-success text-white"
-              : waiting
-                ? "bg-muted text-muted-foreground"
-                : "bg-warning/12 text-warning",
+            waiting
+              ? "bg-muted text-muted-foreground"
+              : isBlocked
+                ? "bg-warning/12 text-warning"
+                : "bg-success text-white",
           )}
         >
-          <GitMerge className="size-4" />
+          {waiting ? (
+            <Clock className="size-4" />
+          ) : (
+            <GitMerge className="size-4" />
+          )}
         </span>
         <div className="min-w-0">
           <Heading id={id} className="text-sm leading-5 font-semibold">
-            {isBlocked ? words.blocked : words.ready}
+            {waiting ? words.waiting : isBlocked ? words.blocked : words.ready}
           </Heading>
           <p className="text-xs text-muted-foreground">
-            {isBlocked
-              ? missing > 0
-                ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
-                : `Not every requirement to ${words.to} is met yet.`
-              : (readySummary ?? `Every requirement to ${words.to} is met.`)}
+            {waiting
+              ? `Waiting for ${plural(missing, "requirement")} to ${words.to}.`
+              : isBlocked
+                ? missing > 0
+                  ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
+                  : `Not every requirement to ${words.to} is met yet.`
+                : (readySummary ?? `Every requirement to ${words.to} is met.`)}
           </p>
         </div>
       </div>

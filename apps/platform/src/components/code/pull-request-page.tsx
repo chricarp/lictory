@@ -9,6 +9,7 @@ import {
   FileDiff,
   GitMerge,
   Loader2,
+  Lock,
   MessageSquare,
 } from "lucide-react";
 import {
@@ -198,15 +199,18 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
               head={pr.headBranch}
               meta={
                 <>
-                  <span aria-hidden>·</span>
-                  <span>
-                    head{" "}
+                  {/* Each dot travels with the fact after it, so a wrap
+                      never leaves a dot dangling at a line's end. */}
+                  <span className="whitespace-nowrap">
+                    <span aria-hidden>· </span>head{" "}
                     <code className="font-mono text-xs">
                       {shortSha(pr.headSha)}
                     </code>
                   </span>
-                  <span aria-hidden>·</span>
-                  <span>updated {relativeTime(pr.hostUpdatedAt)}</span>
+                  <span className="whitespace-nowrap">
+                    <span aria-hidden>· </span>updated{" "}
+                    {relativeTime(pr.hostUpdatedAt)}
+                  </span>
                 </>
               }
               tabs={
@@ -449,8 +453,9 @@ function useCiRequired(pr: CodePullRequestEntity) {
 function readySummary(
   rows: readonly MergeRequirement[],
   target: string,
-  // Only agents approved it: "approved" alone would read as a person's.
-  agentsOnly = false,
+  // Set when only agents approved: under Build a person merges, and the
+  // headline they read says who approved, not "it is approved".
+  agentsOnly: string | null,
 ): string {
   const missing: string[] = [];
   for (const r of rows) {
@@ -466,7 +471,7 @@ function readySummary(
   }
   if (!missing.length)
     return agentsOnly
-      ? `Checks passed, an agent approved it (no person has reviewed it) and it merges cleanly into ${target}.`
+      ? `Checks passed and it merges cleanly into ${target}. Only an agent approved it (${agentsOnly}): no person has reviewed this code.`
       : `Checks passed, it is approved and it merges cleanly into ${target}.`;
   const list =
     missing.length === 1
@@ -602,6 +607,22 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
   const ciRequired = useCiRequired(pr);
   const blockers = mergeBlockers({ ...pr, ciRequired });
   const rows = requirements(pr, memberName, ciRequired, loginName);
+  const agentApprovals = pr.reviews.filter(
+    (r) => r.current && r.decision === "approve",
+  );
+  const agentsOnly =
+    pr.approvedBy.length === 0 &&
+    agentApprovals.length > 0 &&
+    agentApprovals.every((r) => r.agentId)
+      ? [
+          ...new Set(
+            agentApprovals.map(
+              (r) =>
+                `${r.agentName ?? "an agent"} via ${memberName(r.reviewerId)}`,
+            ),
+          ),
+        ].join(" and ")
+      : null;
   const autopilot = useAutopilotGoverns(pr);
   const merging = writes.some(
     (w) => w.kind === "merge" && w.status !== "failed",
@@ -663,15 +684,7 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
         target={pr.baseBranch}
         requirements={rows}
         blocked={blockers.length > 0}
-        readySummary={readySummary(
-          rows,
-          pr.baseBranch,
-          pr.approvedBy.length === 0 &&
-            pr.reviews.some((r) => r.current && r.decision === "approve") &&
-            pr.reviews
-              .filter((r) => r.current && r.decision === "approve")
-              .every((r) => r.agentId),
-        )}
+        readySummary={readySummary(rows, pr.baseBranch, agentsOnly)}
         before={autopilot && <AutopilotWaits pr={pr} />}
         noteId={noteId}
         note={
@@ -741,6 +754,10 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
                 >
                   {merging ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : blockers.length ? (
+                    // Blocked reads in the shape, not only in a lighter
+                    // colour: a lock instead of the merge mark.
+                    <Lock className="size-3.5" aria-hidden />
                   ) : (
                     <GitMerge className="size-3.5" aria-hidden />
                   )}
@@ -821,6 +838,13 @@ function AutopilotWaits({ pr }: { pr: CodePullRequestEntity }) {
 // signed. Closing and reopening sit beside it.
 function Discussion({ pr }: { pr: CodePullRequestEntity }) {
   const canWork = useCanWork(pr);
+  // The host shows the connection's account as the author; Lictory signs
+  // the text with the person's name.
+  const { repositories, connections } = useCodeHosts();
+  const account = connections.find(
+    (c) =>
+      c.id === repositories.find((r) => r.id === pr.repositoryId)?.connectionId,
+  )?.accountLabel;
   const [comment, setComment] = useState("");
   const { call, error } = useCall(pr);
   const editor = useRef<MarkdownEditorHandle>(null);
@@ -872,21 +896,20 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
           containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
         />
       </div>
-      {/* One decision row under the box, like a review: a line on where
-          it goes, then the decisions, the review's own first. */}
+      {/* A full-width line on where it goes and how it is signed, then one
+          decision row: closing apart on the left, the review decisions
+          alike, and posting the comment as the one primary action. */}
+      <p id="code-comment-hint" className="px-1 text-xs text-muted-foreground">
+        {`Posted on ${host}${account ? ` as ${account}` : ""}, signed with your name.`}
+        {canReview &&
+          ` Approve or Request changes records one review of ${shortSha(pr.headSha)} in Lictory, which the merge box counts, and posts it there too; say what must change to request changes.`}
+      </p>
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <p
-          id="code-comment-hint"
-          className="mr-auto min-w-0 basis-56 px-1 text-xs text-muted-foreground"
-        >
-          {canReview
-            ? `Posted on ${host} as you. A review covers ${shortSha(pr.headSha)}; say what must change to request changes.`
-            : `Posted on ${host} as you.`}
-        </p>
         {codePullRequest.allows(pr.state, "close") && (
           <Button
             variant="ghost"
             type="button"
+            className="mr-auto"
             onClick={() => call("setCodePullRequestState", { state: "closed" })}
           >
             Close {noun}
@@ -897,6 +920,7 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
             <Button
               variant="ghost"
               type="button"
+              className="mr-auto"
               onClick={() => call("setCodePullRequestState", { state: "open" })}
             >
               Reopen

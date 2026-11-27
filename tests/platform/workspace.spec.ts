@@ -965,6 +965,13 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     page.getByRole("region", { name: "Item workflow" }),
   ).toContainText(/approved revision 3; revision 4 needs their review again/);
+  // The save brings that state into view, and the approvals chip counts it.
+  await expect(
+    page.getByRole("region", { name: "Item workflow" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("region", { name: "Item workflow" }),
+  ).toContainText("0/1 approved · 1 outdated");
   await page.getByRole("button", { name: /earlier approval/ }).click();
   await expect(page.getByText(/approved revision 3 · outdated/)).toBeVisible();
   // Reviewer sees first that their approval is outdated, and what changed
@@ -1047,7 +1054,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
   ).toBeVisible();
-  await expect(page.getByText(/from a resolved discussion/)).toBeVisible();
+  await expect(
+    page.getByText(/from a discussion on revision \d+/),
+  ).toBeVisible();
   await page
     .getByRole("button", {
       name: "Archive decision: Cancellation amounts are bounded",

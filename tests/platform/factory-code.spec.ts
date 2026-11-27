@@ -365,9 +365,12 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     await expect(box.getByText("Checks passed.")).toBeVisible();
     await expect(box.getByText(/^Approved at /)).toBeVisible();
     await expect(box.getByText(/By Hawk via Bo/)).toBeVisible();
-    // Allowed by the policy, and said plainly: only an agent read the code.
+    // Allowed by the policy, and said plainly in the headline a person
+    // reads before merging: only an agent read the code.
     await expect(
-      box.getByText(/No person has reviewed this code\./),
+      box.getByText(
+        /^Checks passed and it merges cleanly into main\. Only an agent approved it \(Hawk via Bo[^)]*\): no person has reviewed this code\.$/,
+      ),
     ).toBeVisible();
     await second.page
       .getByRole("button", { name: "Merge", exact: true })

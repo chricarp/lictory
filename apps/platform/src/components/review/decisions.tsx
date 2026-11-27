@@ -274,9 +274,10 @@ export function Decisions() {
             <p className="text-xs text-muted-foreground">
               {/* The revision the decision was reached on, which may
                   predate the text it now governs. */}
-              {memberName(d.authorId)} · recorded on revision{" "}
-              {revisionNumber(d.revisionId) ?? "earlier"}
-              {d.sourceThreadId && " · from a resolved discussion"}
+              {memberName(d.authorId)} ·{" "}
+              {d.sourceThreadId
+                ? `from a discussion on revision ${revisionNumber(d.revisionId) ?? "earlier"}`
+                : `recorded on revision ${revisionNumber(d.revisionId) ?? "earlier"}`}
             </p>
           </article>
         ))}

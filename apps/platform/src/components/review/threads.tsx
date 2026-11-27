@@ -886,6 +886,20 @@ function ReplyField({
 
 // Starts a discussion: a one-line field at rest that opens into an editor
 // (with the quoted passage, when there is one) while writing.
+// Focuses the element once it renders (a new discussion card appears a
+// frame or two after the write), unless focus already moved elsewhere.
+function focusWhenShown(selector: string) {
+  let tries = 0;
+  const attempt = () => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const target = document.querySelector<HTMLElement>(selector);
+    if (target) target.focus();
+    else if (tries++ < 20) window.setTimeout(attempt, 50);
+  };
+  requestAnimationFrame(attempt);
+}
+
 export function ThreadComposer({
   draft,
   onDraftChange,
@@ -955,6 +969,9 @@ export function ThreadComposer({
     const text = body.trim();
     if (!text || !current || sending) return;
     setError(undefined);
+    // The editor is disabled while sending, which drops focus to the page;
+    // a keyboard author is brought back to what they just posted.
+    const hadFocus = Boolean(formRef.current?.contains(document.activeElement));
     setSending(true);
     const threadId = crypto.randomUUID();
     // Posting applies at once (and queues while offline); text the server
@@ -981,10 +998,12 @@ export function ThreadComposer({
       setAnchorDraft("");
       onDraftChange(null);
       onCreated?.(threadId);
+      if (hadFocus) focusWhenShown(`[data-thread-id="${threadId}"]`);
     } catch (e) {
       setError(
         `Not posted${e instanceof Error ? `: ${e.message}` : "."} Your text is kept; post it again when ready.`,
       );
+      if (hadFocus) requestAnimationFrame(() => editorRef.current?.focus());
     } finally {
       setSending(false);
     }
