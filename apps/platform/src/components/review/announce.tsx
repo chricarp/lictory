@@ -154,9 +154,17 @@ function useAnnounceReview() {
       if (
         (key.startsWith("outdated:") || key.startsWith("carried:")) &&
         revision?.authorId === userId
-      )
+      ) {
         toast(text);
-      else announce(text, { key });
+        // The status card shows what the save did to the approvals: bring
+        // it into view instead of leaving it above a long specification.
+        if (key.startsWith("outdated:"))
+          requestAnimationFrame(() =>
+            document
+              .querySelector('[aria-label="Item workflow"]')
+              ?.scrollIntoView({ block: "nearest" }),
+          );
+      } else announce(text, { key });
   }, [signature, announce, toast]);
 }
 
