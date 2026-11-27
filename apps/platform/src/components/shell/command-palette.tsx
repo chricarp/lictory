@@ -33,7 +33,6 @@ import {
   FolderKanban,
   KanbanSquare,
   Library,
-  Lightbulb,
   ListOrdered,
   Monitor,
   Moon,
@@ -297,12 +296,19 @@ export function CommandPalette({
           : !(capabilities.editSpecifications || capabilities.changeProperties)
       )
         continue;
+      // A specification-backed type starts as a proposal (the dialog it
+      // opens says so), so the palette names it the same way: one entry per
+      // type, no separate "New proposal" beside "Create Story".
       list.push({
         id: `create-${type.id}`,
-        label: `Create ${type.name}`,
+        label: type.hasSpecification
+          ? `New ${type.name} proposal`
+          : `Create ${type.name}`,
         group: "Create",
         icon: <TypeIcon type={type} />,
-        keywords: "new item proposal task",
+        keywords: type.hasSpecification
+          ? "create new item proposal idea feature specification"
+          : "new item task",
         run: () => {
           onClose();
           openCreate({
@@ -424,24 +430,6 @@ export function CommandPalette({
         run: () => go(section.href(org)),
       });
     }
-    // A proposal in the project in context, when I may write one.
-    if (
-      currentProject &&
-      capabilities.editSpecifications &&
-      enabledTypes(delivery, currentProject.id).some((t) => t.hasSpecification)
-    )
-      list.push({
-        id: "new-proposal",
-        label: "New proposal",
-        identifier: currentProject.key,
-        group: "Create",
-        icon: <Lightbulb className="size-4" />,
-        keywords: "create proposal idea feature specification",
-        run: () => {
-          onClose();
-          openCreate({ intent: "proposal", projectId: currentProject.id });
-        },
-      });
     // A page in a space I may edit: the space opens with its new page dialog.
     for (const space of spaces)
       if (!space.archivedAt && spaceLevelAtLeast(levelOf(space.id), "edit"))

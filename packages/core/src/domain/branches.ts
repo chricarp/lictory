@@ -759,7 +759,7 @@ export async function applyBranchCommand(
     case "deletePullRequest": {
       const p = pr(c.pullRequestId);
       require(p.authorId === userId ||
-        capabilities.editSpecifications, "Only the author or a specification editor can delete this review.");
+        capabilities.editSpecifications, "Only the author or a specification editor can withdraw this review.");
       // An applied review is the record of who agreed to which result.
       requireStep(specificationPullRequest, p.status, "close");
       const deletedAt = new Date();

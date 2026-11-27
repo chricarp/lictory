@@ -56,6 +56,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Trash2,
+  Undo2,
   Plus,
   LockKeyhole,
   ChevronRight,
@@ -1889,11 +1890,14 @@ function CreatePR({
 function DeletePrompt({
   name,
   detail,
+  verb = "Delete",
   onDelete,
   trigger,
 }: {
   name: string;
   detail?: string;
+  // "Withdraw" for a review: the change itself stays.
+  verb?: "Delete" | "Withdraw";
   onDelete: () => Promise<void>;
   // The button that asks.
   trigger: ReactElement<Record<string, unknown>>;
@@ -1906,12 +1910,14 @@ function DeletePrompt({
         className={cn(dialogPanelClass, "max-w-md gap-0 p-5")}
       >
         <AlertDialogTitle className="m-0 text-sm font-semibold">
-          Delete {name}
+          {verb} {name}
           <span aria-hidden>?</span>
         </AlertDialogTitle>
         <AlertDialogDescription className="mt-1 mb-0 text-[13px] leading-5 text-muted-foreground">
-          It will disappear from the workspace. Saved versions and activity
-          remain in history.{detail && ` ${detail}`}
+          {verb === "Withdraw"
+            ? "Reviewers are no longer asked and its open discussions are resolved. Its activity stays in history."
+            : "It will disappear from the workspace. Saved versions and activity remain in history."}
+          {detail && ` ${detail}`}
         </AlertDialogDescription>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <AlertDialogClose className={buttonClass({ variant: "ghost" })}>
@@ -1922,7 +1928,7 @@ function DeletePrompt({
             action={onDelete}
             className={buttonClass({ variant: "danger" })}
           >
-            Delete
+            {verb}
           </AlertDialogClose>
         </div>
       </AlertDialogContent>
@@ -2502,8 +2508,8 @@ function PullRequestView({
       state: "pending",
       text: `${roleName(r.disciplineId)} approval ${stale ? "is stale" : "is pending"}${who ? ` · ${who}` : ""}`,
       detail: stale
-        ? "The result changed since the approval. Ask for another review."
-        : "Waiting for a decision on this exact result.",
+        ? "The change or the specification moved since the approval. Ask for another review."
+        : "Waiting for a decision on the specification as it would read after this change.",
     });
   }
   if (changesRequested)
@@ -2517,7 +2523,7 @@ function PullRequestView({
     rows.push({
       key: "reviews-ok",
       state: "success",
-      text: `${plural(required.length, "required review")} approved this exact result.`,
+      text: `${plural(required.length, "required review")} approved the specification as it would read after this change.`,
     });
   if (actionGate)
     rows.push({
@@ -2715,10 +2721,10 @@ function PullRequestView({
             {p.status !== "merged" ? (
               <MergeBox
                 target={targetName}
-                verb="apply"
+                verb={breakdown ? "create" : "apply"}
                 requirements={rows}
                 blocked={blockers.length > 0}
-                readySummary="Required reviews approve this exact result. No conflicts or blocking discussions remain."
+                readySummary="Required reviewers approved the specification as it would read after this change. No conflicts or blocking discussions remain."
                 before={
                   actionRuns.length > 0 &&
                   !actionGate && (
@@ -3132,12 +3138,13 @@ function PullRequestView({
                 )}
               {p.status === "open" && (
                 <p className="text-xs text-muted-foreground">
-                  Approvals apply to the exact result, the whole specification
-                  once this change applies
+                  Approvals cover the whole specification as it would read after
+                  this change
                   {isMain(target)
-                    ? `; applying records them as approvals of revision ${item.revisionNumber + 1}`
+                    ? `; ${breakdown ? "creating the items" : "applying"} records them as approvals of revision ${item.revisionNumber + 1}`
                     : ""}
-                  . A new version on either side asks reviewers again.
+                  . A new version of this change, or a new revision of the
+                  specification, asks reviewers again.
                 </p>
               )}
             </section>
@@ -3183,8 +3190,9 @@ function PullRequestView({
                 specificationPullRequest.allows(p.status, "close") &&
                 (p.authorId === userId || capabilities.editSpecifications) && (
                   <DeletePrompt
-                    name={`review “${p.title}”`}
-                    detail="The change is kept."
+                    verb="Withdraw"
+                    name={`“${p.title}” from review`}
+                    detail="The change and its versions are kept; you can send it for review again."
                     onDelete={() =>
                       run(
                         {
@@ -3201,8 +3209,8 @@ function PullRequestView({
                         size="sm"
                         className="w-full justify-start hover:text-destructive"
                       >
-                        <Trash2 className="size-3.5" />
-                        Delete review
+                        <Undo2 className="size-3.5" />
+                        Withdraw from review
                       </Button>
                     }
                   />
