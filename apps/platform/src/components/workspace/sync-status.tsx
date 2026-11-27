@@ -84,7 +84,12 @@ export function SyncStatus() {
   });
   const label = titles[presentation];
   const compact = useCompactSidebar();
-  const word = compact ? undefined : shortLabels[presentation];
+  // Reconnecting is usually brief: the spinning icon says it (and it is
+  // announced), so the account name beside it keeps its room.
+  const word =
+    compact || presentation === "recovering"
+      ? undefined
+      : shortLabels[presentation];
   const recovering = presentation === "recovering" || presentation === "busy";
   const Icon =
     presentation === "offline"

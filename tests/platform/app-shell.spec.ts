@@ -168,6 +168,26 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     "channels",
     "direct-messages",
   ]);
+  // Outside the project its pages fold under the switcher, so the
+  // conversations stay in view; unfolding is remembered.
+  const projectPages = sidebar(page).getByRole("button", {
+    name: /pages$/,
+  });
+  await expect(projectPages).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    sidebar(page).getByRole("link", { name: "Board", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    sidebar(page).getByRole("link", { name: "All channels" }),
+  ).toBeInViewport();
+  await projectPages.click();
+  await expect(
+    sidebar(page).getByRole("link", { name: "Board", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(projectPages).toHaveAttribute("aria-expanded", "true");
+  await projectPages.click();
+  await expect(projectPages).toHaveAttribute("aria-expanded", "false");
 
   // Every organization I belong to is on the rail; the current one is marked.
   const rail = page.getByRole("navigation", { name: "Organizations" });
