@@ -103,7 +103,10 @@ fails if the token's creator is no longer a member (or, for an organization
 runner, an administrator).
 
 The runner reports its operating system, architecture, version, detected
-harnesses, labels, capacity and isolation with every heartbeat. Online is
+harnesses, labels, capacity and isolation with every heartbeat, and the last
+problem it met while running (a failed heartbeat or claim, with the
+runner's time), which the runner's page shows; a runner that sends no
+`lastError` (older than the field) keeps what was stored. Online is
 derived from the last heartbeat; the projection records heartbeats at most
 every 45 seconds, and readers treat a runner as online for about two minutes
 after its last recorded one.

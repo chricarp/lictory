@@ -371,6 +371,22 @@ function RunnerRow({
                     ? `Offline since ${new Date(runner.lastSeenAt).toLocaleString()}. Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
                     : "It has never connected."}
             </Fact>
+            {/* What the runner last reported failing (the server out of
+                reach, asking for work refused), so an offline runner can be
+                told apart from a machine that is off. Its time says how old
+                it is: a runner reports it once it reaches the server again. */}
+            {runner.lastError && (
+              <Fact label="Last problem">
+                <span className="break-words">{runner.lastError.message}</span>{" "}
+                <time
+                  dateTime={runner.lastError.at}
+                  title={new Date(runner.lastError.at).toLocaleString()}
+                  className="text-muted-foreground"
+                >
+                  ({relativeTime(runner.lastError.at)})
+                </time>
+              </Fact>
+            )}
             <Fact label="Machine">
               {[runner.hostname, `${osLabel(runner.os)} ${runner.arch}`]
                 .filter(Boolean)

@@ -245,8 +245,18 @@ export async function heartbeat(
   report: z.infer<typeof heartbeatRequest>,
   now = new Date(),
 ) {
+  // An older runner sends no lastError: what it reported before stays.
+  const lastError =
+    report.lastError === undefined
+      ? { message: runner.lastError, at: runner.lastErrorAt }
+      : {
+          message: report.lastError?.message.slice(0, 500) ?? null,
+          at: report.lastError ? new Date(report.lastError.at) : null,
+        };
   const result = await factoryWrite(db, runner.organizationId, async (tx) => {
     const changed =
+      runner.lastError !== lastError.message ||
+      runner.lastErrorAt?.getTime() !== lastError.at?.getTime() ||
       runner.os !== report.os ||
       runner.arch !== report.arch ||
       runner.version !== report.version ||
@@ -271,6 +281,8 @@ export async function heartbeat(
           labels: report.labels ?? runner.labels,
           maxSessions: report.maxSessions,
           isolation: report.isolation,
+          lastError: lastError.message,
+          lastErrorAt: lastError.at,
           lastSeenAt: now,
         })
         .where(and(eq(s.runner.id, runner.id), isNull(s.runner.revokedAt)))
