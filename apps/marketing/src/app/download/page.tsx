@@ -188,12 +188,9 @@ export default function DownloadPage() {
       <p className="mt-4 text-[13px] leading-6 text-muted-foreground">
         Every link downloads the newest stable release
         {releaseVersion ? ` (${releaseVersion})` : ""} from GitHub.{" "}
-        {releaseFilesKnown ? null : (
-          <>
-            This copy of the site was built without that release’s list of
-            files, so a file the release lacks answers 404 on GitHub.{" "}
-          </>
-        )}
+        {/* How the site was built is not the visitor's concern: a build
+            without the release's file list (local, the browser suite) only
+            offers the release page to check what it carries. */}
         <a href={latestReleaseUrl} className={textLink}>
           {releaseFilesKnown ? "What changed in it" : "See what it carries"}
         </a>
