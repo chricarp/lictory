@@ -422,7 +422,7 @@ function LiveProgress({
           <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
           <span>
             Not kept: {filesChangedLabel(progress).replace(/ changed$/, "")} (
-            <span className="font-mono font-normal break-all">
+            <span className="font-mono font-normal wrap-anywhere">
               {files.map((f) => f.path).join(", ")}
             </span>
             ) discarded when the session ended, because no repository is linked

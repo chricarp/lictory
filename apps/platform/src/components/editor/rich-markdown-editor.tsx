@@ -494,6 +494,7 @@ const RichMarkdownEditor = forwardRef<
       }
       mentions={hasMentions}
       source={compact ? undefined : { active: source, toggle: toggleSource }}
+      framed={false}
       className={cn(
         "rounded-none border-0 bg-transparent px-1.5 shadow-none",
         compact ? "py-0.5" : "py-1",

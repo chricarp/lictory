@@ -262,7 +262,7 @@ function ActionText({
   return (
     <code
       className={cn(
-        "line-clamp-3 min-w-0 font-mono text-[11px] break-all whitespace-pre-wrap text-foreground",
+        "line-clamp-3 min-w-0 font-mono text-[11px] wrap-anywhere whitespace-pre-wrap text-foreground",
         className,
       )}
     >
@@ -561,7 +561,7 @@ function Context({
                   )}
                   :{" "}
                 </span>
-                <span className="font-mono break-all">
+                <span className="font-mono wrap-anywhere">
                   {evidence.files
                     .slice(0, 3)
                     .map((f) => f.path)

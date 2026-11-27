@@ -395,12 +395,18 @@ export function BranchWorkspace({
   return (
     <div className="space-y-6">
       {screen.kind === "branches" && nav}
-      <div className="flex flex-wrap items-center gap-1.5 border-b pb-3 text-[13px]">
-        <Button variant="ghost" size="sm" onClick={onMain}>
+      {/* One line at every width: on phones the current change's name,
+          which the heading below repeats, gives way rather than wrapping
+          the trail into two rows. */}
+      <div className="flex min-w-0 items-center gap-1.5 border-b pb-3 text-[13px]">
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={onMain}>
           <ArrowLeft className="size-3.5" />
           Revision {data.item.revisionNumber}
         </Button>
-        <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
         {/* Inside the item's page, whose header holds the page's own
             breadcrumb: this one is named for what it walks. */}
         <nav
@@ -411,7 +417,10 @@ export function BranchWorkspace({
             variant="ghost"
             size="sm"
             aria-current={screen.kind === "branches" ? "page" : undefined}
-            className={cn(screen.kind === "branches" && "text-foreground")}
+            className={cn(
+              "shrink-0",
+              screen.kind === "branches" && "text-foreground",
+            )}
             onClick={() => onNavigate({ kind: "branches" })}
           >
             Proposed changes
@@ -420,11 +429,11 @@ export function BranchWorkspace({
             <>
               <ChevronRight
                 aria-hidden
-                className="size-3.5 text-muted-foreground"
+                className="hidden size-3.5 shrink-0 text-muted-foreground sm:block"
               />
               <span
                 aria-current="page"
-                className="max-w-64 truncate px-1 font-medium"
+                className="hidden max-w-64 min-w-0 truncate px-1 font-medium sm:block"
               >
                 {current}
               </span>

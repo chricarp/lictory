@@ -275,8 +275,14 @@ export function SessionView() {
             )}
             {steer && allows("retry") && (
               <Tooltip label={RETRY_HINT} side="bottom">
-                <Button onClick={act("retryAgentSession", "Retrying")}>
-                  <RotateCcw className="size-3.5" aria-hidden /> Retry
+                {/* On phones an icon, so the session's title keeps the
+                    room; the word stays its name. */}
+                <Button
+                  className="max-sm:size-8 max-sm:px-0"
+                  onClick={act("retryAgentSession", "Retrying")}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden />{" "}
+                  <span className="max-sm:sr-only">Retry</span>
                 </Button>
               </Tooltip>
             )}
