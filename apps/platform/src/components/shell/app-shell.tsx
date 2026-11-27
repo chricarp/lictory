@@ -50,6 +50,7 @@ import {
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import { OrganizationBrand } from "@lictory/platform/components/workspace/organization-brand";
+import { PhoneSyncNotice } from "@lictory/platform/components/workspace/sync-status";
 import {
   useSpaceBySlug,
   useSpaces,
@@ -544,6 +545,7 @@ function ShellFrame({
                   }
                 />
               )}
+              <PhoneSyncNotice />
               {/* Pinned: `overflow-clip`, unlike `hidden`, is not a scroll
                   container, so focusing or scrolling to a field deep in a
                   page never shifts the frame and cuts its top bar. Pages

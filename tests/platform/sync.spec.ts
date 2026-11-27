@@ -440,6 +440,13 @@ test("changes made offline survive a reload, apply once back online and reach ot
     ).toBeVisible();
     // Nothing reached the server yet.
     expect(await priorityOf(workItemId)).toBe("medium");
+    // A phone has no sidebar on screen: the problem is a strip above the
+    // page, not a dot hidden behind the menu button.
+    await expect(ben.page.locator("[data-phone-sync-notice]")).toBeHidden();
+    await second.setViewportSize({ width: 390, height: 844 });
+    const phoneNotice = second.locator("[data-phone-sync-notice]");
+    await expect(phoneNotice).toBeVisible();
+    await expect(phoneNotice).toContainText(/You’re offline|Reconnecting…/);
 
     // Back online but still without a workspace connection: a reload keeps
     // the unsent work, kept by Zero on this device.
@@ -466,6 +473,7 @@ test("changes made offline survive a reload, apply once back online and reach ot
       ada.page.getByRole("article", { name: "discussion" }).getByText(text),
     ).toBeVisible();
     await waitUntilSaved(ben.page);
+    await expect(phoneNotice).toHaveCount(0, { timeout: 30_000 });
     expect(await priorityOf(workItemId)).toBe("low");
     // Applied exactly once.
     expect(
