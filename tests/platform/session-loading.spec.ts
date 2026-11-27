@@ -1,10 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { seedWorkspace, signIn, type Seeded } from "../helpers/seed";
+import { password, seedWorkspace, signIn, type Seeded } from "../helpers/seed";
+import { inApp } from "../helpers/app-urls";
 import { useClientAddress } from "../helpers/client-address";
 
-// Every page waits for the session check before it renders. A slow check
-// shows a loading screen, never a blank page; a check that gets no answer
-// ends in an error with a retry.
+// Workspace pages wait for the session check before they render: a slow
+// check shows a loading screen, never a blank page, and a check that gets no
+// answer ends in an error with a retry. Account pages (sign-in) never wait
+// for it: the form is usable at once.
 let seeded: Seeded;
 
 test.beforeAll(async () => {
@@ -41,27 +43,38 @@ async function holdSession(page: Page) {
 const loading = (page: Page) =>
   page.getByRole("status", { name: "Loading Lictory" });
 
-test("a slow session check shows a loading screen, then the page", async ({
-  page,
-}) => {
+test("a slow session check never holds the sign-in form", async ({ page }) => {
+  // Signed out: the form is usable at once, before the check answers.
   const session = await holdSession(page);
   await page.goto("/sign-in");
-  await expect(loading(page)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(0);
-  session.release();
-  await expect(
-    page.getByRole("button", { name: "Sign in", exact: true }),
-  ).toBeVisible();
+  await page.getByLabel("Email", { exact: true }).fill(seeded.owner.email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await expect.poll(session.held).toBeGreaterThan(0);
   await expect(loading(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  session.release();
+  await expect(page).toHaveURL(inApp);
 
-  // Signed in, a workspace address waits the same way.
+  // Signed in: the form shows while the check is slow, and the answer
+  // continues the person to the destination they asked for.
   await page.unrouteAll({ behavior: "ignoreErrors" });
-  await signIn(page, seeded.owner.email);
   const again = await holdSession(page);
+  await page.goto(`/sign-in?callbackUrl=${encodeURIComponent("/account")}`);
+  await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+  await expect.poll(again.held).toBeGreaterThan(0);
+  again.release();
+  await expect(page).toHaveURL(/\/account$/);
+});
+
+test("a slow session check shows a loading screen on workspace pages", async ({
+  page,
+}) => {
+  await signIn(page, seeded.owner.email);
+  const session = await holdSession(page);
   await page.goto(seeded.projectPath("/items"));
   await expect(loading(page)).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
-  again.release();
+  session.release();
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await expect(loading(page)).toHaveCount(0);
 });
@@ -69,7 +82,7 @@ test("a slow session check shows a loading screen, then the page", async ({
 test("a session check without an answer offers a retry", async ({ page }) => {
   await page.clock.install();
   const session = await holdSession(page);
-  await page.goto("/sign-in");
+  await page.goto("/");
   await expect(loading(page)).toBeVisible();
   await expect.poll(session.held).toBe(1);
   // Past the session check's timeout.
@@ -79,7 +92,7 @@ test("a session check without an answer offers a retry", async ({ page }) => {
   ).toBeVisible();
   await expect(loading(page)).toHaveCount(0);
 
-  // The server answers again.
+  // The server answers again: signed out, the retry reaches the sign-in form.
   await page.unrouteAll({ behavior: "ignoreErrors" });
   session.release();
   await page.getByRole("button", { name: "Retry" }).click();

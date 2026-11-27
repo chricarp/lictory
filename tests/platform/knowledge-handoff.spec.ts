@@ -247,8 +247,11 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     await ada.page
       .getByRole("button", { name: "Refresh from Jira", exact: true })
       .click();
+    // The toast, not ui-sdk's live region that repeats it to screen readers.
     await expect(
-      ada.page.getByText("3 issues refreshed from Jira."),
+      ada.page.locator('[data-slot="toast"]', {
+        hasText: "3 issues refreshed from Jira.",
+      }),
     ).toBeVisible();
 
     // 4. The item: Jira's status and assignee, no native delivery controls.

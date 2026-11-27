@@ -19,6 +19,7 @@ import { SplitView } from "@lictory/platform/components/items/split-view";
 import {
   loadSession,
   ServerUnreachableError,
+  type Session,
 } from "@lictory/platform/lib/session";
 import { LoadingScreen, RootLayout } from "@lictory/platform/routes/root";
 import {
@@ -67,16 +68,42 @@ const legacyAppRoute = createRoute({
   },
 });
 
+// Account pages render without the session: a signed-out person always gets
+// the form, however long the session check takes. A check that answers
+// within this grace period still decides first (configured providers, or a
+// signed-in person continuing to the app) so the common case neither flashes
+// the form nor shifts the page; a slower one finishes in the background.
+const authGraceMs = 300;
+const stillChecking = Symbol("still checking");
+async function withinGrace<T>(check: Promise<T>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof stillChecking>((resolve) => {
+    timer = setTimeout(() => resolve(stillChecking), authGraceMs);
+  });
+  try {
+    return await Promise.race([check, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
   beforeLoad: async () => {
-    // Social sign-in buttons need the configured providers. A server that
-    // answers with an error still leaves the pages usable; one that does not
-    // answer could not sign anyone in, so it shows the retry.
-    await loadSession().catch((error: unknown) => {
+    // Social sign-in buttons need the configured providers; they appear when
+    // the check answers. A server that answers with an error still leaves
+    // the pages usable; one that fails at once could not sign anyone in, so
+    // it shows the retry.
+    const check = loadSession();
+    const quick = await withinGrace(check).catch((error: unknown) => {
       if (error instanceof ServerUnreachableError) throw error;
+      return undefined;
     });
+    return {
+      sessionCheck: check.catch(() => undefined),
+      slowSession: quick === stillChecking,
+    };
   },
   component: () => (
     <AuthLayout>
@@ -84,26 +111,40 @@ const authRoute = createRoute({
     </AuthLayout>
   ),
   pendingComponent: LoadingScreen,
+  // Past the grace period the form renders: no loading screen in between.
+  pendingMs: authGraceMs * 2,
 });
 // Pages only for people who are signed out: a signed-in person continues to
 // the destination they asked for, or the home page. The cached session is
 // confirmed with the server first, so an ended session still reaches them.
+// A slow check leaves the form on screen and continues them when it answers,
+// unless they have moved on.
 async function redirectSignedIn({
   location,
+  context,
 }: {
-  location: { searchStr: string };
+  location: { pathname: string; searchStr: string };
+  context: { sessionCheck: Promise<Session | undefined>; slowSession: boolean };
 }) {
-  const cached = await loadSession().catch(() => undefined);
+  const destination = safeCallbackPath(
+    new URLSearchParams(location.searchStr).get("callbackUrl"),
+  );
+  const continueLater = (check: Promise<Session | undefined>) => {
+    void check.then((session) => {
+      if (!session?.user) return;
+      if (router.state.location.pathname !== location.pathname) return;
+      void router.navigate({ href: destination, replace: true });
+    });
+  };
+  if (context.slowSession) return continueLater(context.sessionCheck);
+  const cached = await context.sessionCheck;
   if (!cached?.user) return;
-  const session = await loadSession(true).catch(() => undefined);
+  const confirm = loadSession(true).catch(() => undefined);
+  const session = await withinGrace(confirm);
+  if (session === stillChecking) return continueLater(confirm);
   if (!session?.user) return;
   // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
-  throw redirect({
-    href: safeCallbackPath(
-      new URLSearchParams(location.searchStr).get("callbackUrl"),
-    ),
-    replace: true,
-  });
+  throw redirect({ href: destination, replace: true });
 }
 
 const authPage = (path: string, name: string, signedOutOnly = false) =>
