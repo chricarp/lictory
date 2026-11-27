@@ -283,7 +283,7 @@ export function Branches({ pageId }: { pageId: string }) {
                 // One height (40px), one shape and one text size for the
                 // field, the select and the button, so the labels share a
                 // baseline and the row a bottom edge.
-                className={`${field} mt-1 rounded-xl text-[13px]`}
+                className={`${field} mt-1 rounded-lg text-[13px]`}
                 maxLength={80}
                 placeholder="e.g. retry-window"
                 value={name}

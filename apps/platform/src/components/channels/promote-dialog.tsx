@@ -246,7 +246,7 @@ export function PromoteDialog({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={3}
-              className="w-full rounded-xl border border-input bg-card px-3.5 py-2 text-[14px] outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10"
+              className="w-full rounded-lg border border-input bg-card px-3.5 py-2 text-[14px] outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10"
             />
           </Field>
         )}
