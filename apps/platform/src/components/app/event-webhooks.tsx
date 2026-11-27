@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CirclePause,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
   useCallback,
@@ -379,12 +380,21 @@ export function SubscriptionDetails({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-[13px]">
           <span className="truncate font-medium">{subscription.name}</span>
-          <StatusChip
-            tone={statusTone[subscription.status]}
-            icon={statusIcon[subscription.status]}
-          >
-            {statusLabel[subscription.status]}
-          </StatusChip>
+          {/* Active but failing: the receiver refused the last attempts and
+              Lictory tries again. Not a green "Active" above a red problem
+              line: the chip says what the line below explains. */}
+          {subscription.status === "active" && subscription.retry ? (
+            <StatusChip tone="attention" icon={<RotateCcw />}>
+              Retrying
+            </StatusChip>
+          ) : (
+            <StatusChip
+              tone={statusTone[subscription.status]}
+              icon={statusIcon[subscription.status]}
+            >
+              {statusLabel[subscription.status]}
+            </StatusChip>
+          )}
           <span className="shrink-0 text-xs text-muted-foreground">
             {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
           </span>
