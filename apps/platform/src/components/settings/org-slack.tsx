@@ -141,8 +141,9 @@ export function SlackConnection() {
       id="slack"
       icon={<MessagesSquare />}
       title="Slack"
-      description="Link Lictory channels to Slack channels so both sides see one conversation. Each message stays owned by the side it was written on."
-      footer="Lictory reads and writes messages and reactions only in Slack channels its app was invited to, maps people by their confirmed email, and never imports a channel's history unless someone linking it asks for a bounded number of recent messages."
+      description="Link Lictory channels to Slack channels so both sides see one conversation."
+      learnMore="slack"
+      footer="Lictory works only in Slack channels its app was invited to, matches people by confirmed email and imports no history unless asked."
     >
       <SettingsBody className="space-y-3 text-[13px]">
         {!connection ? (
@@ -232,7 +233,7 @@ export function SlackConnection() {
                     <span className="contents max-sm:hidden">
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="secondary"
                         onClick={() => setEditing(true)}
                       >
                         Replace app
@@ -240,7 +241,7 @@ export function SlackConnection() {
                       {mayDisconnect && (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="secondary"
                           onClick={() => setConfirming(true)}
                         >
                           Disconnect…
@@ -307,9 +308,7 @@ export function SlackConnection() {
                 Let Lictory Intelligence read Slack messages
               </span>
               <span className="text-xs text-muted-foreground">
-                Off: messages written in Slack are withheld from Litto and other
-                AI features, so Slack content never reaches the AI provider.
-                Takes effect only while Lictory Intelligence is on.
+                Off: Slack messages never reach Litto or the AI provider.
               </span>
             </span>
           </label>

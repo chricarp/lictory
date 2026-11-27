@@ -20,18 +20,17 @@ export const autonomyLevelMeta: Record<
 > = {
   assist: {
     label: "Assist",
-    summary:
-      "Agents help when asked. People start every session; nothing is dispatched automatically.",
+    summary: "Agents help when asked; people start every session.",
   },
   build: {
     label: "Build",
     summary:
-      "Claimable items are dispatched to the implementer agents in rank order, up to the concurrency limit. Agents open code pull requests; people merge them.",
+      "Ready work is dispatched to implementer agents in rank order; people merge their pull requests.",
   },
   autopilot: {
     label: "Autopilot",
     summary:
-      "As Build, and Lictory merges an agent's code pull request once the code host reports that every required check passed. The merge is attributed to this policy and the administrator who set it.",
+      "As Build, and Lictory merges an agent's code pull request once every required check passed, attributed to this policy.",
   },
 };
 

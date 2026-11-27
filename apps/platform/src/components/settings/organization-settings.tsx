@@ -91,9 +91,7 @@ function Integrations() {
   return (
     <>
       <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        The credentials Lictory uses to reach Jira and Slack. Projects choose
-        their Jira project in their delivery settings; channels link to Slack
-        from their menu.
+        How Lictory reaches Jira and Slack for this organization.
       </p>
       <JiraConnections />
       <SlackConnection />
