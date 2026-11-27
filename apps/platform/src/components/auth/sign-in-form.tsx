@@ -45,12 +45,24 @@ export function SignInForm({
     const rememberMe = formData.get("rememberMe") === "on";
 
     track("sign_in_submitted", { method: "email" });
-    const result = await authClient.signIn.email({
-      email,
-      password,
-      rememberMe,
-      callbackURL,
-    });
+    const signIn = () =>
+      authClient.signIn.email({ email, password, rememberMe, callbackURL });
+    // A request that gets no answer at all (a network change aborts requests
+    // in flight, a connection drops) is sent once more, a moment later:
+    // signing in twice only starts a second session. A second failure is
+    // shown.
+    const result = await signIn()
+      .catch(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return signIn();
+      })
+      .catch(() => undefined);
+    if (!result) {
+      track("sign_in_failed", { method: "email", status_code: 0 });
+      setError("Couldn’t reach Lictory. Check your connection and try again.");
+      setPending(false);
+      return;
+    }
 
     if (result.error) {
       track("sign_in_failed", {
