@@ -499,5 +499,5 @@ if (run === "seed") await seed();
 else if (run === "run") await load();
 else {
   console.error("Usage: bun scripts/load-test.ts seed|run");
-  process.exit(2);
+  process.exit(64);
 }

@@ -15,7 +15,9 @@ case "${1:-}" in
     ;;
 esac
 
-environment="${1:?Usage: lictory-compose <environment> <compose arguments...>}"
+# A missing argument is a usage error: exit 64, like every Lictory command.
+[ -n "${1:-}" ] || { echo "Usage: lictory-compose <environment> <compose arguments...>" >&2; exit 64; }
+environment="$1"
 shift
 # Environment names become paths, Compose project names and migration
 # targets: lowercase letters, digits and hyphens. local, test and preview are

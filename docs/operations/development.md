@@ -202,6 +202,11 @@ the older spellings (`list-admins`, `grant-admin`, `--name`, `--email`) work
 too. Inside a server's API container the same program is
 `node apps/api/dist/admin.js`, which `lictory admin` runs for you.
 
+Every Lictory command line exits `64` for a usage error (an unknown command
+or option, a missing argument, a value or setting it refuses) and `1` when
+the work itself failed; a new command follows the same convention
+([exit codes](https://docs.lictory.com/self-hosting/commands#exit-codes)).
+
 `bun run check` lints the whole repository with type information, which takes
 minutes and about 10 GB of memory. While you work, `bunx eslint` on the files
 you changed and the affected workspace's `bun run --cwd <workspace>

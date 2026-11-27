@@ -138,7 +138,8 @@ try {
 } catch (error) {
   if (!(error instanceof UsageError)) throw error;
   console.error(`${error.message}\n\n${usage}`);
-  process.exit(2);
+  // 64 for a usage error, like every Lictory command line.
+  process.exit(64);
 }
 const selected = steps.filter((step, index) =>
   options.only
@@ -155,7 +156,7 @@ if (narrowing.length && !partial) {
   console.error(
     `${narrowing.join(" and ")} would narrow the browser suite (one shard, or builds of an earlier tree). Unset ${narrowing.length > 1 ? "them" : "it"} for the full verification, or rerun single steps with --only.`,
   );
-  process.exit(2);
+  process.exit(64);
 }
 
 // ------------------------------------------------------------- processes

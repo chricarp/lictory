@@ -34,13 +34,13 @@ main() {
   admin_email="${LICTORY_ADMIN_EMAIL:-admin@example.com}"
   organization="${LICTORY_ORGANIZATION:-Evaluation}"
   case "${1:-}" in -h | --help) usage; return 0 ;; esac
-  [ "$#" -eq 0 ] || fail "try.sh takes no arguments (--help explains it); stop or remove the trial with the trial script it prints."
+  [ "$#" -eq 0 ] || usage_fail "try.sh takes no arguments (--help explains it); stop or remove the trial with the trial script it prints."
 
   say "Lictory trial: for evaluation on this computer, not for production."
   check_admin_password
   check_docker
-  printf '%s' "$repository" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "Invalid LICTORY_REPOSITORY."
-  printf '%s' "$registry" | grep -Eq '^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+$' || fail "Invalid LICTORY_IMAGE_REGISTRY."
+  printf '%s' "$repository" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || usage_fail "Invalid LICTORY_REPOSITORY."
+  printf '%s' "$registry" | grep -Eq '^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+$' || usage_fail "Invalid LICTORY_IMAGE_REGISTRY."
 
   mkdir -p "$dir/postgres"
   dir=$(cd "$dir" && pwd)
@@ -93,7 +93,7 @@ fetch_release() {
   base="https://github.com/$repository/releases"
   if [ -n "$version" ]; then
     printf '%s' "$version" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' ||
-      fail "LICTORY_VERSION must be a release version such as 0.24.0."
+      usage_fail "LICTORY_VERSION must be a release version such as 0.24.0."
     version="${version#v}"
     url="$base/download/v$version/release.env"
   else
@@ -348,9 +348,9 @@ roles() {
 # A chosen password is checked before anything is downloaded or started.
 check_admin_password() {
   [ -n "${LICTORY_ADMIN_PASSWORD:-}" ] || return 0
-  case "$LICTORY_ADMIN_PASSWORD" in *[[:space:]]*) fail "LICTORY_ADMIN_PASSWORD can't contain spaces." ;; esac
+  case "$LICTORY_ADMIN_PASSWORD" in *[[:space:]]*) usage_fail "LICTORY_ADMIN_PASSWORD can't contain spaces." ;; esac
   [ "${#LICTORY_ADMIN_PASSWORD}" -ge 10 ] && [ "${#LICTORY_ADMIN_PASSWORD}" -le 64 ] ||
-    fail "LICTORY_ADMIN_PASSWORD must have 10 to 64 characters."
+    usage_fail "LICTORY_ADMIN_PASSWORD must have 10 to 64 characters."
 }
 
 create_administrator() {
@@ -452,8 +452,8 @@ choose_port() {
   fail "Ports $2 are all taken; choose a free one for $3 (LICTORY_TRY_PORT or LICTORY_TRY_MAIL_PORT)."
 }
 check_port_value() {
-  case "$1" in '' | *[!0-9]*) fail "Ports are numbers (got $1)." ;; esac
-  [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || fail "Ports are 1 to 65535 (got $1)."
+  case "$1" in '' | *[!0-9]*) usage_fail "Ports are numbers (got $1)." ;; esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || usage_fail "Ports are 1 to 65535 (got $1)."
   printf '%s' "$1"
 }
 # Free when the connection is refused (curl exit 7); anything else answers.
@@ -500,6 +500,12 @@ done_step() { printf 'done\n'; }
 fail() {
   printf '\nlictory try: %s\n' "$*" >&2
   exit 1
+}
+# A usage error (an argument or a setting this script refuses) exits 64,
+# like every Lictory command line.
+usage_fail() {
+  printf '\nlictory try: %s\n' "$*" >&2
+  exit 64
 }
 fail_with_log() {
   printf '\nlictory try: %s\n' "$1" >&2

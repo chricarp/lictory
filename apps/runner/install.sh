@@ -43,11 +43,17 @@ main() {
     printf 'lictory-runner install: %s\n' "$*" >&2
     exit 1
   }
+  # A usage error (an option this installer refuses) exits 64, like every
+  # Lictory command line.
+  usage_fail() {
+    printf 'lictory-runner install: %s\n' "$*" >&2
+    exit 64
+  }
 
   while [ $# -gt 0 ]; do
     case "$1" in
       --version | --dir | --url | --token | --name)
-        [ $# -ge 2 ] || fail "$1 needs a value."
+        [ $# -ge 2 ] || usage_fail "$1 needs a value."
         case "$1" in
           --version) version=$2 ;;
           --dir) dir=$2 ;;
@@ -66,14 +72,14 @@ main() {
         echo "         [--url <server> --token <registration token> [--name <name>] [--service]]"
         exit 0
         ;;
-      *) fail "unknown option $1 (see --help)." ;;
+      *) usage_fail "unknown option $1 (see --help)." ;;
     esac
   done
   if { [ -n "$url" ] && [ -z "$token" ]; } || { [ -z "$url" ] && [ -n "$token" ]; }; then
-    fail "--url and --token go together."
+    usage_fail "--url and --token go together."
   fi
   [ "$service" = false ] || [ -n "$url" ] ||
-    fail "--service needs --url and --token (or run: lictory-runner install-service --enable)."
+    usage_fail "--service needs --url and --token (or run: lictory-runner install-service --enable)."
 
   case "$(uname -s)" in
     Linux) os=linux ;;

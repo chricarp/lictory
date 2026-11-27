@@ -229,8 +229,16 @@ void test("refusals say what to do", async () => {
   assert.match(windows.stderr, /lictory-runner-install\.ps1/);
   const arch = await install([], { arch: "riscv64" });
   assert.match(arch.stderr, /riscv64 is not supported/);
+  // A wrong command line is a usage error (64), like every Lictory command
+  // line; a failure of the work itself is 1.
+  assert.equal(missing.status, 1);
   const half = await install(["--url", "https://lictory.example.com"]);
   assert.match(half.stderr, /--url and --token go together/);
+  assert.equal(half.status, 64);
   const service = await install(["--service"]);
   assert.match(service.stderr, /--service needs --url and --token/);
+  assert.equal(service.status, 64);
+  const unknown = await install(["--frobnicate"]);
+  assert.match(unknown.stderr, /unknown option --frobnicate/);
+  assert.equal(unknown.status, 64);
 });
