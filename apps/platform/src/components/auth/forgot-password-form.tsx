@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
         label="Account email"
         type="email"
         autoComplete="email"
-        placeholder="you@company.com"
+        placeholder="e.g. you@company.com"
         required
         autoFocus
       />

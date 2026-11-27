@@ -658,7 +658,7 @@ function Invites({
           id="invite"
           value={text}
           autoComplete="off"
-          placeholder="ana@company.com, @lee"
+          placeholder="e.g. ana@company.com, @lee"
           aria-invalid={problem ? true : undefined}
           aria-describedby="invite-problem"
           onChange={(e) => {

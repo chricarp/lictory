@@ -536,7 +536,7 @@ function MyLogin({ connection }: { connection: CodeConnectionEntity }) {
         <Input
           value={login}
           onChange={(e) => setLogin(e.target.value)}
-          placeholder="octocat"
+          placeholder="e.g. octocat"
           className="h-8 text-[13px]"
           maxLength={100}
         />

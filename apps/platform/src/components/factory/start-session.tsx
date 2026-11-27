@@ -216,7 +216,7 @@ export function StartSessionDialog({
             onChange={(event) => setPrompt(event.target.value)}
             rows={5}
             maxLength={20_000}
-            placeholder="Implement the refund endpoint described in PAY-142, with tests."
+            placeholder="e.g. Implement the refund endpoint described in PAY-142, with tests."
             className={cn(
               inputClass,
               "h-auto min-h-28 resize-y py-2.5 text-[14px] leading-6",
@@ -301,7 +301,7 @@ export function StartSessionDialog({
                 }
                 value={repositoryUrl}
                 onChange={(event) => setRepositoryUrl(event.target.value)}
-                placeholder="https://github.com/acme/payments.git"
+                placeholder="e.g. https://github.com/acme/payments.git"
                 autoComplete="off"
                 spellCheck={false}
               />

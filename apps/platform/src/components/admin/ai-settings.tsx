@@ -511,7 +511,7 @@ function AiSettingsForm({
             <Input
               inputMode="numeric"
               className="mt-1.5 h-9 rounded-lg text-sm"
-              placeholder="240"
+              placeholder="Default: 240"
               value={form.timeoutSeconds}
               onChange={(e) =>
                 setForm((f) => ({ ...f, timeoutSeconds: e.target.value }))

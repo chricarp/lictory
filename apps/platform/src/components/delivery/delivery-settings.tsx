@@ -268,7 +268,7 @@ function ConnectForm({
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://your-company.atlassian.net"
+            placeholder="e.g. https://your-company.atlassian.net"
             className="h-9 text-[13px]"
             readOnly={!!initialUrl}
             required

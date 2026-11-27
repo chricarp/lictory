@@ -76,7 +76,7 @@ export function ProjectFields({
             required
             maxLength={120}
             autoFocus={autoFocus}
-            placeholder="Payments"
+            placeholder="e.g. Payments"
           />
         </label>
         <label className="block text-sm font-medium">
@@ -89,7 +89,7 @@ export function ProjectFields({
             pattern="[A-Z][A-Z0-9]{1,9}"
             maxLength={10}
             required
-            placeholder="PAY"
+            placeholder="e.g. PAY"
             aria-describedby={id}
           />
         </label>
@@ -172,7 +172,7 @@ export function CreateOrganization({
           onChange={(e) => setName(e.target.value)}
           required
           maxLength={120}
-          placeholder="Acme Inc."
+          placeholder="e.g. Acme Inc."
           autoComplete="organization"
           autoFocus
         />

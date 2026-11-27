@@ -233,7 +233,7 @@ export function AgentAccessSection() {
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Release notes script"
+                placeholder="e.g. Release notes script"
                 className="mt-1.5 h-8 rounded-md text-sm"
               />
             </label>

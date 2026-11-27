@@ -104,7 +104,7 @@ export function OrganizationWebhookPolicy() {
                   <Input
                     value={hosts}
                     onChange={(e) => setHosts(e.target.value)}
-                    placeholder="hooks.example.com, *.agents.example.com"
+                    placeholder="e.g. hooks.example.com, *.agents.example.com"
                     className="mt-1.5 h-8 rounded-md font-mono text-xs"
                   />
                   <span className="mt-1 block text-xs font-normal text-muted-foreground">

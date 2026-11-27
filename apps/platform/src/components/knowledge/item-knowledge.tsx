@@ -996,7 +996,7 @@ function ProposeForm({
         autoFocus
         value={title}
         maxLength={200}
-        placeholder="Document the finance approval time"
+        placeholder="e.g. Document the finance approval time"
         onValueChange={(value) => {
           setTitle(value);
           if (error?.field === "title") setError(undefined);

@@ -721,7 +721,7 @@ function CustomSentence({
           <ChipInput
             value={check.label}
             label="Sign-off name"
-            placeholder="Designs attached"
+            placeholder="e.g. Designs attached"
             canEdit={canEdit}
             onChange={(label) => onChange({ ...check, label })}
           />

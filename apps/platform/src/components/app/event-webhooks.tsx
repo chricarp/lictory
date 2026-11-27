@@ -288,7 +288,7 @@ export function WebhookForm({
           maxLength={2048}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://hooks.example.com/agent"
+          placeholder="e.g. https://hooks.example.com/agent"
           className="mt-1.5 h-8 rounded-md font-mono text-xs"
         />
       </label>

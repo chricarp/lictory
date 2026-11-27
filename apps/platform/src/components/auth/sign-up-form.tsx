@@ -64,7 +64,6 @@ export function SignUpForm({
         name="name"
         label="Full name"
         autoComplete="name"
-        placeholder="Alex Morgan"
         required
       />
       <FormField
@@ -73,7 +72,7 @@ export function SignUpForm({
         label="Work email"
         type="email"
         autoComplete="email"
-        placeholder="you@company.com"
+        placeholder="e.g. you@company.com"
         defaultValue={defaultEmail}
         required
       />
