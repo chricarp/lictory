@@ -46,7 +46,7 @@ await refreshAiState(db).catch((error: unknown) =>
   }),
 );
 watchAiSettings(db, {
-  log: (event, detail) => jsonLog("info", event, detail),
+  log: (event, detail) => jsonLog("info", event, { ...detail }),
 });
 
 // File storage is optional: without it attachments are disabled. A partial or
