@@ -94,7 +94,9 @@ and what is the factory doing?" before any module.
   operator, is told where they look. Backups and disk are checked only by the
   monitor: they live on the server, not in the database.
 - **Registered cards** sit beside them: **Agents at work** (sessions
-  running that do not already wait on me, so a session is listed once). A
+  running that do not already wait on me, so a session is listed once;
+  those waiting on a teammate come last, and the heading names them when
+  they are all it lists). A
   card renders nothing until it has something to show, so an organization
   without agents sees no empty box, and a failing card never takes Home
   down. In flight, Ready to start and Recently edited

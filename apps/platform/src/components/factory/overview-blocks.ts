@@ -152,9 +152,24 @@ export function sessionDuration(
   return Math.max(0, end - Date.parse(session.startedAt));
 }
 
-// "45s", "4m", "1h 12m", "2d 3h": precise enough to compare runs.
+// The agents' part of what waits on me, said as a part of the one total
+// Home, the Inbox and the sidebar's Inbox count show ("4 of the 7 waiting
+// on you are from agents"), so no surface gives a second number for the
+// same question. Null when no agent waits on me.
+export function agentsWaitingLabel(agents: number, total: number) {
+  if (agents <= 0) return null;
+  if (agents >= total)
+    return agents === 1
+      ? "1 waiting on you, from an agent"
+      : `${agents} waiting on you, all from agents`;
+  return `${agents} of the ${total} waiting on you ${agents === 1 ? "is" : "are"} from agents`;
+}
+
+// "45s", "4m", "1h 12m", "2d 3h": precise enough to compare runs. A run
+// shorter than a second says so instead of "0s", which reads as no time.
 export function formatDuration(ms: number) {
   const s = Math.round(ms / 1000);
+  if (s < 1) return "under 1s";
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m`;
@@ -163,4 +178,3 @@ export function formatDuration(ms: number) {
   const d = Math.floor(h / 24);
   return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }
-  if (s < 1) return "under 1s";

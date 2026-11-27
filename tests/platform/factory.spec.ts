@@ -181,14 +181,14 @@ test("a person runs an agent on their own runner, steers it and approves what it
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
       .getByRole("link", { name: "Factory", exact: true }),
-  ).toHaveAccessibleDescription(/1 agent session waiting on you/);
+  ).toHaveAccessibleDescription(/1 waiting on you, from an agent/);
   await expect.poll(badge).toBe(1);
   await page.goto(`/${seeded.slug}`);
   const asks = page.getByRole("region", { name: "Waiting on you" });
   await expect(asks).toBeVisible();
   // The session is listed once: it waits on me, so it is not also "at work".
   await expect(
-    page.getByRole("region", { name: "Agents at work" }),
+    page.getByRole("region", { name: /^Agents (at work|waiting)/ }),
   ).toBeHidden();
   // A request is reviewed with its context before it can be approved.
   await expect(asks.getByText(/Run the database migration/)).toBeVisible();

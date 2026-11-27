@@ -31,7 +31,10 @@ import {
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { useFactory } from "@lictory/platform/components/factory/store";
-import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
+import {
+  agentsWaitingLabel,
+  overviewBlocks,
+} from "@lictory/platform/components/factory/overview-blocks";
 import {
   WaitingRowView,
   useWaitingOnYou,
@@ -97,10 +100,9 @@ export function FactoryOverview() {
     );
 
   const counts = [
-    // Only the agents' part of the queue Home and the Inbox count, named as
-    // such so the numbers reconcile.
-    asks.length > 0 &&
-      `${asks.length} from agents ${asks.length === 1 ? "needs" : "need"} you`,
+    // Only the agents' part of the queue Home and the Inbox count, said as
+    // a part of that total so the numbers reconcile.
+    agentsWaitingLabel(asks.length, waiting.length),
     blocks.waitingOnOthers.length > 0 &&
       `${blocks.waitingOnOthers.length} waiting on teammates`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,

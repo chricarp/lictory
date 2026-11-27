@@ -173,8 +173,11 @@ export function ApprovalRequest({
               the exact action (or that it is a question), then the task it
               belongs to; the agent, usually the same on every row, last. */}
           <MetaLine className="mt-0.5">
+            {/* The action is never cut: its arguments (--env staging or
+                production) are what a person decides on. It wraps, and the
+                task and agent follow it. */}
             {action && !question ? (
-              <MetaPart className="sm:max-w-[45%]">
+              <MetaPart>
                 <ActionText action={action} />
               </MetaPart>
             ) : (
@@ -240,7 +243,7 @@ function ActionText({
   return (
     <code
       className={cn(
-        "min-w-0 truncate font-mono text-[11px] text-foreground",
+        "line-clamp-3 min-w-0 font-mono text-[11px] break-all whitespace-pre-wrap text-foreground",
         className,
       )}
     >
