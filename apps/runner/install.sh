@@ -68,8 +68,39 @@ main() {
         shift
         ;;
       -h | --help)
-        echo "Usage: lictory-runner-install.sh [--version <version>|latest] [--dir <directory>]"
-        echo "         [--url <server> --token <registration token> [--name <name>] [--service]]"
+        cat <<'USAGE'
+lictory-runner-install.sh: installs lictory-runner, which runs Lictory agent
+sessions on this machine (Linux or macOS; Windows: lictory-runner-install.ps1).
+
+Usage: sh lictory-runner-install.sh [options]
+
+It downloads the binary for this system from a Lictory release, checks it
+against the release's SHA256SUMS and installs it, replacing an older one in
+place. Given --url and --token it also registers the runner; without them it
+prints the register command.
+
+Options (or environment variables):
+  --version <v>     Release to install, such as 0.27.0, or latest (the
+                    default: the latest stable release). LICTORY_RUNNER_VERSION
+  --dir <path>      Where to install: /usr/local/bin when writable, else
+                    ~/.local/bin. LICTORY_RUNNER_INSTALL_DIR
+  --url <server>    Register with this Lictory server afterwards (with --token)
+  --token <token>   A registration token from Factory → Runners → Add runner
+  --name <name>     The runner's name (default: this machine's host name)
+  --service         Also install and start it as a systemd or launchd service
+                    (needs --url and --token)
+  -h, --help        Show this help
+
+  LICTORY_RUNNER_DOWNLOAD_URL  Base URL of the release files (mirrors, tests)
+  LICTORY_RUNNER_SYSTEM_DIR    System directory tried first (/usr/local/bin)
+
+Exit codes:
+  0   installed (and registered, when asked)
+  1   failed; nothing was installed when the download or checksum failed
+  64  wrong command line
+
+Guide: https://docs.lictory.com/factory/runners
+USAGE
         exit 0
         ;;
       *) usage_fail "unknown option $1 (see --help)." ;;
