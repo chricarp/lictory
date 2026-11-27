@@ -212,7 +212,7 @@ export function QuickCreate({
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {options.intent === "proposal"
-                  ? "Capture the idea. Refine and review it with your team next."
+                  ? `A proposal is a ${name.toLowerCase()} in Draft. Capture the idea; the same item is refined and reviewed with your team next.`
                   : "Start with a title. Add the details as you go."}
               </p>
             </div>

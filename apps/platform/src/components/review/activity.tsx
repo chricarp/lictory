@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   relativeTime,
@@ -23,7 +23,10 @@ import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";
 import { claimActivity } from "@lictory/platform/components/claims/activity";
-import { activitySubject } from "@lictory/platform/components/review/activity-subject";
+import {
+  activitySubject,
+  foldActivity,
+} from "@lictory/platform/components/review/activity-subject";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -43,7 +46,8 @@ const num = (v: unknown) => (typeof v === "number" ? v : undefined);
 
 // The story of how the requirement evolved: meaningful domain events only.
 export function Activity() {
-  const { activity } = useItem();
+  const { activity: all } = useItem();
+  const activity = useMemo(() => foldActivity(all), [all]);
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? activity : activity.slice(0, 12);
   return (
@@ -458,11 +462,39 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_approved":
       body = (
         <>
-          <b className="text-success">approved</b> v{num(d.version)} of{" "}
+          <b className="text-success">approved</b>{" "}
           <b>{memberName(str(d.authorId))}</b>’s suggestion
+          {num(d.version) !== undefined && num(d.version)! > 1 && (
+            <> (version {num(d.version)})</>
+          )}
         </>
       );
       break;
+    case "delivery_breakdown_accepted": {
+      const count = num(d.count) ?? 0;
+      body = (
+        <>
+          created{" "}
+          <b>
+            {count} {count === 1 ? "item" : "items"}
+          </b>{" "}
+          from the approved breakdown
+        </>
+      );
+      break;
+    }
+    case "delivery_breakdown_changes_accepted": {
+      const count = num(d.count) ?? 0;
+      body = (
+        <>
+          applied the approved breakdown’s changes to{" "}
+          <b>
+            {count} {count === 1 ? "item" : "items"}
+          </b>
+        </>
+      );
+      break;
+    }
     case "suggestion_changes_requested":
       body = (
         <>
