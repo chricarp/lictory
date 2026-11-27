@@ -22,6 +22,7 @@ import {
   type AgentEventType,
 } from "@lictory/core/agent-events/catalog";
 import { callCapability } from "@lictory/core/capabilities/client";
+import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import {
@@ -462,8 +463,10 @@ export function SubscriptionDetails({
         {subscription.deliveredCount === 0
           ? "No events delivered yet"
           : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
+        {/* Past times read as everywhere else ("5m ago"); times to come
+            (the next try, the renewal) stay dates. */}
         {subscription.lastSuccessAt
-          ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
+          ? ` · receiver last accepted ${relativeTime(subscription.lastSuccessAt)}`
           : ""}
         {subscription.pending
           ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`
@@ -486,7 +489,7 @@ export function SubscriptionDetails({
           <p className="text-xs text-destructive" role="status">
             Last problem
             {subscription.lastAttemptAt
-              ? ` (${when(subscription.lastAttemptAt)})`
+              ? ` (${relativeTime(subscription.lastAttemptAt)})`
               : ""}
             : {subscription.lastErrorDetail}
             {subscription.retry
