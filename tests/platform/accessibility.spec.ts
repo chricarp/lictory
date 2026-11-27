@@ -206,7 +206,9 @@ test("board and backlog meet WCAG 2.2 AA automated checks", async ({
   // a card moves to another column from its Move button, and focus stays on
   // it in the new column, which its name reads out.
   const card = page.locator("[data-card]", { hasText: "Add a refunds column" });
-  await card.getByRole("button", { name: /^Move AXB-2, 1 of 1 in / }).focus();
+  await card
+    .getByRole("button", { name: "Move AXB-2, 2 of 2 in Backlog" })
+    .focus();
   await page.keyboard.press("Enter");
   await page.getByRole("menuitemradio", { name: "Done", exact: true }).click();
   await expect(
