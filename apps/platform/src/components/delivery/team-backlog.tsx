@@ -42,6 +42,11 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 import { BacklogRow } from "@lictory/platform/components/delivery/backlog";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import { rankNeighbours } from "@lictory/platform/components/delivery/move";
 import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import {
   ItemPeek,
@@ -394,6 +399,27 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                           actions={
                             canTriage ? (
                               <>
+                                <MoveMenu
+                                  itemId={item.id}
+                                  label={identifier(project, item.number)}
+                                  index={index}
+                                  count={backlog.length}
+                                  where={`${team.name} backlog`}
+                                  onRank={(to) => {
+                                    const neighbours = rankNeighbours(
+                                      backlog.map((r) => r.id),
+                                      item.id,
+                                      to,
+                                    );
+                                    if (!neighbours) return;
+                                    void mutate({
+                                      type: "rankWorkItem",
+                                      workItemId: item.id,
+                                      ...neighbours,
+                                    });
+                                    refocusMoved(item.id);
+                                  }}
+                                />
                                 {planPicker(item)}
                                 <Button
                                   variant="ghost"

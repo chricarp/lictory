@@ -50,6 +50,14 @@ import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/sto
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
+import {
   RefinementIcon,
   StatusIcon,
 } from "@lictory/platform/components/items/status";
@@ -189,6 +197,24 @@ function ProjectBacklog({ project }: { project: Project }) {
         beforeId: before,
       });
   };
+  // "Move" on a row: ranks it within its section, as a drop there would.
+  const rank = (rows: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      rows.map((r) => r.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
+  };
+  const sectionName = (id: string) => {
+    const iteration =
+      id === "backlog" ? undefined : delivery.iterations.get(id);
+    return iteration
+      ? iterationLabel(iteration, project.iterationMode)
+      : "Backlog";
+  };
   const createSprint = () => {
     const last = open.at(-1) ?? iterations.at(-1);
     const today = new Date(isoDate(new Date()));
@@ -282,6 +308,18 @@ function ProjectBacklog({ project }: { project: Project }) {
                     setDrag(undefined);
                     setOver(undefined);
                   }}
+                  actions={
+                    capabilities.changeProperties && (
+                      <MoveMenu
+                        itemId={item.id}
+                        label={identifier(project, item.number)}
+                        index={index}
+                        count={rows.length}
+                        where={sectionName(id)}
+                        onRank={(to) => rank(rows, item, to)}
+                      />
+                    )
+                  }
                 />
               </li>
             ))}

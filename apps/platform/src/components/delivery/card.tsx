@@ -1,5 +1,5 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -97,6 +97,7 @@ export const ItemCard = memo(function ItemCard({
   claim,
   claimAgent,
   pullRequests,
+  move,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -118,6 +119,8 @@ export const ItemCard = memo(function ItemCard({
   claimAgent?: AgentIdentity;
   // Its open pull requests, newest first.
   pullRequests?: readonly CodePullRequestEntity[];
+  // "Move" without dragging, where the person may move it.
+  move?: ReactNode;
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -240,6 +243,7 @@ export const ItemCard = memo(function ItemCard({
             {item.childDoneCount}/{item.childCount} done
           </span>
         )}
+        {move && <span className="-my-1 ml-auto">{move}</span>}
       </div>
     </div>
   );
