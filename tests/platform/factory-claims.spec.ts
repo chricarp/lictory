@@ -41,12 +41,14 @@ function mcp(request: APIRequestContext, token: string) {
     const body = (await response.json()) as {
       result: {
         isError?: boolean;
-        structuredContent?: Record<string, unknown>;
         content?: { text: string }[];
       };
     };
     expect(body.result.isError, JSON.stringify(body)).toBeFalsy();
-    return body.result.structuredContent!;
+    return JSON.parse(body.result.content![0]!.text) as Record<
+      string,
+      unknown
+    >;
   };
 }
 

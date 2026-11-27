@@ -437,7 +437,6 @@ const exampleCall = {
     id: 7,
     result: {
       content: [{ type: "text", text: JSON.stringify(exampleClaim) }],
-      structuredContent: exampleClaim,
       isError: false,
     },
   },
@@ -490,7 +489,7 @@ function toolPages() {
     "",
     "## Calling tools",
     "",
-    "A call is a JSON-RPC `tools/call` request with the tool's name and arguments. The result carries the output twice, as the MCP specification asks: as JSON text in `content` for clients that read text, and as `structuredContent`.",
+    "A call is a JSON-RPC `tools/call` request with the tool's name and arguments. The result carries the output once, as JSON text in `content`, the part every MCP client reads. Tools declare no `outputSchema`, so results carry no `structuredContent`.",
     "",
     '```json title="Request"',
     JSON.stringify(exampleCall.request, null, 2),

@@ -273,7 +273,6 @@ function startFake(ctx: HarnessContext, script: FakeScript): HarnessRun {
 type McpResult = {
   result?: {
     isError?: boolean;
-    structuredContent?: unknown;
     content?: { text?: string }[];
   };
   error?: { message: string };
@@ -299,7 +298,9 @@ async function mcp(ctx: HarnessContext, name: string, args: unknown) {
   if (body.error) throw new Error(body.error.message);
   if (body.result?.isError)
     throw new Error(body.result.content?.[0]?.text ?? `${name} failed`);
-  return body.result?.structuredContent;
+  // The output is JSON text in the result's content, as clients read it.
+  const text = body.result?.content?.[0]?.text;
+  return text === undefined ? undefined : (JSON.parse(text) as unknown);
 }
 
 async function callLictory(

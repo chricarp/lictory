@@ -24,7 +24,7 @@ Lictory's MCP server (`POST /api/mcp`, Streamable HTTP) offers 247 tools, genera
 
 ## Calling tools
 
-A call is a JSON-RPC `tools/call` request with the tool's name and arguments. The result carries the output twice, as the MCP specification asks: as JSON text in `content` for clients that read text, and as `structuredContent`.
+A call is a JSON-RPC `tools/call` request with the tool's name and arguments. The result carries the output once, as JSON text in `content`, the part every MCP client reads. Tools declare no `outputSchema`, so results carry no `structuredContent`.
 
 ```json title="Request"
 {
@@ -53,14 +53,6 @@ A call is a JSON-RPC `tools/call` request with the tool's name and arguments. Th
         "text": "{\"claimId\":\"0c5e7a52-8f1b-4c3d-9e2a-7b6f5d4c3b2a\",\"workItemId\":\"9d2f4b61-3a7e-4c58-8b19-6e0a2d3c4f5b\",\"key\":\"PAY-142\",\"state\":\"active\",\"status\":\"In progress\",\"leaseExpiresAt\":\"2026-11-26T10:15:00.000Z\"}"
       }
     ],
-    "structuredContent": {
-      "claimId": "0c5e7a52-8f1b-4c3d-9e2a-7b6f5d4c3b2a",
-      "workItemId": "9d2f4b61-3a7e-4c58-8b19-6e0a2d3c4f5b",
-      "key": "PAY-142",
-      "state": "active",
-      "status": "In progress",
-      "leaseExpiresAt": "2026-11-26T10:15:00.000Z"
-    },
     "isError": false
   }
 }
