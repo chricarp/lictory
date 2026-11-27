@@ -135,9 +135,9 @@ runners on one machine, register each with its own `LICTORY_RUNNER_HOME`.
 | 64   | Wrong command line (unknown command or option)                                                  |
 
 `start`, `status` and `doctor` agree on these codes: an unregistered machine
-is 2 for each, and after the server refused the credential `status` says so
-(and exits 2) instead of suggesting `start`. `doctor` marks each line `ok` or
-`FAIL` as well as with ✓ and ✗.
+is 2 for each, and after the server refused the credential `status` and
+`doctor` say so (and exit 2) instead of suggesting `start`. `doctor` marks
+each line `ok`, `fail`, `warn` or `info` as well as with ✓, ✗, ! and ·.
 
 `doctor` also asks each installed harness whether it can sign in, without
 running a session: `claude auth status` for Claude Code and `codex login

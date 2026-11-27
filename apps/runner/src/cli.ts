@@ -114,8 +114,9 @@ const commands = {
       "Check the server, the credential, git, harnesses, Docker and the clock",
     usage: "lictory-runner doctor",
     about: [
-      "Runs every check and prints what to do about each failure. Exits 1 when a",
-      "check fails.",
+      "Runs every check and prints what to do about each failure. For scripts: exits",
+      `0 when every check passes, ${EXIT.failed} when a check fails, and ${EXIT.needsPerson} when this machine is not`,
+      "registered or the server refused its credential (as status and start do).",
     ],
     options: {},
     help: [],
@@ -457,10 +458,13 @@ function posture(config: RunnerConfig) {
 async function doctor(args: string[]) {
   if (!options("doctor", args)) return;
   let problems = 0;
+  // The server refused the credential: a person must act first.
+  let refusedCredential = false;
   // A word next to each mark, so a failing line reads as one without the
-  // glyph (screen readers name it differently, logs may lose it).
+  // glyph (screen readers name it differently, logs may lose it). Every
+  // word is the same width and case, so the lines read as one column.
   const check = (ok: boolean, line: string, fix?: string) => {
-    say(`${ok ? "✓ ok  " : "✗ FAIL"} ${line}`);
+    say(`${ok ? "✓ ok  " : "✗ fail"} ${line}`);
     if (!ok) {
       problems++;
       if (fix) say(`  → ${fix}`);
@@ -514,6 +518,7 @@ async function doctor(args: string[]) {
       const refused = error instanceof ProtocolError && error.status === 401;
       check(true, `${config.url} answers`);
       // A refused credential is said once, with what to do.
+      refusedCredential = refused;
       if (refused)
         check(
           false,
@@ -587,7 +592,10 @@ async function doctor(args: string[]) {
       "Install Docker and give this account access, or register with --isolation host.",
     );
   }
-  if (problems) process.exitCode = EXIT.failed;
+  // The same codes as status and start: a revoked credential needs a
+  // person (register again), not a restart.
+  if (refusedCredential) process.exitCode = EXIT.needsPerson;
+  else if (problems) process.exitCode = EXIT.failed;
 }
 
 async function main() {

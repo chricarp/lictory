@@ -251,6 +251,9 @@ export async function startDaemon(
               ],
             },
             signal,
+        // `status` reads the state file: a session that starts waiting on
+        // a person says so at once, not a heartbeat later.
+        onStateChange: () => void saveState(),
           );
           return answer?.leases[0]?.status ?? null;
         },
