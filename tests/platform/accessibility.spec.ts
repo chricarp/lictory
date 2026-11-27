@@ -411,10 +411,8 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   await asked.getByRole("button", { name: /repl(y|ies)/ }).click();
   const thread = page.getByRole("complementary", { name: /thread/i });
   const card = thread.getByRole("article", { name: /^Forge session/ });
-  // The request is answered where it was asked, below the card.
-  const request = thread.getByRole("article", {
-    name: "Forge asks for approval",
-  });
+  // The request is answered on the session's card, beside its state.
+  const request = card.locator("[data-approval-request]");
   await expect(request.getByRole("button", { name: "Approve" })).toBeVisible({
     timeout: 60_000,
   });

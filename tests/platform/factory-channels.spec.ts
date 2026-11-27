@@ -159,7 +159,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
       .getByRole("link", { name: "Factory", exact: true }),
-  ).toHaveAccessibleDescription(/1 agent session waiting on you/);
+  ).toHaveAccessibleDescription(/1 waiting on you, from an agent/);
 
   // A reply by the person who asked steers the agent; its answer arrives.
   const reply = await fillMarkdown(
@@ -170,18 +170,22 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await reply.press("Enter");
   await expect(panel.getByText("Got it: Mention the v2 API.")).toBeVisible();
 
-  // It asks for approval in the thread, where it asks: after the exchange
-  // above, so the thread reads in order. The request shows its context and
-  // Ada answers it there; the card stays one row whose chip says it waits,
-  // not a second card pointing at the request.
-  const approval = panel.getByRole("article", {
+  // It asks for approval. The session's card holds the request, with its
+  // context, beside the state that says it waits: one place to decide. The
+  // thread keeps one line where it was asked, after the exchange above, so
+  // it still reads in order.
+  const approval = card.locator("[data-approval-request]");
+  const asked = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();
-  await expect(card.getByText(/asks for approval below/)).toHaveCount(0);
   await expect(
     approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
+  await expect(
+    asked.getByText("Waiting on you: answer it on Forge’s session card above."),
+  ).toBeVisible();
+  await expect(asked.getByRole("button", { name: "Approve" })).toHaveCount(0);
   const order = await panel.locator("[data-message-id]").evaluateAll((nodes) =>
     nodes.map((node) =>
       // The live card may echo the agent's last words; it is not a turn.
@@ -214,19 +218,20 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(approval.getByText("CHANGES.md", { exact: true })).toBeVisible();
   await approval.getByRole("button", { name: "Approve" }).click();
   // Answered, it stays where it was asked, as the record of who decided.
-  await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
-  await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
+  await expect(asked.getByText("Write CHANGES.md")).toBeVisible();
+  await expect(asked.getByText(/Approved by Ada/)).toBeVisible();
 
   // A request that names no command or file is a question: nothing to
-  // approve, so Ada answers it in words and the agent hears her words.
+  // approve, so Ada answers it in words on the card and the agent hears
+  // her words.
   const question = panel.getByRole("article", {
     name: "Forge asks: Which release should the entry name?",
   });
-  await expect(question.getByRole("button", { name: "Approve" })).toHaveCount(
-    0,
-  );
-  await question.getByLabel("Your answer to Forge").fill("Name 2.1.");
-  await question.getByRole("button", { name: "Send answer" }).click();
+  await expect(question).toBeVisible();
+  await expect(card.getByLabel("Your answer to Forge")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await card.getByLabel("Your answer to Forge").fill("Name 2.1.");
+  await card.getByRole("button", { name: "Send answer" }).click();
   await expect(
     question.getByText(/Answered by Ada: “Name 2.1.”/),
   ).toBeVisible();

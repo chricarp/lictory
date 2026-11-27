@@ -138,12 +138,11 @@ function SessionCard({
           url: session.pullRequestUrl,
         }
       : null);
+  // What it asks is answered on the card, in the channel and in its
+  // thread alike: one object holds the session's state and the decision it
+  // waits for. Where it was asked, the thread keeps a one-line entry, so
+  // the thread still reads in order.
   const asks = session && status === "waiting" ? session.approvals : [];
-  // In its thread each request is answered where it was asked, so the
-  // thread reads in order, and the card stays one row (its state chip says
-  // it waits) rather than a second card pointing at the request. In the
-  // channel (a dispatched session's report) the card holds them.
-  const holdsAsks = !detailed;
   // A dispatched session is titled after its item ("PAY-10: Refund
   // button…"); the item's chip already names it, so the title is not
   // repeated under it.
@@ -172,7 +171,9 @@ function SessionCard({
           href={card.path}
           className="ml-auto inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
         >
-          <span className="max-sm:sr-only">Open session</span>
+          {/* Labelled on phones too: a bare arrow is a hard target to
+              find for the card's main way on. */}
+          <span>Open session</span>
           <ArrowUpRight className="size-3.5" aria-hidden />
         </Link>
         {detailed && session && (
@@ -216,7 +217,6 @@ function SessionCard({
         </p>
       )}
       {session &&
-        holdsAsks &&
         asks.map((approval) => (
           <div key={approval.id} className="border-t">
             <ApprovalRequest
@@ -460,45 +460,26 @@ const stepIcons = {
 } as const;
 
 // An agent's request in its thread, where it was asked, so the thread reads
-// in order. While it is pending and the browser can read the session, it is
-// the shared approval request (what is asked, the evidence, then Approve and
-// Deny for the people who may decide); without the session (no access to
-// the Factory) it carries its own Approve and Deny. Once answered it is the
-// record of who decided.
+// in order: one line saying what it asked. While it is pending and the
+// browser can read the session, the session's card holds the request (what
+// is asked, the evidence, Approve and Deny), so the line says where to
+// answer instead of repeating it; without the session (no access to the
+// Factory) the line carries its own Approve and Deny. Once answered it is
+// the record of who decided.
 function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
   const { userId, memberName } = useWorkspace();
   const { session } = useSession(approval.sessionId);
-  const { agentById, runnerById } = useFactory();
   const pending = approval.status === "pending";
   const mayDecide = approval.deciderIds.includes(userId);
   // A request that names no tool is a question: answered in words, never
   // approved.
   const question = !approval.tool;
-  const live =
-    pending && session?.approvals.find((a) => a.id === approval.approvalId);
+  const onCard = Boolean(
+    pending &&
+    session?.status === "waiting" &&
+    session.approvals.some((a) => a.id === approval.approvalId),
+  );
   const deciders = approval.deciderIds.map((id) => firstName(memberName(id)));
-  if (live && session)
-    return (
-      <article
-        aria-label={
-          question
-            ? `${approval.agentName} asks: ${approval.title}`
-            : `${approval.agentName} asks for approval`
-        }
-        data-approval-record={approval.approvalId}
-        className="mt-1 max-w-2xl"
-      >
-        <ApprovalRequest
-          session={session}
-          approval={live}
-          agent={agentById.get(session.agentId)}
-          runner={
-            session.runnerId ? runnerById.get(session.runnerId) : undefined
-          }
-          linkSession={false}
-        />
-      </article>
-    );
   return (
     <article
       aria-label={
@@ -529,7 +510,13 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
             </span>
           )}
         </p>
-        {pending ? (
+        {onCard ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {mayDecide
+              ? `Waiting on you: answer it on ${approval.agentName}’s session card above.`
+              : `${deciders.join(" or ")} decides, on ${approval.agentName}’s session card above.`}
+          </p>
+        ) : pending ? (
           mayDecide ? (
             <div className="mt-1">
               <Decide

@@ -269,6 +269,8 @@ void test("a session's duration is its running time, not its time in the queue",
     null,
   );
   assert.equal(formatDuration(45_000), "45s");
+  // A run that ended within a second did take time.
+  assert.equal(formatDuration(300), "under 1s");
   assert.equal(formatDuration(72 * 60_000), "1h 12m");
   assert.equal(formatDuration(51 * 3_600_000), "2d 3h");
 });

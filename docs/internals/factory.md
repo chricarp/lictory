@@ -494,22 +494,23 @@ waits on someone reads differently from a quiet thread:
   step the agent took, the files it changed, its pull request, and
   Interrupt and Cancel (asked once) for the people who may stop it. One
   card per session: the prompt is the message above it and is not
-  repeated. In its thread the card only says that a request waits below
-  and leads to it; where the card is a channel's own message (a dispatched
-  session's report, outside any thread) it shows each pending request as
-  the shared approval request;
+  repeated. In its thread and in the channel alike, the card shows each
+  pending request as the shared approval request, beside the state that
+  says it waits: one object holds the session's state and the decision it
+  waits for;
 - while the agent waits for a message rather than a decision, the card
   says so ("Forge waits for your next message: reply in this thread"); a
   reply from the person who started it or the agent's owner is that
   message;
 - an **approval card** per request, where it was asked, so the thread reads
-  in order (the card never moves a request to the top). While it is pending
-  and the browser can read the session, it is the shared approval request
-  (what is asked, where, the evidence, then Approve and Deny for the
-  requester and the owner); without the session (for MCP readers and people
-  who cannot read the Factory) it names the request and carries Approve and
-  Deny itself, calling `answerAgentApproval`. Once answered it stays in
-  place as the record of who decided;
+  in order. It is one line naming the request. While it is pending and the
+  browser can read the session, the session's card holds the request (what
+  is asked, where, the evidence, then Approve and Deny for the requester
+  and the owner), and the line says where to answer instead of repeating
+  it; without the session (for MCP readers and people who cannot read the
+  Factory) the line carries Approve and Deny itself, calling
+  `answerAgentApproval`. Once answered it stays in place as the record of
+  who decided;
 - the agent's **first message after each steering message** (its answer to
   the person) and its **summary**, as messages authored by the agent on
   behalf of its owner (`postAgentMessage`); progress messages, tool calls

@@ -163,3 +163,4 @@ export function formatDuration(ms: number) {
   const d = Math.floor(h / 24);
   return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }
+  if (s < 1) return "under 1s";
