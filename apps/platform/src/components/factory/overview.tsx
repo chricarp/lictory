@@ -23,6 +23,7 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
+import { waitingGroup } from "@lictory/platform/components/shell/home/derive";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
@@ -69,8 +70,10 @@ export function FactoryOverview() {
   // What agents ask me: one row per question, one for a session waiting for
   // my next message, one for a session of mine that failed.
   const waiting = useWaitingOnYou();
+  // The Inbox's "Agents waiting on you" group, counted the same way (a
+  // failed session of mine is under "Your work" there and in Recent here).
   const asks = useMemo(
-    () => waiting.filter((row) => row.kind === "agent"),
+    () => waiting.filter((row) => waitingGroup(row) === "agents"),
     [waiting],
   );
   const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;

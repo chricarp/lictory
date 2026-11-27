@@ -19,6 +19,7 @@ import { SessionStateChip } from "@lictory/platform/components/shell/session-chi
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { agentsWaitingLabel } from "@lictory/platform/components/factory/overview-blocks";
 import { useWaitingOnYou } from "@lictory/platform/components/workspace/inbox";
+import { waitingGroup } from "@lictory/platform/components/shell/home/derive";
 
 // The Factory in the shell (components/shell/nav-registry.tsx): its sidebar
 // section, badge and palette entries (its Home cards are Home's own,
@@ -49,14 +50,16 @@ export const factorySection: NavSection = {
   label: "Factory",
   icon: Factory,
   href: factoryPaths.overview,
-  // What agents ask me (a decision, my next message, a session of mine
-  // that failed), as a dot: the Inbox's count already holds it (one number
-  // for what waits on me, everywhere), so the Factory only says which part
-  // of that number is here, counted as the Inbox and the overview's
+  // What agents ask me (a decision or my next message), as a dot: the
+  // Inbox's count already holds it (one number for what waits on me,
+  // everywhere), so the Factory only says which part of that number is
+  // here, counted as the Inbox's "Agents waiting on you" and the overview's
   // "Agents need you" count it, one row per request.
   useBadge: () => {
     const waiting = useWaitingOnYou();
-    const agents = waiting.filter((row) => row.kind === "agent").length;
+    const agents = waiting.filter(
+      (row) => waitingGroup(row) === "agents",
+    ).length;
     const dot = agentsWaitingLabel(agents, waiting.length);
     return dot ? { count: 0, label: "", dot, tone: "quiet" } : null;
   },
