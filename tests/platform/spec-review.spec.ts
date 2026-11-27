@@ -247,7 +247,19 @@ test("a keyboard-only reviewer anchors a discussion to a passage, and hears a re
   // The text is one tab stop that explains its keys.
   const reader = page.getByRole("document", { name: "Specification text" });
   await expect(reader).toHaveAccessibleDescription(/Arrow keys select a word/);
-  await reader.focus();
+  // Two Tab presses from the top of the page reach it: the second skip link
+  // passes the sidebar, the item list and the header.
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Skip to content" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Skip to specification" });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeInViewport();
+  await page.keyboard.press("Enter");
+  await expect(reader).toBeFocused();
   // Arrow keys move a selected word; Shift extends it.
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => selectionText(page)).toBe("Behavior");

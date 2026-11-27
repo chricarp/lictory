@@ -105,7 +105,11 @@ resizers sit inside the landmark they resize.
 ## Focus
 
 The first Tab stop on every organization page is "Skip to content", which
-moves focus past the rail and sidebar to the page (`#main`). Past the last
+moves focus past the rail and sidebar to the page (`#main`). A page can add
+one skip link of its own right after it (`PageSkipLink` in
+`components/shell/skip-links.tsx`): an item's specification adds "Skip to
+specification", which focuses the reader (or the editor) so review starts in
+two Tab presses instead of passing the item list and header. Past the last
 control of a page (often a conversation's composer) the browser reports the
 document itself as focused before wrapping to the first stop; that is the
 browser's end of document, not a stop on the page.
