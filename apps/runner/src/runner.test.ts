@@ -736,6 +736,7 @@ void test("the scripted harness's interrupt stops the step and waits for the nex
 });
 
 void test("status and doctor say what a person must do, with the exit code start uses", async () => {
+  const cliPath = join(import.meta.dirname, "cli.ts");
   const cli = (home: string, command: string) =>
     spawnSync("bun", [join(import.meta.dirname, "cli.ts"), command], {
       env: { ...process.env, LICTORY_RUNNER_HOME: home },
@@ -807,11 +808,10 @@ void test("status and doctor say what a person must do, with the exit code start
       }),
       refusedHome,
     );
-    const doctor = spawn(
-      "bun",
-      [join(import.meta.dirname, "cli.ts"), "doctor"],
-      { env: { ...process.env, LICTORY_RUNNER_HOME: refusedHome } },
-    );
+    // Not spawnSync: this process must answer the runner's heartbeat.
+    const doctor = spawn(process.execPath, [cliPath, "doctor"], {
+      env: { ...process.env, LICTORY_RUNNER_HOME: refusedHome },
+    });
     let stdout = "";
     doctor.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
     const code = await new Promise<number | null>((resolve) =>
