@@ -346,11 +346,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
                 autoComplete="name"
                 required
               />
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={pending || !dirty}
-              >
+              <Button type="submit" disabled={pending || !dirty}>
                 {pending ? "Saving…" : "Save"}
               </Button>
             </div>

@@ -238,8 +238,13 @@ export function serverForShortcut(
 }
 
 // Two letters for the switcher: the first letters of the name's first two
-// words, or its first two letters.
+// words, or its first two letters. A name that is an address with nothing to
+// abbreviate (127.0.0.1:3000, [::1], localhost) has none: "12" would read as
+// a count beside the unread badge, so the switcher draws a server glyph.
 export function initials(name: string): string {
+  const host = name.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+  if (/^(\d{1,3}(\.\d{1,3}){3}|\[[\da-f:.]+\]|localhost)$/i.test(host))
+    return "";
   const words = name
     .replace(/^https?:\/\//, "")
     .split(/[\s.\-_:]+/)

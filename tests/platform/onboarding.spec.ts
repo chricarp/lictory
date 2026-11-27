@@ -392,6 +392,8 @@ test("organizations choose and change URL handles with server validation and adm
     await expect(
       page.getByLabel("Organization handle", { exact: true }),
     ).toHaveValue(nextHandle);
+    // Settings are outside the project, so its pages are folded.
+    await page.getByRole("button", { name: /pages$/ }).click();
     await expect(
       page.getByRole("link", { name: "Proposals", exact: true }),
     ).toHaveAttribute("href", paths.proposals(nextHandle, "PAY"));

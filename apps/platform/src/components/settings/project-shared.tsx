@@ -68,7 +68,7 @@ export function Choice<T extends string>({
         <Radio
           key={o.value}
           value={o.value}
-          className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:ring-2 data-checked:ring-foreground data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
+          className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:ring-2 data-checked:ring-foreground data-disabled:data-checked:ring-foreground/25 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
         >
           <ChoiceMark />
           <span className="min-w-0">
@@ -87,7 +87,9 @@ export function Choice<T extends string>({
 
 // The chosen option card says so with a filled radio and a 2px outline in
 // the text colour, the same outline as onboarding's choice cards (never a
-// grey fill, which reads as disabled). Put it in a `Radio` with the
+// grey fill, which reads as disabled). A choice that cannot be changed, or
+// cannot take effect yet, keeps its radio but only a faint outline, so it
+// never looks like the active setting. Put it in a `Radio` with the
 // `group/choice` and `data-checked:ring-2 data-checked:ring-foreground`
 // classes.
 export function ChoiceMark({ className }: { className?: string }) {

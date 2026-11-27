@@ -110,7 +110,10 @@ Lictory is a calm, document-first workspace for collaborative requirements revie
 Its visual language is the shared one above: cool neutral surfaces, ink text,
 black pill controls, Geist typography and hairline rings. Dark mode uses
 neutral charcoal with the same structure. Compact controls and readable
-specification content take priority over decoration.
+specification content take priority over decoration. Buttons and filter
+triggers are pills; text fields and the selects of a form are rounded
+rectangles with one radius at every height, so a short settings field and a
+tall sign-in field read as the same control.
 
 Illustrations extend that language as isometric line drawings: hairline
 outlines, light faces and quiet dashed guides on a rounded plate, drawn in the

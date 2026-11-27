@@ -36,6 +36,7 @@ import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
+  LearnMore,
   ReadOnlyNotice,
   SettingsBody,
   SettingsList,
@@ -73,15 +74,12 @@ export function CodeHostSettings() {
   const linkable = projects.filter((p) => !p.archivedAt && canManage(p.id));
   return (
     <>
-      <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        Pull requests, checks and commits that name a work item’s key (PAY-142)
-        link to that item. The host owns the code; Lictory owns the links.
-      </p>
       <SettingsSection
         id="code-hosts"
         icon={<FolderGit2 />}
         title="Code hosts"
-        description="GitHub (github.com or Enterprise Server), GitLab (gitlab.com or self-managed) and Bitbucket Cloud."
+        description="GitHub, GitLab and Bitbucket. Pull requests and commits that name an item’s key (PAY-142) link to it."
+        learnMore="codeHosts"
         action={
           isAdmin && !connecting ? (
             <Button
@@ -273,7 +271,7 @@ function ConnectionRow({
               <>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={async () => {
                     const result = await run("rotateCodeHostWebhookSecret", {});
                     if (result) onWebhook(result);
@@ -286,7 +284,7 @@ function ConnectionRow({
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => setConfirming(true)}
                 >
                   Disconnect…
@@ -342,7 +340,8 @@ function ConnectionRow({
                 <p className="text-xs leading-5 text-muted-foreground">
                   {webhookWhere(connection.provider, connection.authKind)} The
                   secret was shown once when you connected; if you no longer
-                  have it, choose New webhook secret.
+                  have it, choose New webhook secret.{" "}
+                  <LearnMore page="codeHostWebhook" />
                 </p>
                 <WebhookSettings provider={connection.provider} />
               </CollapsiblePanel>
@@ -542,7 +541,7 @@ function MyLogin({ connection }: { connection: CodeConnectionEntity }) {
           maxLength={100}
         />
       </label>
-      <Button size="sm" variant="secondary" type="submit">
+      <Button size="sm" type="submit">
         {saved ? "Saved" : "Save"}
       </Button>
       <InlineError>{error}</InlineError>

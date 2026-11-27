@@ -72,7 +72,8 @@ export function JiraConnections() {
       id="jira"
       icon={<PlugZap />}
       title="Jira"
-      description="Connect a Jira Cloud site once; each project that hands work off to Jira then picks one of its Jira projects in its own delivery settings."
+      description="Connect a Jira Cloud site once; projects pick their Jira project in their own delivery settings."
+      learnMore="jira"
       action={
         isAdmin && !connecting ? (
           <Button
@@ -191,7 +192,7 @@ function ConnectionRow({
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => setConfirming(true)}
                 >
                   Disconnect…
@@ -355,7 +356,8 @@ export function ProjectHandoffTarget({
       id="handoff"
       icon={<PlugZap />}
       title="Jira hand-off"
-      description="The Jira project this project's ready work is handed off to, and which Jira issue type each work item type becomes."
+      description="Where ready work is handed off, and the Jira issue type each work item type becomes."
+      learnMore="jiraTypes"
       footer="Lictory writes the summary, description and labels. Status, assignee, sprint and comments stay owned by Jira and are read back on the hand-off view."
     >
       {connections.length === 0 ? (

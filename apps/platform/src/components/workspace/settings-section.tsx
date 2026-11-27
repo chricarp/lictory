@@ -6,6 +6,7 @@ import {
 } from "@lictory/platform/components/workspace/settings-navigation";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { cn } from "@lictory/core/lib/utils";
+import { docsUrl, type DocsPage } from "@lictory/core/lib/docs-links";
 import { Heading, HeadingScope } from "@lictory/ui/heading";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
@@ -49,11 +50,15 @@ export function SettingsSection({
   children,
   footer,
   className,
+  learnMore,
 }: {
   id: string;
   icon: ReactNode;
   title: string;
   description?: ReactNode;
+  // The documentation page that explains what the one-line description
+  // leaves out.
+  learnMore?: DocsPage;
   action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -83,6 +88,12 @@ export function SettingsSection({
           {description && (
             <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
               {description}
+              {learnMore && (
+                <>
+                  {" "}
+                  <LearnMore page={learnMore} />
+                </>
+              )}
             </p>
           )}
         </div>
@@ -206,5 +217,27 @@ export function ReadOnlyNotice({ children }: { children: ReactNode }) {
     <p className="rounded-lg border border-dashed px-4 py-3 text-[13px] text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+// A link to the documentation after a one-sentence explanation. It opens in
+// a new tab, so the settings being read stay where they are.
+export function LearnMore({
+  page,
+  children = "Learn more",
+}: {
+  page: DocsPage;
+  children?: string;
+}) {
+  return (
+    <a
+      href={docsUrl(page)}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium whitespace-nowrap text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
+    >
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
   );
 }

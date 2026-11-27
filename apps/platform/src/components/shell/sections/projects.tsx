@@ -1,3 +1,4 @@
+import { useId } from "react";
 import {
   Collapsible,
   CollapsiblePanel,
@@ -32,6 +33,7 @@ import {
 import { Popover, Picker } from "@lictory/ui/popover";
 import {
   Link,
+  useParams,
   usePathname,
   useRouter,
   useSearchParams,
@@ -53,23 +55,45 @@ import type { NavSection } from "@lictory/platform/components/shell/nav-registry
 // Work: the project in context (named by the route, or the last one
 // visited) with its queues, delivery, teams and saved views; its spaces are
 // listed under Spaces. The project is a clear switcher, with its settings
-// one click away.
+// one click away. Outside the project's pages (Home, a channel, a space) its
+// pages fold under the switcher so the conversations below stay in view; a
+// person who wants them listed everywhere unfolds them once, and this
+// browser remembers it like the other folding groups.
 function ProjectsSection() {
   const { projects, organization } = useWorkspace();
   const { project } = useShell();
+  const params = useParams<{ project?: string }>();
   const router = useRouter();
   const compact = useCompactSidebar();
+  const [unfolded, toggle] = usePanelCollapsed(
+    organization.id,
+    "sidebar-section:project-pages",
+  );
+  const inProject =
+    !!project && params.project?.toUpperCase() === project.key.toUpperCase();
+  const open = compact || inProject || unfolded;
+  const navId = useId();
   return (
     <SidebarGroup id="projects" label="Projects">
       <ProjectSwitcher
         project={project}
         projects={projects}
         onSelect={(key) => router.push(paths.project(organization.slug, key))}
+        fold={
+          project && !compact && !inProject
+            ? { open, onToggle: toggle, controls: navId }
+            : undefined
+        }
       />
       {project ? (
-        <div className={cn(!compact && "ml-[15px] border-l pl-1.5")}>
-          <ProjectNav project={project} />
-        </div>
+        open && (
+          <div
+            id={navId}
+            className={cn(!compact && "ml-[15px] border-l pl-1.5")}
+          >
+            <ProjectNav project={project} />
+          </div>
+        )
       ) : (
         <SidebarNote>
           {projects.length ? "Choose a project." : "No projects yet."}
@@ -83,10 +107,13 @@ function ProjectSwitcher({
   project,
   projects,
   onSelect,
+  fold,
 }: {
   project?: Project;
   projects: Project[];
   onSelect: (key: string) => void;
+  // Outside the project's pages: shows or hides them under the switcher.
+  fold?: { open: boolean; onToggle: () => void; controls: string };
 }) {
   const { organization } = useWorkspace();
   const compact = useCompactSidebar();
@@ -148,6 +175,25 @@ function ProjectSwitcher({
           onSelect={onSelect}
         />
       </Popover>
+      {fold && project && (
+        <button
+          type="button"
+          aria-expanded={fold.open}
+          aria-controls={fold.open ? fold.controls : undefined}
+          aria-label={`${project.name} pages`}
+          title={fold.open ? "Hide project pages" : "Show project pages"}
+          onClick={fold.onToggle}
+          className="grid h-[30px] w-6 shrink-0 place-items-center rounded-lg text-muted-foreground focus-ring outline-none hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "size-4 transition-transform duration-150 motion-reduce:transition-none",
+              fold.open && "rotate-90",
+            )}
+          />
+        </button>
+      )}
       {settings && !compact && (
         <Link
           href={settings}

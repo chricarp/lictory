@@ -37,13 +37,12 @@
   font-size: 13px;
 }
 
+/* Section captions as in the app's sidebar: sentence case, 12px semibold. */
 .fs-side-label {
   margin: 14px 8px 4px;
-  color: var(--ss-text-faint);
-  font-family: var(--ss-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--ss-text);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .fs-side-label:first-child {
@@ -462,11 +461,9 @@
 }
 
 .fs-stage-name {
-  color: var(--ss-text-faint);
-  font-family: var(--ss-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--ss-text);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .fs-stage:not([data-state="next"]) .fs-stage-name {
@@ -482,7 +479,7 @@
   margin-top: 6px;
   padding-top: 14px;
   border-top: 1px solid var(--ss-line);
-  color: var(--ss-text-faint);
+  color: var(--ss-text);
   font-size: 12px;
   line-height: 18px;
 }

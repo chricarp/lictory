@@ -396,7 +396,8 @@ function ProjectBacklog({ project }: { project: Project }) {
       >
         <div
           className={cn(
-            "mx-auto max-w-4xl space-y-4 px-6 py-6 max-sm:px-3",
+            // Wide enough that titles, not the margins, get the room.
+            "mx-auto max-w-5xl space-y-4 px-6 py-6 max-sm:px-3",
             peek.peeked && "pb-[60dvh]",
           )}
         >
@@ -892,21 +893,23 @@ export function BacklogRow({
         draggable={false}
         aria-current={selected ? true : undefined}
         onClick={onOpen ? (e) => onOpen(e, label) : undefined}
-        className="min-w-0 flex-1 after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate"
+        // The title keeps its length and gives way last: the parent's name
+        // beside it shrinks first (sm:min-w-32 bounds how far the title goes).
+        className="min-w-0 flex-[1_1_auto] after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:min-w-32 sm:truncate"
       >
         {item.title}
       </Link>
       {parent && project && (
         <span
           title={`Part of ${identifier(project, parent.number)} ${parent.title}`}
-          className="relative z-[1] inline-flex max-w-48 shrink-0 items-center gap-1 truncate text-xs text-muted-foreground max-sm:order-last"
+          className="relative z-[1] inline-flex max-w-48 min-w-0 shrink-[4] items-center gap-1 overflow-hidden text-xs text-muted-foreground max-sm:order-last"
         >
           <span className="sr-only">Part of </span>
           <CornerLeftUp aria-hidden className="size-3 shrink-0" />
-          <span className="font-mono">
+          <span className="shrink-0 font-mono">
             {identifier(project, parent.number)}
           </span>
-          <span className="hidden truncate @min-[65rem]/frame:inline">
+          <span className="hidden min-w-0 truncate @min-[65rem]/frame:inline">
             {parent.title}
           </span>
         </span>

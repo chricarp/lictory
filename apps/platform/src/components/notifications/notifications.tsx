@@ -562,10 +562,20 @@ function Row({
           )}
         >
           {n.actorName && !automaticKinds.has(n.kind) ? (
-            <PersonAvatar
-              person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
-              size={20}
-            />
+            // The kind of event rides on the avatar, so a run of updates by
+            // one person still reads as approvals, moves and assignments.
+            <span className="relative">
+              <PersonAvatar
+                person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
+                size={20}
+              />
+              <span
+                aria-hidden
+                className="absolute -right-1.5 -bottom-1 grid size-3.5 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) [&_svg]:size-2.5"
+              >
+                <Icon />
+              </span>
+            </span>
           ) : (
             <Icon className="size-4" aria-hidden />
           )}

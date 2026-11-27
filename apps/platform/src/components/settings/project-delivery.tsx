@@ -102,7 +102,8 @@ function DeliveryModeSection({
       id="delivery-mode"
       icon={<Truck />}
       title="Where work is delivered"
-      description="One system owns delivery for all of this project's work. Refinement, reviews and approvals work the same either way."
+      description="One system owns delivery for all of this project's work; refinement works the same either way."
+      learnMore="deliveryModes"
     >
       <SettingsBody className="space-y-3">
         <RadioGroup<DeliveryMode>
@@ -218,7 +219,7 @@ function PullRequestActions({
       id="pull-request-actions"
       icon={<GitPullRequestArrow />}
       title="Pull request actions"
-      description="What Lictory does on its own when a specification pull request changes. Actions only notify; people still review and merge."
+      description="What Lictory does when a specification pull request changes; people still review and merge."
     >
       <SettingsBody>
         <Choice

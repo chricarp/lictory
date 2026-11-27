@@ -182,7 +182,7 @@ function SelectTrigger({
           "bg-card font-medium shadow-(--shadow-border) hover:bg-muted",
         // Form fields share the input's shape; every other trigger is a pill
         // like the buttons beside it.
-        variant === "field" ? "rounded-xl" : "rounded-full",
+        variant === "field" ? "rounded-lg" : "rounded-full",
         size === "sm" && "h-7 px-2.5 text-xs",
         size === "default" && "h-8 px-3 text-[13px]",
         size === "lg" && "h-10 px-3.5 text-[13px]",

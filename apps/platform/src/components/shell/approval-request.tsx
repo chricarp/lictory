@@ -35,6 +35,7 @@ import {
 import { firstName } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useSessionEvents } from "@lictory/platform/components/factory/store";
+import { useChannels } from "@lictory/platform/components/channels/store";
 import {
   approvalAction,
   type ApprovalAction,
@@ -161,10 +162,16 @@ export function ApprovalRequest({
               to two lines, so a wrapped request starts its second line
               under the key, not in a column beside it (as in ListRow). */}
           <span className="flex min-w-0 items-baseline gap-1.5 text-[13px] leading-5 max-sm:line-clamp-2 max-sm:break-words">
-            {itemKey && (
+            {itemKey ? (
               <span className="shrink-0 font-mono text-xs text-muted-foreground max-sm:mr-1.5">
                 {itemKey}
               </span>
+            ) : (
+              // Without an item, where the session was started takes the
+              // key's place, so every row leads with what sets it apart.
+              session.channelId && (
+                <SessionOrigin channelId={session.channelId} />
+              )
             )}
             <span className="min-w-0 font-medium sm:truncate">
               {approval.title}
@@ -230,6 +237,17 @@ export function ApprovalRequest({
         </div>
       )}
     </li>
+  );
+}
+
+// The conversation a session without a work item was started from.
+function SessionOrigin({ channelId }: { channelId: string }) {
+  const channel = useChannels().byId.get(channelId);
+  if (!channel) return null;
+  return (
+    <span className="max-w-40 shrink-0 truncate text-xs text-muted-foreground max-sm:mr-1.5">
+      {channel.kind === "direct" ? "Direct message" : `#${channel.name}`}
+    </span>
   );
 }
 

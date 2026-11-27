@@ -869,7 +869,9 @@ export function CommandPalette({
         initialFocus={() => inputRef.current}
         className={cn(
           dialogPanelClass,
-          "top-[14vh] max-h-[calc(100dvh-14vh-1rem)] max-w-lg gap-0",
+          // At most about twelve rows tall: a long result list scrolls
+          // inside the palette instead of filling the screen.
+          "top-[14vh] max-h-[min(calc(100dvh-14vh-1rem),34rem)] max-w-lg gap-0",
         )}
       >
         <Command

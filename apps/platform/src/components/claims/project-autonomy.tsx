@@ -160,7 +160,8 @@ export function ProjectAutonomy({
         id="autonomy"
         icon={<Bot />}
         title="Autonomy"
-        description="How much the factory does by itself in this project. Agents always act for an accountable person; specification decisions stay with people at every level."
+        description="How much the factory does by itself here; specification decisions stay with people at every level."
+        learnMore="autonomy"
         footer={
           loaded.updatedAt && loaded.updatedById
             ? `Version ${loaded.version}, set by ${memberName(loaded.updatedById)} ${relativeTime(loaded.updatedAt)}. Every change is recorded in the audit log.`
@@ -170,10 +171,8 @@ export function ProjectAutonomy({
         <SettingsBody className="space-y-5">
           {external && (
             <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-              This project hands work off to an external delivery tool, which
-              owns delivery, so agents never claim or get dispatched its work.
-              Build and Autopilot need a project that delivers in Lictory; the
-              level stays at Assist until it does.
+              This project hands work off to another tool, so the level stays at
+              Assist: Build and Autopilot need delivery in Lictory.
             </p>
           )}
           <Field label="Level">
@@ -195,7 +194,7 @@ export function ProjectAutonomy({
             <>
               <Field
                 label="Implementer agents"
-                hint="The dispatcher starts sessions for these runner agents, in rank order. Each acts with its person's permissions in this project."
+                hint="Sessions go to these agents in rank order, each with its person's permissions."
               >
                 {runners.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
@@ -322,7 +321,7 @@ export function ProjectAutonomy({
           {draft.level === "autopilot" && (
             <Field
               label="Before an automatic merge"
-              hint="Lictory asks the code host to merge an agent's pull request only when these pass on its head commit. The merge is attributed to this policy and you."
+              hint="Lictory merges only when these pass on the pull request's head commit."
             >
               <ul className="space-y-1.5">
                 {autopilotRequirements.map((requirement) => (
