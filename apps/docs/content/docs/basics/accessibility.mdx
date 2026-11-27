@@ -24,8 +24,12 @@ you did and the assistive technology you used.
   more against every surface.
 - Dialogs, popovers and inline editors take focus when they open and give it
   back when they close.
-- Single-letter shortcuts never fire while you type. Every shortcut is listed
-  in [keyboard shortcuts](/basics/shortcuts).
+- Single-key shortcuts never fire while you type, and each person can turn
+  them off in **Account settings** → **Keyboard** (WCAG 2.1.4). Every
+  shortcut is listed in [keyboard shortcuts](/basics/shortcuts).
+- Board cards and backlog rows have a **Move** button beside the drag: move
+  a card to another column, or rank a card or row to the top, up, down or to
+  the bottom, without dragging (WCAG 2.5.7).
 - Editor toolbars are one Tab stop; arrow keys move between their controls.
   The inline pickers (`/`, `#`, `[[`, `@`) are listboxes driven by the arrow
   keys while focus stays in the text.
@@ -75,19 +79,20 @@ you did and the assistive technology you used.
 
 Every change to Lictory runs lint rules for accessible React code and
 [axe-core](https://github.com/dequelabs/axe-core) on the main workflows in the
-browser suite: sign-in and sign-up, specification review, the board and
-backlog, settings, Home, the Inbox, channels, the Factory, Code and Spaces,
-several of them in light and dark mode. The suite fails on any serious or
+browser suite: sign-in and sign-up, setting up an organization (on a phone
+and a laptop), specification review, the board and backlog, handing work off
+to Jira and its results, settings, Home, the Inbox, channels, the Factory,
+Code and Spaces, several of them in light and dark mode. The suite fails on any serious or
 critical violation. Tools find roughly a third to a half of accessibility
 problems, so the rest depends on people testing by hand.
 
 ## Known gaps
 
-- **Drag and drop.** Board cards and backlog ranking are dragged with a
-  pointer. A card's status and iteration can also be changed from the item's
-  properties, stories reorder with Alt+Arrow keys from their grip, and space
-  pages move with **Move…**, but not every drag has been audited for a
-  single-pointer alternative.
+- **Drag and drop.** Board cards, backlog rows, stories and space pages are
+  dragged with a pointer, and each has a single-pointer and keyboard
+  alternative: **Move** on cards and rows, Alt+Arrow keys from a story's
+  grip, **Move…** on a page. Moving a card to another swimlane (assignee or
+  priority) is done in its properties.
 - **Other people's edits in a live draft** are not announced as they type;
   who is editing is stated next to the save state.
 - **Screen reader pass.** The announcements above are verified by automated

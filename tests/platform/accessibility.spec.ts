@@ -194,11 +194,58 @@ test("board and backlog meet WCAG 2.2 AA automated checks", async ({
   await expect(page.getByText("Partial refunds")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "board");
+  // Names are the words shown, without the initial tile or the count.
+  await expect(
+    page.getByRole("button", { name: "Access AXB", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Inbox", exact: true }),
+  ).toBeVisible();
+
+  // Every drag has a keyboard and single-pointer alternative (WCAG 2.5.7):
+  // a card moves to another column from its Move button, and focus stays on
+  // it in the new column, which its name reads out.
+  const card = page.locator("[data-card]", { hasText: "Add a refunds column" });
+  await card
+    .getByRole("button", { name: "Move AXB-2, 2 of 2 in Backlog" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitemradio", { name: "Done", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Move AXB-2, 1 of 1 in Done" }),
+  ).toBeFocused();
+  await expectNoAccessibilityViolations(page, "board after a move");
 
   await page.goto(seeded.projectPath("/backlog"));
   await expect(page.getByText("Refund email is late")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "backlog");
+  // Backlog rows rank from Move too: the second row of the sprint to the top.
+  const sprintRows = page
+    .getByRole("region", { name: "Iteration" })
+    .locator("[data-row]");
+  await expect(sprintRows).toHaveCount(2);
+  const second = (await sprintRows
+    .nth(1)
+    .locator("span.font-mono")
+    .first()
+    .textContent())!;
+  await sprintRows
+    .nth(1)
+    .getByRole("button", { name: new RegExp(`^Move ${second}, 2 of 2 in `) })
+    .focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: `Move ${second}` });
+  await expect(
+    menu.getByRole("menuitem", { name: "Move down" }),
+  ).toBeDisabled();
+  await menu.getByRole("menuitem", { name: "Move to top" }).click();
+  await expect(sprintRows.nth(0)).toContainText(second);
+  await expect(
+    sprintRows
+      .nth(0)
+      .getByRole("button", { name: new RegExp(`^Move ${second}, 1 of 2 in `) }),
+  ).toBeFocused();
 });
 
 test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
@@ -211,6 +258,34 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
   ).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "account settings");
+
+  // Single-key shortcuts can be turned off (WCAG 2.1.4); Mod shortcuts stay.
+  const singleKeys = page.getByRole("switch", { name: "Single-key shortcuts" });
+  const saved = () =>
+    page.waitForResponse((r) => r.url().endsWith("/api/preferences") && r.ok());
+  await expect(singleKeys).toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).not.toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await page.keyboard.press("/");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.goto(paths.account());
+  await expect(singleKeys).not.toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("dialog", { name: /^Create/ })).toBeVisible();
 
   for (const section of [
     "general",

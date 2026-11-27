@@ -27,6 +27,15 @@ export const authSchemaOptions = {
         defaultValue: "lictory",
         input: false,
       },
+      // Single-character keyboard shortcuts (C, /, [, G chords, J/K/O) on or
+      // off for this person (WCAG 2.1.4). Set only through the preferences
+      // endpoint; shortcuts with Ctrl, Cmd or Alt are not affected.
+      singleKeyShortcuts: {
+        type: "boolean",
+        required: true,
+        defaultValue: true,
+        input: false,
+      },
       // Instance administrator: manages accounts, organizations and access
       // policy of the installation (see `~/lib/instance-policy`). Separate
       // from organization roles. Set only by the admin console or the server

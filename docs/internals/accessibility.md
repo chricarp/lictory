@@ -39,7 +39,14 @@ rendered state with seeded data:
 - account pages: sign-in (including its error state), sign-up, password reset
 - specification review: a work item with a requested review and a blocking
   discussion, and the proposals, reviews and items lists
-- native delivery: the board with an active sprint, and the backlog
+- native delivery: the board with an active sprint (and after a card moved
+  with its Move menu), and the backlog
+- organization setup (`tests/platform/onboarding.spec.ts`): the welcome
+  page, the organization, delivery and invitation steps (with an invalid
+  address), on a phone and a laptop
+- the Jira hand-off (`tests/platform/knowledge-handoff.spec.ts`): the
+  hand-off page and its results dialog with a partial failure, where focus
+  waits on Retry, then on Done
 - settings: account settings, every organization settings section and every
   project settings section
 - the shell and the factory loop, in light **and dark**: Home and the Inbox
@@ -59,7 +66,9 @@ rendered state with seeded data:
 by hand with the Electron binary, see [the desktop app](desktop.md#tests)):
 the connect screen and its error, the server rail with a named server and
 its unread badge, add a server, settings, the offline top bar and the
-unavailable-server screen. Electron windows cannot open the extra
+unavailable-server screen; a Tab trail of the connect screen and the shell
+checks that every stop is named ("HF Harborline Freight, 3 unread, Ctrl+1",
+"Add a server", "Settings") and shows its ring. Electron windows cannot open the extra
 page axe uses to combine frames, so they run with the helper's `singlePage`
 option (the shell page has no frames).
 
@@ -113,6 +122,25 @@ two Tab presses instead of passing the item list and header. Past the last
 control of a page (often a conversation's composer) the browser reports the
 document itself as focused before wrapping to the first stop; that is the
 browser's end of document, not a stop on the page.
+
+Every drag has a single-pointer and keyboard alternative on the same
+surface (WCAG 2.5.7). Board cards and backlog rows (project and team) carry a
+**Move** menu (`components/delivery/move-menu.tsx`): on the board it moves the
+card to another column through the same path as a drop (the readiness check
+and its message included), and everywhere it ranks the item to the top, up,
+down or to the bottom of the list it is shown in, with the same
+`rankWorkItem` command a drop sends. Focus returns to the moved item's Move
+button, whose name reads its new place ("Move PAY-6, 1 of 3 in Done"), which
+is how the person hears the result. Stories reorder with Alt+Arrow keys from
+their grip; space pages move with **Move…** and Alt+Arrow in the tree.
+
+Single-key shortcuts (C, /, [, G chords, J/K/O) never fire in a text field,
+and each person can turn them off in Account settings → Keyboard (WCAG
+2.1.4). The choice is the `single_key_shortcuts` column of the person's
+account, read from the session (`useSingleKeyShortcuts`), so it applies on
+every device; shortcuts with a modifier, arrow keys, Enter and Escape do not
+depend on it. Letters that answer a Litto question work only while focus is
+in that question, which the criterion allows.
 
 Controls that cannot act yet but are part of a decision (Merge while a
 requirement is unmet, Request changes before a comment says what must change)
@@ -265,14 +293,9 @@ Not covered automatically, and worth checking by hand when these areas change:
   of the document. Escape, or leaving the bar with Tab, returns to the text
   with the selection kept. An open task's "Create work item" button is
   reachable with Tab (it appears on focus).
-- **Drag and drop.** Board cards, backlog ranking and story order are dragged
-  with a pointer. Stories reorder with Alt+Arrow keys from their grip button,
-  and a card's status and iteration can be changed from the item's properties;
-  whether every drag has a single-pointer alternative on the same surface
-  (WCAG 2.5.7) has not been audited. Space page trees are dragged with a
-  pointer too; their alternative is "Move…" in a page's actions (Shift+F10
-  on the focused page, or the page's own header), and Alt+Arrow reorders a
-  focused page among its siblings.
+- **Swimlane moves.** Dragging a board card into another swimlane changes its
+  assignee or priority; the alternative is the item's properties, not the
+  card's Move menu.
 - **Dark mode and themes.** Most browser checks run in the default light
   theme, whose primary and destructive colors were darkened to reach 4.5:1.
   The shell, conversations and the Factory are also scanned in the default

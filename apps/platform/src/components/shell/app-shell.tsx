@@ -31,6 +31,7 @@ import {
   useRouter,
 } from "@lictory/platform/lib/navigation";
 import { signOut } from "@lictory/platform/lib/account";
+import { useSingleKeyShortcuts } from "@lictory/platform/lib/session";
 import { workspaceTitle } from "@lictory/platform/lib/document-title";
 import {
   rememberProject,
@@ -354,6 +355,7 @@ function ShellFrame({
     [organization.id],
   );
   const goPrefix = useRef(0);
+  const singleKeyShortcuts = useSingleKeyShortcuts();
   const [drawerPath, setDrawerPath] = useState(pathname);
   if (drawerPath !== pathname) {
     setDrawerPath(pathname);
@@ -368,6 +370,8 @@ function ShellFrame({
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // Single-character shortcuts can be turned off (account preferences).
+      if (!singleKeyShortcuts) return;
       if (isTyping(event.target)) return;
       // `G` then a module's letter goes there (G H Home, G I Inbox).
       const goTo = goPrefix.current && Date.now() - goPrefix.current < 1200;

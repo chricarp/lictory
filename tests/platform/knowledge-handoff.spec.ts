@@ -21,6 +21,7 @@ import {
   signIn,
 } from "../helpers/seed";
 import { documentEnd } from "../helpers/keyboard";
+import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 
 // The page-to-work loop in a project that hands work off to Jira
 // (docs/internals/knowledge-links.md, docs/internals/delivery.md#external-delivery),
@@ -186,6 +187,7 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     await ada.page.goto(seeded.projectPath("/handoff"));
     const ready = ada.page.getByRole("region", { name: "Ready to hand off" });
     await expect(ready).toContainText("Second approver for large refunds");
+    await expectNoAccessibilityViolations(ada.page, "hand-off page");
     // The header acts on a selection; with none it offers nothing.
     await expect(
       ada.page.getByRole("button", { name: /^Hand off \d/ }),
@@ -206,6 +208,12 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
     await expect(exportDialog).toContainText(
       "HAND-2 waits for HAND-1, which was not handed off.",
     );
+    // The results, partial failure included; focus waits on what comes
+    // next, Retry, not on the page behind the dialog.
+    await expectNoAccessibilityViolations(ada.page, "hand-off results");
+    await expect(
+      exportDialog.getByRole("button", { name: "Retry 1 item", exact: true }),
+    ).toBeFocused();
     await exportDialog
       .getByRole("button", { name: "Retry 1 item", exact: true })
       .click();
@@ -213,6 +221,9 @@ test("a cited page leads to work handed off to Jira, whose status shows everywhe
       timeout: 30_000,
     });
     await expect(exportDialog).toContainText(`Created ${jiraKey}-1`);
+    await expect(
+      exportDialog.getByRole("button", { name: "Done" }),
+    ).toBeFocused();
     await exportDialog.getByRole("button", { name: "Done" }).click();
     const issues = (await jira(
       `/__fake/issues?project=${jiraKey}`,

@@ -72,6 +72,14 @@ import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/sto
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
@@ -282,10 +290,14 @@ function ProjectBoard({ project }: { project: Project }) {
   }>();
   const canMove = capabilities.changeProperties;
   const projectOf = (i: WorkItem) => projects.find((p) => p.id === i.projectId);
-  const drop = (laneKey: string, statusId: string, index: number) => {
-    const item = scoped.find((i) => i.id === drag);
-    setDrag(undefined);
-    setOver(undefined);
+  // A drop, or "Move" on a card: the same rules either way.
+  const place = (
+    itemId: string | undefined,
+    laneKey: string,
+    statusId: string,
+    index: number,
+  ) => {
+    const item = scoped.find((i) => i.id === itemId);
     if (!item) return;
     const laneItems = lanes.find((l) => l.key === laneKey)?.items ?? scoped;
     const column = laneItems.filter(
@@ -335,6 +347,22 @@ function ProjectBoard({ project }: { project: Project }) {
       toast(
         `${label} started before its specification is ready (${blocker.detail}).`,
       );
+  };
+  const drop = (laneKey: string, statusId: string, index: number) => {
+    const itemId = drag;
+    setDrag(undefined);
+    setOver(undefined);
+    place(itemId, laneKey, statusId, index);
+  };
+  const rank = (cards: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      cards.map((c) => c.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
   };
   const indexAt = (e: React.DragEvent<HTMLElement>) => {
     const cards = [
@@ -818,6 +846,36 @@ function ProjectBoard({ project }: { project: Project }) {
                                   setDrag(undefined);
                                   setOver(undefined);
                                 }}
+                                move={
+                                  canMove && (
+                                    <MoveMenu
+                                      itemId={item.id}
+                                      label={identifier(
+                                        projectOf(item),
+                                        item.number,
+                                      )}
+                                      index={index}
+                                      count={cards.length}
+                                      where={status.name}
+                                      columns={columns}
+                                      column={status.id}
+                                      onColumn={(statusId) => {
+                                        place(
+                                          item.id,
+                                          l.key,
+                                          statusId,
+                                          l.items.filter(
+                                            (i) =>
+                                              i.statusId === statusId &&
+                                              i.id !== item.id,
+                                          ).length,
+                                        );
+                                        refocusMoved(item.id);
+                                      }}
+                                      onRank={(to) => rank(cards, item, to)}
+                                    />
+                                  )
+                                }
                               />
                             </div>
                           ))}

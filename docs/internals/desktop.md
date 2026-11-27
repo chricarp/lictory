@@ -426,7 +426,9 @@ flag into a setting.
   notifications (shown while working elsewhere, not repeated for the page in
   front), a deep link, links that leave the app, the offline top bar
   (network emulation), settings, an unavailable server and reopening, with
-  axe on each of the app's own screens.
+  axe on each of the app's own screens, a Tab trail of the connect screen and
+  the shell (every stop named and showing its focus ring), Back drawn in the
+  text color when it can act, and the View menu listing each command once.
   It needs the Electron binary (`bun run setup`), a display
   (`xvfb-run -a bun run test:smoke` on Linux) and Electron's system
   libraries (GTK 3, NSS); containers without the setuid sandbox helper run it

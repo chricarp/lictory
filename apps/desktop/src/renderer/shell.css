@@ -166,6 +166,15 @@ select {
 .topbar-nav.idle {
   visibility: hidden;
 }
+/* Back and forward are drawn in the text color (well over 3:1 on the bar);
+   when there is nowhere to go they are faint, so they look disabled. */
+.topbar-nav .icon-button {
+  color: var(--foreground);
+}
+.topbar-nav .icon-button:disabled {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
 .topbar-title {
   display: flex;
   align-items: baseline;

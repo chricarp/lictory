@@ -30,7 +30,10 @@ import {
 import { Kbd } from "@lictory/ui/primitives";
 import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import { Link, usePathname, useRouter } from "@lictory/platform/lib/navigation";
-import { useSessionState } from "@lictory/platform/lib/session";
+import {
+  useSessionState,
+  useSingleKeyShortcuts,
+} from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
@@ -87,6 +90,7 @@ export function Sidebar({
     () => (isMac() ? "⌘K" : "Ctrl K"),
     () => "Ctrl K",
   );
+  const singleKey = useSingleKeyShortcuts();
   return (
     <CompactSidebarContext value={compact}>
       <div
@@ -104,9 +108,9 @@ export function Sidebar({
               !compact && "max-lg:hidden",
             )}
             data-sidebar-toggle
-            aria-keyshortcuts="["
+            aria-keyshortcuts={singleKey ? "[" : undefined}
             aria-label={compact ? "Expand app sidebar" : "Collapse app sidebar"}
-            title={`${compact ? "Expand app sidebar" : "Collapse app sidebar"}  [`}
+            title={`${compact ? "Expand app sidebar" : "Collapse app sidebar"}${singleKey ? "  [" : ""}`}
             aria-expanded={!compact}
             aria-controls={sidebarId}
             onClick={onCollapse}
@@ -128,7 +132,9 @@ export function Sidebar({
         <button
           type="button"
           aria-label={compact ? "Search Lictory" : undefined}
-          aria-keyshortcuts="Meta+K Control+K /"
+          aria-keyshortcuts={
+            singleKey ? "Meta+K Control+K /" : "Meta+K Control+K"
+          }
           title={compact ? `Search  ${shortcut}` : undefined}
           onClick={onSearch}
           className={cn(
@@ -156,8 +162,8 @@ export function Sidebar({
           <button
             type="button"
             aria-label="Create work item"
-            title="New item  C"
-            aria-keyshortcuts="C"
+            title={singleKey ? "New item  C" : "New item"}
+            aria-keyshortcuts={singleKey ? "C" : undefined}
             onClick={onCreate}
             className={cn(
               "grid size-8 shrink-0 place-items-center rounded-lg focus-ring outline-none",

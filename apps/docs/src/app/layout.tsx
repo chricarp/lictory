@@ -9,9 +9,11 @@ import { websitesConsent } from "@lictory/ui/consent/shared-consent";
 import "./styles.css";
 import { NavCtaTracking } from "@lictory/docs/components/analytics";
 import StaticSearchDialog from "@lictory/docs/components/search";
+import { sidebarComponents } from "@lictory/docs/components/sidebar";
 import { baseOptions, LegalLinks } from "@lictory/docs/lib/layout.shared";
 import { site } from "@lictory/docs/lib/site";
 import { source } from "@lictory/docs/lib/source";
+import { groupedTree } from "@lictory/docs/lib/sidebar-tree";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
@@ -44,9 +46,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
             <DocsLayout
-              tree={source.getPageTree()}
+              tree={groupedTree(source.getPageTree())}
               {...baseOptions()}
-              sidebar={{ footer: <LegalLinks /> }}
+              sidebar={{
+                footer: <LegalLinks />,
+                components: sidebarComponents,
+              }}
             >
               {children}
             </DocsLayout>

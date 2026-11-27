@@ -554,3 +554,38 @@ void test("the admin API serves instance administrators only, and deactivation e
   // Instance history is append-only.
   await assert.rejects(db.delete(s.instanceAuditEvent));
 });
+
+void test("single-key shortcuts are a personal preference: on by default, turned off only by the person", async () => {
+  const user = await person("Speech");
+  const other = await person("Keyboard");
+  const preference = async (cookie: string) =>
+    (
+      (await (
+        await m.app.request("/api/session", { headers: { cookie } })
+      ).json()) as { user: { singleKeyShortcuts: boolean } }
+    ).user.singleKeyShortcuts;
+  assert.equal(await preference(user.cookie), true);
+
+  assert.equal(
+    (await post("/api/preferences", { singleKeyShortcuts: false })).status,
+    401,
+  );
+  assert.equal(
+    (await post("/api/preferences", { singleKeyShortcuts: "off" }, user.cookie))
+      .status,
+    400,
+  );
+  const off = await post(
+    "/api/preferences",
+    { singleKeyShortcuts: false },
+    user.cookie,
+  );
+  assert.equal(off.status, 200);
+  assert.deepEqual(await off.json(), { singleKeyShortcuts: false });
+  assert.equal(await preference(user.cookie), false);
+  // Nobody else's shortcuts change.
+  assert.equal(await preference(other.cookie), true);
+
+  await post("/api/preferences", { singleKeyShortcuts: true }, user.cookie);
+  assert.equal(await preference(user.cookie), true);
+});
