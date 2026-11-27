@@ -41,15 +41,16 @@ exact Bun release, and a Docker daemon of its own (the docker-in-docker
 feature) so `docker compose up -d` runs the services inside the container and
 the commands below work unchanged. Creating it runs `bun install` and
 `bun run dev:env` (which creates `.env` when there is none); the app, website and Mailpit ports
-are forwarded to the host. Give Docker at least 8 GB of memory, as below. On
+are forwarded to the host. Give Docker at least 12 GB of memory, as below. On
 macOS and Windows, a clone in a container volume ("Clone Repository in
 Container Volume") is much faster than a bind-mounted checkout. With rootless
 Docker on Linux, the container's `node` user cannot write a bind-mounted
 checkout; use a container volume there too, or the native setup.
 
-For a memory-limited container, allow at least 8 GB of Docker memory. The full
-type-aware ESLint check peaks near 4 GB, above Node's default heap on some
-machines, so `bun run lint` allows itself 6 GB (`--max-old-space-size=6144`).
+For a memory-limited container, allow at least 12 GB of Docker memory. The
+full type-aware ESLint check (`bun run lint`, part of `bun run check`) peaks
+near 10 GB with its two workers (measured on an 8-core machine), above Node's
+default heap, so it allows each worker 6 GB (`--max-old-space-size=6144`).
 A `NODE_OPTIONS` you export comes after it and wins.
 
 ```sh
