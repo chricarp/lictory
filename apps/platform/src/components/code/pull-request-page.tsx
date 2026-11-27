@@ -902,7 +902,7 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
       <p id="code-comment-hint" className="px-1 text-xs text-muted-foreground">
         {`Posted on ${host}${account ? ` as ${account}` : ""}, signed with your name.`}
         {canReview &&
-          ` A review covers ${shortSha(pr.headSha)}; say what must change to request changes.`}
+          ` Approve or Request changes records one review of ${shortSha(pr.headSha)} in Lictory, which the merge box counts, and posts it there too; say what must change to request changes.`}
       </p>
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {codePullRequest.allows(pr.state, "close") && (
