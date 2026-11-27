@@ -285,11 +285,19 @@ export function claimability(
   const human = (facts.linkedPullRequests?.(item.id) ?? []).find(
     (pr) => pr.state !== "closed" && !pr.openedByAgent,
   );
-  if (human)
+  if (human) {
+    // Said as facts the board shows too (the pull request and the item's
+    // status), never "someone is doing this work" beside a card still in a
+    // not-started column: the status is a person's to move.
+    const status = facts.statusName(item.statusId);
+    const unstarted = ["backlog", "unstarted"].includes(
+      facts.category(item.statusId) ?? "",
+    );
     refuse(
       "pull_request_linked",
-      `A pull request is already linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""}${human.state === "merged" ? " (merged)" : ""}.${human.unlinkedLogin ? ` ${human.author} is a code host login no member has linked.` : ""} Someone is already doing this work; a person can still start an agent on it.`,
+      `A person's pull request is linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""} (${human.state}).${human.unlinkedLogin ? ` ${human.author} is a code host login no member has linked.` : ""} Agents leave it to people; a person can still start an agent on it.${status && unstarted ? ` It is still in ${status}: move it when that work starts.` : ""}`,
     );
+  }
   if (!facts.hasStartedStatus)
     refuse(
       "no_started_status",

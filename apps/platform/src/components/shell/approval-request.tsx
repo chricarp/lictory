@@ -10,6 +10,7 @@ import {
   Server,
   ShieldQuestion,
   SquareTerminal,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { Textarea } from "@ui-sdk/react/textarea";
@@ -173,8 +174,11 @@ export function ApprovalRequest({
               the exact action (or that it is a question), then the task it
               belongs to; the agent, usually the same on every row, last. */}
           <MetaLine className="mt-0.5">
+            {/* The action is never cut: its arguments (--env staging or
+                production) are what a person decides on. It wraps, and the
+                task and agent follow it. */}
             {action && !question ? (
-              <MetaPart className="sm:max-w-[45%]">
+              <MetaPart>
                 <ActionText action={action} />
               </MetaPart>
             ) : (
@@ -240,7 +244,7 @@ function ActionText({
   return (
     <code
       className={cn(
-        "min-w-0 truncate font-mono text-[11px] text-foreground",
+        "line-clamp-3 min-w-0 font-mono text-[11px] break-all whitespace-pre-wrap text-foreground",
         className,
       )}
     >
@@ -399,9 +403,22 @@ function Context({
     tool: evidence.tool,
     input: evidence.input,
   });
+  // No repository is linked: what the agent writes is discarded when the
+  // session ends. Said before the approval, not only after it.
+  const unkept = !session.repositoryId && !session.repositoryUrl;
   return (
     <div className="mt-3 space-y-3 text-[13px]">
       {reason && <p className="leading-5">{reason}</p>}
+      {unkept && action?.kind === "file" && (
+        <p
+          data-not-kept
+          className="flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+        >
+          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+          No repository is linked to this session: the file is written in a
+          scratch workspace and discarded when the session ends.
+        </p>
+      )}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
         {linkSession && (
           <Fact label="Session">
@@ -430,7 +447,8 @@ function Context({
             </Link>
           </Fact>
         )}
-        {session.branch && (
+        {/* A branch exists only in a repository. */}
+        {session.branch && !unkept && (
           <Fact label="Branch" icon={<GitBranch />}>
             <span className="truncate font-mono">{session.branch}</span>
           </Fact>

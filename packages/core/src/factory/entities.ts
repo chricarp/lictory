@@ -63,6 +63,11 @@ export function runnerEntity(row: RunnerRow) {
     maxSessions: row.maxSessions,
     isolation: row.isolation as Isolation,
     lastSeenAt: iso(row.lastSeenAt),
+    // The last problem the runner reported, with when it met it.
+    lastError:
+      row.lastError && row.lastErrorAt
+        ? { message: row.lastError, at: row.lastErrorAt.toISOString() }
+        : null,
     registeredAt: row.registeredAt.toISOString(),
     revokedAt: iso(row.revokedAt),
   };

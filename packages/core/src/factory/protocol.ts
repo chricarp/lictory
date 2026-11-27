@@ -269,6 +269,17 @@ export const heartbeatRequest = machineReport.extend({
   sessions: z
     .array(z.object({ sessionId: z.string(), leaseToken: z.string() }))
     .max(64),
+  // The last problem the runner met while it runs (the server unreachable,
+  // asking for work refused), with when, so the runner's page can say why
+  // it went offline or what failed, not only that it did. Optional: older
+  // runners do not send it. Null once the runner started and met none.
+  lastError: z
+    .object({
+      message: z.string().max(1000),
+      at: z.string().datetime(),
+    })
+    .nullable()
+    .optional(),
 });
 export const heartbeatResponse = z.object({
   serverTime: z.string(),

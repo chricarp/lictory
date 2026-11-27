@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CirclePause,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
   useCallback,
@@ -21,6 +22,7 @@ import {
   type AgentEventType,
 } from "@lictory/core/agent-events/catalog";
 import { callCapability } from "@lictory/core/capabilities/client";
+import { relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import {
@@ -379,12 +381,21 @@ export function SubscriptionDetails({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-[13px]">
           <span className="truncate font-medium">{subscription.name}</span>
-          <StatusChip
-            tone={statusTone[subscription.status]}
-            icon={statusIcon[subscription.status]}
-          >
-            {statusLabel[subscription.status]}
-          </StatusChip>
+          {/* Active but failing: the receiver refused the last attempts and
+              Lictory tries again. Not a green "Active" above a red problem
+              line: the chip says what the line below explains. */}
+          {subscription.status === "active" && subscription.retry ? (
+            <StatusChip tone="attention" icon={<RotateCcw />}>
+              Retrying
+            </StatusChip>
+          ) : (
+            <StatusChip
+              tone={statusTone[subscription.status]}
+              icon={statusIcon[subscription.status]}
+            >
+              {statusLabel[subscription.status]}
+            </StatusChip>
+          )}
           <span className="shrink-0 text-xs text-muted-foreground">
             {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
           </span>
@@ -452,8 +463,10 @@ export function SubscriptionDetails({
         {subscription.deliveredCount === 0
           ? "No events delivered yet"
           : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
+        {/* Past times read as everywhere else ("5m ago"); times to come
+            (the next try, the renewal) stay dates. */}
         {subscription.lastSuccessAt
-          ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
+          ? ` · receiver last accepted ${relativeTime(subscription.lastSuccessAt)}`
           : ""}
         {subscription.pending
           ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`
@@ -476,7 +489,7 @@ export function SubscriptionDetails({
           <p className="text-xs text-destructive" role="status">
             Last problem
             {subscription.lastAttemptAt
-              ? ` (${when(subscription.lastAttemptAt)})`
+              ? ` (${relativeTime(subscription.lastAttemptAt)})`
               : ""}
             : {subscription.lastErrorDetail}
             {subscription.retry

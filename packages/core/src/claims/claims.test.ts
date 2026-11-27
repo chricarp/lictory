@@ -1144,7 +1144,14 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
   );
   assert.match(
     open?.reasons[0]?.message ?? "",
-    /^A pull request is already linked: #12 by Ada\./,
+    /^A person's pull request is linked: #12 by Ada \(open\)\./,
+  );
+  // The queue says what the board shows (the item has not moved to a
+  // started status), not that someone works on it.
+  assert.doesNotMatch(open?.reasons[0]?.message ?? "", /already doing/);
+  assert.match(
+    open?.reasons[0]?.message ?? "",
+    /It is still in \S+: move it when that work starts\./,
   );
   const done = await stageOf(f, merged);
   assert.deepEqual(
@@ -1162,7 +1169,7 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
       organizationId: f.organizationId,
       workItemId: human,
     }),
-    /already linked: #12 by Ada/,
+    /pull request is linked: #12 by Ada/,
   );
   // A person may still start an agent on it: its session claims.
   const agentId = crypto.randomUUID();
@@ -1202,7 +1209,7 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
         workItemId: human,
       },
     ),
-    /already linked/,
+    /pull request is linked/,
   );
   await started("by-ada", human, false);
   const explicit = await claimItem(

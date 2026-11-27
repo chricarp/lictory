@@ -402,9 +402,24 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
   const { item, reason, detail, icon } = row.entry;
   const project = projects.find((p) => p.id === item.projectId);
   const key = identifier(project, item.number);
+  const href = paths.item(organization.slug, project?.key ?? "", key);
   return (
     <ListRow
-      href={paths.item(organization.slug, project?.key ?? "", key)}
+      href={href}
+      // A blocked item of mine has a next step like the rows beside it:
+      // its blocking discussions, answered or resolved on the item.
+      chips={
+        reason === "Blocked" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            render={<Link href={href} />}
+            aria-label={`Open the blocking discussion${item.blockingThreads > 1 ? "s" : ""} on ${key}`}
+          >
+            {item.blockingThreads > 1 ? "Open discussions" : "Open discussion"}
+          </Button>
+        )
+      }
       leading={icon}
       identifier={key}
       title={

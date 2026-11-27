@@ -23,6 +23,7 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
+import { waitingGroup } from "@lictory/platform/components/shell/home/derive";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
@@ -31,7 +32,10 @@ import {
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { useFactory } from "@lictory/platform/components/factory/store";
-import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
+import {
+  agentsWaitingLabel,
+  overviewBlocks,
+} from "@lictory/platform/components/factory/overview-blocks";
 import {
   WaitingRowView,
   useWaitingOnYou,
@@ -66,8 +70,10 @@ export function FactoryOverview() {
   // What agents ask me: one row per question, one for a session waiting for
   // my next message, one for a session of mine that failed.
   const waiting = useWaitingOnYou();
+  // The Inbox's "Agents waiting on you" group, counted the same way (a
+  // failed session of mine is under "Your work" there and in Recent here).
   const asks = useMemo(
-    () => waiting.filter((row) => row.kind === "agent"),
+    () => waiting.filter((row) => waitingGroup(row) === "agents"),
     [waiting],
   );
   const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;
@@ -97,10 +103,9 @@ export function FactoryOverview() {
     );
 
   const counts = [
-    // Only the agents' part of the queue Home and the Inbox count, named as
-    // such so the numbers reconcile.
-    asks.length > 0 &&
-      `${asks.length} from agents ${asks.length === 1 ? "needs" : "need"} you`,
+    // Only the agents' part of the queue Home and the Inbox count, said as
+    // a part of that total so the numbers reconcile.
+    agentsWaitingLabel(asks.length, waiting.length),
     blocks.waitingOnOthers.length > 0 &&
       `${blocks.waitingOnOthers.length} waiting on teammates`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,

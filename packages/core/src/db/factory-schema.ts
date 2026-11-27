@@ -132,6 +132,10 @@ export const runner = pgTable(
     // `host` or `container`.
     isolation: text("isolation").notNull().default("host"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    // The last problem the runner reported in a heartbeat, and when it met
+    // it (the runner's clock).
+    lastError: text("last_error"),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
     createdById: text("created_by_id")
       .notNull()
       .references(() => user.id),

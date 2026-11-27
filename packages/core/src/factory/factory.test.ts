@@ -636,6 +636,46 @@ void test("a personal runner only runs its owner's agents", async () => {
   await refused(start(memberId, organizationId, privateAgent.id), "forbidden");
 });
 
+void test("a runner's last problem reaches its page through the heartbeat; an older runner's silence keeps it", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const registered = await runner(ownerId, organizationId, false);
+  const projected = async () => {
+    const [entity] = await db
+      .select({ data: s.factoryEntity.data })
+      .from(s.factoryEntity)
+      .where(eq(s.factoryEntity.key, `runner:${registered.id}`));
+    return (entity?.data as { lastError?: unknown } | undefined)?.lastError;
+  };
+  const row = async () =>
+    (
+      await db.select().from(s.runner).where(eq(s.runner.id, registered.id))
+    )[0]!;
+  assert.equal(await projected(), null);
+  // The runner met a problem and reports it, with when, once it reaches the
+  // server again.
+  const problem = {
+    message: "Asking for work failed: Could not connect to the server.",
+    at: "2026-11-27T10:00:00.000Z",
+  };
+  await heartbeat(db, registered, {
+    ...machine,
+    sessions: [],
+    lastError: problem,
+  });
+  assert.deepEqual(await projected(), problem);
+  // A runner older than the field sends none: what it reported stays.
+  await heartbeat(db, await row(), { ...machine, sessions: [] });
+  assert.deepEqual(await projected(), problem);
+  // A restarted runner that met no problem clears it.
+  await heartbeat(db, await row(), {
+    ...machine,
+    sessions: [],
+    lastError: null,
+  });
+  assert.equal(await projected(), null);
+});
+
 void test("leases fence every runner write and expired sessions return to the queue", async () => {
   const ownerId = await user("Ada");
   const organizationId = await organization(ownerId);
@@ -958,7 +998,7 @@ void test("an agent waiting for a person's next message waits on them, and a ret
   const retried = await eventsOf(session.id);
   assert.match(
     String((retried.at(-1)?.data as { message?: string }).message),
-    /starts over from the task with the message sent to it before/,
+    /starts over from the task with the message sent to it before\. Sent again: “Fix the timeout\.”$/,
   );
   const again = (await claimSession(db, machineRow))!;
   const inbox = await readInputs(

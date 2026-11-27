@@ -159,6 +159,9 @@ export class RunnerClient {
   heartbeat(
     report: MachineReport & {
       sessions: { sessionId: string; leaseToken: string }[];
+      // The last problem the runner met; omitted, the server keeps the one
+      // it has.
+      lastError?: { message: string; at: string } | null;
     },
     signal?: AbortSignal,
   ) {

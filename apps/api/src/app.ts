@@ -31,7 +31,7 @@ function rpcError(status: number, message: string, headers?: HeadersInit) {
 // places are named the same way in both.
 const mcpChallenge = {
   "WWW-Authenticate":
-    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Integrations > Personal access tokens."',
+    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Access tokens."',
 };
 
 export function createApp(options: { draining?: () => boolean } = {}) {
@@ -72,7 +72,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     if (!token)
       return rpcError(
         401,
-        "A valid Lictory access token is required. An agent's token comes from Factory → Agents → the agent → Connection (a new token is shown once); a person's own from Account settings → Integrations → Personal access tokens. Revoked and expired tokens are refused.",
+        "A valid Lictory access token is required. An agent's token comes from Factory → Agents → the agent → Connection (a new token is shown once); a person's own from Account settings → Access tokens. Revoked and expired tokens are refused.",
         mcpChallenge,
       );
     let payload: unknown;

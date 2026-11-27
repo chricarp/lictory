@@ -47,12 +47,10 @@ import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   MiddleTruncate,
   SessionStarter,
+  useSessionDuration,
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
-import {
-  formatDuration,
-  sessionDuration,
-} from "@lictory/platform/components/factory/overview-blocks";
+import { formatDuration } from "@lictory/platform/components/factory/overview-blocks";
 import {
   useFactory,
   useSession,
@@ -119,6 +117,7 @@ export function SessionView() {
     session ? sessionTitle(session.title) : "",
     session?.error,
   );
+  const ran = useSessionDuration(session);
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const back = {
@@ -196,7 +195,6 @@ export function SessionView() {
   const cancel = () => setConfirmingCancel(true);
   const asks = session.status === "waiting" ? session.approvals : [];
   const itemKey = item && project ? identifier(project, item.number) : null;
-  const ran = sessionDuration(session);
   // Where it was asked for: its channel thread, if a mention started it.
   const thread =
     session.channelId && session.threadRootMessageId
@@ -214,7 +212,7 @@ export function SessionView() {
             {/* Laptops: labelled buttons. Phones: one labelled menu, so
                 the title keeps the bar. */}
             {canInterrupt && (
-              <Tooltip label={INTERRUPT_HINT} side="left">
+              <Tooltip label={INTERRUPT_HINT} side="bottom">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
@@ -225,7 +223,7 @@ export function SessionView() {
               </Tooltip>
             )}
             {canCancel && (
-              <Tooltip label={CANCEL_HINT} side="left">
+              <Tooltip label={CANCEL_HINT} side="bottom">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
@@ -276,7 +274,7 @@ export function SessionView() {
               </Menu>
             )}
             {steer && allows("retry") && (
-              <Tooltip label={RETRY_HINT} side="left">
+              <Tooltip label={RETRY_HINT} side="bottom">
                 <Button onClick={act("retryAgentSession", "Retrying")}>
                   <RotateCcw className="size-3.5" aria-hidden /> Retry
                 </Button>
@@ -373,11 +371,16 @@ export function SessionView() {
           </Meta>
         )}
         {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
-        {session.branch && (
-          <Meta icon={<GitBranch />} label="Branch" shrink>
-            <MiddleTruncate text={session.branch} className="font-mono" />
-          </Meta>
-        )}
+        {/* A branch exists only in a repository: a session that started
+            in an empty workspace has none to show. */}
+        {session.branch &&
+          (session.repositoryId ??
+            session.repositoryUrl ??
+            !session.startedAt) && (
+            <Meta icon={<GitBranch />} label="Branch" shrink>
+              <MiddleTruncate text={session.branch} className="font-mono" />
+            </Meta>
+          )}
         {session.attempts > 1 && (
           <span>
             Attempt {session.attempts} of {session.maxAttempts}
@@ -478,15 +481,16 @@ export function SessionView() {
           )}
         </div>
       </div>
-      {session.status === "waiting" && !asks.length && (
+      {/* Waiting for a message: the composer says so to the person who
+          can answer (one call to action, not a banner repeating it); the
+          others, who have no composer, get the line instead. */}
+      {session.status === "waiting" && !asks.length && !steer && (
         <p
           data-waiting-for-message
           className="flex shrink-0 items-center justify-center gap-1.5 border-t bg-warning/5 px-4 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] sm:px-6 dark:bg-transparent"
         >
           <Hand className="size-3.5 shrink-0" aria-hidden />
-          {steer
-            ? `${agent?.name ?? "The agent"} waits for your next message. Answer below, or cancel the session.`
-            : `${state.label}: ${agent?.name ?? "the agent"} waits for the next message.`}
+          {`${state.label}: ${agent?.name ?? "the agent"} waits for the next message.`}
         </p>
       )}
       {asks.length > 0 && (

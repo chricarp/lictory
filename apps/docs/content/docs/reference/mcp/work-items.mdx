@@ -40,7 +40,7 @@ List work item summaries with review, readiness, child counts and lifecycle stag
 
 **Get work item.** Query (read tokens too)
 
-A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.
+A work item with its current specification (Markdown, once, under specification), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. The item names its type, status, assignee, team and iteration (`names`) beside their ids, so no [getWorkspace](/reference/mcp/organization#getworkspace) lookup is needed to read it. Identify it by id or by key (e.g. PAY-142). Revision contents are included only with includeRevisionContent.
 
 | Field                    | Type    | Required | Description                                                          |
 | ------------------------ | ------- | -------- | -------------------------------------------------------------------- |

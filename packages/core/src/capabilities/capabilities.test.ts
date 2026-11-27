@@ -229,13 +229,30 @@ void test("agents create work through the shared write path, idempotently", asyn
     organizationId: f.organizationId,
     workItemId: first.workItemId,
   })) as {
+    item: {
+      names: {
+        type: string | null;
+        status: { name: string; category: string } | null;
+        assignee: string | null;
+      };
+    };
     specification: { number: number; content: string };
     revisions: { content?: string }[];
   };
   assert.equal(revised.specification.number, item.specification.number + 1);
-  // Historical revisions stay intact; their content is opt-in.
+  // Historical revisions stay intact; their content is opt-in, and the
+  // current text is read once, under specification.
   assert.equal(revised.revisions.length, 2);
   assert.equal(revised.revisions[1]!.content, undefined);
+  assert.equal(revised.revisions[0]!.content, undefined);
+  assert.equal(
+    revised.specification.content,
+    "Retries reuse the original transaction ID.",
+  );
+  // The item names what its ids point at.
+  assert.ok(revised.item.names.type);
+  assert.ok(revised.item.names.status?.name);
+  assert.equal(revised.item.names.assignee, null);
   // Replaying create after a later edit must return the revision it created,
   // not whichever revision happens to be current at response time.
   assert.deepEqual(await invoke(f.mcp, "createWorkItem", input), first);
@@ -895,7 +912,7 @@ void test("MCP server lists typed tools and reports failures as tool results", a
   };
   assert.equal(refusal.error.category, "forbidden");
   assert.equal(refusal.error.kind, "human_only");
-  assert.match(refusal.error.message, /Account settings → Integrations/);
+  assert.match(refusal.error.message, /Account settings → Access tokens/);
   const browserOnly = (await handleMcp(f.mcp, {
     jsonrpc: "2.0",
     id: 4,

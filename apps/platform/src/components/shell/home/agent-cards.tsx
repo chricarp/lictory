@@ -42,12 +42,27 @@ function RunningSessionsCard() {
     const asked = new Set(
       waitingOnMe(sessions, agentById, userId).map((s) => s.id),
     );
-    return sessions.filter((s) => atWork.has(s.status) && !asked.has(s.id));
+    // Working sessions first; those waiting on a teammate after them.
+    return sessions
+      .filter((s) => atWork.has(s.status) && !asked.has(s.id))
+      .sort(
+        (a, b) =>
+          Number(a.status === "waiting") - Number(b.status === "waiting"),
+      );
   }, [sessions, agentById, userId]);
   const org = organization.slug;
+  // The heading says what the rows say: sessions held up by a teammate are
+  // not "at work".
+  const held = working.filter((s) => s.status === "waiting").length;
+  const title =
+    held === 0
+      ? "Agents at work"
+      : held === working.length
+        ? "Agents waiting on teammates"
+        : "Agents at work or waiting";
   return (
     <Panel
-      title="Agents at work"
+      title={title}
       icon={<Factory />}
       count={working.length}
       more={{ label: "Factory", href: factoryPaths.overview(org) }}

@@ -83,13 +83,30 @@ class MessageQueue {
 
 const ACTIVE = new Set(["assigned", "running", "waiting"]);
 
+// A request's title for one log line.
+const firstLine = (text: string) => text.split("\n", 1)[0]!.slice(0, 160);
+
 export class SessionRun {
-  state: SessionState = "preparing";
+  private current: SessionState = "preparing";
+  // What `lictory-runner status` shows: written to the state file as it
+  // changes, not only on the next heartbeat.
+  get state() {
+    return this.current;
+  }
+  set state(next: SessionState) {
+    if (next === this.current) return;
+    this.current = next;
+    this.deps.onStateChange?.();
+  }
   private readonly abort = new AbortController();
   private reason: StopReason | null = null;
   private readonly messages = new MessageQueue();
-  // Open approval requests and what each asks, for the log.
-  private readonly pendingApprovals = new Map<string, string>();
+  // Open requests, what each asks and whether it is a question (it names
+  // no tool: answered in words, never approved), for the log.
+  private readonly pendingApprovals = new Map<
+    string,
+    { title: string; question: boolean }
+  >();
   private harnessRun: HarnessRun | null = null;
   private readonly events: EventStream;
   private cursor: number;
@@ -106,6 +123,8 @@ export class SessionRun {
       // The session's status on the server, asked when the lease is gone
       // (the heartbeat answers it): a person's cancel ends the lease too.
       leaseStatus?: (signal: AbortSignal) => Promise<string | null>;
+      // Called when `state` changes, so the state file is current.
+      onStateChange?: () => void;
     },
   ) {
     const api = deps.client.session(assignment.sessionId);
@@ -153,10 +172,13 @@ export class SessionRun {
   private emit: HarnessContext["emit"] = (type, data) => {
     if (type === "approval_request") {
       const title = typeof data.title === "string" ? data.title : "a tool";
-      this.pendingApprovals.set(String(data.requestId), title);
+      // The server's rule (asksPermission): a request naming no tool is a
+      // question, so the log says so, as the UI does.
+      const question = !(typeof data.tool === "string" && data.tool.trim());
+      this.pendingApprovals.set(String(data.requestId), { title, question });
       this.state = "waiting";
       this.deps.log(
-        `Session ${this.id} waits for a person to approve: ${title.split("\n", 1)[0]!.slice(0, 160)}`,
+        `Session ${this.id} waits for ${question ? "a person's answer to" : "a person to approve"} “${firstLine(title)}”.`,
       );
     }
     if (type === "summary") this.summary = String(data.text);
@@ -191,7 +213,7 @@ export class SessionRun {
               : "deny";
         const asked = this.pendingApprovals.get(requestId);
         this.deps.log(
-          `Session ${this.id}: a person ${decision === "approve" ? "approved" : decision === "answer" ? "answered" : "denied"}${asked ? ` ${asked.split("\n", 1)[0]!.slice(0, 160)}` : " a request"}.`,
+          `Session ${this.id}: a person ${decision === "approve" ? "approved" : decision === "answer" ? "answered" : "denied"} ${asked ? `“${firstLine(asked.title)}”` : "a request"}.`,
         );
         this.pendingApprovals.delete(requestId);
         if (!this.pendingApprovals.size && this.state === "waiting")

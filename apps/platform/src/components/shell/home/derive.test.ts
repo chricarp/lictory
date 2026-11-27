@@ -383,4 +383,22 @@ void test("recent outcomes are my delivered work and my agents' finished session
     once.rows.map((r) => r.key),
     [`item:${delivered.id}`, "session:finished"],
   );
+  // The session that delivered an item listed as done is that item's row:
+  // one delivery, one outcome.
+  const delivering = {
+    ...session("delivering", "completed", "2026-11-19T06:00:00Z", me),
+    workItemId: delivered.id,
+  };
+  assert.deepEqual(
+    recentOutcomes(
+      {
+        ...context([delivered]),
+        sessions: [delivering, finished],
+        agentOwner: () => me,
+        now,
+      },
+      10,
+    ).rows.map((r) => r.key),
+    [`item:${delivered.id}`, "session:finished"],
+  );
 });

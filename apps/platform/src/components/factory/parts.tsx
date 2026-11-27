@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Factory, GitPullRequest } from "lucide-react";
 import {
   sessionTitle,
@@ -34,6 +34,21 @@ import {
 
 // Pieces shared by the Factory's pages: the page frame (one header with the
 // Factory's tabs), who started a session, its state and its row.
+
+// How long a session has run, kept current while it runs: the timer counts
+// up each second instead of showing the time the page was first drawn.
+export function useSessionDuration(
+  session: Parameters<typeof sessionDuration>[0] | undefined,
+) {
+  const moving = Boolean(session?.startedAt) && !session?.completedAt;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!moving) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [moving]);
+  return session ? sessionDuration(session, moving ? now : undefined) : null;
+}
 
 export function FactoryPage({
   meta,
@@ -209,7 +224,7 @@ export function SessionRow({
   const pullRequest = Boolean(session.pullRequestId ?? session.pullRequestUrl);
   const key = itemKey(session.workItemId);
   const finished = !activeStatuses.includes(session.status);
-  const ran = sessionDuration(session);
+  const ran = useSessionDuration(session);
   if (log)
     return (
       <ListRow

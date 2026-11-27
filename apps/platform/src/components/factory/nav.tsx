@@ -16,10 +16,10 @@ import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { activeStatuses } from "@lictory/platform/components/factory/labels";
 import { useSessionStateOf } from "@lictory/platform/components/factory/parts";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
-import {
-  useFactory,
-  waitingOnMe,
-} from "@lictory/platform/components/factory/store";
+import { useFactory } from "@lictory/platform/components/factory/store";
+import { agentsWaitingLabel } from "@lictory/platform/components/factory/overview-blocks";
+import { useWaitingOnYou } from "@lictory/platform/components/workspace/inbox";
+import { waitingGroup } from "@lictory/platform/components/shell/home/derive";
 
 // The Factory in the shell (components/shell/nav-registry.tsx): its sidebar
 // section, badge and palette entries (its Home cards are Home's own,
@@ -50,25 +50,18 @@ export const factorySection: NavSection = {
   label: "Factory",
   icon: Factory,
   href: factoryPaths.overview,
-  // Sessions waiting on me (I started them or own their agent) for a
-  // decision or my next message, as a dot: the Inbox's count already holds
-  // them (one number for what waits on me, everywhere), so the Factory only
-  // says that some of it is here. Its overview's "Needs you" lists them.
+  // What agents ask me (a decision or my next message), as a dot: the
+  // Inbox's count already holds it (one number for what waits on me,
+  // everywhere), so the Factory only says which part of that number is
+  // here, counted as the Inbox's "Agents waiting on you" and the overview's
+  // "Agents need you" count it, one row per request.
   useBadge: () => {
-    const { userId } = useWorkspace();
-    const { sessions, agentById } = useFactory();
-    const waiting = waitingOnMe(sessions, agentById, userId).length;
-    return waiting > 0
-      ? {
-          count: 0,
-          label: "",
-          dot:
-            waiting === 1
-              ? "1 agent session waiting on you"
-              : `${waiting} agent sessions waiting on you`,
-          tone: "quiet",
-        }
-      : null;
+    const waiting = useWaitingOnYou();
+    const agents = waiting.filter(
+      (row) => waitingGroup(row) === "agents",
+    ).length;
+    const dot = agentsWaitingLabel(agents, waiting.length);
+    return dot ? { count: 0, label: "", dot, tone: "quiet" } : null;
   },
   Section: FactorySection,
 };

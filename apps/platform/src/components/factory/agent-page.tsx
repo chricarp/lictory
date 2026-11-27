@@ -459,14 +459,15 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
   if (!calls) return null;
   return (
     <Panel
-      title="Recent activity"
+      // A runner agent works in sessions (their transcripts say what it
+      // did); this lists only what it did in Lictory itself, so the title
+      // says so and an empty list does not read as an idle agent.
+      title={agent.kind === "runner" ? "Actions in Lictory" : "Recent activity"}
       icon={<Activity />}
       count={calls.length}
-      // A runner agent works in sessions (their transcripts say what it
-      // did); this lists only its calls to Lictory's own tools.
       empty={
         agent.kind === "runner"
-          ? `${agent.name}'s sessions have not called Lictory's tools yet. What it did in each session is in the session's transcript.`
+          ? `None yet: ${agent.name} has not claimed, commented on or changed anything in Lictory. Its work in each session is in that session’s transcript.`
           : `${agent.name} has not called Lictory with its tokens yet.`
       }
     >

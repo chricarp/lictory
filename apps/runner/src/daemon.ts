@@ -158,6 +158,14 @@ export async function startDaemon(
     ).catch(() => undefined);
 
   let revoked = false;
+  // The last problem met while running, sent with every heartbeat so the
+  // runner's page in Lictory says what failed (and when), not only that
+  // the runner went offline. Kept after recovery: its time says how old it
+  // is.
+  let problem: { message: string; at: string } | null = null;
+  const met = (message: string) => {
+    problem = { message: message.slice(0, 500), at: new Date().toISOString() };
+  };
   const heartbeatFailures = failureLog(log, "Heartbeat");
   const beat = async () => {
     // Written before the request too, so a slow server never makes a
@@ -166,6 +174,7 @@ export async function startDaemon(
     try {
       const result = await client.heartbeat({
         ...report,
+        lastError: problem,
         sessions: [...sessions.values()].map((s) => ({
           sessionId: s.id,
           leaseToken: s.assignment.leaseToken,
@@ -186,7 +195,10 @@ export async function startDaemon(
         state.revoked = true;
         log(REVOKED_MESSAGE(config));
         stopping.abort();
-      } else heartbeatFailures.fail(state.lastError);
+      } else {
+        met(`Heartbeat failed: ${state.lastError}`);
+        heartbeatFailures.fail(state.lastError);
+      }
     }
     await saveState();
   };
@@ -239,6 +251,9 @@ export async function startDaemon(
         harness,
         workDir,
         log,
+        // `status` reads the state file: a session that starts waiting on
+        // a person says so at once, not a heartbeat later.
+        onStateChange: () => void saveState(),
         leaseStatus: async (signal) => {
           const answer = await client.heartbeat(
             {
@@ -281,6 +296,7 @@ export async function startDaemon(
       }
       failures++;
       state.lastError = error instanceof Error ? error.message : String(error);
+      met(`Asking for work failed: ${state.lastError}`);
       const wait = Math.min(60_000, 1_000 * 2 ** failures);
       claimFailures.fail(state.lastError, ` Next try in ${wait / 1000} s.`);
       await delay(wait, stopped);

@@ -282,7 +282,8 @@ script using a personal token is woken the same way from **Account
 settings → Event webhooks**, where you also choose the organization. Each delivery's body has `text` (one sentence
 describing the event, repeated as `message` for receivers that read that
 field) and `event` (its type, identifiers and a link), and is signed with
-the secret. A failing receiver is retried with backoff and suspended after
+the secret. A failing receiver is retried with backoff (its state reads
+**Retrying**, with the last problem and the next try) and suspended after
 five failures; **Resume** it once it works again. The
 [agent events reference](/reference/agent-events) lists every event type,
 header and payload, the retry schedule and how to verify a signature.

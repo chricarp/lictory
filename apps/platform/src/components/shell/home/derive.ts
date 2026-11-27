@@ -104,6 +104,7 @@ export const OUTCOME_DAYS = 7;
 type OutcomeSession = {
   id: string;
   agentId: string;
+  workItemId?: string | null;
   requestedById: string | null;
   status: string;
   updatedAt: string;
@@ -160,9 +161,20 @@ export function recentOutcomes<S extends OutcomeSession>(
         item,
       });
   }
+  // One delivery is one outcome: a completed session whose item is listed
+  // as done is that item's row, not a second row with another status word.
+  const doneItems = new Set(
+    rows.flatMap((r) => (r.kind === "item" ? [r.item.id] : [])),
+  );
   for (const session of sessions) {
     if (session.status !== "completed" && session.status !== "failed") continue;
     if (listed?.has(session.id)) continue;
+    if (
+      session.status === "completed" &&
+      session.workItemId &&
+      doneItems.has(session.workItemId)
+    )
+      continue;
     const at = session.completedAt ?? session.updatedAt;
     if (!recent(at)) continue;
     if (

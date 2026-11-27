@@ -141,7 +141,7 @@ const listAccessTokens = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → Personal access tokens",
+    where: "Account settings → Access tokens",
   },
   input: z.object({}),
   async run(ctx) {
@@ -169,7 +169,7 @@ const createAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → Personal access tokens",
+    where: "Account settings → Access tokens",
   },
   input: z.object({
     name: z.string().trim().min(1, "Name the token.").max(80),
@@ -258,7 +258,7 @@ const revokeAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → Personal access tokens",
+    where: "Account settings → Access tokens",
   },
   destructive: true,
   idempotent: true,

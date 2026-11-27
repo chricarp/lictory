@@ -449,6 +449,8 @@ function useCiRequired(pr: CodePullRequestEntity) {
 function readySummary(
   rows: readonly MergeRequirement[],
   target: string,
+  // Only agents approved it: "approved" alone would read as a person's.
+  agentsOnly = false,
 ): string {
   const missing: string[] = [];
   for (const r of rows) {
@@ -463,7 +465,9 @@ function readySummary(
     else if (r.key === "conflicts") missing.push("conflicts are not known yet");
   }
   if (!missing.length)
-    return `Checks passed, it is approved and it merges cleanly into ${target}.`;
+    return agentsOnly
+      ? `Checks passed, an agent approved it (no person has reviewed it) and it merges cleanly into ${target}.`
+      : `Checks passed, it is approved and it merges cleanly into ${target}.`;
   const list =
     missing.length === 1
       ? missing[0]
@@ -659,7 +663,15 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
         target={pr.baseBranch}
         requirements={rows}
         blocked={blockers.length > 0}
-        readySummary={readySummary(rows, pr.baseBranch)}
+        readySummary={readySummary(
+          rows,
+          pr.baseBranch,
+          pr.approvedBy.length === 0 &&
+            pr.reviews.some((r) => r.current && r.decision === "approve") &&
+            pr.reviews
+              .filter((r) => r.current && r.decision === "approve")
+              .every((r) => r.agentId),
+        )}
         before={autopilot && <AutopilotWaits pr={pr} />}
         noteId={noteId}
         note={

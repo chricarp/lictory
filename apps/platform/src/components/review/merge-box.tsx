@@ -74,19 +74,29 @@ export function MergeBox({
   const id = useId();
   const missing = requirements.filter(unmet).length;
   const isBlocked = blocked ?? missing > 0;
+  // Nothing fails, something has yet to report (checks running, a review
+  // to come): normal progress, said as waiting, not as a block.
+  const waiting =
+    isBlocked &&
+    missing > 0 &&
+    !requirements.some((r) => r.state === "failure");
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const words =
     verb === "apply"
-      ? { blocked: "Applying is blocked", ready: "Ready to apply", to: "apply" }
+      ? {
+          blocked: waiting ? "Waiting to apply" : "Applying is blocked",
+          ready: "Ready to apply",
+          to: "apply",
+        }
       : {
-          blocked: "Merging is blocked",
+          blocked: waiting ? "Waiting to merge" : "Merging is blocked",
           ready: "Ready to merge",
           to: `merge into ${target}`,
         };
   return (
     <section
       aria-labelledby={id}
-      data-merge-box={isBlocked ? "blocked" : "ready"}
+      data-merge-box={isBlocked ? (waiting ? "waiting" : "blocked") : "ready"}
       className={cn(
         "overflow-hidden rounded-xl bg-card shadow-(--shadow-border)",
         !isBlocked && "ring-1 ring-success/40",
@@ -98,7 +108,11 @@ export function MergeBox({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full",
-            isBlocked ? "bg-warning/12 text-warning" : "bg-success text-white",
+            !isBlocked
+              ? "bg-success text-white"
+              : waiting
+                ? "bg-muted text-muted-foreground"
+                : "bg-warning/12 text-warning",
           )}
         >
           <GitMerge className="size-4" />

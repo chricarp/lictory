@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import {
   mkdir,
   mkdtemp,
@@ -598,7 +600,13 @@ void test("the log narrates a session's waits, steering and answers", async () =
       const done = (async () => {
         context.emit("approval_request", {
           requestId: "req-1",
-          title: "Bash: Run the database migration",
+          title: "Run the database migration",
+          tool: "Bash",
+        });
+        // A request naming no tool is a question, and the log says so.
+        context.emit("approval_request", {
+          requestId: "req-2",
+          title: "Which release should the entry name?",
         });
         await context.nextMessage(60_000);
         return { outcome: "completed" as const };
@@ -628,7 +636,12 @@ void test("the log narrates a session's waits, steering and answers", async () =
             kind: "approval_answer",
             data: { requestId: "req-1", decision: "approve" },
           },
-          { seq: 2, kind: "message", data: { text: "Use the v2 API" } },
+          {
+            seq: 2,
+            kind: "approval_answer",
+            data: { requestId: "req-2", decision: "answer", note: "2.1" },
+          },
+          { seq: 3, kind: "message", data: { text: "Use the v2 API" } },
         ],
       };
     },
@@ -636,21 +649,28 @@ void test("the log narrates a session's waits, steering and answers", async () =
     release: () => Promise.resolve({ status: "queued" }),
   };
   const logs: string[] = [];
-  const run = new SessionRun(assignment, {
+  // Every change of state reaches the state file `status` reads at once.
+  const states: string[] = [];
+  const run: SessionRun = new SessionRun(assignment, {
     client: { session: () => session } as unknown as RunnerClient,
     config,
     harness: asking,
     workDir: join(scratch, "narrated"),
     log: (line) => logs.push(line),
+    onStateChange: () => states.push(run.state),
   });
   assert.equal((await run.run()).outcome, "completed");
   assert.deepEqual(logs, [
     "Session s-1: no repository is linked; it works in an empty workspace.",
-    "Session s-1 waits for a person to approve: Bash: Run the database migration",
+    "Session s-1 waits for a person to approve “Run the database migration”.",
+    "Session s-1 waits for a person's answer to “Which release should the entry name?”.",
     "Session s-1 waits for a person's message in its thread.",
-    "Session s-1: a person approved Bash: Run the database migration.",
+    "Session s-1: a person approved “Run the database migration”.",
+    "Session s-1: a person answered “Which release should the entry name?”.",
     "Session s-1: a steering message arrived from its thread.",
   ]);
+  assert.equal(states[0], "running");
+  assert.ok(states.includes("waiting"));
 });
 
 void test("the scripted harness's interrupt stops the step and waits for the next message", async () => {
@@ -716,6 +736,7 @@ void test("the scripted harness's interrupt stops the step and waits for the nex
 });
 
 void test("status and doctor say what a person must do, with the exit code start uses", async () => {
+  const cliPath = join(import.meta.dirname, "cli.ts");
   const cli = (home: string, command: string) =>
     spawnSync("bun", [join(import.meta.dirname, "cli.ts"), command], {
       env: { ...process.env, LICTORY_RUNNER_HOME: home },
@@ -727,7 +748,7 @@ void test("status and doctor say what a person must do, with the exit code start
   assert.equal(cli(empty, "status").status, EXIT.needsPerson);
   const unregistered = cli(empty, "doctor");
   assert.equal(unregistered.status, EXIT.needsPerson);
-  assert.match(unregistered.stdout, /^✗ FAIL Not registered$/m);
+  assert.match(unregistered.stdout, /^✗ fail Not registered$/m);
 
   // Stopped after the server refused the credential: status says so instead
   // of suggesting start, which would be refused again.
@@ -762,6 +783,48 @@ void test("status and doctor say what a person must do, with the exit code start
     /Stopped: The server refused this runner's credential/,
   );
   assert.doesNotMatch(revoked.stdout, /Start it with/);
+
+  // doctor agrees with status and start: a refused credential needs a
+  // person (register again), 2, not a failed check's 1.
+  const server = createServer((_request, response) => {
+    response.writeHead(401, { "Content-Type": "application/json" });
+    response.end(
+      JSON.stringify({
+        error: { message: "This runner credential is invalid or revoked." },
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const refusedHome = join(scratch, "refused");
+    await writeConfig(
+      configSchema.parse({
+        url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+        runnerId: "r-2",
+        organizationId: "o-1",
+        name: "build-02",
+        personal: false,
+        credential: "synthetic",
+      }),
+      refusedHome,
+    );
+    // Not spawnSync: this process must answer the runner's heartbeat.
+    const doctor = spawn(process.execPath, [cliPath, "doctor"], {
+      env: { ...process.env, LICTORY_RUNNER_HOME: refusedHome },
+    });
+    let stdout = "";
+    doctor.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
+    const code = await new Promise<number | null>((resolve) =>
+      doctor.on("close", resolve),
+    );
+    assert.equal(code, EXIT.needsPerson, stdout);
+    assert.match(
+      stdout,
+      /^✗ fail The server refused this runner's credential/m,
+    );
+  } finally {
+    server.close();
+  }
 });
 
 void test("doctor's harness probes tell signed in from signed out, without naming the account", async () => {
