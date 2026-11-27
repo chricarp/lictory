@@ -238,6 +238,13 @@ export const browserOperations: readonly BrowserOperation[] = [
     routes: ["POST /api/appearance"],
   },
   {
+    name: "setKeyboardPreferences",
+    title: "Turn single-key shortcuts on or off",
+    reason: "browser",
+    where: "Account settings → Keyboard → Single-key shortcuts",
+    routes: ["POST /api/preferences"],
+  },
+  {
     name: "reportPresence",
     title: "Show who is viewing a work item",
     reason: "browser",
