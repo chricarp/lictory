@@ -423,7 +423,7 @@ test("changes made offline survive a reload, apply once back online and reach ot
     await zero.interrupt();
     // Losing the connection is said once, through the workspace's announcer.
     await expect(ben.page.locator("[data-announcer]")).toContainText(
-      /You’re offline|Reconnecting…/,
+      /You’re offline/,
     );
     await setPriority(ben.page, "Low");
     const text = "Exports include reversed entries.";
@@ -446,7 +446,7 @@ test("changes made offline survive a reload, apply once back online and reach ot
     await second.setViewportSize({ width: 390, height: 844 });
     const phoneNotice = second.locator("[data-phone-sync-notice]");
     await expect(phoneNotice).toBeVisible();
-    await expect(phoneNotice).toContainText(/You’re offline|Reconnecting…/);
+    await expect(phoneNotice).toContainText(/You’re offline/);
 
     // Back online but still without a workspace connection: a reload keeps
     // the unsent work, kept by Zero on this device.

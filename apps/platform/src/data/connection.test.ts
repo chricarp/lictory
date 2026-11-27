@@ -47,6 +47,14 @@ void test("the sync indicator follows the connection and unsent work", () => {
   assert.equal(of("error"), "attention");
   assert.equal(of("needs-auth"), "access");
   assert.equal(of("closed"), "access");
+  // With no network the retry cannot succeed: offline at once, not
+  // "Reconnecting…" until Zero gives up. Sign-in problems still win.
+  const offline = (connection: ConnectionName) =>
+    presentation({ connection, ...base, browserOffline: true });
+  assert.equal(offline("connecting"), "offline");
+  assert.equal(offline("connected"), "offline");
+  assert.equal(offline("needs-auth"), "access");
+  assert.equal(offline("error"), "attention");
 });
 
 void test("writes are only accepted while Zero can reach the server", () => {

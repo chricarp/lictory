@@ -66,6 +66,24 @@ const titles: Record<Presentation, string> = {
   access: "Workspace access interrupted",
 };
 
+// Whether the browser reports a network at all. Its "online" can be wrong
+// (a network without internet), so it only ever says offline sooner.
+function useBrowserOffline() {
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== "undefined" && navigator.onLine === false,
+  );
+  useEffect(() => {
+    const update = () => setOffline(navigator.onLine === false);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return offline;
+}
+
 // The workspace's sync state, shared by the sidebar indicator and the
 // phone's notice.
 function useSyncState() {
@@ -77,12 +95,14 @@ function useSyncState() {
   const busyShown = useDebouncedBusy(
     view.status === "hydrating" || pending.length > 0,
   );
+  const browserOffline = useBrowserOffline();
   const presentation: Presentation = presentationOf({
     connection,
     everConnected,
     reason: connectionReason,
     busy: busyShown,
     rejected: rejected.length,
+    browserOffline,
   });
   const problem = connectionProblem(connection, connectionReason);
   const errors = [
