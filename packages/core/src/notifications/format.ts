@@ -29,18 +29,25 @@ function channelPlace(d: Record<string, unknown>) {
     : `in #${name}`;
 }
 
+// Quotes a title; quotation marks inside it become single ones, so a
+// suggestion titled “Change “up to”” never ends in two closing marks.
+function quote(text: string | null | undefined) {
+  const inner = (text ?? "").replace(/[“"](?=\S)/g, "‘").replace(/[”"]/g, "’");
+  return `“${inner}”`;
+}
+
 export function describeNotification(
   n: NotificationView,
   actor: string,
 ): { headline: string; body: string | null } {
   const d = n.detail;
   const item = str(d.itemKey) ?? "an item";
-  const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
+  const page = str(d.pageTitle) ? quote(str(d.pageTitle)) : "a page";
   const excerpt = str(d.excerpt);
   const count = typeof d.count === "number" ? d.count : 1;
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
-    ? `“${str(d.suggestionTitle)}”`
+    ? quote(str(d.suggestionTitle))
     : "a suggestion";
   switch (n.kind as NotificationKind) {
     case "review_requested":
@@ -73,7 +80,7 @@ export function describeNotification(
       return {
         headline: `Your approval of ${item} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed the proposed change “${str(d.pullRequestTitle)}”.`
+          ? `${actor} changed the proposed change ${quote(str(d.pullRequestTitle))}.`
           : `${actor} revised the specification to revision ${num(d.revision)}.`,
       };
     case "specification_revised":
@@ -114,22 +121,22 @@ export function describeNotification(
       };
     case "pull_request_review_requested":
       return {
-        headline: `${actor} requested ${responsibility ?? ""} review of the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} requested ${responsibility ?? ""} review of the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: null,
       };
     case "pull_request_decided":
       return {
-        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: responsibility,
       };
     case "pull_request_mergeable":
       return {
-        headline: `The proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to apply`,
+        headline: `The proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item} is ready to apply`,
         body: "Every requirement to apply it is met.",
       };
     case "pull_request_merged":
       return {
-        headline: `${actor} applied the proposed change “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} applied the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body:
           str(d.target) === "main"
             ? "Applied to the specification"
@@ -218,7 +225,7 @@ export function describeNotification(
       return {
         headline: `Your approval of a change to ${page} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed “${str(d.pullRequestTitle)}” after you approved it.`
+          ? `${actor} changed ${quote(str(d.pullRequestTitle))} after you approved it.`
           : `${actor} changed it after you approved it.`,
       };
     case "page_mentioned":
