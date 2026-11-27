@@ -142,7 +142,14 @@ function headingFor(node: Node | null): Element | null {
 }
 
 // Where the selection's actions sit: x is the centre, y the top edge.
-type Selected = QuoteDraft & { x: number; y: number };
+// `end` is the selection's last line (its right edge, top and height):
+// when the line has room after the selection, the actions sit there and
+// cover no text at all.
+type Selected = QuoteDraft & {
+  x: number;
+  y: number;
+  end: { x: number; y: number; height: number };
+};
 // The actions' height and their distance from the selected lines (px).
 const SELECTION_BAR = 34;
 const SELECTION_GAP = 6;
@@ -171,7 +178,30 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
   // when the window has no room below.
   const below =
     rect.bottom + SELECTION_GAP + SELECTION_BAR < window.innerHeight;
+  const lines = range.getClientRects();
+  const last = lines[lines.length - 1] ?? rect;
+  // Where the text of the selection's last line ends (words after the
+  // selection on that line must stay visible too).
+  let lineEnd = last.right;
+  const endElement =
+    range.endContainer instanceof Element
+      ? range.endContainer
+      : range.endContainer.parentElement;
+  const block = endElement?.closest("p, li, h1, h2, h3, h4, h5, h6, td, th");
+  if (block) {
+    const rest = document.createRange();
+    rest.setStart(range.endContainer, range.endOffset);
+    rest.setEnd(block, block.childNodes.length);
+    for (const line of rest.getClientRects())
+      if (Math.abs(line.top - last.top) < last.height / 2)
+        lineEnd = Math.max(lineEnd, line.right);
+  }
   return {
+    end: {
+      x: lineEnd - rootRect.left,
+      y: last.top - rootRect.top,
+      height: last.height,
+    },
     x: rect.left - rootRect.left + rect.width / 2,
     y: below
       ? rect.bottom - rootRect.top + SELECTION_GAP
@@ -312,22 +342,44 @@ function Reader({
   const setHovered = discussions?.setHovered;
   // The selection actions stay inside the text's column (a discussions
   // column or the window edge would cut them off), also while it resizes.
+  // After the selection on its last line when the line has room (nothing
+  // is covered); otherwise under the selection, centred on it.
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const selectionX = selection?.x;
+  const x = selection?.x;
+  const y = selection?.y;
+  const endX = selection?.end.x;
+  const endY = selection?.end.y;
+  const endHeight = selection?.end.height;
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     const column = toolbar?.parentElement;
-    if (!toolbar || !column || selectionX === undefined) return;
+    if (
+      !toolbar ||
+      !column ||
+      x === undefined ||
+      y === undefined ||
+      endX === undefined ||
+      endY === undefined ||
+      endHeight === undefined
+    )
+      return;
     const place = () => {
-      const half = toolbar.offsetWidth / 2;
+      const width = toolbar.offsetWidth;
+      const half = width / 2;
+      if (endX + SELECTION_GAP + width <= column.clientWidth) {
+        toolbar.style.left = `${endX + SELECTION_GAP + half}px`;
+        toolbar.style.top = `${endY + (endHeight - toolbar.offsetHeight) / 2}px`;
+        return;
+      }
       const max = column.clientWidth - half;
-      toolbar.style.left = `${Math.max(half, Math.min(selectionX, max))}px`;
+      toolbar.style.left = `${Math.max(half, Math.min(x, max))}px`;
+      toolbar.style.top = `${y}px`;
     };
     place();
     const observer = new ResizeObserver(place);
     observer.observe(column);
     return () => observer.disconnect();
-  }, [selectionX]);
+  }, [x, y, endX, endY, endHeight]);
   return (
     <div className="relative">
       {isEmpty ? (

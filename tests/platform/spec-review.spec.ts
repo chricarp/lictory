@@ -257,12 +257,20 @@ test("a keyboard-only reviewer anchors a discussion to a passage, and hears a re
   await expect
     .poll(() => selectionText(page))
     .toBe("Retries reuse the original transaction ID.");
+  // The actions sit after the selected line's text, covering no words.
+  const actions = page.getByRole("toolbar", { name: "Selection actions" });
+  const selected = await page.evaluate(() => {
+    const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+    return { right: r.right, top: r.top, bottom: r.bottom };
+  });
+  const box = (await actions.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(selected.right);
+  expect(box.y + box.height / 2).toBeGreaterThan(selected.top);
+  expect(box.y + box.height / 2).toBeLessThan(selected.bottom);
   // Tab reaches the selection's actions first.
   await page.keyboard.press("Tab");
   await expect(
-    page
-      .getByRole("toolbar", { name: "Selection actions" })
-      .getByRole("button", { name: "Comment on selection" }),
+    actions.getByRole("button", { name: "Comment on selection" }),
   ).toBeFocused();
   await page.keyboard.press("Enter");
   const composer = await fillMarkdown(
@@ -274,6 +282,10 @@ test("a keyboard-only reviewer anchors a discussion to a passage, and hears a re
   await expect(marked(page)).toHaveText([
     "Retries reuse the original transaction ID.",
   ]);
+  // Focus lands on the new discussion, not at the top of the page.
+  await expect(
+    panelOf(page).getByRole("article", { name: /Discussion by/ }),
+  ).toBeFocused();
   await expectNoAccessibilityViolations(page, "keyboard-anchored discussion");
 
   // Someone else's revision is announced politely; the page stays put.
