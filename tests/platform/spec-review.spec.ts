@@ -249,11 +249,17 @@ test("a keyboard-only reviewer anchors a discussion to a passage, and hears a re
   await expect(reader).toHaveAccessibleDescription(/Arrow keys select a word/);
   // Two Tab presses from the top of the page reach it: the second skip link
   // passes the sidebar, the item list and the header.
-  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
-  await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("link", { name: "Skip to content" }),
-  ).toBeFocused();
+  // Start from the top of the document. A panel that finishes loading (or a
+  // page that reloads after a lost chunk) can move the starting point after
+  // the blur, so the step is retried until the first Tab lands on the first
+  // skip link; what follows is asserted once.
+  await expect(async () => {
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("link", { name: "Skip to content" }),
+    ).toBeFocused({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to specification" });
   await expect(skip).toBeFocused();
