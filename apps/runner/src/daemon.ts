@@ -243,7 +243,7 @@ export async function startDaemon(
         continue;
       }
       log(
-        `Session ${assignment.sessionId}: ${assignment.title} (${assignment.agent.name}, ${assignment.agent.harness})`,
+        `Session ${assignment.sessionId}: ${assignment.title} (${assignment.agent.name}, ${assignment.agent.harness})${assignment.sessionUrl ? ` ${assignment.sessionUrl}` : ""}`,
       );
       const run = new SessionRun(assignment, {
         client,

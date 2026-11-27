@@ -73,6 +73,7 @@ import {
 import { sessionCardId } from "@lictory/core/factory/thread-ids";
 import { readChannelAccess } from "@lictory/core/channels/access";
 import { platformUrl } from "@lictory/core/lib/auth-base-url";
+import { paths as appPaths } from "@lictory/core/lib/paths";
 import { queueNotifications } from "@lictory/core/notifications/events";
 
 // Agent sessions (docs/internals/factory.md#sessions): one run of an agent on
@@ -1266,7 +1267,7 @@ export async function claimSession(
         });
         await projectSession(tx, row);
         publish(threadEvent(row, "status"));
-        const [requester, item, ai] = await Promise.all([
+        const [requester, item, ai, organization] = await Promise.all([
           memberName(tx, session.requestedById),
           session.workItemId
             ? tx
@@ -1282,6 +1283,11 @@ export async function claimSession(
                 .then((r) => r[0])
             : undefined,
           aiPolicy(tx, session.organizationId),
+          tx
+            .select({ slug: s.organization.slug })
+            .from(s.organization)
+            .where(eq(s.organization.id, session.organizationId))
+            .then((r) => r[0]),
         ]);
         const base = platformUrl().replace(/\/$/, "");
         const assignment: Assignment = {
@@ -1320,6 +1326,11 @@ export async function claimSession(
               }
             : null,
           lictory: { url: base, mcpUrl: `${base}/api/mcp`, token: secret },
+          ...(organization
+            ? {
+                sessionUrl: `${base}${appPaths.factorySession(organization.slug, row.id)}`,
+              }
+            : {}),
           inputCursor: row.inputCursor,
           modelProxy: agent.harness === "lictory" && ai.enabled && ai.available,
         };

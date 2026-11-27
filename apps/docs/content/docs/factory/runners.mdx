@@ -167,7 +167,9 @@ for a person (an approval or the next message), when a person answers,
 steers or interrupts it, and when it ends, with how it ended: completed (and
 the branch it pushed, which Lictory opens or updates a pull request for),
 failed (and why), canceled in Lictory, stopped because the runner no longer
-held it, or returned to the queue when the runner stopped. A failure that
+held it, or returned to the queue when the runner stopped. The line where a
+session starts, and each line where it waits for a person, ends with the
+address of its page in Lictory. A failure that
 repeats, such as an unreachable server, is logged once in full, then as a
 reminder every five minutes, and its recovery is logged.
 

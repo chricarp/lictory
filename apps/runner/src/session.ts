@@ -144,6 +144,13 @@ export class SessionRun {
     return this.assignment.sessionId;
   }
 
+  // Where a person answers it: the session's page, when the server says.
+  private get where() {
+    return this.assignment.sessionUrl
+      ? ` Open it: ${this.assignment.sessionUrl}`
+      : "";
+  }
+
   stop(reason: StopReason) {
     if (this.reason) return;
     this.reason = reason;
@@ -178,7 +185,7 @@ export class SessionRun {
       this.pendingApprovals.set(String(data.requestId), { title, question });
       this.state = "waiting";
       this.deps.log(
-        `Session ${this.id} waits for ${question ? "a person's answer to" : "a person to approve"} “${firstLine(title)}”.`,
+        `Session ${this.id} waits for ${question ? "a person's answer to" : "a person to approve"} “${firstLine(title)}”.${this.where}`,
       );
     }
     if (type === "summary") this.summary = String(data.text);
@@ -239,7 +246,7 @@ export class SessionRun {
     const onPerson = waitMs > IDLE_GRACE_MS && this.messages.queued === 0;
     if (onPerson) {
       this.deps.log(
-        `Session ${this.id} waits for a person's message in its thread.`,
+        `Session ${this.id} waits for a person's message in its thread.${this.where}`,
       );
       this.events.push("status", {
         phase: runnerPhases.awaitingMessage,

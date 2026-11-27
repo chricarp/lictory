@@ -328,6 +328,9 @@ export const assignment = z.object({
   // A session-scoped Lictory access token for Lictory's MCP tools; it acts
   // as the agent and stops working when the session ends.
   lictory: z.object({ url: z.string(), mcpUrl: z.string(), token: z.string() }),
+  // The session's page, so the runner's log links to it (absent from older
+  // servers).
+  sessionUrl: z.string().optional(),
   // Steering inputs after this sequence belong to this attempt.
   inputCursor: z.number().int().nonnegative(),
   // Lictory Intelligence is available to the built-in harness.
