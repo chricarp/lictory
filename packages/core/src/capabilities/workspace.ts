@@ -1078,7 +1078,7 @@ const getWorkItem = defineCapability({
   name: "getWorkItem",
   title: "Get work item",
   description:
-    "A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.",
+    "A work item with its current specification (Markdown, once, under specification), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. The item names its type, status, assignee, team and iteration (`names`) beside their ids, so no getWorkspace lookup is needed to read it. Identify it by id or by key (e.g. PAY-142). Revision contents are included only with includeRevisionContent.",
   kind: "query",
   surfaces: everywhere,
   input: z
@@ -1184,8 +1184,37 @@ const getWorkItem = defineCapability({
     const revisions = of("revision").sort((a, b) => b.number - a.number);
     const current = revisions.find((r) => r.id === item.revisionId);
     const messages = of("message");
+    const person = (userId: string | null) =>
+      userId
+        ? (roster.members.find((m) => m.id === userId)?.name ??
+          roster.formerMembers.find((m) => m.id === userId)?.name ??
+          null)
+        : null;
+    const status = roster.statuses.find((st) => st.id === item.statusId);
+    const iteration = item.iterationId
+      ? roster.iterations.find((it) => it.id === item.iterationId)
+      : undefined;
     return {
-      item: { key: keyOf(item, roster.projects), ...item },
+      item: {
+        key: keyOf(item, roster.projects),
+        ...item,
+        // What the ids above name, so an agent reads the item without
+        // looking each one up in getWorkspace.
+        names: {
+          type: roster.types.find((t) => t.id === item.typeId)?.name ?? null,
+          status: status
+            ? { name: status.name, category: status.category }
+            : null,
+          assignee: person(item.assigneeId),
+          team: item.teamId
+            ? (roster.teams.find((t) => t.id === item.teamId)?.name ?? null)
+            : null,
+          iteration: iteration
+            ? (iteration.name ?? `Iteration ${iteration.number}`)
+            : null,
+          createdBy: person(item.createdById),
+        },
+      },
       specification: current
         ? {
             revisionId: current.id,
@@ -1194,10 +1223,10 @@ const getWorkItem = defineCapability({
             content: current.content,
           }
         : null,
+      // The current text is under specification; revisions list history
+      // without repeating it unless includeRevisionContent asks for it.
       revisions: revisions.map((r) =>
-        q.includeRevisionContent || r.id === current?.id
-          ? r
-          : { ...r, content: undefined },
+        q.includeRevisionContent ? r : { ...r, content: undefined },
       ),
       readiness: of("readiness")[0]?.checks ?? [],
       reviews: of("review"),
@@ -1229,6 +1258,8 @@ const getWorkItem = defineCapability({
           key: keyOf(c, roster.projects),
           title: c.title,
           statusId: c.statusId,
+          status:
+            roster.statuses.find((st) => st.id === c.statusId)?.name ?? null,
           refinementState: c.refinementState,
         })),
       externalLinks: entities.filter(
