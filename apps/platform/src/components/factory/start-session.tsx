@@ -65,6 +65,11 @@ export function startableAgents(
 
 // The repositories offered: those serving the item's project when there is
 // one (its default first), else every linked one; archived ones never.
+// `fallback` is where the session works unless the person picks another:
+// the project's default (or its only repository), the server's own choice
+// for an item. `only` is the one repository linked at all, chosen up front
+// for a session with no item, so the default is not a scratch workspace
+// whose work is discarded; the person can still pick None.
 export function repositoryChoices(
   repositories: readonly CodeRepositoryEntity[],
   projectId: string | null,
@@ -78,16 +83,20 @@ export function repositoryChoices(
       serving[0] ??
       null)
     : null;
-  return { repositories: serving, fallback };
+  const only = !projectId && serving.length === 1 ? serving[0]! : null;
+  return { repositories: serving, fallback, only };
 }
 export function StartSessionDialog({
   onClose,
   agentId: initialAgent,
   workItemId: initialItem,
+  prompt: initialPrompt,
 }: {
   onClose: () => void;
   agentId?: string;
   workItemId?: string;
+  // Starting again what an earlier session was asked.
+  prompt?: string;
 }) {
   const { organization, userId, items } = useWorkspace();
   const { agents } = useFactory();
@@ -96,13 +105,14 @@ export function StartSessionDialog({
   const [agentId, setAgentId] = useState(
     initialAgent ?? startable[0]?.id ?? "",
   );
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [workItemId, setWorkItemId] = useState<string | null>(
     initialItem ?? null,
   );
   const { repositories } = useCodeHosts();
-  // A linked repository (by id), the project's default, or an address.
-  const [repository, setRepository] = useState<string>(DEFAULT);
+  // A linked repository (by id), the project's default, or an address;
+  // null until the person picks one.
+  const [repository, setRepository] = useState<string | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -121,10 +131,10 @@ export function StartSessionDialog({
     [repositories, item?.projectId],
   );
   // A repository that does not serve the item's project falls back.
+  const picked = repository ?? choices.only?.id ?? DEFAULT;
   const choice =
-    repository === OTHER ||
-    choices.repositories.some((r) => r.id === repository)
-      ? repository
+    picked === OTHER || choices.repositories.some((r) => r.id === picked)
+      ? picked
       : DEFAULT;
   const chosenUrl =
     choice === OTHER

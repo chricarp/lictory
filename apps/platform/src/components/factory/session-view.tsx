@@ -62,6 +62,10 @@ import {
   TranscriptRow,
   transcriptItems,
 } from "@lictory/platform/components/factory/transcript";
+import {
+  StartSessionDialog,
+  startableAgents,
+} from "@lictory/platform/components/factory/start-session";
 
 // One agent session, read like a coding agent's transcript: the header
 // says what it is and where it stands (back, title, state, Interrupt,
@@ -83,6 +87,7 @@ export function SessionView() {
   const stateOf = useSessionStateOf();
   const [limit, setLimit] = useState(WINDOW);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [startingAgain, setStartingAgain] = useState(false);
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
@@ -196,6 +201,9 @@ export function SessionView() {
   // destructive one is never picked in a hurry.
   const cancel = () => setConfirmingCancel(true);
   const asks = session.status === "waiting" ? session.approvals : [];
+  // Its work was not kept: whoever may start the agent starts the same
+  // task again, choosing a repository this time.
+  const canStartAgain = !!agent && startableAgents([agent], userId).length > 0;
   const itemKey = item && project ? identifier(project, item.number) : null;
   // Where it was asked for: its channel thread, if a mention started it.
   const thread =
@@ -455,6 +463,9 @@ export function SessionView() {
                 }
                 error={session.error}
                 discardedFiles={session.discardedFiles ?? 0}
+                onStartAgain={
+                  canStartAgain ? () => setStartingAgain(true) : undefined
+                }
               />
             )}
           {/* A failure is the start of a decision: retry as is, or go
@@ -565,6 +576,14 @@ export function SessionView() {
           />
         </div>
       )}
+      {startingAgain && (
+        <StartSessionDialog
+          onClose={() => setStartingAgain(false)}
+          agentId={session.agentId}
+          workItemId={session.workItemId ?? undefined}
+          prompt={session.prompt}
+        />
+      )}
     </div>
   );
 }
@@ -609,11 +628,14 @@ function Result({
   summary,
   error,
   discardedFiles,
+  onStartAgain,
 }: {
   summary: string | null;
   error: string | null;
   // Files it changed with no repository linked, discarded as it ended.
   discardedFiles: number;
+  // Opens Start session with the same agent, task and item.
+  onStartAgain?: () => void;
 }) {
   const unkept = !error && discardedFiles > 0;
   return (
@@ -636,10 +658,18 @@ function Result({
         <p className="mt-1 whitespace-pre-wrap text-destructive">{error}</p>
       )}
       {unkept ? (
-        <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
-          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
-          {notKeptMeaning(discardedFiles)}
-        </p>
+        <>
+          <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+            <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+            {notKeptMeaning(discardedFiles)}
+          </p>
+          {onStartAgain && (
+            <Button variant="secondary" className="mt-3" onClick={onStartAgain}>
+              <RotateCcw className="size-3.5" aria-hidden /> Start again with a
+              repository…
+            </Button>
+          )}
+        </>
       ) : (
         !error && (
           <p className="mt-2 text-xs text-muted-foreground">

@@ -36,11 +36,16 @@ agent's harness, or the only ones are other people's personal runners), the
 session, its card and its item say **No runner** and the overview points
 you to **Runners**.
 
-Without a repository the agent works in a scratch workspace that is
-discarded when the session ends: the dialog says so before you start, and a
-request to write a file says so before you approve it. A session that
-changed files there ends as **Work not kept**, with how many files were
-discarded, instead of **Completed**.
+The repository starts at the work item's project default. With no work item
+and exactly one repository linked in the organization, it starts at that
+one; you can still choose **None**. Without a repository the agent works in
+a scratch workspace that is discarded when the session ends: the dialog says
+so before you start, and a request to write a file or run a command says so
+before you approve it (a command's effects outside the workspace, such as a
+database migration, are not undone). A session that changed files there ends
+as **Work not kept**, with how many files were discarded, instead of
+**Completed**; **Start again with a repository…** opens Start session with
+the same agent, task and work item.
 
 You can start sessions with agents you own, and with agents their owners
 share with the organization. A shared agent still acts as its owner.

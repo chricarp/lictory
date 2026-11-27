@@ -94,6 +94,10 @@ the agent, or its owner shared it with the organization, the message starts
 an [agent session](/factory) on a runner and its thread becomes the
 session's thread:
 
+- It works in the repository your message names (`in acme/payments`, or its
+  address). Otherwise, when the linked work item's project, or the channel's
+  project, has exactly one repository, it works there; with none it works in
+  a scratch workspace whose files are discarded when it ends.
 - A **session card** answers in the thread: the agent "via" its owner, its
   live status, the work item when the message links exactly one, and
   **Open session** for the full transcript in the Factory. **Interrupt**

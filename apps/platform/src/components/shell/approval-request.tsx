@@ -424,19 +424,22 @@ function Context({
     input: evidence.input,
   });
   // No repository is linked: what the agent writes is discarded when the
-  // session ends. Said before the approval, not only after it.
+  // session ends. Said before the approval, not only after it, for a file
+  // and for a command alike (a command's effects outside the workspace,
+  // such as a migration, are never undone).
   const unkept = !session.repositoryId && !session.repositoryUrl;
   return (
     <div className="mt-3 space-y-3 text-[13px]">
       {reason && <p className="leading-5">{reason}</p>}
-      {unkept && action?.kind === "file" && (
+      {unkept && (action?.kind === "file" || action?.kind === "command") && (
         <p
           data-not-kept
           className="flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
         >
           <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
-          No repository is linked to this session: the file is written in a
-          scratch workspace and discarded when the session ends.
+          {action.kind === "file"
+            ? "No repository is linked to this session: the file is written in a scratch workspace and discarded when the session ends."
+            : "No repository is linked to this session: the command runs in a scratch workspace, and files it changes there are discarded when the session ends. What it changes elsewhere, such as a database, stays changed."}
         </p>
       )}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
