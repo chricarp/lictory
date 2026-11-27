@@ -276,7 +276,6 @@ export function ItemDetail({
   // The document pane's scroller: a new screen opens at its top, not at
   // the scroll position of the one it replaced (sending a breakdown for
   // review from the bottom of the editor landed at the review's activity).
-  const documentPane = useRef<HTMLDivElement>(null);
   const setMode = useCallback(
     (next: DetailMode) => {
       if (
@@ -284,7 +283,9 @@ export function ItemDetail({
         next.kind === "branch" ||
         next.kind === "branches"
       )
-        requestAnimationFrame(() => documentPane.current?.scrollTo({ top: 0 }));
+        requestAnimationFrame(() =>
+          document.querySelector("[data-pane-document]")?.scrollTo({ top: 0 }),
+        );
       track("specification_mode_selected", {
         organization_id: workspace.organization.id,
         project_id: item.projectId,
@@ -1081,11 +1082,7 @@ export function ItemDetail({
             </div>
           </header>
           <div ref={setRow} className="flex min-h-0 flex-1">
-            <div
-              ref={documentPane}
-              data-pane-document
-              className="min-w-0 flex-1 overflow-y-auto"
-            >
+            <div data-pane-document className="min-w-0 flex-1 overflow-y-auto">
               <div
                 className={
                   branchScreen
