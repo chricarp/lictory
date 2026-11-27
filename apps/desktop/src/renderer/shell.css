@@ -213,8 +213,9 @@ select {
   background: var(--accent);
   color: var(--foreground);
 }
+/* Disabled stays readable as a control (3:1 on the dark bar). */
 .icon-button:disabled {
-  opacity: 0.4;
+  opacity: 0.55;
 }
 
 .spinner {

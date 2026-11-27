@@ -26,7 +26,7 @@ function serverButton(server: ShellServer, current: ShellState) {
   // The name read out starts with the initials shown, so a person using
   // voice control can say what they see (WCAG 2.5.3).
   const label = [
-    `${server.initials} ${server.name}`,
+    server.initials ? `${server.initials} ${server.name}` : server.name,
     server.unread ? `${unread} unread` : null,
     server.shortcut ? shortcutLabel(current, server.shortcut) : null,
   ]
@@ -62,11 +62,13 @@ function serverButton(server: ShellServer, current: ShellState) {
           },
         },
       },
-      h(
-        "span",
-        { class: "server-initials", "aria-hidden": "true" },
-        server.initials,
-      ),
+      server.initials
+        ? h(
+            "span",
+            { class: "server-initials", "aria-hidden": "true" },
+            server.initials,
+          )
+        : icon(icons.server, 18),
     ),
     // Beside the button, drawn over its corner: its digits are not part of
     // the button's visible name (the name says "3 unread").

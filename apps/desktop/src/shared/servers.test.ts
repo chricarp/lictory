@@ -361,5 +361,8 @@ void test("switcher initials", () => {
   assert.equal(initials("Acme Payments"), "AP");
   assert.equal(initials("lictory.example.com"), "LE");
   assert.equal(initials("acme.com"), "AC");
-  assert.equal(initials("localhost:3000"), "LO");
+  // Addresses without a name to abbreviate get the server glyph instead.
+  assert.equal(initials("localhost:3000"), "");
+  assert.equal(initials("127.0.0.1:5001"), "");
+  assert.equal(initials("[::1]:3000"), "");
 });
