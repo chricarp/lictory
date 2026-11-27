@@ -44,7 +44,12 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     await page
       .getByRole("button", { name: "Create another", exact: true })
       .click();
-    await expect(page.getByText(`${type} “${title}” created`)).toBeVisible();
+    // The toast, not ui-sdk's live region that repeats it to screen readers.
+    await expect(
+      page.locator('[data-slot="toast"]', {
+        hasText: `${type} “${title}” created`,
+      }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
   }
 

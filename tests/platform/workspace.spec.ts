@@ -471,8 +471,11 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     .getByRole("dialog", { name: "Create story" })
     .getByRole("button", { name: "Create another", exact: true })
     .click();
+  // The toast, not ui-sdk's live region that repeats it to screen readers.
   await expect(
-    page.getByText("Story “Define cancellation API” created"),
+    page.locator('[data-slot="toast"]', {
+      hasText: "Story “Define cancellation API” created",
+    }),
   ).toBeVisible();
   await page
     .getByRole("dialog", { name: "Create story" })
