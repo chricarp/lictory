@@ -336,15 +336,22 @@ async function register(args: string[]) {
     personal: registered.personal,
     credential: registered.credential,
   });
+  // A headline, then one short fact per line, so it scans in a terminal.
   say(
-    `Registered ${registered.name} as ${registered.personal ? "a personal" : "an organization"} runner. Configuration: ${configPath()}`,
+    `Registered ${registered.name} as ${registered.personal ? "a personal" : "an organization"} runner.`,
   );
-  if (base.isolation === "host")
+  say(`  Configuration: ${configPath()}`);
+  if (base.isolation === "host") {
     say(
-      "Sessions run directly on this machine as this account (isolation: host), with its files and credentials. To run each session in a container instead, register again with --isolation container --force.",
+      "  Isolation:     host: sessions run on this machine as this account, with its files and credentials.",
     );
+    say(
+      "                 For a container per session, register again with --isolation container --force.",
+    );
+  } else
+    say("  Isolation:     container: each session runs in its own container.");
   say(
-    "Start it with `lictory-runner start`, or keep it running with `lictory-runner install-service --enable`.",
+    "  Next:          lictory-runner start, or lictory-runner install-service --enable to keep it running.",
   );
 }
 
