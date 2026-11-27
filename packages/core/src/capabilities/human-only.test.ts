@@ -75,7 +75,7 @@ void test("calling a human-only operation names the reason and the place", () =>
   assert.ok(error instanceof CapabilityError);
   assert.equal(error.category, "forbidden");
   assert.equal(error.details.kind, "human_only");
-  assert.match(error.message, /Personal access tokens/);
+  assert.match(error.message, /Account settings → Access tokens/);
   assert.match(humanOnlyError("syncDirectory")!.message, /getWorkspace/);
   assert.equal(humanOnlyError("getWorkItem"), undefined);
   assert.equal(humanOnlyError("noSuchOperation"), undefined);
