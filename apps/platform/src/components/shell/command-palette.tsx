@@ -912,11 +912,18 @@ export function CommandPalette({
               <X className="size-4" aria-hidden />
             </DialogClose>
           </div>
-          {results.length === 0 && content.status !== "loading" && (
-            <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-              No results.
-            </p>
-          )}
+          {/* Said in words even when the way out (search everything, ask
+              Litto) is still offered below. */}
+          {content.status !== "loading" &&
+            results.every(
+              (r) => r.id === "see-all-results" || r.id === "ask-intelligence",
+            ) && (
+              <p className="px-3 pt-5 pb-3 text-center text-xs text-muted-foreground">
+                {query.trim()
+                  ? `Nothing matches “${query.trim()}”.`
+                  : "No results."}
+              </p>
+            )}
           <CommandList className="max-h-none min-h-0 overflow-y-auto p-1.5">
             {groups.map((group) => (
               <CommandGroup key={group}>

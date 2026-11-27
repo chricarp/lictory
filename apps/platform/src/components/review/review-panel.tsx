@@ -250,16 +250,27 @@ export function ReviewPanel() {
                   )}
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
-                  {assigneesOf(review).map((a) => (
-                    <span key={a.id} className="inline-flex items-center gap-1">
-                      {a.userId ? (
-                        <Actor userId={a.userId} label="none" size={16} />
-                      ) : null}
-                      {a.userId
-                        ? memberName(a.userId)
-                        : `Anyone in ${disciplineName(a.disciplineId)}`}
-                    </span>
-                  ))}
+                  {/* Who is asked, until they have answered: an approval
+                      names its reviewer once, on its own line below. */}
+                  {assigneesOf(review)
+                    .filter((a) =>
+                      a.userId
+                        ? !granted.some((g) => g.reviewerId === a.userId)
+                        : granted.length === 0,
+                    )
+                    .map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center gap-1"
+                      >
+                        {a.userId ? (
+                          <Actor userId={a.userId} label="none" size={16} />
+                        ) : null}
+                        {a.userId
+                          ? memberName(a.userId)
+                          : `Anyone in ${disciplineName(a.disciplineId)}`}
+                      </span>
+                    ))}
                   {granted.map((a) => (
                     <span
                       key={a.id}

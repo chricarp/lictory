@@ -158,10 +158,17 @@ export function SettingsSubheading({
   );
 }
 
-export function InlineError({ children }: { children?: string }) {
+export function InlineError({
+  children,
+  id,
+}: {
+  children?: string;
+  // Referenced by the fields it is about (`aria-describedby`).
+  id?: string;
+}) {
   if (!children) return null;
   return (
-    <p role="alert" className="text-xs text-destructive">
+    <p id={id} role="alert" className="text-xs text-destructive">
       {children}
     </p>
   );

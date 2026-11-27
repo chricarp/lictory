@@ -1,5 +1,5 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { paths } from "@lictory/core/lib/paths";
@@ -237,6 +237,13 @@ function ConnectForm({
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [error, setError] = useState<string>();
+  const errorId = useId();
+  // A refusal is about the credential: its fields turn red and point at
+  // the message.
+  const refused = {
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? errorId : undefined,
+  } as const;
   const [busy, setBusy] = useState(false);
   return (
     <SettingsBody className="border-b bg-muted/40">
@@ -295,6 +302,7 @@ function ConnectForm({
             placeholder="The Atlassian account Lictory acts as"
             className="h-9 text-[13px]"
             required
+            {...refused}
           />
         </label>
         <label className="grid gap-1 text-[13px]">
@@ -306,6 +314,7 @@ function ConnectForm({
             onChange={(e) => setApiToken(e.target.value)}
             className="h-9 text-[13px]"
             required
+            {...refused}
           />
           <span className="text-xs text-muted-foreground">
             Create one at{" "}
@@ -320,7 +329,7 @@ function ConnectForm({
             . Issues are created as this account.
           </span>
         </label>
-        <InlineError>{error}</InlineError>
+        <InlineError id={errorId}>{error}</InlineError>
         <div className="flex gap-2">
           <Button type="submit" disabled={busy}>
             {busy && <Loader2 className="size-3.5 animate-spin" />}

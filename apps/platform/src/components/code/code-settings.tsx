@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   CircleAlert,
@@ -735,11 +735,16 @@ function ConnectForm({
   const [name, setName] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>();
+  const errorId = useId();
   const [busy, setBusy] = useState(false);
+  // A refusal is about the credential: its fields turn red and point at the
+  // message, like a sign-up field does, not only a red line below the form.
   const field = (key: string) => ({
     value: fields[key] ?? "",
     onChange: (e: { target: { value: string } }) =>
       setFields((f) => ({ ...f, [key]: e.target.value })),
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? errorId : undefined,
   });
   // Another host or sign-in method starts a fresh form: the previous host's
   // address and its error say nothing about this one.
@@ -873,7 +878,7 @@ function ConnectForm({
                 required
                 rows={4}
                 spellCheck={false}
-                className="rounded-md border bg-background px-3 py-2 font-mono text-xs"
+                className="rounded-md border bg-background px-3 py-2 font-mono text-xs aria-invalid:border-destructive/70"
                 placeholder="-----BEGIN RSA PRIVATE KEY-----"
               />
             </Field>
@@ -920,7 +925,7 @@ function ConnectForm({
             </Field>
           </>
         )}
-        <InlineError>{error}</InlineError>
+        <InlineError id={errorId}>{error}</InlineError>
         <div className="flex gap-2">
           <Button type="submit" disabled={busy}>
             {busy && <Loader2 className="size-3.5 animate-spin" />}

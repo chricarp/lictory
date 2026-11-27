@@ -60,6 +60,12 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await ada.page.getByRole("button", { name: "Verify and connect" }).click();
     const refused = ada.page.getByText("GitHub rejected this token");
     await expect(refused).toBeVisible();
+    // The token field itself is marked and points at the explanation.
+    const token = ada.page.getByLabel("Token", { exact: true });
+    await expect(token).toHaveAttribute("aria-invalid", "true");
+    await expect(token).toHaveAccessibleDescription(
+      /GitHub rejected this token/,
+    );
     await ada.page.getByRole("radio", { name: "GitLab" }).click();
     await expect(ada.page.getByLabel("Host address")).toHaveValue("");
     await expect(refused).toBeHidden();
