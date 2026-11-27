@@ -978,7 +978,7 @@ void test("every command explains itself with --help", (t) => {
     ],
     [["help", "upgrade"], /Usage: lictory upgrade \[version\]/],
     [["database", "check", "--help"], /Usage: lictory database check/],
-    [["help", "database"], /database setup/],
+    [["help", "database"], /database setup[\s\S]*docs\.lictory\.com/],
     [["restore", "-h"], /--drill/],
     [["config", "--help"], /set <KEY=value>/],
     [["config", "set", "--help"], /unset <KEY>/],
@@ -988,6 +988,8 @@ void test("every command explains itself with --help", (t) => {
     const result = f.lictory([...args]);
     assert.equal(result.status, 0, args.join(" ") + result.stderr);
     assert.match(result.stdout, text, args.join(" "));
+    // An installed server has no repository checkout: guides are links.
+    assert.doesNotMatch(result.stdout, /docs\/operations\//, args.join(" "));
     assert.deepEqual(result.calls, [], args.join(" "));
   }
 });

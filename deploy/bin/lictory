@@ -418,7 +418,7 @@ Usage: lictory database check [--json] [--env <name>]
           administrator connection from LICTORY_DATABASE_ADMIN_URL or a
           prompt. The connection is used once and never stored.
 
-Guide: docs/operations/external-database.md
+Guide: https://docs.lictory.com/self-hosting/database
 USAGE
       ;;
     version)
@@ -1323,7 +1323,7 @@ check_ports() { # check_ports <port...>: free unless this environment holds them
   fi
   for port in "$@"; do
     if port_in_use "$port"; then
-      check_fail "Port $port is in use by another program. Stop it, or install behind it with --tls proxy (docs/operations/reverse-proxy.md)."
+      check_fail "Port $port is in use by another program. Stop it, or install behind it with --tls proxy (https://docs.lictory.com/self-hosting/reverse-proxy#behind-an-existing-reverse-proxy)."
     else
       check_ok "port $port is free"
     fi
@@ -1631,14 +1631,14 @@ collect_database() {
   database=$(opt database)
   # Moving data between databases is a dump and restore, never a setting.
   if [ -n "$(current_version)" ] && [ "$database" != "$current_database" ]; then
-    die "$environment already stores its data in the $current_database database. Moving it to the $database one is a migration of the data: see docs/operations/external-database.md#moving-an-installation." 64
+    die "$environment already stores its data in the $current_database database. Moving it to the $database one is a migration of the data: see https://docs.lictory.com/self-hosting/database#set-up-an-external-database." 64
   fi
   plan LICTORY_DATABASE "$([ "$database" = external ] && echo external)"
   [ "$database" = external ] || return 0
   compose_version=$(docker compose version --short 2>/dev/null || true)
   [ -z "$compose_version" ] || version_ge "$compose_version" 2.24.4 ||
     die "An external database needs Docker Compose 2.24.4 or newer (found ${compose_version#v})." 64
-  note "Lictory checks the database's requirements before it migrates: docs/operations/external-database.md"
+  note "Lictory checks the database's requirements before it migrates: https://docs.lictory.com/self-hosting/database"
   ask database-host "Database host: the direct endpoint, never a pooler" "$(current DATABASE_HOST)"
   require_opt database-host "The database host"
   ask database-port "Database port" "$(current DATABASE_PORT | grep . || echo 5432)"
@@ -2334,10 +2334,10 @@ summary() {
     notes+=("Backups stay on this server's disk: set --backup-path (a NAS or second disk), s3 or rclone" "   for disaster recovery.")
   if [ "$(current_tls)" = proxy ] && [ -z "$(setting CADDY_TRUSTED_PROXIES)" ]; then
     notes+=("Set the address your reverse proxy connects from (lictory doctor suggests it):")
-    notes+=("   sudo lictory install --trusted-proxies <ip>   (docs/operations/reverse-proxy.md)")
+    notes+=("   sudo lictory install --trusted-proxies <ip>   (https://docs.lictory.com/self-hosting/reverse-proxy)")
   fi
   [ "$(current_tls)" = http ] &&
-    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only" "   (docs/operations/reverse-proxy.md).")
+    notes+=("Plain HTTP: session cookies are not Secure. Use it on a trusted machine only" "   (https://docs.lictory.com/self-hosting/reverse-proxy#plain-http).")
   notes+=("Check the installation at any time: lictory doctor")
   notes+=("Upgrades: lictory upgrade (channel: $(channel_of_environment))")
   say ""
@@ -2874,7 +2874,7 @@ cmd_backup() {
   esac
   select_environment
   [ "$(setting LICTORY_DATABASE)" != external ] ||
-    die "$environment uses an external database: Lictory takes no backups of it. Use your provider's backups and point-in-time recovery (docs/operations/external-database.md#backups)."
+    die "$environment uses an external database: Lictory takes no backups of it. Use your provider's backups and point-in-time recovery (https://docs.lictory.com/self-hosting/database#backups)."
   [ "$(setting BACKUP_TARGET)" != none ] || die "Backups are disabled (BACKUP_TARGET=none). Choose a target: sudo lictory install --backup local"
   if [ "$command" = "backup list" ]; then
     backup_list
@@ -3384,7 +3384,7 @@ config_check() {
     # As in lictory install: moving data between databases is a dump and
     # restore, never a setting.
     if [ "$key" = LICTORY_DATABASE ] && [ "${old:-bundled}" != "${new:-bundled}" ] && [ -n "$(current_version)" ]; then
-      problems+=("$environment already stores its data in the ${old:-bundled} database; moving it to the ${new:-bundled} one is a migration of the data: see docs/operations/external-database.md#moving-an-installation.")
+      problems+=("$environment already stores its data in the ${old:-bundled} database; moving it to the ${new:-bundled} one is a migration of the data: see https://docs.lictory.com/self-hosting/database#set-up-an-external-database.")
     fi
   done <<<"$diff"
   [ ${#problems[@]} -gt 0 ] || return 0
@@ -4056,7 +4056,7 @@ cmd_restore() {
   active=$(current_version)
   [ -n "$active" ] || die "$environment has no active release; install it first (sudo lictory install), then restore."
   [ "$(opt drill)" = true ] || [ "$(setting LICTORY_DATABASE)" != external ] ||
-    die "$environment uses an external database: restore it with your provider's point-in-time recovery or snapshots, then run lictory install (docs/operations/external-database.md#backups)."
+    die "$environment uses an external database: restore it with your provider's point-in-time recovery or snapshots, then run lictory install (https://docs.lictory.com/self-hosting/database#backups)."
   restore_preview "$identity" "$source"
   # "latest" is resolved once, here: the check, the cutover and a drill all
   # use the backup that was shown, even if another one finishes meanwhile.
@@ -4272,7 +4272,7 @@ cmd_database() {
         [ -n "$(opt database-admin-url)" ] || die "No administrator connection given."
       fi
       DATABASE_ADMIN_URL=$(opt database-admin-url) release_compose run --rm --no-deps -T -e DATABASE_ADMIN_URL database setup ||
-        die "The role setup did not finish; see the messages above (docs/operations/external-database.md#roles)."
+        die "The role setup did not finish; see the messages above (https://docs.lictory.com/self-hosting/database#set-up-an-external-database)."
       say "Checking the requirements:"
       release_compose run --rm --no-deps -T database check
       ;;
