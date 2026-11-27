@@ -33,13 +33,31 @@ void describe("search discoverability", () => {
     for (const { path } of publicPages) {
       const metadata =
         path === "/" ? landingMetadata : publicPageMetadata(path);
-      assert.equal(metadata.alternates?.canonical, path, path);
+      // The home page is absolute (https://lictory.com/, like its sitemap
+      // entry); the others resolve against metadataBase without a slash.
+      assert.equal(
+        metadata.alternates?.canonical,
+        path === "/" ? absoluteUrl("/") : path,
+        path,
+      );
       assert.equal(
         (metadata.robots as { index?: boolean } | undefined)?.index,
         true,
         path,
       );
     }
+  });
+
+  // Next.js shortens a "/" metadata URL to the bare origin, which differs from
+  // the sitemap's https://lictory.com/ by the trailing slash.
+  void test("the home page canonical and og:url are its sitemap entry exactly", () => {
+    const home = sitemap()[0]!.url;
+    assert.equal(home, `${siteUrl}/`);
+    assert.equal(landingMetadata.alternates?.canonical, home);
+    assert.equal(
+      (landingMetadata.openGraph as { url?: string } | undefined)?.url,
+      home,
+    );
   });
 
   void test("the sitemap reports lastmod only for pages with a known change date", () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import {
+  absoluteUrl,
   marketingImage,
   siteDescription,
   siteName,
@@ -50,9 +51,11 @@ export function socialMetadata(kind: PreviewKind | "marketing"): Metadata {
   const description = marketing
     ? siteDescription
     : "Open this link in Lictory. Sign in with an account that has access to see the details.";
+  // The landing page has no metadataBase (see landingMetadata), so its URLs
+  // are absolute.
   const images = [
     {
-      url: `/og/${kind}`,
+      url: marketing ? absoluteUrl(`/og/${kind}`) : `/og/${kind}`,
       width: marketingImage.width,
       height: marketingImage.height,
       alt: title,
@@ -66,7 +69,7 @@ export function socialMetadata(kind: PreviewKind | "marketing"): Metadata {
       siteName,
       type: "website",
       locale: "en_US",
-      ...(marketing ? { url: "/" } : {}),
+      ...(marketing ? { url: absoluteUrl("/") } : {}),
       images,
     },
     twitter: { card: "summary_large_image", title, description, images },
