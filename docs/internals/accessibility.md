@@ -39,7 +39,14 @@ rendered state with seeded data:
 - account pages: sign-in (including its error state), sign-up, password reset
 - specification review: a work item with a requested review and a blocking
   discussion, and the proposals, reviews and items lists
-- native delivery: the board with an active sprint, and the backlog
+- native delivery: the board with an active sprint (and after a card moved
+  with its Move menu), and the backlog
+- organization setup (`tests/platform/onboarding.spec.ts`): the welcome
+  page, the organization, delivery and invitation steps (with an invalid
+  address), on a phone and a laptop
+- the Jira hand-off (`tests/platform/knowledge-handoff.spec.ts`): the
+  hand-off page and its results dialog with a partial failure, where focus
+  waits on Retry, then on Done
 - settings: account settings, every organization settings section and every
   project settings section
 - the shell and the factory loop, in light **and dark**: Home and the Inbox

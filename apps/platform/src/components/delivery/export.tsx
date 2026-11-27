@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 import {
   Dialog,
@@ -299,6 +299,18 @@ export function ExportDialog({
     failed.every((id) => overwrite.has(id)) &&
     failed.some((id) => publication.results[id]?.outcome === "conflict");
   useReturnFocus();
+  // The button pressed to hand off is gone (or was disabled while the
+  // worker ran) once results arrive: focus goes to what comes next, Retry
+  // when something failed, otherwise Done, instead of the page behind.
+  const doneButton = useRef<HTMLButtonElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const finished = !!publication && publication.status !== "running" && !busy;
+  useEffect(() => {
+    if (!finished) return;
+    const dialog = doneButton.current?.closest("[role='dialog']");
+    if (!dialog || dialog.contains(document.activeElement)) return;
+    (retryButton.current ?? doneButton.current)?.focus();
+  }, [finished]);
   // The results replace the progress in place: their summary ("3 created,
   // 1 failed") is announced once the worker finishes.
   useAnnounceChange(
@@ -435,7 +447,7 @@ export function ExportDialog({
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={onClose}>
+            <Button ref={doneButton} variant="ghost" onClick={onClose}>
               {publication ? "Done" : "Cancel"}
             </Button>
             {publication ? (
@@ -444,6 +456,7 @@ export function ExportDialog({
                 // action. Overwriting what changed in the delivery tool
                 // stays a deliberate, secondary choice.
                 <Button
+                  ref={retryButton}
                   variant={overwriting ? "secondary" : undefined}
                   disabled={busy}
                   onClick={() => void run(failed)}

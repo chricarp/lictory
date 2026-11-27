@@ -16,6 +16,7 @@ import { reloadWhenSaved } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
 import { consentStatePath } from "../consent-setup";
 import { clientAddress } from "../helpers/client-address";
+import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }) => {
@@ -54,15 +55,18 @@ for (const mode of ["native", "external"] as const)
   test(`${mode} onboarding resumes, invites reviewers, and saves the complete setup @smoke`, async ({
     page,
   }) => {
-    if (mode === "native") {
+    if (mode === "native")
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-    }
+    // Settled frames for the accessibility checks below (WCAG 2.2 AA), on
+    // a phone (native) and a laptop (external).
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expectNoAccessibilityViolations(page, `welcome (${mode})`);
     await page
       .getByRole("button", { name: "Create an organization", exact: false })
       .click();
     // Creating the workspace is the first counted step of setup.
     await expect(page.getByText("1 of 4")).toBeVisible();
+    await expectNoAccessibilityViolations(page, `organization step (${mode})`);
     await page
       .getByLabel("Organization", { exact: true })
       .fill(`Onboarding ${mode}`);
@@ -77,6 +81,7 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("button", { name: "Continue", exact: true }),
     ).toBeDisabled();
+    await expectNoAccessibilityViolations(page, `delivery step (${mode})`);
     const zero = await controlZeroConnection(page);
     await page.reload();
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -106,6 +111,10 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("list", { name: "People to invite" }).getByText(invitee),
     ).toBeVisible();
+    await expectNoAccessibilityViolations(
+      page,
+      `invite step with an error (${mode})`,
+    );
     // Each invitation names the discipline the person starts with, so a
     // review can be asked of them on their first day.
     await page

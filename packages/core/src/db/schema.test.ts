@@ -939,10 +939,9 @@ void test("the Story/Task hierarchy migration moves type levels by role and keep
     // Subtask 0). Acme renamed and added types: a grouping type above Epic,
     // a plain grouping type, a renamed Story, a plain custom type and an
     // archived spec-backed type.
+    // Plain SQL: the account table of that time, not today's columns.
     const userId = crypto.randomUUID();
-    await upgradeDb
-      .insert(s.user)
-      .values({ id: userId, name: "Owner", email: `${userId}@example.test` });
+    await upgradeClient`INSERT INTO "user" (id, name, email) VALUES (${userId}, 'Owner', ${`${userId}@example.test`})`;
     const orgs = ["acme", "globex"].map((slug) => ({
       id: `${slug}-${crypto.randomUUID()}`,
       name: slug,
