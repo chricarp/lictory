@@ -350,4 +350,15 @@ test("an item opened right after the dispatcher claims it shows the claim and it
       "A linked code pull request is merged and none is still open",
     ),
   ).toBeVisible();
+
+  // The agent's page agrees with the item: the claim the dispatcher took
+  // for Forge's session is Forge's, listed under Claimed work, and nothing
+  // on the page says Forge has claimed nothing.
+  await page.goto(`/${seeded.slug}/factory/agents/${forge.id}`);
+  const held = page.getByRole("region", { name: /Claimed work/ });
+  await expect(
+    held.getByRole("link", { name: "Refund retries" }),
+  ).toBeVisible();
+  await expect(held).toContainText("DSP-1");
+  await expect(page.getByText(/has not claimed/)).toHaveCount(0);
 });

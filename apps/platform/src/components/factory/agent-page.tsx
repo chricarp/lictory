@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   Archive,
+  Hand,
   History,
   Info,
   MoreHorizontal,
@@ -22,6 +23,7 @@ import { StatusChip } from "@lictory/ui/status-chip";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { identifier } from "@lictory/core/lib/work-items";
+import { paths } from "@lictory/core/lib/paths";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
@@ -31,6 +33,8 @@ import {
   AgentAvatar,
 } from "@lictory/platform/components/identity/actor";
 import { SessionRow } from "@lictory/platform/components/factory/parts";
+import { useLiveClaims } from "@lictory/platform/components/claims/claims";
+import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { useChannels } from "@lictory/platform/components/channels/store";
@@ -225,6 +229,7 @@ export function AgentPage() {
               <SessionRow key={session.id} session={session} agent={agent} />
             ))}
           </Panel>
+          {agent.kind !== "intelligence" && <ClaimedWork agent={agent} />}
           {mine && agent.kind !== "intelligence" && (
             <RecentActivity agent={agent} />
           )}
@@ -311,6 +316,56 @@ function About({ agent }: { agent: AgentEntity }) {
           ))}
         </dl>
       </li>
+    </Panel>
+  );
+}
+
+// The work items the agent holds now, from the same live claims the item
+// page, the board and the queue draw: a claim the dispatcher took for a
+// session is the agent's as much as one it took with its own token, so it
+// is listed here and never contradicts the item.
+function ClaimedWork({ agent }: { agent: AgentEntity }) {
+  const { organization, items, projects } = useWorkspace();
+  const claims = useLiveClaims();
+  const held = useMemo(
+    () =>
+      [...claims.values()]
+        .filter((c) => c.agentId === agent.id)
+        .sort((a, b) => b.claimedAt.localeCompare(a.claimedAt))
+        .flatMap((claim) => {
+          const item = items.find((i) => i.id === claim.workItemId);
+          const project =
+            item && projects.find((p) => p.id === item.projectId);
+          return item && project ? [{ claim, item, project }] : [];
+        }),
+    [claims, items, projects, agent.id],
+  );
+  return (
+    <Panel
+      title="Claimed work"
+      icon={<Hand />}
+      count={held.length}
+      empty={`${agent.name} holds no work item now.`}
+    >
+      {held.map(({ claim, item, project }) => {
+        const key = identifier(project, item.number);
+        return (
+          <ListRow
+            key={claim.id}
+            href={paths.item(organization.slug, project.key, key)}
+            identifier={key}
+            title={item.title}
+            chips={
+              <ClaimBadge
+                claim={claim}
+                assigneeId={item.assigneeId}
+                withAgent={false}
+              />
+            }
+            time={claim.claimedAt}
+          />
+        );
+      })}
     </Panel>
   );
 }
@@ -467,7 +522,7 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
       count={calls.length}
       empty={
         agent.kind === "runner"
-          ? `None yet: ${agent.name} has not claimed, commented on or changed anything in Lictory. Its work in each session is in that session’s transcript.`
+          ? `None yet: ${agent.name} has not called Lictory with its tokens. Work it holds is under Claimed work, and its work in each session is in that session’s transcript.`
           : `${agent.name} has not called Lictory with its tokens yet.`
       }
     >
