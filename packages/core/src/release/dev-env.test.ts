@@ -33,6 +33,7 @@ void test("a second checkout gets every port and the settings that name them mov
   assert.equal(env.LICTORY_DEV_ZERO_PORT, "14848");
   assert.equal(env.LICTORY_DEV_API_PORT, "13002");
   assert.equal(env.COLLABORATION_PORT, "13004");
+  assert.equal(env.WORKER_HEALTH_PORT, "13003");
   assert.equal(env.SITE_URL, "http://localhost:13100");
   assert.equal(currentOffset(env), 10000);
   // Commented examples are replaced in place, not duplicated.

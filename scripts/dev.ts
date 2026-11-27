@@ -3,7 +3,7 @@
 //   http://localhost:3002  API        http://localhost:3100  website
 //   http://localhost:3004  collaboration (live drafts; the SPA proxies
 //                          /collaboration to it)
-//   worker (no port)
+//   worker (its loopback health endpoint on WORKER_HEALTH_PORT, 3003)
 // PostgreSQL, migrations, zero-cache and Mailpit run in Docker:
 //   docker compose up -d --wait && bun run dev   (both read .env)
 //

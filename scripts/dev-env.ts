@@ -28,6 +28,8 @@ const devPorts = {
   LICTORY_DEV_API_PORT: 3002,
   // The applications on the host (bun run dev).
   LICTORY_DEV_APP_PORT: 3000,
+  // The worker's loopback health endpoint: two checkouts collide on it too.
+  WORKER_HEALTH_PORT: 3003,
   COLLABORATION_PORT: 3004,
   LICTORY_DEV_WEBSITE_PORT: 3100,
 } as const;

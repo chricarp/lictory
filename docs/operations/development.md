@@ -67,7 +67,8 @@ installed Bun differs from `packageManager` (`bun install` does not).
 - App: http://localhost:3000 (API 3002, collaboration 3004, zero-cache 4848)
 - Website: http://localhost:3100
 - Documentation (not started by `bun run dev`):
-  `bun run --cwd apps/docs dev`, http://localhost:3200
+  `bun run --cwd apps/docs dev`, http://localhost:3200 (`PORT=13200 bun run
+  --cwd apps/docs dev` beside another checkout)
 - Mailpit (verification and reset emails): http://localhost:8025
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001
@@ -123,7 +124,7 @@ address. `docker compose config` shows the resulting `host_ip`.
 creates `.env` when there is none; when the Compose project `lictory` belongs
 to another checkout it names this one `lictory-<directory>`; when a port is
 taken it moves every port in the table below, and the app's own ports (3000,
-3002, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
+3002, 3003 for the worker's health endpoint, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
 rewrites the settings that name them; on Linux it runs a short container to
 check that Docker reaches the host, and sets `COMPOSE_FILE` to the
 host-network fallback when a firewall blocks it (see
