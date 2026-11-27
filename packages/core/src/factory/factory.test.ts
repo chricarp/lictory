@@ -820,6 +820,89 @@ void test("event batches are idempotent by sequence, bounded and gap-checked", a
   assert.equal(done.resultSummary, "Added the refund endpoint.");
 });
 
+void test("a session with no repository that changed files ends with its work recorded as not kept", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const fileChange = (seq: number, ...paths: string[]) => ({
+    seq,
+    type: "file_change",
+    data: {
+      changes: paths.map((path) => ({ path, kind: "modify", additions: 1 })),
+    },
+  });
+  const run = async (
+    fields: Record<string, unknown>,
+    events: ReturnType<typeof fileChange>[],
+  ) => {
+    const session = await start(ownerId, organizationId, agent.id, fields);
+    const lease = (await claimSession(db, machineRow))!;
+    assert.equal(lease.sessionId, session.id);
+    await startRun(db, machineRow, session.id, lease.leaseToken);
+    if (events.length)
+      await appendRunnerEvents(
+        db,
+        machineRow,
+        session.id,
+        lease.leaseToken,
+        events,
+      );
+    return completeRun(db, machineRow, session.id, {
+      leaseToken: lease.leaseToken,
+      outcome: "completed",
+      summary: "Added CHANGES.md.",
+      lastSeq: events.length,
+    });
+  };
+  // Two files, one changed twice: two files were discarded with the
+  // scratch workspace, and the session says so wherever it is read.
+  const scratch = await run({}, [
+    fileChange(1, "CHANGES.md"),
+    fileChange(2, "CHANGES.md", "docs/refunds.md"),
+  ]);
+  assert.equal(scratch.status, "completed");
+  assert.equal(scratch.discardedFiles, 2);
+  const [projected] = await db
+    .select({ data: s.factoryEntity.data })
+    .from(s.factoryEntity)
+    .where(eq(s.factoryEntity.key, `session:${scratch.id}`));
+  assert.equal(
+    (projected!.data as { discardedFiles: number | null }).discardedFiles,
+    2,
+  );
+  // The person who started it hears that the work was not kept, not the
+  // agent's own summary.
+  const finished = (
+    await db
+      .select({ notices: s.notificationEvent.notices })
+      .from(s.notificationEvent)
+      .where(eq(s.notificationEvent.organizationId, organizationId))
+  )
+    .flatMap((row) => row.notices)
+    .find(
+      (n) =>
+        n.kind === "agent_session_finished" &&
+        n.detail?.sessionId === scratch.id,
+    );
+  const told = describeNotification(
+    { kind: "agent_session_finished", detail: finished!.detail ?? {} },
+    "Ada",
+  );
+  assert.match(told.headline, /finished, work not kept/);
+  assert.match(told.body ?? "", /The 2 files it changed were discarded/);
+  // Nothing changed, or a repository kept it: no discarded work.
+  assert.equal((await run({}, [])).discardedFiles, null);
+  assert.equal(
+    (
+      await run({ repositoryUrl: "https://git.example.test/acme/pay.git" }, [
+        fileChange(1, "CHANGES.md"),
+      ])
+    ).discardedFiles,
+    null,
+  );
+});
+
 void test("the session state machine refuses steps from the wrong state", async () => {
   const ownerId = await user("Ada");
   const organizationId = await organization(ownerId);

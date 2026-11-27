@@ -230,6 +230,8 @@ export function sessionEntity(row: SessionRow, approvals: ApprovalRow[]) {
     channelId: row.channelId,
     threadRootMessageId: row.threadRootMessageId,
     resultSummary: row.resultSummary,
+    // Ended with no repository after changing files: none of it was kept.
+    discardedFiles: row.discardedFiles ?? null,
     pullRequestId: row.pullRequestId,
     pullRequestUrl: row.pullRequestUrl,
     error: row.error,

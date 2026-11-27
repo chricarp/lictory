@@ -140,6 +140,13 @@ test("a person runs an agent on their own runner, steers it and approves what it
   await start
     .getByLabel("What should it do?")
     .fill("Add a changelog for refunds.");
+  // No code host is connected: the dialog says, before it starts, that
+  // what the agent changes will not be kept.
+  await expect(
+    start.getByText(
+      "No repository: it works in a scratch workspace, and files it changes are discarded when the session ends.",
+    ),
+  ).toBeVisible();
   await start.getByRole("button", { name: "Start session" }).click();
   await expect(page).toHaveURL(/\/factory\/sessions\//);
 
@@ -214,9 +221,19 @@ test("a person runs an agent on their own runner, steers it and approves what it
   ).toBeVisible();
   await expect.poll(badge).toBe(0);
 
-  // It completes with its summary; nothing is left to steer.
+  // It completes with its summary; nothing is left to steer. With no
+  // repository the file it wrote was discarded, so the outcome reads as
+  // work not kept, and the summary as the agent's report.
   await expect(
-    page.locator("[data-page-header]").getByText("Completed", { exact: true }),
+    page
+      .locator("[data-page-header]")
+      .getByText("Work not kept", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("The agent reports it is done, but its work was not kept"),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/the file it changed was discarded with its scratch/),
   ).toBeVisible();
   await expect(
     page.getByText("Added CHANGES.md describing refunds over the API.").first(),

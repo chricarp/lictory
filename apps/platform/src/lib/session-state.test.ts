@@ -79,3 +79,22 @@ void test("finished sessions are not active", () => {
     assert.equal(sessionState({ status }).active, false);
   assert.equal(sessionState(null).active, false);
 });
+
+void test("a completed session whose changes were discarded reads as work not kept, never success", () => {
+  const unkept = sessionState({ status: "completed", discardedFiles: 1 });
+  assert.equal(unkept.label, "Work not kept");
+  assert.equal(unkept.tone, "attention");
+  assert.equal(unkept.active, false);
+  assert.match(unkept.meaning, /the file it changed was discarded/);
+  // A session that changed nothing, or kept its work, completed.
+  for (const discardedFiles of [null, 0, undefined])
+    assert.equal(
+      sessionState({ status: "completed", discardedFiles }).label,
+      "Completed",
+    );
+  // A failure stays a failure.
+  assert.equal(
+    sessionState({ status: "failed", discardedFiles: 2 }).label,
+    "Failed",
+  );
+});

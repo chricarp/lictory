@@ -1,5 +1,11 @@
 import { useId, useMemo, useState } from "react";
-import { Check, CircleCheck, CircleDashed, FileText } from "lucide-react";
+import {
+  Check,
+  CircleCheck,
+  CircleDashed,
+  FileText,
+  TriangleAlert,
+} from "lucide-react";
 import {
   Combobox,
   ComboboxContent,
@@ -125,6 +131,10 @@ export function StartSessionDialog({
       ? repositoryUrl.trim()
       : (choices.repositories.find((r) => r.id === choice)?.webUrl ?? "");
 
+  // Nothing to clone: no linked repository chosen, no project default
+  // and no address.
+  const noRepository =
+    !chosenUrl && (choice === OTHER || !repositories.length || !choices.fallback);
   const submit = async () => {
     setPending(true);
     setError(null);
@@ -306,13 +316,26 @@ export function StartSessionDialog({
                 spellCheck={false}
               />
             )}
-            <p className="text-xs text-muted-foreground">
-              {choice === OTHER || !repositories.length
-                ? "Cloned with the runner’s own git credentials."
-                : item
-                  ? "The project’s repositories, cloned with a short-lived credential."
-                  : "Linked repositories, cloned with a short-lived credential."}
-            </p>
+            {noRepository ? (
+              // Said before it starts: the work of a session with no
+              // repository is discarded with its scratch workspace.
+              <p
+                data-no-repository
+                className="flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+              >
+                <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+                No repository: it works in a scratch workspace, and files it
+                changes are discarded when the session ends.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {choice === OTHER || !repositories.length
+                  ? "Cloned with the runner’s own git credentials."
+                  : item
+                    ? "The project’s repositories, cloned with a short-lived credential."
+                    : "Linked repositories, cloned with a short-lived credential."}
+              </p>
+            )}
           </div>
           <div className="min-w-0 space-y-1.5">
             <label htmlFor={ids.base} className="text-[13px] font-medium">

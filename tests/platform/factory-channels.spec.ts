@@ -100,13 +100,14 @@ const thread = (page: Page) =>
 
 test("a person asks an agent in a channel, steers it and approves in the thread @smoke", async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.slow();
   const seeded = await seedWorkspace({
     name: "Loop",
     key: "LOP",
-    users: ["Ada"],
+    users: ["Ada", "Bo"],
   });
   const agent = await seedAgent(seeded);
   const channelId = await seedChannel(seeded, "builds");
@@ -186,6 +187,32 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     asked.getByText("Waiting on you: answer it on Forge’s session card above."),
   ).toBeVisible();
   await expect(asked.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  // Anyone else in the channel is told who decides, and is not offered
+  // a decision they cannot take.
+  const bo = await newPerson(browser);
+  await signIn(bo.page, seeded.users[1]!.email);
+  await bo.page.goto(`/${seeded.slug}/channels/${channelId}`);
+  await bo.page
+    .locator("[data-message-id]")
+    .filter({ hasText: "add a changelog for refunds" })
+    .first()
+    .getByRole("button", { name: /replies/ })
+    .click();
+  const boThread = thread(bo.page);
+  await expect(
+    boThread
+      .getByRole("article", { name: /^Forge session/ })
+      .getByText(
+        "Ada decides: the agent’s owner or the person who started the session.",
+      ),
+  ).toBeVisible();
+  await expect(
+    boThread.getByText("Ada decides, on Forge’s session card above."),
+  ).toBeVisible();
+  await expect(boThread.getByRole("button", { name: "Approve" })).toHaveCount(
+    0,
+  );
+  await bo.context.close();
   const order = await panel.locator("[data-message-id]").evaluateAll((nodes) =>
     nodes.map((node) =>
       // The live card may echo the agent's last words; it is not a turn.
@@ -243,7 +270,11 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
       .filter({ hasText: "Added CHANGES.md describing refunds over the API." })
       .first(),
   ).toBeVisible();
-  await expect(card.getByText("Completed")).toBeVisible();
+  // No repository is linked: the file it wrote was discarded, and the card
+  // says the work was not kept instead of reading as a success.
+  await expect(card.getByText("Work not kept")).toBeVisible();
+  await expect(card.getByText(/Not kept: 1 file/)).toBeVisible();
+  await expect(card.getByText("Completed")).toHaveCount(0);
   expect(output).toContain("Session ");
 });
 

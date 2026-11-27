@@ -8,7 +8,8 @@ import { useAnnounce } from "@lictory/platform/components/shell/announcer";
 type AnnouncedSession = Pick<
   SessionEntity,
   "id" | "status" | "attempts" | "eventCount" | "approvals"
->;
+> &
+  Partial<Pick<SessionEntity, "discardedFiles">>;
 
 // What changed in a session since the surface showing it opened, in words:
 // "Forge asks for approval: Run the database migration on staging",
@@ -54,7 +55,9 @@ export function sessionAnnouncements(
     case "completed":
       said.push({
         key: `${attempt}:completed`,
-        text: `${agentName} finished ${title}`,
+        text: next.discardedFiles
+          ? `${agentName} finished ${title}, but its work was not kept: no repository is linked`
+          : `${agentName} finished ${title}`,
       });
       break;
     case "failed":

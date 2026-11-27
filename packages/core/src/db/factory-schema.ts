@@ -247,6 +247,10 @@ export const agentSession = pgTable(
     channelId: text("channel_id"),
     threadRootMessageId: text("thread_root_message_id"),
     resultSummary: text("result_summary"),
+    // How many files a session with no repository changed: its scratch
+    // workspace was discarded as it ended, so that work was not kept.
+    // Null when it had a repository or changed nothing.
+    discardedFiles: integer("discarded_files"),
     // The code pull request the session opened (owned by Code).
     pullRequestId: text("pull_request_id"),
     pullRequestUrl: text("pull_request_url"),
