@@ -68,7 +68,7 @@ installed Bun differs from `packageManager` (`bun install` does not).
 - Website: http://localhost:3100
 - Documentation (not started by `bun run dev`):
   `bun run --cwd apps/docs dev`, http://localhost:3200 (`PORT=13200 bun run
-  --cwd apps/docs dev` beside another checkout)
+--cwd apps/docs dev` beside another checkout)
 - Mailpit (verification and reset emails): http://localhost:8025
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001

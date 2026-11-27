@@ -134,7 +134,8 @@ export function StartSessionDialog({
   // Nothing to clone: no linked repository chosen, no project default
   // and no address.
   const noRepository =
-    !chosenUrl && (choice === OTHER || !repositories.length || !choices.fallback);
+    !chosenUrl &&
+    (choice === OTHER || !repositories.length || !choices.fallback);
   const submit = async () => {
     setPending(true);
     setError(null);
@@ -323,7 +324,10 @@ export function StartSessionDialog({
                 data-no-repository
                 className="flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
               >
-                <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+                <TriangleAlert
+                  aria-hidden
+                  className="mt-px size-3.5 shrink-0"
+                />
                 No repository: it works in a scratch workspace, and files it
                 changes are discarded when the session ends.
               </p>

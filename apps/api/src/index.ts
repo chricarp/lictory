@@ -98,7 +98,8 @@ const server = serve(
 // Organizations still showing the AI provider state from before this start.
 void refreshAiAvailability(db).then(
   (refreshed) =>
-    refreshed && jsonLog("info", "api.ai_availability_refreshed", { refreshed }),
+    refreshed &&
+    jsonLog("info", "api.ai_availability_refreshed", { refreshed }),
   (error: unknown) =>
     jsonLog("warn", "api.ai_availability_refresh_failed", {
       reason: error instanceof Error ? error.message : String(error),

@@ -217,8 +217,8 @@ function SessionCard({
             <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
             Not kept:{" "}
             {discardedFiles === 1 ? "1 file" : `${discardedFiles} files`}{" "}
-            discarded when the session ended, because no repository is linked
-            to it.
+            discarded when the session ended, because no repository is linked to
+            it.
           </p>
         )}
       {status === "completed" && summary && (

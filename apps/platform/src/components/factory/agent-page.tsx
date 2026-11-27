@@ -334,8 +334,7 @@ function ClaimedWork({ agent }: { agent: AgentEntity }) {
         .sort((a, b) => b.claimedAt.localeCompare(a.claimedAt))
         .flatMap((claim) => {
           const item = items.find((i) => i.id === claim.workItemId);
-          const project =
-            item && projects.find((p) => p.id === item.projectId);
+          const project = item && projects.find((p) => p.id === item.projectId);
           return item && project ? [{ claim, item, project }] : [];
         }),
     [claims, items, projects, agent.id],

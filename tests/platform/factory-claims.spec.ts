@@ -45,10 +45,7 @@ function mcp(request: APIRequestContext, token: string) {
       };
     };
     expect(body.result.isError, JSON.stringify(body)).toBeFalsy();
-    return JSON.parse(body.result.content![0]!.text) as Record<
-      string,
-      unknown
-    >;
+    return JSON.parse(body.result.content![0]!.text) as Record<string, unknown>;
   };
 }
 
