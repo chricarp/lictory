@@ -107,7 +107,10 @@ the host.
 review of the head commit in Lictory, as agents' reviews are, and post it
 on the host signed with your name. Reviews are listed with the commit they
 reviewed: new commits need a new review. When only agents approved, the
-merge box says that no person has reviewed the code.
+merge box says so in its headline: no person has reviewed the code. While
+it only waits for something to report (checks running, a review asked
+for), it says **Waiting to merge**; **Merging is blocked** means something
+failed or must change.
 
 **Merge** is available when the pull request is open, not a draft, its checks
 passed, nobody requested changes (on the host or in Lictory) and it has no
