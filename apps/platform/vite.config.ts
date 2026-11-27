@@ -4,6 +4,7 @@ import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { appearanceBootScript } from "../../packages/core/src/lib/appearance";
+import { loadRecoveryScript } from "./src/lib/load-recovery";
 import {
   analyticsSettings,
   legalLinks,
@@ -47,12 +48,15 @@ function appStatic(): Plugin {
   };
 }
 
-// The saved light/dark preference applies before the first paint.
+// The saved light/dark preference applies before the first paint, and a
+// page whose code fails to load recovers instead of staying blank.
 function appearanceBoot(): Plugin {
   return {
     name: "lictory-appearance-boot",
     transformIndexHtml(html) {
-      return html.replace("/*appearance-boot*/", appearanceBootScript);
+      return html
+        .replace("/*appearance-boot*/", appearanceBootScript)
+        .replace("/*load-recovery*/", loadRecoveryScript);
     },
   };
 }
