@@ -58,7 +58,10 @@ lictory logs api --since 2h --timestamps   # everything since an incident began
 ```
 
 Services include `proxy`, `api`, `worker`, `collaboration` (live editing of
-pages and specifications), `zero-cache` and `postgres`.
+pages and specifications), `zero-cache` and `postgres`. The `api`, `worker`
+and `collaboration` services write one JSON object per line with the same
+fields first (`time`, `level`, `service`, `event`), so a log pipeline can
+filter them by level and order them without Docker's timestamps.
 Tooling history lives in `/srv/lictory/<env>/deploy.log` and
 `release-history.log`; service logs and installer logs are separate.
 

@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
@@ -173,16 +174,13 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   app.route("/", documentRoutes());
 
   app.onError((error, c) => {
-    console.error(
-      JSON.stringify({
-        event: "api.unhandled",
-        path: c.req.path,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }),
-    );
+    jsonLog("error", "api.unhandled", {
+      path: c.req.path,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return c.json(
       {
         error: {

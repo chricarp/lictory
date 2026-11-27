@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { CapabilityError, httpStatus } from "@lictory/core/capabilities/core";
@@ -87,12 +88,9 @@ function failure(error: unknown) {
     );
   const e = toCapabilityError(error);
   if (e.category === "server")
-    console.error(
-      JSON.stringify({
-        event: "runner.error",
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+    jsonLog("error", "runner.error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   return Response.json(
     { error: e.toJSON() },
     {

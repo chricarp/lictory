@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { timingSafeEqual } from "node:crypto";
 import {
   ApplicationError,
@@ -73,15 +74,12 @@ function isRetryable(error: unknown): boolean {
 function applicationError(error: unknown) {
   const normalized = toCapabilityError(error);
   if (normalized.category === "server")
-    console.error(
-      JSON.stringify({
-        event: "zero.mutate.error",
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }),
-    );
+    jsonLog("error", "zero.mutate.error", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
   return new ApplicationError(normalized.message, {
     details: normalized.toJSON(),
   });
