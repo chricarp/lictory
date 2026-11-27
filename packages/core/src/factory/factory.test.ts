@@ -998,7 +998,7 @@ void test("an agent waiting for a person's next message waits on them, and a ret
   const retried = await eventsOf(session.id);
   assert.match(
     String((retried.at(-1)?.data as { message?: string }).message),
-    /starts over from the task with the message sent to it before/,
+    /starts over from the task with the message sent to it before\. Sent again: “Fix the timeout\.”$/,
   );
   const again = (await claimSession(db, machineRow))!;
   const inbox = await readInputs(

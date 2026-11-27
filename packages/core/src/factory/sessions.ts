@@ -820,19 +820,32 @@ export async function retrySession(
         { ...message.data, carried: true },
         message.createdById,
       );
+    // What is sent again is quoted, so nobody has to guess which earlier
+    // steering the new run takes (it may be why the run was canceled).
+    const quoted = messages
+      .slice(0, 3)
+      .map((m) => {
+        const text = (typeof m.data.text === "string" ? m.data.text : "")
+          .replace(/\s+/g, " ")
+          .trim();
+        return `“${text.length > 80 ? `${text.slice(0, 79)}…` : text}”`;
+      })
+      .join(", ");
+    const more = messages.length > 3 ? ` and ${messages.length - 3} more` : "";
     const carried =
       messages.length === 0
         ? ""
         : messages.length === 1
           ? " with the message sent to it before"
           : ` with the ${messages.length} messages sent to it before`;
+    const resent = messages.length ? ` Sent again: ${quoted}${more}` : "";
     const eventSequence = await appendEvents(tx, session, [
       {
         type: "status",
         data: {
           phase: "queued",
           status: "queued",
-          message: `${name} retried the session: ${agent.name} starts over from the task${carried}.`,
+          message: `${name} retried the session: ${agent.name} starts over from the task${carried}.${resent}`,
           byId: actor.userId,
         },
       },

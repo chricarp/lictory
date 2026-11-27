@@ -212,7 +212,7 @@ export function SessionView() {
             {/* Laptops: labelled buttons. Phones: one labelled menu, so
                 the title keeps the bar. */}
             {canInterrupt && (
-              <Tooltip label={INTERRUPT_HINT} side="left">
+              <Tooltip label={INTERRUPT_HINT} side="bottom">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
@@ -223,7 +223,7 @@ export function SessionView() {
               </Tooltip>
             )}
             {canCancel && (
-              <Tooltip label={CANCEL_HINT} side="left">
+              <Tooltip label={CANCEL_HINT} side="bottom">
                 <Button
                   variant="secondary"
                   className="max-md:hidden"
@@ -274,7 +274,7 @@ export function SessionView() {
               </Menu>
             )}
             {steer && allows("retry") && (
-              <Tooltip label={RETRY_HINT} side="left">
+              <Tooltip label={RETRY_HINT} side="bottom">
                 <Button onClick={act("retryAgentSession", "Retrying")}>
                   <RotateCcw className="size-3.5" aria-hidden /> Retry
                 </Button>
