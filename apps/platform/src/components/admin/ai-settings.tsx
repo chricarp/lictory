@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { Popover, Picker } from "@lictory/ui/popover";
 import {
   createContext,
@@ -544,7 +545,7 @@ function AiSettingsForm({
           <CheckButton label="Check what is saved" />
           {view.stored?.updatedAt && (
             <span className="text-xs text-muted-foreground">
-              Saved {new Date(view.stored.updatedAt).toLocaleString()}
+              Saved {absoluteTime(view.stored.updatedAt)}
             </span>
           )}
         </div>

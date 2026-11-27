@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  relativeTime,
+  absoluteTime,
   priorityMeta,
   refinementMeta,
+  relativeTime,
 } from "@lictory/core/lib/work-items";
 import type {
   EntityOf,
@@ -919,7 +920,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       </p>
       <time
         className="shrink-0 text-xs text-muted-foreground"
-        title={new Date(entry.createdAt).toLocaleString()}
+        title={absoluteTime(entry.createdAt)}
       >
         {relativeTime(entry.createdAt)}
       </time>

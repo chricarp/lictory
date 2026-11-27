@@ -22,7 +22,7 @@ import {
   type AgentEventType,
 } from "@lictory/core/agent-events/catalog";
 import { callCapability } from "@lictory/core/capabilities/client";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import {
@@ -57,15 +57,7 @@ type Action = "test" | "pause" | "resume" | "remove";
 
 const ALL = "all";
 
-const when = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
+const when = (iso: string | null) => (iso ? absoluteTime(iso) : null);
 
 const statusTone: Record<SubscriptionView["status"], StatusTone> = {
   active: "success",

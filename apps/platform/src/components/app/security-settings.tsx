@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { useCallback, useEffect, useState } from "react";
 import { Fingerprint, ShieldCheck } from "lucide-react";
 import { encode } from "uqr";
@@ -503,7 +504,7 @@ export function PasskeysSection() {
             </span>
             {passkey.createdAt && (
               <span className="text-xs text-muted-foreground">
-                Added {new Date(passkey.createdAt).toLocaleDateString()}
+                Added {formatDate(passkey.createdAt)}
               </span>
             )}
             <Button

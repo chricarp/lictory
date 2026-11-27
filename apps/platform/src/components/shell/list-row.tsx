@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
   MetaLine,
@@ -82,7 +82,7 @@ export function ListRow({
   const timeLabel = typeof time === "string" ? relativeTime(time) : time?.label;
   const timeProps = iso && {
     dateTime: iso,
-    title: new Date(iso).toLocaleString(),
+    title: absoluteTime(iso),
   };
   return (
     <li

@@ -59,8 +59,14 @@ panel for agreeing on what to build.
   leading slot (a 16px icon or a 20px avatar), so titles share one edge; on
   phones a row's key and title read as one wrapped line rather than a key
   beside a hanging column. Placeholders keep 4.5:1 like any text
-  (`text-placeholder`). A faint diagonal hatch (`--hatch`) only
+  (`text-placeholder`) and read as examples ("e.g. …"), never as a value
+  that looks filled in. A faint diagonal hatch (`--hatch`) only
   fills the trays that frame website illustrations and the sign-in backdrop.
+
+- **Dates.** One system, from `@lictory/core/lib/work-items`: a moment
+  reads relative (`relativeTime`, "9m ago") with the exact time on hover
+  (`absoluteTime`, "Nov 27, 2026, 4:50 AM"); a day reads `formatDate`
+  ("Nov 27, 2026"). Never the runtime's numeric default.
 
 - **Layout.** On desktop the navigation sits on the gray shell and the work
   sits in one rounded white frame beside it, so pane dividers end at the

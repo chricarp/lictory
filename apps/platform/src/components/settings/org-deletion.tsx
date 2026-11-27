@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { ExportSummaryView } from "@lictory/core/export/types";
@@ -19,12 +20,7 @@ export const isOwner = (role: string) => role.split(",").includes("owner");
 
 type Listing = { exports: ExportSummaryView[]; retentionDays: number };
 
-const day = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+const day = formatDate;
 
 // What deletion removes, said the same way wherever it is offered.
 export function deletionConsequences(graceDays: number) {

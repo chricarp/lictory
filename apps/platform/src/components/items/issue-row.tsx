@@ -3,11 +3,12 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { memo } from "react";
 import { cn } from "@lictory/core/lib/utils";
 import {
+  absoluteTime,
   identifier,
   isTopLevel,
   relativeTime,
-  typeOf,
   type Project,
+  typeOf,
 } from "@lictory/core/lib/work-items";
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -333,7 +334,7 @@ export const IssueRow = memo(function IssueRow({
       <time
         className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
         dateTime={item.updatedAt}
-        title={new Date(item.updatedAt).toLocaleString()}
+        title={absoluteTime(item.updatedAt)}
       >
         {relativeTime(item.updatedAt)}
       </time>

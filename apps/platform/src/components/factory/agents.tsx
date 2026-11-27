@@ -34,7 +34,7 @@ import {
 } from "@lictory/platform/components/factory/parts";
 import { agentActivity } from "@lictory/platform/components/factory/overview-blocks";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { MissingState } from "@lictory/ui/status-page";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -348,10 +348,7 @@ function AgentRow({
             {status}
             <span className="w-24 text-right text-xs text-muted-foreground tabular-nums max-sm:hidden">
               {lastActive && (
-                <time
-                  dateTime={lastActive}
-                  title={new Date(lastActive).toLocaleString()}
-                >
+                <time dateTime={lastActive} title={absoluteTime(lastActive)}>
                   Active {relativeTime(lastActive)}
                 </time>
               )}

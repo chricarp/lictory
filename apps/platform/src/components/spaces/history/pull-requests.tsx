@@ -2,7 +2,7 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { GitMerge, MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
 import {
   Menu,
@@ -752,7 +752,7 @@ function PullRequestDetail({
                       requested{" "}
                       <time
                         dateTime={r.createdAt}
-                        title={new Date(r.createdAt).toLocaleString()}
+                        title={absoluteTime(r.createdAt)}
                       >
                         {relativeTime(r.createdAt)}
                       </time>

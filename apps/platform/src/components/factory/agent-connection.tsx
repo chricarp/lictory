@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { useCallback, useEffect, useState } from "react";
 import { BellRing, KeyRound, Plug, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
@@ -43,12 +44,7 @@ const expiries = [
   { value: "never", label: "No expiry" },
 ];
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const date = formatDate;
 
 const isActive = (token: AgentTokenSummary) =>
   !token.revokedAt &&

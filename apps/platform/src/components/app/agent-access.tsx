@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { Copy, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AccessTokenSummary } from "@lictory/core/capabilities/access-tokens";
@@ -27,12 +28,7 @@ const expiries = [
   { value: "never", label: "No expiry" },
 ];
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const date = formatDate;
 
 function stateOf(token: AccessTokenSummary) {
   if (token.revokedAt) return "Revoked";
