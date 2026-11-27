@@ -26,7 +26,7 @@ import {
 import { harnessLabels, type HarnessId } from "@lictory/core/factory/protocol";
 import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { CommandBlock } from "@lictory/ui/command-block";
 import { Dialog } from "@lictory/ui/dialog";
@@ -319,7 +319,7 @@ function RunnerRow({
                   !started
                     ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
                     : runner.lastSeenAt
-                      ? `Last seen ${new Date(runner.lastSeenAt).toLocaleString()}`
+                      ? `Last seen ${relativeTime(runner.lastSeenAt)}`
                       : "It has never connected."
                 }
               >
@@ -368,7 +368,7 @@ function RunnerRow({
                 : !started
                   ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
                   : runner.lastSeenAt
-                    ? `Offline since ${new Date(runner.lastSeenAt).toLocaleString()}. Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
+                    ? `Offline, last seen ${relativeTime(runner.lastSeenAt)}. Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
                     : "It has never connected."}
             </Fact>
             {/* What the runner last reported failing (the server out of
@@ -436,8 +436,15 @@ function RunnerRow({
               {waiting > 0 &&
                 ` · ${waiting} waiting on a person (they take no slot)`}
             </Fact>
+            {/* Relative like every other time in the product; the exact
+                time is one hover away. */}
             <Fact label="Registered">
-              {new Date(runner.registeredAt).toLocaleString()}
+              <time
+                dateTime={runner.registeredAt}
+                title={absoluteTime(runner.registeredAt)}
+              >
+                {relativeTime(runner.registeredAt)}
+              </time>
               {owner ? ` · personal runner of ${owner}` : ""}
             </Fact>
           </dl>
