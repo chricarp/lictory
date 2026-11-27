@@ -912,7 +912,7 @@ void test("MCP server lists typed tools and reports failures as tool results", a
   };
   assert.equal(refusal.error.category, "forbidden");
   assert.equal(refusal.error.kind, "human_only");
-  assert.match(refusal.error.message, /Account settings → Integrations/);
+  assert.match(refusal.error.message, /Account settings → Access tokens/);
   const browserOnly = (await handleMcp(f.mcp, {
     jsonrpc: "2.0",
     id: 4,

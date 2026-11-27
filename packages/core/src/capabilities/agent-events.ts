@@ -167,7 +167,7 @@ const setAgentEventPolicyCapability = defineCapability({
 // ---------------------------------------------------------------- webhooks
 
 const where =
-  "Factory → Agents → the agent's Wake-ups, or Account settings → Integrations → Event webhooks";
+  "Factory → Agents → the agent's Wake-ups, or Account settings → Event webhooks";
 const credentials = { reason: "credentials" as const, where };
 
 const listEventSubscriptions = defineCapability({
