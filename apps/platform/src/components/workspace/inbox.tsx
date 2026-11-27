@@ -414,7 +414,9 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
             size="sm"
             variant="secondary"
             render={<Link href={href} />}
-            aria-label={`Open the blocking discussion${item.blockingThreads > 1 ? "s" : ""} on ${key}`}
+            // The name starts with the visible label (WCAG 2.5.3), then
+            // says which item's blocking discussions it opens.
+            aria-label={`${item.blockingThreads > 1 ? "Open discussions" : "Open discussion"}: blocking ${key}`}
           >
             {item.blockingThreads > 1 ? "Open discussions" : "Open discussion"}
           </Button>
