@@ -1127,6 +1127,7 @@ function DraftEditor({
                     : undefined
                 }
                 source={{ active: source !== null, toggle: toggleSource }}
+                framed={false}
                 className="rounded-none border-0 bg-transparent px-1.5 py-1 shadow-none"
               />
             )}

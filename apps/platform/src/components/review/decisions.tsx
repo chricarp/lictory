@@ -360,7 +360,7 @@ export function Decisions() {
               maxLength={240}
               required
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-              placeholder="Retries reuse the original transaction ID"
+              placeholder="e.g. Retries reuse the original transaction ID"
             />
           </label>
           <MarkdownEditor

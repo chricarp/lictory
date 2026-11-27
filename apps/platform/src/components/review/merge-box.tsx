@@ -49,8 +49,9 @@ export function MergeBox({
   // The branch it merges into, for "2 requirements into main not met yet".
   target: string;
   // The act in the subject's words: code and pages merge into a branch; a
-  // specification's proposed change applies to the specification.
-  verb?: "merge" | "apply";
+  // specification's proposed change applies to the specification; a
+  // breakdown creates its items.
+  verb?: "merge" | "apply" | "create";
   requirements: readonly MergeRequirement[];
   // Override when something outside the rows blocks the merge (a draft).
   // Defaults to any requirement failing, pending or running.
@@ -88,14 +89,21 @@ export function MergeBox({
           blocked: "Applying is blocked",
           waiting: "Waiting to apply",
           ready: "Ready to apply",
-          to: "apply",
+          to: "apply this change",
         }
-      : {
-          blocked: "Merging is blocked",
-          waiting: "Waiting to merge",
-          ready: "Ready to merge",
-          to: `merge into ${target}`,
-        };
+      : verb === "create"
+        ? {
+            blocked: "Creating the items is blocked",
+            waiting: "Waiting to create the items",
+            ready: "Ready to create the items",
+            to: "create the items",
+          }
+        : {
+            blocked: "Merging is blocked",
+            waiting: "Waiting to merge",
+            ready: "Ready to merge",
+            to: `merge into ${target}`,
+          };
   return (
     <section
       aria-labelledby={id}
@@ -130,7 +138,7 @@ export function MergeBox({
           </Heading>
           <p className="text-xs text-muted-foreground">
             {waiting
-              ? `Waiting for ${plural(missing, "requirement")} to ${words.to}.`
+              ? `${plural(missing, "requirement")} still to come before you can ${words.to}.`
               : isBlocked
                 ? missing > 0
                   ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
@@ -142,7 +150,7 @@ export function MergeBox({
       {before && <div className="border-b px-4 py-2.5">{before}</div>}
       {requirements.length > 0 && (
         <ul
-          aria-label={verb === "apply" ? "Requirements" : "Merge requirements"}
+          aria-label={verb === "merge" ? "Merge requirements" : "Requirements"}
           className="divide-y divide-border/70"
         >
           {requirements.map((r) => (

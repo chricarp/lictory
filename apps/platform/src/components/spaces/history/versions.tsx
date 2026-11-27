@@ -6,7 +6,7 @@ import {
 } from "@lictory/ui/select";
 import { useState } from "react";
 import { Toggle } from "@ui-sdk/react/toggle";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button, buttonClass } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { DocumentDiff, RenderedDocumentDiff } from "./document-diff";
@@ -107,7 +107,7 @@ export function Versions({
                   <span aria-hidden="true">·</span>
                   <time
                     dateTime={c.createdAt}
-                    title={new Date(c.createdAt).toLocaleString()}
+                    title={absoluteTime(c.createdAt)}
                   >
                     {relativeTime(c.createdAt)}
                   </time>
@@ -153,7 +153,7 @@ export function Versions({
                 {memberName(commit.authorId)} ·{" "}
                 <time
                   dateTime={commit.createdAt}
-                  title={new Date(commit.createdAt).toLocaleString()}
+                  title={absoluteTime(commit.createdAt)}
                 >
                   {relativeTime(commit.createdAt)}
                 </time>

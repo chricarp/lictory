@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { memo, useState } from "react";
 import {
   ArrowUpRight,
@@ -270,7 +271,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             <time
               className="text-xs text-muted-foreground tabular-nums"
               dateTime={new Date(message.createdAt).toISOString()}
-              title={new Date(message.createdAt).toLocaleString()}
+              title={absoluteTime(message.createdAt)}
             >
               {time}
             </time>

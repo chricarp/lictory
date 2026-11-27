@@ -98,7 +98,7 @@ export function SignInForm({
         type="email"
         autoComplete="email"
         defaultValue={defaultEmail}
-        placeholder="you@company.com"
+        placeholder="e.g. you@company.com"
         required
       />
       <PasswordInput

@@ -518,19 +518,22 @@ function ProjectBacklog({ project }: { project: Project }) {
                   "Drag items here to plan them.",
                 );
               })}
-              {section(
-                "backlog",
-                backlog,
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <h2 className="text-sm font-semibold">Backlog</h2>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {backlog.length} {backlog.length === 1 ? "item" : "items"}
-                    {project.estimateScale !== "none" &&
-                      ` · ${points(backlog)} pts`}
-                  </span>
-                </div>,
-                "The backlog is empty.",
-              )}
+              {/* With no work at all, the empty state below says so once;
+                  an empty backlog card above it would say it twice. */}
+              {teamItems.length > 0 &&
+                section(
+                  "backlog",
+                  backlog,
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <h2 className="text-sm font-semibold">Backlog</h2>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {backlog.length} {backlog.length === 1 ? "item" : "items"}
+                      {project.estimateScale !== "none" &&
+                        ` · ${points(backlog)} pts`}
+                    </span>
+                  </div>,
+                  "The backlog is empty.",
+                )}
               {iterations.some((i) => i.state === "completed") && (
                 <div>
                   <SectionCaption className="px-1">Completed</SectionCaption>

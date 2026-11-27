@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { useCallback, useEffect, useState } from "react";
 import { Download, PackageOpen } from "lucide-react";
 import type { ExportSummaryView } from "@lictory/core/export/types";
@@ -15,14 +16,7 @@ import {
 
 type Listing = { exports: ExportSummaryView[]; retentionDays: number };
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const date = absoluteTime;
 
 function bytes(size: number) {
   if (size < 1024) return `${size} B`;

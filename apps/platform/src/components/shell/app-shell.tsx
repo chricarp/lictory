@@ -50,6 +50,11 @@ import {
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import { OrganizationBrand } from "@lictory/platform/components/workspace/organization-brand";
+import { PhoneSyncNotice } from "@lictory/platform/components/workspace/sync-status";
+import {
+  SkipLinkSlot,
+  skipLinkClass,
+} from "@lictory/platform/components/shell/skip-links";
 import {
   useSpaceBySlug,
   useSpaces,
@@ -452,10 +457,11 @@ function ShellFrame({
               event.preventDefault();
               document.getElementById("main")?.focus();
             }}
-            className="fixed top-2 left-2 z-[60] -translate-y-16 rounded-md bg-popover px-3 py-2 text-[13px] font-medium text-foreground shadow-(--shadow-panel) focus-ring outline-none focus:translate-y-0"
+            className={skipLinkClass}
           >
             Skip to content
           </a>
+          <SkipLinkSlot />
           {/* The left column: the organization rail and the sidebar. */}
           <div className="relative hidden shrink-0 lg:flex">
             {/* Wide windows only: on laptops the room goes to the work,
@@ -544,6 +550,7 @@ function ShellFrame({
                   }
                 />
               )}
+              <PhoneSyncNotice />
               {/* Pinned: `overflow-clip`, unlike `hidden`, is not a scroll
                   container, so focusing or scrolling to a field deep in a
                   page never shifts the frame and cuts its top bar. Pages

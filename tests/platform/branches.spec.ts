@@ -624,9 +624,9 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
     );
     await page.goto(discardPR);
     await page
-      .getByRole("button", { name: "Delete review", exact: true })
+      .getByRole("button", { name: "Withdraw from review", exact: true })
       .click();
-    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await page.getByRole("button", { name: "Withdraw", exact: true }).click();
     await expect(page).toHaveURL(/\?branches=1$/);
     await page.goto(discarded);
     await page

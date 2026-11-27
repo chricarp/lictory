@@ -166,11 +166,11 @@ An approval records the exact result the reviewer inspected: the resulting
 title, content and breakdown. Approving a change to the specification
 approves the whole specification as it reads once the change applies, not
 only the change, so applying it records that discipline's approval of the new
-revision; the reviewer row says so beside **Approve**. _Approvals apply to the
-exact result, the whole specification once this change applies; applying
-records them as approvals of revision 4. A new version on either side asks
-reviewers again._ A change that leaves the result identical keeps the
-approval.
+revision; the reviewer row says so beside **Approve**. _Approvals cover the
+whole specification as it would read after this change; applying records
+them as approvals of revision 4. A new version of this change, or a new
+revision of the specification, asks reviewers again._ A change that leaves
+the result identical keeps the approval.
 
 People who saved versions of the change cannot approve it (_Contributors
 cannot approve their own changes._), unless they are the organization's only
@@ -187,7 +187,9 @@ applies. These discussions are attached to the change's latest version.
 
 The requirements box lists everything still in the way, and says **Applying
 is blocked** (a requirement fails), **Waiting to apply** (nothing fails, but
-a review or check has yet to come) or **Ready to apply**:
+a review or check has yet to come) or **Ready to apply**. A breakdown says
+the same with **Create the items** (**Waiting to create the items**, **Ready
+to create the items**):
 
 | Requirement                                    | What to do                                                  |
 | ---------------------------------------------- | ----------------------------------------------------------- |
@@ -197,7 +199,7 @@ a review or check has yet to come) or **Ready to apply**:
 | _A reviewer requested changes._                | Save a fix; the reviewer approves or revokes their decision |
 | _Blocking discussions remain open._            | Resolve the review's blocking discussions                   |
 | _This change conflicts with newer text._       | **Resolve conflicts** (see below)                           |
-| _This change has nothing left to apply._       | The specification already says it all; delete the review    |
+| _This change has nothing left to apply._       | The specification already says it all; withdraw the review  |
 
 A project may also require a passing Lictory Actions check.
 
@@ -253,12 +255,13 @@ same way, then **Save the update**.
 
 - **Delete change** (its author, or anyone whose discipline can edit
   specifications) removes it from the workspace. Its versions and activity
-  stay in history. A change in review cannot be deleted: apply or delete the
-  review first.
-- **Delete review** (its author, or a specification editor) removes a review
-  that has not applied; its open discussions are resolved so none is left
-  hanging. An applied review stays on the item: it records who approved which
-  result.
+  stay in history. A change in review cannot be deleted: apply it or
+  withdraw it from review first.
+- **Withdraw from review** (its author, or a specification editor) stops a
+  review that has not applied: reviewers are no longer asked and its open
+  discussions are resolved so none is left hanging. The change and its
+  versions are kept, so you can send it for review again. An applied review
+  stays on the item: it records who approved which result.
 
 A deleted change is not restored: start a new one instead.
 

@@ -25,7 +25,13 @@ import type {
   ExternalStatusCategory,
   WorkItem,
 } from "@lictory/core/contracts/protocol";
-import { identifier, typeOf, type Project } from "@lictory/core/lib/work-items";
+import {
+  absoluteTime,
+  identifier,
+  relativeTime,
+  type Project,
+  typeOf,
+} from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
@@ -673,8 +679,17 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             {link.publishedRevisionNumber != null
               ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
               : "Linked, not handed off yet"}
-            {link.syncedAt &&
-              ` · ${new Date(link.syncedAt).toLocaleDateString()}`}
+            {link.syncedAt && (
+              <>
+                {" · "}
+                <time
+                  dateTime={link.syncedAt}
+                  title={absoluteTime(link.syncedAt)}
+                >
+                  synced {relativeTime(link.syncedAt)}
+                </time>
+              </>
+            )}
           </p>
           {link.lastError && (
             <p className="text-xs text-destructive">{link.lastError}</p>

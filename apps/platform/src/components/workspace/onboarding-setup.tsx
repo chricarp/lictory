@@ -658,7 +658,7 @@ function Invites({
           id="invite"
           value={text}
           autoComplete="off"
-          placeholder="ana@company.com, @lee"
+          placeholder="e.g. ana@company.com, @lee"
           aria-invalid={problem ? true : undefined}
           aria-describedby="invite-problem"
           onChange={(e) => {
@@ -695,9 +695,12 @@ function Invites({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16 }}
-              className="flex min-h-11 items-center gap-2 py-1.5 text-sm"
+              className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-sm"
             >
-              <span className="min-w-0 flex-1 truncate">{r}</span>
+              {/* The whole address, wrapped if it must: who is invited is
+                  the thing to confirm. On a phone the controls move under
+                  it. */}
+              <span className="min-w-0 flex-1 basis-40 wrap-anywhere">{r}</span>
               <DropdownSelect
                 size="sm"
                 className="w-36 shrink-0"

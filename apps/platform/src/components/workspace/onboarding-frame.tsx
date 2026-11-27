@@ -3,7 +3,12 @@ import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
-import { Logo } from "@lictory/ui/logo";
+import { LogoMark } from "@lictory/ui/logo";
+import { cn } from "@lictory/core/lib/utils";
+import {
+  frameGroundClass,
+  frameMarkClass,
+} from "@lictory/platform/components/auth/auth-layout";
 
 // The steps of setting up a new organization, counted from its first form
 // (the workspace and its project) to the last, wherever setup starts.
@@ -33,22 +38,22 @@ export function OnboardingFrame({
 }) {
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.22, ease }}>
-      {/* The same ground and card as signing in, so creating an account and
-          setting up read as one flow into the app. */}
-      <main className="onboarding flex min-h-dvh flex-col bg-shell [background-image:var(--hatch)]">
+      {/* The same frame as signing in (ground, mark, the card's top edge),
+          so creating an account and setting up read as one flow. */}
+      <main className={cn("onboarding relative", frameGroundClass)}>
         {title && <title>{title}</title>}
-        <header className="flex items-center justify-between px-6 py-5 sm:px-8">
-          <Logo className="[&>span]:h-6" />
-          {accountLink && (
-            <Link
-              href="/account"
-              className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Account
-            </Link>
-          )}
-        </header>
-        <div className="w-full px-4 pt-4 pb-16 sm:pt-10">
+        {accountLink && (
+          <Link
+            href="/account"
+            className="absolute top-5 right-6 rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-8"
+          >
+            Account
+          </Link>
+        )}
+        <span aria-hidden className={frameMarkClass}>
+          <LogoMark className="size-9" />
+        </span>
+        <div className="w-full pb-6">
           <section className="lictory-enter relative mx-auto w-full max-w-[540px] rounded-[1.75rem] bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-10 sm:py-10">
             {labels.length > 0 && <Progress labels={labels} stage={stage} />}
             {children}

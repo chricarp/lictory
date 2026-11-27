@@ -124,6 +124,10 @@ test("a phrase only in a page body is found from the palette and opens the page 
   await expect(again.getByRole("status")).toContainText(
     "No matches in pages, specifications or decisions",
   );
+  // And in words on screen, above the way to search everything.
+  await expect(
+    again.getByText("Nothing matches “zebra crossing”."),
+  ).toBeVisible();
   await page.keyboard.press("Escape");
 
   // Phone width: the result and its excerpt fit without scrolling sideways.

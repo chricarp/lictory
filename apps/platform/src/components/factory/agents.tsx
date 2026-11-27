@@ -34,7 +34,7 @@ import {
 } from "@lictory/platform/components/factory/parts";
 import { agentActivity } from "@lictory/platform/components/factory/overview-blocks";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { MissingState } from "@lictory/ui/status-page";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -348,10 +348,7 @@ function AgentRow({
             {status}
             <span className="w-24 text-right text-xs text-muted-foreground tabular-nums max-sm:hidden">
               {lastActive && (
-                <time
-                  dateTime={lastActive}
-                  title={new Date(lastActive).toLocaleString()}
-                >
+                <time dateTime={lastActive} title={absoluteTime(lastActive)}>
                   Active {relativeTime(lastActive)}
                 </time>
               )}
@@ -537,7 +534,7 @@ export function AgentDialog({
               data-autofocus
               value={name}
               maxLength={60}
-              placeholder="For example, Forge"
+              placeholder="e.g. Forge"
               onChange={(e) => {
                 setName(e.target.value);
                 if (!handleEdited) setHandle(handleOf(e.target.value));
@@ -579,7 +576,7 @@ export function AgentDialog({
             id={ids.description}
             value={description}
             maxLength={500}
-            placeholder="For example, implements ready payments stories"
+            placeholder="e.g. Implements ready payments stories"
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
@@ -665,7 +662,7 @@ export function AgentDialog({
                 value={instructions}
                 rows={3}
                 maxLength={8000}
-                placeholder="For example: run the tests before you commit."
+                placeholder="e.g. Run the tests before you commit. Keep pull requests small."
                 onChange={(e) => setInstructions(e.target.value)}
                 className={cn(
                   inputClass,

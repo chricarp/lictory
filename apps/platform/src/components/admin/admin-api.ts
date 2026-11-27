@@ -1,3 +1,4 @@
+import { absoluteTime, formatDate } from "@lictory/core/lib/work-items";
 import { useCallback, useEffect, useState } from "react";
 
 // The admin console's client for /api/admin/*. The server authorizes every
@@ -208,18 +209,7 @@ export const signUpModeWords: Record<
   },
 };
 
-export const dateTime = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+// The product's formats, so the console reads like the app.
+export const dateTime = absoluteTime;
 
-export const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+export const date = (iso: string) => formatDate(iso);

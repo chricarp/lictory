@@ -13,7 +13,7 @@ export function Wordmark() {
           maskRepeat: "no-repeat",
         }}
       />
-      <span className="sr-only">Lictory</span>
+      <span className="sr-only">Lictory </span>
       <span className="text-fd-muted-foreground font-medium">Docs</span>
     </span>
   );

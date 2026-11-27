@@ -31,6 +31,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import { isSafePageLink } from "@lictory/core/spaces/document/schema";
 import { Button } from "@lictory/ui/button";
 import {
@@ -116,6 +117,7 @@ export function Toolbar({
   compact = false,
   disabled,
   label = "Formatting",
+  framed = true,
   className,
 }: {
   editor: Editor;
@@ -130,6 +132,9 @@ export function Toolbar({
   compact?: boolean;
   disabled: boolean;
   label?: string;
+  // Its own pill (a page's editor); false when it sits in a composer's
+  // frame, which then styles it through `className`.
+  framed?: boolean;
   className?: string;
 }) {
   const state = useEditorState({
@@ -401,15 +406,21 @@ export function Toolbar({
   // Keeps the editor's selection while clicking.
   const keepSelection = (e: { preventDefault: () => void }) =>
     e.preventDefault();
-  return (
+  const root = (children: ReactNode) => (
     <ToolbarRoot
       aria-label={label}
       disabled={disabled}
       className={cn(
-        "flex max-w-none [scrollbar-width:none] flex-nowrap items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1 shadow-(--shadow-border)",
+        "flex max-w-none [scrollbar-width:none] flex-nowrap items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1",
+        !framed && "shadow-(--shadow-border)",
         className,
       )}
     >
+      {children}
+    </ToolbarRoot>
+  );
+  const items = (
+    <>
       {controls.map((control, index) => (
         <Fragment key={control.id}>
           {"separatorBefore" in control &&
@@ -496,7 +507,19 @@ export function Toolbar({
           )}
         </Fragment>
       ))}
-    </ToolbarRoot>
+    </>
+  );
+  // In its own pill the controls scroll sideways on a phone; the strip's
+  // arrow says more lies beyond the edge instead of a control cut in half.
+  return framed ? (
+    <ScrollStrip
+      surface="bg-card"
+      className="overflow-clip rounded-full bg-card shadow-(--shadow-border)"
+    >
+      {root(items)}
+    </ScrollStrip>
+  ) : (
+    root(items)
   );
 }
 

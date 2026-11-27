@@ -309,7 +309,7 @@ function NewPageDialog({
             value={title}
             maxLength={200}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Refund runbook"
+            placeholder="e.g. Refund runbook"
             autoComplete="off"
           />
         </Field>

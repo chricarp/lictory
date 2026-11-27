@@ -4,15 +4,28 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { siteUrl } from "@lictory/platform/lib/site";
 import { PrivacyPreferencesButton } from "@lictory/ui/consent/consent-ui";
 import { LogoMark } from "@lictory/ui/logo";
+import { cn } from "@lictory/core/lib/utils";
+
+// One frame for signing in, signing up and setting up an organization
+// (`OnboardingFrame` uses these too): the mark and the card's top edge stay
+// where they are from screen to screen, whatever the card holds, so the flow
+// reads as one sequence instead of jumping between layouts.
+export const frameGroundClass =
+  "flex min-h-dvh flex-col items-center bg-shell [background-image:var(--hatch)] px-4 pt-10 pb-10 sm:pt-16";
+export const frameMarkClass =
+  "mx-auto mb-7 grid size-10 shrink-0 place-items-center rounded-lg text-foreground";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <main className="flex min-h-dvh flex-col items-center bg-shell [background-image:var(--hatch)] px-4 py-10 sm:py-14">
-      <div className="lictory-enter flex w-full max-w-[400px] flex-1 flex-col justify-center">
+    <main className={frameGroundClass}>
+      <div className="lictory-enter flex w-full max-w-[400px] flex-1 flex-col">
         <a
           href={siteUrl}
           aria-label="Lictory home"
-          className="mx-auto mb-7 grid size-10 place-items-center rounded-lg text-foreground transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]"
+          className={cn(
+            frameMarkClass,
+            "transition-transform duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.97]",
+          )}
         >
           <LogoMark className="size-9" />
         </a>

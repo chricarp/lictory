@@ -385,7 +385,7 @@ function BrandColor() {
               aria-label="Brand color"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="#1d4ed8"
+              placeholder="e.g. #1d4ed8"
               spellCheck={false}
               maxLength={7}
               disabled={pending}

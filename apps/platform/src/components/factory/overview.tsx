@@ -169,7 +169,7 @@ export function FactoryOverview() {
         more={{
           label:
             waiting.length > asks.length
-              ? `All ${waiting.length} waiting on you in Inbox`
+              ? `All ${waiting.length} in Inbox`
               : "Inbox",
           href: paths.inbox(org, "todo"),
         }}

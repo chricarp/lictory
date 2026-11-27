@@ -22,6 +22,7 @@ import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { PageSkipLink } from "@lictory/platform/components/shell/skip-links";
 import {
   SpecificationDraftEditor,
   useSpecificationDraft,
@@ -61,6 +62,7 @@ export function Specification({
   const { current, readOnly, canEdit, memberName, reviewable, entities } =
     useItem();
   const mainDraft = useSpecificationDraft();
+  const sectionRef = useRef<HTMLElement>(null);
   if (!current) return null;
   // A revision a pull request's merge published: its text is the pull
   // request author's; the revision's author merged it.
@@ -74,7 +76,27 @@ export function Specification({
   // Plain work (tasks, bugs) has a description that is edited directly; only
   // specifications are reviewed through suggestions and anchored discussions.
   return (
-    <section>
+    <section ref={sectionRef}>
+      {/* A keyboard reviewer's way past the item list and the header,
+          straight to the text (or its editor). */}
+      <PageSkipLink
+        label={reviewable ? "Skip to specification" : "Skip to description"}
+        target={() => {
+          const section = sectionRef.current;
+          // The reader, else the editor, else the empty text's "start
+          // writing" button, in that order (not document order).
+          for (const selector of [
+            "[data-spec-root]",
+            '[contenteditable="true"]',
+            "textarea",
+            "[data-spec-empty]",
+          ]) {
+            const element = section?.querySelector<HTMLElement>(selector);
+            if (element) return element;
+          }
+          return section;
+        }}
+      />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>
           {reviewable ? "Specification" : "Description"}
@@ -385,6 +407,7 @@ function Reader({
       {isEmpty ? (
         <button
           type="button"
+          data-spec-empty
           onClick={onEdit}
           disabled={readOnly}
           className="w-full rounded-md border border-dashed px-4 py-8 text-left text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none"

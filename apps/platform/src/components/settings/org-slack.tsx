@@ -470,7 +470,7 @@ function AppSetup({
           label="App ID"
           value={appId}
           onChange={setAppId}
-          placeholder="A0123ABCDEF"
+          placeholder="e.g. A0123ABCDEF"
           problem={problems.appId}
         />
         <CredentialField
@@ -478,7 +478,7 @@ function AppSetup({
           label="Client ID"
           value={clientId}
           onChange={setClientId}
-          placeholder="1234567890.1234567890"
+          placeholder="e.g. 1234567890.1234567890"
           problem={problems.clientId}
         />
         <CredentialField

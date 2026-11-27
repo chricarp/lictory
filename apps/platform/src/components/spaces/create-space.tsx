@@ -147,7 +147,7 @@ export function CreateSpaceDialog({
               value={name}
               maxLength={120}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Payments handbook"
+              placeholder="e.g. Payments handbook"
               autoComplete="off"
               className="border-foreground/15"
             />
@@ -176,7 +176,7 @@ export function CreateSpaceDialog({
                     setSlugEdited(true);
                     setSlug(e.target.value.toLowerCase());
                   }}
-                  placeholder="payments-handbook"
+                  placeholder="e.g. payments-handbook"
                   autoComplete="off"
                   spellCheck={false}
                   aria-invalid={handle !== "" && !handleValid}

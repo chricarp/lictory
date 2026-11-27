@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import {
   DropdownSelect,
   DropdownSelectOption,
@@ -289,7 +290,7 @@ function PendingInvitations({
               )}
             </div>
             <span className="text-xs text-muted-foreground">
-              Expires {new Date(i.expiresAt).toLocaleDateString()}
+              Expires {formatDate(i.expiresAt)}
             </span>
             <Button
               size="sm"

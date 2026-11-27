@@ -368,7 +368,7 @@ function RunnerRow({
                 : !started
                   ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
                   : runner.lastSeenAt
-                    ? `Offline, last seen ${relativeTime(runner.lastSeenAt)}. Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
+                    ? `Offline since ${absoluteTime(runner.lastSeenAt)} (${relativeTime(runner.lastSeenAt)}). Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
                     : "It has never connected."}
             </Fact>
             {/* What the runner last reported failing (the server out of
@@ -380,7 +380,7 @@ function RunnerRow({
                 <span className="break-words">{runner.lastError.message}</span>{" "}
                 <time
                   dateTime={runner.lastError.at}
-                  title={new Date(runner.lastError.at).toLocaleString()}
+                  title={absoluteTime(runner.lastError.at)}
                   className="text-muted-foreground"
                 >
                   ({relativeTime(runner.lastError.at)})

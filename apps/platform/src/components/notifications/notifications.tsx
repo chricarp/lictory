@@ -33,7 +33,7 @@ import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import {
   categoryLabels,
   notificationCategories,
@@ -529,7 +529,7 @@ function Row({
   const time = (
     <time
       dateTime={n.createdAt}
-      title={new Date(n.createdAt).toLocaleString()}
+      title={absoluteTime(n.createdAt)}
       className="shrink-0 text-xs text-muted-foreground tabular-nums"
     >
       {relativeTime(n.createdAt)}

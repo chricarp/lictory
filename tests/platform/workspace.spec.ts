@@ -936,7 +936,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     page.getByText("Applied. The reviewed text is part of", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Delete review", exact: true }),
+    page.getByRole("button", { name: "Withdraw from review", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("listitem").filter({

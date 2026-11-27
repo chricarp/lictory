@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { useEffect, useState } from "react";
 import {
   Collapsible,
@@ -47,14 +48,7 @@ type Filters = {
 };
 type Page = { entries: AuditEntry[]; nextCursor: string | null };
 
-const time = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const time = absoluteTime;
 
 function query(filters: Filters) {
   return {
