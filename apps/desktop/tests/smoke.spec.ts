@@ -24,6 +24,51 @@ const appDirectory = path.resolve(import.meta.dirname, "..");
 const axe = (page: Page, state: string) =>
   expectNoAccessibilityViolations(page, state, { singlePage: true });
 
+// Tab from the top of the shell page: each stop is named, shows a focus ring,
+// and the stops listed come in this order (others may sit between them).
+async function expectNamedTabStops(page: Page, expected: RegExp[]) {
+  // Sequential focus starts from a temporary point before everything else.
+  await page.evaluate(() => {
+    const start = document.createElement("span");
+    start.id = "tab-trail-start";
+    start.tabIndex = -1;
+    document.body.prepend(start);
+    start.focus();
+  });
+  const names: string[] = [];
+  for (let press = 0; press < 12; press++) {
+    await page.keyboard.press("Tab");
+    if (press === 0)
+      await page.evaluate(() =>
+        document.getElementById("tab-trail-start")?.remove(),
+      );
+    const stop = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return null;
+      const label =
+        el.getAttribute("aria-label") ??
+        (el instanceof HTMLInputElement ? el.labels?.[0]?.textContent : null) ??
+        el.textContent ??
+        "";
+      const style = getComputedStyle(el);
+      return {
+        name: label.trim(),
+        ring: style.outlineStyle !== "none" && style.outlineWidth !== "0px",
+      };
+    });
+    if (!stop || names.includes(stop.name)) break;
+    expect(stop.name, "every Tab stop has a name").not.toBe("");
+    expect(stop.ring, `${stop.name} shows where focus is`).toBe(true);
+    names.push(stop.name);
+  }
+  let from = 0;
+  for (const name of expected) {
+    const at = names.findIndex((n, i) => i >= from && name.test(n));
+    expect(at, `${name} in the Tab order ${names.join(" → ")}`).not.toBe(-1);
+    from = at + 1;
+  }
+}
+
 async function launch(userData: string) {
   return electron.launch({
     // CI containers have no setuid sandbox helper; the app still runs every
@@ -67,6 +112,8 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
       )
       .toBe(true);
     await axe(shell, "welcome");
+    // No servers yet, so no rail: the address field, then Connect.
+    await expectNamedTabStops(shell, [/^Server address$/, /^Connect$/]);
 
     // An address that is not a server, then the fake Lictory server.
     const address = shell.getByLabel("Server address");
@@ -138,6 +185,20 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
       /^HF Harborline Freight, 3 unread/,
     );
     await axe(shell, "server rail with a named server and its badge");
+    await expectNamedTabStops(shell, [
+      /^HF Harborline Freight, 3 unread/,
+      /^Add a server$/,
+      /^Settings$/,
+    ]);
+
+    // The View menu lists each command once; ⌘+ is a hidden alias of ⌘=.
+    const viewMenu = await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()
+        ?.items.find((item) => item.label === "View")
+        ?.submenu?.items.filter((item) => item.visible && item.label)
+        .map((item) => item.label),
+    );
+    expect(viewMenu?.filter((label) => label === "Zoom In")).toHaveLength(1);
 
     // Native notifications: recorded where the app shows them. Working in
     // the app on another page of the same server, a review request still
@@ -192,6 +253,14 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
     }, `lictory://${server.host}/acme/items/PAY-142?pr=3`);
     await expect(page.locator("#navigated")).toHaveText(
       "/acme/items/PAY-142?pr=3",
+    );
+    // Back can act now: its arrow is drawn in the text color (3:1 or more
+    // on the bar), unlike a disabled one.
+    const back = shell.getByRole("button", { name: "Back" });
+    await expect(back).toBeEnabled();
+    await expect(back).toHaveCSS(
+      "color",
+      /^rgb\((17, 18, 20|236, 238, 241)\)$/,
     );
 
     // Other sites open in the browser, unsafe schemes nowhere; the page stays.

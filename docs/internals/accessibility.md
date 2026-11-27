@@ -59,7 +59,9 @@ rendered state with seeded data:
 by hand with the Electron binary, see [the desktop app](desktop.md#tests)):
 the connect screen and its error, the server rail with a named server and
 its unread badge, add a server, settings, the offline top bar and the
-unavailable-server screen. Electron windows cannot open the extra
+unavailable-server screen; a Tab trail of the connect screen and the shell
+checks that every stop is named ("HF Harborline Freight, 3 unread, Ctrl+1",
+"Add a server", "Settings") and shows its ring. Electron windows cannot open the extra
 page axe uses to combine frames, so they run with the helper's `singlePage`
 option (the shell page has no frames).
 
