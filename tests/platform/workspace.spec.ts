@@ -1054,7 +1054,9 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await expect(
     reviewer.getByRole("heading", { name: "Cancellation amounts are bounded" }),
   ).toBeVisible();
-  await expect(page.getByText(/from a discussion on revision \d+/)).toBeVisible();
+  await expect(
+    page.getByText(/from a discussion on revision \d+/),
+  ).toBeVisible();
   await page
     .getByRole("button", {
       name: "Archive decision: Cancellation amounts are bounded",
