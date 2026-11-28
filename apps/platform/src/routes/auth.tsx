@@ -127,9 +127,9 @@ export function SignUpPage() {
         title="Create your account"
         description={
           fromInvitation(callbackURL)
-            ? "Create your account to accept your invitation. Use the email address it was sent to."
+            ? "Use the email address your invitation was sent to."
             : signUpMode === "invite"
-              ? "Accounts on this installation need an invitation. Use the link in your invitation email, with the address it was sent to."
+              ? "Accounts here need an invitation. Use the link in your invitation email."
               : undefined
         }
       />
@@ -165,7 +165,7 @@ function SignUpClosed({ callbackURL }: { callbackURL: string }) {
       <StateIllustration kind="inbox" />
       <AuthHeading
         title="Ask your administrator for an account"
-        description="Accounts on this installation are created by its administrators. Once yours exists, sign in with the email address they used."
+        description="Once yours exists, sign in with the email address they used."
       />
       <AuthFooter>
         Already have an account?{" "}
@@ -186,7 +186,7 @@ export function ForgotPasswordPage() {
       <PageTitle title="Reset your password" />
       <AuthHeading
         title="Reset your password"
-        description="Enter your account email and we’ll send you a reset link."
+        description="We’ll email you a reset link."
       />
       <ForgotPasswordForm />
       <AuthFooter>
@@ -208,7 +208,7 @@ export function ResetPasswordPage() {
         <PageTitle title="Reset link expired" />
         <AuthHeading
           title="This reset link no longer works"
-          description="Reset links expire after an hour and work once. Request a new one and use the latest email."
+          description="Reset links expire after an hour and work once."
         />
         <Button
           size="lg"
@@ -227,7 +227,7 @@ export function ResetPasswordPage() {
       <PageTitle title="Choose a new password" />
       <AuthHeading
         title="Choose a new password"
-        description="Use at least 10 characters. A unique passphrase works best."
+        description="At least 10 characters."
       />
       <ResetPasswordForm token={token} />
       <AuthFooter>
@@ -243,7 +243,7 @@ function PasswordLoginDisabled() {
       <PageTitle title="Passwords are turned off" />
       <AuthHeading
         title="Passwords are turned off"
-        description="This installation signs people in through your company account. There is no password to reset."
+        description="Sign in with your company account."
       />
       <AuthFooter>
         <AuthLink href="/sign-in">Back to sign in</AuthLink>
@@ -317,8 +317,7 @@ export function WelcomePage() {
     <OnboardingFrame accountLink={false}>
       <PageTitle title="Choose your handle" />
       <OnboardingHeading title="Choose your handle">
-        How teammates and agents @mention you in channels and discussions. You
-        can change it later.
+        How teammates and agents @mention you.
       </OnboardingHeading>
       {data ? (
         <HandleForm

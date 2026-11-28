@@ -4,8 +4,8 @@ description: Use the guided installer, automate setup, reconfigure a server, ins
 ---
 
 The `lictory` command installs and operates a self-hosted server. Run it on
-that server over SSH or at its console, as root or the deploy user. To work on
-specifications from a coding agent instead, see [AI agents and MCP](/integrations/agents).
+the server (SSH or console) as root or the deploy user. For coding agents, see
+[AI agents and MCP](/integrations/agents).
 
 ## The guided experience
 
@@ -26,29 +26,27 @@ In bash, **Tab** completes commands, options, environment names, services and
 setting names (the bootstrap installs `/etc/bash_completion.d/lictory`; for
 another shell or user, `lictory completion bash` prints the script).
 
-Use **↑/↓**, **j/k**, or a choice's number to select a menu entry, then
-**Enter**. At text prompts, Enter keeps the displayed default. Passwords are
-hidden; new passwords are confirmed twice. Invalid answers are explained at
-the prompt so you can correct them before continuing.
+Select a menu entry with **↑/↓**, **j/k** or its number, then **Enter**. At
+text prompts, Enter keeps the displayed default. Passwords are hidden; new
+ones are confirmed twice. Invalid answers are explained at the prompt.
 
-On a styled terminal, long tasks show elapsed progress while detailed output
-is written to `/srv/lictory/<env>/logs/install-<timestamp>.log`. If a task
-fails, the command shows the log's tail and its path. The final summary gives
-the application address, administrator, admin console and remaining tasks.
+Long tasks show elapsed progress and write detailed output to
+`/srv/lictory/<env>/logs/install-<timestamp>.log`; if a task fails, the
+command shows the log's tail and its path. The final summary gives the
+application address, administrator, admin console and remaining tasks.
 
 `NO_COLOR=1` disables styling and uses text prompts. Redirected output and
-pipes are plain text. `--yes` disables questions, and is the right mode for
-automation; input from a pipe also uses unattended mode. No terminal UI is
-required in CI.
+pipes are plain text. `--yes` disables questions for automation; input from a
+pipe is also unattended. CI needs no terminal UI.
 
 ## Inspect health and logs
 
 <Cli command={["status", "doctor", "logs"]} />
 
-`status` summarizes the address, the active release and when it was
-activated, each service's health, the backup timer's last and next run, and
-the access policy. On a terminal it is one panel; piped, the same facts are
-plain `key: value` lines, and `status --json` returns them as JSON for scripts.
+`status` shows the address, the active release and when it was activated,
+each service's health, the backup timer's last and next run, and the access
+policy: one panel on a terminal, `key: value` lines when piped, JSON with
+`status --json`.
 
 To follow only the background worker:
 
@@ -57,43 +55,43 @@ lictory logs worker -f --tail 100
 lictory logs api --since 2h --timestamps   # everything since an incident began
 ```
 
-Services include `proxy`, `api`, `worker`, `collaboration` (live editing of
-pages and specifications), `zero-cache` and `postgres`. The `api`, `worker`
-and `collaboration` services write one JSON object per line with the same
-fields first (`time`, `level`, `service`, `event`), so a log pipeline can
-filter them by level and order them without Docker's timestamps.
-Tooling history lives in `/srv/lictory/<env>/deploy.log` and
-`release-history.log`; service logs and installer logs are separate.
+Services: `proxy`, `api`, `worker`, `collaboration` (live editing of pages
+and specifications), `zero-cache` and `postgres`. `api`, `worker` and
+`collaboration` write one JSON object per line, `time`, `level`, `service`
+and `event` first, so a log pipeline can filter by level and order them
+without Docker's timestamps. Tooling history is in
+`/srv/lictory/<env>/deploy.log` and `release-history.log`, separate from
+service and installer logs.
 
 ## Ask for help
 
-Start with `lictory doctor`: it names most problems and the command that fixes
-them. If you still need help, collect a support bundle and open an
+Start with `lictory doctor`: it names most problems and the command that
+fixes them. Otherwise collect a support bundle and open an
 [issue](https://github.com/chricarp/lictory/issues/new/choose):
 
 <Cli command="support-bundle" />
 
 The archive (mode `0600`) holds host and Docker versions, status, doctor, the
 settings with secrets masked, the containers, deploy history, timers and each
-service's logs for the last 24 hours (`--since 72h` for more). Every secret
-value from `.env`, email addresses and bearer tokens are replaced. Logs can
+service's logs for the last 24 hours (`--since 72h` for more). Secret values
+from `.env`, email addresses and bearer tokens are replaced, but logs can
 still contain your organization's content, such as project or specification
-titles: read the archive and paste only the relevant lines into a public issue.
+titles: paste only the relevant lines into a public issue.
 
 ## Reconfigure an installation
 
 Run `sudo lictory install` again. Enter keeps current values; generated
-secrets and settings you do not change are retained. The review step lists
-changed `.env` keys before applying them. Change just one setting without a
-questionnaire by supplying flags:
+secrets and unchanged settings are kept. The review step lists changed `.env`
+keys before applying them. To change one setting without the questions, pass
+flags:
 
 ```sh
 sudo lictory install --yes --signup-mode closed
 ```
 
-For any other setting, use `lictory config`. It lists the change with
-secrets masked, keeps a copy of the previous `.env` and restarts the services
-with the new value, putting the previous settings back if they do not start:
+For any other setting, use `lictory config`. It lists the change (secrets
+masked), keeps a copy of the previous `.env` and restarts the services,
+restoring the previous settings if they do not start:
 
 <Cli command="config" />
 
@@ -105,15 +103,14 @@ sudo lictory config apply           # after editing .env by hand
 ```
 
 A misspelled key or a change to a generated secret (database passwords,
-`DELIVERY_CREDENTIALS_KEY`) is refused unless you pass `--force`. The
-[configuration reference](/self-hosting/configuration) lists every setting.
-Every command explains its options with `--help`, for example
-`lictory install --help`.
+`DELIVERY_CREDENTIALS_KEY`) is refused without `--force`. Every setting:
+[configuration](/self-hosting/configuration). Every command's options:
+`--help`, for example `lictory install --help`.
 
 ## Unattended installation
 
-Supply required answers as flags with `--yes`. For example, on a server whose
-DNS and ports are ready for automatic HTTPS:
+Pass the answers as flags with `--yes`. For example, on a server whose DNS
+and ports are ready for automatic HTTPS:
 
 ```sh
 sudo lictory install --yes \
@@ -128,35 +125,33 @@ sudo lictory install --yes \
   --organization-creation administrators
 ```
 
-Replace the example values. Every install flag also accepts a
-`LICTORY_<FLAG>` environment variable, replacing hyphens with underscores.
-Supply `LICTORY_SMTP_PASSWORD` through your automation's secret store to the
-privileged process. Variables set in your user shell may be removed by
-`sudo`; ensure the command receives them. Do the same for
-`LICTORY_ADMIN_PASSWORD` if creating the administrator unattended with
-`--organization`, `--admin-name` and `--admin-email`.
+Every install flag also accepts a `LICTORY_<FLAG>` environment variable
+(hyphens as underscores). Pass `LICTORY_SMTP_PASSWORD` from your automation's
+secret store to the privileged process; `sudo` may drop variables set in your
+user shell. Do the same for `LICTORY_ADMIN_PASSWORD` when creating the
+administrator unattended with `--organization`, `--admin-name` and
+`--admin-email`.
 
 Without administrator details, installation defers account setup. Complete it
-at the terminal afterwards:
+afterwards:
 
 <Cli command="admin-setup" />
 
-The bootstrap defaults to the newest stable release. To bootstrap nightly,
-pass the variable to the shell running the download:
+The bootstrap installs the newest stable release. For nightly, pass the
+variable to the shell running the download:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh \
   | sudo LICTORY_CHANNEL=nightly sh
 ```
 
-`LICTORY_VERSION` pins an exact bootstrap release. The
-[command reference](/self-hosting/commands) lists every option, variable and
-exit code.
+`LICTORY_VERSION` pins an exact bootstrap release. Every option, variable and
+exit code: [command reference](/self-hosting/commands).
 
 ## Multiple environments
 
-Every command accepts `--env <name>` (or `-e`). If only one environment exists,
-the command finds it automatically. Select it explicitly in scripts:
+Every command accepts `--env <name>` (or `-e`); with only one environment, it
+is found automatically. Name it explicitly in scripts:
 
 ```sh
 lictory status --env production --json
@@ -168,7 +163,7 @@ Each environment has its own configuration, database, Docker volumes and
 deployment lock. Check the environment before a write such as upgrade,
 restore or account administration.
 
-Environments on one server also share a few things:
+Environments on one server share:
 
 - **Ports.** Only one environment can serve ports 80 and 443 with automatic
   HTTPS. Install the others with `--tls proxy` and a different
@@ -177,27 +172,27 @@ Environments on one server also share a few things:
 - **Host tooling.** The `lictory` command and the scripts in
   `/srv/lictory/bin` come from the newest release activated on the server, so
   upgrading staging first also updates the tools production uses. They stay
-  compatible with older releases; upgrade every environment of a server
-  within the same release line: `lictory doctor` warns when an
-  environment's release and the host tools are on different release lines.
+  compatible with older releases; keep a server's environments within one
+  release line (`lictory doctor` warns when an environment's release and the
+  host tools are on different lines).
 
 ## Recover access
 
-Instance administration works inside the API container even when nobody can
-sign in. Create the first administrator with `admin setup`, or grant instance
-administration to an existing account:
+Instance administration runs inside the API container, so it works when
+nobody can sign in. Create the first administrator with `admin setup`, or
+grant instance administration to an existing account:
 
 <Cli command={["admin-grant", "admin-create-user", "admin-set-password"]} />
 
 `admin set-password` signs the account out everywhere. Passwords are read at
-the prompt or from `LICTORY_USER_PASSWORD`. Use `admin deactivate <email>` to
-block sign-in and end sessions; `admin reactivate <email>` restores access.
+the prompt or from `LICTORY_USER_PASSWORD`. `admin deactivate <email>` blocks
+sign-in and ends sessions; `admin reactivate <email>` restores access.
 `admin revoke <email>` removes instance administration. Deactivation and
 revocation ask for confirmation; the last active administrator is protected.
 
-Instance administrators manage accounts and organizations. That role grants no
-access to an organization's work. The first setup also creates an organization
-the administrator owns; the two kinds of authority remain separate.
+Instance administrators manage accounts and organizations, with no access to
+an organization's work. Owning the organization the first setup creates is a
+separate authority.
 
 ## Upgrade, roll back and test recovery
 
@@ -206,8 +201,8 @@ the administrator owns; the two kinds of authority remain separate.
 Upgrade verifies release digests, backs up, applies migrations and activates
 the newer release. Rollback reactivates the previous images; **it does not
 undo database migrations**. Read [upgrades](/self-hosting/upgrades) before
-switching versions, and use a [restore drill](/self-hosting/backups#restore-drill)
-to prove a backup is usable before an incident.
+switching versions; a [restore drill](/self-hosting/backups#restore-drill)
+proves a backup is usable before an incident.
 
 ## Stop or remove an environment
 
@@ -215,13 +210,12 @@ to prove a backup is usable before an incident.
 
 Without `--purge`, the environment stops and its containers and scheduled
 jobs are removed; the database, settings and backups stay, and
-`sudo lictory config apply` starts it again. `--purge` deletes the
-database volumes and the environment's directory, including `.env` and its
-secrets. When backups go off the server, a final backup is taken first, and
-nothing is deleted if it fails. You type the environment name to confirm.
-Docker, other environments, the `lictory` command and the deploy user are
-never touched; with no environment left, the command prints how to remove
-the tooling too.
+`sudo lictory config apply` starts it again. `--purge` deletes the database
+volumes and the environment's directory, including `.env` and its secrets.
+When backups go off the server, a final backup is taken first, and nothing is
+deleted if it fails. You type the environment name to confirm. Docker, other
+environments, the `lictory` command and the deploy user are never touched;
+with no environment left, the command prints how to remove the tooling too.
 
-`lictory help` and `lictory admin help` show usage. The
+`lictory help` and `lictory admin help` show usage; the
 [self-hosting overview](/self-hosting#operating-the-server) lists the commands.

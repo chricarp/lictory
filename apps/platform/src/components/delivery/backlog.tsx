@@ -112,7 +112,6 @@ export function Backlog() {
     return (
       <ExternalProjectNotice
         project={project}
-        surface="backlog"
         title="Backlog"
         icon={<ListOrdered />}
       />
@@ -344,7 +343,6 @@ function ProjectBacklog({ project }: { project: Project }) {
             href: paths.project(organization.slug, project.key),
           },
         ]}
-        description="Rank work and plan when to take it on. Iteration planning stays tentative until the delivery scope is accepted."
         meta={
           averageVelocity !== undefined && project.estimateScale !== "none" ? (
             <span
@@ -441,8 +439,7 @@ function ProjectBacklog({ project }: { project: Project }) {
         >
           {project.iterationMode === "off" && (
             <p className="text-[13px] text-muted-foreground">
-              {project.name} works without iterations. Rank the backlog by
-              dragging
+              {project.name} works without iterations
               {canManage(project.id) ? (
                 <>
                   ; enable sprints or cycles in{" "}
@@ -463,9 +460,7 @@ function ProjectBacklog({ project }: { project: Project }) {
           )}
           {project.iterationMode === "automatic" && (
             <p className="text-[13px] text-muted-foreground">
-              Cycles of {project.iterationWeeks} week
-              {project.iterationWeeks > 1 ? "s" : ""} start and complete
-              automatically; unfinished work rolls into the next cycle.
+              {project.iterationWeeks}-week cycles; unfinished work rolls over.
               {canManage(project.id) && (
                 <>
                   {" "}
@@ -553,7 +548,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                       })
                     }
                   />,
-                  "Drag items here to plan them.",
+                  "Drag items here",
                 );
               })}
               {/* With no work at all, the empty state below says so once;
@@ -611,11 +606,8 @@ function ProjectBacklog({ project }: { project: Project }) {
                   : "Nothing planned yet"
               }
             >
-              {teamFilter.value === "none"
-                ? "Every item of this project belongs to a team."
-                : teamFilter.team
-                  ? `Create items for ${teamFilter.team.name}, or set the team on an item from its detail page.`
-                  : `Create work items in ${project.name} to plan them here.`}
+              {teamFilter.value === "none" &&
+                "Every item of this project belongs to a team."}
             </EmptyState>
           )}
         </div>
@@ -778,11 +770,6 @@ function IterationHeader({
                       onComplete(v === "backlog" ? null : v);
                       close();
                     }}
-                    footer={
-                      <p className="px-3 py-2 text-xs text-muted-foreground">
-                        Completed work stays in this sprint&apos;s report.
-                      </p>
-                    }
                   />
                 )
               }

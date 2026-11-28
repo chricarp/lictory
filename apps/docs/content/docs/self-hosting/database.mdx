@@ -6,14 +6,13 @@ description: The bundled PostgreSQL, or your own server or a managed service (RD
 <CliNotice />
 
 By default Lictory runs PostgreSQL in a container on the server and backs it
-up. It also runs on **any PostgreSQL that meets its requirements**: your own
-server or a managed service. There is no list of supported providers:
-Lictory checks the server itself and names each missing requirement with its
-fix.
+up. It also runs on **any PostgreSQL that meets its requirements**, your own
+server or a managed service. Instead of a list of supported providers,
+Lictory checks the server and names each missing requirement with its fix.
 
 <Cli command="database-check" />
 
-The same check runs before every migration of an external database; when it
+The same check runs before every migration of an external database; if it
 fails, nothing is migrated.
 
 ## Requirements
@@ -65,7 +64,7 @@ sudo LICTORY_DATABASE_ADMIN_URL='postgresql://admin:…@db.example.com:5432/post
   lictory install --database external --database-host db.example.com
 ```
 
-Interactively, the installer asks in its **Database** step, including the
+Interactively, the installer's **Database** step asks for it, including the
 optional administrator connection. Upgrades work as usual. An installation
 keeps the database it started with; moving the data is a dump and restore.
 
@@ -78,7 +77,6 @@ copy.
 
 ## Providers
 
-No managed provider has been verified yet. The settings each one needs, and
-a script that verifies a provider end to end in a disposable database, are in
-the
+No managed provider has been verified yet. Each one's settings, and a script
+that verifies a provider end to end in a disposable database:
 [external and managed PostgreSQL runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/external-database.md#providers).

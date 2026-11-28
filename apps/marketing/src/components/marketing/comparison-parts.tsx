@@ -169,10 +169,8 @@ export function Sources({ products }: { products: readonly ProductProfile[] }) {
         Sources
       </h2>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        Facts about other products come from their own public websites and
-        documentation, checked on the date shown. Products change: check the
-        vendor’s current pages before you decide, and tell us if something here
-        is out of date.
+        From each vendor’s public pages, checked on the date shown. Products
+        change: check before you decide.
       </p>
       <ul className="mt-4 space-y-3 text-sm leading-6">
         {others.map((product) => (

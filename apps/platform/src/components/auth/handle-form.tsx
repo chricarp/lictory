@@ -107,7 +107,7 @@ export function HandleForm({
     : problem
       ? { tone: "error", text: problem }
       : unchanged
-        ? { tone: "muted", text: "This is your current handle." }
+        ? { tone: "muted", text: "Your current handle." }
         : !result
           ? { tone: "muted", text: "Checking availability…" }
           : result.available

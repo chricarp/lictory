@@ -28,10 +28,10 @@ import { absoluteUrl, publicPage } from "@lictory/marketing/lib/site";
 // the HTML pages, which stay canonical.
 
 const comparisonNote =
-  "Built-in capabilities as we understand them. Marketplace add-ons and integrations may change the picture.";
+  "Built-in capabilities as we understand them. Add-ons may change the picture.";
 
 const checkedNote = (competitor: string) =>
-  `Built-in capabilities, checked against ${competitor}’s public documentation. “Not documented” means we could not find it there, not that it is impossible.`;
+  `Built-in capabilities, checked against ${competitor}’s public documentation. “Not documented” means we could not find it there.`;
 
 /** The `.md` URL path of a public page that has a Markdown version. */
 export function markdownPath(path: string) {

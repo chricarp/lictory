@@ -89,7 +89,6 @@ export function DiscussionRemovalWarning({
       {counts
         ? `This permanently deletes ${describeDiscussions(counts)} on ${where}, with all their replies.`
         : `This permanently deletes every discussion on ${where}, with all their replies.`}{" "}
-      Open and resolved, blocking and non-blocking discussions are all deleted.
       This cannot be undone.
     </p>
   );
@@ -129,8 +128,7 @@ export const sameCounts = (a: unknown, b: unknown) =>
 export function CountsChanged() {
   return (
     <p role="alert" className="font-medium">
-      The discussions changed while this was open. Cancel and open it again to
-      review what would be deleted.
+      The discussions changed while this was open. Cancel and open it again.
     </p>
   );
 }

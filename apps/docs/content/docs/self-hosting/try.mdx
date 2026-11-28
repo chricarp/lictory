@@ -4,8 +4,8 @@ description: Run Lictory on your own computer with one command, on Linux, macOS 
 ---
 
 One command runs a complete Lictory on your computer at `http://localhost`,
-with its own database and an inbox for the email it sends. Nothing is
-installed outside one folder, and nothing needs root, DNS or a server.
+with its own database and an inbox for the email it sends. Everything stays
+in one folder; no root, DNS or server needed.
 
 <Callout type="warn" title="For evaluation, not production">
   The trial serves plain HTTP on your computer only, keeps its generated secrets
@@ -52,9 +52,8 @@ Lictory 0.24.0 is running: http://localhost
   Admin console  http://localhost/admin
 ```
 
-The inbox asks for its own user and password (saved as
-`LICTORY_TRY_MAIL_PASSWORD` in `~/lictory-try/.env`): it receives
-password-reset links, so nobody else who can reach it should read them.
+The inbox has its own user and password (`LICTORY_TRY_MAIL_PASSWORD` in
+`~/lictory-try/.env`) because it receives password-reset links.
 
 When port 80 or 8025 is taken (or Docker runs rootless, which can't use port
 80), the trial picks the next free port, such as `http://localhost:8080`, and
@@ -62,30 +61,28 @@ prints it.
 
 ## Look around
 
-Sign in with the printed email and password, choose your handle, then let
+Sign in with the printed email and password, choose your handle, and let
 guided setup create your first project. [Getting started](/getting-started)
 takes a proposal from draft through review to delivery.
 
-- **Invite people:** invitations land in the Mailpit inbox; open the link
-  there in another browser (or a private window) to join as that person and
-  review together.
+- **Invite people:** invitations land in the Mailpit inbox; open the link in
+  another browser (or a private window) to join as that person.
 - **Lictory Intelligence:** connect a provider in the admin console under
   **AI** ([AI providers](/self-hosting/ai-providers)). Everything else works
   without it.
 
 ## Stop, start again and remove
 
-The start command writes a small `trial` script into the trial's folder and
-prints how to use it (with your folder, if you chose another one with
-`LICTORY_TRY_DIR`):
+The start command writes a `trial` script into the trial's folder (your
+`LICTORY_TRY_DIR`, if set) and prints how to use it:
 
 ```sh
 ~/lictory-try/trial stop
 ```
 
 To start again or upgrade, run the start command again (with the same
-`LICTORY_TRY_DIR`, if you set one). It keeps your data. A trial started before
-the script existed gets it the next time you run the start command.
+`LICTORY_TRY_DIR`, if set). Your data stays. A trial older than the script
+gets it on its next start.
 
 To remove everything:
 
@@ -93,12 +90,10 @@ To remove everything:
 ~/lictory-try/trial remove
 ```
 
-The script runs Compose with the trial's own project (`-p lictory-try`) and
-ignores `COMPOSE_FILE` and the other Compose settings your shell may export,
-so it never acts on another project.
-
-Removing deletes the database with everything you created, the downloaded
-images and the folder.
+This deletes the database with everything you created, the downloaded
+images and the folder. The script runs Compose with the trial's own project
+(`-p lictory-try`) and ignores `COMPOSE_FILE` and other Compose settings your
+shell exports, so it never acts on another project.
 
 ## Options
 
@@ -121,9 +116,9 @@ the command again to apply them.
 
 ## When something goes wrong
 
-The command prints the last lines of `try.log` in the trial's folder
-(`~/lictory-try` by default) when a step fails, with the name of the service
-that did not start. Common causes:
+When a step fails, the command prints the last lines of `try.log` in the
+trial's folder (`~/lictory-try` by default) and names the service that did
+not start. Common causes:
 
 - **Cannot reach Docker:** start Docker Desktop, or on Linux add your user to
   the `docker` group and sign in again.
@@ -132,7 +127,7 @@ that did not start. Common causes:
 - **A port is taken:** choose others with `LICTORY_TRY_PORT` and
   `LICTORY_TRY_MAIL_PORT`.
 
-To see each service's state and the API log, use the same cleared overrides:
+Each service's state and the API log, with the same cleared overrides:
 
 ```sh
 (
@@ -147,6 +142,6 @@ Docker Engine, or run the trial on a network you trust.
 
 ## Next: your team's server
 
-The trial runs the same release images and Compose file as a server. A server
-adds HTTPS with automatic certificates, backups, monitoring, upgrades and
-rollback through the `lictory` command: see [install](/self-hosting/install).
+A server runs the same release images and Compose file, and adds HTTPS with
+automatic certificates, backups, monitoring, upgrades and rollback through the
+`lictory` command: see [install](/self-hosting/install).

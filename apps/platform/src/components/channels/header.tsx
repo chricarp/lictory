@@ -133,7 +133,6 @@ export function ChannelHeader({
       .then(() =>
         toast({
           title: "Unlinked from Slack",
-          description: "Both keep their history; nothing more is synced.",
           duration: 5000,
         }),
       )

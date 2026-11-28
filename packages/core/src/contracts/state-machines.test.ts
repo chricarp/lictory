@@ -151,7 +151,7 @@ void test("pull requests: only open ones are reviewed and merged; closing never 
   // history.
   assert.equal(
     specificationPullRequest.refusal("merged", "close"),
-    "This review is applied: it records who approved which result, so it stays on the item.",
+    "This review is applied, so it stays on the item.",
   );
   assert.equal(
     pagePullRequest.refusal("merged", "close"),

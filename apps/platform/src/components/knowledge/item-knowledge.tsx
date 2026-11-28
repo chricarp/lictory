@@ -305,9 +305,7 @@ export function ItemKnowledge({
       {empty ? (
         loaded && (
           <p className="text-[13px] text-muted-foreground">
-            Pages that mention {key} with “#”, cite it in its specification or
-            are attached here (background, design, runbooks) appear in this
-            list.
+            No pages. Mention {key} with “#” in a page to link it.
           </p>
         )
       ) : knowledge.pages.length > 0 ? (
@@ -792,12 +790,7 @@ function AttachForm({
           onCheckedChange={(checked) => setPin(checked === true)}
           className="mt-0.5"
         />
-        <span>
-          Pin the version published now
-          <span className="block text-muted-foreground">
-            Otherwise the item follows the page as it is published.
-          </span>
-        </span>
+        <span>Pin the version published now</span>
       </label>
       {error && (
         <p role="alert" className="text-xs text-destructive">
@@ -941,7 +934,7 @@ function ProposeForm({
         if (!change)
           return setError({
             field: "title",
-            text: "Say what the change is, so it can be told apart from other updates.",
+            text: "Describe the change.",
           });
         const final = finalizeBranchName(name);
         const problem = branchNameProblem(final);
@@ -982,11 +975,8 @@ function ProposeForm({
         Propose an update to “{choice.page.title}”
       </h2>
       <p id={`${titleId}-hint`} className="text-xs text-muted-foreground">
-        A branch of the page opens in the editor, linked to {itemKey} revision{" "}
-        {item.revisionNumber}.{" "}
-        {reviewed
-          ? "Its changes are published after review."
-          : "Nothing is published until you merge it."}
+        Opens a branch linked to {itemKey} revision {item.revisionNumber}.{" "}
+        {reviewed ? "Published after review." : "Published when you merge it."}
       </p>
       <label htmlFor={titleId} className="text-xs font-medium">
         What changes

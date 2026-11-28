@@ -61,9 +61,7 @@ export function ItemRedirect({ identifier: raw }: { identifier: string }) {
         </Button>
       }
     >
-      {parsed && !project
-        ? `No project uses the key ${parsed.key}.`
-        : "Check the identifier and try again."}
+      {parsed && !project ? `No project uses the key ${parsed.key}.` : null}
     </MissingState>
   );
 }

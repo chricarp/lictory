@@ -104,9 +104,7 @@ function SetupSnippet() {
       {client !== "other" && (
         <p className="text-xs text-muted-foreground">
           Set <code className="font-mono">LICTORY_TOKEN</code> to the token in
-          the environment the client starts in. The setup stores the
-          variable&apos;s name, never the token, so the token never lands in the
-          client&apos;s configuration or a file you might commit.
+          the client&apos;s environment.
         </p>
       )}
     </div>
@@ -240,14 +238,11 @@ export function AgentConnection({
         <li className="space-y-3 px-3.5 py-3">
           <p className="text-[13px] leading-5 text-muted-foreground">
             {optional
-              ? `Each session of ${agent.name} gets its own short-lived token. These extra tokens let an MCP client act as ${agent.name}.`
-              : `An MCP client using one of these tokens acts as ${agent.name}: your permissions, narrowed to its scope, in ${organization.name} only.`}
+              ? "Extra tokens for MCP clients. Sessions get their own."
+              : `An MCP client with one of these tokens acts as ${agent.name}.`}
           </p>
           {archived && (
-            <p className="text-[13px]">
-              {agent.name} is archived: its tokens do not work. Restore it to
-              connect it again.
-            </p>
+            <p className="text-[13px]">Archived: its tokens do not work.</p>
           )}
           {secret && (
             <div className="space-y-2 rounded-lg bg-muted/50 p-3">
@@ -295,8 +290,7 @@ export function AgentConnection({
           )}
           {tokenLimit && !archived && (
             <p className="text-xs text-muted-foreground">
-              An agent can have at most 10 active tokens. Revoke one to create
-              another.
+              At most 10 active tokens. Revoke one to create another.
             </p>
           )}
           {error && (
@@ -307,7 +301,7 @@ export function AgentConnection({
         </li>
         {tokens !== null && !active.length && !archived && (
           <li className="px-3.5 py-3 text-[13px] text-muted-foreground">
-            No active token. Create one and give it to the MCP client.
+            No active token.
           </li>
         )}
         {active.map((token) => {
@@ -397,12 +391,8 @@ export function AgentWakeUps({ agent }: { agent: AgentEntity }) {
       >
         <li className="space-y-3 px-3.5 py-3">
           <p className="text-[13px] leading-5 text-muted-foreground">
-            Lictory calls a URL you choose as soon as something waits on{" "}
-            {agent.name} or on you: a mention, a review request, a stale
-            approval, an answered question, a decided pull request. Each call
-            says what happened and where, with a short title; {agent.name} reads
-            the details with its own tools. A client that keeps a connection
-            open can call{" "}
+            Called when something waits on {agent.name} or you. Connected
+            clients can call{" "}
             <code className="font-mono text-xs">waitForEvents</code> instead.
           </p>
           {creating && (
@@ -430,9 +420,7 @@ export function AgentWakeUps({ agent }: { agent: AgentEntity }) {
         </li>
         {own !== null && !own.length && (
           <li className="px-3.5 py-3 text-[13px] text-muted-foreground">
-            Nothing wakes {agent.name} yet. Add a webhook for a client that
-            starts from a URL (Claude routines, Grok, OpenClaw hooks); clients
-            that support MCP Events subscribe with its token and appear here.
+            Nothing wakes {agent.name} yet.
           </li>
         )}
         {own?.map((subscription) => (

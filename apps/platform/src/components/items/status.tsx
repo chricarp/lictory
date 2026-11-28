@@ -210,8 +210,7 @@ export function RefinementStatus({
         onSelect={onChange}
         footer={
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            {readyHint ??
-              "Ready is set automatically when every readiness check passes."}
+            {readyHint ?? "Ready when every readiness check passes"}
           </p>
         }
       />

@@ -35,12 +35,7 @@ import {
 export function OrganizationGeneral() {
   const { organization, isAdmin } = useWorkspace();
   return (
-    <SettingsSection
-      id="general"
-      icon={<Building2 />}
-      title="General"
-      description="The organization's name, handle and branding, as shown to every member."
-    >
+    <SettingsSection id="general" icon={<Building2 />} title="General">
       <SettingsBody>
         {isAdmin ? (
           <RenameOrganization
@@ -135,13 +130,9 @@ function ChangeOrganizationHandle() {
           aria-hidden
           className="mt-0.5 size-4 shrink-0 text-warning"
         />
-        <div className="flex flex-col gap-1 text-xs leading-5">
-          <p className="font-medium">Existing links will stop working</p>
-          <p className="text-muted-foreground">
-            Changing the organization handle will invalidate all previously
-            shared links to this workspace. Share updated links after saving.
-          </p>
-        </div>
+        <p className="text-xs leading-5 font-medium">
+          Existing links will stop working
+        </p>
       </div>
       <InlineError>{error}</InlineError>
       <Button
@@ -167,19 +158,19 @@ const logoFields: {
   {
     kind: "mark",
     label: "Logomark",
-    hint: "Square symbol, at least 64×64. Shown when the sidebar is collapsed and in the organization list.",
+    hint: "Square, at least 64×64",
     preview: "size-12",
   },
   {
     kind: "full",
     label: "Full logo",
-    hint: "Wide logo including the name, about 6:1. Replaces the name in the sidebar.",
+    hint: "Wide, about 6:1. Replaces the name in the sidebar",
     preview: "h-12 w-48",
   },
   {
     kind: "icon",
     label: "Browser icon",
-    hint: "Square favicon for the browser tab, at least 48×48. Without one, the logomark is used.",
+    hint: "Square, at least 48×48. Defaults to the logomark",
     preview: "size-12",
   },
 ];
@@ -291,8 +282,7 @@ function Branding() {
         );
       })}
       <p className="text-xs text-muted-foreground">
-        PNG, JPEG or WebP up to {MAX_LOGO_SIZE / 1024} KB. Transparent
-        backgrounds work best in both light and dark themes.
+        PNG, JPEG or WebP, up to {MAX_LOGO_SIZE / 1024} KB.
       </p>
       <InlineError>{error}</InlineError>
       <BrandColor key={organization.brandColor ?? "default"} />
@@ -357,8 +347,7 @@ function BrandColor() {
         <div className="min-w-0 flex-1 basis-56">
           <p className="text-[13px] font-medium">Brand color</p>
           <p className="text-xs text-muted-foreground">
-            Tints primary buttons, accents and emails, adjusted so text stays
-            readable. <LearnMore page="branding" />
+            Tints buttons, accents and emails. <LearnMore page="branding" />
           </p>
         </div>
         {isAdmin ? (
@@ -463,7 +452,7 @@ function BrandPreview({ color }: { color: string }) {
       ))}
       {adjusted.length > 0 && (
         <p className="basis-full text-xs text-muted-foreground">
-          Shown as {adjusted.join(" and ")}, so text keeps 4.5:1 contrast.
+          Shown as {adjusted.join(" and ")} for contrast.
         </p>
       )}
     </div>

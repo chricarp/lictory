@@ -155,9 +155,7 @@ test("an item lists the pages about it, attaches one with undo and hides restric
   // Attach the runbook as a runbook, detach it, undo.
   await section.getByRole("button", { name: "Attach page" }).click();
   const attach = page.getByRole("dialog");
-  await attach
-    .getByPlaceholder("Search pages by title or space")
-    .fill("Refund");
+  await attach.getByPlaceholder("Search pages").fill("Refund");
   await attach.getByRole("option", { name: /Refund runbook/ }).click();
   // The purpose step opens in the section, above the list it adds to.
   const purpose = section.getByRole("form", {
@@ -272,13 +270,13 @@ test("proposing a page update opens a branch in the editor and the item follows 
   );
 
   await page.goto(seeded.itemPath(number));
-  await expect(knowledge(page)).toContainText("appear in this list");
+  await expect(knowledge(page)).toContainText("No pages.");
   await knowledge(page)
     .getByRole("button", { name: "Propose page update" })
     .click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("option", { name: /Refund policy/ }).click();
-  await expect(dialog).toContainText("published after review");
+  await expect(dialog).toContainText("Published after review");
   // What the change is comes first; the branch is named after it, under
   // Advanced.
   const change = dialog.getByRole("textbox", { name: "What changes" });
@@ -286,9 +284,7 @@ test("proposing a page update opens a branch in the editor and the item follows 
   await dialog
     .getByRole("button", { name: "Create branch and edit", exact: true })
     .click();
-  await expect(dialog.getByRole("alert")).toContainText(
-    "Say what the change is",
-  );
+  await expect(dialog.getByRole("alert")).toContainText("Describe the change");
   await change.fill("Cap partial refunds");
   const advanced = dialog.getByText("Advanced");
   await expect(advanced).toContainText(

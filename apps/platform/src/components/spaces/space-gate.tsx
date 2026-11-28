@@ -68,8 +68,6 @@ export function SpaceNotFound() {
           All spaces
         </Button>
       }
-    >
-      You may not have access to it, or the address is misspelled.
-    </MissingState>
+    />
   );
 }

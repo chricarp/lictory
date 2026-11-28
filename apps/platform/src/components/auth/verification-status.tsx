@@ -44,14 +44,7 @@ export function VerificationStatus({
   if (verified && !errorCode) {
     return (
       <>
-        <AuthHeading
-          title="Email verified"
-          description={
-            callbackURL.startsWith("/invitation")
-              ? "Your account is ready. Accept the invitation to join your team’s organization."
-              : "Your address is confirmed and your account is ready to use."
-          }
-        />
+        <AuthHeading title="Email verified" />
         <Button
           size="lg"
           className="w-full"
@@ -71,7 +64,7 @@ export function VerificationStatus({
         title={errorCode ? "Verification link expired" : "Check your inbox"}
         description={
           errorCode ? (
-            "Request a fresh link to finish verifying your email."
+            "Request a new link."
           ) : (
             <>
               We sent a verification link to{" "}

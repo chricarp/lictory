@@ -279,10 +279,8 @@ export function StackComparison() {
         ))}
       </ul>
       <p className="stack-note">
-        Keep a dedicated tool where you depend on what only it does, such as a
-        marketplace app, service management, time tracking or video calls.
-        Lictory publishes approved work to Jira Cloud and can link a channel to
-        a Slack channel, so a team can move one piece at a time.
+        Keep a dedicated tool for what only it does. Lictory publishes to Jira
+        Cloud and links channels to Slack, so you can move one piece at a time.
       </p>
     </div>
   );

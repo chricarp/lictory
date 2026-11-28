@@ -133,8 +133,8 @@ export function useAttention() {
           item,
           reason: pending.length ? "Review requested" : "Suggestion to accept",
           detail: pending.length
-            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggested change waits for you to accept or reject it" : ""}${blocking}`
-            : `A suggested change waits for you to accept or reject it${blocking}`,
+            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggestion to accept" : ""}${blocking}`
+            : `Accept or reject it${blocking}`,
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });
@@ -189,8 +189,7 @@ export function useAttention() {
         list.push({
           item,
           reason: "Scope changed after commitment",
-          detail:
-            "Review the current specification against the scope selected for delivery.",
+          detail: "Compare the current specification with the committed scope",
           icon: <MessageSquareWarning className="size-4 text-warning" />,
           weight: 2,
         });
@@ -203,7 +202,7 @@ export function useAttention() {
         list.push({
           item,
           reason: "Requirements need attention",
-          detail: `Delivery is underway; ${item.readinessPassed}/${item.readinessTotal} readiness checks pass.`,
+          detail: `Underway · ${item.readinessPassed}/${item.readinessTotal} readiness checks pass`,
           icon: <CircleAlert className="size-4 text-warning" />,
           weight: 2,
         });
@@ -332,7 +331,7 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
                 {agent?.name ?? "The agent"} failed
               </span>
               <span className="truncate">
-                {asSentence(sessionOutcome(session))} Retry it or start over.
+                {asSentence(sessionOutcome(session))}
               </span>
             </>
           }
@@ -463,10 +462,7 @@ export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
   return (
     <div className="h-full overflow-y-auto">
       {rows.length === 0 ? (
-        <EmptyState illustration="inbox" title="Nothing needs your attention">
-          Review requests on items and pages, questions from agents, blocking
-          discussions on your items and requested changes appear here.
-        </EmptyState>
+        <EmptyState illustration="inbox" title="Nothing needs your attention" />
       ) : (
         // One list, in groups by what I do about it (the queue's order):
         // agents stopped on my answer, reviews others wait on, my own work.
@@ -584,7 +580,7 @@ function RetrySession({ sessionId }: { sessionId: string }) {
       size="sm"
       variant="secondary"
       disabled={busy}
-      title="Runs the session again from the task; your earlier messages are sent again."
+      title="Runs it again from the task and resends your earlier messages"
       onClick={async () => {
         setBusy(true);
         try {

@@ -90,7 +90,6 @@ export function FactoryAgents() {
   );
   return (
     <FactoryPage
-      description="Each agent acts with its owner’s permissions, narrowed by its scope, and is shown as acting via its owner."
       meta={
         agents.length > 0 && (
           <span>
@@ -113,22 +112,13 @@ export function FactoryAgents() {
               <Plus className="size-3.5" aria-hidden /> New agent
             </Button>
           }
-        >
-          A runner agent runs a coding harness (Claude Code, Codex or the
-          built-in one) on a runner. An external agent is an MCP client you
-          connect with a token of its own, and wake with webhooks, on its page.
-          You are accountable for the agents you create.
-        </MissingState>
+        />
       ) : (
         <>
-          <Panel
-            title="Yours"
-            count={mine.length}
-            empty="You own no agent. Create one to start sessions with it."
-          >
+          <Panel title="Yours" count={mine.length} empty="You own no agents.">
             {mine.map(row)}
           </Panel>
-          <Panel title="Others in the organization" count={others.length}>
+          <Panel title="Others" count={others.length}>
             {others.map(row)}
           </Panel>
           {archived.length > 0 && (
@@ -482,7 +472,6 @@ export function AgentDialog({
   return (
     <Dialog
       title={agent ? `Edit ${agent.name}` : "New agent"}
-      description="You are accountable for what it does. It never has more access than you."
       onClose={onClose}
       onSubmit={() => void submit()}
       width="max-w-xl"
@@ -562,7 +551,7 @@ export function AgentDialog({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            People mention it in channels as @{handle || "handle"}.
+            Mention as @{handle || "handle"}
           </p>
         </div>
         <div className="space-y-1.5">
@@ -721,8 +710,7 @@ export function AgentDialog({
               Others may start sessions with it
             </span>
             <span className="block text-xs text-muted-foreground">
-              It still acts as you: share only agents whose scope you are
-              comfortable lending.
+              It still acts as you
             </span>
           </span>
         </label>

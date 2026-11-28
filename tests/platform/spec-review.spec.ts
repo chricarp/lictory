@@ -167,9 +167,6 @@ test("anchored discussions sit beside the text in document order, marked, and re
   );
   await expect(cards.nth(2)).toContainText("Who owns the rollout?");
   await expect(panel.getByText("On the whole specification")).toBeVisible();
-  await expect(
-    panel.getByText("Blocking discussions hold readiness"),
-  ).toBeVisible();
   await expectNoAccessibilityViolations(page, "specification discussions", {
     include: "[data-discussions]",
   });
@@ -762,7 +759,7 @@ test("a reviewer whose approval a new revision made outdated sees it, and their 
   });
   await expect(workflow).toContainText("Your Engineering review is requested");
   await expect(workflow).toContainText(
-    "You approved revision 1. It changed since",
+    /You approved revision 1\. Revision \d+ needs your review again\./,
   );
   await workflow
     .getByRole("button", { name: "What changed since revision 1" })
@@ -842,9 +839,9 @@ test("a reviewer decides on a phone without a squeezed card, and a change to the
   // The same composer as before readiness; the ready specification's
   // reviewers approve the change instead of one person.
   const composer = page.getByRole("form", { name: "Suggest a change" });
-  await expect(composer).toContainText(
-    "the change is reviewed by its reviewers",
-  );
+  await expect(
+    composer.getByRole("button", { name: "Send for review" }),
+  ).toBeVisible();
   await expect(composer.getByLabel("Who accepts it")).toHaveCount(0);
   await expect(
     page.getByRole("complementary", { name: "Details" }),

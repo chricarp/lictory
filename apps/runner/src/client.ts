@@ -64,7 +64,7 @@ export function describeNetworkError(
   switch (code) {
     case "ConnectionRefused":
     case "ECONNREFUSED":
-      return `Could not connect to ${origin}: nothing accepted the connection. Check the address and port, and that the server is running.`;
+      return `Could not connect to ${origin}: nothing accepted the connection. Check the address, the port and that the server is running.`;
     case "ENOTFOUND":
     case "EAI_NONAME":
     case "EAI_AGAIN":
@@ -76,7 +76,7 @@ export function describeNetworkError(
       return `${origin} did not answer in time. Check that outbound HTTPS to it is allowed (proxy, firewall).`;
     case "ECONNRESET":
     case "ConnectionClosed":
-      return `${origin} closed the connection. Check proxies between this machine and the server, then try again.`;
+      return `${origin} closed the connection. Check proxies between this machine and the server.`;
   }
   if (code && TLS_CODES.test(code))
     return `${origin} presented a TLS certificate this machine does not trust (${code}). Use the server's public address, or trust its certificate authority with NODE_EXTRA_CA_CERTS=<ca.pem>.`;
@@ -107,7 +107,7 @@ export class RunnerClient {
         json?.error?.message ??
           (response.status === 404
             ? `${this.url} has no Lictory runner API (HTTP 404). Check that --url is the address you open Lictory at.`
-            : `${this.url} answered HTTP ${response.status} without saying why. If a proxy sits in front of Lictory, check its logs.`),
+            : `${this.url} answered HTTP ${response.status} without a reason. If a proxy is in front of Lictory, check its logs.`),
         json?.error?.kind,
         json?.error?.acked,
       );

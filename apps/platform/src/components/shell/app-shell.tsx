@@ -305,7 +305,7 @@ function ShellFrame({
       const projectId = options?.projectId ?? project?.id;
       if (!canCreateIn(projectId))
         return toast(
-          "Your disciplines in this project cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.",
+          "Your disciplines here can’t create work items. Ask a project administrator for one that can.",
         );
       track("work_item_create_opened", {
         organization_id: organization.id,

@@ -423,14 +423,14 @@ export function SpecVersions({
             capabilities.editSpecifications && (
               <p className="text-sm text-muted-foreground">
                 This specification is protected. To restore earlier text,
-                propose it as a change and send it for review.
+                propose it as a change.
               </p>
             )}
           {canRestore && confirm && (
             <div className="space-y-2 rounded-xl p-3 ring-1 ring-foreground/10">
               <p className="text-sm">
                 Restore revision {shown.number} as a new revision. Existing
-                approvals will require review again.
+                approvals will need review again.
               </p>
               {error && (
                 <p role="alert" className="text-sm text-destructive">

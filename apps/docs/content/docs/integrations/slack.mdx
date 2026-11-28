@@ -1,12 +1,11 @@
 ---
 title: Sync channels with Slack
-description: Link Lictory channels to Slack channels so your team keeps one conversation while it moves over. Each message stays owned by the side it was written on.
+description: Link Lictory channels to Slack channels. Each message stays owned by the side it was written on.
 ---
 
-Your team does not have to leave Slack on day one. Link a Lictory channel to
-a Slack channel and both sides see the same conversation: messages, thread
-replies, edits, deletions and reactions. When everyone works in Lictory,
-unlink it. Both keep their history.
+Link a Lictory channel to a Slack channel and both sides see the same
+conversation: messages, thread replies, edits, deletions and reactions. Unlink
+it once everyone works in Lictory; both keep their history.
 
 ## How ownership works
 
@@ -36,9 +35,8 @@ use that agent; otherwise the mention stays plain text.
 
 ## Connect Slack (organization administrators)
 
-Each organization installs its own Slack app, created from a manifest
-Lictory writes for your installation. It is an internal app of your Slack
-workspace: nobody else installs it.
+Each organization installs its own internal Slack app, created from a
+manifest Lictory writes for your installation.
 
 <Steps>
 <Step>
@@ -48,8 +46,8 @@ workspace: nobody else installs it.
 In **Organization settings → Integrations**, under **Slack**, choose **Set
 up Slack** and copy the manifest (**Show the manifest** displays it). Open [api.slack.com/apps](https://api.slack.com/apps?new_app=1),
 choose **From a manifest**, pick your workspace, paste it and create the
-app. The manifest already contains the events, interactivity and redirect
-URLs of your Lictory installation and only the permissions Lictory uses.
+app. The manifest holds your installation's events, interactivity and
+redirect URLs and only the permissions Lictory uses.
 
 </Step>
 <Step>
@@ -58,12 +56,11 @@ URLs of your Lictory installation and only the permissions Lictory uses.
 
 On the app's **Basic Information** page, copy the **App ID**, **Client ID**,
 **Client Secret** and **Signing Secret** into Lictory and choose **Save
-app**. Lictory asks Slack to check the Client ID and Client Secret before it
-saves them, and names the one Slack refused. They are encrypted at rest and
-never shown again.
+app**. Lictory has Slack check the Client ID and Client Secret before saving
+and names the one Slack refused. They are encrypted at rest and never shown
+again.
 
-Slack offers no check of the Signing Secret on its own: it is proven when
-Slack verifies the events URL. If Slack says the URL is not verified, open
+The Signing Secret is proven only when Slack verifies the events URL. If Slack says the URL is not verified, open
 **Event Subscriptions** in the app and choose **Retry** once the app is saved
 in Lictory. If it still fails, copy the Signing Secret again and save.
 
@@ -88,8 +85,8 @@ stay on both sides, and installing again needs no new app.
 Messages written in Slack are withheld from Lictory Intelligence (Litto and
 other AI features) until an administrator turns on **Let Lictory
 Intelligence read Slack messages**. It only takes effect while Lictory
-Intelligence is on for the organization. Lictory never sends Slack content
-to an AI provider otherwise.
+Intelligence is on for the organization. Otherwise Slack content never
+reaches an AI provider.
 
 ## Link a channel
 
@@ -100,7 +97,7 @@ to an AI provider otherwise.
    never widens who can read the conversation. Direct messages are not
    linked.
 4. Optionally import the **last 25 to 200 messages** of the Slack channel,
-   once. Lictory never copies a channel's whole history.
+   once. A channel's whole history is never copied.
 
 Anyone who manages the channel (its members, and organization administrators
 for public channels) links and unlinks it. The header then shows **Synced with
@@ -111,8 +108,7 @@ A Lictory message that could not reach Slack says **Not sent to Slack** with
 the reason and a **Retry** button for its author and the channel's managers.
 Lictory retries by itself first, waiting when Slack asks it to.
 
-**⋯ → Unlink from Slack** stops the sync. Both channels keep everything that
-was said; nothing more is sent either way.
+**⋯ → Unlink from Slack** stops the sync. Both channels keep their history.
 
 ## Self-hosted installations
 

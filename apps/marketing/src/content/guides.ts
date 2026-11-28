@@ -27,11 +27,11 @@ export const guides: readonly Guide[] = [
     updated: "2026-10-15",
     body: `A **Definition of Ready** (DoR) is the shared agreement on what a piece of work must contain before a team commits to building it. Where the Definition of Done protects the end of the work, the Definition of Ready protects the start.
 
-Teams adopt one for a simple reason: unclear work is the most expensive work. An edge case discovered during refinement costs a conversation. The same edge case discovered mid-sprint costs a rewrite, a slipped commitment and often a meeting.
+Unclear work is the most expensive work. An edge case found during refinement costs a conversation; found mid-sprint, it costs a rewrite and a slipped commitment.
 
 ## Why a “Ready” status is not enough
 
-Most trackers express readiness as a status or a label. Someone moves the card to *Ready*, and from then on the card claims to be ready, whatever happens to its description.
+Most trackers express readiness as a status. Someone moves the card to *Ready*, and it stays ready whatever happens to its description.
 
 That breaks in predictable ways:
 
@@ -40,11 +40,11 @@ That breaks in predictable ways:
 - QA was never asked, so nobody knows how the failure cases should behave.
 - The status was set by the person most eager to start, not by the people who carry the risk.
 
-Readiness should be **evidence, not a label**. A status can summarize the evidence, but it should never replace it.
+Readiness should be **evidence, not a label**. A status can summarize the evidence, never replace it.
 
 ## A practical Definition of Ready checklist
 
-Keep the list short enough that people actually apply it. A good starting point:
+Keep it short enough that people apply it. A starting point:
 
 1. **The objective is stated.** Who is this for, and what outcome should change?
 2. **The behavior is described.** What does the system do, in the order a user experiences it?
@@ -56,7 +56,7 @@ Keep the list short enough that people actually apply it. A good starting point:
 8. **Dependencies are identified.** Other teams, services, data migrations or external providers.
 9. **It is small enough.** Large items are decomposed into pieces that can each be delivered and verified.
 
-Not every item needs every check. A copy change does not need a security review; a payment retry does. Decide per project which checks are required and which are informative.
+Not every item needs every check: a copy change needs no security review, a payment retry does. Decide per project which checks are required and which are informative.
 
 ## Make each check verifiable
 
@@ -66,11 +66,11 @@ The test of a good DoR item is whether someone else can confirm it without askin
 - “No open blocking questions” is verifiable if questions are recorded as threads that can be open or resolved.
 - “Engineering approved” is only meaningful if you know **which version** engineering approved.
 
-That last point is the one most teams miss. An approval is a statement about specific text. When the text changes materially, the approval should become stale, exactly like a code review approval on a pull request that received new commits.
+Most teams miss that last point. An approval is a statement about specific text. When the text changes materially, the approval should go stale, like a code review approval after new commits.
 
 ## How Lictory applies a Definition of Ready
 
-Lictory treats readiness like CI for requirements. Each specification shows checks that pass as answers arrive. By default:
+Lictory treats readiness as CI for requirements: checks that pass as answers arrive. By default:
 
 - Specification written
 - No open blocking discussions
@@ -78,9 +78,9 @@ Lictory treats readiness like CI for requirements. Each specification shows chec
 - Current revision approved by every required review
 - Every child specification is ready
 
-Each project adapts this to its own Definition of Ready for each type of work: require a non-empty section such as “Acceptance criteria” or “Failure behavior”, an approval from specific disciplines such as QA or Security, or a manual sign-off. Before publishing a change, Lictory shows which items it would make ready and which would need more work. The definition is versioned: work that was already ready or done keeps the checks it met, everything else follows the new ones.
+Each project adapts this per type of work: require a non-empty section such as “Acceptance criteria” or “Failure behavior”, an approval from disciplines such as QA or Security, or a manual sign-off. Before publishing a change to the definition, Lictory shows which items it would make ready and which would need more work. The definition is versioned: work already ready or done keeps the checks it met.
 
-Approvals belong to the revision that was reviewed, so a material change marks the affected approvals for another review. Each project decides what readiness means for delivery: informative only, a warning when work starts, or a hard block on starting work that is not ready. When delivery happens in Jira, only ready work can be handed off.
+Approvals belong to the reviewed revision, so a material change marks the affected approvals for another review. Each project decides what readiness means for delivery: informative, a warning when work starts, or a hard block. When delivery happens in Jira, only ready work can be handed off.
 
 ## Common mistakes
 
@@ -88,7 +88,7 @@ Approvals belong to the revision that was reviewed, so a material change marks t
 - **Using the DoR as a gate owned by one role.** Readiness is a shared judgment. Product, engineering and QA each see different risks.
 - **Never revisiting it.** If bugs keep coming from the same gap, such as missing timeout behavior, add a check for it. If a check never catches anything, drop it.
 
-A good Definition of Ready is short, verifiable and tied to the actual text being built. That is what lets a team commit with confidence instead of hope.`,
+A good Definition of Ready is short, verifiable and tied to the text being built.`,
   },
   {
     slug: "requirements-review",
@@ -98,9 +98,9 @@ A good Definition of Ready is short, verifiable and tied to the actual text bein
       "Apply pull request practices to product requirements: revisions, diffs, anchored comments, suggested changes and approvals that go stale when the spec changes.",
     published: "2026-10-15",
     updated: "2026-10-15",
-    body: `Software teams have spent two decades refining how they review code. Pull requests give every change a diff, every comment a line, every approval a commit. Requirements, which cause at least as many defects, are usually reviewed in a meeting or a document with comments in the margin.
+    body: `Pull requests give every code change a diff, every comment a line, every approval a commit. Requirements, which cause at least as many defects, are usually reviewed in a meeting or a document with comments in the margin.
 
-You can borrow most of what works in code review and apply it to specifications, without asking product managers to learn Git.
+Most of what works in code review applies to specifications, without asking product managers to learn Git.
 
 ## 1. Treat every change as a revision
 
@@ -114,21 +114,17 @@ Revisions make three things possible:
 
 ## 2. Comment on the sentence, not the document
 
-“I have some concerns about the retry logic” forces everyone to hunt for context. Anchor every comment to the text it is about: a sentence, a section, an acceptance criterion or a proposed change.
-
-Anchored threads stay readable months later. Nobody has to ask *“What was this comment referring to?”*
+“I have some concerns about the retry logic” forces everyone to hunt for context. Anchor every comment to its text: a sentence, a section, an acceptance criterion or a proposed change. Anchored threads stay readable months later.
 
 ## 3. Distinguish blocking from non-blocking
 
-Not every comment should stop work. Mark the ones that must be resolved before the specification can be approved, such as unclear failure behavior, a security concern or a contradiction, as **blocking**. Leave style and nice-to-haves as non-blocking.
+Not every comment should stop work. Mark the ones that must be resolved before approval (unclear failure behavior, a security concern, a contradiction) as **blocking**. Leave style and nice-to-haves non-blocking.
 
-Resolve threads without deleting them. The discussion is part of the history of why the requirement reads the way it does.
+Resolve threads without deleting them: the discussion explains why the requirement reads the way it does.
 
 ## 4. Suggest changes instead of describing them
 
-“Maybe say something about idempotency here” creates work for the author and room for misinterpretation. A **suggestion** proposes the actual wording. The author accepts it, creating a new revision, or rejects it with a reason.
-
-Suggestions are the single biggest time saver in asynchronous review: most comments become one-click decisions.
+“Maybe say something about idempotency here” creates work and room for misinterpretation. A **suggestion** proposes the actual wording. The author accepts it, creating a new revision, or rejects it with a reason. Most comments become one-click decisions.
 
 ## 5. Ask the right reviewers for the right concerns
 
@@ -140,7 +136,7 @@ Different disciplines catch different problems:
 - **Security**: Who can access what? How could it be abused?
 - **Operations**: How is it rolled out, observed and rolled back?
 
-Request reviews by responsibility rather than inviting everyone to everything. Required reviews are what readiness depends on; optional reviewers add context.
+Request reviews by responsibility, not everyone for everything. Readiness depends on required reviews; optional reviewers add context.
 
 ## 6. Bind approvals to revisions
 
@@ -150,7 +146,7 @@ When the approved text changes materially, the affected approvals should become 
 
 > Engineering approved revision 12. Current revision: 14. Engineering approval requires review.
 
-This is the same rule code review uses when new commits arrive, and it closes the most common gap in requirements sign-off.
+Code review uses the same rule when new commits arrive.
 
 ## 7. Record decisions separately from discussions
 
@@ -162,7 +158,7 @@ Finally, replace the “Ready” status with checks: acceptance criteria present
 
 ## Doing this in Lictory
 
-Lictory is built around this workflow: immutable revisions with diffs, threads anchored to text ranges, suggestions accepted as new revisions, discipline-based reviews, approvals bound to revisions that go stale after material changes, durable decisions and readiness checks. Approved work is then delivered natively in Lictory or handed off to Jira.`,
+Lictory is built around this workflow: immutable revisions with diffs, anchored threads, suggestions accepted as revisions, discipline-based reviews, revision-bound approvals that go stale after material changes, decisions and readiness checks. Approved work is delivered in Lictory or handed off to Jira.`,
   },
   {
     slug: "acceptance-criteria",
@@ -174,7 +170,7 @@ Lictory is built around this workflow: immutable revisions with diffs, threads a
     updated: "2026-10-15",
     body: `**Acceptance criteria** are the conditions a piece of work must satisfy to be accepted. They turn a description of intent into statements that engineering can build against and QA can verify.
 
-Good criteria remove debate at the end of a sprint. Weak criteria move it there.
+Good criteria remove debate at the end of a sprint. Weak ones move it there.
 
 ## What makes a criterion good
 
@@ -199,7 +195,7 @@ A useful acceptance criterion is:
 > **When** the retry succeeds on the second attempt
 > **Then** the order is marked paid and the customer receives one receipt
 
-Use whichever your team reads fastest. Mixing both in one specification is fine.
+Use whichever your team reads fastest; mixing both is fine.
 
 ## Cover more than the happy path
 
@@ -221,11 +217,11 @@ An example of a criterion that only QA would think to ask for:
 - **Describing the solution.** “Add a retry queue table” constrains engineering without telling QA what to test.
 - **Vague qualities.** Replace “quickly” with a number, and “securely” with who may access what.
 - **Hiding criteria in comments.** If an answer in a discussion changes the expected behavior, put it in the criteria. Comments are not the specification.
-- **Writing them alone.** Draft criteria, then let engineering and QA review them. They will find the gaps faster than you can.
+- **Writing them alone.** Draft criteria, then let engineering and QA review them. They find gaps faster.
 
 ## Acceptance criteria and readiness
 
-Acceptance criteria are the most important input to a [Definition of Ready](/guides/definition-of-ready). In Lictory, a project can require an “Acceptance criteria” section as a readiness check, which passes once that section of the specification has content. Reviewers can suggest new or sharper criteria inline, and accepting a suggestion creates a new revision so approvals always refer to the criteria that were actually reviewed.`,
+Acceptance criteria are the most important input to a [Definition of Ready](/guides/definition-of-ready). In Lictory, a project can require an “Acceptance criteria” section as a readiness check. Reviewers suggest sharper criteria inline; accepting one creates a new revision, so approvals always refer to the criteria actually reviewed.`,
   },
   {
     slug: "async-backlog-refinement",
@@ -237,11 +233,11 @@ Acceptance criteria are the most important input to a [Definition of Ready](/gui
     updated: "2026-10-15",
     body: `**Backlog refinement** (or grooming) is where a team turns ideas into work it can commit to: clarifying behavior, splitting large items, estimating and surfacing risks. In many teams it is a recurring meeting where a product manager shares a screen and everyone reads a ticket for the first time.
 
-That format has known problems. The loudest concern wins, quieter disciplines stay silent, decisions live in someone’s notes, and most of the hour is spent reading. Asynchronous refinement fixes most of this, if the tooling keeps context.
+The loudest concern wins, quieter disciplines stay silent, decisions live in someone’s notes, and most of the hour is spent reading. Asynchronous refinement fixes most of this, if the tooling keeps context.
 
 ## When async refinement works
 
-Async works when every contribution stays attached to what it is about, and when the state of the item is obvious at a glance. It fails when it becomes a long comment feed that nobody can follow.
+Async works when every contribution stays attached to what it is about and the item’s state is obvious at a glance. It fails as a long comment feed nobody can follow.
 
 You need four things:
 
@@ -252,7 +248,7 @@ You need four things:
 
 ## A simple async refinement cycle
 
-**1. Draft.** The product owner writes a rough proposal: the problem, who it affects and the expected outcome. Imperfect is fine. Refinement exists to fix that.
+**1. Draft.** The product owner writes a rough proposal: the problem, who it affects and the expected outcome. Imperfect is fine.
 
 **2. Request reviews.** Ask engineering, QA and, where relevant, security or operations to review. Give them a deadline in days, not a meeting slot.
 
@@ -274,9 +270,9 @@ You need four things:
 
 ## How Lictory supports async refinement
 
-Lictory was designed for this cycle: proposals that can start rough, discipline-based review requests, threads anchored to text, suggestions accepted as revisions, revision-bound approvals, durable decisions and readiness checks that update as answers arrive. Litto, the optional assistant powered by Lictory Intelligence, can point out missing failure behavior or contradictions, but it only proposes; people decide.
+Lictory was designed for this cycle: rough proposals, discipline-based review requests, anchored threads, suggestions accepted as revisions, revision-bound approvals, decisions and readiness checks that update as answers arrive. Litto, the optional assistant, points out missing failure behavior or contradictions; it only proposes, people decide.
 
-The result is not zero meetings. It is meetings only for the questions that genuinely need one.`,
+Not zero meetings: meetings only for the questions that need one.`,
   },
   {
     slug: "coding-agents-on-your-own-runners",
@@ -286,26 +282,26 @@ The result is not zero meetings. It is meetings only for the questions that genu
       "How to run coding agents such as Claude Code, Codex or Gemini CLI on machines your team controls: isolation, credentials, accountable owners, approvals and proof that the work is done.",
     published: "2026-11-24",
     updated: "2026-11-24",
-    body: `Coding agents (Claude Code, Codex, OpenCode, Gemini CLI and others) can now implement a well-described task, run the tests and open a pull request. Most teams start by running them on one developer’s laptop, in that developer’s terminal, with that developer’s credentials. That works for one person. It stops working when several agents run at once, on shared work, for a team that has to answer for what they changed.
+    body: `Coding agents (Claude Code, Codex, OpenCode, Gemini CLI and others) can now implement a well-described task, run the tests and open a pull request. Most teams start on one developer’s laptop, with that developer’s credentials. That stops working when several agents run at once, on shared work, for a team that answers for what they changed.
 
-A **runner** is a machine your team controls that executes agent sessions on the team’s behalf: a build server, a VPS, a spare laptop, a Mac mini under a desk. This guide covers what to get right before you leave agents running on one.
+A **runner** is a machine your team controls that executes agent sessions for the team: a build server, a VPS, a spare laptop, a Mac mini. Here is what to get right before you leave agents running on one.
 
 ## Why run agents on your own machines
 
 - **Your code and your network.** The agent works next to your repositories, package mirrors and internal services, behind your firewall.
-- **Your choice of harness and model.** Different tasks suit different agents. A runner can offer several, and the team picks the agent for each task.
-- **Capacity you can see.** A runner has a fixed number of slots. Work queues instead of spawning without limit, and you know what is running where.
-- **Shared, not personal.** A session started for the team keeps running when the person who started it closes their laptop.
+- **Your choice of harness and model.** A runner can offer several agents; the team picks one per task.
+- **Capacity you can see.** A runner has a fixed number of slots. Work queues instead of spawning without limit.
+- **Shared, not personal.** A team session keeps running when the person who started it closes their laptop.
 
 ## Connect out, never in
 
-A runner should **connect out** to the system that assigns work (over HTTPS, long-polling for assignments) instead of listening on a port. It then works behind NAT and corporate proxies, and nothing on the internet can reach it.
+A runner should **connect out** to the system that assigns work (over HTTPS, long-polling) instead of listening on a port. It then works behind NAT and proxies, and nothing on the internet can reach it.
 
-Assignments should be **leases**: the runner claims a session for a limited time and renews the lease with each heartbeat. A runner that disappears loses its session, which returns to the queue instead of being stuck as “running” forever.
+Assignments should be **leases** renewed with each heartbeat. A runner that disappears loses its session, which returns to the queue instead of staying “running” forever.
 
 ## Isolate every session
 
-Give each session its **own git worktree** (or checkout), so two agents never edit the same files, and a failed session leaves nothing behind for the next one. For untrusted or experimental work, run the harness inside a **container** and let a project require it.
+Give each session its **own git worktree**, so two agents never edit the same files and a failed session leaves nothing behind. For untrusted or experimental work, run the harness in a **container** and let a project require it.
 
 ## Issue credentials, do not store them
 
@@ -318,11 +314,11 @@ The most common mistake is giving an agent a long-lived personal access token. I
 
 ## Give every agent an accountable person
 
-An agent should be a named member with an **owner** and a **scope**. It acts with its owner’s permissions, narrowed by its scope, and never with more. Show its actions as *Forge via Priya* and audit them that way, so “who changed this?” always has a human answer.
+An agent should be a named member with an **owner** and a **scope**. It acts with its owner’s permissions, narrowed by its scope. Show and audit its actions as *Forge via Priya*, so “who changed this?” always has a human answer.
 
 ## Treat text as data, not instructions
 
-Agents read issue bodies, pull request comments, chat messages and web pages. Any of them can contain text written to look like an instruction. The rule that keeps a team safe is simple: **text is information, never permission**. An agent’s instructions come from the work item, its approved specification and the person who started the session. Nothing an agent reads can authorize an action its owner has not allowed.
+Agents read issue bodies, pull request comments, chat messages and web pages, and any of them can contain text written to look like an instruction. The rule: **text is information, never permission**. Instructions come from the work item, its approved specification and the person who started the session. Nothing an agent reads can authorize an action its owner has not allowed.
 
 ## Decide which decisions stay human
 
@@ -332,11 +328,11 @@ Write down, per project, how much an agent may do by itself:
 - **Build:** ready work is dispatched to agents automatically; agents open pull requests and people merge them.
 - **Autopilot:** as Build, and an agent’s code pull request merges automatically when every required check passes.
 
-Whatever level you choose for code, keep the **decisions about what to build** with people: approving a specification, accepting scope and recording decisions. When an agent needs a permission it lacks, it should **ask** (an approval request a person answers) and wait, not work around it.
+Whatever the level, keep **decisions about what to build** with people: approving a specification, accepting scope, recording decisions. An agent that lacks a permission should **ask** and wait, not work around it.
 
 ## Prove that the work is done
 
-An agent saying “done” is a claim. Define **done as evidence** instead, in a Definition of Done:
+An agent saying “done” is a claim. Define **done as evidence** in a Definition of Done:
 
 - a linked pull request is merged,
 - the required CI checks passed on its head commit,
@@ -358,9 +354,9 @@ When every check passes, the item moves to done and records which version of the
 
 ## How Lictory runs agents
 
-Lictory’s Factory module works this way. \`lictory-runner\` is one binary for Linux, macOS and Windows (x64 and arm64). An organization admin creates a one-time registration token for an organization runner, or any member registers a personal runner that only runs their own agents. The runner connects out over HTTPS, runs Claude Code, Codex, OpenCode, Gemini CLI or Lictory’s built-in agent in a separate git worktree per session, and receives a short-lived, repository-scoped code host token for each one; the built-in agent’s model calls go through the server.
+Lictory’s Factory module works this way. \`lictory-runner\` is one binary for Linux, macOS and Windows (x64 and arm64). An organization admin creates a one-time registration token for an organization runner, or any member registers a personal runner for their own agents. The runner connects out over HTTPS, runs Claude Code, Codex, OpenCode, Gemini CLI or Lictory’s built-in agent in a separate git worktree per session, with a short-lived, repository-scoped code host token for each; the built-in agent’s model calls go through the server.
 
-Each session has a thread in a channel where people answer its questions and approve its requests, and the Factory view shows its event log, its diff and controls to interrupt, cancel or retry. In projects that deliver in Lictory, agents claim only items the readiness policy allows to start, and items reach done through the Definition of Done. Each project chooses Assist, Build or Autopilot, and specification approvals always stay with people.`,
+Each session has a thread where people answer its questions and approve its requests; the Factory view shows its event log and diff, with controls to interrupt, cancel or retry. Agents claim only items the readiness policy allows to start, and items reach done through the Definition of Done. Each project chooses Assist, Build or Autopilot; specification approvals always stay with people.`,
   },
 ];
 

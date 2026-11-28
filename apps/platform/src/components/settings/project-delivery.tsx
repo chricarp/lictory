@@ -40,7 +40,6 @@ const modesFor = (
     points: [
       "Board, backlog, sprints or cycles and estimates",
       "Readiness can gate starting spec-backed work",
-      "Nothing is handed off",
     ],
   },
   {
@@ -102,7 +101,7 @@ function DeliveryModeSection({
       id="delivery-mode"
       icon={<Truck />}
       title="Where work is delivered"
-      description="One system owns delivery for all of this project's work; refinement works the same either way."
+      description="One system owns this project's delivery."
       learnMore="deliveryModes"
     >
       <SettingsBody className="space-y-3">
@@ -146,9 +145,8 @@ function DeliveryModeSection({
             {activeIteration ? (
               <>
                 <p>
-                  Complete the active iteration before handing delivery off to{" "}
-                  {tool.name}, so its report is frozen and unfinished work has a
-                  home.
+                  Complete the active iteration before handing off to{" "}
+                  {tool.name}.
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -178,10 +176,8 @@ function DeliveryModeSection({
             ) : (
               <>
                 <p>
-                  Iterations and estimates will be turned off for this project;{" "}
-                  {tool.name} plans them from now on. Boards and backlogs are
-                  replaced by the hand-off view. Existing items, specifications
-                  and history are kept, and you can switch back later.
+                  Turns off iterations, estimates and boards here; {tool.name}{" "}
+                  plans them. Items and history are kept; you can switch back.
                 </p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => void switchTo("external")}>
@@ -219,7 +215,6 @@ function PullRequestActions({
       id="pull-request-actions"
       icon={<GitPullRequestArrow />}
       title="Pull request actions"
-      description="What Lictory does when a specification pull request changes; people still review and merge."
     >
       <SettingsBody>
         <Choice
@@ -239,12 +234,11 @@ function PullRequestActions({
               value: "on",
               label: "Notify when ready to merge",
               description:
-                "The author and branch collaborators hear when the last merge requirement is met.",
+                "Tells the author and collaborators when every merge requirement is met.",
             },
             {
               value: "off",
               label: "Off",
-              description: "People check the merge box themselves.",
             },
           ]}
         />
@@ -268,15 +262,13 @@ function ReviewActions({
       id="review-actions"
       icon={<Sparkles />}
       title="Lictory Intelligence on pull requests"
-      description="Whether Lictory Intelligence reviews each commit of a pull request against the specification it implements."
     >
       <SettingsBody className="space-y-3">
         {/* A choice that cannot take effect is not offered as one: it is
             shown, kept and explained until Intelligence is on. */}
         {!directory.ai.enabled && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-            Lictory Intelligence is turned off for this organization, so no pull
-            request is reviewed and this choice waits until it is on.
+            Lictory Intelligence is off for this organization.
             {isAdmin && (
               <>
                 {" "}

@@ -152,8 +152,6 @@ function AuditLog() {
       id="audit"
       icon={<ScrollText />}
       title="Audit log"
-      description="Who changed what in this organization, and what agents did on someone's behalf. Entries cannot be edited or deleted."
-      footer="Membership, application roles, invitations, access tokens, configuration, agents' calls and Definition of Done checks passed by hand are recorded."
       action={
         <Button
           size="sm"
@@ -235,10 +233,7 @@ function AuditLog() {
             </p>
           )
         ) : (
-          <SettingsList
-            isEmpty={page.entries.length === 0}
-            empty="Nothing recorded for these filters."
-          >
+          <SettingsList isEmpty={page.entries.length === 0} empty="No entries">
             {page.entries.map((entry) => (
               <AuditRow key={`${entry.source}:${entry.id}`} entry={entry} />
             ))}

@@ -910,11 +910,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   await reviewer.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Apply change", exact: true }).click();
-  await expect(
-    page.getByText("Applied. The reviewed text is part of", {
-      exact: false,
-    }),
-  ).toBeVisible();
+  await expect(page.getByText(/^Applied to the specification/)).toBeVisible();
   await page.getByRole("button", { name: "Revision 3", exact: true }).click();
   await reviewer
     .getByRole("button", { name: "Revision 3", exact: true })
@@ -932,9 +928,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   // An applied review is the record of who approved which result: it
   // offers no deletion, and it keeps the automatic branch cleanup activity.
   await page.goto(prUrl);
-  await expect(
-    page.getByText("Applied. The reviewed text is part of", { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText(/^Applied to the specification/)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Withdraw from review", exact: true }),
   ).toHaveCount(0);
@@ -980,7 +974,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     name: "Item workflow",
   });
   await expect(reviewerWorkflow).toContainText(
-    "You approved revision 3. It changed since",
+    "You approved revision 3. Revision 4 needs your review again.",
   );
   await reviewerWorkflow
     .getByRole("button", { name: "What changed since revision 3" })
@@ -1173,7 +1167,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
     })
     .click();
   const syncDialog = page.getByRole("dialog", { name: "Workspace sync" });
-  await expect(syncDialog).toContainText("trying again automatically");
+  await expect(syncDialog).toContainText("sent when it’s back");
   await expect(syncDialog.getByText("Technical details")).toBeVisible();
   await expect(syncDialog.locator("pre")).toHaveCount(0);
   zero.restore();
@@ -1220,7 +1214,7 @@ test("epic and story refinement: create, review, block, branch, PR, approve, sta
   ).toHaveCount(0);
   await expect(
     page.getByText(
-      "This specification is protected. To restore earlier text, propose it as a change and send it for review.",
+      "This specification is protected. To restore earlier text, propose it as a change.",
     ),
   ).toBeVisible();
   await page

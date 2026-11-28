@@ -29,7 +29,7 @@ export const STATE_STALE_MS = 3 * HEARTBEAT_SECONDS * 1000;
 
 export const REVOKED_MESSAGE = (config: RunnerConfig) =>
   `The server refused this runner's credential: ${config.name} was removed or revoked in Factory → Runners. ` +
-  `Create a registration token there, run \`lictory-runner register --url ${config.url} --token <token> --force\`, then start the runner again. ` +
+  `Create a token there, run \`lictory-runner register --url ${config.url} --token <token> --force\`, then start again. ` +
   `It exits with code ${EXIT.needsPerson}, which the service does not restart on.`;
 
 // One runner per configuration: two would share one credential and one
@@ -40,8 +40,8 @@ export async function refuseIfRunning(home = homeDirectory()) {
   if (state && liveness === "running" && state.pid !== process.pid)
     throw new CliError(
       `A runner already runs with this configuration (pid ${state.pid}, ${home}). ` +
-        "Stop it first (Ctrl-C in its terminal, or systemctl --user stop lictory-runner for the service). " +
-        "To run a second runner on this machine, register it with its own LICTORY_RUNNER_HOME.",
+        "Stop it first (Ctrl-C, or systemctl --user stop lictory-runner). " +
+        "For a second runner, register it with its own LICTORY_RUNNER_HOME.",
     );
 }
 
@@ -56,7 +56,7 @@ export function endLine(
     case "completed":
       return `Session ${id} completed ${after}${
         end.branch
-          ? `; pushed branch ${end.branch}, which Lictory opens or updates a pull request for`
+          ? `; pushed branch ${end.branch}`
           : end.repository
             ? "; nothing to push"
             : " (no repository linked: nothing pushed)"
@@ -66,7 +66,7 @@ export function endLine(
     case "canceled":
       return `Session ${id} was canceled in Lictory ${after}.`;
     case "lost":
-      return `Session ${id} stopped ${after}: this runner no longer held it. The server puts it back in the queue or has ended it.`;
+      return `Session ${id} stopped ${after}: this runner no longer held it.`;
     case "returned":
       return `Session ${id} returned to the queue ${after}.`;
   }
@@ -122,7 +122,7 @@ export async function startDaemon(
   const detected = await detectHarnesses(options.harnesses, config);
   if (!detected.length)
     log(
-      "No harness was found on this machine; agents cannot run here until one is installed (lictory-runner doctor).",
+      "No harness found on this machine; agents cannot run here (see lictory-runner doctor).",
     );
   else
     log(
@@ -337,7 +337,7 @@ export function failureLog(
         since = at;
         reminded = at;
         log(
-          `${what} failed: ${message}${next} The runner keeps retrying and says so every ${duration(remindEveryMs)}.`,
+          `${what} failed: ${message}${next} Retrying; reminder every ${duration(remindEveryMs)}.`,
         );
         return;
       }

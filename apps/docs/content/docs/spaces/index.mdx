@@ -1,13 +1,13 @@
 ---
 title: Lictory Spaces
-description: Spaces hold the pages a team writes together. Several people edit a page at the same time, every published version stays in its history, and pages and work items link to each other.
+description: Pages a team writes together in real time, with every published version in their history, linked to work items.
 ---
 
-**Lictory Spaces** is where a team keeps what it knows that is not a work
-item: handbooks, runbooks, architecture notes, decision records, onboarding
-guides. Pages are written together in real time and changed through the same
-reviewed history as specifications, so you can always see what a page said,
-what changed, who changed it and who approved it.
+**Lictory Spaces** holds what a team knows that is not a work item:
+handbooks, runbooks, architecture notes, decision records, onboarding guides.
+Pages are written together in real time and keep the same reviewed history
+as specifications: what a page said, what changed, who changed it and who
+approved it.
 
 ![A published page in a space: the page tree on the left, an item chip and a decision card in the text, a live work list, and the version line under the title](/screenshots/spaces-page-reader.webp)
 
@@ -22,26 +22,23 @@ Organization
 ```
 
 - A **space** belongs to the organization and, optionally, to one project or
-  one team. That **location** decides where the space is listed and who can
-  edit it by default. See [create and manage spaces](/spaces/create).
+  team. That **location** decides where it is listed and who can edit it by
+  default. See [create and manage spaces](/spaces/create).
 - A **page** belongs to one space and can sit under another page of the same
   space. It can start from a [template](/spaces/templates). See
   [pages and the page tree](/spaces/pages).
 - Every page has a **published version**, the one readers see, and a
-  **history** of every earlier version. See
-  [versions and history](/spaces/history).
-- People write in a **live draft**: a shared working copy that several
-  editors change at once. A live draft is never history. Only what someone
-  **publishes** or **commits** becomes a version. See
-  [writing together](/spaces/editing).
+  **history** of every earlier one. See [versions and history](/spaces/history).
+- People write in a **live draft**, a shared working copy several editors
+  change at once. It is never history: only what someone **publishes** or
+  **commits** becomes a version. See [writing together](/spaces/editing).
 
 ## Pages and work items
 
-Pages are not work items. They have no key, status, estimate, iteration or
-readiness, and a page never becomes delivery work by itself. Specifications
-stay on their work items, where they are refined, reviewed and checked for
-readiness ([specifications](/concepts/specifications)). The two are
-connected by [knowledge links](/knowledge) instead:
+Pages are not work items: no key, status, estimate, iteration or readiness,
+and a page never becomes delivery work by itself. Specifications stay on
+their work items ([specifications](/concepts/specifications)). The two are
+connected by [knowledge links](/knowledge):
 
 - **In a page**, type `#` to mention a work item: readers see a chip with its
   key, title and status, and a card with its refinement state, readiness,
@@ -55,9 +52,8 @@ connected by [knowledge links](/knowledge) instead:
 - **On the board, backlog and iterations**, planners keep
   [context pages](/knowledge/context-pages) one click away.
 
-Every link is visible only to people who can read its page, and a link never
-grants access to anything. Both are written in the same editor, and both
-have a live draft that several people edit at once.
+A link is visible only to people who can read its page, and never grants
+access. Pages and specifications share the same editor and live drafts.
 
 |                   | Specification                                     | Page                                               |
 | ----------------- | ------------------------------------------------- | -------------------------------------------------- |
@@ -79,16 +75,16 @@ Each space chooses one publishing policy:
 
 <ReviewedChange />
 
-Both policies keep the same guarantees: versions never change after the
-fact, approvals belong to the exact result a reviewer inspected, and nothing
-is merged or published that nobody saw. See [publishing](/spaces/publishing)
-and [branches and pull requests](/spaces/branches).
+Under both, versions never change, approvals belong to the exact result a
+reviewer inspected, and nothing unseen is merged or published. See
+[publishing](/spaces/publishing) and
+[branches and pull requests](/spaces/branches).
 
 ## Tips
 
 - Put knowledge that outlives one piece of work on a page (how a service
   works, a runbook, a decision record) and the behavior you are about to
-  build in a specification. Link them both ways.
+  build in a specification. Link them.
 - Choose the location by who maintains the knowledge: a team's runbooks
   belong to the team, a product area's designs to its project.
 - Use a Reviewed space where others rely on what a page says, and a Direct

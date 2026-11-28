@@ -38,8 +38,6 @@ export default function NotFound() {
           </Button>
         </>
       }
-    >
-      The address may be misspelled, or the page may have moved.
-    </StatusPage>
+    />
   );
 }

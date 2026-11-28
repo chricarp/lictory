@@ -30,22 +30,19 @@ bun run dev                   # the app, API, worker and website
 `bun run dev:env` creates `.env` from `.env.example` and fits it to the
 machine: beside another checkout, or when another program holds a port, it
 gives this checkout its own Compose project and moves every port by the same
-offset (the defaults plus 10000: the application is then
-http://localhost:13000). On Linux it also turns on the host-network fallback
-when a firewall keeps Docker from reaching the host. It prints what it
-changed; running it again keeps what still works.
+offset (defaults plus 10000: the application is then http://localhost:13000).
+On Linux it also turns on the host-network fallback when a firewall keeps
+Docker from reaching the host. It prints what it changed; rerunning keeps what
+still works.
 
-`--wait` returns once every service is ready, so `bun run dev` finds
-zero-cache running. `bun run dev` also checks that zero-cache can reach the
-API and explains how to fix it when it cannot.
+`--wait` returns once every service is ready. `bun run dev` then checks that
+zero-cache can reach the API and explains the fix when it cannot.
 
-The development `.env` lets anyone sign up, so you can create an account at
-once. Every optional integration (single sign-on, email providers, OpenAI,
-Jira) stays off until you set its variables.
+The development `.env` lets anyone sign up. Optional integrations (single
+sign-on, email providers, OpenAI, Jira) stay off until you set their variables.
 
-Prefer a ready environment? The repository's dev container works with VS Code
-Dev Containers, GitHub Codespaces and the `devcontainer` CLI, with the same
-commands.
+The repository's dev container works with VS Code Dev Containers, GitHub
+Codespaces and the `devcontainer` CLI, with the same commands.
 
 ## Prove a change
 
@@ -59,9 +56,9 @@ and troubleshooting.
 ## Contribute
 
 Read the [contribution guide](https://github.com/chricarp/lictory/blob/main/CONTRIBUTING.md)
-first: small, obvious fixes can go straight to a pull request, while larger
-fixes and features start with an issue the maintainers have agreed to. Each
-pull request solves one problem and says how it was verified. The product
+first: small, obvious fixes can go straight to a pull request; larger fixes
+and features start with an issue the maintainers have agreed to. Each pull
+request solves one problem and says how it was verified. The product
 principles in
 [`AGENTS.md`](https://github.com/chricarp/lictory/blob/main/AGENTS.md) apply to
 every change, by people and coding agents alike.

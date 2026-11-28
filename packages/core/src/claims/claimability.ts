@@ -169,7 +169,7 @@ export function claimability(
   if (project.deliveryMode !== "native")
     refuse(
       "external_delivery",
-      `${project.key} hands delivery to an external tool, which owns execution. Agents claim work only in projects that deliver in Lictory.`,
+      `${project.key} hands delivery to an external tool. Agents claim work only in projects that deliver in Lictory.`,
     );
   if (project.archivedAt)
     refuse("project_archived", `${project.key} is archived.`);
@@ -183,7 +183,7 @@ export function claimability(
   if (facts.container(item.typeId))
     refuse(
       "container",
-      `${own} groups implementation work. Agents claim the work under it, never the container itself.`,
+      `${own} groups implementation work. Agents claim the work under it.`,
     );
   const claim = facts.liveClaim(item.id);
   // A waiting claim holds the item without a lease; others until it ends.

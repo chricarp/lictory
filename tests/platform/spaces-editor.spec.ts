@@ -605,9 +605,7 @@ test("a Reviewed space protects main: a branch is started and its draft commits"
   const ada = await person(browser, owner);
   await ada.page.goto(reviewedUrl);
   await expect(
-    ada.page.getByText(
-      "Changes to this page are reviewed. Start a branch to propose changes.",
-    ),
+    ada.page.getByText("Changes to this page are reviewed.", { exact: true }),
   ).toBeVisible();
   await expect(ada.page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   await ada.page.getByRole("button", { name: "Start a branch" }).click();
@@ -650,7 +648,7 @@ test("a branch commits and is sent for review in one step", async ({
   const ada = await person(browser, owner);
   await ada.page.goto(reviewedUrl);
   // A new page of a Reviewed space is empty: it does not claim a published
-  // version above "Nothing has been published".
+  // version above "Nothing published yet".
   await expect(
     ada.page.getByText("Not published yet", { exact: true }).first(),
   ).toBeVisible();

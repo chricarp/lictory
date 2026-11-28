@@ -48,23 +48,23 @@ export function describeNetworkError(
     case "ERR_INTERNET_DISCONNECTED":
       return problem(
         "This computer is offline.",
-        "Check your Wi-Fi or network cable. Lictory loads the server again when you are back online.",
+        "Check your network. Lictory reloads when you are back online.",
       );
     case "ERR_NETWORK_CHANGED":
       return problem(
-        "The network connection changed while the server was loading.",
-        "Lictory tries again by itself once the network is stable.",
+        "The network changed while the server was loading.",
+        "Lictory retries once the network is stable.",
       );
     case "ERR_NAME_NOT_RESOLVED":
     case "ERR_NAME_RESOLUTION_FAILED":
       return problem(
         `No server named ${host} could be found.`,
-        "Check the address for typos. If the server is on your company's network, connect to that network or its VPN.",
+        "Check the address. On a company network, connect to it or its VPN.",
       );
     case "ERR_CONNECTION_REFUSED":
       return problem(
         `${host} refused the connection.`,
-        `The server may be down or restarting, or the port in the address may be wrong. ${askAdministrator}`,
+        `The server may be down or restarting, or the port may be wrong. ${askAdministrator}`,
       );
     case "ERR_TIMED_OUT":
     case "ERR_CONNECTION_TIMED_OUT":
@@ -84,18 +84,18 @@ export function describeNetworkError(
       );
     case "ERR_UNSAFE_PORT":
       return problem(
-        `${host} uses a port that Lictory never opens, for safety.`,
-        "Use the address you open Lictory at in your browser, usually without a port number.",
+        `${host} uses a blocked port.`,
+        "Use the address you open Lictory at in your browser, usually without a port.",
       );
   }
   if (code?.startsWith("ERR_CERT_"))
     return problem(
       `The security certificate of ${host} is not trusted on this computer.`,
-      "Lictory never skips this check. Ask your administrator: a company certificate authority must be trusted by your operating system.",
+      "Ask your administrator: your operating system must trust the company certificate authority.",
     );
   if (code?.startsWith("ERR_SSL_") || code === "ERR_BAD_SSL_CLIENT_AUTH_CERT")
     return problem(
-      `A secure connection to ${host} could not be set up.`,
+      `Could not connect securely to ${host}.`,
       "Ask your administrator to check the server's HTTPS setup.",
     );
   if (code?.includes("PROXY") || code === "ERR_TUNNEL_CONNECTION_FAILED")

@@ -159,7 +159,6 @@ export function SpaceSettings() {
           { label: "Spaces", href: paths.spaces(org) },
           { label: space.name, href: paths.space(org, space.slug) },
         ]}
-        meta={(manage || canEditDetails) && "Changes save as you make them"}
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-4 pt-2 pb-16 sm:px-8 sm:pt-4">
@@ -167,8 +166,8 @@ export function SpaceSettings() {
             <div className="mt-5">
               <ReadOnlyNotice>
                 {canEditDetails
-                  ? "You can change the details. The space’s administrators decide its location, publishing and access."
-                  : "You can view these settings. Ask an administrator of this space to change them."}
+                  ? "Only space administrators can change location, publishing and access."
+                  : "Ask a space administrator to change these settings."}
               </ReadOnlyNotice>
             </div>
           )}
@@ -432,7 +431,6 @@ function LocationSection({
               if (space.accessMode === "inherited") setMoving(home);
               else move(home);
             }}
-            hint="Where the space is listed. While access is inherited, the location’s members can edit."
           />
           <InlineError>{location.error}</InlineError>
         </div>
@@ -469,7 +467,7 @@ function LocationSection({
       {moving && next && (
         <Dialog
           title={`Move ${space.name} to ${next.label}?`}
-          description={`It will be listed under ${next.label}, and its access follows: ${inheritedAccess(next, organization.name)}`}
+          description={inheritedAccess(next, organization.name)}
           onClose={() => setMoving(undefined)}
           width="max-w-md"
           footer={
@@ -538,7 +536,7 @@ function inheritedSource(
 }
 
 function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
-  const { organization, directory, isAdmin } = useWorkspace();
+  const { organization, directory } = useWorkspace();
   const grants = useSpaceGrants(space.id);
   const mode = useSaving();
   const adding = useSaving();
@@ -580,8 +578,7 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
               {
                 value: "restricted",
                 label: "Restricted",
-                description:
-                  "Only people with named access can open it. Switching back keeps them.",
+                description: "Only people with named access can open it.",
               },
             ]}
           />
@@ -630,9 +627,7 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
           )}
           {people.length === 0 ? (
             <p className="px-4 pb-4 text-xs text-muted-foreground">
-              {space.accessMode === "restricted"
-                ? "Nobody has named access yet."
-                : "Nobody yet. Everyone gets access from the location."}
+              Nobody yet
             </p>
           ) : (
             <ul className="divide-y divide-border border-t">
@@ -652,16 +647,10 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
           )}
         </div>
       </Panel>
-      {(isAdmin || canEdit) && (
-        <p className="px-1 text-xs leading-5 text-muted-foreground">
-          Administrators can manage access without reading the space. Access
-          they grant themselves is audited.
-        </p>
-      )}
       {confirmRestrict && (
         <Dialog
           title={`Restrict ${space.name}?`}
-          description={`Only people with named access will be able to open it. Members of ${home.label} lose access unless they are named. You keep edit access.`}
+          description={`Members of ${home.label} lose access unless named. You keep edit access.`}
           onClose={() => setConfirmRestrict(false)}
           width="max-w-md"
           footer={
@@ -688,7 +677,7 @@ function AccessSection({ space, canEdit }: { space: Space; canEdit: boolean }) {
         >
           <p className="text-[13px] text-muted-foreground">
             {people.length === 0
-              ? "Nobody else has named access yet. Add people after restricting."
+              ? "Nobody else has named access yet."
               : `${people.length === 1 ? "1 person keeps" : `${people.length} people keep`} their named access.`}
           </p>
         </Dialog>
@@ -822,8 +811,8 @@ function ArchiveSection({
             </p>
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
               {archived
-                ? "Hidden from navigation, its pages frozen. Restoring brings everything back."
-                : "Hides it from navigation and freezes its pages. Nothing is deleted."}
+                ? "Hidden from navigation, its pages read-only."
+                : "Hides it from navigation and makes its pages read-only."}
             </p>
           </div>
           <SaveStatus state={save.state} />

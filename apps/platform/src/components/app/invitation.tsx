@@ -56,7 +56,7 @@ export function Invitation({ id }: { id?: string }) {
           <>
             Invited as{" "}
             <span className="font-medium text-foreground">{details.email}</span>
-            . Everything is already set up.
+            .
           </>
         ) : (
           "Sign in with the email address your teammate invited."

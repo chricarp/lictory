@@ -4,29 +4,27 @@ description: What Lictory aims for (WCAG 2.2 AA), how to use it with a keyboard 
 ---
 
 Lictory aims to meet **WCAG 2.2 level AA** in the application, the desktop
-app, the documentation and the website. Reviewing specifications means long
-sessions of reading, commenting and deciding, and keyboard, screen reader and
-low-vision users must be able to do all of it.
-
+app, the documentation and the website, so keyboard, screen reader and
+low-vision users can read, comment and decide through long review sessions.
 This page states what is true today, including what is not yet good enough.
-Report an accessibility problem as a
+
+Report a problem as a
 [GitHub issue](https://github.com/chricarp/lictory/issues) with the page, what
 you did and the assistive technology you used.
 
 ## Keyboard
 
 - Everything can be reached with the keyboard. The first Tab stop on every
-  page is **Skip to content**, which moves past the sidebar. On a work
-  item the second is **Skip to specification** (or **Skip to
-  description**), which lands on the text itself, past the item list and
-  the header.
+  page is **Skip to content**, past the sidebar. On a work item the second
+  is **Skip to specification** (or **Skip to description**), past the item
+  list and the header.
 - Focus is always visible: one ring in the theme's focus color, at 3:1 or
   more against every surface.
 - Dialogs, popovers and inline editors take focus when they open and give it
   back when they close.
-- Single-key shortcuts never fire while you type, and each person can turn
-  them off in **Account settings** → **Keyboard** (WCAG 2.1.4). Every
-  shortcut is listed in [keyboard shortcuts](/basics/shortcuts).
+- Single-key shortcuts never fire while you type, and can be turned off in
+  **Account settings** → **Keyboard** (WCAG 2.1.4). See
+  [keyboard shortcuts](/basics/shortcuts).
 - Board cards and backlog rows have a **Move** button beside the drag: move
   a card to another column, or rank a card or row to the top, up, down or to
   the bottom, without dragging (WCAG 2.5.7).
@@ -37,7 +35,7 @@ you did and the assistive technology you used.
   it the keyboard selects text: Arrow Left/Right select the previous or next
   word, Arrow Up/Down a word on the line above or below, Home/End the first
   or last word of the line, Shift with those keys extends the selection and
-  Escape clears it. The selection is the browser's own, so everything a
+  Escape clears it. It is the browser's own selection, so everything a
   pointer selection offers works on it.
 - Mod+Alt+M comments on the selected text (or, with nothing selected, opens
   a comment on the whole page or specification). In a specification the
@@ -65,8 +63,8 @@ you did and the assistive technology you used.
   "Approve: Write CHANGES.md", "Review: Write CHANGES.md, PAY-11".
 - Other people's carets are hidden from screen readers; who is editing is
   stated next to the save state.
-- Changes made by other people are announced through one polite live
-  region, each once: new messages and thread replies in the open
+- Other people's changes are announced once each, through one polite live
+  region: new messages and thread replies in the open
   conversation, an agent's approval request and a session starting,
   finishing, failing or waiting, a new revision and approvals granted,
   withdrawn or made outdated, a pull request's checks and merge, Definition
@@ -77,14 +75,14 @@ you did and the assistive technology you used.
 
 ## What is checked automatically
 
-Every change to Lictory runs lint rules for accessible React code and
+Every change runs lint rules for accessible React code and
 [axe-core](https://github.com/dequelabs/axe-core) on the main workflows in the
 browser suite: sign-in and sign-up, setting up an organization (on a phone
 and a laptop), specification review, the board and backlog, handing work off
 to Jira and its results, settings, Home, the Inbox, channels, the Factory,
-Code and Spaces, several of them in light and dark mode. The suite fails on any serious or
-critical violation. Tools find roughly a third to a half of accessibility
-problems, so the rest depends on people testing by hand.
+Code and Spaces, several in light and dark mode. The suite fails on any
+serious or critical violation. Tools find roughly a third to a half of
+accessibility problems; the rest depends on testing by hand.
 
 ## Known gaps
 

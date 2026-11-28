@@ -394,8 +394,8 @@ function PageArticle({
                 <span className="font-medium">This page is archived.</span>{" "}
                 <span className="text-muted-foreground">
                   {parentArchived
-                    ? "It was archived with a page above it; restore that page to bring it back."
-                    : "It is hidden from the space until it is restored."}
+                    ? "Restore the page above it to bring it back."
+                    : "Hidden from the space."}
                 </span>
               </p>
               {canEdit && !parentArchived && (
@@ -479,14 +479,12 @@ export function PageDocument({
         <Bone className="h-4 w-8/12" />
       </div>
     ) : (
-      <p className="text-sm text-muted-foreground">
-        This page’s content is not available right now.
-      </p>
+      <p className="text-sm text-muted-foreground">Content not available.</p>
     );
   if (!commit.markdown.trim())
     return (
       <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-        Nothing has been published on this page yet.
+        Nothing published yet.
       </p>
     );
   return <Markdown source={commit.markdown} />;
@@ -508,8 +506,6 @@ function PageNotFound() {
           Back to {space.name}
         </Button>
       }
-    >
-      Check the address, or choose a page from {space.name}.
-    </MissingState>
+    />
   );
 }

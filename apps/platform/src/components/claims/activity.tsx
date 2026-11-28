@@ -10,7 +10,7 @@ const num = (v: unknown) => (typeof v === "number" ? v : undefined);
 
 const releaseReasons: Record<string, string> = {
   agent: "released it",
-  expired: "lost the claim: the lease expired without renewal",
+  expired: "lost the claim: the lease expired",
   item_moved: "ended the claim: the item left progress",
   item_canceled: "ended the claim: the item was canceled",
   item_archived: "ended the claim: the item was archived",
@@ -72,7 +72,7 @@ export function claimActivity(
       return (
         <>
           could not start: {str(d.reason)}
-          {d.held === true ? " Dispatch is held until someone retries." : ""}
+          {d.held === true ? " Held until retried." : ""}
         </>
       );
     case "dispatch_retried":

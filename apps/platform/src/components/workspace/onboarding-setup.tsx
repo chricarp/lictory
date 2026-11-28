@@ -349,8 +349,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
     return (
       <OnboardingFrame title={`Set up ${organization.name} · Lictory`}>
         <OnboardingHeading title="Almost there">
-          An administrator is finishing setup for {organization.name}. You’ll
-          land in the workspace as soon as it’s ready.
+          An administrator is finishing setup for {organization.name}.
         </OnboardingHeading>
         <Button size="lg" variant="secondary" onClick={reconnect}>
           Check again
@@ -426,10 +425,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             )}
             {draft.step === steps.delivery && (
               <>
-                <OnboardingHeading title="Where does delivery happen?">
-                  Specs are always refined and approved in Lictory. You can
-                  change this later in the project’s settings.
-                </OnboardingHeading>
+                <OnboardingHeading title="Where does delivery happen?" />
                 <CardOptions
                   label="Delivery"
                   value={draft.deliveryMode}
@@ -453,16 +449,13 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 />
                 <Reveal show={draft.deliveryMode === "native"}>
                   <p className="pt-6 text-xs leading-relaxed text-muted-foreground">
-                    The project starts with a board and a ranked backlog, story
-                    points, and work that may start before its specification is
-                    ready (Lictory records what was missing). Sprints, cycles
-                    and the readiness policy are in the project’s settings.
+                    Starts with a board, a ranked backlog and story points. Work
+                    may start before its specification is ready.
                   </p>
                 </Reveal>
                 <Reveal show={external}>
                   <p className="pt-6 text-xs leading-relaxed text-muted-foreground">
-                    Export requires every readiness check to pass. Once you’re
-                    in, connect Jira in organization settings → Integrations,
+                    Next: connect Jira in organization settings → Integrations,
                     then pick the Jira project in the project’s delivery
                     settings.
                   </p>
@@ -471,10 +464,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
             )}
             {draft.step === steps.intelligence && (
               <>
-                <OnboardingHeading title="Lictory Intelligence">
-                  Choose whether your organization uses Lictory Intelligence to
-                  help refine specs.
-                </OnboardingHeading>
+                <OnboardingHeading title="Lictory Intelligence" />
                 <CardOptions
                   label="Lictory Intelligence"
                   value={aiEnabled ? "enabled" : "disabled"}
@@ -485,15 +475,13 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                     {
                       value: "enabled",
                       title: "Enable Lictory Intelligence",
-                      description:
-                        "Chat with Litto, your assistant powered by Lictory Intelligence, spot gaps and contradictions in AI reviews, and get suggested fixes to review changes.",
+                      description: "Litto, AI reviews and suggested fixes.",
                       icon: <IntelligenceMark />,
                     },
                     {
                       value: "disabled",
                       title: "Keep Lictory Intelligence off",
-                      description:
-                        "No Litto assistant, automated reviews or suggested fixes. Write specs, discuss, review and approve with your team.",
+                      description: "No Litto, AI reviews or suggested fixes.",
                       icon: <Users />,
                     },
                   ]}
@@ -501,25 +489,16 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
                 {/* The choice is the two cards; one line under them, and
                     what is sent behind a question for whoever asks it. */}
                 <div className="mt-5 space-y-2 text-xs leading-relaxed text-muted-foreground">
-                  <p>
-                    It proposes; people decide what to accept and approve. An
-                    administrator can change this later in organization
-                    settings.
-                  </p>
                   {!directory.ai.available && (
-                    <p>
-                      No AI provider is configured on this server yet: it runs
-                      once an operator adds one.
-                    </p>
+                    <p>No AI provider is configured on this server yet.</p>
                   )}
                   <details className="group">
                     <summary className="w-fit cursor-default rounded-sm font-medium text-foreground focus-ring outline-none hover:underline">
                       What is sent?
                     </summary>
                     <p className="mt-1">
-                      When it runs, relevant specs, discussions and organization
-                      context go to the configured AI provider. With Lictory
-                      Intelligence off, nothing is sent.
+                      Relevant specs, discussions and organization context go to
+                      the configured AI provider. Off, nothing is sent.
                     </p>
                   </details>
                 </div>
@@ -529,10 +508,7 @@ export function OnboardingSetup({ canCreate = true }: { canCreate?: boolean }) {
               <>
                 <OnboardingHeading
                   title={`Invite people to ${organization.name}`}
-                >
-                  Specs get better with engineering and QA in the loop. You can
-                  skip this and invite people later from organization settings.
-                </OnboardingHeading>
+                />
                 <Invites
                   value={draft.invites}
                   disciplines={draft.inviteDisciplines}
@@ -736,10 +712,7 @@ function Invites({
       </ul>
       {value.length > 0 && (
         <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-          They join {project} in the discipline you choose: Product writes and
-          decides specifications, Engineering and QA review them. Without a
-          discipline they can read and discuss, and an administrator gives them
-          one later in the project’s settings → Members.
+          They join {project} in the discipline you choose.
         </p>
       )}
     </div>

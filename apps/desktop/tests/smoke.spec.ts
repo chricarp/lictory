@@ -126,7 +126,7 @@ test("connect to a server, use the bridge and deep links, reopen", async () => {
     await shell.getByRole("button", { name: "Connect" }).click();
     // Plain words and the next step; Chromium's code only as a detail.
     await expect(shell.getByRole("alert")).toHaveText(
-      "127.0.0.1:1 uses a port that Lictory never opens, for safety. Use the address you open Lictory at in your browser, usually without a port number.",
+      "127.0.0.1:1 uses a blocked port. Use the address you open Lictory at in your browser, usually without a port.",
     );
     await expect(shell.getByText("Details: ERR_UNSAFE_PORT")).toBeVisible();
     // In the product's code face, bundled like the text face.

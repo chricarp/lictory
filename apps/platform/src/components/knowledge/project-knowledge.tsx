@@ -49,8 +49,7 @@ export function ProjectKnowledge({ project }: { project: Project }) {
           onClick={() => openCreateSpace({ projectId: project.id })}
           className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Plus className="size-3" aria-hidden /> Create a space for{" "}
-          {project.name}’s pages
+          <Plus className="size-3" aria-hidden /> Create space
         </button>
       ) : (
         <ul className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1">

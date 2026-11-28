@@ -3,47 +3,45 @@ title: Your account
 description: Change your profile, handle, email, appearance, keyboard shortcuts and sign-in methods, manage sessions and agent tokens, or delete your account.
 ---
 
-Your account is yours, not an organization's: the same name, handle, sign-in
-methods and appearance apply in every organization you belong to. Open it from
-your name at the bottom of the sidebar → **Account settings**. **Back**
+Your account is yours, not an organization's: its name, handle, sign-in
+methods and appearance apply in every organization you belong to. Open it
+from your name at the bottom of the sidebar → **Account settings**; **Back**
 returns you to where you were.
 
 ![Account settings: Profile, Handle, Email, Appearance, Password, Two-factor, Passkeys, Connected accounts, Sessions, Access tokens, Event webhooks and Delete account in the list on the left, and the profile, handle and email on the right](/screenshots/account-settings.webp)
 
-The page has five groups: **Identity** (profile, handle, email),
-**Preferences** (appearance and keyboard), **Sign-in & security** (password, two-factor,
+Five groups: **Identity** (profile, handle, email), **Preferences**
+(appearance and keyboard), **Sign-in & security** (password, two-factor,
 passkeys, connected accounts, sessions), **Integrations** (access tokens
-and event webhooks) and
-**Danger zone** (delete account).
+and event webhooks) and **Danger zone** (delete account).
 
 ## Identity
 
 - **Profile**: your name and photo, as collaborators see them on
-  discussions and reviews. **Upload photo** takes a JPEG, PNG or WebP
-  smaller than 4 MB; remove it to show your initials.
-- **Handle**: unique across the installation. People type `@handle` to
-  mention you and find you. You can change it with **Save handle**;
-  existing mentions keep pointing to you.
+  discussions and reviews. **Upload photo** takes a JPEG, PNG or WebP under
+  4 MB; remove it to show your initials.
+- **Handle**: unique across the installation; people type `@handle` to
+  mention and find you. Change it with **Save handle**; existing mentions
+  keep pointing to you.
 - **Email**: where you sign in and where notifications go. A new address
-  takes effect once you confirm it from the email Lictory sends there
-  ("Check the new address to confirm this change"). The section shows
-  whether your address is **Verified**.
+  takes effect once you confirm it from the email sent there ("Check the new
+  address to confirm this change"). The section shows whether your address
+  is **Verified**.
 
 ## Appearance
 
 Choose a **Mode** (**System**, **Light** or **Dark**) and a **Theme**
 (Lictory, Graphite, GitHub, Catppuccin, Rosé Pine or Nord). Every theme has
-a light and a dark variant; **System** follows your device and switches when
-it does. The choice is saved to your account, so it follows you to every
-device you sign in on.
+a light and a dark variant; **System** follows your device. The choice
+follows your account to every device.
 
 ![The PAY-2 specification in the dark variant of the Lictory theme, with the Discussions panel and the review rail beside the text](/screenshots/work-discussions-panel-dark.webp)
 
 ## Keyboard
 
 **Single-key shortcuts** turns the one-key shortcuts (`C`, `/`, `[`, `G`
-chords, `J`, `K`, `O`) on or off. They are on by default; turn them off if you
-use speech input or press keys by accident. Shortcuts with `Mod` or `Alt`
+chords, `J`, `K`, `O`) on or off. They are on by default; turn them off for
+speech input or if you press keys by accident. Shortcuts with `Mod` or `Alt`
 always work. See [keyboard shortcuts](/basics/shortcuts).
 
 ## Sign-in and security
@@ -53,16 +51,16 @@ always work. See [keyboard shortcuts](/basics/shortcuts).
   Microsoft or your company's sign-in, the section says **Not set** and
   **Email me a link** adds a password.
 - **Two-factor**: **Set up authenticator app** shows a QR code to scan
-  with 1Password, Google Authenticator, Microsoft Authenticator or any other
-  authenticator app. Enter the current code and **Turn on**. Save the backup
-  codes it shows: each works once, and they are shown only once (**Create
-  new backup codes** replaces them). Sign-in then asks for a code after your
-  password. Google, Microsoft and company sign-ins rely on the provider's
-  own checks instead.
-- **Passkeys**: **Add passkey** lets you sign in with your device's
-  fingerprint, face or screen lock, or a security key. Removing one here
-  does not remove it from your device or password manager; delete it there
-  too. Installations that allow only company sign-in have no passkeys.
+  with any authenticator app (1Password, Google Authenticator, Microsoft
+  Authenticator…). Enter the current code and **Turn on**. Save the backup
+  codes: each works once, and they are shown only once (**Create new backup
+  codes** replaces them). Sign-in then asks for a code after your password.
+  Google, Microsoft and company sign-ins rely on the provider's own checks
+  instead.
+- **Passkeys**: **Add passkey** to sign in with your device's fingerprint,
+  face or screen lock, or a security key. Removing one here does not remove
+  it from your device or password manager; delete it there too.
+  Installations that allow only company sign-in have no passkeys.
 - **Connected accounts**: **Connect** an identity provider your
   installation offers (Google, Microsoft, your company's single sign-on) to
   sign in with it as well. Only an account with the same email address can
@@ -78,21 +76,21 @@ always work. See [keyboard shortcuts](/basics/shortcuts).
   and passkeys stay; you set up two-factor again afterwards.
 </Callout>
 
-Some actions ask you to sign out and in again first ("For your security,
-sign out and sign in again…"): turning two-factor off, adding a passkey,
-disconnecting an account and deleting your account need a recent sign-in.
+Turning two-factor off, adding a passkey, disconnecting an account and
+deleting your account need a recent sign-in ("For your security, sign out
+and sign in again…").
 
 ## Access tokens and event webhooks
 
-**Personal access tokens** are for scripts and tools that work in Lictory
-as you, with your permissions in every organization you belong to. Each
-token has a name, **Read & write** or **Read only** access and an expiry;
-its actions are recorded under its name. **Event webhooks** wake such a
-tool when something waits on you.
+**Personal access tokens** are for scripts and tools that act as you, with
+your permissions in every organization you belong to. Each has a name,
+**Read & write** or **Read only** access and an expiry; its actions are
+recorded under its name. **Event webhooks** wake such a tool when something
+waits on you.
 
-To connect an AI agent, create it in **Factory → Agents** instead: it gets
-a name, a scope, its token and its wake-ups on its own page, and Account
-settings only links there. See [Agents](/factory/agents) and
+To connect an AI agent, create it in **Factory → Agents** instead: its
+scope, token and wake-ups live on its own page, and Account settings only
+links there. See [Agents](/factory/agents) and
 [AI agents and MCP](/integrations/agents).
 
 Tokens never see your password, and cannot create tokens, connect
@@ -104,20 +102,18 @@ once.
 **Delete account…** removes your account for good. Confirm with your
 password (if you have one) and **Delete permanently**.
 
-What happens:
-
 - Every way to act as you ends: sessions, password, connected accounts,
   passkeys, two-factor, and every agent token.
 - Your email address, handle and photo are removed, and your memberships of
   every organization, project, discipline, team and restricted space end.
   Your private Litto conversations, your Inbox, notification preferences and
   watched items are deleted.
-- What you contributed stays as it is: revisions, comments, reviews,
-  approvals and decisions keep your name, shown as a former member. What you
-  wrote is not changed; an organization that must remove personal data from
-  content edits it like any other content.
-- The email address becomes free, so you can sign up again with it later as
-  a new person.
+- What you contributed stays unchanged: revisions, comments, reviews,
+  approvals and decisions keep your name, shown as a former member. An
+  organization that must remove personal data from content edits it like
+  any other content.
+- The email address becomes free; signing up with it later makes a new
+  person.
 
 Lictory refuses the deletion, and changes nothing, when you are the only
 owner of an organization (make another member an owner, or
@@ -128,10 +124,10 @@ and if you were its only owner nobody can cancel that any more.
 
 ## Tips
 
-- Choose a short, recognizable handle: people type it in discussions to ask
-  you something, and a mention is what puts a question in your Inbox.
-- Turn on two-factor before your organization requires it; an
-  organization that requires it holds you out until you do.
+- Choose a short, recognizable handle: people type it to ask you
+  something, and a mention puts the question in your Inbox.
+- Turn on two-factor before your organization requires it; an organization
+  that requires it holds you out until you do.
 - Create one agent token per agent and tool, named for what it does
-  ("Claude spec reviewer"). The audit log and history then say which agent
-  did what, and revoking one leaves the others working.
+  ("Claude spec reviewer"): the audit log then says which agent did what,
+  and revoking one leaves the others working.

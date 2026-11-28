@@ -163,11 +163,7 @@ test("without an AI provider or file storage, refinement works and those feature
   });
   await signIn(page, seeded.owner.email);
   await page.goto(`/${seeded.slug}/intelligence`);
-  await expect(
-    page.getByText(
-      "This server has no AI provider connected. An administrator can connect one; everything else in Lictory works without it.",
-    ),
-  ).toBeVisible();
+  await expect(page.getByText("No AI provider is connected.")).toBeVisible();
 
   // Core refinement does not depend on AI.
   await page.goto(seeded.itemPath(1));

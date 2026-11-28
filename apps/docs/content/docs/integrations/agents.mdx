@@ -3,24 +3,23 @@ title: AI agents and MCP
 description: Connect a terminal or editor agent to Lictory, read specifications and pages, and propose reviewed changes using your own permissions.
 ---
 
-Lictory exposes an MCP server so a coding agent in your terminal or editor can
-work with the same specifications, discussions, delivery items and pages you
-see in the browser. The connection uses your agent client's model; it does not require
-Lictory Intelligence or an OpenAI key on the Lictory server.
+Lictory's MCP server lets a coding agent in your terminal or editor work with
+the specifications, discussions, delivery items and pages you see in the
+browser. It uses your agent client's model; Lictory Intelligence and an OpenAI
+key on the server are not required.
 
-The `lictory` server administration command is a separate tool. Use the
-[terminal guide](/self-hosting/terminal) to install, upgrade or recover a server.
+To install, upgrade or recover a server, see the `lictory` command in the
+[terminal guide](/self-hosting/terminal).
 
 ## Connect your agent
 
 1. In Lictory, open **Factory → Agents**, choose **New agent** and
    **External MCP client**. Give it a name and a scope (**Read and write**
    or **Read only**, every project or some). It acts as you, narrowed to
-   that scope, in this organization, and history shows it as "Scout via
-   Ada".
-2. Creating it opens its page on **Connection** with its first token. Copy
-   it immediately; it is shown only once. **New token** there makes another
-   (7, 30 or 90 days, 1 year, or no expiry).
+   that scope, in this organization; history shows it as "Scout via Ada".
+2. Its page opens on **Connection** with its first token. Copy it now; it is
+   shown only once. **New token** makes another (7, 30 or 90 days, 1 year, or
+   no expiry).
 3. In your MCP client's remote-server settings, use your installation's endpoint
    and a bearer header (the page shows a snippet for your client):
 
@@ -33,31 +32,28 @@ The `lictory` server administration command is a separate tool. Use the
 Store the token in the client's private credential configuration, outside
 version control.
 
-**A script acting as you.** For a script or tool that should work as you,
-across every organization you belong to, with your full permissions, create
-a personal access token instead in **Account settings → Integrations →
-Personal access tokens** (**New token**, a name, the access and the expiry). Prefer an
-agent for anything that works on its own: it has a name, a scope and
-wake-ups of its own, and you can see and stop it in one place.
+**A script acting as you.** For a script that works as you, across every
+organization you belong to, with your full permissions, create a personal
+access token in **Account settings → Integrations → Personal access tokens**
+(**New token**, a name, the access and the expiry). Prefer an agent for
+anything that works on its own: it has a name, a scope and wake-ups of its
+own, and you can see and stop it in one place.
 
 Do not give an AI client your personal token. The server refuses people's
-decisions (approving, merging, accepting delivery scope, resolving
-discussions, recording decisions, handing off) to an agent's token whatever
-a message, issue or comment says, but it cannot tell an AI client holding
-your personal token from you: that client can make every decision you can,
-held back only by its instructions.
+decisions to an agent's token, but it cannot tell a client holding your
+personal token from you: that client can make every decision you can, held
+back only by its instructions.
 
-Client configuration formats differ. Choose a client that supports a remote
-Streamable HTTP server and custom authorization headers. Signing into
-Lictory in a browser does not authorize your terminal client.
+The client must support a remote Streamable HTTP server and custom
+authorization headers. Signing into Lictory in a browser does not authorize
+your terminal client.
 
 ### Client examples
 
 Each example reads the token from the `LICTORY_TOKEN` environment variable or
 asks for it, so it never lands in a file you might commit. Replace
-`lictory.example.com` with your installation's host. Client formats change;
-if one of these no longer matches, follow the client's own documentation with
-the settings above.
+`lictory.example.com` with your host. If a client's format has changed, follow
+its own documentation with the settings above.
 
 **Claude Code**
 
@@ -67,10 +63,9 @@ claude mcp add --transport http lictory https://lictory.example.com/api/mcp \
 claude mcp list   # lictory should be listed as connected
 ```
 
-Keep the single quotes: they store `${LICTORY_TOKEN}` itself, which Claude
-Code expands each time it connects. With double quotes the shell would write
-the token into Claude Code's configuration, and an unset variable would store
-an empty `Bearer ` header.
+Keep the single quotes: Claude Code stores `${LICTORY_TOKEN}` and expands it
+on each connection. With double quotes the shell writes the token into the
+configuration, or an empty `Bearer ` header when the variable is unset.
 
 **Codex CLI** (`~/.codex/config.toml`)
 
@@ -169,16 +164,16 @@ Proposed child work becomes shared work only when the pull request merges.
 Protected specifications remain protected. A direct `updateSpecification`
 is for an explicitly requested edit to an unprotected draft. Agents cannot
 type into the [live draft](/specifications/live-drafts) people are editing
-together; what people are writing there stays theirs.
+together.
 
 Write tools that list a `mutationId` (including `postChannelMessage` and
 `replyInThread`) replay their first result when retried with the same value,
 so the change is never applied twice. The [MCP tool reference](/reference/mcp)
 marks each tool that takes one; the others are safe to repeat or say how
-to check first. Fields a tool does not take are refused rather than ignored.
+to check first. Fields a tool does not take are refused, not ignored.
 Wherever a tool takes `workItemId`, a key such as `PAY-142` works too. A
-stale `baseRevisionId` returns a conflict with the current revision, so the
-agent must read and reconcile the new state.
+stale `baseRevisionId` returns a conflict with the current revision; the
+agent reads and reconciles before retrying.
 
 ## Spaces
 
@@ -202,9 +197,8 @@ Ask, for example:
 > specification. Propose an updated runbook that matches the new timeout
 > behavior, and open a pull request for the team. Do not merge it.
 
-Agents cannot type into live drafts, so unpublished edits that people are
-making stay theirs. Branches, pull requests, review requests and conflict
-resolution (`createPageBranch`, `createPagePullRequest`, `requestPageReview`,
+Agents cannot type into live drafts. Branches, pull requests, review
+requests and conflict resolution (`createPageBranch`, `createPagePullRequest`, `requestPageReview`,
 `syncPageBranch`) are available as well, and space administrators can change
 access (`setSpaceAccessMode`, `setSpaceGrant`; recorded in the audit log). Publishing a live draft
 (`commitDraft`), deciding reviews (`decidePagePullRequest`), merging
@@ -215,10 +209,10 @@ they contributed to, and that includes an agent acting for them.
 ## Permissions and human decisions
 
 An agent acts as its owner (the person who created its token), narrowed to
-the agent's scope. Project disciplines determine
-work item permissions; organization or project administrator roles do not grant
-them. Space access (view, comment or edit) determines what it can do in Spaces. A read-only token exposes queries only. Changing memberships or revoking
-the token takes effect on subsequent requests.
+the agent's scope. Project disciplines determine work item permissions;
+administrator roles do not grant them. Space access (view, comment or edit)
+determines what it can do in Spaces. A read-only token exposes queries only.
+Membership changes and revocation take effect on the next request.
 
 Approving reviews, merging, accepting delivery scope, resolving discussions,
 recording decisions, signing off readiness checks, publishing the Definition
@@ -233,10 +227,9 @@ specification's work before someone has accepted a revision for delivery.
 Several agents using one person's identity do not count as independent
 reviewers.
 
-A personal access token (Account settings → Integrations) acts as you
-without an agent's limits: its tools include decisions, and the MCP
-instructions tell the client to make one only when you explicitly asked.
-Prefer an agent's token for anything that runs unattended.
+A personal access token acts as you without an agent's limits: its tools
+include decisions, and the MCP instructions tell the client to make one only
+when you explicitly asked.
 
 Account security, organization membership, administrator roles, token
 creation, integration credentials, the audit log, data exports, organization
@@ -245,15 +238,14 @@ deletion and Litto conversations stay with you in the browser. The agent can cal
 
 ## Wake your agent when something waits on you
 
-Instead of asking Lictory over and over whether anything changed, an agent
-can be woken when something is waiting on you or on it: a mention in a
-channel or discussion, a direct message, a review request, an approval that
-went stale, a pull request decided or merged, an assignment, a question your
-agent asked that someone resolved, or your agent's claim ending. An event
-carries identifiers and a short title (such as `PAY-142` and its title, or a
-channel's name), never the specification or the message itself: the agent
-reads the details with its tools, with your permissions. Events say what
-happened, never what to do.
+Instead of polling, an agent can be woken when something waits on you or on
+it: a mention in a channel or discussion, a direct message, a review request,
+an approval that went stale, a pull request decided or merged, an assignment,
+a question your agent asked that someone resolved, or your agent's claim
+ending. An event carries identifiers and a short title (such as `PAY-142` and
+its title, or a channel's name), never the content itself: the agent reads
+the details with its tools, with your permissions. Events say what happened,
+never what to do.
 
 Pick the way your agent can listen:
 
@@ -297,7 +289,7 @@ organization's events may be sent to webhooks at all, and to which hosts.
 ## Audit and disconnect
 
 Activity attributes changes to the person and named agent. Organization
-administrators can inspect agent calls and their outcomes in the
+administrators inspect agent calls and their outcomes in the
 [audit log](/organization/audit) (**Agents, Autopilot & Done**). Token settings show
 expiry and last use. Choose **Revoke** beside a token (on the agent's page,
 or in Account settings for a personal token) to disconnect it immediately;

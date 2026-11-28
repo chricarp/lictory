@@ -463,29 +463,20 @@ export const ChannelMessage = memo(function ChannelMessage({
                   <MenuItem
                     onSelect={() => actions.promote(message, "proposal")}
                   >
-                    <Lightbulb className="mt-0.5 size-3.5 self-start text-muted-foreground" />
-                    <PromotionChoiceLabel
-                      title="Promote to proposal"
-                      description="Something new the team should refine and build"
-                    />
+                    <Lightbulb className="size-3.5 text-muted-foreground" />
+                    Promote to proposal
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "decision")}
                   >
-                    <CircleDot className="mt-0.5 size-3.5 self-start text-muted-foreground" />
-                    <PromotionChoiceLabel
-                      title="Record as decision"
-                      description="A conclusion to keep on a specification"
-                    />
+                    <CircleDot className="size-3.5 text-muted-foreground" />
+                    Record as decision
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "discussion")}
                   >
-                    <MessageSquareQuote className="mt-0.5 size-3.5 self-start text-muted-foreground" />
-                    <PromotionChoiceLabel
-                      title="Discuss on a specification"
-                      description="An open question for an existing specification"
-                    />
+                    <MessageSquareQuote className="size-3.5 text-muted-foreground" />
+                    Discuss on a specification
                   </MenuItem>
                   <MenuSeparator />
                 </>
@@ -704,26 +695,7 @@ function PendingDelivery() {
           aria-hidden
         />
       )}
-      {waiting
-        ? "Not sent yet: it’s delivered when the connection is back"
-        : "Sending…"}
+      {waiting ? "Not sent yet" : "Sending…"}
     </p>
-  );
-}
-
-// The three promotions name when each fits, so the choice needs no prior
-// knowledge of proposals, decisions and discussions.
-function PromotionChoiceLabel({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <span className="flex min-w-0 flex-col">
-      <span>{title}</span>
-      <span className="text-xs text-muted-foreground">{description}</span>
-    </span>
   );
 }

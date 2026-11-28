@@ -3,25 +3,24 @@ title: Break down a specification
 description: Split an agreed specification into Stories, Tasks and Subtasks, directly or as a reviewed breakdown that is approved with the specification.
 ---
 
-A specification says what to build. Its **children** say how the team will
-build it: the Stories under an Epic, the Tasks under a Story, the Subtasks
-under a Task. Each child is an ordinary work item with its own identifier,
-status and owner, and it records the revision of the parent it was derived
-from.
+A specification's **children** say how the team will build it: Stories
+under an Epic, Tasks under a Story, Subtasks under a Task. Each child is an
+ordinary work item with its own identifier, status and owner, and records the
+parent revision it was derived from.
 
-You can add children in two ways:
+Add children in two ways:
 
-- **Directly**, from the item's **Children** section. Quick, and right for
-  work the team shapes as it goes.
-- **As a reviewed breakdown**, proposed on a branch and approved in a pull
-  request together with the specification. Right when reviewers should
-  agree on the decomposition before anyone starts.
+- **Directly**, from the item's **Children** section, for work the team
+  shapes as it goes.
+- **As a reviewed breakdown**, proposed on a branch and approved with the
+  specification, when reviewers should agree on the split before anyone
+  starts.
 
 ## When to use it
 
 - An Epic or Story is ready and the team needs pieces it can pick up.
-- Engineering wants to propose how the work splits, and Product and QA
-  should see that plan before it lands.
+- Engineering proposes how the work splits, and Product and QA should see
+  it before it lands.
 - An existing breakdown no longer fits the specification: children need to
   move, be detached or be archived.
 
@@ -32,19 +31,18 @@ You can add children in two ways:
 
 ### Open the parent
 
-The **Children** section of the item lists its children with their status,
-how many are done (`3/5 done`), how many spec-backed children are ready and
-the sum of their estimates.
+The item's **Children** section shows each child's status, how many are
+done (`3/5 done`), how many spec-backed children are ready and the sum of
+their estimates.
 
 </Step>
 <Step>
 
 ### Add a child
 
-Choose **Add story** (the button names the child type; pick another type
-from the type button beside the title). Type a title and press `Enter` to add
-another, or `Esc` to finish. Only types below the parent in the hierarchy are
-offered.
+Choose **Add story** (the button names the child type; the type button
+beside the title picks another, among types below the parent). Type a title;
+`Enter` adds another, `Esc` finishes.
 
 </Step>
 <Step>
@@ -57,11 +55,11 @@ Drag a row by its handle, or focus it and press `Alt ↑` / `Alt ↓`.
 </Steps>
 
 Children added directly record the parent's current revision. When the
-parent's specification changes later, the section says how many children
-come _from an earlier revision_, so you can check whether they still match.
+parent changes later, the section counts children _from an earlier revision_
+so you can check they still match.
 
-Adding children never changes the specification. A ready specification stays
-protected while you prepare its children.
+Adding children never changes the specification, so a ready specification
+stays ready while you prepare them.
 
 ## Propose a reviewed breakdown
 
@@ -70,11 +68,10 @@ protected while you prepare its children.
 
 ### Start the breakdown
 
-In the **Children** section of a specification, choose **Propose
-breakdown**. Lictory opens your breakdown proposal (or the one you started
-before) at the breakdown editor. Underneath it is a branch named `breakdown`;
-you do not need to know how [branches](/specifications/branches) work to use
-it.
+In a specification's **Children** section, choose **Propose breakdown**.
+Lictory opens your breakdown proposal (new or the one you started before).
+It is a [branch](/specifications/branches) named `breakdown`, but you don't
+need to know how branches work.
 
 </Step>
 <Step>
@@ -83,8 +80,8 @@ it.
 
 Under **Proposed breakdown**, pick a **Child type**, write a **Title** and a
 **Description** (behavior, scope, acceptance criteria), and choose **Propose
-child**. Repeat for each piece of work, up to 100 per branch. You can edit the
-branch's specification text in the same change.
+child**. Up to 100 per branch. You can edit the specification text in the
+same change.
 
 </Step>
 <Step>
@@ -111,18 +108,17 @@ offered.
 Choose **Send for review**. Lictory saves your edits and asks the
 specification's reviewers in one step; there is no commit message or pull
 request to write. Reviewers see the specification changes and the
-**Proposed breakdown** in the same place. Later edits are sent with **Update
-the review**, which asks them again.
+**Proposed breakdown** together. **Update the review** sends later edits and
+asks them again.
 
 </Step>
 <Step>
 
 ### Create the items
 
-When the required reviews approve it, choose **Create the items**: the new
-children are created in one step and record the parent revision the
-breakdown produced. The proposed changes to existing children are applied at
-the same moment.
+Once the required reviews approve, choose **Create the items**. New
+children are created and record the parent revision the breakdown produced;
+changes to existing children apply at the same moment.
 
 </Step>
 </Steps>
@@ -131,16 +127,14 @@ the same moment.
 
 ### What reviewers approve
 
-The breakdown is part of what the pull request merges. Approvals cover the
-whole result, so changing only the proposed children (even with the
-specification text unchanged) needs a fresh review. Nothing is created until
-the merge: before that, the proposed children exist only on the branch.
+Approvals cover the whole merge, so changing only the proposed children
+needs a fresh review. Until the merge, proposed children exist only on the
+branch.
 
 ## Changes that are refused at merge
 
-The child stays in charge of itself. Each proposed change remembers the
-revision of the child it was written against, and merge applies it only
-while the child:
+Each proposed change remembers the child's revision it was written
+against. Merge applies it only while the child:
 
 - still has that revision;
 - is still a child of this item and not archived;
@@ -148,30 +142,25 @@ while the child:
   off.
 
 Otherwise the merge is refused and names the child, so nothing that changed
-in the meantime is overwritten. The branch warns you before you try: _PAY-7
-changed since this was proposed. Merge will refuse this change until it is
-proposed again against the current child._ Drop the change and propose it
-again against the child as it is now.
+meanwhile is overwritten. The branch warns you beforehand. Drop the change and
+propose it again against the child as it is now.
 
-Archiving is also refused while the child has active children of its own:
-archive or move them first.
+Archiving is also refused while the child has active children: archive or
+move them first.
 
 ## Subtasks
 
-Subtasks are the lowest level. Add them to a Task or Bug from its
-**Children** section, the same way as other children. Boards and backlogs
-show a parent's progress (`2/4 done`), and the [item preview](/delivery/relations#preview-an-item)
-shows **Subtasks done**.
+Subtasks are the lowest level; add them from a Task's or Bug's **Children**
+section. Boards and backlogs show a parent's progress (`2/4 done`), and the
+[item preview](/delivery/relations#preview-an-item) shows **Subtasks done**.
 
 ## What to watch for
 
 - **Spec-backed children keep their own text.** A breakdown can move,
-  detach or archive a Story, but changes to a Story's specification are made
-  on that Story, where its own reviewers approve them. Rename applies only to
-  plain work.
-- **Some changes stay outside the breakdown.** Changing a child's type,
-  relations between children, owners, ranking and iterations are ordinary
-  actions on the items themselves.
+  detach or archive a Story; its specification changes on the Story itself,
+  approved by its own reviewers. Rename applies only to plain work.
+- **Some changes stay outside the breakdown.** Type, relations, owners,
+  ranking and iterations are changed on the items themselves.
 - **Each change applies once.** Applied changes and created children stay in
   the commit history, so a later branch cannot create the same children
   again.
@@ -180,10 +169,9 @@ shows **Subtasks done**.
 
 ## Tips
 
-- Propose the breakdown with the specification when reviewers care about
-  the split (a risky migration, work spread across teams). Add children
-  directly when the team shapes the work as it goes.
-- Put acceptance criteria in each child's description. QA can then review
-  the breakdown for gaps before work starts.
+- Propose a reviewed breakdown when reviewers care about the split (a risky
+  migration, work spread across teams).
+- Put acceptance criteria in each child's description so QA can review the
+  breakdown for gaps.
 - When the parent is amended, check children marked _from an earlier
   revision_ before accepting the new revision for delivery.

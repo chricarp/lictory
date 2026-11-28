@@ -23,8 +23,6 @@ export function UnknownView() {
           Back to {project.name}
         </Button>
       }
-    >
-      {project.name} has no saved view at this address.
-    </MissingState>
+    />
   );
 }

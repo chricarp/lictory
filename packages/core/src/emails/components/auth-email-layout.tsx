@@ -53,7 +53,7 @@ export function AuthEmailLayout({
   actionLabel,
   actionUrl,
   children,
-  footerText = "If you did not request this, you can safely ignore this email. No changes will be made to your account.",
+  footerText = "If you did not request this, ignore this email.",
   brand,
 }: AuthEmailLayoutProps) {
   const linkColor = emailLinkColor(brand);
@@ -121,8 +121,7 @@ export function AuthEmailLayout({
           </Section>
 
           <Text style={fallbackText}>
-            If the button does not work, copy and paste this link into your
-            browser:
+            Or paste this link into your browser:
           </Text>
           <Link href={actionUrl} style={{ ...fallbackLink, color: linkColor }}>
             {actionUrl}

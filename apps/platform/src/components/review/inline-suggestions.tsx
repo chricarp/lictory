@@ -180,7 +180,7 @@ export function SuggestionComposer({
     });
     toast({
       title: "Change sent for review",
-      description: `The specification's reviewers approve it before it becomes revision ${current.number + 1}.`,
+      description: `Becomes revision ${current.number + 1} once approved.`,
       type: "success",
     });
   };
@@ -189,12 +189,12 @@ export function SuggestionComposer({
     const replacement = replaceQuote(current.content, draft, text.trim());
     if (replacement === null) {
       setError(
-        "This passage has formatting or spans several blocks, so it is changed in the editor.",
+        "This passage has formatting or spans several blocks. Use Larger change.",
       );
       return;
     }
     if (replacement === current.content) {
-      setError("The text is unchanged. Write what the passage should say.");
+      setError("The text is unchanged.");
       return;
     }
     const suggestionId = crypto.randomUUID();
@@ -296,12 +296,7 @@ export function SuggestionComposer({
           className="h-8 w-full rounded-lg border border-input bg-background px-2.5 outline-none focus:border-primary/60 focus:ring-3 focus:ring-primary/10"
         />
       </div>
-      {reviewed ? (
-        <p className="text-xs text-muted-foreground">
-          This specification is ready, so the change is reviewed by its
-          reviewers before it becomes a new revision.
-        </p>
-      ) : (
+      {!reviewed && (
         <div className="space-y-1">
           <span id={ids.who} className="text-xs font-medium">
             Who accepts it
@@ -322,9 +317,7 @@ export function SuggestionComposer({
             </DropdownSelect>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Nobody else in this project can accept suggestions yet (it takes a
-              discipline that edits specifications and reviews). It stays open
-              until someone can.
+              Nobody else in this project can accept suggestions yet.
             </p>
           )}
         </div>
@@ -461,13 +454,13 @@ export function SuggestionCard({
     (isAuthor || canEdit) &&
     suggestionMachine.allows(suggestion.status, "close");
   const blocked = item.mainProtected
-    ? "The specification became ready, so changes are now reviewed before they apply. Select the passage and suggest it again to send it for review."
+    ? "The specification is ready. Suggest it again to send it for review."
     : state.outdated
-      ? `Written on revision ${revisionNumber(suggestion.revisionId) ?? "?"}; the specification changed since, so it no longer applies as written.`
+      ? `Outdated: written on revision ${revisionNumber(suggestion.revisionId) ?? "?"}.`
       : state.blocking.length
-        ? `${state.blocking.length} blocking discussion${state.blocking.length > 1 ? "s" : ""} on this suggestion must be resolved first.`
+        ? `${state.blocking.length} blocking discussion${state.blocking.length > 1 ? "s" : ""} to resolve first.`
         : suggestion.status === "draft"
-          ? "A private draft: nobody else sees it yet."
+          ? "Private draft"
           : null;
   const waitingOn = state.reviewers
     .filter((r) => r.userId !== userId)
@@ -514,10 +507,7 @@ export function SuggestionCard({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Nobody is asked to accept it yet.{" "}
-          {isAuthor
-            ? "Ask someone who edits and reviews specifications."
-            : `${memberName(suggestion.authorId)} chooses who accepts it.`}
+          Nobody is asked to accept it yet.
         </p>
       )}
       {error && (

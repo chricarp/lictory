@@ -201,7 +201,7 @@ export function LabelPicker({
             }))}
             value={labelIds}
             onSelect={toggle}
-            emptyText="No labels in this project yet."
+            emptyText="No labels"
             footer={
               <DropdownItem type="button" onClick={() => setCreating(true)}>
                 <Plus className="size-3.5 text-muted-foreground" /> New label

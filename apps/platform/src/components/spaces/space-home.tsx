@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Archive,
   Building2,
   FileText,
   FolderKanban,
@@ -206,11 +205,7 @@ export function SpaceHome() {
                           </Button>
                         ) : undefined
                       }
-                    >
-                      {canEdit
-                        ? "Start with the page people ask about most: a runbook, a decision record or how the team works."
-                        : "Nothing has been written here yet. Editors of this space can add the first page."}
-                    </EmptyState>
+                    />
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-transparent bg-card p-1.5 shadow-(--shadow-border)">
@@ -225,12 +220,6 @@ export function SpaceHome() {
                       <PageTree variant="home" />
                     )}
                   </div>
-                )}
-                {space.archivedAt && (
-                  <p className="mt-3 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-                    <Archive className="size-3.5" aria-hidden /> Pages of an
-                    archived space can be read but not changed.
-                  </p>
                 )}
               </section>
               {/* Project and team spaces: the work their pages mention. */}

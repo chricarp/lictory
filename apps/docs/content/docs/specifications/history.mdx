@@ -5,9 +5,8 @@ description: See every revision of a specification with who wrote it and who app
 
 Every saved change to a specification is a **revision**: an immutable
 snapshot of its title and text, with its author, time and change summary.
-Revisions are never edited afterwards, not by later edits, restores or
-merges. That is what lets a team answer, months later: _what did
-Engineering approve, and what changed afterwards?_
+Later edits, restores and merges never alter it, so a team can answer, months
+later: _what did Engineering approve, and what changed afterwards?_
 
 ## Open the history
 
@@ -18,12 +17,12 @@ Engineering approve, and what changed afterwards?_
   and offers **vs. revision N** (the previous one), **Since my approval
   (rN)** when you approved an earlier revision, and **History**.
 - When the text changed since your last visit, a notice above the title
-  says so: _Changed since you last looked: revision 2 → 4 · +12 −3 lines_.
+  reads _Changed since you last looked: revision 2 → 4 · +12 −3 lines_;
   **View changes** opens that comparison.
 
 **Close history** returns to the specification. The history has two views:
-**Revisions**, described here, and **Proposed changes**, described in
-[proposed changes](/specifications/branches).
+**Revisions**, described here, and
+[**Proposed changes**](/specifications/branches).
 
 ![Revisions of PAY-2: r2 “Four attempts with jitter; cite the runbook and the design” by Maria Chen, marked Current and Accepted for delivery, and r1 Created](/screenshots/work-versions.webp)
 
@@ -39,7 +38,7 @@ Each revision shows:
   done) and **Approved:** with the disciplines whose approval of that
   revision is still valid.
 
-Select a revision to see it on the right, with the approvals given on it:
+Select a revision to see it with the approvals given on it:
 
 | Approval state                                          | What it means                                                                    |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -49,9 +48,9 @@ Select a revision to see it on the right, with the approvals given on it:
 | **superseded by the merged pull request's approval**    | A pull request's approval for the same discipline replaced the carried one       |
 | **revoked**                                             | The reviewer withdrew it                                                         |
 
-So an approval always says which revision it belongs to: _Engineering · Dev
-Patel approved revision 2 · outdated (Specification revised (revision 3))_.
-See [approvals](/review/approvals).
+An approval always names its revision: _Engineering · Dev Patel approved
+revision 2 · outdated (Specification revised (revision 3))_. See
+[approvals](/review/approvals).
 
 ## Compare two revisions
 
@@ -64,9 +63,8 @@ it on its own.
 - The summary counts the **blocks changed**: paragraphs, headings, lists,
   tables, quotes or code blocks.
 - Each change is labelled **Edited**, **Added** or **Removed**. An edited
-  block shows **Before** and **After**, each labelled with its revision, and
-  marks the exact words that changed. A one-word fix reads as a one-word
-  fix.
+  block shows **Before** and **After**, each labelled with its revision, with
+  the exact words that changed marked.
 - Long runs of unchanged blocks fold into one line (_4 unchanged blocks_);
   open it to read the context.
 - A changed title is compared word by word above the text.
@@ -78,13 +76,12 @@ between these revisions._ (for example after a rename).
 
 ## Read an old revision
 
-Choose **Read this revision** in **Compare with** to read a revision in
-full, as it was saved, with its references resolved for you now.
+**Read this revision** in **Compare with** shows a revision in full as it was
+saved, with its references resolved for you now.
 
 A [discussion](/specifications/discussions) whose text has since changed
-links to the revision it was written on: the history opens that revision
-with the quoted passage marked, so you can read what the comment referred
-to. If the passage cannot be found, the history says _The quoted text is
+links to the revision it was written on, which opens with the quoted passage
+marked. If the passage cannot be found, the history says _The quoted text is
 not in this revision._
 
 ## Restore a revision
@@ -95,34 +92,30 @@ revision while the specification is not protected:
 1. Select a revision other than the current one and choose **Restore
    revision N**.
 2. Read the confirmation: _Restore revision N as a new revision.
-   Existing approvals will require review again._
+   Existing approvals will need review again._
 3. Choose **Confirm restore revision N**, or **Cancel**.
 
 Restoring never rewrites history. It saves a **new revision** with the old
-revision's title and text and the summary _Restore revision N_. Every
-revision in between stays in the list. Like any new revision, it marks
-approvals outdated and re-requests the reviews, and it replaces the live
-draft for anyone editing it.
+revision's title and text and the summary _Restore revision N_; every
+revision in between stays. Like any new revision, it marks approvals outdated,
+re-requests the reviews and replaces the live draft for anyone editing it.
 
 Once the specification has been ready, it is protected and the history says
 _This specification is protected. To restore earlier text, propose it as a
-change and send it for review._ Make the change as a [proposed
-change](/specifications/branches) instead.
+change._ Use a [proposed change](/specifications/branches) instead.
 
 ## Link to a version
 
-The address of the history names what is on screen: the revision shown, the
-one it is compared with, and the discussion whose quote is marked
-(`?history=…&compare=…&thread=…`). Copy the address to send someone exactly
-that comparison; **Proposed changes**, a change and its review have
-addresses of their own.
+The history's address names the revision shown, the one it is compared with
+and the discussion whose quote is marked (`?history=…&compare=…&thread=…`).
+Copy it to send someone exactly that comparison; **Proposed changes**, a
+change and its review have addresses of their own.
 
 ## What to watch for
 
-- **"Changed since you last looked" is per browser.** Lictory remembers the
-  last revision you saw on each device. On a new browser the notice starts
-  from the revision you open, or from your most recent approval when that is
-  newer.
+- **"Changed since you last looked" is per browser.** On a new browser the
+  notice starts from the revision you open, or from your most recent approval
+  when that is newer.
 - **Properties are not in the history of versions.** Status, owner,
   estimate and similar changes create no revision; they appear in the item's
   activity instead.
@@ -131,11 +124,9 @@ addresses of their own.
 
 ## Tips
 
-- **Start a re-review from your approval.** **Since my approval (rN)**
-  shows exactly what changed after you approved, so you review the
-  difference instead of rereading the whole specification.
+- **Start a re-review from your approval.** **Since my approval (rN)** shows
+  only what changed after you approved.
 - **Link comparisons in discussions.** When you ask _"is this still
-  right?"_, paste the address of the comparison so others see the same
-  change you do.
-- **Write summaries for the list.** The list of versions shows each
-  summary first; a clear one makes the history readable at a glance.
+  right?"_, paste the comparison's address so others see the same change.
+- **Write summaries for the list.** The list shows each summary first; clear
+  ones make the history readable at a glance.

@@ -271,7 +271,7 @@ void test("production refuses the first Jira connection until DELIVERY_CREDENTIA
       userId,
       input,
     ),
-    /no DELIVERY_CREDENTIALS_KEY/,
+    /DELIVERY_CREDENTIALS_KEY is not set/,
   );
   assert.deepEqual(await connections(), []);
   // With the key, or outside production, connecting works.

@@ -143,8 +143,8 @@ export function SessionView() {
       <div className="flex h-full min-h-0 flex-col">
         <PageHeader title="Session" back={back} />
         {complete ? (
-          // The same not-found as items and channels: what is missing, why
-          // it may be, and the way back.
+          // The same not-found as items and channels: what is missing and
+          // the way back.
           <MissingState
             illustration="search"
             headingLevel={2}
@@ -154,9 +154,7 @@ export function SessionView() {
                 Back to the Factory
               </Button>
             }
-          >
-            It may belong to another organization, or the link may be wrong.
-          </MissingState>
+          />
         ) : (
           <LoadingState label="Loading the session" />
         )}
@@ -305,8 +303,7 @@ export function SessionView() {
           className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-destructive/5 px-4 py-2.5 text-[13px] sm:px-6"
         >
           <span className="mr-auto">
-            Cancel this session? It ends now; Retry starts it over from the
-            task. To pause it instead, choose Interrupt.
+            Cancel this session? It ends now; Retry starts it over.
           </span>
           <Button variant="ghost" onClick={() => setConfirmingCancel(false)}>
             Keep it running
@@ -472,7 +469,7 @@ export function SessionView() {
               back to the work or the conversation and change the ask. */}
           {session.status === "failed" && steer && (itemKey ?? thread) && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Retry runs the same task again. To change what it is asked,
+              To change the task,
               {itemKey ? (
                 <>
                   {" "}
@@ -557,7 +554,7 @@ export function SessionView() {
             mentions={[]}
             references={false}
             maxLength={8000}
-            hint="Enter to send · Shift+Enter for a new line · the agent reads it on its next turn"
+            hint="Enter to send · Shift+Enter for a new line"
             onSend={(text) =>
               void callCapability("sendAgentSessionMessage", {
                 organizationId: organization.id,
@@ -589,11 +586,9 @@ export function SessionView() {
 }
 
 const INTERRUPT_HINT =
-  "Stops the agent’s current turn. It keeps its work and waits for your next message.";
-const CANCEL_HINT =
-  "Ends the session. Retry starts it over from the task, with the messages you sent.";
-const RETRY_HINT =
-  "Runs the session again from the task; your earlier messages are sent again.";
+  "Stops the current turn; it waits for your next message.";
+const CANCEL_HINT = "Ends the session. Retry starts it over.";
+const RETRY_HINT = "Runs it again from the task, with your earlier messages.";
 
 function Meta({
   icon,
@@ -657,7 +652,7 @@ function Result({
       {error && (
         <p className="mt-1 whitespace-pre-wrap text-destructive">{error}</p>
       )}
-      {unkept ? (
+      {unkept && (
         <>
           <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
             <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
@@ -670,13 +665,6 @@ function Result({
             </Button>
           )}
         </>
-      ) : (
-        !error && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            A claim, not proof: the pull request, its checks and the Definition
-            of Done decide.
-          </p>
-        )
       )}
     </div>
   );

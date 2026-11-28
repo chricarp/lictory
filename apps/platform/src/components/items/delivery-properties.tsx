@@ -364,9 +364,7 @@ export function Relations({
         )}
       </div>
       {mine.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
-          No blockers, duplicates or related work.
-        </p>
+        <p className="text-[13px] text-muted-foreground">No relations</p>
       ) : (
         <div className="space-y-3">
           {[...groups.entries()].map(([label, rows]) => (

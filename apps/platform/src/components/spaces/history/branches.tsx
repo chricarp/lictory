@@ -64,14 +64,7 @@ export function Branches({ pageId }: { pageId: string }) {
   );
   return (
     <section className="space-y-6">
-      <div className="space-y-1">
-        <h2 className="font-semibold">Branches</h2>
-        <p className="text-[13px] leading-5 text-muted-foreground">
-          A branch is a working copy of this page for preparing a change without
-          touching the published version; a pull request asks for it to be
-          reviewed and published.
-        </p>
-      </div>
+      <h2 className="font-semibold">Branches</h2>
       <ActionError error={action.error} />
       {/* One scannable row per line: its name, who started it, whether a
           review is open, and the actions on it. */}
@@ -196,8 +189,8 @@ export function Branches({ pageId }: { pageId: string }) {
                   className="space-y-2"
                 >
                   <p>
-                    Delete this branch and disconnect its editors? Commits
-                    remain in history. Close any open pull requests first.
+                    Delete this branch and disconnect its editors? Close its
+                    open pull requests first.
                   </p>
                   <DiscussionRemovalWarning
                     where="this branch"

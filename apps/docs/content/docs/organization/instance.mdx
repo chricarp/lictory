@@ -4,14 +4,12 @@ description: Manage your installation's accounts, instance administrators and or
 ---
 
 One Lictory installation serves one company. **Instance administrators**
-manage the installation itself: who has an account, who else administers
-the installation, and which organizations exist. They are different from
-organization administrators, who run one organization
+manage accounts, who else administers the installation, and which
+organizations exist. Organization administrators run one organization
 ([organization and access](/organization)).
 
-The two are independent. Being an instance administrator gives no access to
-any organization's work: an instance administrator who is not a member sees
-nothing inside it, and adding themselves is a recorded action. An
+The two are independent. An instance administrator who is not a member sees
+nothing inside an organization, and adding themselves is recorded. An
 organization owner has no say over the installation.
 
 The first instance administrator is created when the server is installed;
@@ -20,10 +18,9 @@ one ([terminal guide](/self-hosting/terminal)).
 
 ## The admin console
 
-Instance administrators open it from their name at the bottom of the
-sidebar → **Admin console** (or `https://<your host>/admin`). Agents cannot
-use it: installation administration happens only in the browser or on the
-server.
+Open it from your name at the bottom of the sidebar → **Admin console** (or
+`https://<your host>/admin`). Agents cannot use it; installation
+administration happens only in the browser or on the server.
 
 ![The admin console: Overview with counts of accounts, administrators, organizations and pending invitations, and the access policy](/screenshots/admin-console.webp)
 
@@ -36,8 +33,8 @@ person administers the installation), and the **Access policy** below.
 
 ### People
 
-Every account on the installation. Search by name, email or handle and
-filter by **Everyone**, **Active**, **Administrators** or **Deactivated**.
+Search by name, email or handle and filter by **Everyone**, **Active**,
+**Administrators** or **Deactivated**.
 
 - **New account** creates an account for any email address, optionally as
   an **Instance administrator**, with a password you share privately, or
@@ -48,26 +45,24 @@ filter by **Everyone**, **Active**, **Administrators** or **Deactivated**.
   everywhere), and **Deactivate…** or **Reactivate**.
 
 **Deactivating** signs a person out everywhere and refuses every sign-in
-method and every agent token from then on. Nothing else changes: their
-memberships, history, reviews and approvals stay, so **Reactivate** restores
-the account as it was. You cannot deactivate yourself, and the console
-refuses to remove or deactivate the last active instance administrator.
+method and agent token. Memberships, history, reviews and approvals stay, so
+**Reactivate** restores the account as it was. You cannot deactivate
+yourself, nor remove or deactivate the last active instance administrator.
 
 The console does not delete accounts; people
-[delete their own](/basics/account#delete-your-account). A deleted account
-is listed as **Deleted**, and nothing about it can be changed.
+[delete their own](/basics/account#delete-your-account). Deleted accounts
+are listed as **Deleted** and cannot be changed.
 
 ### Organizations
 
-Every organization, with its owners. **New organization** creates one and
-makes the person you name its owner; it is set up exactly like one created
-in guided setup. **Add** puts someone in an organization as a member,
-administrator or owner; the organization's own audit log records it,
-naming you.
+Organizations with their owners. **New organization** creates one, set up as
+in guided setup, with the person you name as owner. **Add** puts someone in
+an organization as a member, administrator or owner; its audit log records
+it, naming you.
 
 Organizations scheduled for deletion show their date (or **Being
-deleted**). Instance administrators cannot cancel or bring forward a
-deletion; only the organization's owners can cancel it.
+deleted**). Only the organization's owners can cancel a deletion; instance
+administrators cannot cancel or bring it forward.
 
 ### Activity
 
@@ -78,9 +73,8 @@ Entries cannot be edited or deleted.
 
 ## Access policy
 
-The operator sets the policy in the server's configuration, so it is
-reviewed and deployed like the rest of the setup; the console shows it
-read-only.
+The operator sets the policy in the server's configuration, reviewed and
+deployed like the rest of the setup; the console shows it read-only.
 
 | Setting                   | Choices                                                                                                             | Default                 |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------- |
@@ -96,22 +90,22 @@ The rules apply in this order: accounts an administrator creates are always
 allowed; every other new account must use an allowed domain; your company
 identity provider decides who gets an account through single sign-on; and
 everyone else follows the sign-up mode. The server enforces this for every
-sign-in method; the app only hides what would fail. The settings are in
+sign-in method. See
 [configuration](/self-hosting/configuration#access-policy).
 
 ## History
 
-The installation keeps its own history, which no organization owns: the
-activity above, and what it must remember after an organization is gone (who
-scheduled its deletion and what was removed). It names the administrator or
-the server's command line, never passwords.
+The installation keeps its own history, owned by no organization: the
+activity above, and who scheduled an organization's deletion and what was
+removed. It names the administrator or the server's command line, never
+passwords.
 
 ## Tips
 
 - Keep at least two instance administrators, so access never depends on one
   account.
-- Prefer **Deactivate** to anything permanent when someone leaves: it is
-  reversible, and their history stays attributed.
+- When someone leaves, **Deactivate**: it is reversible and keeps their
+  history attributed.
 - Leave sign-up on invitation and organization creation with
   administrators unless the installation is on a private network for
   evaluation.

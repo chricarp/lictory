@@ -158,13 +158,12 @@ const runnerSource = (
       <a href="https://bun.sh" className={textLink}>
         Bun
       </a>{" "}
-      and git, on any system: the binary lands in <code>apps/runner/dist</code>.
-      Register it with the token from <strong>Factory → Runners</strong>:{" "}
+      and git. The binary lands in <code>apps/runner/dist</code>; register it
+      with the token from <strong>Factory → Runners</strong>:{" "}
       <code>
         lictory-runner register --url &lt;server&gt; --token &lt;token&gt;
       </code>
-      . The dialog there also shows these commands with your server and token
-      filled in.
+      .
     </Lead>
     <Command>{runnerFromSource}</Command>
   </div>
@@ -198,9 +197,8 @@ export default function DownloadPage() {
 
       <Section id="desktop" title="Desktop app">
         <Lead>
-          Your team’s Lictory servers in one window, with native notifications,
-          a badge and <code>lictory://</code> links. The app asks for the
-          address of your team’s server and signs in as the browser does.{" "}
+          Your Lictory servers in one window, with native notifications and{" "}
+          <code>lictory://</code> links.{" "}
           <a href={desktopDocsUrl} className={textLink}>
             Install and connect it
           </a>
@@ -229,12 +227,11 @@ export default function DownloadPage() {
 
       <Section id="runner" title="lictory-runner">
         <Lead>
-          Runs your agents’ sessions on a server, a VPS, a laptop or a Mac. To
-          add a runner, copy the command from <strong>Factory → Runners</strong>{" "}
-          in your Lictory: it installs your server’s version and registers the
-          runner in one step.
+          Runs your agents’ sessions. The command in{" "}
+          <strong>Factory → Runners</strong> installs your server’s version and
+          registers the runner in one step.
           {runnerInstallersAvailable
-            ? " To install the newest stable release by hand:"
+            ? " Or install the newest stable release by hand:"
             : null}
         </Lead>
         {runnerInstallersAvailable ? (
@@ -251,7 +248,7 @@ export default function DownloadPage() {
               </div>
             ))}
             <Lead>
-              The installer checks the binary against the release’s checksums.{" "}
+              The installer verifies the checksum.{" "}
               <a href={runnerDocsUrl} className={textLink}>
                 Register and run a runner
               </a>
@@ -259,9 +256,7 @@ export default function DownloadPage() {
           </>
         ) : (
           <Lead>
-            {releaseName} has no runner files, so the installer command does not
-            work with it yet. Build the runner from source below until a release
-            carries them.
+            {releaseName} has no runner files yet. Build the runner from source.
           </Lead>
         )}
         {/* The one path that works when the release has no runner files
@@ -280,9 +275,8 @@ export default function DownloadPage() {
 
       <Section id="verify" title="Check a download">
         <Lead>
-          <code>SHA256SUMS</code> lists the SHA-256 of every file in the
-          release, and the release workflow signs it. In the folder of your
-          download:
+          <code>SHA256SUMS</code> lists every file’s SHA-256, signed by the
+          release workflow. In your download folder:
         </Lead>
         <Command>sha256sum --check --ignore-missing SHA256SUMS</Command>
         <Files>
@@ -302,8 +296,8 @@ export default function DownloadPage() {
       </Section>
 
       <TryLictory page="download" title="No Lictory server yet?">
-        The desktop app and runners connect to your team’s own Lictory server.
-        Try it on your computer with one command first.
+        The app and runners connect to your team’s Lictory server. Try Lictory
+        on your computer first.
       </TryLictory>
       <JsonLd
         data={publicPageStructuredData(downloadPath, {

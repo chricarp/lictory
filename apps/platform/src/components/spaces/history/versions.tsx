@@ -227,7 +227,7 @@ export function Versions({
           {restore && branch && (
             <Dialog
               title="Restore this version?"
-              description="Creates a new commit with this version’s content. The live draft restarts and connected editors reconnect; historical versions stay unchanged."
+              description="Creates a new commit with this version’s content and restarts the live draft."
               onClose={() => setRestore(undefined)}
               onSubmit={() => {
                 void action.run(

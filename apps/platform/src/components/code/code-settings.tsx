@@ -78,7 +78,7 @@ export function CodeHostSettings() {
         id="code-hosts"
         icon={<FolderGit2 />}
         title="Code hosts"
-        description="GitHub, GitLab and Bitbucket. Pull requests and commits that name an item’s key (PAY-142) link to it."
+        description="Pull requests and commits that name an item’s key link to it."
         learnMore="codeHosts"
         action={
           isAdmin && !connecting ? (
@@ -91,7 +91,6 @@ export function CodeHostSettings() {
             </Button>
           ) : undefined
         }
-        footer="Webhooks keep Lictory current within seconds; without them, Lictory still reads every linked repository again every ten minutes."
       >
         {connecting && (
           <ConnectForm
@@ -107,11 +106,7 @@ export function CodeHostSettings() {
         )}
         <SettingsList
           isEmpty={connections.length === 0}
-          empty={
-            isAdmin
-              ? "No code host is connected yet."
-              : "No code host is connected yet. Organization administrators can connect one."
-          }
+          empty="No code host is connected yet."
         >
           {connections.map((c) => (
             <ConnectionRow
@@ -128,8 +123,8 @@ export function CodeHostSettings() {
       </SettingsSection>
       {!isAdmin && (
         <ReadOnlyNotice>
-          Only organization administrators connect code hosts. Project
-          administrators link repositories to their projects here.
+          Only organization administrators connect code hosts; project
+          administrators link repositories.
         </ReadOnlyNotice>
       )}
     </>
@@ -309,17 +304,13 @@ function ConnectionRow({
       {connection.longLivedCredential && (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info aria-hidden className="mt-px size-3.5 shrink-0" />
-          <span>
-            Uses a stored token, which agent sessions receive as is. Prefer an
-            app or a short-lived credential where the host offers one.
-          </span>
+          <span>Uses a stored token, which agent sessions receive as is.</span>
         </p>
       )}
       {confirming && (
         <p className="text-xs text-muted-foreground">
-          Its repositories, pull requests and links stay as history and return
-          when you connect the same host and account again. Changes Lictory has
-          not sent yet are canceled.
+          Unsent changes are canceled. History stays and returns if you
+          reconnect the same account.
         </p>
       )}
       {connection.lastError && (
@@ -338,9 +329,8 @@ function ConnectionRow({
               </CollapsibleTrigger>
               <CollapsiblePanel className="mt-1.5 space-y-2">
                 <p className="text-xs leading-5 text-muted-foreground">
-                  {webhookWhere(connection.provider, connection.authKind)} The
-                  secret was shown once when you connected; if you no longer
-                  have it, choose New webhook secret.{" "}
+                  {webhookWhere(connection.provider, connection.authKind)} Lost
+                  the secret? Choose New webhook secret.{" "}
                   <LearnMore page="codeHostWebhook" />
                 </p>
                 <WebhookSettings provider={connection.provider} />
@@ -623,7 +613,7 @@ function LinkRepository({
         >
           {found.length === 0 && (
             <li className="px-3 py-2 text-xs text-muted-foreground">
-              The connection sees no repository with that name.
+              No repository with that name.
             </li>
           )}
           {found.map((r) => (
@@ -756,8 +746,8 @@ function ConnectForm({
     setError(undefined);
   };
   const cloud = {
-    github: "https://github.com, or your GitHub Enterprise Server",
-    gitlab: "https://gitlab.com, or your self-managed GitLab",
+    github: "https://github.com",
+    gitlab: "https://gitlab.com",
     bitbucket: "https://bitbucket.org",
   }[provider];
   return (
@@ -822,10 +812,7 @@ function ConnectForm({
         <SetupInstructions provider={provider} authKind={authKind} />
         {!replace && (
           <>
-            <Field
-              label="Host address"
-              hint={`Leave empty for the cloud host: ${cloud}.`}
-            >
+            <Field label="Host address" hint={`Leave empty for ${cloud}`}>
               <Input
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
@@ -860,7 +847,7 @@ function ConnectForm({
             </Field>
             <Field
               label="Installation ID"
-              hint="The number at the end of the installation's settings address (…/installations/12345678)."
+              hint="From the installation’s address: …/installations/12345678"
             >
               <Input
                 {...field("installationId")}
@@ -869,10 +856,7 @@ function ConnectForm({
                 inputMode="numeric"
               />
             </Field>
-            <Field
-              label="Private key"
-              hint="Paste the whole .pem file GitHub generated for the app."
-            >
+            <Field label="Private key" hint="The whole .pem file">
               <textarea
                 {...field("privateKey")}
                 required
@@ -984,7 +968,7 @@ function webhookWhere(provider: Provider, authKind: AuthKind) {
   if (provider === "github" && authKind === "github_app")
     return "On the GitHub App (Settings → Developer settings → GitHub Apps → Edit): under General → Webhook, tick Active and set this URL and secret; under Permissions & events, subscribe to the events below.";
   if (provider === "github")
-    return "Organization settings → Webhooks → Add webhook, where one webhook covers every repository (an organization owner adds it); on a personal account, each repository’s Settings → Webhooks. Payload URL and secret as shown.";
+    return "Organization settings → Webhooks → Add webhook (needs an organization owner); on a personal account, each repository’s Settings → Webhooks. Payload URL and secret as shown.";
   if (provider === "gitlab")
     return "Group or Project → Settings → Webhooks → Add new webhook, with this URL and the secret as its Secret token.";
   return "In each repository: Repository settings → Webhooks → Add webhook, with this URL and secret.";
@@ -1016,29 +1000,29 @@ function SetupInstructions({
   if (provider === "github" && authKind === "github_app")
     steps = [
       "In GitHub, open your organization's Settings → Developer settings → GitHub Apps → New GitHub App (for a personal account: your Settings → Developer settings).",
-      "Homepage URL: this Lictory address. Leave the webhook inactive for now; after connecting, Lictory shows the webhook URL and secret to set on the app.",
+      "Homepage URL: this Lictory address. Leave the webhook inactive; Lictory shows its URL and secret after connecting.",
       "Repository permissions: Contents read and write, Pull requests read and write, Issues read and write, Checks read, Commit statuses read, Metadata read.",
       "Subscribe to the events in the webhook settings below.",
-      "Create the app, note its App ID, generate a private key (.pem), then Install App on the repositories Lictory should see. The installation ID is the number in the installation's address.",
+      "Create the app, note its App ID, generate a private key (.pem), then Install App on the repositories Lictory should see.",
     ];
   else if (provider === "github")
     steps = [
       "In GitHub, open Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.",
       "Resource owner: your organization. Repository access: the repositories Lictory should see.",
       "Permissions: Contents read and write, Pull requests read and write, Issues read and write, Commit statuses read, Checks read (when offered), Metadata read.",
-      "After connecting, add the webhook Lictory shows once, with the settings below, to your GitHub organization (Organization settings → Webhooks → Add webhook), where one webhook covers every repository; on a personal account, to each repository (Settings → Webhooks). Adding an organization webhook needs an organization owner; the token itself is not used for it.",
-      "A token is long-lived and is handed to agent sessions as is. A GitHub App gives each session a token for one repository that expires within an hour.",
+      "After connecting, add the webhook Lictory shows once, with the settings below, to your GitHub organization (Organization settings → Webhooks, needs an organization owner) or, on a personal account, to each repository.",
+      "Agent sessions receive this long-lived token as is; a GitHub App gives them one-repository tokens that expire within an hour.",
     ];
   else if (provider === "gitlab")
     steps = [
       "Create a group access token (Group → Settings → Access tokens), a project access token, or a personal access token of a bot account.",
-      "Scope: api (read_api is enough for a read-only mirror, but creating branches, opening, commenting on and merging merge requests needs api). Role: Developer, or Maintainer to merge into protected branches.",
+      "Scope: api (read_api only for a read-only mirror). Role: Developer, or Maintainer to merge into protected branches.",
       "After connecting, add the webhook (Group or Project → Settings → Webhooks): the URL and secret token Lictory shows, with the settings below.",
       "Self-managed GitLab on a private network: an operator must list its host name in CODE_HOST_PRIVATE_HOSTS first.",
     ];
   else if (authKind === "oauth_consumer")
     steps = [
-      "In Bitbucket, open Workspace settings → OAuth consumers → Add consumer and tick “This is a private consumer”. A callback URL is required by the form; use this Lictory address.",
+      "In Bitbucket, open Workspace settings → OAuth consumers → Add consumer and tick “This is a private consumer”. Callback URL: this Lictory address.",
       "Permissions: Account read, Repositories write, Pull requests write, Issues write, Pipelines read.",
       "After connecting, add the webhook in each repository (Repository settings → Webhooks → Add webhook): the URL and secret Lictory shows, with the settings below.",
     ];

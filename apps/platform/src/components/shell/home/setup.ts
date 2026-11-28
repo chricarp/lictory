@@ -44,8 +44,7 @@ export function setupSteps(
       // reviewed specification says.
       id: "proposal",
       title: "Write a first proposal",
-      detail:
-        "Describe a change, rough is fine, then ask Engineering and QA to review it: the approved revision is what agents build.",
+      detail: "Agents build the approved revision",
       done: facts.workItems > 0,
       action: facts.project
         ? {
@@ -57,7 +56,7 @@ export function setupSteps(
     {
       id: "team",
       title: "Invite your team",
-      detail: "Product, engineering and QA decide together what agents build.",
+      detail: "Product, engineering and QA",
       // Inviting is the step; joining is the invitee's.
       done: facts.members > 1 || facts.invited > 0,
       ...(facts.members === 1 &&
@@ -71,8 +70,7 @@ export function setupSteps(
     {
       id: "code",
       title: "Connect a code host",
-      detail:
-        "GitHub, GitLab or Bitbucket: agents open pull requests there, and Done follows their checks.",
+      detail: "GitHub, GitLab or Bitbucket",
       done: facts.codeConnections.some((c) => c.status === "active"),
       action: isAdmin
         ? { label: "Connect", href: paths.settings(org, "code") }
@@ -81,8 +79,7 @@ export function setupSteps(
     {
       id: "runner",
       title: "Connect a runner",
-      detail:
-        "A machine you control where agents work in isolated checkouts: a server, a VPS or a laptop.",
+      detail: "A server, VPS or laptop where agents work",
       // Connected at least once: a laptop that sleeps stays set up.
       done: facts.runners.some((r) => !r.revokedAt && r.lastSeenAt !== null),
       action: { label: "Add runner", href: paths.factory(org) + "/runners" },
@@ -90,16 +87,14 @@ export function setupSteps(
     {
       id: "agent",
       title: "Create an agent",
-      detail:
-        "A named agent with an owner and a scope, that people mention in channels. It works only when asked until a project chooses more autonomy in its settings.",
+      detail: "People mention it in channels",
       done: facts.agents.some((a) => !a.archivedAt),
       action: { label: "Create agent", href: paths.factory(org) + "/agents" },
     },
     {
       id: "channel",
       title: "Start a channel",
-      detail:
-        "Where the team and its agents talk; what matters is promoted into proposals and decisions.",
+      detail: "Where the team and its agents talk",
       done: facts.channels.some((c) => c.kind !== "direct" && !c.archivedAt),
       action: { label: "New channel", href: paths.channels(org) },
     },

@@ -24,7 +24,7 @@ const day = formatDate;
 
 // What deletion removes, said the same way wherever it is offered.
 export function deletionConsequences(graceDays: number) {
-  return `Scheduling the deletion locks the organization at once: nobody can open its projects or change anything in it. After ${graceDays} days its projects, work items, specifications and their revisions, reviews, approvals, discussions, decisions, attachments, Jira connections with their credentials, and its audit log are permanently deleted. Until then an owner can cancel. Members are told by email. Accounts are not deleted: people keep their accounts and their other organizations.`;
+  return `Locks the organization at once. After ${graceDays} days everything in it, Jira credentials and the audit log included, is permanently deleted; an owner can cancel until then. Members are told by email. Accounts are kept.`;
 }
 
 // Organization settings → Delete organization. Owners only; the server
@@ -103,11 +103,11 @@ export function OrganizationDeletion() {
             {latest === undefined
               ? "Checking for an export…"
               : latest === null
-                ? "There is no recent export. An export is a complete copy of the organization you can keep or import elsewhere."
+                ? "There is no recent export."
                 : latest.status === "ready"
                   ? `An export from ${day(latest.createdAt)} is ready to download${latest.expiresAt ? ` until ${day(latest.expiresAt)}` : ""}.`
                   : "An export is being prepared."}{" "}
-            Owners can still download exports while the organization is locked.{" "}
+            Exports stay downloadable while locked.{" "}
             <Link
               href={exportsHref}
               className="font-medium text-primary hover:underline"
@@ -202,14 +202,11 @@ export function DeletionScheduledNotice({
           {organization.deletion.requestedBy
             ? `${organization.deletion.requestedBy} scheduled it. `
             : ""}
-          The organization is locked until then: nobody can open its projects or
-          change anything in it. On {when} its projects, work items,
-          specifications, reviews, discussions, attachments and Jira connections
-          are permanently deleted. Accounts are not deleted.
+          It is locked until then. Accounts are kept.
         </p>
         <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
           {owner
-            ? "As an owner you can still export its data below, or cancel the deletion to open the organization again."
+            ? "You can still export its data below, or cancel the deletion."
             : "If this is a mistake, ask an owner to cancel the deletion."}
         </p>
         {owner && (

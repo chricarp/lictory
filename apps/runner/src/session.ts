@@ -159,7 +159,7 @@ export class SessionRun {
         reason === "canceled"
           ? "canceled in Lictory; stopping the agent."
           : reason === "lost"
-            ? "this runner no longer holds the session (its lease expired or it ended on the server); stopping the agent."
+            ? "this runner no longer holds the session (lease expired or ended on the server); stopping the agent."
             : "stopping the agent; the session returns to the queue."
       }`,
     );
@@ -426,7 +426,7 @@ export class SessionRun {
             this.events.push("status", {
               phase: "discarded",
               message:
-                "No repository is linked to this session, so nothing was pushed: the files it changed are discarded with its workspace.",
+                "No repository linked: nothing pushed. Changed files are discarded with the workspace.",
             });
         } catch (error) {
           keep = true;

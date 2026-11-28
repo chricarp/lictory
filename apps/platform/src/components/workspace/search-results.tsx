@@ -425,10 +425,7 @@ export function SearchResults() {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Finds the words as typed (a phrase, any case) in published pages,
-            current specifications, approved or delivered revisions and
-            decisions you can read. Titles that match come first, then the most
-            recent.
+            Matches the phrase as typed, in any case. Title matches first.
           </p>
           {search.status === "idle" ? (
             <EmptyState

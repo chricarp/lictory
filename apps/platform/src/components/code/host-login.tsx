@@ -74,10 +74,8 @@ export function UnlinkedLogins({
   const host = providerLabels[provider];
   return (
     <p className="text-xs text-muted-foreground">
-      {unlinked.join(", ")} {unlinked.length === 1 ? "is a" : "are"} {host}{" "}
-      {unlinked.length === 1 ? "login" : "logins"} no member has linked, so
-      Lictory cannot say who {unlinked.length === 1 ? "it is" : "they are"}.
-      Each person links their own under{" "}
+      {unlinked.join(", ")}: {host} {unlinked.length === 1 ? "login" : "logins"}{" "}
+      not linked to a member. Link yours under{" "}
       <Link
         href={paths.settings(organization.slug, "code")}
         className="underline underline-offset-2 hover:text-foreground"

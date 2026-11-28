@@ -34,11 +34,11 @@ export const siteTagline =
 export const siteCardTagline = "From conversation to shipped code.";
 
 export const siteDescription =
-  "One self-hosted workspace where your team and its agents talk, agree on reviewed specifications, run coding agents on your own runners and ship with evidence. MIT licensed.";
+  "A self-hosted workspace where your team and its agents talk, agree on reviewed specifications, run coding agents on your runners and ship. MIT licensed.";
 
 /** A self-contained summary that still makes sense when quoted on its own. */
 export const siteSummary =
-  "Lictory is the control plane of a software factory: one self-hosted product where a software team and its agents talk in channels, agree on what to build through specifications reviewed like code, plan the work, let coding agents (Claude Code, Codex, OpenCode, Gemini CLI or a built-in agent) implement it on runners the team controls, link branches, pull requests and checks from GitHub, GitLab or Bitbucket, and ship with evidence. People make the decisions: specification approvals always stay human, and an agent's code is merged automatically only when a project's autonomy policy allows it and every required check passes. Delivery runs natively in Lictory or is published to Jira. " +
+  "Lictory is the control plane of a software factory: one self-hosted product where a software team and its agents talk in channels, agree on specifications reviewed like code, and let coding agents (Claude Code, Codex, OpenCode, Gemini CLI or a built-in agent) implement them on runners the team controls, with pull requests and checks from GitHub, GitLab or Bitbucket. People make the decisions: specification approvals stay human, and an agent's code merges automatically only when the project's autonomy policy allows it and every required check passes. Delivery runs in Lictory or in Jira. " +
   openSource.summary;
 
 /** Browser chrome colors: the page's paper and ink backgrounds. */
@@ -111,7 +111,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/download",
     title: "Download Lictory",
     description:
-      "The Lictory desktop app for macOS, Windows and Linux, and lictory-runner for the machines that run your agents. Always the newest stable release.",
+      "The Lictory desktop app for macOS, Windows and Linux, and lictory-runner for the machines that run your agents.",
     changeFrequency: "monthly",
     priority: 0.8,
   },
@@ -135,7 +135,7 @@ export const publicPages: readonly PublicPage[] = [
     path: "/guides",
     title: "Guides for software teams and their agents",
     description:
-      "Practical guides for software teams on reviewing requirements, writing acceptance criteria, defining readiness, refining the backlog asynchronously and running coding agents on your own machines.",
+      "Guides on reviewing requirements, writing acceptance criteria, defining readiness, refining the backlog asynchronously and running coding agents on your own machines.",
     changeFrequency: "monthly",
     priority: 0.7,
     lastModified: latest(guides.map((item) => item.updated)),

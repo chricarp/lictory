@@ -151,8 +151,8 @@ export default async function ComparisonPage({
         </div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
           {item.capabilities
-            ? `Built-in capabilities, checked against ${item.competitor}’s public documentation. “Not documented” means we could not find it there, not that it is impossible.`
-            : "Built-in capabilities as we understand them. Marketplace add-ons and integrations may change the picture."}
+            ? `Built-in capabilities, checked against ${item.competitor}’s public documentation. “Not documented” means we could not find it there.`
+            : "Built-in capabilities as we understand them. Add-ons may change the picture."}
         </p>
       </section>
 

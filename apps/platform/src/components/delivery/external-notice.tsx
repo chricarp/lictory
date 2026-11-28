@@ -14,13 +14,11 @@ import { projectDeliveryTool } from "@lictory/platform/components/delivery/provi
 // people still know where they are.
 export function ExternalProjectNotice({
   project,
-  surface,
   title,
   icon,
   children,
 }: {
   project: Project;
-  surface: string;
   title: string;
   icon: ReactNode;
   children?: ReactNode;
@@ -57,12 +55,7 @@ export function ExternalProjectNotice({
           }
         >
           {children ?? (
-            <>
-              Statuses, sprints and estimates for this project are owned by{" "}
-              {tool.name}, so there is no {surface} in Lictory. The hand-off
-              shows what is ready, what changed since it was handed off and what{" "}
-              {tool.name} reports back.
-            </>
+            <>Statuses, sprints and estimates live in {tool.name}.</>
           )}
         </MissingState>
       </div>

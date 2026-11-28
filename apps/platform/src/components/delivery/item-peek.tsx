@@ -201,7 +201,7 @@ export function ItemPeek({
           <p className="px-4 py-6 text-[13px] text-muted-foreground">
             {view.status === "hydrating"
               ? "Opening…"
-              : `${peeked} is not part of ${project.name}, or it no longer exists.`}
+              : `${peeked} not found in ${project.name}`}
           </p>
         </>
       )}

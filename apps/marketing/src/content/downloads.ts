@@ -74,8 +74,7 @@ export const desktopDownloads = [
     os: "macos",
     system: "macOS",
     label: "macOS disk image (.dmg)",
-    detail:
-      "One app for Apple silicon and Intel. Open it and drag Lictory to Applications.",
+    detail: "Apple silicon and Intel. Drag Lictory to Applications.",
     file: "Lictory-mac-universal.dmg",
   }),
   desktop({
@@ -83,8 +82,7 @@ export const desktopDownloads = [
     os: "windows",
     system: "Windows",
     label: "Windows installer (.exe)",
-    detail:
-      "One installer for x64 and arm64. Installs for your account, without administrator rights.",
+    detail: "x64 and arm64. No administrator rights needed.",
     file: "Lictory-windows-setup.exe",
   }),
   desktop({
@@ -92,8 +90,7 @@ export const desktopDownloads = [
     os: "linux",
     system: "Linux",
     label: "Linux x64, AppImage",
-    detail:
-      "Make it executable and run it. Needs no installation and updates itself.",
+    detail: "Make it executable and run it. Updates itself.",
     file: "Lictory-linux-x64.AppImage",
   }),
   desktop({
@@ -101,8 +98,7 @@ export const desktopDownloads = [
     os: "linux",
     system: "Linux (arm64)",
     label: "Linux arm64, AppImage",
-    detail:
-      "Make it executable and run it. Needs no installation and updates itself.",
+    detail: "Make it executable and run it. Updates itself.",
     file: "Lictory-linux-arm64.AppImage",
   }),
   desktop({
@@ -110,8 +106,7 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu",
     label: "Debian and Ubuntu x64, .deb",
-    detail:
-      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
+    detail: "Install with apt. To update, install the newest .deb from here.",
     file: "lictory_amd64.deb",
   }),
   desktop({
@@ -119,8 +114,7 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu (arm64)",
     label: "Debian and Ubuntu arm64, .deb",
-    detail:
-      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
+    detail: "Install with apt. To update, install the newest .deb from here.",
     file: "lictory_arm64.deb",
   }),
 ] as const satisfies readonly DesktopDownload[];

@@ -15,15 +15,14 @@ export function VerifyEmail({ name, verificationUrl }: VerifyEmailProps) {
 
   return (
     <AuthEmailLayout
-      preview="Verify your email address to finish setting up Lictory."
+      preview="Confirm your email address for Lictory."
       heading="Verify your email"
       actionLabel="Verify email"
       actionUrl={verificationUrl}
     >
       <Text style={emailParagraph}>{greeting}</Text>
       <Text style={emailParagraph}>
-        Confirm this email address to finish securing your Lictory account. This
-        link expires in one hour.
+        Confirm your email address for Lictory. This link expires in one hour.
       </Text>
     </AuthEmailLayout>
   );

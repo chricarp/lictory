@@ -440,7 +440,7 @@ void test("the log says how each session ended", () => {
       { outcome: "completed", branch: "lictory/kst-2", repository: true },
       125_000,
     ),
-    "Session s-1 completed after 2 min; pushed branch lictory/kst-2, which Lictory opens or updates a pull request for.",
+    "Session s-1 completed after 2 min; pushed branch lictory/kst-2.",
   );
   assert.equal(
     endLine("s-1", { outcome: "completed", repository: false }, 3_000),
@@ -532,7 +532,7 @@ void test("a repeating failure is logged once, reminded every five minutes, and 
   failures.ok();
   failures.ok();
   assert.deepEqual(lines, [
-    `Heartbeat failed: ${down} Next try in 2 s. The runner keeps retrying and says so every 5 min.`,
+    `Heartbeat failed: ${down} Next try in 2 s. Retrying; reminder every 5 min.`,
     "Heartbeat still failing: 22 attempts since 2026-11-26T09:00:00.000Z.",
     "Heartbeat works again after 22 failed attempts.",
   ]);
@@ -787,7 +787,7 @@ void test("status and doctor say what a person must do, with the exit code start
     revoked.stdout,
     /Stopped: The server refused this runner's credential/,
   );
-  assert.doesNotMatch(revoked.stdout, /Start it with/);
+  assert.doesNotMatch(revoked.stdout, /Not running/);
 
   // doctor agrees with status and start: a refused credential needs a
   // person (register again), 2, not a failed check's 1.

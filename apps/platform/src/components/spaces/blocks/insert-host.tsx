@@ -54,31 +54,11 @@ export function BlockInsertHost({
   );
 }
 
-const filterOptions: {
-  value: WorkListFilter;
-  label: string;
-  description: string;
-}[] = [
-  {
-    value: "epic-children",
-    label: "An epic’s work",
-    description: "The children of one epic.",
-  },
-  {
-    value: "iteration",
-    label: "An iteration",
-    description: "Everything planned in a sprint or cycle.",
-  },
-  {
-    value: "label",
-    label: "A label",
-    description: "Work with one label in a project.",
-  },
-  {
-    value: "referenced",
-    label: "Work this page mentions",
-    description: "The items this page mentions.",
-  },
+const filterOptions: { value: WorkListFilter; label: string }[] = [
+  { value: "epic-children", label: "An epic’s work" },
+  { value: "iteration", label: "An iteration" },
+  { value: "label", label: "A label" },
+  { value: "referenced", label: "Work this page mentions" },
 ];
 
 function WorkListDialog({
@@ -167,8 +147,7 @@ function WorkListDialog({
       if (!changed)
         toast({
           title: "The work list was not changed",
-          description:
-            "Someone removed it from the draft while you were changing it.",
+          description: "Someone removed it from the draft meanwhile.",
           type: "error",
         });
     } else insertBlockAt(editor, request.anchor, { type: "workList", attrs });
@@ -182,7 +161,7 @@ function WorkListDialog({
   return (
     <Dialog
       title={existing ? "Change work list" : "Insert a work list"}
-      description="A live, read-only list. Readers see the items as they are now, and only the items they can see."
+      description="Each reader sees only the items they can access."
       onClose={onClose}
       onSubmit={submit}
       width="max-w-lg"
@@ -268,8 +247,7 @@ function WorkListDialog({
         </Field>
         {project?.deliveryMode === "external" && needsTarget && (
           <p className="text-xs text-muted-foreground">
-            {project.name} delivers in its delivery tool: the list shows the
-            status read back from there.
+            Statuses come from {project.name}’s delivery tool.
           </p>
         )}
       </div>

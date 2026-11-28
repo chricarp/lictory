@@ -51,7 +51,6 @@ export function ProjectTeams({
       id="teams"
       icon={<UsersRound />}
       title="Teams"
-      description="People working on one vertical, such as Checkout. Teams share the project's workflow; boards and backlogs can be narrowed to one."
       action={
         canEdit && !creating ? (
           <Button
@@ -63,7 +62,7 @@ export function ProjectTeams({
           </Button>
         ) : undefined
       }
-      footer="Archiving a team keeps its items and history; they simply show no active team until it is restored."
+      footer="Archiving a team keeps its items and history."
     >
       {creating && (
         <NewTeam
@@ -79,14 +78,7 @@ export function ProjectTeams({
           }}
         />
       )}
-      <SettingsList
-        isEmpty={shown.length === 0}
-        empty={
-          canEdit
-            ? "No teams yet. Add one when several groups work in this project."
-            : "No teams yet."
-        }
-      >
+      <SettingsList isEmpty={shown.length === 0} empty="No teams">
         {shown.map((t) => (
           <TeamRow
             key={t.id}

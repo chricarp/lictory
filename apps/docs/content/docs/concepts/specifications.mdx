@@ -4,10 +4,8 @@ description: What a specification is, why its revisions are immutable, how a pro
 ---
 
 A **specification** is the structured description of the behavior a team is
-agreeing on. In Lictory it is reviewed the way code is: it has revisions,
-diffs, discussions on exact passages, reviewers, approvals, checks and
-history. The review workflow is the product; the text is its primary
-surface.
+agreeing on. It is reviewed the way code is, with revisions, diffs,
+discussions on exact passages, reviewers, approvals, checks and history.
 
 ![PAY-2 "Retry failed card captures" in review: revision 2 of the specification, its discussions and the review rail with required reviews and readiness checks](/screenshots/specification-review.webp)
 
@@ -21,28 +19,28 @@ work has a description that is edited directly.
 
 A spec-backed item starts as a **proposal**: the problem, the intent, notes,
 files and links, expected to be incomplete. As the team clarifies the
-behavior, the same item's text becomes the specification everybody reviews,
-including its acceptance criteria and failure behavior. Its **refinement
-state** (Draft, In refinement, In review, Ready) is separate from its
-delivery status; Lictory never merges the two.
+behavior, the same text becomes the specification everybody reviews,
+acceptance criteria and failure behavior included. Its **refinement state**
+(Draft, In refinement, In review, Ready) is separate from its delivery status
+and never merged with it.
 
 Guides: [from proposal to ready](/specifications),
 [write a proposal](/specifications/proposals).
 
 ## Revisions
 
-Every change to a specification's title or text, once saved, is an immutable
-**revision**. Revisions are never edited afterwards. They give the item its
-history, diffs between any two versions, the anchor for
+Every saved change to a specification's title or text is an immutable
+**revision**. Revisions give the item its history, diffs between any two
+versions, the anchor for
 [approvals](/concepts/reviews#approvals-belong-to-revisions) and the source
 for restoring an earlier version, which copies it into a new revision.
 
-People write in a shared **live draft**, together and in real time. The
-draft is a working copy, never history: only **Save revision** makes it a
-revision. Every revision marks existing approvals outdated and re-requests
-the same reviews, so an approval always refers to the text that was
-reviewed. Property changes (status, owner, priority, iteration, estimate,
-labels) create no revision and never affect approvals.
+People write together in a shared **live draft**. The draft is a working
+copy, never history: only **Save revision** makes it a revision. Every
+revision marks existing approvals outdated and re-requests the same reviews,
+so an approval always refers to the text that was reviewed. Property changes
+(status, owner, priority, iteration, estimate, labels) create no revision and
+never affect approvals.
 
 Guides: [the editor](/specifications/editor),
 [edit together](/specifications/live-drafts),
@@ -52,18 +50,18 @@ Guides: [the editor](/specifications/editor),
 
 While a specification is taking shape, people whose discipline may _edit
 specifications_ edit it directly. The first time it becomes
-[ready](/concepts/readiness), it is **protected**: from then on every change
-is a **proposed change**, sent for review and applied once the required
-reviews approve its exact result. A proposed change can also carry the
-**breakdown** of the item into child work, which is reviewed with the text and
-created only when it applies. Applying creates a new revision.
+[ready](/concepts/readiness), it is **protected**: every later change is a
+**proposed change**, applied once the required reviews approve its exact
+result. Applying creates a new revision. A proposed change can also carry the
+**breakdown** of the item into child work, reviewed with the text and created
+only when it applies.
 
 The model is Git-inspired (a proposed change is a branch, a saved version a
 commit, its review a pull request, applying a merge), but the product speaks
 in requirements words. Lictory Intelligence and agents connected through MCP
 use the same proposed changes as people. Lictory Intelligence only proposes;
-an agent acts with its person's permissions and proposes too: Lictory refuses
-it every approval and every apply.
+an agent acts with its person's permissions and proposes too, and Lictory
+refuses it every approval and every apply.
 
 Guides: [proposed changes](/specifications/branches),
 [breaking work down](/delivery/breakdown),
@@ -73,21 +71,20 @@ accepted beside the text).
 ## Discussions
 
 A **discussion** is attached to the exact passage it is about, on the
-revision it was written on. It can be marked **blocking**, which holds
-readiness until it is resolved. Resolving and reopening never delete a
-message. When the text changes, the discussion says so and links to the
-revision where its quote is marked.
+revision it was written on. A **blocking** discussion holds readiness until it
+is resolved. Resolving and reopening never delete a message. When the text
+changes, the discussion says so and links to the revision where its quote is
+marked.
 
 Guide: [discussions](/specifications/discussions).
 
 ## Decisions
 
-Discussions are transient; conclusions should not be. A **decision** is a
-durable record of an important conclusion (_"Retries reuse the original
-transaction ID"_), with its author and the revision it was recorded on. It
-can cite the discussion it came from. Recording a decision neither approves
-the specification nor resolves the discussion. Decisions can be archived
-and restored, and specifications and pages can refer to them.
+A **decision** is a durable record of an important conclusion (_"Retries
+reuse the original transaction ID"_), with its author and the revision it was
+recorded on. It can cite the discussion it came from. Recording a decision
+neither approves the specification nor resolves the discussion. Decisions can
+be archived and restored, and specifications and pages can refer to them.
 
 Decisions, approved ready specifications and delivered revisions together
 form the organization's **product knowledge**: a search that people, Litto
@@ -98,9 +95,8 @@ Guide: [decisions](/specifications/decisions).
 
 ## Delivery
 
-Being ready means the checks pass; it does not commit anyone to building
-it. In a native project, the team accepts a revision for delivery and
-delivers it on the board; in an external one, a ready revision is handed
-off to the delivery tool. Either way, the revision the team agreed to stays
-recorded, and later revisions do not silently change it. See
-[delivery](/concepts/delivery).
+Ready means the checks pass, not that anyone committed to building it. In a
+native project, the team accepts a revision for delivery and delivers it on
+the board; in an external one, a ready revision is handed off to the delivery
+tool. Either way, the agreed revision stays recorded and later revisions do
+not silently change it. See [delivery](/concepts/delivery).

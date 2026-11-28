@@ -465,7 +465,7 @@ test("workspace sync explains automatic recovery and resumes when the connection
     .getByRole("button", { name: "Reconnecting…", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "Workspace sync" });
-  await expect(dialog).toContainText("trying again automatically");
+  await expect(dialog).toContainText("sent when it’s back");
   await expect(dialog).toContainText("1 change is waiting to be saved");
   await dialog.getByText("Technical details", { exact: true }).click();
   await expect(dialog).toContainText("The connection was interrupted");
@@ -570,7 +570,7 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
       .getByRole("button", { name: "Apply change", exact: true })
       .click();
     await expect(
-      page.getByText("Applied. The reviewed text is part of", {
+      page.getByText("Applied to integration/retries", {
         exact: false,
       }),
     ).toBeVisible();
@@ -697,11 +697,9 @@ test("nested PRs preserve main, require review on conflicts, and support keeping
         hasText: "Lictory closed the change integration/retries",
       }),
     ).toBeVisible();
-    await expect(
-      page.getByText("Applied. The reviewed text is part of", {
-        exact: false,
-      }),
-    ).toContainText("Lictory closed the change integration/retries.");
+    await expect(page.getByText(/^Applied to the specification/)).toContainText(
+      "Lictory closed the change integration/retries.",
+    );
     await page.reload();
     await expect(deletion).toHaveCount(1);
     await page.getByRole("tab", { name: /^Versions/ }).click();
@@ -812,7 +810,7 @@ test("a breakdown-only pull request creates children only after review and merge
       .getByRole("button", { name: "Create the items", exact: true })
       .click();
     await expect(
-      page.getByText("Created. The reviewed breakdown is part of", {
+      page.getByText("Created. The items are below the specification.", {
         exact: false,
       }),
     ).toBeVisible();

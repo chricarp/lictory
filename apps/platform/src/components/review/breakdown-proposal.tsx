@@ -67,7 +67,7 @@ export function BreakdownProposal({
         className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 text-[13px] text-muted-foreground"
       >
         <ListTree aria-hidden className="size-3.5 shrink-0" />
-        No additional children are proposed.
+        No children proposed.
       </section>
     );
   const field =
@@ -87,11 +87,6 @@ export function BreakdownProposal({
             `, ${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {created
-          ? "The specification's reviewers approved this breakdown; its items were created and its changes made."
-          : "New items and changes to existing ones are made only after the specification's reviewers approve this breakdown, and only to items nobody has changed since. Work already accepted or underway stays unchanged."}
-      </p>
       {changes.length > 0 && (
         <ul
           className="divide-y rounded-md border"
@@ -275,8 +270,7 @@ function ChangeRow({
           <p className="text-sm font-medium">{what.join(" · ")}</p>
           {stale && (
             <p className="text-xs text-destructive">
-              {name} changed since this was proposed. Merge will refuse this
-              change until it is proposed again against the current child.
+              {name} changed since this was proposed. Propose the change again.
             </p>
           )}
         </div>

@@ -348,16 +348,14 @@ function SourceConflict({
     >
       <p>
         <span className="font-medium">
-          Someone changed the same part of the specification while you edited
-          the Markdown.
-        </span>{" "}
-        <span className="text-muted-foreground">
-          Your other edits apply as they are. For{" "}
+          Someone changed{" "}
           {conflicts.length === 1
             ? "this part"
-            : `these ${conflicts.length} parts`}
-          , choose which version to keep: their current text (left) or your
-          Markdown (right).
+            : `these ${conflicts.length} parts`}{" "}
+          while you edited the Markdown.
+        </span>{" "}
+        <span className="text-muted-foreground">
+          Keep theirs (left) or yours (right).
         </span>
       </p>
       {conflicts.map((c, i) => (
@@ -718,7 +716,7 @@ function DraftEditor({
         suggestionExtension("workItemMenu", {
           char: "#",
           title: "Work items",
-          empty: "No matching work items you can see",
+          empty: "No matching work items",
           store: menus.items,
           items: (query) => workItemItems(query, data.get().references.items()),
         }),
@@ -726,7 +724,7 @@ function DraftEditor({
           char: "[[",
           allowSpaces: true,
           title: "Pages",
-          empty: "No matching pages you can read",
+          empty: "No matching pages",
           store: menus.pages,
           items: (query) => pageItems(query, data.get().references.pages()),
         }),
@@ -947,7 +945,7 @@ function DraftEditor({
     async (build) => {
       if (applySource() === "conflict")
         throw new Error(
-          "Your Markdown edits overlap changes someone made meanwhile. Choose which to keep, then save again.",
+          "Your Markdown overlaps someone else’s changes. Choose which to keep, then save again.",
         );
       await session.saved();
       const expectedSequence = await session.latestSequence();
@@ -1034,7 +1032,7 @@ function DraftEditor({
           snapshot={snapshot}
           uploading={uploading}
           savedLabel="Draft saved"
-          savedTitle="Every edit is stored in the shared draft. It becomes part of the specification's history only when someone saves a revision."
+          savedTitle="Stored in the shared draft"
         />
         <span aria-hidden>·</span>
         {/* Unsaved edits are the normal state of writing, not a warning:
@@ -1064,8 +1062,7 @@ function DraftEditor({
           role="status"
           className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground"
         >
-          This draft was replaced (a revision or commit was saved another way).
-          Opening the current draft…
+          This draft was replaced. Opening the current draft…
         </p>
       )}
       {state.kind === "failed" && (
@@ -1080,8 +1077,7 @@ function DraftEditor({
           <p className="min-w-0 flex-1 basis-60">
             <span className="font-medium">Live editing is unavailable.</span>{" "}
             <span className="text-muted-foreground">
-              The collaboration service cannot be reached. Reading, history,
-              discussions and reviews keep working.
+              The collaboration service cannot be reached.
             </span>
           </p>
           <Button
@@ -1095,8 +1091,7 @@ function DraftEditor({
       )}
       {view === "changes" && sourceDirty && (
         <p className="text-[13px] text-muted-foreground">
-          Markdown you edited as text is not shown until it is applied (switch
-          back to formatted text in the document).
+          Switch back to formatted text to see your Markdown edits here.
         </p>
       )}
       {view === "changes" ? (
@@ -1104,7 +1099,7 @@ function DraftEditor({
           <RevisionDiff before={line.headMarkdown} after={markdown()} />
         ) : (
           <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            No uncommitted edits. Everything in this draft is committed.
+            No uncommitted edits
           </p>
         )
       ) : (
@@ -1258,7 +1253,7 @@ function RecoveredText({
                 {entry.id.startsWith(SOURCE_ENTRY)
                   ? "Markdown you edited as text was not applied to the draft. Your text is kept on this device."
                   : entry.documentName === LEGACY_DOCUMENT
-                    ? "Edits you kept in this browser before live editing are kept on this device."
+                    ? "Edits from before live editing are kept on this device."
                     : entry.documentName !== documentName
                       ? "This draft was replaced while you had changes it did not keep. Your text is kept on this device."
                       : "The editor closed before some of your changes reached the shared draft. Your text is kept on this device."}
@@ -1283,8 +1278,7 @@ function RecoveredText({
                     () =>
                       toast({
                         title: "The text could not be copied",
-                        description:
-                          "Select it in the notice and copy it by hand.",
+                        description: "Select and copy it by hand.",
                         type: "error",
                       }),
                   );

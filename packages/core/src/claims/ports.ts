@@ -180,7 +180,7 @@ export type ClaimPorts = {
 };
 
 const noCodeHost =
-  "No code host is connected, so Lictory cannot see this item's pull requests or checks. An organization administrator connects GitHub, GitLab or Bitbucket under Code.";
+  "No code host is connected. An organization administrator connects GitHub, GitLab or Bitbucket under Code.";
 
 export const defaultClaimPorts: ClaimPorts = {
   agents: { agents: () => Promise.resolve([]) },

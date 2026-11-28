@@ -40,10 +40,10 @@ export async function Cli({ command }: { command: CliCommand | CliCommand[] }) {
 export function CliNotice() {
   return (
     <Callout title="The lictory CLI">
-      Commands marked <em>lictory CLI</em> belong to the <code>lictory</code>{" "}
-      command, which installs and operates a server. Every command takes{" "}
-      <code>--env</code> for a second environment on the same server; run{" "}
-      <code>lictory &lt;command&gt; --help</code> for its options, or see the{" "}
+      Commands marked <em>lictory CLI</em> run the <code>lictory</code> command
+      on the server. Each takes <code>--env</code> for another environment on
+      the same server; <code>lictory &lt;command&gt; --help</code> lists its
+      options. See the{" "}
       <Link href="/self-hosting/commands">command reference</Link>.
     </Callout>
   );

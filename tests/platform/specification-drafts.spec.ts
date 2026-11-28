@@ -126,7 +126,7 @@ test("two people edit one specification draft live and one saves the revision bo
 
     // Saving says what it does to approvals, as before.
     await expect(
-      ada.page.getByText("Existing approvals are marked outdated", {
+      ada.page.getByText("marks existing approvals outdated", {
         exact: false,
       }),
     ).toBeVisible();
@@ -373,7 +373,7 @@ test("Markdown edited as text is saved with the revision, merged with what other
       .getByRole("button", { name: "Edit formatted text" })
       .click();
     const conflict = ada.page.getByRole("alert").filter({
-      hasText: "Someone changed the same part of the specification",
+      hasText: "while you edited the Markdown",
     });
     await expect(conflict).toBeVisible();
     await expect(conflict).toContainText("never retried");

@@ -68,7 +68,7 @@ export function InlineTitle() {
           ref={button}
           type="button"
           className="-mx-1 block w-[calc(100%+0.5rem)] cursor-text rounded px-1 text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60"
-          title="Click to rename (creates a revision)"
+          title="Rename (creates a revision)"
           onClick={() => {
             setValue(item.title);
             setEditing(true);

@@ -14,8 +14,7 @@ export function guideCard(slug: string) {
     eyebrow: "Lictory guide",
     title: guide.headline,
     titleSize: guide.headline.length > 48 ? 60 : 68,
-    subtitle:
-      "Practical advice for teams turning product intent into shipped code, with people and agents.",
+    subtitle: "From product intent to shipped code, with people and agents.",
     footer: [siteCardTagline, `${host}/guides`],
   });
 }
@@ -37,8 +36,7 @@ export function roundupCard(path: string) {
     eyebrow: item.page === "roundup" ? "Roundup" : "Alternatives",
     title: item.headline,
     titleSize: item.headline.length > 32 ? 64 : 76,
-    subtitle:
-      "Who each tool suits, with licensing, hosting and pricing from the vendors’ own sources.",
+    subtitle: "Who each tool suits, sourced from the vendors’ own pages.",
     footer: [siteCardTagline, `${host}${path}`],
   });
 }

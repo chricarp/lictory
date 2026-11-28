@@ -400,7 +400,7 @@ export function AiReviewView({
               // The model's reading of the text, not a readiness verdict:
               // neutral, and named for what it is.
               <li
-                title="How complete and unambiguous the model finds the text. Readiness checks and people decide readiness."
+                title="How complete and unambiguous the model finds the text"
                 className="inline-flex h-6 items-center gap-1 rounded-full bg-muted px-2.5 ring-1 ring-foreground/8 ring-inset"
               >
                 AI text assessment{" "}
@@ -416,10 +416,7 @@ export function AiReviewView({
       {run.staleAt && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[13px]">
           <AlertTriangle className="size-4 text-amber-600" />
-          <span className="min-w-0 flex-1">
-            Outdated: {run.staleReason}. Findings may no longer apply, and
-            corrective pull requests are disabled.
-          </span>
+          <span className="min-w-0 flex-1">Outdated: {run.staleReason}.</span>
           <Button
             size="sm"
             variant="secondary"
@@ -486,9 +483,7 @@ export function AiReviewView({
       </nav>
       {groups.length === 0 && (
         <p className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
-          {run.findings.length
-            ? "No findings of this kind."
-            : "No gaps found. Human review still decides readiness."}
+          {run.findings.length ? "No findings of this kind." : "No gaps found."}
         </p>
       )}
       {groups.map((g) => {
@@ -593,9 +588,8 @@ export function AiReviewView({
         <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-3 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
           <p className="min-w-0 flex-1 text-[13px]">
             <b>{chosen.length}</b> {chosen.length === 1 ? "change" : "changes"}{" "}
-            selected in {chosenItems.map(keyOf).join(", ")}. Lictory
-            Intelligence opens one pull request per item; reviewers decide what
-            merges.
+            selected in {chosenItems.map(keyOf).join(", ")}. One pull request
+            per item.
           </p>
           <Button variant="ghost" onClick={() => setSelected(new Set())}>
             Clear
@@ -775,9 +769,8 @@ function FindingRow({
 // annotations. The Lictory Intelligence review is the only action today.
 
 const policyCopy = {
-  off: "Off for this project: runs only when someone starts it.",
-  advisory:
-    "Advisory: reviews every new version. Findings inform; applying isn't blocked.",
+  off: "Off: runs only when someone starts it.",
+  advisory: "Advisory: reviews every new version; doesn't block applying.",
   required:
     "Required: applying waits for a review of the latest version. Blockers open blocking discussions.",
 } as const;
@@ -800,7 +793,7 @@ export function actionCheck(
       state: "neutral",
       summary:
         policy === "off"
-          ? "Not run. Start it whenever you want a review."
+          ? "Not run"
           : "Starts when the change is ready for review.",
     };
   if (latest.status === "queued")
@@ -942,11 +935,6 @@ export function ActionChecksPanel({
         <div className="rounded-lg border border-dashed px-6 py-10 text-center">
           <StateIllustration kind="knowledge" />
           <p className="mt-2 text-sm font-medium">No runs yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-            The {INTELLIGENCE_REVIEW_ACTION} reads the proposed change against
-            the current specification and reports gaps, contradictions and
-            ambiguity. It never changes the branch on its own.
-          </p>
         </div>
       ) : (
         <div className="grid overflow-hidden rounded-lg border md:grid-cols-[220px_minmax(0,1fr)]">
@@ -1094,7 +1082,7 @@ function RunDetail({
           role="alert"
           className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
         >
-          {r.error ?? "The run failed."} Re-run it once the problem is fixed.
+          {r.error ?? "The run failed."}
         </p>
       )}
       {r.summary && (
@@ -1135,8 +1123,8 @@ function RunDetail({
             <>
               {!current && ordered.some((f) => f.edit) && (
                 <p className="text-xs text-muted-foreground">
-                  Suggestions from an earlier commit can&apos;t be committed.
-                  Re-run on the latest commit to get applicable suggestions.
+                  Suggestions from an earlier commit can&apos;t be applied.
+                  Re-run on the latest commit.
                 </p>
               )}
               {ordered.map((f) => {

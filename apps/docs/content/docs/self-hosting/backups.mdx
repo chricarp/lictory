@@ -5,12 +5,11 @@ description: What to back up, where encrypted backups go, how to restore and how
 
 <CliNotice />
 
-PostgreSQL is the only state that must survive. Everything else is either in
+PostgreSQL is the only state that must survive. Everything else is in
 another system (attachments in your bucket, email at your provider) or
-rebuilt from PostgreSQL (zero-cache's replica). Live editing adds nothing to
-back up: pages, their history and even unpublished live drafts of pages and
-specifications are stored in PostgreSQL, and the collaboration service keeps
-no state of its own.
+rebuilt from PostgreSQL (zero-cache's replica). Pages, their history and
+unpublished live drafts of pages and specifications are stored in PostgreSQL;
+the collaboration service keeps no state of its own.
 
 | Data                 | Protection                                                |
 | -------------------- | --------------------------------------------------------- |
@@ -24,16 +23,16 @@ no state of its own.
 With an [external database](/self-hosting/database#backups), Lictory takes no
 backups: the provider's backups and point-in-time recovery protect it.
 
-A backup is a `pg_dump` taken in one consistent snapshot, with a manifest of
-exact row counts and applied migrations. It is checked for readability,
-encrypted with [age](https://age-encryption.org) to the public key(s) in
+A backup is a `pg_dump` of one consistent snapshot, with a manifest of exact
+row counts and applied migrations. It is checked for readability, encrypted
+with [age](https://age-encryption.org) to the public key(s) in
 `BACKUP_AGE_RECIPIENTS`, stored, and verified by checksum. Only the public key
 lives on the server; keep the private identity offline. Backups run nightly
-at 02:30 UTC, and before every release that has migrations. Retention: 7
+at 02:30 UTC and before every release that has migrations. Retention: 7
 daily, 4 weekly, 6 monthly and the last 10 pre-deploy and manual backups.
 
-Take one now, or see the stored backups (newest first, with their kind,
-time, size and the key `lictory restore` takes):
+Take one now, or list the stored backups (newest first, with kind, time, size
+and the key `lictory restore` takes):
 
 <Cli command={["backup", "backup-list"]} />
 
@@ -45,19 +44,18 @@ time, size and the key `lictory restore` takes):
 | `none`          | Disabled; back up PostgreSQL with your own tooling                           |
 
 Keep at least one copy off the server, give the backup storage its own
-credentials (never the attachment bucket's), and where the storage supports
-it, make it refuse deletes by the server's credential (object lock, bucket
-lock, snapshots) so a stolen credential cannot erase history.
+credentials (never the attachment bucket's) and, where supported, make it
+refuse deletes by the server's credential (object lock, bucket lock,
+snapshots) so a stolen credential cannot erase history.
 `BACKUP_PING_URL` and `ALERT_WEBHOOK_URL` report successes and failures; the
 monitor alerts when the last backup is older than 30 hours.
 
 ## Restore drill
 
-Prove that backups restore, monthly and after changing backups: the drill
-restores the latest backup into a throwaway database on a separate network,
-compares migration history and every table's row count with the manifest,
-and starts the release's API against the restored data. It never touches the
-live database.
+Run it monthly and after changing backups. The drill restores the latest
+backup into a throwaway database on a separate network, compares migration
+history and every table's row count with the manifest, and starts the
+release's API against the restored data. It never touches the live database.
 
 ```sh
 sudo lictory restore /path/to/age-identity.txt latest --drill
@@ -67,22 +65,20 @@ sudo lictory restore /path/to/age-identity.txt latest --drill
 
 <Cli command="restore" />
 
-Before anything changes, the command shows which backup it will use (its
-key, when it was taken, its size and whether it is encrypted) and asks you
-to type the environment name. It refuses a key that is not in the target
-(see `lictory backup list`) and an encrypted backup without its identity
-file. It then downloads, decrypts and checks the backup against its
-manifest while Lictory keeps running: a wrong identity or unreachable
-storage stops it there. During the restore it holds the environment's
-deployment lock and pauses the scheduled backups and the monitor. If a later
-step fails, the previous database is put back and the release started on
-it again.
+Before anything changes, the command shows the backup it will use (key,
+time taken, size, whether encrypted) and asks you to type the environment
+name. It refuses a key not in the target (see `lictory backup list`) and an
+encrypted backup without its identity file. It then downloads, decrypts and
+checks the backup against its manifest while Lictory keeps running; a wrong
+identity or unreachable storage stops it there. During the restore it holds
+the environment's deployment lock and pauses the scheduled backups and the
+monitor. If a later step fails, the previous database is put back and the
+release started on it again.
 
-Restoring replaces the database with a backup: writes made after that backup
-are lost, and zero-cache rebuilds its replica so clients resync. Jira items
-exported in the lost window still exist in Jira; check their links before
-the next export. The step-by-step recovery procedures for database loss,
-replica loss and a lost server are in the
+Restoring replaces the database: writes made after the backup are lost, and
+zero-cache rebuilds its replica so clients resync. Jira items exported in the
+lost window still exist in Jira; check their links before the next export.
+Recovery procedures for database loss, replica loss and a lost server:
 [recovery runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/recovery.md).
 
 ## Without the bundled tooling

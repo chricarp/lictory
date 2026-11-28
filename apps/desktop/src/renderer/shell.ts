@@ -206,7 +206,7 @@ function topBar(current: ShellState) {
 }
 
 const offlineText =
-  "This computer is offline. Lictory reconnects by itself when the network is back; until then, what you see may be out of date.";
+  "This computer is offline. Lictory reconnects when the network is back.";
 
 // One live region for the bars, which are rebuilt on every change: says
 // when the server in front loses or gets back its network.
@@ -272,7 +272,7 @@ function addServerForm(current: ShellState, welcome: boolean) {
     h(
       "p",
       { class: "hint", id: "server-address-hint" },
-      "The address you open Lictory at in your browser. Each server keeps its own sign-in.",
+      "The address you open Lictory at in your browser",
     ),
     error,
     detail,
@@ -310,13 +310,9 @@ function welcomeScreen(current: ShellState, welcome: boolean) {
         { id: "connect-title" },
         welcome ? "Connect to your Lictory server" : "Add a server",
       ),
-      h(
-        "p",
-        { class: "lead" },
-        welcome
-          ? "Lictory runs on your team's own server. Ask your administrator for its address if you do not have it."
-          : "Add another Lictory server. Switch between servers with the bar on the left.",
-      ),
+      welcome
+        ? h("p", { class: "lead" }, "Ask your administrator for the address.")
+        : null,
       addServerForm(current, welcome),
     ),
   );
@@ -358,11 +354,7 @@ function errorScreen(
         `${server?.name ?? "This server"} is not available`,
       ),
       h("p", { class: "lead" }, screen.message),
-      h(
-        "p",
-        { class: "hint" },
-        `${screen.next} Lictory keeps trying in the background.`,
-      ),
+      h("p", { class: "hint" }, `${screen.next} Retrying in the background.`),
       screen.detail
         ? h("p", { class: "hint detail" }, `Details: ${screen.detail}`)
         : null,

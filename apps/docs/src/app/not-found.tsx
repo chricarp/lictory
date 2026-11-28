@@ -17,8 +17,7 @@ export default function NotFound() {
     <DocsPage toc={[]}>
       <DocsTitle className="docs-title">This page does not exist</DocsTitle>
       <DocsDescription className="docs-lede mb-8">
-        It may have moved. Search the documentation (Ctrl K), or start from one
-        of these pages.
+        It may have moved. Search (Ctrl K) or start here.
       </DocsDescription>
       <DocsBody className="docs-body">
         <ul>

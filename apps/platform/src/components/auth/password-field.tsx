@@ -133,26 +133,26 @@ export function assessPassword(value: string): Strength {
     };
   }
   if (length >= 16 && classes >= 3) {
-    return { score: 4, label: "Strong", hint: "Hard to guess. Nice." };
+    return { score: 4, label: "Strong", hint: "Hard to guess." };
   }
   if (length >= 14 && classes >= 3) {
     return {
       score: 3,
       label: "Good",
-      hint: "A few more characters would make it stronger.",
+      hint: "Longer is stronger.",
     };
   }
   if (length >= 12 && classes >= 2) {
     return {
       score: 2,
       label: "Fair",
-      hint: "Mix in numbers or symbols to strengthen it.",
+      hint: "Add numbers or symbols.",
     };
   }
   return {
     score: 1,
     label: "Weak",
-    hint: "Meets the minimum. A longer passphrase is much stronger.",
+    hint: "Longer is stronger.",
   };
 }
 

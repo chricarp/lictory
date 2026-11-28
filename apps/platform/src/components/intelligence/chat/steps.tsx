@@ -569,8 +569,7 @@ export function Confirmation({
           </div>
         )}
         <ItemDescription>
-          {reason ??
-            "Nothing happens until you approve. Litto then does this as you, with your permissions."}
+          {reason ?? "Runs as you once you approve."}
         </ItemDescription>
       </ItemContent>
       {target?.found?.excerpt && (
@@ -711,8 +710,7 @@ export function Failures({
               {a.step.subject && <SubjectChip subject={a.step.subject} />}
             </TraceLine>
             <p className="mt-0.5 ml-6 text-[12px] leading-5 text-foreground/75">
-              {a.step.outcome.error ??
-                "It was interrupted, and its completion was not confirmed."}
+              {a.step.outcome.error ?? "Interrupted before it was confirmed."}
             </p>
           </div>
         ))}

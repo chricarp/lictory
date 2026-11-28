@@ -182,8 +182,8 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
         ) : (
           <p className="work-list-empty">
             {attrs.filter === "referenced"
-              ? "Work items mentioned on this page appear here."
-              : "No work items you can see match this list."}
+              ? "No work items mentioned"
+              : "No matching work items"}
           </p>
         )}
         <MoreRows
@@ -195,7 +195,7 @@ export function WorkListView({ node, editor, getPos }: ReactNodeViewProps) {
         />
         <p className="work-list-note">
           <RefreshCw className="size-3 shrink-0" aria-hidden />
-          Live from Lictory Work. Open an item to change it.
+          Live from Lictory Work
         </p>
       </section>
     </NodeViewWrapper>

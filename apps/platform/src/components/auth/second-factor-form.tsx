@@ -46,9 +46,9 @@ export function SecondFactorForm({
       setError(
         result.error.code === "INVALID_TWO_FACTOR_COOKIE" ||
           result.error.code === "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE"
-          ? "This sign-in expired or had too many attempts. Start over with your email and password."
+          ? "Sign-in expired or had too many attempts. Start over."
           : method === "totp"
-            ? "That code is not valid. Enter the current 6-digit code from your authenticator app."
+            ? "That code is not valid. Enter the current 6-digit code."
             : "That backup code is not valid or was already used.",
       );
       setPending(false);
@@ -61,8 +61,8 @@ export function SecondFactorForm({
     <ValidatedForm onSubmit={onSubmit} className="grid gap-4" key={method}>
       <p className="text-[13px] leading-5 text-muted-foreground">
         {method === "totp"
-          ? "Your account uses two-factor authentication. Enter the code from your authenticator app."
-          : "Enter one of the backup codes you saved when you turned on two-factor authentication. Each code works once."}
+          ? "Enter the code from your authenticator app."
+          : "Enter one of your backup codes. Each works once."}
       </p>
       {method === "totp" ? (
         <FormField

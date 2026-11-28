@@ -100,7 +100,9 @@ test("an instance administrator connects a provider in the console, tests it, sa
   for (const r of tested) expect(r.body).not.toContain(seeded.slug);
 
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText(/^Saved\. The API and workers/)).toBeVisible();
+  await expect(
+    page.getByText(/^Saved\. Takes effect within seconds/),
+  ).toBeVisible();
   // The key is stored, never shown again.
   await expect(text.getByText("Stored")).toBeVisible();
   await expect(text.getByLabel("API key", { exact: true })).toHaveValue("");
@@ -113,10 +115,10 @@ test("an instance administrator connects a provider in the console, tests it, sa
     .getByRole("switch", { name: "Allow Lictory Intelligence" })
     .click();
   await expect(
-    settings.getByText(/OpenAI models through an endpoint chosen by/),
+    settings.getByText(/OpenAI models through the operator's gateway/),
   ).toBeVisible();
   await expect(
-    settings.getByText(/Short clips go through this server to OpenAI/),
+    settings.getByText(/Short clips via this server to OpenAI/),
   ).toBeVisible();
 
   // Dictation: the fake microphone's tone is a clip; its words arrive.

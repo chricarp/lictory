@@ -16,7 +16,7 @@ const DOWNLOAD_URL = "https://lictory.com/download";
 function toggle(
   id: string,
   label: string,
-  description: string,
+  description: string | null,
   onChange: (checked: boolean) => void,
 ) {
   const input = h("input", {
@@ -24,7 +24,7 @@ function toggle(
     type: "checkbox",
     class: "switch",
     role: "switch",
-    "aria-describedby": `${id}-description`,
+    "aria-describedby": description ? `${id}-description` : undefined,
     on: { change: () => onChange(input.checked) },
   });
   const row = h(
@@ -34,7 +34,9 @@ function toggle(
       "div",
       { class: "setting-text" },
       h("label", { htmlFor: id, class: "setting-label" }, label),
-      h("p", { id: `${id}-description`, class: "hint" }, description),
+      description
+        ? h("p", { id: `${id}-description`, class: "hint" }, description)
+        : null,
     ),
     input,
   );
@@ -57,15 +59,15 @@ function updateText(update: UpdateState) {
     case "unsupported":
       return update.reason;
     case "idle":
-      return "Lictory checks for updates in the background.";
+      return "Checks for updates in the background";
     case "checking":
       return "Checking for updates…";
     case "current":
-      return "Lictory is up to date.";
+      return "Up to date";
     case "downloading":
-      return `Downloading an update… ${update.percent}%`;
+      return `Downloading update… ${update.percent}%`;
     case "ready":
-      return `Version ${update.version} is ready to install.`;
+      return `Version ${update.version} ready to install`;
     case "error":
       return update.message;
   }
@@ -77,7 +79,7 @@ const runnerStatusText: Record<RunnerState["snapshot"]["status"], string> = {
   running: "Running",
   backoff: "Restarting soon",
   stopping: "Stopping…",
-  failed: "Stopped after an error",
+  failed: "Failed",
 };
 
 export function renderSettings(initial: ShellState, api: ShellApi) {
@@ -86,7 +88,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
   const notifications = toggle(
     "setting-notifications",
     "Desktop notifications",
-    "Reviews requested, mentions, blocking discussions and other activity that needs you, from every server.",
+    "Activity that needs you, from every server",
     (checked) => set({ notifications: checked }),
   );
   // Linux shows notifications through libnotify; without it nothing can.
@@ -94,28 +96,25 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     class: "setting-status warning",
     role: "status",
   });
-  const sound = toggle(
-    "setting-sound",
-    "Play a sound",
-    "With each desktop notification.",
-    (checked) => set({ notificationSound: checked }),
+  const sound = toggle("setting-sound", "Play a sound", null, (checked) =>
+    set({ notificationSound: checked }),
   );
   const login = toggle(
     "setting-login",
     "Open at login",
-    "Start Lictory in the background when you sign in to this computer.",
+    "Starts in the background",
     (checked) => set({ launchAtLogin: checked }),
   );
   const tray = toggle(
     "setting-tray",
     "Keep running when the window is closed",
-    "Lictory stays in the notification area so notifications keep arriving. Quit it from there.",
+    "Stays in the notification area. Quit from there.",
     (checked) => set({ closeToTray: checked }),
   );
   const autoUpdate = toggle(
     "setting-updates",
     "Download updates automatically",
-    "New versions are installed the next time Lictory starts.",
+    "Installed the next time Lictory starts",
     (checked) => set({ autoUpdate: checked }),
   );
 
@@ -168,7 +167,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
   const runnerWithApp = toggle(
     "setting-runner-start",
     "Start with Lictory",
-    "Start the runner whenever the app starts.",
+    null,
     (checked) => set({ runner: { startWithApp: checked } }),
   );
   const runnerLog = h("pre", {
@@ -215,7 +214,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     h(
       "p",
       { class: "hint", id: "runner-token-hint" },
-      "Create a personal runner token in Lictory (Factory › Runners). It is passed to lictory-runner once and never stored by the app.",
+      "From Factory › Runners. Not stored by the app.",
     ),
     h(
       "div",
@@ -232,7 +231,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     h(
       "p",
       { class: "hint" },
-      "Run your own agents on this computer. The runner connects out to your server; it needs no open port.",
+      "Runs your agents on this computer. No open port needed.",
     ),
     runnerStatus,
     h("div", { class: "form-actions start" }, runnerStart, runnerStop),
@@ -306,8 +305,8 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
     notificationsUnsupported.textContent = supported
       ? ""
       : state.platform === "linux"
-        ? "This computer cannot show desktop notifications: Lictory needs libnotify (the libnotify4 package on Debian and Ubuntu) and a notification service. Install it and restart Lictory. The badge and the Inbox still show what needs you."
-        : "This computer cannot show desktop notifications. The badge and the Inbox still show what needs you.";
+        ? "Desktop notifications unavailable. Install libnotify (libnotify4 on Debian and Ubuntu) and a notification service, then restart Lictory."
+        : "Desktop notifications unavailable on this computer.";
     notifications.input.checked = s.notifications && supported;
     notifications.input.disabled = !supported;
     sound.input.checked = s.notificationSound;
@@ -372,7 +371,7 @@ export function renderSettings(initial: ShellState, api: ShellApi) {
       const snap = runner.snapshot;
       runnerStatus.textContent = runner.available
         ? `${runnerStatusText[snap.status]}${snap.pid ? ` · pid ${snap.pid}` : ""}${snap.message ? ` · ${snap.message}` : ""}`
-        : `This app does not include lictory-runner yet. To run agents on this computer today, install the runner from Lictory (Factory › Runners › Add runner): it runs on its own, without the app. To start and stop it from here instead, start Lictory with LICTORY_RUNNER_PATH set to where lictory-runner is installed.${runner.binary ? ` Nothing was found at ${runner.binary}.` : ""}`;
+        : `lictory-runner is not bundled. Install it from Factory › Runners › Add runner, or start Lictory with LICTORY_RUNNER_PATH set to its location.${runner.binary ? ` Nothing found at ${runner.binary}.` : ""}`;
       const running = ["starting", "running", "backoff"].includes(snap.status);
       runnerStart.disabled = !runner.available || running || !s.runner.serverId;
       runnerStop.disabled = !running;

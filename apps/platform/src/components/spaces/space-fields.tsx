@@ -50,18 +50,16 @@ export function HomeFields({
   value,
   onChange,
   disabled,
-  hint,
   inline = false,
   status,
 }: {
   value: HomeChoice;
   onChange: (home: HomeChoice) => void;
   disabled?: boolean;
-  hint?: string;
   // A settings row's save state, beside the label.
   status?: ReactNode;
-  // A settings row: the label and the picker on one line, the hint below
-  // (the layout of SegmentedChoice).
+  // A settings row: the label and the picker on one line (the layout of
+  // SegmentedChoice).
   inline?: boolean;
 }) {
   const { organization, projects, directory } = useWorkspace();
@@ -108,26 +106,20 @@ export function HomeFields({
       ])}
     </DropdownSelect>
   );
-  const text =
-    hint ??
-    "Where the space appears in navigation. Members of a project or team home can edit; everyone else can view.";
   if (inline)
     return (
-      <div className="space-y-1.5">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <span className="flex items-center gap-2">
-            <label htmlFor={id} className="text-xs font-medium">
-              Location
-            </label>
-            {status}
-          </span>
-          {select}
-        </div>
-        <p className="text-xs leading-5 text-muted-foreground">{text}</p>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
+        <span className="flex items-center gap-2">
+          <label htmlFor={id} className="text-xs font-medium">
+            Location
+          </label>
+          {status}
+        </span>
+        {select}
       </div>
     );
   return (
-    <Field label="Location" htmlFor={id} hint={text}>
+    <Field label="Location" htmlFor={id}>
       {select}
     </Field>
   );

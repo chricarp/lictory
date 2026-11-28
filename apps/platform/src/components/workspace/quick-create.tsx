@@ -210,11 +210,6 @@ export function QuickCreate({
                   ? "New proposal"
                   : "New work item"}
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {options.intent === "proposal"
-                  ? `A proposal is a ${name.toLowerCase()} in Draft. Capture the idea; the same item is refined and reviewed with your team next.`
-                  : "Start with a title. Add the details as you go."}
-              </p>
             </div>
             <DialogClose
               aria-label="Close"
@@ -348,10 +343,6 @@ export function QuickCreate({
                   }
                   onChange={setParentId}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Link this {name.toLowerCase()} to the larger piece of work it
-                  contributes to.
-                </p>
               </div>
             )}
             <div className="space-y-1.5 pt-1">
@@ -366,7 +357,7 @@ export function QuickCreate({
                 onValueChange={setDescription}
                 placeholder={
                   type?.hasSpecification
-                    ? "What problem should this solve? Describe expected behavior, acceptance criteria and important failure cases… (Markdown)"
+                    ? "What problem should this solve? Expected behavior, acceptance criteria, failure cases… (Markdown)"
                     : "What needs to be done… (Markdown)"
                 }
                 aria-label="Description"
@@ -375,16 +366,11 @@ export function QuickCreate({
                 maxHeight="20rem"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {type?.hasSpecification
-                ? "Capture a proposal now and refine it with the team. Creating it does not commit it to delivery."
-                : "This item goes to delivery. If it has a parent specification, that specification’s readiness still applies."}
-            </p>
             {!type && project && (
               <p className="text-xs text-muted-foreground">
                 {options.intent === "proposal" && availableTypes.length
-                  ? "No specification types are enabled for your disciplines in this project. Choose a project with a specification type to create a proposal."
-                  : `Your disciplines in ${project.name} cannot create work items. Ask a project administrator for a discipline that edits specifications or changes properties.`}
+                  ? "No specification types are enabled for your disciplines here. Choose another project."
+                  : `Your disciplines in ${project.name} can’t create work items. Ask a project administrator for one that can.`}
               </p>
             )}
             {error && (

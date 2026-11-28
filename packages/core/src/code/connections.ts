@@ -161,7 +161,7 @@ export function createConnections(
     if (!delivery && !code)
       throw new DomainError(
         "unavailable",
-        "Code hosts cannot be connected yet: this Lictory installation has no DELIVERY_CREDENTIALS_KEY. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
+        "Code hosts cannot be connected: DELIVERY_CREDENTIALS_KEY is not set. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
       );
   };
 

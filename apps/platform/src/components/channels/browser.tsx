@@ -230,10 +230,7 @@ export function ChannelBrowser() {
                     <Plus className="size-3.5" aria-hidden /> New channel
                   </Button>
                 }
-              >
-                Channels are where conversations start. Promote what matters
-                into proposals, decisions and discussions.
-              </EmptyState>
+              />
             )}
             {direct.length > 0 && (
               <section aria-labelledby={directId}>
@@ -344,7 +341,6 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog
       title="New channel"
-      description="Channels are where a team talks. Agents can be members too."
       onClose={onClose}
       onSubmit={create}
       footer={
@@ -365,7 +361,7 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
           hint={
             normalized && normalized !== name
               ? `Will be #${normalized}`
-              : "Lowercase, without spaces: payments-releases"
+              : "Lowercase, no spaces"
           }
         >
           <Input
@@ -394,21 +390,17 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
             {
               value: "public",
               label: "Public",
-              description: "Everyone in the organization can find and join it.",
+              description: "Anyone in the organization can join.",
             },
             {
               value: "private",
               label: "Private",
-              description: "Only the people in it know it exists.",
+              description: "Only members can see it.",
             },
           ]}
         />
         {projects.filter((p) => !p.archivedAt).length > 0 && (
-          <Field
-            label="Project"
-            optional
-            hint="Homes the channel in a project, like #pay-releases."
-          >
+          <Field label="Project" optional>
             <Select
               value={projectId || ORGANIZATION}
               onValueChange={(value) =>
@@ -506,7 +498,7 @@ export function NewMessageDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog
       title="New message"
-      description="A direct message with one person, or a group conversation with up to eight."
+      description="Up to eight people."
       onClose={onClose}
       onSubmit={open}
       footer={

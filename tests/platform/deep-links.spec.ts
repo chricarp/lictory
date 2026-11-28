@@ -108,7 +108,7 @@ test("unknown addresses explain that they do not exist", async ({ page }) => {
     page.getByRole("heading", { name: "This page does not exist" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Deep Links project has no page at this address."),
+    page.getByRole("link", { name: "Back to Deep Links project" }),
   ).toBeVisible();
 
   await page.goto(seeded.itemPath(999));

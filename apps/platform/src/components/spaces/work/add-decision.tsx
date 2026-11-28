@@ -119,7 +119,6 @@ export function AddDecisionToPage({
     return (
       <Dialog
         title="Change proposed"
-        description={`“${chosen.page.title}” gets the decision once the pull request is merged.`}
         onClose={onClose}
         width="max-w-md"
         footer={
@@ -134,9 +133,8 @@ export function AddDecisionToPage({
         }
       >
         <p className="text-[13px] text-muted-foreground">
-          Nothing on the published page changed. Reviewers of{" "}
-          {chosen.space.name} see the proposal with the other changes to the
-          page.
+          “{chosen.page.title}” gets the decision once the pull request is
+          merged.
         </p>
       </Dialog>
     );
@@ -146,12 +144,11 @@ export function AddDecisionToPage({
       title="Add the decision to a page"
       description={
         <>
-          Proposes a change that adds{" "}
+          Proposes adding{" "}
           <span className="font-medium text-foreground">
             “{decision.title}”
           </span>{" "}
-          to the end of a page, for review. The published page does not change
-          until the proposal is merged.
+          to the end of a page.
         </>
       }
       onClose={onClose}
@@ -210,7 +207,7 @@ export function AddDecisionToPage({
           <p className="px-1 py-3 text-[13px] text-muted-foreground">
             {query.trim()
               ? "No page you can edit matches."
-              : "There is no page you can edit."}
+              : "No page you can edit."}
           </p>
         )}
         {chosen && !head && (

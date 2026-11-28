@@ -246,14 +246,12 @@ export function NotificationSettings() {
             </div>
             <p className="text-[13px] leading-5 text-muted-foreground">
               {scope.scope === "organization"
-                ? `Applies to everything in ${organization.name} unless a project or team says otherwise.`
+                ? "Projects and teams can override these."
                 : scope.scope === "project"
-                  ? `Overrides your ${organization.name} settings for items in this project. Team settings still win for items of that team.`
-                  : `Overrides your project and ${organization.name} settings for items of this team.`}{" "}
-              Turn a notification on to receive it in your Inbox; you can then
-              also choose to get it by email.
+                  ? `Overrides your ${organization.name} settings for this project.`
+                  : `Overrides your project and ${organization.name} settings for this team.`}
               {!emailAvailable &&
-                " This server sends no email yet, so your email choices take effect once whoever runs it sets up outbound email."}
+                " Email isn’t set up on this server yet; email choices apply once it is."}
             </p>
           </div>
           {error && (

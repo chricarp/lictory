@@ -88,7 +88,7 @@ export function ChannelConversation() {
           </Button>
         }
       >
-        It may be private, or the link may be wrong. Ask a member to add you.
+        It may be private. Ask a member to add you.
       </MissingState>
     ) : (
       <div className="grid h-full place-items-center">
@@ -369,7 +369,7 @@ function Conversation({ channel }: { channel: Channel }) {
   };
   const participant = threads.find((t) => t.rootMessageId === threadId);
   const disabledReason = channel.archivedAt
-    ? "This channel is archived. Its history stays; restore it to post again."
+    ? "This channel is archived. Restore it to post."
     : undefined;
   return (
     <div className="flex h-full min-h-0">
@@ -538,8 +538,7 @@ function ChannelStart({ channel, label }: { channel: Channel; label: string }) {
           ? others.length === 1
             ? `This is the start of your conversation with ${others[0]!.name}.`
             : "This is the start of your conversation."
-          : channel.topic ||
-            "This is the start of the channel. Start a conversation, then promote what matters into a proposal, a decision or a discussion on a specification."}
+          : channel.topic || "This is the start of the channel."}
       </p>
     </div>
   );
@@ -550,7 +549,7 @@ function JoinBar({ channel, label }: { channel: Channel; label: string }) {
   if (channel.archivedAt)
     return (
       <div className="mx-3 mb-3 rounded-xl border bg-muted/40 px-4 py-3 text-center text-[13px] text-muted-foreground sm:mx-4">
-        This channel is archived. Its history stays readable.
+        This channel is archived.
       </div>
     );
   return (

@@ -5,7 +5,6 @@ export const openSource = {
   label: "Open source",
   summary:
     "Lictory is an open-source control plane for software teams and their agents.",
-  detail:
-    "It is MIT licensed, every feature is in the open-source code, and it runs on your own server. Read the code, adapt it to your team, and contribute.",
+  detail: "MIT licensed, every feature included, on your own server.",
   repositoryUrl,
 } as const;

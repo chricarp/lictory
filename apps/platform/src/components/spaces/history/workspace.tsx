@@ -129,7 +129,6 @@ export function SpacePullRequests() {
           { label: "Spaces", href: paths.spaces(org) },
           { label: space.name, href: paths.space(org, space.slug) },
         ]}
-        description={`Open proposals across ${space.name}.`}
       />
       <div className="spaces-history min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <section

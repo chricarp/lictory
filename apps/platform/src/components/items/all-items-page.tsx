@@ -43,13 +43,11 @@ export function AllItemsPage() {
       items={scoped}
       project={project}
       title="All items"
-      description="Every proposal, specification and delivery task in this project. Filter by your team's item types, or find completed work and its history."
       hrefFor={hrefFor}
       groupBy="status"
       createKind="story"
       createLabel="New item"
       emptyTitle="No items yet"
-      emptyBody="Capture a proposal to refine with your team, or create a task when the work is already understood."
       summary={
         <nav
           aria-label="Item types"

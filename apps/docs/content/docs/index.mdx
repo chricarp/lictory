@@ -3,20 +3,19 @@ title: Introduction
 description: Lictory is the open-source control plane of a software factory, where a team and its agents agree on what to build, write and review the code and ship it, with people making the decisions.
 ---
 
-One self-hosted product holds what a team would otherwise stitch together:
-team chat with agents as members, work management, agents running on
-machines you control, your code host's pull requests and checks, and
-knowledge pages. People make the decisions; agents do much of the work in
-between, each with an owner who is accountable for it.
+One self-hosted product for team chat with agents as members, work
+management, agents on machines you control, your code host's pull requests
+and checks, and knowledge pages. People make the decisions; agents do much of
+the work in between, each with an accountable owner.
 
 Every piece of work follows one loop. A conversation in a
 [channel](/channels) is promoted into a proposal. The proposal becomes a
-specification that is drafted, reviewed and approved the way code changes are,
-so a team goes from “_Product wants to build this_” to “_Engineering can safely
-commit to building this_” without a meeting for every requirement. Agents on
-[runners you control](/factory/runners) then claim the agreed work, open pull
-requests on your [code host](/integrations/code-hosts) and answer review, and
-an item is done when the evidence says so: merged code, passing checks and the
+specification, drafted, reviewed and approved the way code changes are: from
+“_Product wants to build this_” to “_Engineering can safely commit to building
+this_” without a meeting for every requirement. Agents on
+[runners you control](/factory/runners) claim the agreed work, open pull
+requests on your [code host](/integrations/code-hosts) and answer review. An
+item is done when the evidence says so: merged code, passing checks and the
 project's Definition of Done.
 
 <Lifecycle />
@@ -28,13 +27,13 @@ A specification in Lictory is not a document with comments. It has
 people edit together, reviewers, [discussions](/specifications/discussions)
 anchored to the text, proposed changes on [branches](/specifications/branches),
 [approvals that belong to the revision they reviewed](/review/approvals), and
-[readiness checks](/review/readiness) that work like CI for requirements. At
-any time you can see what changed, who changed it, who approved which
-revision and what is still unresolved.
+[readiness checks](/review/readiness) that work like CI for requirements:
+what changed, who changed it, who approved which revision and what is still
+unresolved.
 
 Product, Engineering, QA and any other discipline a project configures take
-part as equals: each reviews the concerns it owns. Lictory Intelligence can
-point out gaps, contradictions and missing scenarios and propose changes, but
+part as equals, each reviewing the concerns it owns. Lictory Intelligence
+points out gaps, contradictions and missing scenarios and proposes changes;
 people decide what becomes part of the specification. Lictory works fully
 without AI.
 
@@ -43,50 +42,50 @@ without AI.
 The [Factory](/factory) runs coding agents (Claude Code, Codex, OpenCode,
 Gemini CLI or Lictory's built-in agent) on runners you control. Each agent has
 a name, an owner and a scope, acts with its owner's permissions and is shown as
-acting via that person. A project's [autonomy policy](/factory/autonomy)
-decides how much happens by itself: agents help when asked (Assist), take
-ready work and open pull requests that people merge (Build), or Lictory also
-merges an agent's pull request when every required check passes (Autopilot).
+acting via that person. A project's [autonomy policy](/factory/autonomy) sets
+how much happens by itself: agents help when asked (Assist), take ready work
+and open pull requests that people merge (Build), or Lictory also merges an
+agent's pull request when every required check passes (Autopilot).
 Specification approvals, accepted scope and resolved discussions always stay a
 person's act. Text is never permission: a message, issue or model output
-cannot authorize anything.
+authorizes nothing.
 
 ## Two ways to deliver
 
-Every project chooses its delivery mode. The refinement workflow is the same
-in both.
+Each project chooses its delivery mode; refinement is the same in both.
 
 | Mode                 | Refinement | Delivery                                                               |
 | -------------------- | ---------- | ---------------------------------------------------------------------- |
 | **Native (Lictory)** | Lictory    | Lictory: work item types, workflows, board, backlog, sprints or cycles |
 | **External (Jira)**  | Lictory    | Jira: ready work is handed off, Jira's status is read back             |
 
-Exactly one system owns delivery for a project's work, so nothing is tracked
-twice. See [delivery](/delivery).
+Exactly one system owns a project's delivery, so nothing is tracked twice.
+See [delivery](/delivery).
 
 ## Knowledge next to the work
 
 [Spaces](/spaces) hold the pages a team writes together: runbooks,
-architecture notes, decision records, how the team works. Pages and work are
-linked both ways: a specification cites the page version it relies on, a
-page mentions and lists live work, a work item can start from a passage of a
-page, and delivered work can propose the page update it needs. Each item's
-[Knowledge](/knowledge) shows the pages about it, and [search](/search) finds
+architecture notes, decision records, how the team works. Pages and work link
+both ways: a specification cites the page version it relies on, a page
+mentions and lists live work, a work item can start from a passage of a page,
+and delivered work can propose the page update it needs. Each item's
+[Knowledge](/knowledge) shows the pages about it; [search](/search) finds
 both.
 
 ## Work from your terminal or editor
 
-Connect a coding agent through [MCP](/integrations/agents) to read specifications,
-inspect discussions and propose changes on branches with your permissions.
-People still decide what gets approved, merged or handed off. For installing
-and operating a server, use the guided [lictory CLI](/self-hosting/terminal).
+Connect a coding agent through [MCP](/integrations/agents) to read
+specifications, inspect discussions and propose changes on branches with your
+permissions. People still decide what is approved, merged or handed off. To
+install and operate a server, use the guided
+[lictory CLI](/self-hosting/terminal).
 
 ## Where to go next
 
 <Cards>
   <Card title="Getting started" href="/getting-started">
-    Install your server, create a project, invite your team, connect your code
-    host and a first agent, and take a specification from proposal to delivery.
+    Install, create a project, invite your team, connect a code host and an
+    agent, and take a specification from proposal to delivery.
   </Card>
   <Card title="Factory" href="/factory">
     Runners, agents, sessions, autonomy and the Definition of Done.
@@ -95,8 +94,7 @@ and operating a server, use the guided [lictory CLI](/self-hosting/terminal).
     Team chat with agents as members, and promotion of what matters.
   </Card>
   <Card title="First steps" href="/basics/navigation">
-    Find your way around, set up your account, learn the shortcuts and the words
-    Lictory uses.
+    Navigation, your account, shortcuts and the words Lictory uses.
   </Card>
   <Card title="Refine" href="/specifications">
     Proposals, the specification editor, live drafts, history, discussions,
@@ -109,7 +107,7 @@ and operating a server, use the guided [lictory CLI](/self-hosting/terminal).
     Breakdown, board, backlog, sprints and cycles, reports, relations and teams.
   </Card>
   <Card title="Spaces" href="/spaces">
-    Pages your team writes together, edited live and changed through reviewed
+    Pages your team writes together, edited live, changed through reviewed
     versions.
   </Card>
   <Card title="Knowledge" href="/knowledge">

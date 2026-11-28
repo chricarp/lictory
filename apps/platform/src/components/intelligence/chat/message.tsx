@@ -560,8 +560,7 @@ function AssistantMessage({
                 className="size-3 shrink-0 text-warning"
                 aria-hidden
               />
-              Written by Litto after a step failed; it may not match what
-              happened above
+              Written by Litto after a step failed
             </p>
             {group(shownNodes)}
           </div>
@@ -571,7 +570,7 @@ function AssistantMessage({
         {lost && (
           <div className="rounded-xl border border-dashed px-3.5 py-2.5">
             <p className="mb-1 text-[11.5px] font-medium text-muted-foreground">
-              Incomplete · not saved, Litto stopped while writing this
+              Incomplete · not saved
             </p>
             <div className="text-muted-foreground">
               <Response text={lost} streaming={false} />

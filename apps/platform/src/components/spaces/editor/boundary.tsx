@@ -25,7 +25,7 @@ export class SurfaceBoundary extends Component<
       >
         <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden />
         <p className="min-w-0 flex-1 basis-56">
-          This page’s content could not be shown. Try again, or reload the page.
+          This page’s content could not be shown.
         </p>
         <Button
           size="sm"

@@ -5,14 +5,13 @@ description: Propose a change to a specification, ask the right disciplines to r
 
 A **proposed change** is a separate draft of one specification: you and the
 collaborators you invite edit it while the current revision stays as it is.
-You save **versions** of it as you go, then **send it for review**. Once the
-required reviewers approve the exact result, someone who can edit
-specifications **applies** it, and it becomes the specification's next
-revision.
+Save **versions** as you go, then **send it for review**. Once the required
+reviewers approve the exact result, someone who can edit specifications
+**applies** it as the specification's next revision.
 
 The behavior is Git-inspired (a proposed change is a branch, a version a
 commit, its review a pull request, applying it a merge), but you never need
-those words to use it.
+those words.
 
 ![A proposed change on PAY-7, “Add chargeback as a reason code”: applying is blocked until the QA and Engineering approvals arrive, no blocking discussions and no conflicts, the required reviewers Pending, and Apply change disabled](/screenshots/work-pull-request.webp)
 
@@ -29,19 +28,17 @@ those words to use it.
 ### A protected specification
 
 While a specification takes shape, people whose discipline can edit
-specifications change it directly in its [live
-draft](/specifications/live-drafts). The first time the specification becomes
-[ready](/review/readiness), it is **protected** and stays protected: the item
-shows **Protected** next to the current revision (_This specification is
-ready. Changes are proposed and reviewed before they apply._), and direct
-edits are refused. This holds even if the specification later stops being
-ready.
+specifications change it directly in its
+[live draft](/specifications/live-drafts). The first time it becomes
+[ready](/review/readiness), it is **protected** for good, even if it later
+stops being ready: the item shows **Protected** next to the current revision,
+and direct edits are refused.
 
 ## Start a change
 
 Below the specification, a box shows the current revision and **Proposed
-changes**, with the number of changes in review. It also lists the changes in
-review and your own changes (_Your change · continue editing_).
+changes** with the number in review, and lists the changes in review and
+your own (_Your change · continue editing_).
 
 <Steps>
 <Step>
@@ -50,9 +47,9 @@ review and your own changes (_Your change · continue editing_).
 
 ![Proposed changes of PAY-7: Start a change with a name and Start from the current specification, the reviews list, and the changes](/screenshots/work-branches.webp)
 
-The screen lists the reviews (open and applied) and every change, with its
-author, how many saved versions are not in the specification yet and its
-collaborators.
+It lists the reviews (open and applied) and every change, with its author,
+collaborators and how many saved versions are not in the specification
+yet.
 
 </Step>
 <Step>
@@ -84,43 +81,41 @@ Two shortcuts start a change for you:
   breakdown editor.
 
 Anyone who can open the item can start a change and read every change.
-Nobody is asked to review anything until you send it for review.
+Nobody is asked to review until you send it for review.
 
 ## Edit and save versions
 
 ![The chargeback-reason change of the protected PAY-7 specification: the steps Edit, Save a version, Send for review and Review & apply, the shared editor, the save box, collaborators and the open review](/screenshots/work-branch.webp)
 
-The change's screen shows where it is: **Edit**, **Save a version**, **Send
-for review**, **Review & apply**. Its tabs are **Document** (the editor),
-**New edits** (your edits since the last saved version) and **Versions**.
+The change's steps are **Edit**, **Save a version**, **Send for review**,
+**Review & apply**. Its tabs are **Document** (the editor), **New edits**
+(your edits since the last saved version) and **Versions**.
 
-The change has its own live draft: edits are saved as you type and shared
-with its collaborators, who can edit at the same time
-([live drafts](/specifications/live-drafts)). The specification is not
-affected.
+The change has its own live draft, saved as you type and shared with its
+collaborators ([live drafts](/specifications/live-drafts)). The specification
+is not affected.
 
 When the change is ready to be looked at, save a version:
 
 1. In the save box (**Save a version of** _name_), say **What changed?** and
-   why. It is required.
-2. Choose **Save version**. The version is an immutable snapshot with your
-   name and words.
+   why (required).
+2. Choose **Save version**: an immutable snapshot with your name and words.
 
-**Discard changes** throws away the edits that are not in a version yet and
-starts the draft again from the last saved version.
+**Discard changes** throws away edits not in a version yet and restarts the
+draft from the last saved version.
 
 ### Collaborators
 
-A change belongs to its author. The author invites people with **Invite
-collaborator…** and removes them with **Remove**; the author cannot be
-removed. Collaborators edit, save versions, bring in newer text and send the
-change for review. Anyone else who opens the change reads it (_You're viewing
-someone else's proposed change._) and can ask the author for an invitation.
+A change belongs to its author, who invites people with **Invite
+collaborator…** and removes them with **Remove** (the author cannot be
+removed). Collaborators edit, save versions, bring in newer text and send the
+change for review. Anyone else reads it (_You're viewing someone else's
+proposed change._) and can ask the author for an invitation.
 
 ## Send for review
 
-**Send for review** proposes what the change has saved. While you have edits
-that are not in a version yet it is unavailable: save or discard them first.
+**Send for review** proposes what the change has saved. It is unavailable
+while you have edits not in a version: save or discard them first.
 
 1. Choose what to **Apply to**: the current specification by default, or
    another change. The form says whether it _Applies cleanly_ or has
@@ -132,14 +127,13 @@ that are not in a version yet it is unavailable: save or discard them first.
    can approve it. A draft becomes reviewable with **Ready for review**;
    **Convert to draft** takes it back.
 
-When the change applies to the specification, the required reviews of the
-current revision are copied onto it, so the same disciplines are asked again.
-Add more with **Add a reviewing discipline…** and **Request** (they are always
-required). The review's author and the change's collaborators manage it: they
-mark it as a draft or ready, resolve its conflicts and, when their discipline
-can request reviews, add reviewers.
+When the change applies to the specification, the current revision's
+required reviews are copied onto it. Add more with **Add a reviewing
+discipline…** and **Request** (always required). The review's author and the
+change's collaborators manage it: they mark it as a draft or ready, resolve
+its conflicts and, when their discipline can request reviews, add reviewers.
 
-New versions of the change are added to its open review automatically and ask
+New versions of the change join its open review automatically and ask
 reviewers to approve again.
 
 ## Review a proposed change
@@ -163,25 +157,23 @@ the discipline decides with **Approve** or **Request changes**, and can
 ### Approvals bind to the result
 
 An approval records the exact result the reviewer inspected: the resulting
-title, content and breakdown. Approving a change to the specification
-approves the whole specification as it reads once the change applies, not
-only the change, so applying it records that discipline's approval of the new
-revision; the reviewer row says so beside **Approve**. _Approvals cover the
-whole specification as it would read after this change; applying records
-them as approvals of revision 4. A new version of this change, or a new
-revision of the specification, asks reviewers again._ A change that leaves
-the result identical keeps the approval.
+title, content and breakdown. It approves the whole specification as it reads
+once the change applies, not only the change, so applying records that
+discipline's approval of the new revision (_Counts as Engineering's approval
+of revision 4._ beside **Approve**). A new version of the change, or a new
+revision of the specification, asks reviewers again; a change that leaves the
+result identical keeps the approval.
 
 People who saved versions of the change cannot approve it (_Contributors
-cannot approve their own changes._), unless they are the organization's only
-member. Another member of the discipline approves instead.
+cannot approve their own changes._) unless they are the organization's only
+member; another member of the discipline approves instead.
 
 ### Discuss a change
 
-Discussions on a review belong to it, not to the specification's panel. Start
-one in **Conversation**, or with **Discuss this change** in **Changes**. Tick
-**Blocks applying** for something that must be settled before the change
-applies. These discussions are attached to the change's latest version.
+Discussions on a review belong to it, not to the specification's panel, and
+attach to the change's latest version. Start one in **Conversation**, or with
+**Discuss this change** in **Changes**. Tick **Blocks applying** for what must
+be settled before the change applies.
 
 ## Apply
 
@@ -203,13 +195,12 @@ to create the items**):
 
 A project may also require a passing Lictory Actions check.
 
-**Apply change** is available, once nothing is in the way, to people whose
+Once nothing is in the way, **Apply change** is available to people whose
 discipline can edit specifications (to the specification) or to the other
-change's collaborators (to another change). Applying a change to the
-specification:
+change's collaborators (to another change). Applying to the specification:
 
-- creates the next revision of the specification (_Applying makes this result
-  revision 5 of the specification._);
+- creates the next revision of the specification (_Creates revision 5.
+  Approvals carry over._);
 - records every valid approval of the review as an approval of that revision,
   so nobody approves the same text twice
   ([approvals](/review/approvals#carried-approvals));
@@ -217,17 +208,17 @@ specification:
 - closes the change, unless another open review still uses it.
 
 The item's activity says what each new revision did to the approvals in
-force: which became outdated, or that they carried over because the text did
-not change.
+force: which became outdated, or that they carried over because the text was
+unchanged.
 
 Applying to another change adds a version to that change only.
 
 ## Conflicts
 
-When the change and the specification both changed since the change started,
+When both the change and the specification changed since the change started,
 Lictory combines edits that do not overlap. Overlapping edits become
-conflicts, which are never combined silently. The change cannot be reviewed or
-applied until they are resolved.
+conflicts, never combined silently; the change cannot be reviewed or applied
+until they are resolved.
 
 1. In the requirements box, choose **Resolve conflicts** (the author and the
    change's collaborators).
@@ -240,16 +231,16 @@ applied until they are resolved.
    **Discard my changes** settle every conflict at once.
 
 The resolution is a new version of the change, so reviewers approve the new
-result. If either side moved while you were resolving, Lictory refuses rather
-than guess (_The change or the specification changed. Inspect the updated
-result before continuing._).
+result. If either side moved while you were resolving, Lictory refuses (_The
+change or the specification changed. Inspect the updated result before
+continuing._).
 
 ### Bring in newer text
 
-A long-lived change can take in what changed in the specification meanwhile:
-under **Bring in newer text**, choose where from and **Compare & update**.
-Without conflicts it adds a version; with conflicts you resolve them in the
-same way, then **Save the update**.
+To take in what changed in the specification meanwhile, choose where from
+under **Bring in newer text** and **Compare & update**. Without conflicts it
+adds a version; with conflicts, resolve them as above, then **Save the
+update**.
 
 ## Delete
 
@@ -259,9 +250,9 @@ same way, then **Save the update**.
   withdraw it from review first.
 - **Withdraw from review** (its author, or a specification editor) stops a
   review that has not applied: reviewers are no longer asked and its open
-  discussions are resolved so none is left hanging. The change and its
-  versions are kept, so you can send it for review again. An applied review
-  stays on the item: it records who approved which result.
+  discussions are resolved. The change and its versions are kept, to send
+  for review again. An applied review stays on the item as the record of who
+  approved which result.
 
 A deleted change is not restored: start a new one instead.
 
@@ -296,11 +287,11 @@ the Git names (`createBranch`, `createPullRequest`, `mergePullRequest`):
 
 ## Tips
 
-- Keep one concern per change. A small change is reviewed quickly, and its
-  approval is less likely to go stale.
+- Keep one concern per change: small changes are reviewed quickly and their
+  approvals rarely go stale.
 - Write the description for the reviewer who was not in the conversation:
   what changes, why, and what to look at first.
 - Bring a long-lived change up to date before asking for review, so reviewers
-  approve the result that will actually apply.
+  approve the result that will apply.
 - When a review finds a gap in a page your specification cites, propose the
   page update too ([knowledge in work](/knowledge/in-work)).

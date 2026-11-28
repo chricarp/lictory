@@ -345,7 +345,7 @@ export function ExportDialog({
           >
             {publication && results && plan
               ? summary(publication, results, plan.entries, tool.name)
-              : `Only ready specifications are handed off, with their children. Summary, description (latest revision with acceptance criteria) and labels are written to ${tool.name}; status, assignee and sprint stay owned by ${tool.name}.`}
+              : `Writes summary, description (latest revision with acceptance criteria) and labels to ${tool.name}. Status, assignee and sprint stay with ${tool.name}.`}
           </DialogDescription>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -536,9 +536,9 @@ function summary(
     (counts.get("unchanged") ?? 0);
   const next =
     p.status === "running"
-      ? " Lictory will finish the remaining items shortly."
+      ? " Finishing the rest shortly."
       : counts.get("failed") || counts.get("conflict")
-        ? ` ${done ? `The ${done} ${done === 1 ? "item" : "items"} in ${tool} stay as they are. ` : ""}Retry hands off what is missing, with the children that wait for it, and never creates an issue twice.`
+        ? ` ${done ? `The ${done} in ${tool} stay as they are. ` : ""}Retrying never creates an issue twice.`
         : "";
   return `${parts.join(", ")}.${next}`;
 }
@@ -715,14 +715,14 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
       ) : (
         <p className="text-[13px] text-muted-foreground">
           {!availability.configured
-            ? `This project has no hand-off target in ${tool.name} yet.`
+            ? `No hand-off target in ${tool.name}`
             : ready
               ? "Not handed off yet."
               : spec
-                ? "Can be handed off once the specification is ready."
+                ? "Specification not ready"
                 : parentKey
-                  ? `Goes to ${tool.name} with ${parentKey}: hand off ${parentKey} to bring it along.`
-                  : `Goes to ${tool.name} with the item it belongs to.`}
+                  ? `Goes to ${tool.name} with ${parentKey}`
+                  : `Goes to ${tool.name} with its parent`}
         </p>
       )}
       {availability.allowed && availability.configured && (

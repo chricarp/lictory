@@ -233,7 +233,7 @@ function AiSettingsReadOnly({ view }: { view: AiSettingsView }) {
         title="AI providers"
         description={
           view.source === "environment"
-            ? "Set in the server's environment, which takes precedence over this console."
+            ? "Set in the server's environment, which overrides this console."
             : "The operator turned off AI configuration in this console (LICTORY_AI_CONSOLE=false)."
         }
         action={<CheckButton />}
@@ -245,7 +245,7 @@ function AiSettingsReadOnly({ view }: { view: AiSettingsView }) {
               sudo lictory config set LICTORY_AI_…
             </code>
             . Remove every LICTORY_AI_* and OPENAI_API_KEY setting to manage
-            them here instead.
+            them here.
           </>
         }
       >
@@ -379,7 +379,7 @@ function Report({ report }: { report: AiCheckReport }) {
       ))}
       <p className="text-muted-foreground">
         {report.ok
-          ? "These providers work with Lictory Intelligence. The check uses synthetic content; it does not measure quality."
+          ? "These providers work with Lictory Intelligence."
           : report.text.state === "configured"
             ? "Some Lictory Intelligence features will fail with these settings."
             : "No language model is configured: Lictory Intelligence is off."}
@@ -457,9 +457,7 @@ function AiSettingsForm({
         );
       else {
         await adminRequest("/ai", { method: "PUT", body });
-        onSaved(
-          "Saved. The API and workers use these settings within seconds; organizations see the new provider in their settings.",
-        );
+        onSaved("Saved. Takes effect within seconds.");
       }
     } catch (e) {
       setError(message(e));
@@ -474,7 +472,7 @@ function AiSettingsForm({
         id="ai-provider"
         icon={<Sparkles />}
         title="Language model"
-        description="Reviews, proposal intake and Litto use it once an organization turns Lictory Intelligence on. Requests go only to this provider; there is no fallback."
+        description="For reviews, proposal intake and Litto. No fallback provider."
       >
         <ProviderEditor
           part="text"
@@ -488,7 +486,7 @@ function AiSettingsForm({
         id="ai-dictation"
         icon={<Mic />}
         title="Dictation"
-        description="Speech to text in the Litto composer. Live dictation streams from the browser to OpenAI; every other provider receives short clips through this server, which keeps nothing."
+        description="Live dictation streams from the browser to OpenAI; other providers get short clips through this server, which keeps nothing."
       >
         <DictationEditor
           form={form}
@@ -499,12 +497,7 @@ function AiSettingsForm({
           }
         />
       </SettingsSection>
-      <SettingsSection
-        id="ai-advanced"
-        icon={<Server />}
-        title="Requests"
-        description="How long one structured call may take, retries included. Raise it for slow self-hosted hardware."
-      >
+      <SettingsSection id="ai-advanced" icon={<Server />} title="Requests">
         <SettingsBody className="text-[13px]">
           <label className="block max-w-xs">
             <span className="font-medium">Timeout (seconds)</span>
@@ -518,7 +511,7 @@ function AiSettingsForm({
               }
             />
             <span className="mt-1 block text-xs text-muted-foreground">
-              30 to 480. Review runs end a minute later.
+              Per structured call, retries included. 30 to 480.
             </span>
           </label>
         </SettingsBody>
@@ -819,7 +812,7 @@ function Fields({
                   spellCheck={false}
                   placeholder={
                     stored
-                      ? "Stored. Type a new value to replace it."
+                      ? "Stored. Type to replace."
                       : f === "baseUrl"
                         ? (spec.defaultBaseUrl ?? "https://…")
                         : f === "model"

@@ -84,9 +84,7 @@ export function TeamBacklog() {
             See the project&apos;s teams
           </Button>
         }
-      >
-        It may belong to another project, or the link is out of date.
-      </MissingState>
+      />
     );
   return <TeamBacklogView project={project} team={team} />;
 }
@@ -361,19 +359,10 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                     {backlog.length} {backlog.length === 1 ? "item" : "items"}
                     {showPoints && ` · ${points(backlog)} pts`}
                   </span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {native
-                      ? usesIterations
-                        ? "Taken on, not yet in a sprint or cycle"
-                        : "Taken on, ranked by priority"
-                      : "Taken on, not yet handed off"}
-                  </span>
                 </div>
                 {backlog.length === 0 ? (
                   <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-                    {intake.length && canTriage
-                      ? "Nothing waiting. Take work from the project below, or create an item for the team."
-                      : "Nothing waiting for this team."}
+                    Nothing waiting
                   </p>
                 ) : (
                   <ul className="border-t">
@@ -516,14 +505,10 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {intake.length} {intake.length === 1 ? "item" : "items"}
                   </span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {project.name} work no team has taken
-                  </span>
                 </div>
                 {intake.length === 0 ? (
                   <p className="border-t px-4 py-4 text-[13px] text-muted-foreground">
-                    Every open item of {project.name} belongs to a team or is
-                    planned.
+                    Every open item has a team
                   </p>
                 ) : (
                   <ul className="border-t">
@@ -566,17 +551,14 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
               </section>
               {!canTriage && (
                 <p className="text-xs text-muted-foreground">
-                  Ranking, taking and planning work needs a discipline in{" "}
-                  {project.name} that can change properties.
+                  Ranking, taking and planning need a discipline that can change
+                  properties.
                 </p>
               )}
             </>
           )}
           {!open.length && view.status !== "hydrating" && (
-            <EmptyState illustration="planning" title="No open work yet">
-              Create items for {team.name}, or take them from {project.name} as
-              they come in.
-            </EmptyState>
+            <EmptyState illustration="planning" title="No open work yet" />
           )}
         </div>
       </div>

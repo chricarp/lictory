@@ -203,8 +203,8 @@ function SessionCard({
         <p className="flex items-center gap-1.5 border-t px-3 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
           <Hand className="size-3.5 shrink-0" aria-hidden />
           {decider === "you"
-            ? `${card.agentName} waits for your next message: reply in this thread.`
-            : `${card.agentName} waits for ${firstName(decider)}’s next message.`}
+            ? `${card.agentName} waits for your reply.`
+            : `${card.agentName} waits for ${firstName(decider)}’s reply.`}
         </p>
       )}
       {/* Where the files themselves are not listed, the card still says
@@ -217,8 +217,7 @@ function SessionCard({
             <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
             Not kept:{" "}
             {discardedFiles === 1 ? "1 file" : `${discardedFiles} files`}{" "}
-            discarded when the session ended, because no repository is linked to
-            it.
+            discarded. No repository is linked.
           </p>
         )}
       {status === "completed" && summary && (
@@ -352,7 +351,7 @@ function SessionControls({
         <Button
           size="sm"
           variant="secondary"
-          title="Stops its turn; it waits for your next message."
+          title="Stops its current turn"
           onClick={act("interruptAgentSession", "Interrupting")}
         >
           <Hand className="size-3.5" aria-hidden /> Interrupt
@@ -445,8 +444,7 @@ function LiveProgress({
             <span className="font-mono font-normal wrap-anywhere">
               {files.map((f) => f.path).join(", ")}
             </span>
-            ) discarded when the session ended, because no repository is linked
-            to it.
+            ) discarded. No repository is linked.
           </span>
         </p>
       )}
@@ -533,8 +531,8 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
         {onCard ? (
           <p className="mt-0.5 text-xs text-muted-foreground">
             {mayDecide
-              ? `Waiting on you: answer it on ${approval.agentName}’s session card above.`
-              : `${deciders.join(" or ")} decides, on ${approval.agentName}’s session card above.`}
+              ? "Waiting on you. Answer on the session card above."
+              : `${deciders.join(" or ")} decides on the session card above.`}
           </p>
         ) : pending ? (
           mayDecide ? (
@@ -560,7 +558,7 @@ function ApprovalCard({ card: approval }: { card: ApprovalCardPayload }) {
                 ? `Denied by ${memberName(approval.decidedById)}`
                 : approval.status === "answered"
                   ? `Answered by ${memberName(approval.decidedById)}`
-                  : "Expired: the session ended before anyone answered."}
+                  : "Expired before anyone answered"}
             {approval.note ? `: “${approval.note}”` : ""}
           </p>
         )}

@@ -84,7 +84,6 @@ export function AgentPage() {
         {/* A just-created agent arrives through sync a moment later. */}
         {complete && !hasHandedOverSecret(agentId) ? (
           <EmptyState title="This agent does not exist">
-            It may belong to another organization.{" "}
             <Link href={back.href} className="underline">
               Back to agents
             </Link>
@@ -216,9 +215,7 @@ export function AgentPage() {
                   title="Connection"
                   empty={
                     <>
-                      Only <Actor userId={agent.ownerId} size={16} /> connects{" "}
-                      {agent.name} and decides what wakes it: its tokens act
-                      with their permissions.
+                      Managed by <Actor userId={agent.ownerId} size={16} />
                     </>
                   }
                 />
@@ -257,17 +254,12 @@ function About({ agent }: { agent: AgentEntity }) {
   const facts: [string, ReactNode][] = [
     [
       "Owner",
-      // The accountable person is never the part that is cut: on a
-      // narrow screen the explanation wraps below the name instead.
-      <span
+      <Actor
         key="owner"
-        className="inline-flex flex-wrap items-center gap-x-1.5"
-      >
-        <Actor userId={agent.ownerId} size={16} className="shrink-0" />
-        <span className="text-muted-foreground">
-          · acts with their permissions
-        </span>
-      </span>,
+        userId={agent.ownerId}
+        size={16}
+        className="shrink-0"
+      />,
     ],
     ["Kind", agentKindLabel(agent)],
     ...(agent.model
@@ -292,9 +284,7 @@ function About({ agent }: { agent: AgentEntity }) {
           ["Without asking", <WithoutAsking key="asking" agent={agent} />],
           [
             "Sessions",
-            agent.shared
-              ? "Anyone in the organization may start them"
-              : "Only its owner starts them",
+            agent.shared ? "Anyone in the organization" : "Owner only",
           ],
         ] as [string, ReactNode][])
       : []),
@@ -344,7 +334,7 @@ function ClaimedWork({ agent }: { agent: AgentEntity }) {
       title="Claimed work"
       icon={<Hand />}
       count={held.length}
-      empty={`${agent.name} holds no work item now.`}
+      empty="No claimed work"
     >
       {held.map(({ claim, item, project }) => {
         const key = identifier(project, item.number);
@@ -436,8 +426,7 @@ function WithoutAsking({ agent }: { agent: AgentEntity }) {
   if (!able.length)
     return (
       <span className="text-muted-foreground">
-        Unknown until a runner with {harness} connects: each runner’s
-        configuration decides it.
+        Unknown until a runner with {harness} connects
       </span>
     );
   const said = able.map((r) => ({
@@ -445,7 +434,7 @@ function WithoutAsking({ agent }: { agent: AgentEntity }) {
     text: withoutAsking(id, r.harnesses.find((h) => h.id === id)?.permissions),
   }));
   const distinct = new Set(said.map((s) => s.text));
-  const unknown = `Unknown: ${distinct.size === 1 && able.length > 1 ? "its runners do" : "the runner does"} not report it (an older runner version). The runner’s configuration decides what ${harness} does without asking.`;
+  const unknown = "Unknown: not reported (older runner version)";
   if (distinct.size === 1) return <span>{said[0]!.text ?? unknown}</span>;
   return (
     <ul className="space-y-1">
@@ -519,11 +508,7 @@ function RecentActivity({ agent }: { agent: AgentEntity }) {
       title={agent.kind === "runner" ? "Actions in Lictory" : "Recent activity"}
       icon={<Activity />}
       count={calls.length}
-      empty={
-        agent.kind === "runner"
-          ? `None yet: ${agent.name} has not called Lictory with its tokens. Work it holds is under Claimed work, and its work in each session is in that session’s transcript.`
-          : `${agent.name} has not called Lictory with its tokens yet.`
-      }
+      empty="No calls yet"
     >
       {calls.map((call) => (
         <ListRow

@@ -10,14 +10,11 @@ choice:
   Litto and conversation titles;
 - optionally, a **speech-to-text model** for dictation in the Litto composer.
 
-Either can be a cloud service or an open-weight model your company runs on
-its own hardware. Without a language model, Lictory Intelligence is off and
-everything else works. Each organization still decides, in Settings →
-Lictory Intelligence, whether its content may be sent.
-
-This runbook covers choosing, connecting and checking providers. How Lictory
-uses the model, and the guarantees around it, are in
-[Lictory Intelligence internals](https://github.com/chricarp/lictory/blob/main/docs/internals/ai.md#providers).
+Either can be a cloud service or an open-weight model on your own hardware.
+Without a language model, Lictory Intelligence is off and everything else
+works. Each organization decides, in Settings → Lictory Intelligence, whether
+its content may be sent. How Lictory uses the model, and the guarantees around
+it: [Lictory Intelligence internals](https://github.com/chricarp/lictory/blob/main/docs/internals/ai.md#providers).
 
 ## Supported providers
 
@@ -42,13 +39,13 @@ uses the model, and the guarantees around it, are in
 | llama.cpp server (`llamacpp`)                 | Self-hosted            | Any model name                                                                                                                                                          |
 | Other OpenAI-compatible (`openai-compatible`) | Self-hosted or gateway | A base URL with `/chat/completions` and a model (LocalAI, SGLang, TGI, LiteLLM…)                                                                                        |
 
-Every feature needs JSON that matches a schema (reviews, intake, titles) and
+Every feature needs JSON that matches a schema (reviews, intake, titles), and
 Litto needs streamed tool calls. The cloud providers above support both with
-current models. With a self-hosted server it depends on the server **and**
-the model: choose one that calls tools, and [check](#check-the-connection)
-before turning it on for organizations. DeepSeek and servers without JSON
-schema support use JSON mode: the schema is written into the instructions
-and the answer is still validated.
+current models. Self-hosted, it depends on the server **and** the model:
+choose one that calls tools, and [check](#check-the-connection) before turning
+it on for organizations. DeepSeek and servers without JSON schema support use
+JSON mode: the schema goes into the instructions and the answer is still
+validated.
 
 ### Dictation
 
@@ -70,29 +67,29 @@ and the answer is still validated.
 - **Live** (OpenAI Realtime): words appear while people speak. Audio goes
   from the browser straight to OpenAI and never through your server.
 - **Recorded clips** (every other provider): the browser cuts speech into
-  short clips at each pause (16 kHz WAV, at most 12 seconds) and sends them to
-  your server, which sends each to the provider and returns its words. Audio
-  is held in memory for one request and never stored or logged. A clip that
-  fails is tried once more; if the provider cannot keep up, dictation stops
-  and keeps what it transcribed. Each clip may take as long as the request
-  timeout (at least 30 seconds, at most 2 minutes), so slow self-hosted
-  Whisper servers can be given time.
+  clips at each pause (16 kHz WAV, at most 12 seconds) and sends them to your
+  server, which forwards each to the provider and returns its words. Audio is
+  held in memory for one request, never stored or logged. A failed clip is
+  tried once more; if the provider cannot keep up, dictation stops and keeps
+  what it transcribed. Each clip may take up to the request timeout (30
+  seconds to 2 minutes), so slow self-hosted Whisper servers can be given
+  time.
 
 ![Litto's composer after dictation: the words the provider transcribed are in the draft, ready to edit before sending](/screenshots/litto-dictation.webp)
 
 When dictation uses the same vendor as the language model (OpenAI and
-OpenAI, Azure and Azure, Groq and Groq…), fields you leave empty reuse the
-language model's endpoint (so a gateway in front of the vendor serves both),
-project and sign-in. Sign-in is reused whole or not at all: give dictation
-any credential of its own (a key, or a Microsoft Entra service principal with
+OpenAI, Azure and Azure, Groq and Groq…), empty fields reuse the language
+model's endpoint (so a gateway in front of the vendor serves both), project
+and sign-in. Sign-in is reused whole or not at all: give dictation a
+credential of its own (a key, or a Microsoft Entra service principal with
 `LICTORY_TRANSCRIPTION_AZURE_*`) and it uses only that. Google speech never
-reuses an express-mode API key. The default (**Automatic**) is
-live OpenAI dictation when text goes to OpenAI's own API, otherwise none.
+reuses an express-mode API key. **Automatic** (the default) is live OpenAI
+dictation when text goes to OpenAI's own API, otherwise none.
 
 ## Three ways to configure
 
 1. **The admin console** (`<your address>/admin/ai`, instance
-   administrators): choose providers from a list, fill in what each needs,
+   administrators): choose providers, fill in what each needs,
    **Test before saving**, **Save**. Keys are stored encrypted and never shown
    again.
 2. **`sudo lictory ai setup`** on the server: the same choices and test in the
@@ -104,35 +101,32 @@ live OpenAI dictation when text goes to OpenAI's own API, otherwise none.
    variable is set (including the legacy `OPENAI_API_KEY`), the environment
    wins and the console and `lictory ai setup` are read-only.
 
-Existing installations need no change: `OPENAI_API_KEY` alone still selects
-OpenAI (with `OPENAI_BASE_URL`, if set) and live dictation. To manage AI in
-the console instead, remove the AI variables from `.env`
-(`sudo lictory config unset OPENAI_API_KEY …`) and set the provider up again
-in the console. `LICTORY_AI_CONSOLE=false` turns console configuration off:
-then only the environment configures AI.
+`OPENAI_API_KEY` alone still selects OpenAI (with `OPENAI_BASE_URL`, if set)
+and live dictation. To manage AI in the console instead, remove the AI
+variables from `.env` (`sudo lictory config unset OPENAI_API_KEY …`) and set
+the provider up again in the console. `LICTORY_AI_CONSOLE=false` turns console
+configuration off, leaving only the environment.
 
 Nothing falls back: requests go only to the providers you chose. When one is
-unreachable or refuses, the feature fails with a message that names what to
-check, and nothing is retried elsewhere.
+unreachable or refuses, the feature fails with a message naming what to check,
+and nothing is retried elsewhere.
 
 ## In the admin console
 
 ![The admin console's AI providers: Anthropic as the language model with its key stored, Deepgram for dictation, the timeout, and the Save, Test before saving and Check what is saved buttons](/screenshots/admin-ai-providers.webp)
 
 1. Open **Admin console → AI providers**.
-2. **Language model**: choose the provider. The form shows only what it
-   needs, a link to get a key, the model suggestions and notes.
+2. **Language model**: choose the provider and fill in what it needs.
 3. **Dictation**: **Automatic**, **Off**, or a provider.
 4. **Test before saving** sends synthetic content (never organization data)
    through every feature and shows what passed. Nothing is saved.
 5. **Save**. The API and workers use the new settings within ten seconds,
-   without a restart, and organizations see the new provider in their
-   settings.
+   without a restart; organizations see the new provider in their settings.
 
 ![A self-hosted setup: Ollama with its endpoint on the same machine, the model qwen3:32b and the notes on how to run it, and Speaches (faster-whisper) for dictation](/screenshots/admin-ai-self-hosted.webp)
 
-Leave a key empty to keep the stored one; **Remove** deletes it. Switching to
-another provider never sends the previous provider's key to it. Every change
+Leave a key empty to keep the stored one; **Remove** deletes it. Switching
+providers never sends the previous provider's key to the new one. Every change
 is recorded in the admin console's **Activity**, without keys.
 
 ## In the terminal
@@ -192,9 +186,9 @@ sudo lictory config set LICTORY_AI_PROVIDER=azure LICTORY_AI_API_KEY=<key> \
 
 ### Where is "localhost"?
 
-Lictory's API and worker run in containers. Inside a container, `localhost`
-is the container itself, not the machine. Lictory warns (at startup and in the
-console) when an endpoint points there.
+The API and worker run in containers, where `localhost` is the container
+itself, not the machine. Lictory warns (at startup and in the console) when an
+endpoint points there.
 
 - **On the same machine:** use `host.docker.internal` (the self-hosted
   presets do) and set `LICTORY_HOST_MODEL_SERVER=true`, which maps it to the
@@ -208,9 +202,9 @@ setup` offers it before testing, and the console warns beside a
   worker share.
 
 Use `https` for anything that leaves the machine; Lictory warns about plain
-`http` to an address that does not look private. Endpoints entered in the
-console may be public or private but never link-local or cloud metadata
-addresses (where the machine's own credentials live).
+`http` to an address that does not look private. Console endpoints may be
+public or private, never link-local or cloud metadata addresses (where the
+machine's own credentials live).
 
 ### Language models
 
@@ -242,8 +236,8 @@ Clips are 16 kHz mono WAV, which every server above reads without ffmpeg.
 ## Check the connection
 
 **Test before saving** and **Check connection** in the console, and
-`lictory ai check` on the server, send synthetic content through Lictory's
-real code paths and report each:
+`lictory ai check` on the server, send synthetic content through the real code
+paths and report:
 
 1. **Structured output:** a review of a toy item with the real review schema.
 2. **Streamed tool call:** what Litto does in each step.
@@ -253,10 +247,10 @@ real code paths and report each:
 
 ![The check of what is saved: structured output, a streamed tool call, an answer after a tool result and dictation all passed](/screenshots/admin-ai-check.webp)
 
-A pass means the providers and models are compatible today. It does not
-measure quality, long documents or how well a model follows instructions;
-try a few real reviews before relying on it. Checks store nothing, run one at
-a time and at most every ten seconds.
+A pass means the providers and models are compatible today, not that the
+quality, long documents or instruction following are good: try a few real
+reviews before relying on it. Checks store nothing, run one at a time and at
+most every ten seconds.
 
 ## Privacy and security
 
@@ -273,7 +267,7 @@ a time and at most every ten seconds.
   again in the console.
 - Only instance administrators change providers; only organization
   administrators decide whether their organization uses them.
-- Changing a provider applies to queued reviews and later turns of existing
+- A provider change applies to queued reviews and later turns of existing
   conversations. Tell organization administrators before you switch.
 
 ## Troubleshooting

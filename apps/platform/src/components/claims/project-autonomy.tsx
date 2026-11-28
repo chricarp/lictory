@@ -26,6 +26,7 @@ import { useCodeHosts } from "@lictory/platform/components/code/store";
 import { AgentActor } from "@lictory/platform/components/identity/actor";
 import {
   InlineError,
+  LearnMore,
   SettingsBody,
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
@@ -141,7 +142,7 @@ export function ProjectAutonomy({
       setNotice(
         `Saved: ${autonomyLevelMeta[result.level].label}.${
           result.claimsInFlight && lowering
-            ? ` ${plural(result.claimsInFlight, "claim")} in flight continue; release them from the Factory queue if they should stop.`
+            ? ` ${plural(result.claimsInFlight, "claim")} in flight continue.`
             : ""
         }`,
       );
@@ -160,19 +161,17 @@ export function ProjectAutonomy({
         id="autonomy"
         icon={<Bot />}
         title="Autonomy"
-        description="How much the factory does by itself here; specification decisions stay with people at every level."
-        learnMore="autonomy"
+        description={<LearnMore page="autonomy" />}
         footer={
           loaded.updatedAt && loaded.updatedById
-            ? `Version ${loaded.version}, set by ${memberName(loaded.updatedById)} ${relativeTime(loaded.updatedAt)}. Every change is recorded in the audit log.`
-            : "Never changed: Assist is the default. Every change is recorded in the audit log."
+            ? `Version ${loaded.version}, set by ${memberName(loaded.updatedById)} ${relativeTime(loaded.updatedAt)}`
+            : "Never changed: Assist is the default."
         }
       >
         <SettingsBody className="space-y-5">
           {external && (
             <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-              This project hands work off to another tool, so the level stays at
-              Assist: Build and Autopilot need delivery in Lictory.
+              Build and Autopilot need delivery in Lictory.
             </p>
           )}
           <Field label="Level">
@@ -192,20 +191,16 @@ export function ProjectAutonomy({
               dispatched, so no agents, reviewer, limit or channel to set. */}
           {!external && (
             <>
-              <Field
-                label="Implementer agents"
-                hint="Sessions go to these agents in rank order, each with its person's permissions."
-              >
+              <Field label="Implementer agents" hint="Dispatched in this order">
                 {runners.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
-                    No runner agents are available to this project.{" "}
+                    No runner agents for this project.{" "}
                     <Link
                       href={`/${organization.slug}/factory`}
                       className="underline underline-offset-2 hover:text-foreground"
                     >
                       Add one under Factory
-                    </Link>{" "}
-                    before choosing Build or Autopilot.
+                    </Link>
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
@@ -260,9 +255,6 @@ export function ProjectAutonomy({
                       </DropdownSelectOption>
                     ))}
                   </DropdownSelect>
-                  <span className="text-xs text-muted-foreground">
-                    Reviews the implementers’ pull requests.
-                  </span>
                   <ColleagueReviewer
                     agent={eligible.find((a) => a.id === draft.reviewerAgentId)}
                   />
@@ -287,9 +279,6 @@ export function ProjectAutonomy({
                       </DropdownSelectOption>
                     ))}
                   </DropdownSelect>
-                  <span className="text-xs text-muted-foreground">
-                    At most this many agents work in the project at once.
-                  </span>
                 </label>
                 <label className="grid content-start gap-1.5 text-[13px] sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
                   <span className="font-medium">Report to channel</span>
@@ -311,8 +300,7 @@ export function ProjectAutonomy({
                     ))}
                   </DropdownSelect>
                   <span className="text-xs text-muted-foreground">
-                    Dispatched sessions post their live card there; agents’
-                    questions are announced there.
+                    Session cards and agents’ questions
                   </span>
                 </label>
               </div>
@@ -321,7 +309,7 @@ export function ProjectAutonomy({
           {draft.level === "autopilot" && (
             <Field
               label="Before an automatic merge"
-              hint="Lictory merges only when these pass on the pull request's head commit."
+              hint="On the pull request's head commit"
             >
               <ul className="space-y-1.5">
                 {autopilotRequirements.map((requirement) => (
@@ -344,7 +332,7 @@ export function ProjectAutonomy({
                       {autopilotRequirementLabels[requirement]}
                       {requirement === "checks_passed" && (
                         <span className="text-xs text-muted-foreground">
-                          always; a commit with no reported checks waits
+                          always; waits until checks are reported
                         </span>
                       )}
                     </label>
@@ -363,13 +351,11 @@ export function ProjectAutonomy({
                     className="mt-px size-3.5 shrink-0 text-warning"
                   />
                   <span>
-                    Without the reviewer agent’s approval, Autopilot merges an
-                    agent’s pull request that nobody reviewed as soon as CI
-                    passes
+                    Autopilot merges unreviewed pull requests once CI passes
                     {draft.autopilotRequires.includes("definition_of_done")
-                      ? " and the other Definition of Done checks pass"
+                      ? " and the Definition of Done passes"
                       : ""}
-                    . Every merge is attributed to this policy and you.
+                    .
                   </span>
                 </p>
               )}
@@ -379,21 +365,21 @@ export function ProjectAutonomy({
           {loaded.claimsInFlight > 0 && (
             <p className="text-[13px] text-muted-foreground">
               {plural(loaded.claimsInFlight, "claim")} in flight
-              {loaded.waiting ? ` (${loaded.waiting} waiting on people)` : ""}.
-              Changing the level never releases them;{" "}
+              {loaded.waiting ? ` (${loaded.waiting} waiting on people)` : ""},
+              kept when the level changes. Release them in{" "}
               <Link
                 href={paths.factoryQueue(organization.slug, project.key)}
                 className="underline underline-offset-2 hover:text-foreground"
               >
                 the Factory queue
-              </Link>{" "}
-              lets people release them.
+              </Link>
+              .
             </p>
           )}
           {editable && (
             <div className="flex flex-wrap items-center gap-2">
               <Button disabled={!changed || saving} onClick={() => void save()}>
-                {saving ? "Saving…" : "Save policy"}
+                {saving ? "Saving…" : "Save"}
               </Button>
               {changed && (
                 <Button variant="ghost" onClick={() => setDraft(loaded.policy)}>
@@ -415,7 +401,6 @@ export function ProjectAutonomy({
           id="autonomy-history"
           icon={<History />}
           title="History"
-          description="Who changed the policy and what it was before. Restoring saves the earlier policy as a new version."
         >
           <ul className="divide-y">
             {loaded.history.map((entry) => (
@@ -484,8 +469,8 @@ function ColleagueReviewer({
         className="mt-px size-3.5 shrink-0 text-warning"
       />
       <span>
-        {agent.name} acts for {owner}: its reviews are recorded as “{agent.name}{" "}
-        via {owner}”. Saving does not ask {owner}; agree it with them first.
+        Its reviews are recorded as “{agent.name} via {owner}”. Check with{" "}
+        {owner} first.
       </span>
     </span>
   );
@@ -510,8 +495,8 @@ function SilentRepositories({ projectId }: { projectId: string }) {
       />
       <span>
         {linked.length === 0
-          ? "No repository is linked to this project, so there is nothing for Autopilot to merge yet."
-          : `${silent.map((r) => r.fullName).join(", ")} ${silent.length === 1 ? "has" : "have"} never reported a CI check. Autopilot waits for passing checks on the head commit, so it will not merge there until CI reports.`}
+          ? "No repository is linked to this project."
+          : `${silent.map((r) => r.fullName).join(", ")} ${silent.length === 1 ? "has" : "have"} never reported a CI check, so Autopilot will not merge there.`}
       </span>
     </p>
   );

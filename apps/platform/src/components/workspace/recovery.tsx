@@ -126,8 +126,8 @@ export function RecoveryList({ entries }: { entries: RecoveryEntry[] }) {
     <div className="flex flex-col gap-2 border-t pt-3">
       <p className="font-medium">Not saved</p>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        These changes were not applied. Their text is kept on this device: copy
-        it to try again, or discard it.
+        These changes were not applied. Copy the text to try again, or discard
+        it.
       </p>
       <ul className="flex flex-col gap-2">
         {entries.map((entry) => {

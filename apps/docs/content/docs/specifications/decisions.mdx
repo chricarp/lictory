@@ -3,11 +3,11 @@ title: Record decisions
 description: Keep the conclusions a team reaches during refinement as durable records, with their author, revision and source discussion, and cite them in specifications and pages.
 ---
 
-Discussions are transient; conclusions should not be. A **decision** is a
-durable record of something the team agreed (_Retries reuse the original
-idempotency key_), with who recorded it, the revision it was recorded on and,
-when it came from one, the discussion that led to it. Months later anyone can
-find it, read why, and see which text it was agreed against.
+A **decision** is a durable record of something the team agreed (_Retries
+reuse the original idempotency key_), with who recorded it, the revision it
+was recorded on and, when there is one, the discussion that led to it. Months
+later anyone can find it, read why, and see which text it was agreed
+against.
 
 ![A decision on PAY-2: “Retries reuse the original idempotency key”, its conclusion, Maria Chen and revision 1, with buttons to add it to a page and to archive it](/screenshots/detail-decisions.webp)
 
@@ -20,8 +20,7 @@ find it, read why, and see which text it was agreed against.
   unsupported_).
 
 Recording a decision **neither approves the specification nor resolves a
-discussion by itself**. It records a conclusion; reviews and readiness stay
-separate.
+discussion by itself**; reviews and readiness stay separate.
 
 ## Record a decision from a discussion
 
@@ -49,14 +48,14 @@ the discussion it came from.
 ### Save it
 
 Choose **Resolve and save decision** (or **Save decision**). The discussion is
-resolved only when the decision is saved; **Cancel** leaves it open. The
-discussion then shows **Decision recorded**.
+resolved only when the decision is saved, and then shows **Decision
+recorded**; **Cancel** leaves it open.
 
 </Step>
 </Steps>
 
 A decision recorded from a discussion keeps the revision that discussion was
-written on, so its context is preserved even after the text has changed.
+written on, so its context survives later changes.
 
 ## Record a decision directly
 
@@ -75,11 +74,10 @@ while they can still record decisions there.
 
 ## Archive and restore
 
-A decision that no longer holds is archived, not deleted: choose **Archive**
-on it. It keeps its text and activity, and leaves active product knowledge.
-**Show archived decisions** lists archived ones, and **Restore** brings one
-back. Archiving an item withdraws its decisions too, and restoring the item
-brings them back.
+Choose **Archive** on a decision that no longer holds. It keeps its text and
+activity and leaves active product knowledge. **Show archived decisions**
+lists archived ones; **Restore** brings one back. Archiving an item withdraws
+its decisions too, and restoring the item brings them back.
 
 ## Decisions in product knowledge
 
@@ -125,8 +123,8 @@ decision see only the title it was inserted with. See [blocks](/spaces/blocks).
 
 - Write the conclusion as a statement of fact, not a question or a summary
   of the discussion.
-- Record ruled-out options as decisions too. They stop the same discussion
-  from starting again.
+- Record ruled-out options as decisions too, so the same discussion does not
+  start again.
 - Keep a **Decision records** page in the project's space and add decisions
   to it with **Add to a page**, so they are found next to the team's other
   knowledge.

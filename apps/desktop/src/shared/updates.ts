@@ -23,9 +23,7 @@ export function updateSupport(
   const no = (reason: string) => ({ supported: false as const, reason });
   if (!env.packaged) return no("Updates are off in development builds.");
   if (env.turnedOff)
-    return no(
-      "Updates are turned off on this computer (LICTORY_DESKTOP_UPDATES=off).",
-    );
+    return no("Updates are off (LICTORY_DESKTOP_UPDATES=off).");
   if (env.appStore) return no("Your app store keeps Lictory up to date.");
   // No apt repository serves Lictory: the package manager never sees a
   // newer version.
@@ -47,7 +45,7 @@ export function updateErrorMessage(error: { message: string; code?: unknown }) {
     error.code === "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND" ||
     error.code === "ERR_UPDATER_NO_PUBLISHED_VERSIONS"
   )
-    return "The newest release has no update for this system yet. Lictory checks again later.";
+    return "The newest release has no update for this system yet.";
   // A network failure (net::ERR_INTERNET_DISCONNECTED and the like) in the
   // same plain words as a server that does not load, never Chromium's code.
   if (networkErrorCode(error.message)) {
@@ -55,7 +53,7 @@ export function updateErrorMessage(error: { message: string; code?: unknown }) {
       error.message,
       "the update server",
     );
-    return `Lictory could not check for updates. ${summary.charAt(0).toUpperCase()}${summary.slice(1)} It checks again later.`;
+    return `Could not check for updates. ${summary.charAt(0).toUpperCase()}${summary.slice(1)}`;
   }
   return `Checking for updates failed: ${error.message.split("\n")[0]}`;
 }

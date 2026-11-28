@@ -581,8 +581,7 @@ export class Shell {
       defaultId: 1,
       cancelId: 1,
       message: `Remove ${server.name}?`,
-      detail:
-        "You are signed out of this server on this computer and its data is removed from the app. You can add it again at any time.",
+      detail: "Signs you out of this server and removes its data from the app.",
     });
     if (response !== 0) return;
     const entry = this.views.get(id);
@@ -631,7 +630,7 @@ export class Shell {
       defaultId: 0,
       cancelId: 1,
       message: mediaPrompt(new URL(server.origin).host, kinds),
-      detail: "Lictory asks again the next time the app starts.",
+      detail: "Asked again the next time the app starts.",
     });
     return response === 0;
   }
@@ -832,7 +831,7 @@ export class Shell {
       defaultId: 0,
       cancelId: 1,
       message: `Add ${link.host} to Lictory?`,
-      detail: `A link asked to open ${link.path} on ${origin}, which is not one of your servers. Add it only if you trust it.`,
+      detail: `A link to ${link.path} on ${origin}, which is not one of your servers. Add it only if you trust it.`,
     });
     if (response !== 0) return;
     const added = await this.addServer(origin);

@@ -88,13 +88,13 @@ export async function codexReadiness(command: string): Promise<Readiness> {
   if (/not logged in/i.test(output))
     return {
       state: "not-ready",
-      detail: "is installed but not signed in, so its sessions would fail",
-      fix: "Sign in as the account the runner runs as with `codex login` (or `codex login --with-api-key`, reading the key from standard input). Then run `lictory-runner doctor` again.",
+      detail: "is installed but not signed in",
+      fix: "Run `codex login` (or `codex login --with-api-key`, key on standard input) as the runner's account.",
     };
   return {
     state: "unknown",
     detail: "did not say whether it is signed in",
-    fix: "Run `codex login status` as the account the runner runs as.",
+    fix: "Run `codex login status` as the runner's account.",
   };
 }
 

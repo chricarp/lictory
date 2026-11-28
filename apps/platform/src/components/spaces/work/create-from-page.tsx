@@ -321,7 +321,6 @@ export function CreateFromPageDialog({
             ? `${resolved[0]!.known ? resolved[0]!.key : "Work item"} created`
             : `${resolved.length} work items created`
         }
-        description={`Each one records that it came from ${commit.title}${versionLabel}.`}
         onClose={onClose}
         width="max-w-md"
         footer={
@@ -367,14 +366,6 @@ export function CreateFromPageDialog({
             </li>
           ))}
         </ul>
-        {canInsert && (
-          <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            “Add to the page” opens the editor and mentions{" "}
-            {resolved.length === 1 ? "it" : "them"} after the{" "}
-            {request.origin === "task" ? "task" : "selected text"}. Nothing is
-            published until you publish.
-          </p>
-        )}
       </Dialog>
     );
 
@@ -398,10 +389,10 @@ export function CreateFromPageDialog({
       )}
       <span>
         {restricted
-          ? `${space.name} is restricted, but work items are read by everyone in ${organization.name}. The quoted text is copied into ${project?.key ?? "the project"}, where people who cannot read this page will see it.`
-          : `The quoted text is copied into ${project?.key ?? "the project"}, where everyone in ${organization.name} can read it. Later edits to this page do not change the item; it links back to this version.`}
+          ? `${space.name} is restricted, but the quoted text is copied into ${project?.key ?? "the project"}, where everyone in ${organization.name} can read it.`
+          : `The quoted text is copied into ${project?.key ?? "the project"}, where everyone in ${organization.name} can read it.`}
         {drafting &&
-          " Drafting sends the text to the AI provider your organization configured; it is not stored."}
+          " Drafting sends it to your organization’s AI provider; it is not stored."}
       </span>
     </p>
   );
@@ -522,8 +513,8 @@ export function CreateFromPageDialog({
         {!projectsHere.length ? (
           <p className="text-[13px] text-muted-foreground">
             {drafting
-              ? "Your disciplines cannot create proposals in any project. Ask a project administrator for a discipline that edits specifications."
-              : "Your disciplines cannot create work items in any project. Ask a project administrator for a discipline that edits specifications or changes properties."}
+              ? "Your disciplines cannot create proposals in any project. Ask a project administrator."
+              : "Your disciplines cannot create work items in any project. Ask a project administrator."}
           </p>
         ) : drafting ? (
           <>
@@ -540,8 +531,7 @@ export function CreateFromPageDialog({
                   id={`${titleId}-drafts`}
                   className="text-xs text-muted-foreground"
                 >
-                  Litto’s drafts are suggestions. Only the ones you choose are
-                  created, as draft proposals for {project?.name}.
+                  Created as draft proposals in {project?.name}.
                   {drafted.filtered.drafts > 0 &&
                     ` ${drafted.filtered.drafts} draft${drafted.filtered.drafts === 1 ? " was" : "s were"} left out because ${drafted.filtered.drafts === 1 ? "it" : "they"} cited nothing from the text.`}
                   {drafted.truncated &&
@@ -637,8 +627,8 @@ export function CreateFromPageDialog({
             {type && (
               <p className="text-xs text-muted-foreground">
                 {type.hasSpecification
-                  ? "It starts as a draft proposal to refine and review. Creating it does not commit anyone to delivery."
-                  : "It goes straight to delivery."}
+                  ? "Starts as a draft proposal."
+                  : "Goes straight to delivery."}
               </p>
             )}
           </>

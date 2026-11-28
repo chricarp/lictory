@@ -52,7 +52,7 @@ export class HomeCardBoundary extends Component<
       return (
         <HomePanel
           title={this.props.name}
-          empty="This card could not be shown. Reload the page to try again."
+          empty="Couldn’t show this card. Reload to try again."
         />
       );
     return this.props.children;

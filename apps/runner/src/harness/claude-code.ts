@@ -119,13 +119,13 @@ export async function claudeReadiness(command: string): Promise<Readiness> {
   if (status?.loggedIn === false)
     return {
       state: "not-ready",
-      detail: "is installed but not signed in, so its sessions would fail",
-      fix: "Sign in as the account the runner runs as with `claude auth login`, or give the runner ANTHROPIC_API_KEY (a service does not read your shell profile). Then run `lictory-runner doctor` again.",
+      detail: "is installed but not signed in",
+      fix: "Run `claude auth login` as the runner's account, or give the runner ANTHROPIC_API_KEY (a service does not read your shell profile).",
     };
   return {
     state: "unknown",
     detail: "did not say whether it is signed in",
-    fix: "Run `claude auth status` as the account the runner runs as; Claude Code 2 or newer answers it.",
+    fix: "Run `claude auth status` as the runner's account (needs Claude Code 2 or newer).",
   };
 }
 

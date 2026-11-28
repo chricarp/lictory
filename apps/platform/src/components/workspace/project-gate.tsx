@@ -43,8 +43,7 @@ export function ProjectGate({ children }: { children: ReactNode }) {
           </Button>
         }
       >
-        It may have been archived, or the key is misspelled. Choose another
-        project from the sidebar.
+        It may be archived, or the key is misspelled.
       </MissingState>
     );
   }

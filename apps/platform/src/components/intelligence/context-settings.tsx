@@ -215,8 +215,8 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
       title="Lictory Intelligence Context"
       description={
         pinnedProject
-          ? `Product facts, vocabulary and standards for ${pinnedProject.name} and its teams, added to every review of its work.`
-          : "Product facts, vocabulary, conventions and policies. Team, project and organization context combine; the narrower scope wins."
+          ? `Added to every review of ${pinnedProject.name}'s work.`
+          : "Added to every review. The narrowest scope wins."
       }
       action={
         canManage && !adding ? (
@@ -237,15 +237,6 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
             </Button>
           </div>
         ) : undefined
-      }
-      footer={
-        <>
-          Readable by every member; editable by organization administrators, and
-          by project administrators for their project and teams. Every change is
-          versioned and findings cite the entries they used. Up to{" "}
-          {chars(CONTEXT_PROMPT_BUDGET)} characters per review, narrowest scope
-          first.
-        </>
       }
     >
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
@@ -318,11 +309,6 @@ export function IntelligenceContextSection({ pinned }: { pinned: ContextPin }) {
               <span className="block text-sm font-medium text-foreground">
                 No {scopeLabel[target.scope].toLowerCase()} context yet
               </span>
-              <span className="mt-1 block">
-                {canManage
-                  ? "Add what reviews should know: the vocabulary, rules and constraints people otherwise explain in every discussion."
-                  : "Administrators add what reviews should know here."}
-              </span>
               {canManage && (
                 <span className="mt-4 flex justify-center">
                   <Button size="sm" onClick={() => setAdding("note")}>
@@ -369,10 +355,10 @@ function BudgetMeter({ used }: { used: number }) {
         "ml-auto text-xs tabular-nums",
         over ? "text-warning" : "text-muted-foreground",
       )}
-      title="Characters of active context in this scope. Reviews include up to the budget across all scopes, narrower scopes first."
+      title="Active context in this scope"
     >
       {chars(used)} / {chars(CONTEXT_PROMPT_BUDGET)} characters
-      {over && " · over budget, the rest is trimmed"}
+      {over && " · over budget, rest trimmed"}
     </span>
   );
 }
@@ -452,9 +438,8 @@ function ContextForm({
           />
           <span className="mt-1 block text-xs text-muted-foreground">
             PDF, Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, Markdown
-            or text, up to {MAX_CONTEXT_DOCUMENT_SIZE / 1024 / 1024} MB. It is
-            converted to text on Lictory&apos;s server; scanned PDFs without
-            text are not supported.
+            or text, up to {MAX_CONTEXT_DOCUMENT_SIZE / 1024 / 1024} MB. Scanned
+            PDFs without text are not supported.
           </span>
         </label>
       ) : (
@@ -468,7 +453,7 @@ function ContextForm({
             references={false}
             minHeight="14rem"
             maxHeight="32rem"
-            placeholder="State facts, rules and conventions plainly, e.g. “Every payment API is idempotent on the client's request ID.”"
+            placeholder="e.g. Every payment API is idempotent on the client's request ID."
           />
           <span
             className={cn(

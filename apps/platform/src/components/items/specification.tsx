@@ -116,7 +116,7 @@ export function Specification({
               <button
                 type="button"
                 onClick={() => setMode("edit")}
-                title="Edits in the shared draft are saved but not saved as a revision yet. Open the editor to review and save them."
+                title="Open the editor to save them as a revision"
                 className="inline-flex h-6 items-center gap-1.5 rounded-full bg-warning/10 px-2.5 text-xs font-medium text-warning outline-none hover:bg-warning/15 focus-visible:ring-2 focus-visible:ring-ring/60"
               >
                 <span
@@ -414,8 +414,8 @@ function Reader({
         >
           <PenLine className="mb-2 size-4" />
           {canEdit
-            ? "Describe the intent, the expected behavior and what is out of scope. Markdown is supported. Click to start writing."
-            : "Nothing written yet. Click to propose a first draft for review."}
+            ? "Describe the intent, expected behavior and what is out of scope"
+            : "Nothing written yet. Propose a first draft"}
         </button>
       ) : (
         // The text is one tab stop: arrow keys select words in it (Shift
@@ -584,7 +584,7 @@ function LiveEditor({ onDone }: { onDone: () => void }) {
       >
         <p>
           {item.mainProtected
-            ? "This specification is ready, so it is protected: changes are proposed and reviewed before they apply. Open Proposed changes to start one."
+            ? "This specification is ready: changes go through Proposed changes."
             : SPECIFICATION_CLOSE_REASONS.revoked}
         </p>
         <Button size="sm" variant="secondary" onClick={onDone}>
@@ -601,7 +601,7 @@ function LiveEditor({ onDone }: { onDone: () => void }) {
         isMain: true,
       }}
       label="Specification"
-      placeholder="Why this matters and for whom, the expected behavior, failure behavior and acceptance criteria. Type / for headings, lists and references."
+      placeholder="Intent, expected behavior, failure behavior, acceptance criteria. Type / for blocks"
       fileContext={{ organizationId: item.organizationId, workItemId: item.id }}
       onClose={onDone}
       onSubmit={() => submitRef.current?.()}
@@ -685,7 +685,7 @@ function SaveRevision({
         {controls.uncommitted &&
           (confirmDiscard ? (
             <span className="mr-auto inline-flex flex-wrap items-center gap-2 text-xs">
-              Discard the unsaved changes for everyone editing?
+              Discard unsaved changes for everyone editing?
               <Button
                 variant="ghost"
                 size="sm"
@@ -729,7 +729,7 @@ function SaveRevision({
         <Button
           variant="ghost"
           size="md"
-          title="Back to the specification. The shared draft stays saved; it is not a revision until someone saves one."
+          title="The shared draft stays saved"
           onClick={controls.close}
         >
           Close editor
@@ -751,11 +751,8 @@ function SaveRevision({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Edits are saved to the shared draft as you type (“Draft saved”) and
-        everyone editing sees them, but they are not part of the specification’s
-        history until someone saves a revision. Saving revision {next} makes it
-        immutable: existing approvals are marked outdated and reviews are
-        re-requested.
+        Saving revision {next} marks existing approvals outdated and re-requests
+        reviews.
       </p>
     </div>
   );
@@ -797,9 +794,8 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
       {conflicted && (
         <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-[13px]">
           <p>
-            Revision {current.number} was saved while you were editing revision{" "}
-            {baseRevision.number}. Your text is kept; review the difference
-            before saving.
+            Revision {current.number} was saved while you edited revision{" "}
+            {baseRevision.number}. Your text is kept.
           </p>
           <RevisionDiff before={content} after={current.content} />
           <Button
@@ -825,7 +821,7 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
         onSubmit={() => void submit()}
         onEscape={onDone}
         aria-label="Specification"
-        placeholder="Why this matters and for whom, the expected behavior, failure behavior and acceptance criteria. Type / for headings, lists and references."
+        placeholder="Intent, expected behavior, failure behavior, acceptance criteria. Type / for blocks"
         minHeight="20rem"
       />
       {mode === "edit" && (
@@ -857,8 +853,8 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
       )}
       <p className="text-xs text-muted-foreground">
         {mode === "edit"
-          ? "Saving creates an immutable revision. Existing approvals are marked outdated and reviews are re-requested."
-          : "Reviewers see the proposal as a diff, discuss it and approve it; an assigned reviewer then merges it as the next revision."}
+          ? "Saving marks existing approvals outdated and re-requests reviews."
+          : "An assigned reviewer merges it as the next revision."}
       </p>
     </div>
   );

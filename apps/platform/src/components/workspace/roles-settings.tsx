@@ -81,7 +81,7 @@ export function People() {
         id="members"
         icon={<Users />}
         title="Members"
-        description="Admins manage the organization and every project. What people can do inside a project comes from their project role and disciplines: choose a project chip to change them."
+        description="Choose a project chip to change someone’s project role and disciplines."
         action={
           <span className="text-xs text-muted-foreground tabular-nums">
             {directory.members.length}{" "}
@@ -260,7 +260,7 @@ function PendingInvitations({
       id="invitations"
       icon={<Mail />}
       title="Pending invitations"
-      description="People invited who have not joined yet. Withdrawing an invitation makes its link stop working."
+      description="Withdrawing an invitation disables its link."
     >
       <SettingsList isEmpty={!invitations?.length} empty="No invitations.">
         {invitations?.map((i) => (
@@ -461,8 +461,7 @@ function Invite({
             ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        People join as members. Project and disciplines are optional and apply
-        when they accept.
+        Project and disciplines are optional.
       </p>
       <InlineError>{error}</InlineError>
       {url && (
@@ -472,7 +471,7 @@ function Invite({
         >
           {emailed
             ? "Invitation email sent. You can also share this link."
-            : "This server sends no email, so the invitation was not emailed. Send them this link."}
+            : "This server sends no email. Send them this link."}
           <PlainInput
             id={linkField}
             className="mt-1.5 w-full rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs touch:text-base"

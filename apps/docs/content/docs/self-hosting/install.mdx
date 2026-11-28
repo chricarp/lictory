@@ -13,9 +13,9 @@ description: Install Lictory on a server with the guided lictory command, create
    `lictory.example.com`) pointing at the server. If certificates come from
    Let's Encrypt, a `CAA` record must allow `letsencrypt.org`. Lower the TTL
    to 300 seconds a day before moving existing traffic.
-3. Prepare the settings the installation will ask for: the host name, an
-   email address for certificate notices, your email service, and any
-   optional integration ([configuration](/self-hosting/configuration)).
+3. Have ready: the host name, an email address for certificate notices,
+   your email service and any optional integration
+   ([configuration](/self-hosting/configuration)).
 
 ## Install
 
@@ -23,26 +23,25 @@ Install the `lictory` command, then run the installer as root:
 
 <Cli command={["bootstrap", "install"]} />
 
-`lictory install` guides you through nine steps: it checks the server
-(Docker and Compose versions, memory, disk), asks for the address and checks
-DNS and ports, asks where PostgreSQL runs (on the server, or an
+`lictory install` has nine steps: it checks the server (Docker and Compose
+versions, memory, disk), asks for the address and checks DNS and ports, asks
+where PostgreSQL runs (on the server, or an
 [external database](/self-hosting/database)), asks for email, attachment
 storage, single sign-on and backups, then for the [access policy](/self-hosting/configuration#access-policy):
-who may create accounts and organizations. It shows a review of every
-answer, with secrets masked, before it changes anything. On a terminal the
-choices are menus (arrow keys and Enter) and long steps show progress while
-their output goes to a log under `/srv/lictory/production/logs`.
+who may create accounts and organizations. It reviews every answer, secrets
+masked, before changing anything. Choices are menus (arrow keys and Enter);
+long steps show progress and log their output under
+`/srv/lictory/production/logs`.
 
 For an unattended install, pass the settings as flags with `--yes`, or as
 `LICTORY_<FLAG>` environment variables to keep secrets out of the shell
 history (for example `LICTORY_SMTP_PASSWORD`). The bootstrap installs the
-newest stable release; set `LICTORY_CHANNEL=nightly` or
-`LICTORY_VERSION=<version>` before it to choose another. It verifies the
-release's image digests before pulling anything. Settings and generated
-secrets are written to the environment's `.env` file (by default
-`/srv/lictory/production/.env`, mode `0600`): database passwords,
-`BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY` and the Zero keys are
-generated for you.
+newest stable release (set `LICTORY_CHANNEL=nightly` or
+`LICTORY_VERSION=<version>` before it for another) and verifies its image
+digests before pulling anything. Settings go to the environment's `.env` file
+(by default `/srv/lictory/production/.env`, mode `0600`), with generated
+database passwords, `BETTER_AUTH_SECRET`, `DELIVERY_CREDENTIALS_KEY` and Zero
+keys.
 
 <Callout type="warn" title="Keep a copy of .env">
   Store the `.env` file in your password manager (`sudo lictory config show
@@ -52,9 +51,9 @@ generated for you.
   connected; `lictory config` refuses to change it without `--force`.
 </Callout>
 
-On an empty database the first release does everything in order: PostgreSQL
-creates its roles and databases, the migrations run, zero-cache performs its
-initial sync, then the proxy, API, worker and collaboration service start.
+On an empty database the first release runs in order: PostgreSQL creates its
+roles and databases, the migrations run, zero-cache performs its initial
+sync, then the proxy, API, worker and collaboration service start.
 
 Installing from a **private repository or a fork**? GitHub hides private
 releases without a token: run the bootstrap in a root shell with
@@ -64,26 +63,25 @@ upgrade` needs it too. The
 [operator runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/self-hosting.md#bootstrap)
 has the exact commands.
 
-For keyboard controls, unattended examples, reconfiguration and account recovery,
-see the [terminal guide](/self-hosting/terminal).
+Keyboard controls, unattended examples, reconfiguration and account recovery:
+[terminal guide](/self-hosting/terminal).
 
 ## The first administrator
 
 The last step creates the first **instance administrator**, the account that
 runs Lictory, and the organization they own: the organization's name and
 handle (its address, `https://<your host>/<handle>`), your name, work email
-and a password. The email counts as verified, so this works before email is
-configured. With `--yes`, pass `--organization`, `--admin-name` and
+and a password. The email counts as verified, so email need not be configured
+yet. With `--yes`, pass `--organization`, `--admin-name` and
 `--admin-email`, and the password in `LICTORY_ADMIN_PASSWORD`; without them
 the step waits for `sudo lictory admin setup`.
 
 <Cli command={["admin-setup", "admin-grant"]} />
 
-Sign in as the administrator and open the admin console at
-`https://<your host>/admin`: invite people, create accounts and
-organizations, and appoint other administrators. From the server,
-`lictory admin` does the same when nobody can sign in, for example to recover
-the only administrator:
+In the admin console (`https://<your host>/admin`) the administrator invites
+people, creates accounts and organizations, and appoints other
+administrators. When nobody can sign in, for example to recover the only
+administrator, use `lictory admin` on the server:
 
 <Cli command={["admin-create-user", "admin-set-password"]} />
 
@@ -101,5 +99,5 @@ Then, in a browser:
 - upload and download an attachment, if file storage is configured;
 - run a first [backup](/self-hosting/backups) and a restore drill.
 
-If a check fails, `lictory doctor` names the fix;
-[troubleshooting](/self-hosting/troubleshooting) covers the common problems.
+If a check fails, `lictory doctor` names the fix; see also
+[troubleshooting](/self-hosting/troubleshooting).

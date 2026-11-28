@@ -58,13 +58,13 @@ export function PagePicker({
   return (
     <Picker
       title={title}
-      placeholder="Search pages by title or space"
+      placeholder="Search pages"
       emptyText={
         all.length
-          ? "No page matches."
+          ? "No matching pages"
           : editable
-            ? "No pages in spaces you can edit."
-            : "No pages you can read yet."
+            ? "No pages you can edit"
+            : "No pages"
       }
       multiple={keepOpen}
       onQueryChange={setQuery}

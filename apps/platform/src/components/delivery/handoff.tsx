@@ -65,10 +65,7 @@ export function Handoff() {
             Open board
           </Button>
         }
-      >
-        Ready work moves across the project&apos;s board and backlog; nothing is
-        handed off to an external tool.
-      </MissingState>
+      />
     );
   return <ExternalHandoff project={project} />;
 }
@@ -211,7 +208,7 @@ function ExternalHandoff({ project }: { project: Project }) {
             href: paths.project(organization.slug, project.key),
           },
         ]}
-        description={`Hand off an agreed specification, then follow its progress in ${tool.name}. ${tool.Name} owns delivery status and assignment.`}
+        description={`${tool.Name} owns delivery status and assignment.`}
         meta={
           externalProjectKey ? (
             <span className="truncate">
@@ -240,7 +237,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                 size="sm"
                 disabled={refreshing}
                 onClick={() => void refresh()}
-                title={`Read the current status and assignee of every handed-off issue. Nothing is written to ${tool.name}.`}
+                title={`Reads status and assignees. Writes nothing to ${tool.name}.`}
               >
                 <RefreshCw
                   className={cn("size-3.5", refreshing && "animate-spin")}
@@ -266,8 +263,7 @@ function ExternalHandoff({ project }: { project: Project }) {
         <div className="mx-auto max-w-4xl space-y-4 px-6 py-6 max-sm:px-3">
           {!availability.target ? (
             <Notice tone="warning">
-              {project.name} has no {tool.product ?? "external"} project to hand
-              work off to yet.{" "}
+              No {tool.product ?? "external"} project to hand off to.{" "}
               {canManage(project.id) ? (
                 <Link
                   className="underline"
@@ -280,15 +276,14 @@ function ExternalHandoff({ project }: { project: Project }) {
                   Choose one in delivery settings
                 </Link>
               ) : (
-                "Ask a project administrator to choose one in the project's delivery settings"
+                "Ask a project administrator to choose one"
               )}
               .
             </Notice>
           ) : !availability.connection ? (
             <Notice tone="warning">
-              The {tool.product ?? "delivery"} connection of this project is
-              unavailable. An organization administrator can reconnect it in
-              organization settings.
+              The {tool.product ?? "delivery"} connection is unavailable. An
+              organization administrator can reconnect it.
             </Notice>
           ) : (
             availability.connection.status === "invalid" && (
@@ -304,8 +299,7 @@ function ExternalHandoff({ project }: { project: Project }) {
           )}
           {availability.configured && !availability.allowed && (
             <p className="text-[13px] text-muted-foreground">
-              Your disciplines in {project.name} cannot hand off work. People
-              with the hand-off capability hand off ready specifications here.
+              Your disciplines in {project.name} cannot hand off work.
             </p>
           )}
           {loading ? (
@@ -337,7 +331,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                       detail={
                         link?.lastError ??
                         (link?.status === "conflict"
-                          ? `${tool.Name} was edited since the last hand-off. Review and confirm overwriting to hand off again.`
+                          ? `Edited in ${tool.name} since the last hand-off. Retry to review and confirm the overwrite.`
                           : undefined)
                       }
                       action={
@@ -358,8 +352,7 @@ function ExternalHandoff({ project }: { project: Project }) {
               <Group title="Ready to hand off" count={groups.ready.length}>
                 {groups.ready.length === 0 ? (
                   <p className="px-4 py-4 text-[13px] text-muted-foreground">
-                    Nothing is waiting. Specifications appear here once their
-                    readiness checks pass, with the work under them.
+                    Nothing is waiting
                   </p>
                 ) : (
                   groups.ready.map(({ item, link, changed, under }) => (
@@ -418,7 +411,7 @@ function ExternalHandoff({ project }: { project: Project }) {
               <Group title={`In ${tool.name}`} count={groups.delivered.length}>
                 {groups.delivered.length === 0 ? (
                   <p className="px-4 py-4 text-[13px] text-muted-foreground">
-                    Nothing has been handed off yet.
+                    Nothing handed off yet
                   </p>
                 ) : (
                   groups.delivered.map(({ item, link }) => (
@@ -499,10 +492,7 @@ function ExternalHandoff({ project }: { project: Project }) {
                         Start with a proposal
                       </Button>
                     }
-                  >
-                    Capture a proposal in {project.name}, refine it with your
-                    team, then hand the agreed work off to {tool.name} here.
-                  </EmptyState>
+                  />
                 )}
             </>
           )}

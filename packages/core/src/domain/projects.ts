@@ -379,7 +379,7 @@ export async function applyProjectCommand(
           (settings.estimateScale && settings.estimateScale !== "none")
         )
           fail(
-            `${project.name} hands work off to an external tool, which plans and estimates it. Switch the project to Lictory delivery to use sprints or estimates.`,
+            `${project.name} hands work off to an external tool. Switch the project to Lictory delivery to use sprints or estimates.`,
           );
         if (project.deliveryMode === "native") {
           const active = roster.iterations.find(

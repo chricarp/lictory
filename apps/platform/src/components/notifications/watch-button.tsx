@@ -91,11 +91,7 @@ export function WatchButton({
       pressed={watching}
       onPressedChange={() => void toggle()}
       className={cn(buttonClass({ variant: "ghost", size: "sm" }), className)}
-      title={
-        watching
-          ? "You get notifications about changes to this item. Click to stop."
-          : "Get notified about changes to this item."
-      }
+      title={watching ? "Stop watching" : "Get notified about changes"}
     >
       {watching ? (
         <Bell className="size-3.5" />

@@ -74,9 +74,8 @@ function Hero() {
         </h1>
         <div className="hero-side">
           <p className="hero-lead">
-            Lictory is the control plane of a software factory: your team and
-            its agents agree on what to build, and agents write the code on
-            machines you control.
+            Your team and its agents agree on what to build. Agents write the
+            code on machines you control.
           </p>
           <div className="hero-actions">
             <GetStartedCta placement="hero" page="home" />
@@ -134,9 +133,7 @@ function Loop() {
         label="How it works"
         title="One loop, with a person at every gate"
       >
-        Every piece of work moves from a conversation to shipped code through
-        the same five stages. Agents do the work inside each stage. Moving past
-        a gate is a recorded act by a person, or evidence that the work is done.
+        Agents do the work. A person, or evidence, moves it past each gate.
       </SectionHeading>
       <LoopDiagram />
     </section>
@@ -156,9 +153,7 @@ function Modules() {
         title="The tools a software team runs on, in one product"
       >
         Chat, specifications, delivery, agents, code and knowledge share one
-        data model, one permission check and one history. A message links to the
-        proposal it became, the proposal to its pull requests, the pull request
-        to the revision it delivered.
+        data model, one permission check and one history.
       </SectionHeading>
       <ModuleGrid />
     </section>
@@ -166,18 +161,12 @@ function Modules() {
 }
 
 const reviewTools = [
-  [
-    "Immutable revisions",
-    "Return to the exact specification that was reviewed.",
-  ],
-  ["Readable diffs", "See what changed before making a decision."],
-  ["Anchored threads", "Discussions stay attached to the text they are about."],
-  ["Actionable suggestions", "Inspect a proposed change before accepting it."],
-  ["Revision-bound approvals", "Know which version each reviewer approved."],
-  [
-    "Readiness checks",
-    "Ready means the checks passed, not that someone set a status.",
-  ],
+  ["Immutable revisions", "Return to the exact text that was reviewed."],
+  ["Readable diffs", "See what changed before deciding."],
+  ["Anchored threads", "Discussions stay on the text they are about."],
+  ["Actionable suggestions", "Inspect a change before accepting it."],
+  ["Revision-bound approvals", "Know which revision each reviewer approved."],
+  ["Readiness checks", "Ready means the checks passed, not a status."],
 ] as const;
 
 function Specifications() {
@@ -193,9 +182,7 @@ function Specifications() {
         title="Agents build what the team agreed, not what someone typed"
       >
         The approved specification is the contract agents and people work
-        against. Product, engineering, QA and their agents propose changes on
-        branches, review them as pull requests and approve one result. Nobody
-        overwrites the agreed version, and nothing merges without review.
+        against. Changes happen on branches and merge only after review.
       </SectionHeading>
       <BranchesScene />
 
@@ -207,9 +194,8 @@ function Specifications() {
             Know what you’re approving.
           </h3>
           <p>
-            A blocking question on one sentence, a revision that answers it, and
-            approvals that name the revision they cover. A later change makes
-            them stale.
+            Approvals name the revision they cover. A later change makes them
+            stale.
           </p>
         </div>
         <ReviewScene />
@@ -239,10 +225,10 @@ function Factory() {
         label="Factory"
         title="Coding agents on machines you control"
       >
-        Install <code>lictory-runner</code> on a server, a VPS, a laptop or a
-        Mac mini under a desk. It connects out to your Lictory server, needs no
-        open port, and runs {harnesses.slice(0, -1).join(", ")} or{" "}
-        {harnesses.at(-1)} in a separate git worktree for every session.{" "}
+        Install <code>lictory-runner</code> on a server, a laptop or a Mac mini.
+        It connects out, needs no open port, and runs{" "}
+        {harnesses.slice(0, -1).join(", ")} or {harnesses.at(-1)} in a separate
+        worktree per session.{" "}
         <Link href={`${downloadPath}#runner`} className="section-intro-link">
           Download lictory-runner
         </Link>
@@ -252,11 +238,7 @@ function Factory() {
       <div className="factory-detail">
         <div className="factory-detail-copy">
           <h3>Choose how much runs by itself</h3>
-          <p>
-            Each project sets its autonomy policy, and can turn it down at any
-            time without stranding work: sessions in flight finish or can be
-            canceled, and items return to the ready queue.
-          </p>
+          <p>Per project. Turning it down never strands work.</p>
         </div>
         <AutonomyLevels />
       </div>
@@ -265,26 +247,22 @@ function Factory() {
         <div>
           <h3>Credentials are issued, not stored</h3>
           <p>
-            Each session gets a short-lived, repository-scoped code host token
-            and a Lictory token bound to its agent. The built-in agent’s model
-            calls go through your server, so model keys never reach the runner.
+            Each session gets short-lived, scoped tokens. Model keys never reach
+            the runner.
           </p>
         </div>
         <div>
           <h3>Steer every session from its thread</h3>
           <p>
-            A session’s thread is where you answer its questions, approve what
-            it asks for and send it a message. The Factory view shows its full
-            log, its diff and controls to interrupt, cancel or retry.
+            Answer, approve and message in the thread. Interrupt, cancel or
+            retry from the Factory view.
           </p>
         </div>
         <div>
           <h3>Your code host stays the source</h3>
           <p>
-            GitHub, GitLab or Bitbucket, cloud or self-managed. Webhooks are
-            verified and replayable, and Lictory writes to the host only through
-            explicit commands: create a branch, open, comment on or merge a pull
-            request.
+            GitHub, GitLab or Bitbucket, cloud or self-managed. Lictory writes
+            to it only through explicit commands.
           </p>
         </div>
       </div>
@@ -301,10 +279,8 @@ function Agents() {
           label="Agents you can trust"
           title="Agents are members of the team, with an accountable person"
         >
-          Every workspace action is a capability with one permission check.
-          Click it, ask Litto, or call it from your own agent over MCP. There
-          are no human-only workflows and no agent-only shortcuts, and nothing
-          moves because text said so.
+          Every action has one permission check, whether you click it, ask Litto
+          or call it over MCP. Nothing moves because text said so.
         </SectionHeading>
         <AgentsScene />
         <dl className="trust-list">
@@ -333,27 +309,24 @@ function Delivery() {
         label="Delivery"
         title="Deliver in Lictory, or publish to Jira"
       >
-        Break the approved specification into stories and tasks that remember
-        the revision they came from. Each project picks one system to own
-        delivery, so nothing is tracked twice.
+        Stories and tasks remember the revision they came from. One system owns
+        delivery per project.
       </SectionHeading>
       <div className="delivery-options">
         <article>
           <BoardStill />
           <h3>Deliver in Lictory</h3>
           <p>
-            Boards, a ranked backlog, sprints or cycles, estimates, subtasks and
-            relations. Agents claim only items the readiness policy allows to
-            start.
+            Boards, backlog, sprints or cycles, estimates, subtasks and
+            relations. Agents claim only ready items.
           </p>
         </article>
         <article>
           <PublishStill />
           <h3>Publish to Jira</h3>
           <p>
-            Keep refinement in Lictory and execution in Jira. Approved delivery
-            items are published with a link to the revision they came from.
-            Publishing is an explicit, permission-checked action.
+            Refine in Lictory, execute in Jira. Published items link to their
+            revision.
           </p>
           <p className="delivery-meta">Jira today · Linear is coming</p>
         </article>
@@ -365,19 +338,13 @@ function Delivery() {
 const spaceFacts = [
   [
     "Direct or Reviewed",
-    "Each space chooses: editors publish the live draft, or every change arrives as a pull request that needs approval.",
+    "Publish the live draft, or review every change as a pull request.",
   ],
-  [
-    "Every version kept",
-    "Published versions never change. Compare any two word by word; restoring an old one adds a new version.",
-  ],
-  [
-    "Work items in the text",
-    "Type # to mention PAY-142. Readers see its current status, refinement state and readiness.",
-  ],
+  ["Every version kept", "Compare any two versions word by word."],
+  ["Work items in the text", "Type # to mention PAY-142 with its live status."],
   [
     "Agents propose, people publish",
-    "Agents read pages and propose changes as pull requests. They never type into a live draft.",
+    "Agents propose changes as pull requests, never in a live draft.",
   ],
 ] as const;
 
@@ -395,10 +362,8 @@ function Spaces() {
         label="Spaces"
         title="Write down what the team and its agents know"
       >
-        Runbooks, architecture notes and team handbooks live in spaces of nested
-        pages. Several people edit a page at once, and the editor says Saved
-        only once the server has stored every edit. Readers see a change when it
-        is published, through the same reviewed history as a specification.
+        Runbooks, architecture notes and handbooks. Edit together live, publish
+        through reviewed history.
       </SectionHeading>
       <SpacesEditorScene />
       <dl
@@ -419,19 +384,19 @@ function Spaces() {
 const hostingFacts = [
   [
     "On your server",
-    "One Linux server with Docker Compose and PostgreSQL, bundled or your own. There is no Lictory cloud: your data stays on the server you run and goes only to the services you connect.",
+    "One Linux server with Docker Compose and PostgreSQL. No Lictory cloud.",
   ],
   [
     "Company sign-in",
-    "Single sign-on through OpenID Connect: Okta, Microsoft Entra ID, Keycloak, Google Workspace and others. Sign-in grants nothing by itself; membership and roles stay in Lictory.",
+    "OpenID Connect: Okta, Microsoft Entra ID, Keycloak, Google Workspace and more.",
   ],
   [
     "Organizations kept apart",
-    "Every record belongs to one organization, and every query and synchronized view is authorized through membership on the server, never by hiding things in the browser.",
+    "Every record belongs to one organization, authorized on the server.",
   ],
   [
     "Your runners",
-    "Organization runners for shared work, personal runners for one person’s agents. A project can require its sessions to run in containers.",
+    "Shared or personal runners. Projects can require containers.",
   ],
 ] as const;
 
@@ -447,11 +412,10 @@ function SelfHosted() {
         label="Self-hosted"
         title="Your server, your runners, your models"
       >
-        Lictory runs where your code and your knowledge already are. Connect
-        OpenAI, Anthropic, Google Gemini or Vertex AI, Azure OpenAI, Amazon
-        Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter, or run open-weight
-        models with Ollama, vLLM, LM Studio or llama.cpp. Lictory works without
-        AI, too.
+        Connect OpenAI, Anthropic, Google Gemini or Vertex AI, Azure OpenAI,
+        Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter, or run
+        open-weight models with Ollama, vLLM, LM Studio or llama.cpp. Or no AI
+        at all.
       </SectionHeading>
       <dl className="hosting-facts">
         {hostingFacts.map(([title, body]) => (
@@ -466,24 +430,17 @@ function SelfHosted() {
         <div>
           <h3>Set up in the admin console</h3>
           <p>
-            Pick a provider, paste a key and test every feature before you save.
-            Keys stay encrypted on your server. Prefer the terminal?{" "}
-            <code>lictory ai setup</code> does the same.
+            Pick a provider, paste a key, test, save. Or run{" "}
+            <code>lictory ai setup</code>.
           </p>
         </div>
         <div>
           <h3>Self-hosted means self-hosted</h3>
-          <p>
-            Choose a model server you run, and content goes there and nowhere
-            else. Nothing falls back to a cloud you did not choose.
-          </p>
+          <p>Content goes to your model server and nowhere else.</p>
         </div>
         <div>
           <h3>Every organization decides</h3>
-          <p>
-            Instance administrators choose the provider. Each organization
-            chooses whether its content may be sent, and sees where it goes.
-          </p>
+          <p>Each organization chooses whether its content may be sent.</p>
         </div>
       </div>
       <OpenSource />
@@ -529,10 +486,8 @@ function Comparison() {
         label="Compared"
         title="One workspace instead of five tools and the glue between them"
       >
-        Most teams stitch a chat app, a wiki, a tracker, a code host and their
-        agent tools together with integrations. Lictory keeps your code host and
-        can replace the rest with one product: fewer seats to buy, fewer
-        integrations to maintain, and one record of who decided what.
+        Keep your code host. Replace the chat app, wiki, tracker and agent glue:
+        fewer seats, fewer integrations, one record of who decided what.
       </SectionHeading>
       <StackComparison />
       <div className="compare-links">
@@ -586,10 +541,7 @@ function FinalCta() {
     <section aria-labelledby="start-title" className="final-cta site-width">
       <div>
         <h2 id="start-title">Start with one rough idea</h2>
-        <p>
-          Invite the people who need to agree on it. Register a runner when you
-          want agents to build it.
-        </p>
+        <p>Invite the people who need to agree. Add a runner to build it.</p>
       </div>
       <div>
         <div className="final-cta-actions">

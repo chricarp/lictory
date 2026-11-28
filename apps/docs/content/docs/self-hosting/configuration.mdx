@@ -5,12 +5,12 @@ description: Domain and TLS, email, file storage, single sign-on, Lictory Intell
 
 Settings live in the environment's `.env` file, by default
 `/srv/lictory/production/.env` (mode `0600`, owned by the deploy user). Empty
-values count as unset. Images carry no domain or analytics settings: the
-same image runs on any host name and reads everything here at runtime.
+values count as unset. Images carry no domain or analytics settings; they
+read everything here at runtime.
 
-Change settings with `lictory config`. It shows what changes (secrets
-masked), keeps a copy of the previous file, and restarts the services with
-the new values. If they do not start, it puts the previous settings back:
+Change settings with `lictory config`. It shows the change (secrets masked),
+keeps a copy of the previous file and restarts the services; if they do not
+start, it restores the previous settings:
 
 ```sh
 sudo lictory config show
@@ -18,30 +18,29 @@ sudo lictory config set SMTP_HOST=smtp.example.com SMTP_PORT=587
 sudo lictory config edit
 ```
 
-It refuses a key the release does not read (a typo would otherwise be
-ignored silently) and generated secrets such as database passwords and
-`DELIVERY_CREDENTIALS_KEY`, whose change breaks the installation. If you edit
-`.env` by hand, apply it with `sudo lictory config apply`.
+It refuses keys the release does not read (typos) and generated secrets such
+as database passwords and `DELIVERY_CREDENTIALS_KEY`, whose change breaks the
+installation. Apply a hand edit of `.env` with `sudo lictory config apply`.
 
 ## Rotate a secret
 
-If a generated secret leaks (a copy of `.env` in the wrong place, a
-departing administrator), replace it with a new random one:
+Replace a leaked generated secret (a copy of `.env` in the wrong place, a
+departing administrator) with a new random one:
 
 ```sh
 sudo lictory config rotate LICTORY_APP_PASSWORD
 ```
 
-For a database password, PostgreSQL restarts with the new value and applies
-it to its role before the services restart with it, so expect about a
-minute of errors; if PostgreSQL does not take it, the previous value stays.
+For a database password, PostgreSQL restarts and applies the new value to
+its role before the services restart: expect about a minute of errors. If
+PostgreSQL does not take it, the previous value stays.
 `BETTER_AUTH_SECRET` signs everyone out (and needs `DELIVERY_CREDENTIALS_KEY`
 set first). `DELIVERY_CREDENTIALS_KEY` cannot be rotated yet: stored Jira and Slack
 tokens would need re-encrypting.
 
 On an [external database](/self-hosting/database), `rotate` does not change
-role passwords: Lictory holds no administrator connection to it. Set the new
-value without applying it, let `database setup` change the role, then apply:
+role passwords (Lictory holds no administrator connection). Set the new value
+without applying it, let `database setup` change the role, then apply:
 
 ```sh
 sudo lictory config set --force --no-apply LICTORY_APP_PASSWORD=$(openssl rand -hex 32)
@@ -59,10 +58,10 @@ sudo lictory config apply
 | `PLATFORM_URL`         | The origin users open, when it is not `https://APP_HOST` (another proxy, port or plain HTTP) |
 | `CADDY_GLOBAL_OPTIONS` | Gateway options, for example an internal ACME CA (`acme_ca https://…`) or `local_certs`      |
 
-By default the gateway obtains and renews certificates from Let's Encrypt.
-`PLATFORM_URL` must be an origin: lowercase, no path, no trailing slash. To
-use an internal CA, existing certificate files or a reverse proxy in front,
-see [reverse proxy and TLS](/self-hosting/reverse-proxy).
+The gateway obtains and renews certificates from Let's Encrypt by default.
+`PLATFORM_URL` must be an origin: lowercase, no path, no trailing slash. For
+an internal CA, existing certificate files or a reverse proxy in front, see
+[reverse proxy and TLS](/self-hosting/reverse-proxy).
 
 ## Email
 
@@ -80,20 +79,18 @@ email through **Resend** when `RESEND_API_KEY` is set, otherwise through your
 | `SMTP_FROM`                           | Sender address, such as `Lictory <no-reply@example.com>` |
 
 A transport needs its sender: a partial setting stops the API and worker with
-the problem listed. Without any transport they start, log a warning, and send
-no email, so password sign-up cannot be completed (single sign-on still works).
+the problem listed. Without any transport they start, log a warning and send
+no email, so password sign-up cannot complete (single sign-on still works).
 
 ## File storage
 
-Attachments are off until you configure a bucket, and `lictory install`
-leaves them off by default (`--storage none`): Lictory keeps no files on the
-server's disk. Without a bucket, the editors offer no upload, and where people
-would attach a file they read that attachments are off on this server, who
-turns them on and that they can link to files meanwhile. To turn them on later,
-set the variables below with `lictory config set` (it applies them and undoes
-the change if the services reject it). Configure **one** of two sets,
-never both: any S3-compatible service (AWS S3, MinIO, Garage, Ceph, Hetzner…)
-or the Cloudflare R2 preset.
+Attachments are off until you configure a bucket (`lictory install` defaults
+to `--storage none`); Lictory keeps no files on the server's disk. Without a
+bucket the editors offer no upload, and say who can turn attachments on and
+that people can link to files meanwhile. To turn them on, set the variables
+below with `lictory config set`. Configure **one** of two sets, never both:
+any S3-compatible service (AWS S3, MinIO, Garage, Ceph, Hetzner…) or the
+Cloudflare R2 preset.
 
 | S3-compatible                 | Cloudflare R2                                     |
 | ----------------------------- | ------------------------------------------------- |
@@ -104,9 +101,9 @@ or the Cloudflare R2 preset.
 | `S3_SECRET_ACCESS_KEY`        | `R2_S3_ENDPOINT` (optional jurisdiction endpoint) |
 | `S3_FORCE_PATH_STYLE`         |                                                   |
 
-Keep the bucket private and use credentials scoped to it. Browsers upload and
+Keep the bucket private, with credentials scoped to it. Browsers upload and
 download directly with signed URLs, so the endpoint must be reachable from
-users' browsers, and the bucket needs a CORS rule allowing `PUT` from your
+them, and the bucket needs a CORS rule allowing `PUT` from your
 `PLATFORM_URL`:
 
 ```json
@@ -125,8 +122,8 @@ names of the settings to fix.
 
 ## Access policy
 
-Nobody can create an account or an organization on their own unless you
-allow it. Instance administrators always can, in the admin console
+Nobody creates an account or an organization on their own unless you allow
+it. Instance administrators always can, in the admin console
 (`https://<your host>/admin`) or with `lictory admin` on the server.
 `lictory install` asks for these settings (`--signup-mode`,
 `--allowed-email-domains`, `--organization-creation`).
@@ -138,22 +135,21 @@ allow it. Instance administrators always can, in the admin console
 | `LICTORY_ORGANIZATION_CREATION`            | `administrators` (default) or `everyone`                                                                                                                      |
 | `LICTORY_ORGANIZATION_DELETION_GRACE_DAYS` | Days between an owner scheduling an organization's deletion and the deletion (1 to 365, default 30). Applies to deletions scheduled after the change          |
 
-The rules hold for password sign-up, Google and Microsoft alike, and the
-server enforces them. Your company identity provider is the directory: with
-`OIDC_AUTO_CREATE_USERS` it creates accounts for the people it admits in
-every mode, limited to the allowed domains.
+The rules apply to password sign-up, Google and Microsoft alike. Your company
+identity provider is the directory: with `OIDC_AUTO_CREATE_USERS` it creates
+accounts for the people it admits in every mode, limited to the allowed
+domains.
 
-Instance administration is separate from organization roles: instance
-administrators manage accounts, organizations and other instance
+Instance administrators manage accounts, organizations and other instance
 administrators; organization owners and admins manage their own organization
-([instance administration](/organization/instance)).
-From the server, `sudo lictory admin grant <email>` appoints one and
+([instance administration](/organization/instance)). From the server,
+`sudo lictory admin grant <email>` appoints one and
 `sudo lictory admin set-password <email>` recovers a lost password.
 
 ## Sign-in and single sign-on
 
-Password sign-in works out of the box. Each additional provider appears on
-the sign-in page once it is configured:
+Password sign-in works out of the box. Each provider below appears on the
+sign-in page once configured:
 
 - **Google**: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI
   `https://<your host>/api/auth/callback/google`.
@@ -181,15 +177,15 @@ sudo lictory config set GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
 ```
 
 Register the redirect URI `https://<your host>/api/auth/callback/oidc` at
-the provider. Single sign-on decides who can authenticate; it grants nothing
-inside Lictory. Organization membership still comes from invitations, and
-an existing account is linked automatically only when the provider asserts
-`email_verified`. Provider-specific steps are in the
+the provider. Single sign-on decides who can authenticate and grants nothing
+inside Lictory: organization membership comes from invitations, and an
+existing account is linked automatically only when the provider asserts
+`email_verified`. Provider-specific steps:
 [single sign-on runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/sso.md).
 
 ## Lictory Intelligence
 
-Set AI providers up in the admin console (**Admin console → AI providers**)
+Set up AI providers in the admin console (**Admin console → AI providers**)
 or in the terminal:
 
 ```sh
@@ -197,36 +193,33 @@ sudo lictory ai setup     # choose providers, models and keys; test; save
 sudo lictory ai check     # check what is saved
 ```
 
-Cloud providers (OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI,
-Amazon Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter) and open-weight models
-on your own hardware (Ollama, vLLM, LM Studio, llama.cpp, Whisper servers for
-dictation) are supported. [AI providers](/self-hosting/ai-providers) covers each
-one, self-hosted models on the same machine or a private server, dictation and
-the environment variables (`LICTORY_AI_*`), which take precedence when set.
+Supported: cloud providers (OpenAI, Anthropic, Google Gemini and Vertex AI,
+Azure OpenAI, Amazon Bedrock, Mistral, xAI, Groq, DeepSeek, OpenRouter) and
+open-weight models on your own hardware (Ollama, vLLM, LM Studio, llama.cpp,
+Whisper servers for dictation). [AI providers](/self-hosting/ai-providers)
+covers each one, self-hosted models, dictation and the environment variables
+(`LICTORY_AI_*`), which take precedence when set.
 
-With a provider configured, an organization administrator still decides
-whether Lictory Intelligence may run for their organization (**Organization
-settings → Lictory Intelligence**). Content people ask it to analyze is sent
-to the configured provider; uploaded documents are converted to text on your
-server first.
+An organization administrator still decides whether Lictory Intelligence runs
+for their organization (**Organization settings → Lictory Intelligence**).
+Content people ask it to analyze is sent to the configured provider; uploaded
+documents are converted to text on your server first.
 
 ## Live editing
 
-Live editing of [pages in Spaces](/spaces/editing) and of
+Live editing of [pages in Spaces](/spaces/editing) and
 [specification drafts](/specifications/live-drafts) needs no setup: the
-`collaboration` service uses the same database, sign-in and address as the
-rest of Lictory, and the gateway routes `/collaboration` to it. Behind your
-own proxy, pass that path's WebSocket upgrades
-([reverse proxy and TLS](/self-hosting/reverse-proxy)).
+`collaboration` service shares the database, sign-in and address, and the
+gateway routes `/collaboration` to it. Behind your own proxy, pass that
+path's WebSocket upgrades ([reverse proxy and TLS](/self-hosting/reverse-proxy)).
 
 | Setting                   | Meaning                                                    |
 | ------------------------- | ---------------------------------------------------------- |
 | `COLLABORATION_MEM_LIMIT` | Memory limit of the collaboration service (default `384m`) |
 | `COLLABORATION_HEAP_MB`   | Its JavaScript heap, below the limit (default `256`)       |
 
-Run exactly one collaboration service per database: editors of a page or a
-specification must share one service to see each other, so a second copy
-refuses to start.
+Run exactly one collaboration service per database (editors must share one
+to see each other); a second copy refuses to start.
 
 ## Legal notices
 
@@ -235,20 +228,18 @@ refuses to start.
 | `LEGAL_TERMS_URL`   | Your terms of service (an absolute `https` URL) |
 | `LEGAL_PRIVACY_URL` | Your privacy notice (an absolute `https` URL)   |
 
-As the operator of your installation, you are responsible for its terms and
+As the operator, you are responsible for your installation's terms and
 privacy notice; Lictory ships none. With either setting, the sign-up and
-sign-in pages tell people that creating an account accepts your terms or
-acknowledges your notice, and the consent banner links to your notice.
-Without them, the app shows no acceptance notice and no legal links: it
-never points your users to another operator's terms.
+sign-in pages say that creating an account accepts your terms or acknowledges
+your notice, and the consent banner links to your notice. Without them, the
+app shows no acceptance notice and no legal links.
 
 ## Analytics
 
 Product analytics are **off** by default: without `POSTHOG_PROJECT_TOKEN`
-and `POSTHOG_HOST`, the application loads no analytics code and shows no
-consent banner. When you set both, browsers reach PostHog only through your
-own `/relay` route, and `ANALYTICS_CONSENT` chooses how analytics follow
-each visitor's choice:
+and `POSTHOG_HOST`, no analytics code loads and no consent banner shows. With
+both set, browsers reach PostHog only through your own `/relay` route, and
+`ANALYTICS_CONSENT` sets how analytics follow each visitor's choice:
 
 - unset: PostHog loads before a choice in cookieless, anonymous mode and
   switches to full tracking after consent; server events are sent regardless
@@ -256,4 +247,4 @@ each visitor's choice:
 - `strict`: nothing loads until the visitor grants analytics consent, and
   server events are sent only for requests from a browser that granted it.
 
-Which mode you need depends on your own privacy policy.
+Which mode you need depends on your privacy policy.

@@ -636,8 +636,7 @@ function LinkForm({
       />
       {invalid && (
         <p id={`${id}-error`} role="alert" className="text-xs text-destructive">
-          Use a web or mail address (https://, http://, mailto:), a path
-          starting with / or an anchor starting with #.
+          Use a web or mail address, a /path or a #anchor.
         </p>
       )}
       <div className="flex justify-end gap-1">

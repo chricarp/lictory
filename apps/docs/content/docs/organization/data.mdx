@@ -3,10 +3,9 @@ title: Export and delete an organization
 description: Take a complete copy of an organization's data, what the archive contains, and how scheduled deletion and its cancellation work.
 ---
 
-Your organization's data is yours. Administrators can take a complete copy
-at any time, to keep a record, to leave the installation or to move to
-another one. Owners can delete the organization; deletion waits for a grace
-period during which it can be cancelled.
+Administrators can take a complete copy of the organization at any time.
+Owners can delete it after a grace period during which deletion can be
+cancelled.
 
 ## Export the data
 
@@ -15,25 +14,25 @@ period during which it can be cancelled.
 
 ### Start the export
 
-Go to **Organization settings → Data export** and choose **Export data**.
-Organization administrators only. One export runs at a time; while it is
-being prepared the button says **Export in progress**.
+Go to **Organization settings → Data export** and choose **Export data**
+(organization administrators only). One export runs at a time; meanwhile the
+button says **Export in progress**.
 
 </Step>
 <Step>
 
 ### Wait, or leave
 
-The archive is prepared in the background, so you can leave the page. Large
-organizations take longer; nothing else slows down meanwhile.
+The archive is prepared in the background; you can leave the page. Nothing
+else slows down.
 
 </Step>
 <Step>
 
 ### Download it
 
-When it is ready, **Download** saves the archive. Archives can be downloaded
-for 7 days, then they expire; the list of exports stays as history.
+**Download** saves the archive. Archives expire after 7 days; the list of
+exports stays as history.
 
 </Step>
 </Steps>
@@ -66,19 +65,18 @@ A complete copy of the organization as of one moment:
   context;
 - the audit log.
 
-Not included: anyone's private Litto conversations, personal notifications
-and preferences, and credentials of any kind (passwords, sessions, tokens,
-Jira credentials).
+Not included: private Litto conversations, personal notifications and
+preferences, and credentials of any kind (passwords, sessions, tokens, Jira
+credentials).
 
 The archive is a `.tar.gz` of JSON Lines files (one per kind of record), a
 `work-items.csv` for spreadsheets, the attachment files, and a
-`manifest.json` that lists everything in it. Identifiers are kept exactly,
-so references between files (an approval to its revision, a reply to its
-discussion) resolve within the archive.
+`manifest.json` listing everything. Identifiers are kept exactly, so
+references between files (an approval to its revision, a reply to its
+discussion) resolve.
 
 <Callout title="Import is not available yet">
-  The format is designed so an archive can be imported later, but Lictory cannot
-  import one today.
+  The format is designed for import, but Lictory cannot import an archive today.
 </Callout>
 
 ## Delete an organization
@@ -90,9 +88,8 @@ Only owners can delete an organization.
 
 ### Export first
 
-**Organization settings → Delete organization** shows the latest export, or
-says there is none, with a link to **Data export**. Take one if you might
-need anything later.
+**Organization settings → Delete organization** shows the latest export (or
+none) and links to **Data export**. Take one if you might need anything.
 
 </Step>
 <Step>
@@ -101,15 +98,14 @@ need anything later.
 
 ![Organization settings, Delete organization: what scheduling the deletion does, Export the data first, the field for the organization’s handle, and Schedule deletion](/screenshots/org-delete.webp)
 
-Type the organization's handle where the page asks for it and choose
-**Schedule deletion**.
+Type the organization's handle and choose **Schedule deletion**.
 
 </Step>
 </Steps>
 
 Scheduling locks the organization at once: nobody can open its projects or
-change anything in it, and every member is told by email. Members still see
-it in their list of organizations, with the date it will be deleted.
+change anything, and every member is emailed. Members still see it in their
+organization list, with its deletion date.
 
 After the grace period (30 days, unless your installation sets another),
 its projects, work items, specifications and every revision, reviews,
@@ -121,10 +117,9 @@ permanently deleted.
 
 - **Owners** can still start and download data exports, and **Cancel
   deletion**, which opens the organization again as it was.
-- **Administrators and members** see the locked page and can ask an owner
-  to cancel.
-- Work that was already queued (a Jira hand-off, an analysis) still
-  finishes; nothing new starts.
+- **Administrators and members** see the locked page.
+- Already queued work (a Jira hand-off, an analysis) finishes; nothing new
+  starts.
 - **Instance administrators** see that the deletion is scheduled, but
   cannot cancel it or bring it forward.
 
@@ -133,22 +128,20 @@ permanently deleted.
 - People's accounts, with their other organizations, are not affected.
 - The installation's history keeps a record that the organization existed,
   who scheduled its deletion and what was removed.
-- Lictory does not revoke the Jira token at Jira: the Jira administrator
-  revokes it there.
+- Lictory does not revoke the Jira token at Jira; the Jira administrator
+  must.
 
 ## What to watch for
 
-- If you are the organization's **only owner** and delete your account after
-  scheduling the deletion, it still happens on its date, but nobody can
-  cancel it any more.
-- The export does not leave the server by itself: download it and store it
-  where your company keeps records.
-- Archives are kept in the database until they expire; a very large export
-  takes database space for those days.
+- If the **only owner** deletes their account after scheduling, the deletion
+  still happens and nobody can cancel it.
+- The export stays on the server until you download it and store it where
+  your company keeps records.
+- Archives occupy database space until they expire.
 
 ## Tips
 
 - Export before every big change (switching delivery to Jira, a large
-  reorganization), not only before deletion. It costs nothing to keep a copy.
-- Before deleting, tell members a few days ahead and give them the export
-  date, so nobody is surprised by the locked page.
+  reorganization), not only before deletion.
+- Tell members a few days before deleting, and when the export will be
+  taken.

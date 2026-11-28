@@ -38,10 +38,6 @@ export default function GlobalError({
           <div className="recovery-content">
             <StateIllustration kind="recovery" />
             <h1 style={{ fontSize: 24 }}>Lictory could not open this page</h1>
-            <p style={{ fontSize: 14, lineHeight: 1.7 }}>
-              An unexpected error interrupted the page. Try again, or continue
-              to the installation guide.
-            </p>
             <div className="recovery-actions">
               <button onClick={reset}>Try again</button>
               <a href={tryUrl}>{getStartedLabel}</a>

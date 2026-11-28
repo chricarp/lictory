@@ -120,14 +120,14 @@ export function OnboardingEntry({
           }
         >
           {intent === "unavailable"
-            ? "Ask your Lictory administrator to create the organization, or to add you to an existing one."
+            ? "Ask them to create one, or to add you to an existing one."
             : intent === "join"
               ? canCreate
                 ? undefined
-                : "You’re not a member of an organization yet. Your organization’s administrators add you with an invitation."
+                : "Your organization’s administrators add you with an invitation."
               : intent === "create"
                 ? "Name your company and its first project."
-                : "From conversation to shipped code: your team and its agents agree on what to build, then build it, with people making the decisions."}
+                : undefined}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
@@ -169,7 +169,7 @@ export function OnboardingEntry({
               icon={<ShieldCheck />}
               onClick={() => router.push(paths.admin())}
             >
-              Manage accounts and organizations for this installation.
+              Accounts and organizations on this installation.
             </Choice>
           </div>
         )}
@@ -226,7 +226,7 @@ export function OnboardingEntry({
                   <span className="font-medium break-all text-foreground">
                     {email}
                   </span>
-                  . This page updates on its own.
+                  .
                 </p>
               </div>
             )}
