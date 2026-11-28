@@ -440,7 +440,7 @@ function DraftEditor({
         suggestionExtension("workItemMenu", {
           char: "#",
           title: "Work items",
-          empty: "No matching work items you can see",
+          empty: "No matching work items",
           store: menus.items,
           items: (query) => workItemItems(query, data.get().references.items()),
         }),
@@ -650,7 +650,7 @@ function DraftEditor({
                 variant="ghost"
                 size="sm"
                 className={touchTarget}
-                title="Back to the published page. The draft stays saved."
+                title="The draft stays saved"
                 onClick={onDone}
               >
                 Close editor
@@ -691,8 +691,7 @@ function DraftEditor({
           role="status"
           className="mt-3 rounded-xl bg-muted px-3 py-2 text-[13px] text-muted-foreground"
         >
-          This draft was replaced (a version was restored or merged into it).
-          Opening the current draft…
+          This draft was replaced. Opening the current draft…
         </p>
       )}
       {state.kind === "failed" && (
@@ -707,8 +706,7 @@ function DraftEditor({
           <p className="min-w-0 flex-1 basis-60">
             <span className="font-medium">Live editing is unavailable.</span>{" "}
             <span className="text-muted-foreground">
-              The collaboration service cannot be reached. Reading, history and
-              comments keep working.
+              The collaboration service cannot be reached.
             </span>
           </p>
           <Button
@@ -843,8 +841,7 @@ function RecoveredText({
                     () =>
                       toast({
                         title: "The text could not be copied",
-                        description:
-                          "Select it in the notice and copy it by hand.",
+                        description: "Select it and copy it by hand.",
                         type: "error",
                       }),
                   );
@@ -908,7 +905,7 @@ export function SaveIndicator({
   snapshot,
   uploading,
   savedLabel,
-  savedTitle = "Every edit is stored by the server.",
+  savedTitle,
 }: {
   id: string;
   snapshot: SessionSnapshot;
@@ -940,11 +937,11 @@ export function SaveIndicator({
         data-testid="draft-save-state"
         title={
           state.kind === "offline"
-            ? "Your edits stay in this tab and are saved when the connection returns. Keep the tab open."
+            ? "Saved when the connection returns. Keep this tab open."
             : state.kind === "saved"
               ? savedTitle
               : state.kind === "failed"
-                ? "The server refused your latest edits. They are kept in this tab; reopen the editor to keep working."
+                ? "The server refused your latest edits. Reopen the editor to keep working."
                 : undefined
         }
         className="inline-flex items-center gap-1"
@@ -1021,8 +1018,7 @@ export function SaveFailedNotice({
       <p className="min-w-0 flex-1 basis-60">
         <span className="font-medium">Your latest edits were not saved.</span>{" "}
         <span className="text-muted-foreground">
-          {reason} Reopen the editor to keep working from what is saved; your
-          unsaved text is kept on this device and offered back.
+          {reason} Your unsaved text is kept on this device.
         </span>
       </p>
       <Button size="sm" variant="secondary" onClick={onReopen}>
@@ -1101,7 +1097,6 @@ function BranchNextStep({
           <>
             Pull request <span className="font-medium">“{open.title}”</span> now
             includes {version ? `version ${version}` : "this version"}.
-            Reviewers approve the new result.
           </>
         ) : (
           <>
@@ -1110,8 +1105,7 @@ function BranchNextStep({
               this branch.
             </span>{" "}
             <span className="text-muted-foreground">
-              Readers still see the published page. Open a pull request to ask
-              for review.
+              Readers still see the published page.
             </span>
           </>
         )}

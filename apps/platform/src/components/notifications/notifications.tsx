@@ -424,10 +424,7 @@ export function NotificationFeed() {
                 Choose what you&apos;re notified about
               </Link>
             }
-          >
-            Review requests, mentions, blocking discussions and other changes
-            addressed to you appear here.
-          </EmptyState>
+          />
         ) : (
           <ul className="mx-auto w-full max-w-5xl divide-y">
             {rows.map((row) => {

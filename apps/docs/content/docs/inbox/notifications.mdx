@@ -3,14 +3,11 @@ title: Notifications
 description: What Lictory notifies you about and why, how to watch an item, and how to choose what reaches your Inbox and your email.
 ---
 
-Notifications exist to unblock work. Lictory tells you when something is
-asked of you, or when something changed in work you are part of. It does not
-tell you about every edit. Notifications appear under **Updates** in the
-[Inbox](/inbox), and the important ones are also emailed.
+Lictory tells you when something is asked of you or changed in work you are
+part of, not about every edit. Notifications appear under **Updates** in the
+[Inbox](/inbox); the important ones are also emailed.
 
 ## What notifies you by default
-
-The defaults follow one rule:
 
 - **Asks something of you**: in the Inbox **and by email**. A review is
   requested, you are mentioned, a blocking discussion is opened, your
@@ -44,22 +41,21 @@ The defaults follow one rule:
 |                                      | **Direct message**, **Thread reply**                                                                                | Inbox           |
 |                                      | **Channel message** (only for channels set to all messages)                                                         | Inbox           |
 
-Notices about your organization being scheduled for deletion, or that
-deletion being cancelled, always reach every member in the Inbox and by
-email. They cannot be turned off.
+Notices that your organization is scheduled for deletion, or that the
+deletion was cancelled, always reach every member in the Inbox and by email.
+They cannot be turned off.
 
 ### A few that matter most
 
 - **Your approval went stale.** The specification changed after you
-  approved it, so your approval no longer covers the current revision. Review
-  it again ([approvals](/review/approvals)).
+  approved it; review the current revision again
+  ([approvals](/review/approvals)).
 - **Hand-off failed.** A hand-off to Jira or another delivery tool finished
   with failures or conflicts. The Hand-off view lists the items that did not
   reach Jira and why; fix the cause and retry them. Retrying an item brings
   its children along ([Jira](/integrations/jira)).
 - **Proposed change ready to apply.** Every requirement to apply it is met.
-  The author and the change's collaborators are told once each time it
-  becomes ready. A
+  The author and collaborators are told once each time it becomes ready. A
   project can turn this off with **Ready to merge notice** in **Project
   settings → Delivery**.
 
@@ -76,7 +72,7 @@ You receive updates about a work item when you are **involved** in it:
 A review requested from a discipline reaches every member of that
 discipline. Iteration updates reach the project's members.
 
-Some things are always true:
+Always:
 
 - You are never notified of your own action.
 - One change sends you at most one notification per item: the most specific
@@ -101,20 +97,20 @@ Opening or resolving a non-blocking discussion on a page notifies nobody
 
 ## Mention someone
 
-Type `@` in a discussion and choose a person. They are notified with a link
-to the discussion. Mentioning someone who is not a member, or who cannot read
-the page's space, notifies nobody.
+Type `@` in a discussion and choose a person; they get a link to the
+discussion. Mentioning someone who is not a member, or who cannot read the
+page's space, notifies nobody.
 
 ## Watch an item
 
 Choose **Watch** in a work item's header (under **More actions** on a
-phone) to get its updates without being involved. The button then shows
+phone) to get its updates without being involved. It then shows
 **Watching**; choose it again to stop.
 
-Items you are involved in show **Watching** already. Choosing it stops their
-ambient updates (status changes, replies, new discussions). Requests
-addressed to you still reach you: review requests, mentions, assignment and
-stale approvals follow your notification settings only.
+Items you are involved in already show **Watching**. Choosing it stops their
+ambient updates (status changes, replies, new discussions). Review requests,
+mentions, assignment and stale approvals still reach you, following your
+notification settings only.
 
 Pages cannot be watched; their notifications follow involvement only.
 
@@ -142,7 +138,7 @@ settings; pages use the settings of the space's team or project.
 
 Each notification has a switch for the Inbox. When it is on, tick **Also
 send an email** to get it by email too. Email is always a copy of an Inbox
-notification, never sent on its own.
+notification.
 
 Each row says where its value comes from: **Default** or **From organization
 settings**. A value you set has **Reset**.
@@ -164,8 +160,8 @@ Settings are personal: they change only what you receive.
 
 ## Email
 
-Email goes out within moments of the notification, and is retried if the
-mail service fails. It is not sent when:
+Email goes out within moments of the notification and is retried if the mail
+service fails. It is not sent when:
 
 - your installation has no email configured
   ([email settings](/self-hosting/configuration#email));
@@ -174,12 +170,12 @@ mail service fails. It is not sent when:
 
 ## What to watch for
 
-- **No digest.** Lictory sends each email on its own rather than a daily
-  summary. Keep email for what asks something of you.
+- **No digest.** Each email is sent on its own, never as a daily summary.
+  Keep email for what asks something of you.
 - **Muting is per item.** Unwatching one item does not change your settings
   for its project.
-- **Turning off review requests hides real work.** The **To do** view still
-  shows them, but you will not be told.
+- **Turning off review requests hides real work.** **To do** still shows
+  them, but you will not be told.
 
 ## Tips
 

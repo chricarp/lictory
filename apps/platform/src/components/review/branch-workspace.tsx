@@ -312,12 +312,10 @@ export function BranchEntry({
         <span className="font-medium">Revision {item.revisionNumber}</span>
         <span className="text-muted-foreground">current specification</span>
         {item.mainProtected && (
-          <span title="This specification is ready. Changes are proposed and reviewed before they apply.">
-            <Badge>
-              <LockKeyhole className="size-3" />
-              Protected
-            </Badge>
-          </span>
+          <Badge>
+            <LockKeyhole className="size-3" />
+            Protected
+          </Badge>
         )}
         <Button
           className="ml-auto"
@@ -490,15 +488,7 @@ function BranchOverview({
     lineName(branches.find((b) => b.id === id));
   return (
     <>
-      <div>
-        <ItemScreenTitle>Proposed changes</ItemScreenTitle>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Propose changes to this specification without touching its current
-          revision. Edit a change with the people you invite, save versions,
-          then send it for review: once the required reviewers approve, it
-          applies as the next revision.
-        </p>
-      </div>
+      <ItemScreenTitle>Proposed changes</ItemScreenTitle>
       <ErrorMessage message={error} />
       {!readOnly && (
         <form
@@ -520,17 +510,9 @@ function BranchOverview({
             );
           }}
         >
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
-              <Plus className="size-4" /> Start a change
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              A change is a separate draft of the specification: you and the
-              collaborators you invite edit it while the current revision stays
-              as it is. Everyone who can open this item can see it; nobody is
-              asked to review anything until you send it for review.
-            </p>
-          </div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Plus className="size-4" /> Start a change
+          </h2>
           <div className="flex flex-wrap items-start gap-2">
             <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium">
               Name of the change
@@ -652,7 +634,7 @@ function BranchOverview({
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               {filter === "merged"
                 ? "Nothing applied yet."
-                : "Nothing in review. Save a version of a change, then send it for review."}
+                : "Nothing in review."}
             </p>
           )}
         </div>
@@ -713,7 +695,7 @@ function BranchOverview({
             })}
           {branches.length <= 1 && (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              No proposed changes yet. Start one to propose your first edit.
+              No proposed changes yet.
             </p>
           )}
         </div>
@@ -801,9 +783,6 @@ function BranchEditor({
       <div className="rounded-lg border border-dashed px-6 py-10 text-center">
         <p className="text-sm font-medium">
           This proposed change is unavailable.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          It was deleted, or applied and closed. Its versions remain in history.
         </p>
         <Button
           className="mt-3"
@@ -1066,11 +1045,7 @@ function BranchEditorBody({
     <Button
       variant={stage === 2 ? "primary" : "secondary"}
       disabled={!canEdit || pending || changed}
-      title={
-        changed
-          ? "Save or discard your edits first. A review covers saved versions only."
-          : undefined
-      }
+      title={changed ? "Save or discard your edits first." : undefined}
       onClick={() => setOpening(true)}
     >
       <GitPullRequestCreate className="size-3.5" />
@@ -1099,21 +1074,16 @@ function BranchEditorBody({
       title={`The breakdown is ${pr.status === "draft" ? "a draft" : "waiting for review"}.`}
       action={viewPrButton}
     >
-      The items are created once the specification&apos;s reviewers approve it.
-      Changes you make here update the review and ask them again.
+      Changes here update the review and ask reviewers again.
     </NextStep>
   ) : (
-    <NextStep title="Propose the items that deliver this specification.">
-      Edits are saved as you type and shared with the people you invite. Nothing
-      is created until the specification&apos;s reviewers approve the breakdown.
-    </NextStep>
+    <NextStep title="Propose the items that deliver this specification." />
   );
   const guidance = isBreakdown ? (
     breakdownGuidance
   ) : !canEdit ? (
     <NextStep title="You're viewing someone else's proposed change.">
-      Ask {memberName(branch.authorId)} to invite you as a collaborator to edit
-      it.
+      Ask {memberName(branch.authorId)} to invite you to edit it.
     </NextStep>
   ) : committed && !changed ? (
     <NextStep
@@ -1123,28 +1093,21 @@ function BranchEditorBody({
     >
       {pr
         ? `Review “${pr.title}” now includes this version. Reviewers will be asked to approve again.`
-        : `Nothing changed in ${targetName}. Send this change for review when you want it approved.`}
+        : `Nothing changed in ${targetName} yet.`}
     </NextStep>
   ) : stage === 0 ? (
-    <NextStep title="Edit the specification below.">
-      Edits are saved as you type and shared with this change&apos;s
-      collaborators. Save a version to record a checkpoint; the current
-      specification stays untouched.
-    </NextStep>
+    <NextStep title="Edit the specification below." />
   ) : stage === 1 ? (
     <NextStep tone="warning" title="Your edits are not in a version yet.">
       {pr
         ? `Save a version to update review “${pr.title}”. Reviewers will be asked to approve again.`
-        : "Save a version to record a checkpoint. Only saved versions can be sent for review."}
+        : "Only saved versions can be sent for review."}
     </NextStep>
   ) : stage === 2 ? (
     <NextStep
       title={`${plural(ahead, "saved version")} ${ahead === 1 ? "isn't" : "aren't"} in ${targetName} yet.`}
       action={openPrButton}
-    >
-      Send it for review. Nothing changes in {targetName} until the required
-      reviewers approve and someone applies it.
-    </NextStep>
+    />
   ) : (
     pr && (
       <NextStep
@@ -1152,8 +1115,8 @@ function BranchEditorBody({
         action={viewPrButton}
       >
         {pr.status === "draft"
-          ? "Mark it ready for review when you're done. New versions are added to it automatically."
-          : "New versions you save here are added to it automatically and ask reviewers to approve again."}
+          ? "New versions are added to it automatically."
+          : "New versions are added to it and ask reviewers to approve again."}
       </NextStep>
     )
   );
@@ -1301,8 +1264,7 @@ function BranchEditorBody({
                         </div>
                         {tab === "changes" && breakdownChanged && (
                           <p className="text-sm text-muted-foreground">
-                            The proposed breakdown changed too; it is saved with
-                            the text.
+                            The proposed breakdown changed too.
                           </p>
                         )}
                         {confirmDiscard && (
@@ -1395,8 +1357,7 @@ function BranchEditorBody({
                   </TabPanel>
                   <TabPanel value="changes">
                     <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                      No new edits. Everything in this change is in a saved
-                      version.
+                      No new edits.
                     </p>
                   </TabPanel>
                 </>
@@ -1483,16 +1444,9 @@ function BranchEditorBody({
                       ))}
                   </DropdownSelect>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Collaborators can edit this change.
-                </p>
               </section>
               <section className="space-y-2">
                 <SectionLabel>Bring in newer text</SectionLabel>
-                <p className="text-xs text-muted-foreground">
-                  Bring what changed in the specification, or in another change,
-                  into this one.
-                </p>
                 <SyncBranch
                   source={branch}
                   targets={branches.filter((b) => b.id !== branch.id)}
@@ -1541,7 +1495,7 @@ function SendBreakdown({
           ? changed
             ? "Your changes are not in the review yet."
             : "The review has every change."
-          : `${plural(items, "proposed item")}. The specification's reviewers approve the breakdown before the items are created.`}
+          : plural(items, "proposed item")}
       </p>
       <Button variant="ghost" size="sm" disabled={!changed} onClick={onDiscard}>
         Discard changes
@@ -1619,9 +1573,7 @@ function CommitBox({
       />
       <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-          {updatesPr
-            ? `Updates review “${updatesPr}”.`
-            : "The specification is not affected."}
+          {updatesPr && `Updates review “${updatesPr}”.`}
         </p>
         <Button
           variant="ghost"
@@ -1754,10 +1706,6 @@ function CreatePR({
           <h2 id="open-pr-heading" className="text-lg font-semibold">
             Send for review
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Ask reviewers to approve this change. Nothing changes in{" "}
-            {lineName(targetBranch)} until the review is approved and applied.
-          </p>
         </div>
         <Button variant="ghost" onClick={onCancel}>
           Cancel
@@ -1835,8 +1783,7 @@ function CreatePR({
             </label>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <p className="mr-auto text-xs text-muted-foreground">
-                Drafts can&apos;t be approved or applied until you mark them
-                ready.
+                Drafts can&apos;t be approved until marked ready.
               </p>
               <Button
                 variant="secondary"
@@ -1924,8 +1871,8 @@ function DeletePrompt({
         </AlertDialogTitle>
         <AlertDialogDescription className="mt-1 mb-0 text-[13px] leading-5 text-muted-foreground">
           {verb === "Withdraw"
-            ? "Reviewers are no longer asked and its open discussions are resolved. Its activity stays in history."
-            : "It will disappear from the workspace. Saved versions and activity remain in history."}
+            ? "Reviewers are no longer asked and its open discussions are resolved."
+            : "Saved versions and activity stay in history."}
           {detail && ` ${detail}`}
         </AlertDialogDescription>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -1986,8 +1933,7 @@ export function ConflictResolver({
     <section className="space-y-4 rounded-lg border border-warning/40 bg-card p-4">
       <h2 className="text-base font-semibold">Resolve changes</h2>
       <p className="text-sm text-muted-foreground">
-        Both sides edited the same text. Pick what to keep for each conflict;
-        edits that don&apos;t overlap are already combined.
+        Pick what to keep for each conflict; other edits are already combined.
       </p>
       {result.titleConflict ? (
         <div className="space-y-2">
@@ -2024,8 +1970,7 @@ export function ConflictResolver({
       {result.decompositionConflict && (
         <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-medium">
-            Both sides changed the proposed breakdown. Choose the complete
-            breakdown to keep.
+            Both sides changed the proposed breakdown. Choose one to keep.
           </p>
           <div className="flex gap-2">
             <Button
@@ -2373,9 +2318,7 @@ function PullRequestView({
             See all proposed changes
           </Button>
         }
-      >
-        The link may be wrong, or the review belongs to another item.
-      </MissingState>
+      />
     );
   const mergeActivity = activity.find(
     (a) =>
@@ -2516,9 +2459,7 @@ function PullRequestView({
       key: `review-${r.id}`,
       state: "pending",
       text: `${roleName(r.disciplineId)} approval ${stale ? "is stale" : "is pending"}${who ? ` · ${who}` : ""}`,
-      detail: stale
-        ? "The change or the specification moved since the approval. Ask for another review."
-        : "Waiting for a decision on the specification as it would read after this change.",
+      detail: stale ? "Changed since the approval." : undefined,
     });
   }
   if (changesRequested)
@@ -2526,13 +2467,12 @@ function PullRequestView({
       key: "changes",
       state: "failure",
       text: "A reviewer requested changes.",
-      detail: "Address the feedback in a new version, then ask again.",
     });
   if (required.length && !pendingRequired.length && !changesRequested)
     rows.push({
       key: "reviews-ok",
       state: "success",
-      text: `${plural(required.length, "required review")} approved the specification as it would read after this change.`,
+      text: `${plural(required.length, "required review")} approved.`,
     });
   if (actionGate)
     rows.push({
@@ -2551,7 +2491,7 @@ function PullRequestView({
           key: "threads",
           state: "failure",
           text: "Blocking discussions remain open.",
-          detail: `${plural(openBlocking, "blocking discussion")} must be resolved first.`,
+          detail: `${plural(openBlocking, "blocking discussion")} open`,
         }
       : {
           key: "threads-ok",
@@ -2565,7 +2505,7 @@ function PullRequestView({
           key: "conflicts",
           state: "failure",
           text: "This change conflicts with newer text.",
-          detail: `${sourceName} and ${targetName} changed the same text. Resolving saves a new version of ${sourceName}, so reviewers approve again.`,
+          detail: `Resolving saves a new version of ${sourceName}; reviewers approve again.`,
           action: source && ours && theirs && manage && (
             <Button
               size="sm"
@@ -2594,7 +2534,6 @@ function PullRequestView({
       key: "draft",
       state: "neutral",
       text: "This review is a draft.",
-      detail: "Reviewers can comment, but it can't be approved or applied yet.",
       action: manage && (
         <Button
           size="sm"
@@ -2607,25 +2546,22 @@ function PullRequestView({
       ),
     });
   const mergeEffect = breakdown ? (
-    <>
-      Creating them records this breakdown as revision {item.revisionNumber + 1}{" "}
-      of the specification. Approvals carry over to that revision.
-    </>
+    <>Creates revision {item.revisionNumber + 1}. Approvals carry over.</>
   ) : isMain(target) ? (
     <>
-      Applying makes this result revision {item.revisionNumber + 1} of the
-      specification. Approvals carry over to that revision
+      Creates revision {item.revisionNumber + 1}. Approvals carry over
       {willDeleteSource && (
         <>
-          , and the change <BranchName>{sourceName}</BranchName> is closed
+          {" "}
+          and the change <BranchName>{sourceName}</BranchName> is closed
         </>
       )}
       .
     </>
   ) : (
     <>
-      Applying adds this result to <BranchName>{targetName}</BranchName> as a
-      new version. The specification is not affected.
+      Adds a version to <BranchName>{targetName}</BranchName>. The specification
+      is not affected.
     </>
   );
 
@@ -2733,7 +2669,6 @@ function PullRequestView({
                 verb={breakdown ? "create" : "apply"}
                 requirements={rows}
                 blocked={blockers.length > 0}
-                readySummary="Required reviewers approved the specification as it would read after this change. No conflicts or blocking discussions remain."
                 before={
                   actionRuns.length > 0 &&
                   !actionGate && (
@@ -2745,23 +2680,11 @@ function PullRequestView({
                   )
                 }
                 note={
-                  canMerge ? (
-                    <>
-                      {blockers.length > 0 && (
-                        <span className="block font-medium text-foreground">
-                          Resolve the{" "}
-                          {blockers.length === 1
-                            ? "requirement"
-                            : `${blockers.length} requirements`}{" "}
-                          above to {breakdown ? "create the items" : "apply it"}
-                          .
-                        </span>
-                      )}
-                      {mergeEffect}
-                    </>
-                  ) : (
-                    `You can't ${breakdown ? "create the items" : "apply this change"}. ${isMain(target) ? "It needs permission to edit specifications." : `Only collaborators on ${targetName} can apply it.`}`
-                  )
+                  canMerge
+                    ? mergeEffect
+                    : isMain(target)
+                      ? `${breakdown ? "Creating the items" : "Applying"} needs permission to edit specifications.`
+                      : `Only collaborators on ${targetName} can apply it.`
                 }
                 action={
                   <Button
@@ -2819,18 +2742,11 @@ function PullRequestView({
             ) : (
               <MergedNotice label="Applied">
                 {breakdown ? (
-                  <p>
-                    Created. The reviewed breakdown is part of the
-                    specification&apos;s history, and its items are below the
-                    specification.
-                  </p>
+                  <p>Created. The items are below the specification.</p>
                 ) : (
                   <p>
-                    Applied. The reviewed text is part of{" "}
-                    {isMain(target)
-                      ? "the specification's history"
-                      : `${targetName}'s versions`}
-                    .
+                    Applied to{" "}
+                    {isMain(target) ? "the specification" : targetName}.
                     {automaticallyDeleted && (
                       <>
                         {" "}
@@ -2839,10 +2755,7 @@ function PullRequestView({
                       </>
                     )}
                     {source && isMain(target) && !willDeleteSource && (
-                      <>
-                        {" "}
-                        The change is kept because another open review uses it.
-                      </>
+                      <> The change is kept: another open review uses it.</>
                     )}
                   </p>
                 )}
@@ -2954,8 +2867,7 @@ function PullRequestView({
               <SectionLabel>Reviewers</SectionLabel>
               {!reviews.length && (
                 <p className="text-xs text-muted-foreground">
-                  No reviewers yet. Request the responsibilities that must
-                  approve this change.
+                  No reviewers yet.
                 </p>
               )}
               <ul className="space-y-3">
@@ -3082,9 +2994,7 @@ function PullRequestView({
                         !r.decision &&
                         isMain(target) && (
                           <p className="pl-6 text-xs text-muted-foreground">
-                            Approving approves the whole specification as it
-                            reads once this change applies, not only the change:
-                            it becomes {role?.name ?? "this discipline"}&apos;s
+                            Counts as {role?.name ?? "this discipline"}&apos;s
                             approval of revision {item.revisionNumber + 1}.
                           </p>
                         )}
@@ -3095,7 +3005,7 @@ function PullRequestView({
                         contributed &&
                         !r.decision && (
                           <p className="pl-6 text-xs text-muted-foreground">
-                            You contributed to this change, so another{" "}
+                            You contributed, so another{" "}
                             {role?.name ?? "reviewing"} member approves it.
                           </p>
                         )}
@@ -3145,17 +3055,6 @@ function PullRequestView({
                     </Button>
                   </div>
                 )}
-              {p.status === "open" && (
-                <p className="text-xs text-muted-foreground">
-                  Approvals cover the whole specification as it would read after
-                  this change
-                  {isMain(target)
-                    ? `; ${breakdown ? "creating the items" : "applying"} records them as approvals of revision ${item.revisionNumber + 1}`
-                    : ""}
-                  . A new version of this change, or a new revision of the
-                  specification, asks reviewers again.
-                </p>
-              )}
             </section>
             {/* Automated checks matter while the change is decided; an
                 applied review that never ran any has nothing to show. */}
@@ -3201,7 +3100,7 @@ function PullRequestView({
                   <DeletePrompt
                     verb="Withdraw"
                     name={`“${p.title}” from review`}
-                    detail="The change and its versions are kept; you can send it for review again."
+                    detail="The change and its versions are kept."
                     onDelete={() =>
                       run(
                         {

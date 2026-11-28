@@ -144,8 +144,6 @@ export function PageActionsProvider({
       setAnnouncement(`${title}.`);
       const id = toast({
         title,
-        description:
-          "Archived pages stay in the space. Show archived pages to restore them later.",
         duration: 8000,
         action: {
           label: "Undo",
@@ -274,7 +272,7 @@ function NewPageDialog({
       setError(
         template === "blank"
           ? "The page was not created. Check your connection and try again."
-          : `The ${pageTemplates[template].name} template could not be loaded, so no page was created. Check your connection and try again, or start from a blank page.`,
+          : `The ${pageTemplates[template].name} template did not load, so no page was created. Try again or start from a blank page.`,
       );
       setPending(false);
     }
@@ -282,11 +280,7 @@ function NewPageDialog({
   return (
     <Dialog
       title={parentTitle ? "New subpage" : "New page"}
-      description={
-        parentTitle
-          ? `Adds a page under “${parentTitle}”.`
-          : "Adds a page at the end of this space."
-      }
+      description={parentTitle ? `Under “${parentTitle}”` : undefined}
       onClose={onClose}
       onSubmit={() => void submit()}
       width="max-w-xl"
@@ -346,12 +340,6 @@ function NewPageDialog({
               ))}
             </DropdownSelect>
           </Field>
-        )}
-        {template !== "blank" && (
-          <p className="text-xs text-muted-foreground">
-            The template becomes the page’s first version. Edit it like any
-            other page.
-          </p>
         )}
         {error && (
           <p role="alert" className="text-xs text-destructive">
@@ -429,7 +417,6 @@ function MovePageDialog({
   return (
     <Dialog
       title={`Move “${page.title}”`}
-      description="Choose where the page and its subpages go. Pages move only within their space."
       onClose={onClose}
       onSubmit={() => to && onMove(to)}
       footer={
@@ -489,7 +476,7 @@ function MovePageDialog({
             )}
             {matches.length > shown.length && (
               <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                {matches.length - shown.length} more pages. Type to narrow down.
+                {matches.length - shown.length} more. Type to narrow down.
               </p>
             )}
             {q && matches.length === 0 && (
@@ -505,16 +492,8 @@ function MovePageDialog({
           value={where}
           onChange={setWhere}
           options={[
-            {
-              value: "last",
-              label: "Last",
-              description: "After its siblings.",
-            },
-            {
-              value: "first",
-              label: "First",
-              description: "Before its siblings.",
-            },
+            { value: "last", label: "Last" },
+            { value: "first", label: "First" },
           ]}
         />
       </div>

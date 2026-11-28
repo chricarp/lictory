@@ -58,8 +58,7 @@ export const capabilityMeta: Record<
   },
   review: {
     label: "Can be asked to review",
-    description:
-      "Reviews can be requested from this discipline; its members decide them.",
+    description: "Reviews can be requested from this discipline.",
   },
   publishDelivery: {
     label: "Hand off to delivery tools",
@@ -89,10 +88,7 @@ export function ProjectDisciplines({
       title="Disciplines"
       description={
         <>
-          The kinds of work people do in this project. Each discipline decides
-          what its members may do with work items, and reviews are requested
-          from disciplines. People get the combined abilities of their
-          disciplines.{" "}
+          People get the combined abilities of their disciplines.{" "}
           <Link
             href={paths.projectSettings(
               organization.slug,
@@ -116,7 +112,6 @@ export function ProjectDisciplines({
           </Button>
         ) : undefined
       }
-      footer="Renaming or archiving a discipline never rewrites past reviews: they keep the name they were requested under."
     >
       {creating && (
         <NewDiscipline
@@ -133,7 +128,7 @@ export function ProjectDisciplines({
         />
       )}
       {shown.length > 0 && <AbilityLegend />}
-      <SettingsList isEmpty={shown.length === 0} empty="No disciplines yet.">
+      <SettingsList isEmpty={shown.length === 0} empty="No disciplines">
         {shown.map((d) => (
           <DisciplineRow
             key={d.id}
@@ -398,7 +393,7 @@ function NewDiscipline({
         />
         <Input
           className="h-8 min-w-0 flex-1 text-sm"
-          placeholder="What this discipline looks after (optional)"
+          placeholder="Description (optional)"
           maxLength={500}
           value={description}
           onChange={(e) => setDescription(e.target.value)}

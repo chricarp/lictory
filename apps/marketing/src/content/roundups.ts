@@ -67,17 +67,17 @@ export const roundups: readonly Roundup[] = [
       "Four open-source alternatives to Jira compared on license, hosting, pricing model, features and Jira import, with who each one suits best.",
     headline: "Open-source Jira alternatives",
     intro:
-      "If you want to replace Jira with software you can read, run and change yourself, four open-source tools come up most often for software teams: Lictory, Plane, OpenProject and Taiga. They differ more than their feature lists suggest: in license, in what their paid editions hold back, in how they import from Jira, and in what they treat as the core of the work.",
-    method: `We make Lictory, so read this with that in mind. We included open-source tools that software teams commonly evaluate as Jira replacements and that publish their source code under an open-source license.
+      "Four open-source tools come up most often when software teams replace Jira: Lictory, Plane, OpenProject and Taiga. They differ more than their feature lists suggest: in license, in what paid editions hold back, in Jira import, and in what they treat as the core of the work.",
+    method: `We make Lictory, so read this with that in mind. We included open-source tools software teams commonly evaluate as Jira replacements.
 
-Every fact about another product comes from its own website, documentation or repository, linked under Sources at the end. Where we could not confirm something there, we left it out. We list Lictory's limitations as plainly as the others'.`,
+Every fact about another product comes from its own website, documentation or repository, linked under Sources. What we could not confirm there, we left out. Lictory's limitations are listed as plainly as the others'.`,
     columns: ["licenseShort", "hostingShort", "jiraImport"],
     entries: [
       {
         product: "lictory",
-        summary: `Lictory is an open-source control plane for software teams and their agents, built around one idea: **requirements are reviewed like code**. A specification changes through immutable revisions; reviewers discuss the exact text, accept or reject suggested wording and approve a specific revision; readiness checks show when work can start.
+        summary: `Lictory is an open-source control plane for software teams and their agents, built around one idea: **requirements are reviewed like code**. Specifications change through immutable revisions; reviewers discuss the exact text, accept or reject suggested wording and approve a specific revision; readiness checks show when work can start.
 
-Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, estimates, burndown, velocity and relations) or is handed off to Jira Cloud. The same product has team chat with agents as members, links to GitHub, GitLab or Bitbucket, and coding agents that work on runners you control.`,
+Delivery runs natively (board, ranked backlog, sprints or automatic cycles, estimates, burndown, velocity and relations) or is handed off to Jira Cloud. The same product has team chat with agents as members, GitHub, GitLab and Bitbucket links, and coding agents on runners you control.`,
         bestFor:
           "Software teams whose problem with Jira is unclear requirements and untraceable sign-off, not ticket tracking.",
         considerations:
@@ -105,7 +105,7 @@ Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, 
         bestFor:
           "Teams that want a simple Scrum or Kanban tool, self-hosted or on a flat-priced cloud plan.",
         considerations:
-          "Its Jira importer supports Jira releases up to 8.5. The planned successor once called Taiga Next continues as a separate project, Tenzu, so check the project's direction before committing for the long term.",
+          "Its Jira importer supports Jira releases up to 8.5. The planned successor once called Taiga Next continues as a separate project, Tenzu: check the project's direction before committing long term.",
       },
     ],
     sections: [
@@ -114,7 +114,7 @@ Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, 
         title: "Why teams look for an open-source Jira alternative",
         body: `- **Control over data and hosting.** Self-managed Jira Data Center is no longer sold to new customers since 30 March 2026 and reaches end of life on 28 March 2029, so teams that must self-host are choosing what comes next. See [self-hosted Jira alternatives](/self-hosted-jira-alternative).
 - **Cost.** Open-source editions are free to run; you pay for servers and, if you choose, paid editions or support.
-- **Adaptability.** You can read the code, fix what bothers you and contribute it back.
+- **Adaptability.** Read the code, fix what bothers you, contribute it back.
 - **A different workflow.** Some teams are not short of ticket fields; they are short of agreement on what the tickets mean.`,
       },
       {
@@ -127,21 +127,21 @@ Delivery runs natively (a board, a ranked backlog, sprints or automatic cycles, 
 - **GPL-3.0** (OpenProject): copyleft. Distributing a modified version requires publishing its source under the GPL.
 - **AGPL-3.0** (Plane Community Edition): copyleft that also covers network use. Offering a modified version to users over a network requires making its source available to them.
 
-Also check what the open-source edition contains. Plane and OpenProject sell editions with additional features. Taiga's paid plans are for hosting and support, and Lictory has a single edition with every feature.`,
+Also check what the open-source edition contains. Plane and OpenProject sell editions with more features, Taiga's paid plans are for hosting and support, and Lictory has a single edition.`,
       },
       {
         id: "with-jira",
         title: "Not ready to leave Jira?",
-        body: `Lictory can sit in front of Jira instead of replacing it. Set a project to external delivery: specifications are refined, reviewed and approved in Lictory, then ready work is handed off to Jira Cloud with a link back to the approved revision.
+        body: `Lictory can sit in front of Jira instead of replacing it. Set a project to external delivery: specifications are refined and approved in Lictory, then ready work is handed off to Jira Cloud with a link back to the approved revision.
 
-After hand-off, Jira owns status, assignee and sprint, and edits to the published text in Jira are held as conflicts instead of being overwritten. [Lictory vs Jira](/compare/jira) explains how the two divide the work.`,
+After hand-off, Jira owns status, assignee and sprint, and edits to the published text in Jira are held as conflicts instead of being overwritten. See [Lictory vs Jira](/compare/jira).`,
       },
     ],
     faqs: [
       {
         question: "What is the best open-source alternative to Jira?",
         answer:
-          "It depends on what you need from Jira. For a broad tracker with Gantt views and a cloud option, Plane. For full project management with time, costs and portfolios, OpenProject. For simple Scrum and Kanban, Taiga. For reviewing and approving requirements before delivery, with boards and sprints included, Lictory.",
+          "It depends on what you need. A broad tracker with Gantt views and a cloud option: Plane. Full project management with time, costs and portfolios: OpenProject. Simple Scrum and Kanban: Taiga. Reviewing and approving requirements before delivery, with boards and sprints included: Lictory.",
       },
       {
         question:
@@ -152,7 +152,7 @@ After hand-off, Jira owns status, assignee and sprint, and edits to the publishe
       {
         question: "Are open-source Jira alternatives really free?",
         answer:
-          "Their open-source editions are free to self-host. Plane and OpenProject also sell editions with more features, and Plane, OpenProject and Taiga sell hosted plans. Lictory has no paid edition and no cloud: it is free, and you run it yourself.",
+          "Their open-source editions are free to self-host. Plane and OpenProject also sell editions with more features, and Plane, OpenProject and Taiga sell hosted plans. Lictory has no paid edition and no cloud: free, and you run it yourself.",
       },
       {
         question: "Can I keep Jira and still use Lictory?",
@@ -170,15 +170,15 @@ After hand-off, Jira owns status, assignee and sprint, and edits to the publishe
       "Jira Data Center reaches end of life in March 2029. What self-hosting Lictory, OpenProject, Plane and Taiga involves, how each imports from Jira, and what to check before you move.",
     headline: "Self-hosted Jira alternatives",
     intro:
-      "Atlassian stopped selling Jira Data Center to new customers on 30 March 2026, and Data Center licenses expire and become read-only on 28 March 2029. If your work management has to stay on your own servers, for regulation, data residency or policy, these are the open-source options to evaluate, judged on what running them yourself involves.",
-    method: `We make Lictory. This page compares tools on what matters when you operate them yourself: how they install, what the self-hosted edition includes, how they import from Jira and what they cost to run.
+      "Atlassian stopped selling Jira Data Center to new customers on 30 March 2026; licenses expire and become read-only on 28 March 2029. If your work management has to stay on your own servers, these are the open-source options, judged on what running them yourself involves.",
+    method: `We make Lictory. This page compares what matters when you operate a tool yourself: how it installs, what the self-hosted edition includes, how it imports from Jira and what it costs to run.
 
-Facts about other products come from their own documentation, linked under Sources. Check the details against your own requirements: a migration is a project, not a checkbox.`,
+Facts about other products come from their own documentation, linked under Sources. A migration is a project, not a checkbox: check the details against your requirements.`,
     columns: ["selfHosting", "jiraImport"],
     entries: [
       {
         product: "lictory",
-        summary: `Lictory is only self-hosted, so running it yourself is its primary path rather than an afterthought. One Linux server (amd64 or arm64) with Docker Engine and Docker Compose runs the whole installation.
+        summary: `Lictory is only self-hosted, so running it yourself is the primary path, not an afterthought. One Linux server (amd64 or arm64) with Docker Engine and Docker Compose runs the whole installation.
 
 The \`lictory\` command installs a verified release, checks the server, takes and restores backups, upgrades and rolls back. PostgreSQL runs in a container by default, or on your own or a managed PostgreSQL server.`,
         bestFor:
@@ -240,14 +240,14 @@ Atlassian's path forward is Jira Cloud. If your data has to stay on servers you 
 - **Network:** ports 80 and 443 and a DNS name for the server; certificates are issued automatically, or you put Lictory behind your own reverse proxy.
 - **Install:** \`curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/get.sh | sudo sh\`, then \`sudo lictory install\`.
 
-Releases are checked against the digests published with them before anything runs. Backups, restores, upgrades and rollbacks are commands of the same tool, and your data stays on the server unless you configure a service that needs it, such as an AI provider or email. The [installation guide](https://docs.lictory.com/self-hosting/install) has the details.`,
+Releases are checked against their published digests before anything runs. Backups, restores, upgrades and rollbacks are commands of the same tool. Data stays on the server unless you configure a service that needs it, such as an AI provider or email. See the [installation guide](https://docs.lictory.com/self-hosting/install).`,
       },
       {
         id: "moving",
         title: "Moving without a big bang",
-        body: `Lictory has no Jira importer, so a team leaving Data Center usually starts new work in Lictory and lets Jira wind down: new proposals are refined, approved and delivered natively in Lictory while existing tickets finish where they are.
+        body: `Lictory has no Jira importer, so a team leaving Data Center usually starts new work in Lictory and lets Jira wind down: new proposals are refined, approved and delivered in Lictory while existing tickets finish where they are.
 
-Lictory's hand-off to Jira supports Jira Cloud only. It helps teams that move to Jira Cloud and want reviewed requirements in front of it, not teams that stay on Data Center in the meantime.`,
+Lictory's hand-off to Jira supports Jira Cloud only: it helps teams moving to Jira Cloud, not teams staying on Data Center in the meantime.`,
       },
     ],
     faqs: [
@@ -283,8 +283,8 @@ Lictory's hand-off to Jira supports Jira Cloud only. It helps teams that move to
       "Nine requirements management tools compared on who they suit, licensing, hosting and pricing model: Lictory, Jama Connect, IBM DOORS Next, Polarion, Modern Requirements4DevOps, ReqView, Confluence, Doorstop and StrictDoc.",
     headline: "Best requirements management tools",
     intro:
-      "Requirements management covers very different needs. A medical device maker needs traceability, baselines and electronic signatures for an audit; a SaaS team needs product, engineering and QA to agree on a feature before the sprint starts. No tool is best at both. This comparison groups the options by the job they do, including where Lictory is the wrong choice.",
-    method: `We make Lictory, so we are not neutral. To keep this useful anyway, we describe each tool by what its vendor says it is for, take every fact from the vendor's own website, documentation or repository (linked under Sources), and leave out what we could not confirm there. There are no scores: the right choice depends on whether you work under a regulatory standard, in which ecosystem, and who reviews your requirements.
+      "A medical device maker needs traceability, baselines and electronic signatures for an audit; a SaaS team needs product, engineering and QA to agree on a feature before the sprint. No tool is best at both. This comparison groups the options by the job they do, including where Lictory is the wrong choice.",
+    method: `We make Lictory, so we are not neutral. We describe each tool by what its vendor says it is for, take every fact from the vendor's own website, documentation or repository (linked under Sources), and leave out what we could not confirm. No scores: the right choice depends on your regulatory standard, your ecosystem and who reviews your requirements.
 
 The tools fall into four groups:
 
@@ -296,7 +296,7 @@ The tools fall into four groups:
     entries: [
       {
         product: "lictory",
-        summary: `Lictory treats a requirement like a code change. Specifications are changed on branches and reviewed through pull requests; every accepted change is an immutable revision; discussions attach to the exact text; approvals belong to a revision and go stale when it changes materially; readiness checks, such as no open blocking discussions and every required review approved, show when work can start.
+        summary: `Lictory treats a requirement like a code change. Specifications change on branches and are reviewed through pull requests; every accepted change is an immutable revision; discussions attach to the exact text; approvals belong to a revision and go stale when it changes materially; readiness checks show when work can start.
 
 Approved specifications become delivery work in Lictory or are handed off to Jira Cloud, each item linked to the revision it came from.`,
         bestFor:
@@ -377,23 +377,23 @@ Approved specifications become delivery work in Lictory or are handed off to Jir
 
 1. **Do you work under a safety or regulatory standard?** If auditors expect traceability, baselines and electronic signatures, start with Jama Connect, IBM DOORS Next, Polarion or, on Azure DevOps, Modern Requirements4DevOps.
 2. **Where does delivery happen?** Tools that live beside your tracker (Modern Requirements in Azure DevOps, Confluence with Jira) reduce friction. Lictory delivers natively or hands work off to Jira Cloud.
-3. **Who writes and reviews requirements?** If product managers, QA and engineers all review, choose a tool all of them will use; text files in Git suit engineers best.
-4. **What actually goes wrong?** If work starts on requirements nobody fully agreed to, you need review and approval, not just storage. That is the problem Lictory is built for.
+3. **Who writes and reviews requirements?** If product managers, QA and engineers all review, choose a tool they will all use; text files in Git suit engineers best.
+4. **What actually goes wrong?** If work starts on requirements nobody fully agreed to, you need review and approval, not just storage. That is what Lictory is built for.
 5. **Hosting and budget.** Open-source tools (Lictory, Doorstop, StrictDoc) cost nothing to license; commercial suites usually start with a sales conversation.`,
       },
       {
         id: "software-teams",
         title: "Requirements management for software teams",
-        body: `Classic requirements management grew up in systems engineering: requirement IDs, traceability matrices, baselines and signatures. Software product teams rarely need all of that, but they share its core concern: being able to say what was agreed, by whom, and what changed since.
+        body: `Classic requirements management grew up in systems engineering: requirement IDs, traceability matrices, baselines and signatures. Software teams rarely need all of that, but share its core concern: what was agreed, by whom, and what changed since.
 
-Lictory brings that discipline to software teams in the form they already know from code review: revisions and diffs instead of baselines, pull requests and anchored discussions instead of review meetings, approvals bound to a revision instead of a signature on a document, and readiness checks as CI for requirements. The [Definition of Ready guide](/guides/definition-of-ready) shows what such checks can look like.`,
+Lictory brings that discipline in the form software teams know from code review: revisions and diffs instead of baselines, pull requests and anchored discussions instead of review meetings, revision-bound approvals instead of signatures, and readiness checks as CI for requirements. See the [Definition of Ready guide](/guides/definition-of-ready).`,
       },
     ],
     faqs: [
       {
         question: "What is a requirements management tool?",
         answer:
-          "Software for writing, reviewing, approving and tracing requirements: what a product must do and why. Depending on the tool, that ranges from structured documents and traceability for regulated industries to review workflows that get a team to agree on a specification before development.",
+          "Software for writing, reviewing, approving and tracing requirements: what a product must do and why. It ranges from structured documents and traceability for regulated industries to review workflows that get a team to agree on a specification before development.",
       },
       {
         question: "Which requirements management tools are open source?",

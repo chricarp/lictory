@@ -223,11 +223,7 @@ export function ContextSection({
         </h3>
       )}
       {links.length === 0 ? (
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">
-          {list.iteration
-            ? "Keep the goal, notes and retrospective of this iteration here."
-            : "Keep the pages this work relies on (goals, designs, runbooks) one click away."}
-        </p>
+        <p className="px-2 py-1.5 text-xs text-muted-foreground">No pages</p>
       ) : (
         <ul>
           {links.map((link, index) => (
@@ -469,7 +465,7 @@ export function IterationNotesForm({
       setError(
         e instanceof MutationRejected && e.details.category !== "unavailable"
           ? `${errorText(e)} No page was created.`
-          : `${errorText(e)} Trying again creates the page once.`,
+          : `${errorText(e)} Try again.`,
       );
       setBusy(false);
       return;
@@ -489,14 +485,9 @@ export function IterationNotesForm({
       <h2 id={labelId} className="text-sm font-semibold">
         Notes for {label}
       </h2>
-      <p className="text-xs text-muted-foreground">
-        A new page with the goal, a live list of the iteration’s work, risks and
-        a retrospective, kept with this iteration.
-      </p>
       {spaces.length === 0 ? (
         <p role="alert" className="text-xs text-destructive">
-          You can edit no space yet. Ask for edit access to a project space, or
-          create one.
+          No space you can edit. Ask for edit access or create a space.
         </p>
       ) : (
         <>

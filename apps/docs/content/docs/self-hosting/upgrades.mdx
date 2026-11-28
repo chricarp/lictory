@@ -22,15 +22,14 @@ configured channel (`LICTORY_RELEASE_CHANNEL`: `stable` or `nightly`).
 
 Nightly releases are kept for 14 days once a newer nightly exists; the
 newest nightly is always available, however old. Stable releases are never
-removed. To stay on a specific nightly for longer, keep it installed: a
-removed nightly can no longer be installed by version, but an installation
-that runs it is unaffected.
+removed. A removed nightly can no longer be installed by version, but an
+installation that runs it is unaffected.
 
 ## Verify release images
 
 Lictory's images are signed by the GitHub Actions workflow that published
 them, so you can check that what you install is exactly what the project
-released, before you install it or approve an upgrade. Each release has:
+released. Each release has:
 
 - a **cosign signature** (Sigstore keyless) and a **GitHub artifact
   attestation** (SLSA build provenance) for every image digest;
@@ -71,10 +70,9 @@ done)
 ```
 
 Each check stops at the first image that fails and exits non-zero unless
-every digest was signed by that Lictory workflow on that branch. Images are
-read only from a complete download, so a failed or interrupted download of
-`release.env` fails the checks too. To read an image's SBOM without
-downloading it:
+every digest was signed by that Lictory workflow on that branch. A failed or
+interrupted download of `release.env` fails the checks too. To read an
+image's SBOM without downloading the image:
 
 ```sh
 docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' "lictory-$version.env")" \
@@ -82,11 +80,9 @@ docker buildx imagetools inspect "$(sed -n 's/^API_IMAGE=//p' "lictory-$version.
 ```
 
 `lictory` itself does not check signatures; use these commands, or the same
-identity in your cluster's admission policy. Releases published before
-signing was introduced (0.24.0 and earlier) have no signatures or SBOM
-files. The
-[release runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#signatures-and-attestations)
-explains what each signature covers.
+identity in your cluster's admission policy. Releases 0.24.0 and earlier have
+no signatures or SBOM files. What each signature covers:
+[release runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#signatures-and-attestations).
 
 ## Before you upgrade production
 
@@ -95,11 +91,11 @@ explains what each signature covers.
 2. **Read its release notes.** Breaking changes come first, each with the
    action it needs (a setting to add, a proxy rule to change).
 3. **Upgrade staging first**, if you have it, and use it for a day. On a
-   server that hosts both, remember that the host tools follow the newest
-   release you activate ([multiple environments](/self-hosting/terminal#multiple-environments)).
-4. **Know your way back.** Upgrades take a backup themselves when the
-   release has migrations, but a recent [restore drill](/self-hosting/backups#restore-drill)
-   is what proves you can use it. `lictory backup list` shows what you have.
+   server that hosts both, the host tools follow the newest release you
+   activate ([multiple environments](/self-hosting/terminal#multiple-environments)).
+4. **Know your way back.** Upgrades take a backup when the release has
+   migrations; a recent [restore drill](/self-hosting/backups#restore-drill)
+   proves you can use it. `lictory backup list` shows what you have.
 5. **Pick a quiet moment.** Migrations run while the previous release keeps
    serving (each one is written to work with it), API restarts drop no
    requests, and the proxy restarts for about two seconds (below).
@@ -107,16 +103,15 @@ explains what each signature covers.
 On an installation with a long history of specifications and pages, the
 release that links work and pages builds search indexes that pause saving
 specifications and committing pages while they build. To avoid the pause,
-build them beforehand without blocking anyone, as the
-[migration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/migrations.md#prebuilding-indexes-before-an-upgrade)
-describes; the upgrade then skips them.
+build them beforehand without blocking anyone
+([migration runbook](https://github.com/chricarp/lictory/blob/main/docs/operations/migrations.md#prebuilding-indexes-before-an-upgrade));
+the upgrade then skips them.
 
 ## Upgrade
 
 <Cli command="upgrade" />
 
-To find out first whether there is anything to install, without changing
-anything:
+To check for a newer release without changing anything:
 
 ```sh
 lictory upgrade --check          # exit 10 when a newer release exists
@@ -125,9 +120,8 @@ lictory upgrade --check --json   # {"version", "latest", "upgradeAvailable", …
 
 `lictory doctor` also says when a newer release of the channel is available.
 
-Without a version, the newest release of the channel is installed. An
-upgrade runs three steps, and stops before changing anything if the first
-fails:
+Without a version, the channel's newest release is installed, in three
+steps; if the first fails, nothing changes:
 
 1. **Prepare**: validate the release, pull its images by digest and check
    the gateway configuration.
@@ -135,25 +129,23 @@ fails:
    and wait until zero-cache has replicated them.
 3. **Activate**: replace zero-cache, the proxy, the API, the worker and the
    collaboration service one by one, each waiting for its health check, then
-   verify the application, the realtime connection and live editing. If anything fails, the previous release's images
-   are restored automatically, and the command says whether the environment
-   runs the previous release again and is healthy, or needs attention now
-   (`lictory doctor`).
+   verify the application, the realtime connection and live editing. If
+   anything fails, the previous release's images are restored automatically,
+   and the command says whether the environment runs the previous release
+   again and is healthy, or needs attention now (`lictory doctor`).
 
 The proxy holds requests for up to 30 seconds while the API is replaced, so
 API restarts drop no requests. Replacing the proxy itself refuses connections
 for about two seconds; open browser tabs reconnect on their own. Replacing
-the collaboration service pauses live editing of pages and specifications for
-a few seconds:
-saved edits are already stored, and editors' unsaved edits are sent again
-when they reconnect.
+the collaboration service pauses live editing for a few seconds: saved edits
+are stored, and unsaved edits are sent again on reconnect.
 
 ## One-time maintenance after an upgrade
 
-Some releases need a one-time job after the upgrade, a **backfill**, to bring
-existing data up to date. Its release notes say so, with its name.
-Backfills run while Lictory keeps serving, can be interrupted and run again
-safely, and never rewrite revisions, approvals, decisions or audit history.
+Some releases need a one-time **backfill** after the upgrade to bring existing
+data up to date; their release notes name it. Backfills run while Lictory
+keeps serving, can be interrupted and run again safely, and never rewrite
+revisions, approvals, decisions or audit history.
 
 Run one with the version you just installed (`lictory status` shows it):
 
@@ -164,11 +156,11 @@ sudo /srv/lictory/bin/deploy.sh production backfill <version> <name>
 For example, installations that had pages or specifications before the
 release that links work and pages (each work item's **Knowledge**, pages
 listing the work they mention, citations of page versions) run
-`rebuild-knowledge-index` once. Until then, mentions and citations written
-before the upgrade are missing from Knowledge and from the work linked to a
-page; new ones are indexed as they are published or saved. The job only
-reads pages and revisions and writes the index derived from them; running it
-again changes nothing.
+`rebuild-knowledge-index` once. Until then, older mentions and citations are
+missing from Knowledge and from the work linked to a page; new ones are
+indexed as they are published or saved. The job only reads pages and
+revisions and writes the index derived from them; running it again changes
+nothing.
 
 ```sh
 sudo /srv/lictory/bin/deploy.sh production backfill <version> rebuild-knowledge-index
@@ -182,6 +174,6 @@ error, fix the cause and run it again.
 <Cli command="rollback" />
 
 A rollback switches the application images back to the previously activated
-release. **Database migrations stay applied**: every migration is written so
-that the previous release keeps working against the new schema. Publish or
-install a fix as a new release rather than staying on an old one.
+release. **Database migrations stay applied**: every migration keeps the
+previous release working against the new schema. Ship a fix as a new release
+rather than staying on an old one.

@@ -73,7 +73,7 @@ export function ConflictResolution({
   return (
     <Dialog
       title="Sync branch / resolve conflicts"
-      description="Bring the target into your branch. Ours is your branch; theirs is the target. This creates a commit and restarts the live draft."
+      description="Ours is your branch; theirs is the target. Creates a commit and restarts the live draft."
       width="max-w-3xl"
       onClose={onClose}
       onSubmit={submit}
@@ -109,8 +109,7 @@ export function ConflictResolution({
       <ActionError error={error || action.error || parseError} />
       {action.error && (
         <p className="text-sm">
-          If either head moved, reload the preview and inspect the new changes
-          before trying again.
+          If either head moved, reload the preview before trying again.
         </p>
       )}
       {!preview && !error && <p role="status">Loading merge preview…</p>}

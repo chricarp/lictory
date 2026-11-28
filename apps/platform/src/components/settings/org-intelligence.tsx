@@ -24,9 +24,9 @@ function destination(
 ): string {
   const spec = textProviders[provider];
   if (spec.hosting === "self-hosted")
-    return `A model server run by this installation's operator (${spec.label}). Ask them where it runs.`;
+    return `A model server run by this installation's operator (${spec.label}).`;
   if (customEndpoint)
-    return `${spec.label} models through an endpoint chosen by this installation's operator (a gateway or proxy). Ask them where it runs.`;
+    return `${spec.label} models through the operator's gateway or proxy.`;
   return `${spec.label}${spec.noStorageRequest ? ", which is asked not to store requests" : ""}.`;
 }
 
@@ -39,12 +39,12 @@ function dictationDestination(
   const spec = transcriptionProviderOf(provider);
   if (!spec) return "Offered on this server.";
   if (customEndpoint && spec.hosting === "cloud")
-    return `Short clips go through this server to ${spec.label} through an endpoint chosen by this installation's operator (a gateway or proxy). Lictory does not store them.`;
+    return `Short clips via this server to ${spec.label}, through the operator's gateway. Not stored.`;
   if (mode === "realtime")
-    return `Audio goes from the browser straight to ${spec.label.replace(/ \(live\)$/, "")} and is not stored by Lictory.`;
+    return `Audio goes from the browser straight to ${spec.label.replace(/ \(live\)$/, "")}. Not stored.`;
   return spec.hosting === "self-hosted"
-    ? `Short clips go through this server to a speech-to-text server run by the operator (${spec.label}). Lictory does not store them.`
-    : `Short clips go through this server to ${spec.label}. Lictory does not store them.`;
+    ? `Short clips via this server to the operator's speech-to-text server (${spec.label}). Not stored.`
+    : `Short clips via this server to ${spec.label}. Not stored.`;
 }
 
 export function OrganizationIntelligence() {
@@ -82,7 +82,7 @@ function AiPolicySection() {
         />
       }
       title="Lictory Intelligence"
-      description="Litto and AI reviews of work items and pull requests. Findings and changes are proposals; people decide."
+      description="Litto and AI reviews of work items and pull requests."
       action={
         <Switch
           aria-label="Allow Lictory Intelligence"
@@ -101,8 +101,8 @@ function AiPolicySection() {
       }
       footer={
         available
-          ? "The installation's instance administrators choose the AI provider and model. Each project chooses how the review action treats its pull requests."
-          : "This server has no AI provider connected. An instance administrator can connect a cloud provider or a self-hosted model in the admin console (/admin)."
+          ? "Instance administrators choose the provider and model."
+          : "No AI provider connected. An instance administrator can connect one in the admin console (/admin)."
       }
     >
       <SettingsBody className="space-y-3 text-[13px]">

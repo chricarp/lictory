@@ -88,7 +88,7 @@ export function SpecDiff({
       </div>
       {count === 0 ? (
         <p className="rounded-lg bg-muted/50 p-5 text-sm text-muted-foreground">
-          No text changes between these revisions.
+          No text changes.
         </p>
       ) : (
         changes.map((change, index) => (

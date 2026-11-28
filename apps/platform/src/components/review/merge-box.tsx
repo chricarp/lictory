@@ -33,7 +33,6 @@ const unmet = (r: MergeRequirement) =>
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function MergeBox({
-  target,
   verb = "merge",
   requirements,
   blocked,
@@ -46,7 +45,7 @@ export function MergeBox({
   headingLevel = 2,
   className,
 }: {
-  // The branch it merges into, for "2 requirements into main not met yet".
+  // The branch it merges into.
   target: string;
   // The act in the subject's words: code and pages merge into a branch; a
   // specification's proposed change applies to the specification; a
@@ -89,20 +88,17 @@ export function MergeBox({
           blocked: "Applying is blocked",
           waiting: "Waiting to apply",
           ready: "Ready to apply",
-          to: "apply this change",
         }
       : verb === "create"
         ? {
             blocked: "Creating the items is blocked",
             waiting: "Waiting to create the items",
             ready: "Ready to create the items",
-            to: "create the items",
           }
         : {
             blocked: "Merging is blocked",
             waiting: "Waiting to merge",
             ready: "Ready to merge",
-            to: `merge into ${target}`,
           };
   return (
     <section
@@ -138,12 +134,12 @@ export function MergeBox({
           </Heading>
           <p className="text-xs text-muted-foreground">
             {waiting
-              ? `${plural(missing, "requirement")} still to come before you can ${words.to}.`
+              ? `${plural(missing, "requirement")} pending`
               : isBlocked
                 ? missing > 0
-                  ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
-                  : `Not every requirement to ${words.to} is met yet.`
-                : (readySummary ?? `Every requirement to ${words.to} is met.`)}
+                  ? `${plural(missing, "requirement")} not met`
+                  : "Not every requirement is met"
+                : (readySummary ?? "Every requirement is met")}
           </p>
         </div>
       </div>

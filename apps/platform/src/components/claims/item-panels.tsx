@@ -79,8 +79,8 @@ function LeaseLine({ claim }: { claim: ClaimEntity }) {
   return (
     <p className="text-xs text-muted-foreground">
       {leaseLeft(claim) > 0
-        ? `Lease ends in ${leaseLeftLabel(claim)} unless the agent renews it.`
-        : "Lease ended; the next sweep returns it to the queue."}
+        ? `Lease ends in ${leaseLeftLabel(claim)}`
+        : "Lease ended; returning to the queue"}
     </p>
   );
 }
@@ -116,8 +116,7 @@ function ClaimSessionState({
       </div>
       {leaseLeft(claim) > 0 && (
         <p className="text-xs text-muted-foreground">
-          Held for delivery for at most {leaseLeftLabel(claim)} more, until the
-          Definition of Done passes.
+          Held for the Definition of Done up to {leaseLeftLabel(claim)} more
         </p>
       )}
     </>
@@ -132,10 +131,10 @@ function StartingSession({ sessionId }: { sessionId: string }) {
   const { runners, agentById } = useFactory();
   const agent = session ? agentById.get(session.agentId) : undefined;
   if (!session || !waitsForRunner(session, agent, runners))
-    return "A session is starting for it.";
+    return "Session starting";
   return (
     <>
-      Its session is queued: no online runner can run {agent?.name}.{" "}
+      Queued: no online runner can run {agent?.name}.{" "}
       <Link
         href={factoryPaths.runners(organization.slug)}
         className="rounded-sm text-foreground underline underline-offset-2 focus-ring outline-none"
@@ -229,7 +228,7 @@ export function ClaimPanel() {
           )}
           {claim.sessionWaitingSince && claim.agentSessionId ? (
             <p className="text-xs text-muted-foreground">
-              Its session waits on {firstName(owner)}&apos;s answer.{" "}
+              Waiting on {firstName(owner)}&apos;s answer.{" "}
               <Link
                 href={paths.factorySession(
                   organization.slug,
@@ -246,15 +245,14 @@ export function ClaimPanel() {
               {claim.waitingThreadIds.length === 1
                 ? "a question"
                 : `${claim.waitingThreadIds.length} questions`}{" "}
-              about the specification. It resumes when people resolve{" "}
-              {claim.waitingThreadIds.length === 1 ? "it" : "them"}.
+              about the specification; resumes once resolved.
             </p>
           ) : claim.state === "starting" ? (
             <p className="text-xs text-muted-foreground">
               {claim.agentSessionId ? (
                 <StartingSession sessionId={claim.agentSessionId} />
               ) : (
-                "A session is starting for it."
+                "Session starting"
               )}
             </p>
           ) : claim.agentSessionId ? null : (
@@ -270,10 +268,6 @@ export function ClaimPanel() {
               )}
             </blockquote>
           )}
-          <p className="text-xs text-muted-foreground">
-            Done follows from the Definition of Done, never from the
-            agent&apos;s report.
-          </p>
           {canRelease && (
             <Button
               size="sm"
@@ -295,8 +289,7 @@ export function ClaimPanel() {
             {policy.level !== "assist" && (
               <span className="text-muted-foreground">
                 {" "}
-                {autonomyLevelMeta[policy.level].label} dispatches it in rank
-                order.
+                {autonomyLevelMeta[policy.level].label} dispatches it.
               </span>
             )}
           </span>
@@ -394,7 +387,7 @@ export function ReleaseDialog({
   return (
     <Dialog
       title="Release this claim?"
-      description={`${agent} stops holding the item, so another agent or a person can take it. The item returns to the status it had before the claim, unless someone moved it since. The agent's session is not stopped: cancel it from the session if it should stop. The dispatcher does not start the item again until someone retries.`}
+      description={`${agent} stops holding the item. It returns to its status before the claim and is not dispatched again until retried. The agent's session keeps running.`}
       onClose={onClose}
       onSubmit={() => void release()}
       footer={
@@ -416,7 +409,7 @@ export function ReleaseDialog({
           maxLength={2000}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Why it is released, for the item's history"
+          placeholder="Why it is released"
           className={cn("mt-1", textareaClass)}
         />
       </label>
@@ -506,8 +499,7 @@ export function DefinitionOfDonePanel() {
       )}
       {checks.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
-          This project&apos;s Definition of Done has no checks: people move work
-          to Done themselves.
+          No checks: people move work to Done by hand.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -574,7 +566,7 @@ export function DefinitionOfDonePanel() {
       <p className="mt-2 text-xs text-muted-foreground">
         {evaluation.passed
           ? "Every check passes."
-          : "The item moves to Done by itself when every check passes."}{" "}
+          : "Moves to Done when every check passes."}{" "}
         <Link
           href={paths.projectSettings(organization.slug, project.key, "done")}
           className="underline underline-offset-2 hover:text-foreground"
@@ -656,8 +648,7 @@ function DeliveredPanel({ evidence }: { evidence: DeliveredEvidence }) {
         </ul>
       )}
       <p className="mt-2 text-xs text-muted-foreground">
-        Every check passed {relativeTime(evidence.at)}, which moved the item to
-        Done.
+        Every check passed {relativeTime(evidence.at)}.
       </p>
     </section>
   );
@@ -835,7 +826,7 @@ function OverrideDialog({
   return (
     <Dialog
       title={`Pass “${check.label}” by hand?`}
-      description="The check then counts as passed without its evidence, for this item's accepted revision only. Your name and reason are recorded in the item's history and the organization's audit log; you or anyone who changes properties here can withdraw it."
+      description="Counts as passed for this revision. Your name and reason are recorded."
       onClose={onClose}
       onSubmit={() => {
         if (reason.trim()) void onConfirm(reason.trim());

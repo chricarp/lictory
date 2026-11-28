@@ -2554,7 +2554,7 @@ function connectError(
   if (error.kind === "unavailable" && error.unreachable)
     return new DomainError(
       "validation",
-      `${product} at ${baseUrl} did not answer. Check the host address (leave it empty for the cloud host) and that this Lictory server can reach it through its network and proxy.`,
+      `${product} at ${baseUrl} did not answer. Check the host address (empty for the cloud host) and that this server can reach it.`,
     );
   return new DomainError(
     error.kind === "validation" ? "validation" : "forbidden",

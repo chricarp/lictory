@@ -64,8 +64,7 @@ export function Readiness() {
         <p className="text-[13px] text-muted-foreground">Evaluating…</p>
       ) : checks.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
-          The Definition of Ready of {type.name} items has no check that applies
-          here, so this item cannot become ready.
+          No {type.name} check applies here, so this item cannot become ready.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -75,12 +74,10 @@ export function Readiness() {
         </ul>
       )}
       <p className="mt-2 text-xs text-muted-foreground">
-        {item.refinementState === "ready"
-          ? "All checks pass for this revision."
-          : "The specification becomes Ready automatically when every check passes."}{" "}
+        {item.refinementState === "ready" &&
+          "All checks pass for this revision. "}
         {/* One concept, one name: these checks are the project's
             Definition of Ready, as its settings page calls them. */}
-        The checks come from the project’s{" "}
         <Link
           href={paths.projectSettings(
             organization.slug,
@@ -91,15 +88,14 @@ export function Readiness() {
         >
           Definition of Ready
         </Link>
-        .
       </p>
       {readiness?.pinned && latest && (
         <p className="mt-1 text-xs text-muted-foreground">
           Kept on Definition of Ready{" "}
           {readiness.policyRevisionNumber
             ? `version ${readiness.policyRevisionNumber}`
-            : "defaults"}{" "}
-          because it was ready or done when the rules changed. It moves to{" "}
+            : "defaults"}
+          ; moves to{" "}
           <Link
             href={paths.projectSettings(
               organization.slug,

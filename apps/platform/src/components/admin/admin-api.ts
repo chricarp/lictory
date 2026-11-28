@@ -194,18 +194,15 @@ export const signUpModeWords: Record<
 > = {
   invite: {
     title: "By invitation",
-    detail:
-      "People get an account only when an organization invites their email address, or when you create it.",
+    detail: "Accounts come from organization invitations, or you create them.",
   },
   closed: {
     title: "Administrators only",
-    detail:
-      "Only instance administrators create accounts. Invitations reach people who already have one.",
+    detail: "Only instance administrators create accounts.",
   },
   open: {
     title: "Anyone",
-    detail:
-      "Anyone who can reach this installation can create an account. Use this only on a private network.",
+    detail: "Anyone who can reach this server. Use only on a private network.",
   },
 };
 

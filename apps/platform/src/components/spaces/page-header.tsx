@@ -221,9 +221,7 @@ export function PageStatement({
             approved
               ? `Approved by ${head.approverIds.map(memberName).join(", ")}`
               : null,
-            unpublished
-              ? "The live draft has changes that are not published yet."
-              : null,
+            unpublished ? "The live draft has unpublished changes." : null,
           ]}
         />
       </Popover>

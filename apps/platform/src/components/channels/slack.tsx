@@ -29,7 +29,7 @@ export { SlackMark };
 /** "Slack" beside the author of a message written there. */
 export function FromSlack() {
   return (
-    <Tooltip label="Written in Slack: it can only be edited or deleted there.">
+    <Tooltip label="Written in Slack. Edit or delete it there.">
       <span className="inline-flex">
         <StatusChip tone="neutral" icon={<SlackMark />}>
           Slack
@@ -205,7 +205,7 @@ export function LinkSlackDialog({
   return (
     <Dialog
       title="Link to a Slack channel"
-      description={`Messages written in either place appear in both. Each message stays owned by the side it was written on: edits and deletions come only from there.${
+      description={`Messages sync both ways.${
         teamName ? ` Workspace: ${teamName}.` : ""
       }`}
       onClose={onClose}
@@ -247,8 +247,8 @@ export function LinkSlackDialog({
             htmlFor={ids.channel}
             hint={
               eligible.length
-                ? `Only ${isPrivate ? "private" : "public"} Slack channels the Lictory app is in are listed, so linking never widens who can read the conversation.`
-                : `No ${isPrivate ? "private" : "public"} Slack channel is available. Invite the app in Slack with /invite @Lictory, then open this again.`
+                ? `Only ${isPrivate ? "private" : "public"} channels the Lictory app is in.`
+                : `No ${isPrivate ? "private" : "public"} Slack channel available. In Slack, run /invite @Lictory, then reopen this.`
             }
           >
             <DropdownSelect
@@ -275,7 +275,7 @@ export function LinkSlackDialog({
           <Field
             label="Import recent Slack messages"
             htmlFor={ids.backfill}
-            hint="Once, when linking. Lictory never copies a channel's whole history."
+            hint="Once, when linking."
           >
             <DropdownSelect
               id={ids.backfill}

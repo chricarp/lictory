@@ -18,15 +18,15 @@ export function ResetPasswordEmail({
 
   return (
     <AuthEmailLayout
-      preview="Use this secure link to reset your Lictory password."
+      preview="Reset your Lictory password."
       heading="Reset your password"
       actionLabel="Reset password"
       actionUrl={resetUrl}
     >
       <Text style={emailParagraph}>{greeting}</Text>
       <Text style={emailParagraph}>
-        Someone requested a password reset for your Lictory account. Use the
-        secure link below to choose a new password. It expires in one hour.
+        Someone requested a password reset for your Lictory account. This link
+        expires in one hour.
       </Text>
     </AuthEmailLayout>
   );

@@ -3,9 +3,9 @@ title: Pages and the page tree
 description: Create pages, nest and reorder them with the mouse or the keyboard, archive and restore them, and find the page you need.
 ---
 
-A **page** belongs to one space and can sit under another page of the same
-space, as deep as you like. The space's **page tree** shows that structure
-beside every page and on the space's home.
+A **page** belongs to one space and can nest under another page of it, as
+deep as you like. The **page tree** shows the structure beside every page and
+on the space's home.
 
 ## Create a page
 
@@ -16,24 +16,21 @@ People who can edit the space create pages:
 - **New subpage**, in a page's actions (the **⋯** button in the page header
   or next to the page in the tree), adds one under it.
 
-The **New page** dialog asks for a **Title** and where to **Start from**:
-**Blank** or one of the [templates](/spaces/templates). Choose **Create
-page** and the page opens, ready to write.
+Enter a **Title**, pick **Start from** (**Blank** or a
+[template](/spaces/templates)) and choose **Create page**.
 
-The page is published at once as its first version: with its title only,
-or with the template's structure. In a
-[Reviewed space](/spaces/publishing#reviewed-spaces) that first version needs
-no review, because nobody has written content yet; everything after it
-arrives through a pull request like every other change.
+The page is published at once as its first version, with its title or the
+template's structure. In a [Reviewed space](/spaces/publishing#reviewed-spaces)
+that first version needs no review; every later change arrives through a
+pull request.
 
 ## Read a page
 
 ![A published page: breadcrumbs, “Published version 1 · by Maria Chen” under the title, the discussions button, More page actions and Edit, and item chips in the text](/screenshots/spaces-page-reader.webp)
 
-A page opens on its **published version**. The line under the title says
-which one and who published it, for example _Published version 2 · by Maria
-Chen · just now_; in a Reviewed space it also names who approved it. The
-header holds:
+A page opens on its **published version**. The line under the title names
+it and who published it (_Published version 2 · by Maria Chen · just now_),
+and in a Reviewed space who approved it. The header holds:
 
 - the **breadcrumbs**: **Spaces**, the space, then the pages above this one
   (on phones the bar keeps the title, and the buttons below move under it);
@@ -46,41 +43,34 @@ header holds:
   changes are waiting, or **Start a branch** in a Reviewed space (see
   [publishing](/spaces/publishing)).
 
-In the text, work item mentions are chips with the item's key, current title
-and status; point at one or focus it for a card with its refinement state,
-readiness, owner and iteration. Links to other pages show the page's current
-title (and the cited version when the link is pinned), or _Unavailable page_
-when you cannot open it. Decision cards and work lists show what Work holds
-now. See [blocks and chips](/spaces/blocks).
+Work item mentions are chips with the item's key, current title and status;
+point at or focus one for its refinement state, readiness, owner and
+iteration. Page links show the current title (and the cited version when
+pinned), or _Unavailable page_ when you cannot open it. Decision cards and
+work lists show what Work holds now. See [blocks and chips](/spaces/blocks).
 
-Under the page, **Work linked to this page** lists the work items the page
-is connected to, and select text to **Comment** on it, **Create work item**
-from it or, when Lictory Intelligence is on, **Ask Litto** about it. See
-[work in your pages](/knowledge/in-pages).
+**Work linked to this page** sits under the page. Select text to
+**Comment**, **Create work item** or, with Lictory Intelligence on, **Ask
+Litto**. See [work in your pages](/knowledge/in-pages).
 
-Beside a page, **Hide pages** (the panel button in the tree's bar) puts the
-tree away for more room, and **Show pages** in the page header brings it
-back; this browser
-remembers your choice. While comments are open on a narrower screen, the tree
-steps aside on its own.
+**Hide pages** (the panel button in the tree's bar) puts the tree away;
+**Show pages** in the page header brings it back, and the browser remembers.
+While comments are open on a narrower screen, the tree steps aside.
 
 ## Nest and reorder pages
 
-Drag a page in the tree and drop it **before**, **after** or **into**
-another page. **Move…** does the same without a pointer: choose the **New
-parent** (filter the pages by title, or pick the top level of the space) and
-the **Position** among its new siblings, **First** or **Last**. A page moves
-with all its subpages, and pages move only within their space.
+Drag a page and drop it **before**, **after** or **into** another. Without a
+pointer, **Move…** asks for the **New parent** (filter by title, or the top
+level) and the **Position**, **First** or **Last**. Subpages move with it;
+pages move only within their space.
 
-Pages are addressed by their id, not by their place in the tree or their
-title, so moving a page or changing its title never breaks a link to it.
-Changing the space's address does change its pages' addresses; page links
-inside pages follow it on their own.
+Pages are addressed by id, so moving or renaming a page never breaks a link.
+Changing the space's address changes its pages' addresses; page links inside
+pages follow.
 
 ### With the keyboard
 
-The page tree follows the standard tree pattern, so every action works
-without a mouse:
+The tree follows the standard tree pattern:
 
 | Key                       | Action                                                           |
 | ------------------------- | ---------------------------------------------------------------- |
@@ -93,34 +83,30 @@ without a mouse:
 
 ## Archive and restore
 
-**Archive** hides a page and its subpages from the tree. Right after
-archiving, the confirmation offers **Undo**. Archiving is always reversible
-and there is no permanent delete: **Show archived pages** in the tree lists
-them, and **Restore** brings a page back where it was. Restoring a
-page also restores the subpages that were archived together with it;
-subpages archived earlier, on their own, stay archived.
+**Archive** hides a page and its subpages from the tree; the confirmation
+offers **Undo**. There is no permanent delete: **Show archived pages** lists
+them, and **Restore** puts a page back where it was, with the subpages
+archived together with it (subpages archived earlier on their own stay
+archived).
 
 An archived page keeps its history and discussions, read-only. It leaves
-search, and its links to work items stop showing on those items until it is
-restored.
+search, and its links stop showing on work items until restored.
 
 ## Find a page
 
-- **Find a page** on the space's home narrows the tree to the titles that
-  match, wherever they sit, and shows each match with its path (_Payments
-  service · in Architecture_).
-- The **command palette** finds spaces and page titles across every space
-  you can read, and what published pages say, under **In pages**: a result
-  opens the page at the matching block. **See all results for …** lists
-  every match. See [search](/search).
+- **Find a page** on the space's home narrows the tree to matching titles,
+  each with its path (_Payments service · in Architecture_).
+- The **command palette** finds spaces and page titles you can read, and
+  page text under **In pages**, opening the page at the matching block.
+  **See all results for …** lists every match. See [search](/search).
 
-Search reads only published versions of pages you can read: live drafts,
-branches and pull requests are never searched.
+Search reads only published versions; live drafts, branches and pull
+requests are never searched.
 
 ## On a phone
 
-On a narrow screen the tree becomes the space's home, with every page's
-actions behind its **⋯** button, and a page puts its primary action and its
-discussions on one row under the title.
+On a narrow screen the tree becomes the space's home, with page actions
+behind **⋯**; a page puts its primary action and discussions on one row
+under the title.
 
 ![The Payments service page on a phone: the space’s top bar, Published v1, 1 discussion, Edit, and item chips wrapping in the text](/screenshots/spaces-phone.webp)

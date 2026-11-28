@@ -231,44 +231,38 @@ export type ViewId =
   | "ready"
   | "drafts"
   | "updated";
-export const views: { id: ViewId; label: string; description: string }[] = [
+export const views: { id: ViewId; label: string; description?: string }[] = [
   {
     id: "all",
     label: "Refinement",
-    description:
-      "From rough proposal to an agreed scope, delivery and retained product knowledge.",
   },
   {
     id: "needs-my-review",
     label: "Needs my review",
-    description:
-      "Reviews assigned to you or your disciplines on the current revision, and suggestions waiting for your approval.",
+    description: "Reviews and suggestions waiting on you or your disciplines.",
   },
   {
     id: "needs-review",
     label: "Needs review",
-    description: "Items with an outstanding review request.",
   },
   {
     id: "blocked",
     label: "Blocked",
-    description: "Items with an open blocking discussion.",
+    description: "With an open blocking discussion.",
   },
   {
     id: "ready",
     label: "Ready for delivery",
-    description:
-      "Agreed specifications whose checks pass, not yet accepted for delivery.",
+    description: "Checks pass; not yet accepted for delivery.",
   },
   {
     id: "drafts",
     label: "Proposals",
-    description: "Rough specifications waiting to be selected for refinement.",
   },
   {
     id: "updated",
     label: "Recently updated",
-    description: "Everything changed in the last two days.",
+    description: "Changed in the last two days.",
   },
 ];
 export function matchesView(

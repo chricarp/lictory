@@ -59,7 +59,7 @@ export function FactoryPage({
   // One quiet line of counts in the header: "2 running · 1 queued".
   meta?: ReactNode;
   // What the page is for, behind the header's info button.
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {

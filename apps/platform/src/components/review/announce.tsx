@@ -98,7 +98,7 @@ export function reviewAnnouncements(
   if (carried.length && revision?.authorId === userId)
     said.push({
       key: `carried:${revision.id}:${carried.join(",")}`,
-      text: `Revision ${revision.number} kept the approvals: ${carried.join(", ")}. The specification text did not change.`,
+      text: `Revision ${revision.number} kept the approvals: ${carried.join(", ")}`,
     });
   return said;
 }

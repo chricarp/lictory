@@ -390,9 +390,7 @@ test("organizations choose and change URL handles with server validation and adm
     ).toBeEnabled();
     await expect(
       page.getByRole("note", { name: "Organization handle warning" }),
-    ).toContainText(
-      "Changing the organization handle will invalidate all previously shared links to this workspace.",
-    );
+    ).toContainText("Existing links will stop working");
     await page.getByRole("button", { name: "Save handle" }).click();
     await expect(page).toHaveURL(
       new RegExp(`/${nextHandle}/settings/general$`),

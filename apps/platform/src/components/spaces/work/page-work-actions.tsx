@@ -139,8 +139,8 @@ export function PageWorkProvider({
               : `Added ${keys} at the end of the page`,
           description:
             placed === "placed"
-              ? "The draft now refers to the new work. Publish when you are ready."
-              : "The original text is no longer in the draft. Move the mention where it belongs, then publish.",
+              ? undefined
+              : "The original text is no longer in the draft. Move the mention where it belongs.",
           duration: 8000,
         });
         setPending(null);

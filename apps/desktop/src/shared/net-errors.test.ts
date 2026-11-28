@@ -28,7 +28,7 @@ void test("network errors read as plain words with the next step", () => {
     "lictory.example.com",
   );
   assert.match(certificate.summary, /certificate .* not trusted/);
-  assert.match(certificate.next, /never skips/);
+  assert.match(certificate.next, /administrator/);
 
   // Nothing known: still a sentence, never the raw code as the message.
   const unknown = describeNetworkError("ERR_SOMETHING_NEW", "x.example");

@@ -14,12 +14,7 @@ export function SuggestionDetailsFields({
 }) {
   return (
     <div className="space-y-3 rounded-lg border bg-card p-4">
-      <div>
-        <h3 className="text-sm font-semibold">Proposal details</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Give reviewers a quick summary and the context behind the change.
-        </p>
-      </div>
+      <h3 className="text-sm font-semibold">Proposal details</h3>
       <label
         className="block space-y-1.5 text-xs font-medium"
         htmlFor="suggestion-title"
@@ -50,7 +45,7 @@ export function SuggestionDetailsFields({
           className="min-h-32 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed font-normal outline-none focus-visible:border-primary/60 focus-visible:ring-2 focus-visible:ring-primary/20 touch:text-base"
         />
         <span className="block text-xs font-normal text-muted-foreground">
-          Explain why this change is needed. Both fields are required.
+          Both fields are required.
         </span>
       </label>
     </div>

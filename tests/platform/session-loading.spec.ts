@@ -171,7 +171,7 @@ test("a lazy chunk lost on the way reloads the page instead of ending in an erro
   });
   await page.goto(seeded.itemPath(1));
   // Writing opens the live editor, its own chunk with its own styles.
-  await page.getByRole("button", { name: /Click to start writing/ }).click();
+  await page.getByRole("button", { name: /Describe the intent/ }).click();
   await expect.poll(() => failed).toBe(1);
   // The page reloads itself once the stylesheet failed.
   await expect.poll(() => documents).toBe(2);

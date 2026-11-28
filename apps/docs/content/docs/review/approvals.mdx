@@ -3,17 +3,15 @@ title: Approve or request changes
 description: Decide a review for your discipline, understand why approvals belong to one revision, and see when an approval has gone stale.
 ---
 
-An **approval** says: _I accepted this exact revision for my discipline._ It
-is never a permanent flag on the item. When the text changes, the approval
-still describes the revision that was reviewed, and Lictory asks again for the
-new one.
+An **approval** says: _I accepted this exact revision for my discipline._
+When the text changes, the approval still describes the revision that was
+reviewed, and Lictory asks again for the new one.
 
 ## Decide a review
 
 When a review is asked of you or your discipline, the item's workflow card
-leads with it (_Your Engineering review is requested_) and offers your
-decision at the top of the page; its row in the **Review** rail offers the
-same:
+leads with it (_Your Engineering review is requested_). The card and the
+review's row in the **Review** rail offer:
 
 - **Approve revision N**: the current revision satisfies your discipline's
   concerns.
@@ -49,8 +47,7 @@ Every change to a specification's title or text creates a new
 3. The reviewers whose approval went stale are notified (_Your approval went
    stale_, in the app and by email).
 
-So the item never claims more than was reviewed. In words, the situation
-reads:
+The item never claims more than was reviewed:
 
 ```text
 Engineering approved revision 12.
@@ -58,13 +55,13 @@ Current revision: 14.
 Engineering approval requires review.
 ```
 
-The reviewer sees it first: the workflow card says _You approved revision 12. It changed since, so that approval no longer applies to revision 14._ with
-**What changed since revision 12**, beside the decision. In the rail, the
-Engineering review of revision 14 shows _Requested_ with _Dev Patel approved
-revision 12 · outdated_ under it, and **N earlier approvals** lists one line
-per earlier approval (_Engineering · Dev Patel · revision 12_, _outdated_;
-the reason is the line's tooltip). The footer always names the revision the
-current approvals apply to.
+The reviewer's workflow card says _You approved revision 12. Revision 14
+needs your review again._ with **What changed since revision 12** beside the
+decision. In the rail, the Engineering review of revision 14 shows
+_Requested_ with _Dev Patel approved revision 12 · outdated_ under it, and
+**N earlier approvals** lists one line per earlier approval (_Engineering ·
+Dev Patel · revision 12_, _outdated_; the reason is the line's tooltip). The
+footer names the revision the current approvals apply to.
 
 ![The review rail of PAY-2 after revision 2: Engineering and QA requested again, and under 1 earlier approval, Dev Patel’s approval of revision 1 marked outdated because the specification was revised](/screenshots/detail-stale-approval.webp)
 
@@ -73,20 +70,20 @@ labels and so on) are not revisions and never affect approvals.
 
 ### See approvals in history
 
-**Revisions** lists the approvals given on each revision and whether each is
-still _valid_, _outdated_, _revoked_ or carried to a later revision. Compare
-the approved revision with the current one to see exactly what a reviewer
-has not seen yet. See [history](/specifications/history).
+**Revisions** lists each revision's approvals and whether each is _valid_,
+_outdated_, _revoked_ or carried to a later revision. Compare the approved
+revision with the current one to see what a reviewer has not seen yet. See
+[history](/specifications/history).
 
 ## Carried approvals
 
 Two cases carry an approval to a new revision instead of asking again,
 because the reviewers already approved that exact result:
 
-- **A merged pull request.** Each valid approval of the pull request becomes
-  an approval of the revision the merge creates. The pull request's reviewers
-  approved the complete merged result, so they do not approve the same text
-  twice. Reviews the pull request did not include are asked again as usual.
+- **A merged pull request.** Each valid approval of the pull request, which
+  covered the complete merged result, becomes an approval of the revision the
+  merge creates. Reviews the pull request did not include are asked again as
+  usual.
 - **A merge that changes only the breakdown.** When the specification's
   text is unchanged, its approvals are carried to the new revision (_carried
   to revision 5: specification text unchanged_). Where the pull request has
@@ -111,10 +108,9 @@ for how approvals of a proposed change go stale when its result changes.
 - **Only the current revision can be decided.** If the specification changed
   while you were reading, review the new revision; the decision form always
   names it.
-- **On the specification itself, nothing stops the author of a revision from
-  approving it.** Proposed changes exclude their contributors. When an
-  independent review matters, change the specification through a proposed
-  change.
+- **On the specification itself, the author of a revision may approve it.**
+  Proposed changes exclude their contributors; when an independent review
+  matters, change the specification through a proposed change.
 - **Page approvals work differently.** Pages in Lictory Spaces ask named
   people, exclude everyone who typed in the change and have no discipline
   responsibilities. See [page branches and pull
@@ -124,7 +120,7 @@ for how approvals of a proposed change go stale when its result changes.
 
 - Before approving a revised specification, compare it with the revision you
   approved last; only the difference needs your attention.
-- Request changes with a concrete reason in a discussion. A bare
-  "changes requested" sends the author looking for what you meant.
-- Revoke rather than wait when you realize you approved too early: the
-  approval stops counting at once and the history shows why.
+- Request changes with a concrete reason in a discussion, not a bare
+  "changes requested".
+- Approved too early? Revoke: the approval stops counting at once and the
+  history shows why.

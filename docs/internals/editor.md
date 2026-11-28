@@ -35,7 +35,7 @@ never changes text nobody edited:
 - **Nothing is dropped.** What the editor cannot show (raw HTML and HTML
   comments, footnotes, link reference definitions and reference-style links,
   lists that mix task and plain items) is kept verbatim: a top-level block as
-  an uneditable "Markdown kept as written" block, inline syntax as an inline
+  an uneditable "Raw Markdown" block, inline syntax as an inline
   source token. Such text is changed with "Edit as Markdown", which edits the
   Markdown itself. An unclosed fence or HTML comment at the end of a document
   is closed when something is added after it, so it cannot swallow the new

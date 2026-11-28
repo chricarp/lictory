@@ -118,7 +118,7 @@ export function requireAi(ai: Directory["ai"]) {
   if (!ai.available)
     throw new DomainError(
       "unavailable",
-      "Lictory Intelligence is not configured on this server. An instance administrator can connect an AI provider in the admin console (/admin).",
+      "Lictory Intelligence is not configured. An instance administrator can connect an AI provider in /admin.",
     );
   if (!ai.enabled)
     throw new DomainError(

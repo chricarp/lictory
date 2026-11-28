@@ -107,26 +107,23 @@ export function DownloadHero() {
     >
       {!desktopDownloads.some((download) => download.available) ? (
         <Note>
-          The desktop app is not in {releaseName}: it ships with a later
-          release. Until then, use your team’s Lictory in the browser.
+          The desktop app is not in {releaseName} yet. Use Lictory in the
+          browser.
         </Note>
       ) : primary && !primary.available ? (
         <Note>
-          {releaseName} has no {primary.label}. The files it does have are
-          listed below.
+          {releaseName} has no {primary.label}.
         </Note>
       ) : primary ? (
         <Promoted download={primary} />
       ) : system?.kind === "mobile" ? (
         <Note>
-          The desktop app is for computers: macOS, Windows and Linux. Open this
-          page on your computer to download it, or pick a file below. On a phone
-          or tablet, use your team’s Lictory in the browser.
+          The desktop app is for computers: macOS, Windows and Linux. On a phone
+          or tablet, use Lictory in the browser.
         </Note>
       ) : system?.kind === "chromeos" ? (
         <Note>
-          There is no desktop app for ChromeOS: use your team’s Lictory in
-          Chrome. Every download for macOS, Windows and Linux is listed below.
+          There is no desktop app for ChromeOS. Use Lictory in Chrome.
         </Note>
       ) : (
         <Choice />
@@ -231,8 +228,7 @@ function Choice() {
         })}
       </div>
       <p className="mt-4 text-sm leading-6 text-muted-foreground">
-        Linux gets the x64 AppImage here; arm64 and the .deb packages for Debian
-        and Ubuntu are in <AllDownloads />.
+        Linux: x64 AppImage. For arm64 and .deb packages, see <AllDownloads />.
       </p>
     </>
   );

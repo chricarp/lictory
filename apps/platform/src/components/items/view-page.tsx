@@ -127,9 +127,7 @@ export function ViewPage({
   const place = placeInProject(directory.disciplines, userId, project.id);
   const noProposalNote =
     hasSpecificationTypes && !place.canPropose ? (
-      <span className="mt-2 block">
-        {place.sentence} {place.whyNoProposal}
-      </span>
+      <span className="mt-2 block">{place.whyNoProposal}</span>
     ) : null;
   const deliveryHref =
     project.deliveryMode === "external"
@@ -166,7 +164,7 @@ export function ViewPage({
   const itemHint = useCallback(
     (item: WorkItem) =>
       isAmended(item, project, links.get(item.id))
-        ? `Amendment · ${nextRefinementAction(item)} Delivery continues with the accepted revision.`
+        ? `Amendment · ${nextRefinementAction(item)}`
         : nextRefinementAction(item),
     [project, links],
   );
@@ -188,8 +186,8 @@ export function ViewPage({
           ? `${asked} review requested on revision ${item.revisionNumber}`
           : item.suggestionReviewerIds.includes(userId)
             ? item.openSuggestions > 0
-              ? `${item.openSuggestions} suggested change${item.openSuggestions === 1 ? "" : "s"} waiting for you to accept or reject`
-              : "A suggested change waits for you to accept or reject it"
+              ? `${item.openSuggestions} suggested change${item.openSuggestions === 1 ? "" : "s"} waiting for you`
+              : "Suggested change waiting for you"
             : `Revision ${item.revisionNumber}`,
       ];
       if (item.blockingThreads)
@@ -219,16 +217,7 @@ export function ViewPage({
           href: paths.project(organization.slug, project.key),
         },
       ]}
-      description={
-        overview
-          ? proposals
-            ? "Proposals are stories (and other specification items) in Draft: rough ideas, not a separate kind of document. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs. The same item then moves to Refinement."
-            : // The queue holds specifications not yet in delivery (and
-              // amendments of accepted ones): a story under way with its
-              // accepted revision is delivery work, whatever its review.
-              "Clarify behavior, resolve questions and review changes together until the work is accepted for delivery. Work already in delivery returns here only when its specification changes."
-          : meta.description
-      }
+      description={overview ? undefined : meta.description}
       emptyTitle={
         overview && !hasSpecificationTypes
           ? "No specification types in this project"
@@ -247,31 +236,17 @@ export function ViewPage({
       emptyIllustration={proposals ? "proposal" : viewIllustrations[view]}
       emptyBody={
         overview && !hasSpecificationTypes ? (
-          <span>
-            Every enabled type is plain delivery work without specification
-            reviews.
-            <Link
-              className="mt-3 block text-primary hover:underline"
-              href={paths.items(organization.slug, project.key)}
-            >
-              Browse and create work →
-            </Link>
-          </span>
+          <Link
+            className="block text-primary hover:underline"
+            href={paths.items(organization.slug, project.key)}
+          >
+            Browse and create work →
+          </Link>
         ) : overview ? (
           proposals ? (
-            <span>
-              A proposal is a story in Draft: a title and a few notes are
-              enough. Your team can shape its specification before committing to
-              build it.
-              {noProposalNote}
-            </span>
+            noProposalNote
           ) : (
             <span>
-              {stage === "ready"
-                ? "Specifications appear here when their readiness checks pass and they are not yet accepted for delivery."
-                : stage === "review"
-                  ? "Specifications waiting on reviews appear here until they are accepted for delivery. Work already in delivery is not listed while its accepted revision is current."
-                  : "Open a proposal and start refinement to work through the behavior, acceptance criteria and review concerns."}
               {noProposalNote}
               <Link
                 className="mt-3 block text-primary hover:underline"
@@ -281,10 +256,6 @@ export function ViewPage({
               </Link>
             </span>
           )
-        ) : view === "needs-my-review" ? (
-          "When someone requests your review, the item appears here with what changed."
-        ) : view === "ready" ? (
-          "Specifications appear here when their checks pass and they are not yet accepted for delivery."
         ) : undefined
       }
       showArchivedToggle={false}
@@ -334,22 +305,15 @@ export function ViewPage({
               ))}
             </nav>
             <ProjectKnowledge project={project} />
-            {stage === "ready" && (
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/15 px-5 py-3 text-xs">
-                <span>
-                  {project.deliveryMode === "external"
-                    ? "Ready means the checks pass. Hand off a revision when the team is ready to build it."
-                    : "Ready means the checks pass. Open an item to accept its revision for delivery when the team is ready to build it."}
-                </span>
-                {project.deliveryMode === "external" && (
-                  <Link
-                    href={deliveryHref}
-                    className="inline-flex shrink-0 items-center gap-1 font-medium text-primary hover:underline"
-                  >
-                    Open hand-off
-                    <ArrowRight className="size-3" />
-                  </Link>
-                )}
+            {stage === "ready" && project.deliveryMode === "external" && (
+              <div className="flex flex-wrap items-center justify-end gap-2 bg-muted/15 px-5 py-3 text-xs">
+                <Link
+                  href={deliveryHref}
+                  className="inline-flex shrink-0 items-center gap-1 font-medium text-primary hover:underline"
+                >
+                  Open hand-off
+                  <ArrowRight className="size-3" />
+                </Link>
               </div>
             )}
           </div>

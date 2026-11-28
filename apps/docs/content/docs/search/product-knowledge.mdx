@@ -4,13 +4,13 @@ description: How Lictory finds what your team agreed, decided and documented, ho
 ---
 
 Product knowledge is what your organization has settled about how the
-product behaves. Content search finds where words are written. Product
-knowledge finds what was **agreed**: recorded decisions, approved and
-delivered specification revisions, and published pages. It tells each kind
+product behaves. Content search finds where words are written; product
+knowledge finds what was **agreed** (recorded decisions, approved and
+delivered specification revisions, published pages) and tells each kind
 apart.
 
-People use it to find earlier agreements while refining. Litto and agents
-connected through MCP use it before they describe how the product behaves.
+People use it to find earlier agreements while refining; Litto and MCP agents
+use it before they describe how the product behaves.
 
 ## What counts as product knowledge
 
@@ -35,8 +35,7 @@ What is **not** product knowledge:
 
 ## Authority: which evidence wins
 
-The kinds of evidence say different things. Litto weighs them in this order,
-strongest first:
+Litto weighs evidence in this order, strongest first:
 
 1. an approved or delivered specification revision;
 2. a recorded decision;
@@ -44,10 +43,8 @@ strongest first:
 4. a page published directly;
 5. a discussion.
 
-Some limits apply:
-
-- **Approval is intent, not delivery.** An approved revision says what was
-  agreed. Only a delivered revision says it was delivered.
+- **Approval is intent, not delivery.** Only a delivered revision says it was
+  delivered.
 - **A decision is a conclusion.** It does not make a specification approved
   or delivered.
 - **Documentation is not agreement.** When a page disagrees with an approved
@@ -63,14 +60,13 @@ pages published through review, then pages published directly.
 Every result names the version it is about:
 
 - an approved or delivered revision opens that revision in the item's
-  history, and a decision opens the revision it was recorded on, even after
-  the specification has changed. **Open current** opens the item as it is
-  now;
+  history, and a decision the revision it was recorded on, even after the
+  specification changed. **Open current** opens the item as it is now;
 - a page opens the exact version that matched (`?commit=` in the address),
   not today's page.
 
-So an answer that cites "PAY-2 revision 2" or "Capture retry design, version
-3" can be checked against what was actually agreed or published then.
+An answer citing "PAY-2 revision 2" or "Capture retry design, version 3" can
+be checked against what was agreed or published then.
 
 ## What is left out
 
@@ -84,7 +80,7 @@ Done and canceled items are not archived, so finished work stays findable.
 
 ## Find related agreements on an item
 
-While refining, check whether the team already settled a question:
+Check whether the team already settled a question:
 
 <Steps>
 <Step>
@@ -112,9 +108,9 @@ come from the item's project and do not include pages; use
 ## Litto and agents
 
 [Litto](/ai/litto) searches product knowledge before it describes
-established behavior. Its answers cite the revision number of a
-specification or the version of a page, with links to that version. When it
-read pages, they are listed under the answer with their space and version.
+established behavior. Its answers cite a specification's revision or a page's
+version, linked; pages it read are listed under the answer with their space
+and version.
 
 Agents connected through [MCP](/integrations/agents) use the same search
 (`searchProductKnowledge`) with your access. `searchKnowledge`, the content
@@ -138,8 +134,8 @@ project's recent decisions and approved or delivered revisions, not in pages
 
 - **Record decisions.** When a discussion settles something ("Retries reuse
   the original idempotency key"), record it as a
-  [decision](/specifications/decisions). Otherwise it is lost when the
-  discussion is resolved.
+  [decision](/specifications/decisions), or it is lost when the discussion is
+  resolved.
 - **Publish important pages through review.** Pages in a space that publishes
   through reviewed pull requests rank above directly published ones, and the
   approvals show who agreed ([publishing](/spaces/publishing)).

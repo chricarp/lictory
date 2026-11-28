@@ -48,7 +48,7 @@ function noChecksDetail(prs: CodePullRequestEvidence[]) {
         ? `The code host marks none of the checks on the head commit of ${named(prs[0]!)} as required.`
         : `The code host has reported no checks for the head commit of ${named(prs[0]!)}.`
       : `The code host has reported no required checks for the head commits of ${prs.map(named).join(", ")}.`;
-  return `${first} A project without CI removes this check from its Definition of Done.`;
+  return `${first} Without CI, remove this check from the Definition of Done.`;
 }
 
 function approvedHead(
@@ -75,7 +75,7 @@ function evaluateCode(
     return {
       passed: false,
       detail:
-        "No code pull request is linked to this item. Pull requests that name its key are linked automatically.",
+        "No code pull request is linked. Name the item key in one to link it.",
     };
   const relevant = relevantPullRequests(prs);
   switch (check.kind) {
@@ -160,9 +160,7 @@ export function evaluateDefinitionOfDone(
         kind: check.kind,
         label,
         passed: Boolean(signed) || Boolean(override),
-        detail: signed
-          ? undefined
-          : "A person verifies the acceptance criteria and signs off.",
+        detail: signed ? undefined : "Waiting for a sign-off.",
         signOff: {
           disciplineIds: check.disciplineIds,
           signedOffBy: signed?.userId ?? null,
@@ -207,7 +205,7 @@ export function autopilotMergeCandidate(
     return {
       ready: false,
       reason:
-        "Several code pull requests are open for this item; Autopilot merges only one. Merge them by hand.",
+        "Several code pull requests are open; Autopilot merges only one. Merge them by hand.",
     };
   const pr = open[0]!;
   if (!pr.headSha)

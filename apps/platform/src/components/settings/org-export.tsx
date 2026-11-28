@@ -40,8 +40,7 @@ export function OrganizationExport() {
   if (!isAdmin)
     return (
       <ReadOnlyNotice>
-        Only organization administrators can export the organization&apos;s
-        data.
+        Only organization administrators can export data.
       </ReadOnlyNotice>
     );
   return <Exports organizationId={organization.id} />;
@@ -111,7 +110,7 @@ export function Exports({ organizationId }: { organizationId: string }) {
       id="export"
       icon={<PackageOpen />}
       title="Data export"
-      description="A complete copy of this organization: projects, work items, every specification revision, reviews and approvals with the revision they apply to, discussions, suggestions, decisions, relations, iterations, members and attachments. Prepared in the background; you can leave this page."
+      description="Everything in this organization, every revision and attachment included. Prepared in the background."
       action={
         <Button
           size="sm"
@@ -122,7 +121,7 @@ export function Exports({ organizationId }: { organizationId: string }) {
           {active ? "Export in progress" : "Export data"}
         </Button>
       }
-      footer={`The archive is a .tar.gz of JSON Lines files (one per kind of record), a work item CSV and attachment files, described by its manifest.json. Archives can be downloaded for ${listing?.retentionDays ?? 7} days. Starting and downloading exports is recorded in the audit log.`}
+      footer={`A .tar.gz of JSON Lines files, a work item CSV and attachments. Downloadable for ${listing?.retentionDays ?? 7} days.`}
     >
       {error && (
         <SettingsBody className="py-2">
@@ -136,10 +135,7 @@ export function Exports({ organizationId }: { organizationId: string }) {
           </p>
         )
       ) : (
-        <SettingsList
-          isEmpty={listing.exports.length === 0}
-          empty="No exports yet."
-        >
+        <SettingsList isEmpty={listing.exports.length === 0} empty="No exports">
           {listing.exports.map((e) => (
             <div
               key={e.id}

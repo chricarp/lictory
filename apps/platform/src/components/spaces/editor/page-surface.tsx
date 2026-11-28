@@ -155,7 +155,7 @@ export default function PageSurface({
   else if (!shown)
     content = history.loaded ? (
       <p className="mt-6 text-sm text-muted-foreground">
-        This page’s content is not available right now.
+        Content not available.
       </p>
     ) : (
       <LoadingDocument label="Loading page" />
@@ -171,9 +171,7 @@ export default function PageSurface({
         )}
         {!shown.markdown.trim() && (
           <p className="mb-4 rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-            {line.isMain
-              ? "Nothing has been published on this page yet."
-              : "This branch has no content yet."}
+            {line.isMain ? "Nothing published yet." : "This branch is empty."}
           </p>
         )}
         <PageReader
@@ -252,8 +250,7 @@ function ViewedVersion({
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-muted px-3 py-2 text-[13px]">
       <History className="size-4 text-muted-foreground" aria-hidden />
       <p className="min-w-0 flex-1">
-        You are reading {version ? `version ${version}` : "an earlier version"}{" "}
-        from{" "}
+        Reading {version ? `version ${version}` : "an earlier version"} from{" "}
         <time dateTime={createdAt} title={absoluteTime(createdAt)}>
           {relativeTime(createdAt)}
         </time>

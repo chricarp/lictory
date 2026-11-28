@@ -22,15 +22,15 @@ import { useDefinitionOfDone } from "@lictory/platform/components/claims/claims"
 const codeChecks = [
   {
     kind: "pull_request_merged",
-    hint: "Pull requests that name the item's key are linked automatically.",
+    hint: "Linked when they name the item's key",
   },
   {
     kind: "checks_passed",
-    hint: "The code host's required checks on the head commit.",
+    hint: "Required checks on the head commit",
   },
   {
     kind: "code_review_approved",
-    hint: "The project's reviewer agent when one is set, otherwise any reviewer.",
+    hint: "The reviewer agent when set, otherwise any reviewer",
   },
 ] as const;
 
@@ -114,18 +114,17 @@ export function ProjectDefinitionOfDone({
       id="done"
       icon={<ListChecks />}
       title="Definition of Done"
-      description="What must be true before work in progress is Done. When every check passes the item moves to Done by itself and records the revision it delivered. An agent saying it is finished never moves it."
+      description="When every check passes, the item moves to Done and records the revision it delivered."
       footer={
         stored
-          ? `Version ${stored.version}, set by ${memberName(stored.updatedById)} ${relativeTime(stored.updatedAt)}. Recorded in the audit log.`
+          ? `Version ${stored.version}, set by ${memberName(stored.updatedById)} ${relativeTime(stored.updatedAt)}`
           : "Lictory's defaults: a merged pull request with passing checks."
       }
     >
       <SettingsBody className="space-y-5">
         {external && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-            This project hands work off to an external tool, which decides when
-            work is done.
+            The external delivery tool decides when work is done.
           </p>
         )}
         <Field label="From the code host">
@@ -152,7 +151,7 @@ export function ProjectDefinitionOfDone({
         </Field>
         <Field
           label="Confirmed by people"
-          hint="A sign-off that the acceptance criteria were verified, by members of the chosen disciplines (anyone holding one when none is chosen). It belongs to the item's accepted revision."
+          hint="Signed off by the chosen disciplines (any, when none is chosen), per accepted revision"
         >
           <ul className="space-y-3">
             {acceptance.map((check) => (
@@ -233,13 +232,13 @@ export function ProjectDefinitionOfDone({
         </Field>
         {draft.length === 0 && (
           <p className="text-[13px] text-muted-foreground">
-            With no checks, people always move work to Done themselves.
+            No checks: people move work to Done by hand.
           </p>
         )}
         {editable && (
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={!changed || saving} onClick={() => void save()}>
-              {saving ? "Saving…" : "Save Definition of Done"}
+              {saving ? "Saving…" : "Save"}
             </Button>
             {changed && (
               <Button variant="ghost" onClick={() => setEdited(null)}>

@@ -3,26 +3,24 @@ title: Roll out to a team
 description: "The few decisions a lead makes to bring a team onto Lictory, in the order that works: delivery mode, disciplines, readiness, Done, agents and autonomy."
 ---
 
-Lictory works with its defaults, so a team can start the day a project
-exists. These are the decisions worth making on purpose, in the order that
-lets each one build on the last. Every one of them can be changed later, and
-the audit log and history keep what changed.
+A team can start on the defaults the day a project exists. These are the
+decisions worth making on purpose, in order. Each can be changed later; the
+audit log and history keep what changed.
 
 ## 1. Choose where delivery happens
 
 Each project delivers either **in Lictory** (board, backlog, iterations) or
-in **Jira** or another tool that then owns status and assignee. Refinement and
-review are the same either way. Pick the system your team already plans in;
-the same piece of work is never tracked in both.
+in **Jira** or another tool that then owns status and assignee. Refinement
+and review are the same either way. Pick the system your team already plans
+in; work is never tracked in both.
 See [project settings → Delivery](/organization/projects#delivery).
 
 ## 2. Map people to disciplines
 
-Disciplines are the kinds of work people do in the project (Product,
-Engineering, QA, and any you add, such as Security). They route reviews and
-decide what members may do with work items. Start with the three defaults and
-put each person in the disciplines they actually review for; add one only
-when a kind of review needs its own approval.
+Disciplines (Product, Engineering, QA, and any you add, such as Security)
+route reviews and decide what members may do with work items. Start with the
+three defaults, put each person in the disciplines they actually review for,
+and add one only when a kind of review needs its own approval.
 See [disciplines](/organization/disciplines).
 
 ## 3. Decide what "ready" means
@@ -37,36 +35,37 @@ See [readiness checks](/review/readiness).
 
 ## 4. Decide what "done" means
 
-Connect the repositories the project's code lives in, so pull requests and
-checks that name an item's key are linked to it. The **Definition of Done**
-then moves work to Done by evidence: by default a merged pull request with
-passing checks; add a reviewer's approval or a QA sign-off when you need
-them. A report that work is finished never moves it.
+Connect the project's repositories, so pull requests and checks that name an
+item's key link to it. The **Definition of Done** then moves work to Done by
+evidence: by default a merged pull request with passing checks; add a
+reviewer's approval or a QA sign-off if needed. A report that work is
+finished never moves it.
 See [code hosts](/integrations/code-hosts) and
 [Definition of Done](/factory/autonomy#definition-of-done).
 
 ## 5. Bring in agents with an owner each
 
-Install a runner on a machine the team controls and create the agents that
-run on it, or connect an external client as an agent. Every agent has an
-owner who is accountable for it, acts with that person's permissions and no
-more, and can be limited to some projects or to reading. Agents never
-approve, merge breakdowns, accept scope or resolve discussions.
+Install a runner on a machine the team controls and create agents on it, or
+connect an external client as an agent. Every agent has an accountable owner,
+acts with that person's permissions and no more, and can be limited to some
+projects or to reading. Agents never approve, merge breakdowns, accept scope
+or resolve discussions.
 See [runners](/factory/runners) and [agents](/factory/agents).
 
 ## 6. Raise autonomy one step at a time
 
-Start at **Assist**: people start every agent session. Move to **Build**
-when the queue of ready work is trustworthy: agents then claim ready work in
-rank order and people merge their pull requests. Choose **Autopilot**, where
-Lictory merges an agent's pull request when every required check passes,
-only once CI runs on every repository and the Definition of Done says what you
-need. Lowering the level releases nothing that is in flight.
+- **Assist**: people start every agent session. Start here.
+- **Build**: agents claim ready work in rank order; people merge their pull
+  requests. Move here when the ready queue is trustworthy.
+- **Autopilot**: Lictory merges an agent's pull request when every required
+  check passes. Choose it only once CI runs on every repository and the
+  Definition of Done says what you need.
+
+Lowering the level releases nothing in flight.
 See [autonomy levels](/factory/autonomy#autonomy-levels).
 
 ## 7. Agree where conversations go
 
-Give the project a channel for day-to-day talk. When a conversation reaches
-a conclusion, promote it to a proposal, a decision or a discussion on the
-specification, so the agreement lives next to the work instead of in
-scrollback. See [channels](/channels).
+Give the project a channel for day-to-day talk. Promote a conversation's
+conclusion to a proposal, a decision or a discussion on the specification,
+so the agreement lives next to the work. See [channels](/channels).

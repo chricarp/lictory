@@ -110,9 +110,7 @@ export function ItemPage({ identifier: raw }: { identifier: string }) {
             Back to all items
           </Button>
         }
-      >
-        It may belong to another project, or the identifier is misspelled.
-      </MissingState>
+      />
     );
   }
   return (

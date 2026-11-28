@@ -257,9 +257,7 @@ void test("a revision that keeps the text says the approvals carried over, never
   ]);
   assert.deepEqual(
     reviewAnnouncements(before, after, "me", names).map((s) => s.text),
-    [
-      "Revision 5 kept the approvals: Engineering review. The specification text did not change.",
-    ],
+    ["Revision 5 kept the approvals: Engineering review"],
   );
   assert.deepEqual(
     reviewAnnouncements(

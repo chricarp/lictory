@@ -244,7 +244,7 @@ function Home() {
               <Panel
                 title="You’re not in a project yet"
                 icon={<FolderKanban />}
-                empty={`An administrator of ${organization.name} adds you to a project and gives you a discipline there (Product, Engineering, QA) so you can write and review its specifications. Until then you can read and talk in channels and spaces.`}
+                empty="An administrator adds you to one. Channels and spaces are open meanwhile."
               />
             </div>
           )}
@@ -260,9 +260,7 @@ function Home() {
                 empty={
                   canManage(withoutDiscipline[0]!.id) ? (
                     <>
-                      You can read and discuss its work, but reviews can’t be
-                      asked of you until you hold a discipline (Product,
-                      Engineering, QA).{" "}
+                      Reviews can’t be requested from you without one.{" "}
                       <Link
                         href={paths.projectSettings(
                           org,
@@ -275,7 +273,7 @@ function Home() {
                       </Link>
                     </>
                   ) : (
-                    `You can read and discuss its work, but reviews can’t be asked of you until a project administrator gives you a discipline (Product, Engineering, QA) in the project’s settings → Members.`
+                    `Reviews can’t be requested from you without one. A project administrator sets it in Settings → Members.`
                   )
                 }
               />
@@ -305,9 +303,7 @@ function Home() {
                     </li>
                   ))}
                   <li className="px-3.5 py-3 text-[13px] leading-5 text-muted-foreground">
-                    Review requests, questions from agents and pull requests to
-                    merge will wait here and in your Inbox. Meanwhile, read what
-                    the team is refining or join a conversation in{" "}
+                    Meanwhile, join a conversation in{" "}
                     <Link
                       href={paths.channels(org)}
                       className="font-medium text-foreground underline underline-offset-2"
@@ -331,7 +327,7 @@ function Home() {
                 empty={
                   showSetup || places.length > 0
                     ? undefined
-                    : "Nothing waits on you. Review requests, questions from agents and pull requests to merge appear here."
+                    : "Nothing waits on you"
                 }
               >
                 {waiting.slice(0, WAITING_SHOWN).map((row) => (

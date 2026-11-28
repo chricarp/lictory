@@ -254,11 +254,6 @@ export function SpecDiscussionPanel({
           <X className="size-4" aria-hidden />
         </Button>
       </div>
-      {blocking > 0 && (
-        <p className="-mt-1 text-xs leading-5 text-muted-foreground">
-          Blocking discussions hold readiness back until they are resolved.
-        </p>
-      )}
       {/* A change suggested on selected text is written first, beside
         its passage; suggested changes wait for a decision above the
         discussions. */}
@@ -287,9 +282,7 @@ export function SpecDiscussionPanel({
       >
         {open === 0 && !pending && (
           <p className="text-[13px] text-muted-foreground">
-            {readOnly
-              ? "No open discussions."
-              : "No open discussions. Select text in the specification to comment on it, or start a discussion of the whole text above."}
+            No open discussions.
           </p>
         )}
         {anchored.map(card)}

@@ -3,8 +3,7 @@ title: Organization and access
 description: How organizations, projects and teams fit together, and who may do what through application roles, project roles and disciplines.
 ---
 
-Lictory has three nested scopes. Each setting has exactly one home, so you
-always know where to change it.
+Lictory has three nested scopes. Each setting has exactly one home.
 
 ```text
 Organization   a company, or a very large department of one
@@ -19,18 +18,18 @@ Organization   a company, or a very large department of one
 | Team         | Name, description, members                                                                                                                                                                                     | Project administrators                                 |
 
 A work item belongs to exactly one project, which gives it its key
-(`PAY-142`), and optionally to one of the project's teams. Moving it between
-teams never changes its key, status or iteration; items do not move between
-projects. A team owns no configuration: every item follows its project's
-workflow, readiness policy and planning, and boards and backlogs can be
-narrowed to a team.
+(`PAY-142`), and optionally to one of its teams. Moving it between teams
+never changes its key, status or iteration; items do not move between
+projects. Teams own no configuration: items follow their project's workflow,
+readiness policy and planning, and boards and backlogs can be narrowed to a
+team.
 
 [Spaces](/spaces) of knowledge pages belong to the organization, or to one
 project or team.
 
 ## Three separate questions
 
-Lictory never mixes these into one setting:
+Each is a separate setting:
 
 | Concept              | Answers                                                                               | Values                                                |
 | -------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
@@ -57,22 +56,19 @@ discipline in a project cannot edit its specifications or approve its
 reviews until they add themselves to a discipline, which everyone can then
 see in the project's settings.
 
-Some things need only organization membership: reading every project,
-taking part in discussions, proposing a change to a specification on a
-branch, and working in the organization's spaces. Every organization member can read
-every project; there are no private projects. Knowledge that must stay
-private belongs in a [restricted space](/spaces/access).
+Organization membership alone lets a person read every project (there are
+no private projects), take part in discussions, propose a change to a
+specification on a branch, and work in the organization's spaces. Knowledge
+that must stay private belongs in a [restricted space](/spaces/access).
 
-Every check happens on the server. The app only hides controls you cannot
-use, and says why when you try ("Your disciplines in this project cannot
-…").
+Every check happens on the server. The app hides controls you cannot use and
+says why when you try ("Your disciplines in this project cannot …").
 
 ### Project and team membership in Spaces
 
 Spaces are the one place where project and team membership give access:
-members of a project or team can edit the spaces that belong to it, unless a
-space is restricted to named people. This covers pages only; it never
-grants work item capabilities.
+members can edit the project's or team's spaces, unless a space is restricted
+to named people. This covers pages only, never work item capabilities.
 
 ## Where to change things
 
@@ -89,17 +85,14 @@ grants work item capabilities.
 | Allow Lictory Intelligence                            | **Organization settings → Lictory Intelligence** ([AI](/ai))              |
 | Manage the installation's accounts                    | **Admin console** ([instance administration](/organization/instance))     |
 
-People who are not administrators can open **Organization settings** and
-project settings to read them; the header says "only administrators can
-change these settings".
+Everyone else can read **Organization settings** and project settings; the
+header says "only administrators can change these settings".
 
 ## Tips
 
-- Keep administrators few and disciplines accurate. Administration is about
-  configuration; the review workflow runs on disciplines.
-- Give every person the disciplines they actually work in, in each project.
-  An engineer in Engineering is asked to review what Engineering owns; a
-  person in no discipline can still discuss, but is never asked.
-- Prefer teams for "who works on what" and disciplines for "who reviews
-  what". A team changes what boards show; a discipline changes what people
-  may do.
+- Keep administrators few. Administration is configuration; reviews run on
+  disciplines.
+- Give people the disciplines they actually work in, per project. Someone in
+  no discipline can discuss but is never asked to review.
+- Use teams for "who works on what" and disciplines for "who reviews what". A
+  team changes what boards show; a discipline changes what people may do.

@@ -244,13 +244,13 @@ function PublishForm({
       <h2 id={labelId} className="text-sm font-semibold">
         {verb === "Publish" ? "Publish this page" : "Commit to this branch"}
       </h2>
-      <p className="text-xs text-muted-foreground">
-        {verb === "Publish"
-          ? "Readers will see what is saved now. Later edits stay unpublished."
-          : offerReview
-            ? "Saves what is stored now as a version of this branch and asks for its review. Readers see it once it is approved and merged."
-            : "Saves what is stored now as a version of this branch."}
-      </p>
+      {(verb === "Publish" || offerReview) && (
+        <p className="text-xs text-muted-foreground">
+          {verb === "Publish"
+            ? "Readers see what is saved now."
+            : "Readers see it once approved and merged."}
+        </p>
+      )}
       <label htmlFor={messageId} className="text-xs font-medium">
         Message <span className="text-muted-foreground">(optional)</span>
       </label>

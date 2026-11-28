@@ -161,7 +161,7 @@ test("an organization that requires two-factor asks members to enroll before ope
   });
   await expect(requirement).toBeDisabled();
   await expect(
-    admin.page.getByText("before requiring it, so you are not locked out"),
+    admin.page.getByText("first, so you are not locked out"),
   ).toBeVisible();
   await admin.page.goto("/account");
   await enrollTotp(admin.page);
@@ -170,7 +170,7 @@ test("an organization that requires two-factor asks members to enroll before ope
   await requirement.click();
   await expect(requirement).toHaveAttribute("aria-checked", "true");
   await expect(
-    admin.page.getByText("1 member has not turned it on yet"),
+    admin.page.getByText("1 member has not turned it on"),
   ).toBeVisible();
 
   // The member signs in and is asked to enroll instead of seeing the

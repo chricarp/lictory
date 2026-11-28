@@ -3,9 +3,9 @@ title: Access
 description: Who can view, comment on and edit a space - inherited from its location or restricted to named people - and how administrators manage it without reading it.
 ---
 
-Access is decided per space, never per page. Every page of a space, with its
-history, branches and discussions, is open to exactly the people who can
-open the space.
+Access is decided per space, never per page: every page, with its history,
+branches and discussions, is open to exactly the people who can open the
+space.
 
 ## Inherited and Restricted
 
@@ -19,17 +19,15 @@ open the space.
 <SpaceAccess />
 
 - **Inherited access follows membership, live.** Joining a team gives edit
-  access to its spaces at once; leaving takes it away. A space whose location
-  is the organization can be edited by everyone in it.
-- **A Restricted space ignores membership** of its location: only named people
-  can open it, whatever their role in the project or team. Whoever restricts
-  a space (or creates it Restricted) keeps edit access, so nobody locks
-  themselves out by accident.
+  access to its spaces at once; leaving takes it away. Everyone can edit an
+  organization-level space.
+- **A Restricted space ignores location membership**: only named people can
+  open it. Whoever restricts a space (or creates it Restricted) keeps edit
+  access.
 - **Switching back to Inherited** keeps every named access.
 
-Membership of a project or team gives access to its spaces only. It still
-grants nothing on work items: what you can do with work items comes from
-your [disciplines](/concepts/organizations#roles-and-disciplines).
+Project or team membership grants nothing on work items; that comes from
+[disciplines](/concepts/organizations#roles-and-disciplines).
 
 ## Levels
 
@@ -39,88 +37,81 @@ your [disciplines](/concepts/organizations#roles-and-disciplines).
 | **Can comment** | Also start and take part in discussions, resolve them, mark them blocking, and be asked to review pull requests                                 |
 | **Can edit**    | Also create, move and archive pages, edit and publish live drafts, start branches, open and merge pull requests, and change the space's details |
 
-Editing a branch also requires being its author or one of its collaborators,
-and merging is subject to the [merge checks](/spaces/branches#merge). In
-an Inherited space with a project or team location, everyone else in the
-organization can view, but not comment, until they are named.
+Editing a branch also requires being its author or a collaborator, and
+merging is subject to the [merge checks](/spaces/branches#merge). In an
+Inherited project or team space, everyone else in the organization can view
+but not comment until named.
 
 ## Named access
 
-In **Space settings → Access**, **Give access** adds a person to the space's
-named access; then choose their level: **Can view**, **Can comment** or
-**Can edit**.
+In **Space settings → Access**, **Give access** adds a person; choose **Can
+view**, **Can comment** or **Can edit**.
 
-Each row shows what the person can do in the end and why, for example _Can
-edit · member of Payments_ or _Can comment · named access_. Removing named
-access (the remove button on its row) first says what they would keep: _Without it,
-Dev can only view._ or _Without it, Dev loses access._
+Each row shows the person's effective access and why (_Can edit · member of
+Payments_, _Can comment · named access_). Removing a row first says what they
+would keep: _Without it, Dev can only view._ or _Without it, Dev loses
+access._
 
-- In an Inherited space, named access only adds to what the location gives.
-  Name people from outside the project or team to let them comment or edit.
+- In an Inherited space, named access adds to what the location gives, for
+  example to let outsiders comment or edit.
 - In a Restricted space, named access is the only access.
-- Named access counts only while the person is a member of the organization.
-  Someone who leaves keeps their rows and gets the access back if they
-  rejoin; deleting their account removes it.
+- Named access counts only while the person is an organization member.
+  Someone who leaves gets it back on rejoining; deleting their account
+  removes it.
 
 ## Administrators
 
-A space's **administrators** are its creator, the administrators of its
-project while that project is active (for a project or team location) and
-the organization's administrators, as long as they are members of the
-organization. They manage what decides who can read what:
+A space's **administrators** are its creator, its project's administrators
+while the project is active (for a project or team location), and the
+organization's administrators, while they are organization members:
 
 | Who                             | Can change                                                        |
 | ------------------------------- | ----------------------------------------------------------------- |
 | **Editors** of the space        | Name, icon, address and description                               |
 | **Administrators** of the space | Location, publishing policy, access mode, named access, archiving |
 
-Managing a Restricted space does **not** let an administrator read it. They
-find it on the **Spaces** page under **Restricted spaces you administer**, by
-name only, and can choose **Grant myself access…**: pick the level and
-**Grant access (audited)**. The grant is recorded in the audit log with their
-name, shows as _Self-granted · audited_ in the space's named access, and
-other administrators can see and remove it.
+Managing a Restricted space does **not** let an administrator read it. It is
+listed by name only on the **Spaces** page under **Restricted spaces you
+administer**, with **Grant myself access…**: pick the level and **Grant
+access (audited)**. The grant is audited with their name and shows as
+_Self-granted · audited_, where other administrators can remove it.
 
-Every change to a space's access mode, named access, location, publishing
-policy and archiving is recorded in the organization's audit log.
+Changes to access mode, named access, location, publishing policy and
+archiving are recorded in the organization's audit log.
 
 ## No page-level restrictions
 
-Pages cannot be restricted one by one. To keep part of a tree private, put
-it in its own Restricted space; it can have the same location as the open
-one, so it is listed right beside it.
+To keep part of a tree private, put it in its own Restricted space with the
+same location, so it is listed beside the open one.
 
 ## Links to work grant nothing
 
-Pages and work items link to each other ([knowledge links](/knowledge)), and
-every link is visible only to people who can read its page:
+A [knowledge link](/knowledge) is visible only to people who can read its
+page:
 
 - A Restricted page attached to an item, cited by its specification or
-  mentioning it appears in the item's **Knowledge** section only for people
-  who can read that page. Everyone else sees no row, no title and no count.
-- Work items are read by every member of the organization. When you
-  **Create work item** from text on a Restricted page, the dialog warns that
-  the quoted text is copied into the item, where people who cannot read the
-  page will see it. Decide what to copy before you create it.
-- A mention of a work item on a page never lets the page's readers change
-  the item, and a decision card never lets them change the decision.
+  mentioning it appears in the item's **Knowledge** section only for its
+  readers. Everyone else sees no row, title or count.
+- Every member reads work items. **Create work item** from a Restricted page
+  warns that the quoted text is copied into the item, visible to people who
+  cannot read the page.
+- A work item mention or decision card never lets the page's readers change
+  the item or the decision.
 
-When someone loses access to a space, its pages leave the **Knowledge**
-sections they have open at once, and a page chip in a specification shows
-only the words its author wrote, with no card. Those words are part of the
-specification, which every member reads: describe a Restricted page by
+When someone loses access, its pages leave their open **Knowledge** sections
+at once, and a page chip in a specification shows only its author's words,
+with no card. Every member reads those words: describe a Restricted page by
 something you are happy for everyone to see.
 
 ## Enforced on the server
 
 Every check runs on the server, for the browser, live editing, agents and
-notifications alike:
+notifications:
 
 - a space or page you cannot read looks exactly like one that does not
-  exist: the same "not found", no title, no count;
-- when someone's access is removed, every edit they try to save is
-  refused from then on, and their open live editing connection is closed as
-  soon as the editing service hears of the change, or at its next check of
-  every connection, made every 30 seconds;
-- notifications reach only people who can read the space at that moment,
-  and disappear for someone who loses access.
+  exist: "not found", no title, no count;
+- removed access refuses every later save, and closes the open live editing
+  connection when the editing service hears of it, or at its next check of
+  every connection (every 30 seconds);
+- notifications reach only current readers, and disappear for someone who
+  loses access.

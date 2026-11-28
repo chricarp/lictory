@@ -54,7 +54,6 @@ export function OrganizationProjects() {
         id="projects"
         icon={<FolderKanban />}
         title="Projects"
-        description="Product areas, each with its own key, workflow and people. Archiving hides a project and keeps its work."
         action={
           isAdmin && !creating ? (
             <Button
@@ -67,7 +66,7 @@ export function OrganizationProjects() {
           ) : undefined
         }
       >
-        <SettingsList isEmpty={active.length === 0} empty="No active projects.">
+        <SettingsList isEmpty={active.length === 0} empty="No active projects">
           {active.map((p) => (
             <ProjectRow key={p.id} project={p} onError={setError} />
           ))}
@@ -94,14 +93,7 @@ export function OrganizationProjects() {
         {isAdmin && creating && (
           <div className="border-t border-border bg-muted/40 px-5 pb-5">
             <div className="flex items-center justify-between pt-4">
-              <div>
-                <p className="text-[13px] font-medium">New project</p>
-                <p className="text-xs text-muted-foreground">
-                  It starts with the default workflow, every work item type and
-                  the Product, Engineering and QA disciplines. You become its
-                  admin.
-                </p>
-              </div>
+              <p className="text-[13px] font-medium">New project</p>
               <Button
                 size="sm"
                 variant="ghost"
@@ -193,7 +185,7 @@ function ProjectRow({
           <span className="mx-1.5 text-muted-foreground/50">·</span>
           {admins.length
             ? `Admins: ${admins.map((a) => memberName(a.userId)).join(", ")}`
-            : "No project admins; organization admins manage it"}
+            : "No project admins"}
         </p>
       </div>
       {!archived && (

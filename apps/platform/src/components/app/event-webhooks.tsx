@@ -550,9 +550,8 @@ export function EventWebhooksSection() {
       title="Event webhooks"
       description={
         <>
-          Wake a script or tool that uses one of your access tokens when
-          something waits on you. To wake a Factory agent, add the webhook on
-          the agent&apos;s page.
+          Wakes a tool that uses one of your access tokens when something waits
+          on you. For a Factory agent, add it on the agent&apos;s page.
         </>
       }
       action={
@@ -569,7 +568,7 @@ export function EventWebhooksSection() {
           </Button>
         ) : undefined
       }
-      footer="Events are mentions, review requests, stale approvals, answered questions and decided pull requests. Lictory posts identifiers and a short title (never the content) to the URL with its bearer secret; the tool reads the details with your permissions. MCP clients that support MCP Events subscribe on their own and appear here too. A failing receiver is retried with backoff and stops after five failures until you resume it."
+      footer="Lictory posts identifiers and a short title, never the content, with the bearer secret. A failing receiver stops after five failures until you resume it."
     >
       {creating && (
         <SettingsBody>

@@ -39,7 +39,7 @@ export function Onboarding({ canCreate = true }: { canCreate?: boolean }) {
       <StateIllustration kind="proposal" />
       <OnboardingHeading title="Add a project">
         {canCreate
-          ? "It starts with the default workflow and the Product, Engineering and QA disciplines. Change either in the project’s settings."
+          ? "Starts with the default workflow and the Product, Engineering and QA disciplines."
           : "Ask an organization administrator to create a project."}
       </OnboardingHeading>
       {canCreate && <CreateProject />}

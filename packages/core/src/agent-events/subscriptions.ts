@@ -221,7 +221,7 @@ async function assertCanStoreSecrets(tx: Tx) {
   if (!stored)
     throw new DomainError(
       "unavailable",
-      "Webhooks cannot be stored yet: this Lictory installation has no DELIVERY_CREDENTIALS_KEY. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
+      "Webhooks cannot be stored: DELIVERY_CREDENTIALS_KEY is not set. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
     );
 }
 

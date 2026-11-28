@@ -236,7 +236,7 @@ export function webhookRefusal(connection: CodeConnectionEntity) {
     text:
       connection.lastWebhookRefusal === "payload"
         ? `${host} sent a delivery that is not JSON. Set the webhook's content type to application/json.`
-        : `${host} sent a delivery whose signature does not match this connection's webhook secret. Paste the secret again in the host's webhook settings, or create a new one under Settings → Code hosts.`,
+        : `${host} sent a delivery whose signature does not match the webhook secret. Paste the secret again in the host's webhook settings, or create a new one.`,
   };
 }
 

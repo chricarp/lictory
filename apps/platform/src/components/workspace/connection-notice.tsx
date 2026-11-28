@@ -41,8 +41,8 @@ export function ConnectionNotice() {
     >
       <KeyRound className="size-4 shrink-0 text-destructive" aria-hidden />
       <p className="min-w-0 flex-1 leading-relaxed">
-        Your session expired or your access changed. Changes can’t be saved
-        until you sign in again.
+        Your session expired or your access changed. Sign in again to keep
+        saving.
       </p>
       <Button
         size="sm"

@@ -62,7 +62,7 @@ export function OrganizationSecurity() {
   if (!isAdmin)
     return (
       <ReadOnlyNotice>
-        Only organization administrators can see and change security settings.
+        Only organization administrators can see security settings.
       </ReadOnlyNotice>
     );
 
@@ -97,7 +97,7 @@ export function OrganizationSecurity() {
         userId: member.userId,
       });
       setNotice(
-        `${member.name}'s two-factor authentication was reset. They sign in with their password and set it up again.`,
+        `Two-factor reset for ${member.name}. They set it up again at next sign-in.`,
       );
       setConfirmReset(null);
       await load();
@@ -113,7 +113,7 @@ export function OrganizationSecurity() {
       id="two-factor"
       icon={<ShieldCheck />}
       title="Require two-factor authentication"
-      description="Members without two-factor authentication are asked to turn it on before they can open this organization. It applies to password sign-ins; Google and Microsoft sign-ins use the provider's own checks."
+      description="Applies to password sign-ins. Google and Microsoft sign-ins use the provider's own checks."
       action={
         <Switch
           aria-label="Require two-factor authentication"
@@ -122,26 +122,25 @@ export function OrganizationSecurity() {
           onCheckedChange={(next) => void setRequired(next)}
         />
       }
-      footer="Changes to this requirement and two-factor resets are recorded in the organization's configuration history."
     >
       <SettingsBody className="space-y-2 text-[13px]">
         <p>
           {!security
             ? "Loading…"
             : required
-              ? `Required. ${without.length === 0 ? "Every member has two-factor authentication." : `${without.length} ${without.length === 1 ? "member has" : "members have"} not turned it on yet and cannot open the organization until they do.`}`
+              ? `Required. ${without.length === 0 ? "Every member has two-factor authentication." : `${without.length} ${without.length === 1 ? "member has" : "members have"} not turned it on and cannot open the organization.`}`
               : "Not required."}
         </p>
         {security && !required && !canRequire && (
           <p className="text-muted-foreground">
-            Turn on two-factor authentication for your own account in{" "}
+            Turn on two-factor for your own account in{" "}
             <Link
               href={`/account?returnTo=${encodeURIComponent(location.pathname)}#two-factor`}
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Account settings
             </Link>{" "}
-            before requiring it, so you are not locked out.
+            first, so you are not locked out.
           </p>
         )}
         <InlineError>{error}</InlineError>
@@ -155,7 +154,7 @@ export function OrganizationSecurity() {
         <SettingsSubheading>Members</SettingsSubheading>
         <SettingsList
           isEmpty={!security || security.members.length === 0}
-          empty={security ? "No members." : "Loading…"}
+          empty={security ? "No members" : "Loading…"}
         >
           {security?.members.map((member) => (
             <div
@@ -212,9 +211,9 @@ export function OrganizationSecurity() {
           ))}
         </SettingsList>
         <p className="border-t border-border px-5 py-3 text-xs leading-5 text-muted-foreground">
-          Reset two-factor only after confirming the person&apos;s identity
-          outside Lictory, for example by a call. It removes their authenticator
-          app and backup codes; their password and passkeys stay.
+          Confirm the person&apos;s identity outside Lictory before a reset.
+          Removes their authenticator and backup codes; password and passkeys
+          stay.
         </p>
       </div>
     </SettingsSection>

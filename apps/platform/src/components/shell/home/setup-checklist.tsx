@@ -105,8 +105,7 @@ export function SetupChecklist({
             Set up {organization.name}
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {setup.done} of {setup.steps.length} done. This list leaves Home
-            once everything is in place.
+            {setup.done} of {setup.steps.length} done
           </p>
         </div>
         <div
@@ -164,7 +163,7 @@ export function SetupChecklist({
                 <span className="block text-xs leading-4 text-muted-foreground">
                   {step.action
                     ? step.detail
-                    : `${step.detail} An administrator sets this up.`}
+                    : `${step.detail} · An administrator sets this up`}
                 </span>
               )}
             </span>

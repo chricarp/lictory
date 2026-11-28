@@ -128,9 +128,7 @@ export function PullRequests({
     <section className="space-y-4">
       <h2 className="font-semibold">Pull requests</h2>
       {pullRequests.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          No pull requests yet. Propose a change from a branch.
-        </p>
+        <p className="text-sm text-muted-foreground">No pull requests</p>
       )}
       <ul className="space-y-2">
         {pullRequests.map((p) => (
@@ -274,9 +272,7 @@ export function PullRequests({
           </label>
           {needsReviewer && !chosenReviewer && (
             <p role="status" className="text-xs text-warning">
-              Nobody will be asked to review it, and changes to this space merge
-              only after a review. Choose a reviewer now, or start it as a
-              draft.
+              Merging needs a review. Choose a reviewer or start as draft.
             </p>
           )}
           <label className="flex items-center gap-2 text-sm">
@@ -550,10 +546,7 @@ function PullRequestDetail({
       )}
       {closing && (
         <div className="rounded-xl border p-3 text-sm">
-          <p>
-            Close this pull request? Open discussions will be resolved and their
-            history retained.
-          </p>
+          <p>Close this pull request? Open discussions will be resolved.</p>
           <Button
             size="sm"
             disabled={action.pending}
@@ -575,8 +568,7 @@ function PullRequestDetail({
         <div className="min-w-0 space-y-6">
           {pr.status === "merged" ? (
             <MergedNotice>
-              Merged by {memberName(pr.mergedById ?? pr.authorId)}. The merged
-              version is available in history.
+              Merged by {memberName(pr.mergedById ?? pr.authorId)}.
             </MergedNotice>
           ) : (
             gate && (
@@ -676,8 +668,7 @@ function PullRequestDetail({
                     />
                   ) : (
                     <p role="status" className="text-sm text-muted-foreground">
-                      The document comparison is unavailable. Reload the preview
-                      to try again.
+                      Comparison unavailable. Reload the preview.
                     </p>
                   )}
                 </>
@@ -712,8 +703,8 @@ function PullRequestDetail({
           {!pr.reviewers.length && (
             <p className="text-[13px] text-muted-foreground">
               {space.publishing === "reviewed"
-                ? "Nobody is asked yet. Ask anyone who can comment on this page and did not write the change; merging needs a required reviewer’s approval of this exact result."
-                : "Nobody is asked yet. Anyone who can comment on this page and did not write the change can review it."}
+                ? "Nobody is asked yet. Merging needs a required reviewer’s approval."
+                : "Nobody is asked yet."}
             </p>
           )}
           {pr.reviewers.map((r) => {
@@ -926,9 +917,6 @@ function MergeConfirmation({
         where={`${sourceName} and this pull request`}
         counts={onMerge?.discussions}
       />
-      <p className="text-muted-foreground">
-        Discussions on {targetName} and on other branches are kept.
-      </p>
       {changed && <CountsChanged />}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={disabled} onClick={onConfirm}>

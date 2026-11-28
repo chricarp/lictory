@@ -129,18 +129,16 @@ export const levelDescriptions: Record<SpaceAccessLevel, string> = {
 };
 
 export const publishingDescriptions = {
-  direct:
-    "Editors publish changes straight to the page. Every published version stays in its history.",
-  reviewed:
-    "Changes are proposed on a branch and published only after a review approves them.",
+  direct: "Editors publish straight to the page.",
+  reviewed: "Changes publish after a review approves them.",
 } as const;
 
 // What open blocking discussions hold back: merging, never a Direct space's
 // Publish.
 export function blockingEffect(space: Pick<Space, "publishing">) {
   return space.publishing === "reviewed"
-    ? "Blocking discussions keep changes to this page from merging until they are resolved."
-    : "Blocking discussions keep this page’s pull requests from merging. Publishing is not blocked.";
+    ? "Blocking discussions stop changes from merging."
+    : "Blocking discussions stop pull requests from merging, not publishing.";
 }
 
 export function blockingSummary(

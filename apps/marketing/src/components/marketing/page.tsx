@@ -173,7 +173,7 @@ export function Prose({
 export function TryLictory({
   page,
   title = "Try it with one spec",
-  children = "Start with one rough idea. Invite your team. Turn it into a spec you can build.",
+  children = "Turn one rough idea into a spec your team can build.",
 }: {
   page: CtaPageType;
   title?: string;

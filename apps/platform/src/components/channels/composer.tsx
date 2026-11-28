@@ -79,9 +79,9 @@ export function Composer({
   const offline = !canWrite(connection);
   const reconnecting = connection === "connecting" && everConnected;
   const connectionNote = offline
-    ? "You’re offline. Your message stays here; send it when the connection is back."
+    ? "You’re offline. Your message stays here until you can send it."
     : reconnecting
-      ? "Reconnecting… Messages you send now are delivered when the connection is back."
+      ? "Reconnecting… Messages send once reconnected."
       : undefined;
   const send = () => {
     const text = body.trim();
@@ -164,7 +164,7 @@ export function Composer({
         )}
       >
         {tooLong
-          ? `Messages are at most ${maxLength.toLocaleString()} characters; put longer text in a page.`
+          ? `At most ${maxLength.toLocaleString()} characters. Put longer text in a page.`
           : (connectionNote ?? hint)}
       </p>
     </div>

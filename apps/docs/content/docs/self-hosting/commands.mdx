@@ -3,10 +3,10 @@ title: Command reference
 description: Every lictory command and option, the variables it reads and its exit codes, for operators and for automation.
 ---
 
-The `lictory` command runs on the server, as root (`sudo`) or as the deploy
-user. `lictory help` lists the commands, and `lictory <command> --help` shows
-one command's options. In bash, **Tab** completes commands, options,
-environment names, services and setting names.
+The `lictory` command runs on the server, as root (`sudo`) or the deploy
+user. `lictory help` lists the commands; `lictory <command> --help` shows one
+command's options. In bash, **Tab** completes commands, options, environment
+names, services and setting names.
 
 ## Options of every command
 
@@ -20,13 +20,13 @@ environment names, services and setting names.
 
 ### Install
 
-`sudo lictory install [options]` installs Lictory, or changes an installed environment's settings. On a
-terminal it asks for everything ([install](/self-hosting/install)); with
-`--yes` it takes the options below and keeps the current value of the rest.
-Every option can also be given as a `LICTORY_<OPTION>` variable (hyphens as
-underscores, for example `LICTORY_SMTP_PASSWORD`), which keeps secrets out of
-the process list and shell history. Invalid values are refused before
-anything changes.
+`sudo lictory install [options]` installs Lictory, or changes an installed
+environment's settings. On a terminal it asks for everything
+([install](/self-hosting/install)); with `--yes` it takes the options below
+and keeps the current value of the rest. Every option can also be a
+`LICTORY_<OPTION>` variable (hyphens as underscores, for example
+`LICTORY_SMTP_PASSWORD`), keeping secrets out of the process list and shell
+history. Invalid values are refused before anything changes.
 
 **Address and certificates**
 
@@ -153,7 +153,7 @@ Piped or redirected output is always plain text.
 Every Lictory command line uses `64` for a usage error and `1` for a
 failure: `lictory` and the host's helpers, `get.sh`, the laptop trial's
 `try.sh`, `lictory-runner` and its installer, `lictory admin` (and
-`bun run admin`) and `bun run verify`. The codes below are `lictory`'s;
+`bun run admin`) and `bun run verify`. Below are `lictory`'s codes;
 [`lictory-runner`](/factory/runners#exit-codes-and-logs) adds `2` for a
 machine a person must register again.
 

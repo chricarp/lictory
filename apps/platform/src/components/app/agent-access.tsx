@@ -52,10 +52,8 @@ function ConnectAgentLinks() {
     "inline-flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline";
   return (
     <p className="text-xs text-muted-foreground">
-      Connecting an AI agent? A personal token can also make your decisions
-      (approve, merge, hand off), and Lictory cannot tell the agent from you.
-      Give it an agent instead: a name, a scope, wake-ups of its own, and
-      decisions left to you:{" "}
+      Connecting an AI agent? With a token it acts as you, decisions included.
+      Give it an agent instead:{" "}
       {organizations.length === 1 ? (
         <Link
           href={factoryPaths.agents(organizations[0]!.slug)}
@@ -158,9 +156,8 @@ export function AgentAccessSection() {
       title="Personal access tokens"
       description={
         <>
-          For scripts and tools that work in Lictory as you, with exactly your
-          permissions in every organization you belong to, over MCP. Their
-          actions are recorded under the token&apos;s name. Endpoint:{" "}
+          For scripts and tools that act as you over MCP, with your permissions.
+          Endpoint:{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             {endpoint}
           </code>
@@ -183,9 +180,8 @@ export function AgentAccessSection() {
       footer={
         <div className="space-y-1.5">
           <p>
-            A token never sees your password and cannot create tokens, connect
-            integrations or change your account. Revoke a token to disconnect it
-            immediately.
+            Tokens can’t create tokens, connect integrations or change your
+            account.
           </p>
           <ConnectAgentLinks />
         </div>

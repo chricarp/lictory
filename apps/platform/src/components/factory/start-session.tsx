@@ -173,7 +173,6 @@ export function StartSessionDialog({
   return (
     <Dialog
       title="Start an agent session"
-      description="The agent works on a runner in its own branch and asks you when it needs a decision."
       onClose={onClose}
       onSubmit={() => void submit()}
       footer={
@@ -221,8 +220,7 @@ export function StartSessionDialog({
             </DropdownSelect>
           ) : (
             <p className="text-[13px] text-muted-foreground">
-              No agent you may start. Create one in Agents, or ask a colleague
-              to share theirs.
+              No agent you can start. Create one in Agents.
             </p>
           )}
         </div>
@@ -338,17 +336,15 @@ export function StartSessionDialog({
                   aria-hidden
                   className="mt-px size-3.5 shrink-0"
                 />
-                No repository: it works in a scratch workspace, and files it
-                changes are discarded when the session ends.
+                No repository: changed files are discarded when the session
+                ends.
               </p>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                {choice === OTHER || !repositories.length
-                  ? "Cloned with the runner’s own git credentials."
-                  : item
-                    ? "The project’s repositories, cloned with a short-lived credential."
-                    : "Linked repositories, cloned with a short-lived credential."}
-              </p>
+              (choice === OTHER || !repositories.length) && (
+                <p className="text-xs text-muted-foreground">
+                  Cloned with the runner’s own git credentials.
+                </p>
+              )
             )}
           </div>
           <div className="min-w-0 space-y-1.5">
@@ -396,18 +392,18 @@ function WorksFrom({ item, agentName }: { item: WorkItem; agentName: string }) {
       ? `${key} as written`
       : state === "ready"
         ? `the approved specification of ${key} (revision ${item.revisionNumber})`
-        : `revision ${item.revisionNumber} of ${key}, still ${refinementMeta[state].label.toLowerCase()}: it may change while the agent works`;
+        : `revision ${item.revisionNumber} of ${key}, still ${refinementMeta[state].label.toLowerCase()}`;
   // Outside native delivery (or archived) agents claim nothing: no verdict.
   const own =
     verdict.stage === "outside"
       ? null
       : verdict.claimable
-        ? { ok: true, text: "Agents may also claim it on their own." }
+        ? { ok: true, text: "Agents may also claim it." }
         : verdict.stage === "claimed"
-          ? { ok: false, text: "An agent already holds its claim." }
+          ? { ok: false, text: "Already claimed by an agent." }
           : {
               ok: false,
-              text: `Agents would not take it on their own: ${verdict.reasons[0]?.message ?? "it is not ready."} You can still start one yourself.`,
+              text: `Agents would not take it on their own: ${verdict.reasons[0]?.message ?? "it is not ready."}`,
             };
   return (
     <div
@@ -420,7 +416,7 @@ function WorksFrom({ item, agentName }: { item: WorkItem; agentName: string }) {
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
         />
         <span>
-          {agentName} works from {source}, read with Lictory&apos;s tools.
+          {agentName} works from {source}.
         </span>
       </p>
       {own && (

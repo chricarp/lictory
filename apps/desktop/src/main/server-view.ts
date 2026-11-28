@@ -257,7 +257,7 @@ export function createServerView(
     if (details.reason === "clean-exit") return;
     host.loadFailed(server.id, {
       summary: "This server's page stopped working.",
-      next: "Try again to reload it. If it keeps happening, restart Lictory.",
+      next: "Try again. If it keeps happening, restart Lictory.",
       code: details.reason,
     });
   });

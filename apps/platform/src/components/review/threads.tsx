@@ -272,10 +272,7 @@ export function Thread({
     // The last open discussion: "Show resolved" (in the panel's list or in
     // a task's section header), which appears once the resolution renders.
     const section = card?.closest("section");
-    void setState(
-      { resolved: true },
-      "Discussion resolved. Show resolved discussions to reopen it.",
-    );
+    void setState({ resolved: true }, "Discussion resolved.");
     if (!hadFocus) return;
     if (next?.isConnected && next !== card) {
       requestAnimationFrame(() => next.focus());
@@ -423,12 +420,7 @@ export function Thread({
     <span className="ml-auto flex shrink-0 items-center gap-0.5">
       {!readOnly &&
         (isOpen ? (
-          <button
-            type="button"
-            className={textAction}
-            title="Resolve: the question is answered (reopen any time)"
-            onClick={resolve}
-          >
+          <button type="button" className={textAction} onClick={resolve}>
             <CircleCheck className="size-3.5" aria-hidden /> Resolve
           </button>
         ) : (
@@ -736,7 +728,7 @@ function ReplyField({
       announce("Reply posted.");
     } catch (failure) {
       setError(
-        `Your reply was not sent${failure instanceof Error ? `: ${failure.message}` : "."} Your text is kept; send it again when ready.`,
+        `Your reply was not sent${failure instanceof Error ? `: ${failure.message}` : "."} Your text is kept.`,
       );
     } finally {
       setSending(false);
@@ -1001,7 +993,7 @@ export function ThreadComposer({
       if (hadFocus) focusWhenShown(`[data-thread-id="${threadId}"]`);
     } catch (e) {
       setError(
-        `Not posted${e instanceof Error ? `: ${e.message}` : "."} Your text is kept; post it again when ready.`,
+        `Not posted${e instanceof Error ? `: ${e.message}` : "."} Your text is kept.`,
       );
       if (hadFocus) requestAnimationFrame(() => editorRef.current?.focus());
     } finally {
@@ -1118,11 +1110,6 @@ export function ThreadComposer({
             <Checkbox
               checked={blocking}
               onCheckedChange={(checked) => setBlocking(checked === true)}
-              title={
-                change
-                  ? "The change cannot apply until this discussion is resolved."
-                  : "The specification cannot become ready until this discussion is resolved."
-              }
               className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground ring-1 ring-foreground/10 transition-colors outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-destructive/8 data-checked:text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] data-checked:ring-destructive/25 data-checked:focus-visible:ring-ring/60 touch:h-11 touch:px-3"
             >
               <CircleAlert className="size-3.5" aria-hidden />

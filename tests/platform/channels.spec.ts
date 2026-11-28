@@ -185,9 +185,7 @@ test("a message sent while the connection is down says it is not sent yet, then 
   // in words that it has not reached anyone yet.
   await zero.interrupt();
   const note = page.locator("[data-connection-note]");
-  await expect(note).toHaveText(
-    /Reconnecting… Messages you send now are delivered/,
-  );
+  await expect(note).toHaveText(/Reconnecting… Messages send once reconnected/);
   const composer = await fillMarkdown(page, "Message #ops", "Deploy paused");
   await composer.press("Enter");
   const message = log
@@ -195,7 +193,7 @@ test("a message sent while the connection is down says it is not sent yet, then 
     .filter({ hasText: "Deploy paused" });
   await expect(message).toBeVisible();
   await expect(message.locator('[data-delivery="waiting"]')).toHaveText(
-    "Not sent yet: it’s delivered when the connection is back",
+    "Not sent yet",
   );
 
   // Back: the message is delivered and the notes go away.

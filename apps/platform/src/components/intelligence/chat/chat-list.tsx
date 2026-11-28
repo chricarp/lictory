@@ -134,7 +134,7 @@ export function ChatList({ onNavigate }: { onNavigate?: () => void }) {
         {loaded && !chats.length && !listError && (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-xs text-muted-foreground">
             <MessageSquare className="size-5 opacity-60" aria-hidden />
-            Your conversations with Litto appear here.
+            No conversations
           </div>
         )}
         {loaded && chats.length > 0 && !groups.length && (

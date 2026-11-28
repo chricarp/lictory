@@ -355,8 +355,7 @@ export function PageComments({
       if (!anchor) {
         toast({
           title: "Select text to comment on",
-          description:
-            "Comments attach to text in a paragraph, heading, list item or table cell.",
+          description: "Paragraphs, headings, list items or table cells.",
           duration: 5000,
         });
         return;
@@ -513,11 +512,7 @@ export function PageComments({
       blockingEffect={blockingEffect}
       lineName={lineName}
       otherLines={otherLines}
-      hint={
-        canComment
-          ? `No open discussions on ${lineName}. Select text to comment on it, or comment on the whole page.`
-          : `No open discussions on ${lineName}.`
-      }
+      hint={`No open discussions on ${lineName}.`}
     />
   );
 

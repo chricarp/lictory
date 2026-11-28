@@ -3,14 +3,13 @@ title: How Work and Spaces connect
 description: The six ways pages and work items link to each other, who creates each link, and who can see it.
 ---
 
-Pages in [Lictory Spaces](/spaces) and work items in Lictory Work refer to
-each other. A runbook mentions the bug it prevents, a specification cites the
-design it follows, a sprint keeps its notes at hand. These **knowledge
-links** let you go from the work to what the team knows about it, and back,
-without copying either into the other.
+Pages in [Lictory Spaces](/spaces) and work items refer to each other: a
+runbook mentions the bug it prevents, a specification cites the design it
+follows, a sprint keeps its notes at hand. These **knowledge links** connect
+work and knowledge without copying either into the other.
 
-Each link has one owner and one way of being made. None of them moves work,
-changes a page or grants access.
+Each link has one owner and one way of being made. None moves work, changes a
+page or grants access.
 
 ## The six links
 
@@ -23,11 +22,11 @@ changes a page or grants access.
 | **Branch origin**          | A page branch was opened from an item's revision                      | Whoever chooses **Propose page update** on the item ([propose](/knowledge/in-work#propose-a-page-update))                            |
 | **Context link**           | A project, team or iteration keeps a page at hand                     | The project's planners: **Add page** in **Context** ([context pages](/knowledge/context-pages))                                      |
 
-Page references and citations follow what was written: change the page or
-the specification and they change with it. The other four are made on
-purpose. Attachments and context links can be removed again, with their
-history kept on the page. Sources and branch origins are written once and
-never change, so an item always knows which page version it came from.
+Page references and citations follow what was written and change with it.
+The other four are made on purpose. Attachments and context links can be
+removed, with their history kept on the page. Sources and branch origins are
+written once and never change, so an item always knows which page version it
+came from.
 
 ## Where you see them
 
@@ -50,9 +49,9 @@ never change, so an item always knows which page version it came from.
 
 ## A link is visible only to readers of its page
 
-Every link names a page, and you see a link only if you can read that page
-now. Work items are read by everyone in the organization, but pages follow
-their space's [access](/spaces/access). So:
+You see a link only if you can read its page now. Work items are read by
+everyone in the organization; pages follow their space's
+[access](/spaces/access). So:
 
 - an item's **Knowledge** section lists only the pages you can read. Pages
   you cannot read leave no row, no title and no count;
@@ -64,12 +63,10 @@ their space's [access](/spaces/access). So:
 - archived pages, and pages of archived spaces, drop out of every list until
   they are restored.
 
-Two things do travel with the item, because they are part of it: the words
-of its specification (a citation's text is written by the specification's
-author, and every member reads it) and anything copied into its title or
-description. When you create an item from page text, the dialog says that
-the quote is copied into the item, and warns when the page is in a
-Restricted space.
+Two things travel with the item because they are part of it: the words of
+its specification (including a citation's text) and anything copied into its
+title or description. When you create an item from page text, the dialog says
+the quote is copied and warns when the page is in a Restricted space.
 
 ## References follow published versions
 
@@ -79,9 +76,9 @@ the item when you publish, and one you write on a branch when the branch is
 merged into main. Restoring an older version changes the links with it.
 Earlier versions keep what they said in their own history.
 
-A specification links to what each **saved revision** says, and every
-revision keeps its own citations. An item therefore knows which page
-versions its current revision cites, and which only earlier revisions did.
+A specification links to what each **saved revision** says; every revision
+keeps its own citations, so an item knows which page versions its current
+revision cites and which only earlier revisions did.
 
 Pages and specifications never change each other's state:
 
@@ -97,10 +94,8 @@ Pages and specifications never change each other's state:
 - **Unpublished means unlinked.** If an item does not list your page, check
   that the mention is in the published version, not only in your draft or
   branch.
-- **Citation text is item content.** The words of a `[[` citation in a
-  specification are visible to everyone who reads the item, even when the
-  page itself is restricted. Choose a description you are happy for everyone
-  to see.
+- **Citation text is item content.** The words of a `[[` citation are
+  visible to everyone who reads the item, even when the page is restricted.
 - **Delivery mode does not matter.** Links work the same in projects that
   deliver in Lictory and in projects that hand work off to Jira; only
   iteration context needs native iterations

@@ -141,13 +141,10 @@ export function RecommendationCard({
           </CollapsiblePanel>
         )}
         <ItemFooter className="flex-wrap">
-          <span
-            className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground"
-            title="Litto's own estimate from what it read. It is not a check: nothing has run yet."
-          >
+          <span className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground">
             <Meter level={level} />
             {confidence[level].label}
-            <span className="font-normal">· an estimate, nothing has run</span>
+            <span className="font-normal">· estimate</span>
           </span>
           <ItemActions className="ml-auto">
             {alternatives.length > 0 && (

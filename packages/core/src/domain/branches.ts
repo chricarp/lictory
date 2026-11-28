@@ -478,7 +478,7 @@ export async function applyBranchCommand(
       if (result.decompositionConflict && !c.proposedChildren)
         throw new DomainError(
           "conflict",
-          "The proposed breakdown changed. Read the latest version and choose the proposed items again before saving.",
+          "The proposed breakdown changed. Choose the proposed items again.",
         );
       if (result.conflicted && !c.expectedHeadId)
         throw new DomainError(
@@ -534,7 +534,7 @@ export async function applyBranchCommand(
         )
           throw new DomainError(
             "conflict",
-            "The proposed breakdown changed while you edited it. Review the latest breakdown and choose the items again before saving.",
+            "The proposed breakdown changed while you edited it. Choose the items again.",
           );
         proposedChildren = c.proposedChildren;
       }

@@ -44,9 +44,8 @@ const commands = {
     usage:
       "lictory-runner register --url <server> --token <registration token> [options]",
     about: [
-      "Exchanges a one-time registration token from Factory → Runners → Add runner",
-      "for this runner's credential, kept in the configuration file below (readable",
-      "only by this account). The token works once and expires after an hour.",
+      "Exchanges a one-time token (Factory → Runners → Add runner, valid for an hour)",
+      "for a credential, kept in the configuration file below, readable only by you.",
     ],
     options: {
       url: { type: "string" },
@@ -59,52 +58,44 @@ const commands = {
       force: { type: "boolean" },
     },
     help: [
-      [
-        "--url <server>",
-        "The address you open Lictory at, e.g. https://lictory.example.com",
-      ],
-      ["--token <token>", "The registration token (lrt_…)"],
-      [
-        "--name <name>",
-        "How the runner is listed (default: this machine's host name)",
-      ],
-      ["--max-sessions <n>", "Sessions it runs at once, 1 to 64 (default 2)"],
+      ["--url <server>", "Server address, e.g. https://lictory.example.com"],
+      ["--token <token>", "Registration token (lrt_…)"],
+      ["--name <name>", "Runner name (default: host name)"],
+      ["--max-sessions <n>", "Concurrent sessions, 1 to 64 (default 2)"],
       [
         "--isolation host|container",
-        "Sessions in worktrees on this machine (default) or in Docker containers",
+        "Worktrees on this machine (default) or Docker containers",
       ],
       [
         "--container-image <image@sha256:…>",
-        "The image container isolation runs sessions in (needs git and the harnesses)",
+        "Image for container isolation (needs git and the harnesses)",
       ],
-      ["--label <label>", "A label shown on the runner; repeat for several"],
-      ["--force", "Replace this machine's existing registration"],
+      ["--label <label>", "Label shown on the runner; repeatable"],
+      ["--force", "Replace the existing registration"],
     ],
   },
   start: {
     summary: "Connect and run agent sessions until stopped",
     usage: "lictory-runner start [--test-harness <script.json|default>]",
     about: [
-      "Connects out to the server over HTTPS and runs the sessions it is assigned.",
-      "Ctrl-C or SIGTERM stops claiming work and hands running sessions back to the",
-      "queue. One runner runs per configuration directory: a second start is refused.",
+      "Connects out over HTTPS. Ctrl-C or SIGTERM hands running sessions back to",
+      "the queue. One runner per configuration directory.",
     ],
     options: { "test-harness": { type: "string" } },
     help: [
       [
         "--test-harness <script.json|default>",
-        "Replace every agent with a scripted one (tests: nothing real runs)",
+        "Replace every agent with a scripted one (tests only)",
       ],
     ],
   },
   status: {
-    summary: "Show whether the runner runs and what it works on",
+    summary: "Show the runner's state and sessions",
     usage: "lictory-runner status",
     about: [
-      "Reads the state the running runner writes on every heartbeat; it does not",
-      "contact the server (lictory-runner doctor does). For scripts: exits 0 while",
-      `it runs, ${EXIT.failed} when it is stopped or not responding, and ${EXIT.needsPerson} when this machine`,
-      "is not registered or the server refused its credential.",
+      "Reads local state; does not contact the server (doctor does). Exits 0 while",
+      `running, ${EXIT.failed} when stopped or not responding, ${EXIT.needsPerson} when not registered or the`,
+      "credential was refused.",
     ],
     options: {},
     help: [],
@@ -114,24 +105,23 @@ const commands = {
       "Check the server, the credential, git, harnesses, Docker and the clock",
     usage: "lictory-runner doctor",
     about: [
-      "Runs every check and prints what to do about each failure. For scripts: exits",
-      `0 when every check passes, ${EXIT.failed} when a check fails, and ${EXIT.needsPerson} when this machine is not`,
-      "registered or the server refused its credential (as status and start do).",
+      `Prints a fix for each failure. Exits 0 when every check passes, ${EXIT.failed} when one`,
+      `fails, ${EXIT.needsPerson} when not registered or the credential was refused.`,
     ],
     options: {},
     help: [],
   },
   "install-service": {
-    summary: "Keep the runner running as a systemd or launchd service",
+    summary: "Run the runner as a systemd or launchd service",
     usage: "lictory-runner install-service [--system] [--enable]",
     about: [
-      "Writes a systemd unit (Linux) or launchd agent (macOS) that runs",
-      "`lictory-runner start` at boot and restarts it when it fails, but not when a",
-      `person must act first (exit code ${EXIT.needsPerson}). On Windows it prints the Task Scheduler commands.`,
+      "Writes a systemd unit (Linux) or launchd agent (macOS) that starts at boot",
+      `and restarts on failure, except on exit code ${EXIT.needsPerson}. On Windows, prints Task`,
+      "Scheduler commands.",
     ],
     options: { system: { type: "boolean" }, enable: { type: "boolean" } },
     help: [
-      ["--system", "A system service (needs root) instead of your user's"],
+      ["--system", "System service (needs root) instead of a user service"],
       ["--enable", "Enable and start it now"],
     ],
   },
@@ -139,17 +129,16 @@ const commands = {
     summary: "Show the runner service's log",
     usage: "lictory-runner logs [--follow] [--lines <n>]",
     about: [
-      "Prints the log of the service install-service set up: the systemd journal on",
-      "Linux, the runner.log file launchd writes on macOS. A runner started by hand",
-      "with `lictory-runner start` logs to its own terminal instead.",
+      "The systemd journal (Linux) or runner.log (macOS) of the installed service.",
+      "A runner started by hand logs to its terminal.",
     ],
     options: {
       follow: { type: "boolean", short: "f" },
       lines: { type: "string", short: "n" },
     },
     help: [
-      ["-f, --follow", "Keep printing new lines until Ctrl-C"],
-      ["-n, --lines <n>", "How many recent lines to show (default 100)"],
+      ["-f, --follow", "Follow new lines until Ctrl-C"],
+      ["-n, --lines <n>", "Recent lines to show (default 100)"],
     ],
   },
   version: {
@@ -174,24 +163,21 @@ const isCommand = (name: string | undefined): name is Command =>
   Boolean(name && Object.hasOwn(commands, name));
 
 const footer = () => [
-  `Configuration and credential: ${homeDirectory()} (LICTORY_RUNNER_HOME).`,
-  "Output is plain text, never colored, in a terminal and in a log alike.",
+  `Configuration and credential: ${homeDirectory()} (LICTORY_RUNNER_HOME)`,
   "",
   "Exit codes:",
   `  ${String(EXIT.ok).padEnd(3)} done`,
   // One meaning per code for every command: status's "stopped or not
   // responding" is its failure, not a different convention.
-  `  ${String(EXIT.failed).padEnd(3)} failed; for status, the runner is stopped or not responding`,
-  "      (a service restarts start when it exits 1)",
-  `  ${String(EXIT.needsPerson).padEnd(3)} a person must act first: not registered, or the credential was`,
-  "      revoked (a service does not restart it)",
+  `  ${String(EXIT.failed).padEnd(3)} failed (status: stopped or not responding); services restart`,
+  `  ${String(EXIT.needsPerson).padEnd(3)} needs a person: not registered or credential revoked; no restart`,
   `  ${String(EXIT.usage).padEnd(3)} wrong command line`,
 ];
 
 function overview() {
   const width = Math.max(...Object.keys(commands).map((c) => c.length));
   return [
-    `lictory-runner ${RUNNER_VERSION}: runs Lictory agent sessions on this machine.`,
+    `lictory-runner ${RUNNER_VERSION}: runs Lictory agent sessions on this machine`,
     "",
     "Usage: lictory-runner <command> [options]",
     "",
@@ -199,7 +185,7 @@ function overview() {
       ([name, c]) => `  ${name.padEnd(width)}  ${c.summary}`,
     ),
     "",
-    "Run `lictory-runner <command> --help` for a command's options.",
+    "`lictory-runner <command> --help` for a command's options",
     "",
     ...footer(),
   ].join("\n");
@@ -262,7 +248,7 @@ function serverUrl(value: string) {
     url = new URL(value);
   } catch {
     throw new CliError(
-      `--url ${value} is not an address. Give the address you open Lictory at, for example https://lictory.example.com.`,
+      `--url ${value} is not an address, e.g. https://lictory.example.com.`,
       EXIT.usage,
     );
   }
@@ -281,7 +267,7 @@ async function register(args: string[]) {
   const token = text(values.token);
   if (!url || !token)
     throw new CliError(
-      "Give the server's address and a registration token: lictory-runner register --url <server> --token <token>. Create the token in Factory → Runners → Add runner.",
+      "Usage: lictory-runner register --url <server> --token <token>. Create the token in Factory → Runners → Add runner.",
       EXIT.usage,
     );
   const maxSessions = text(values["max-sessions"]);
@@ -346,15 +332,14 @@ async function register(args: string[]) {
   say(`  Configuration: ${configPath()}`);
   if (base.isolation === "host") {
     say(
-      "  Isolation:     host: sessions run on this machine as this account, with its files and credentials.",
+      "  Isolation:     host: sessions run as this account, with its files and credentials.",
     );
     say(
-      "                 For a container per session, register again with --isolation container --force.",
+      "                 For containers: register again with --isolation container --force.",
     );
-  } else
-    say("  Isolation:     container: each session runs in its own container.");
+  } else say("  Isolation:     container: one container per session.");
   say(
-    "  Next:          lictory-runner start, or lictory-runner install-service --enable to keep it running.",
+    "  Next:          lictory-runner start, or lictory-runner install-service --enable",
   );
 }
 
@@ -362,7 +347,7 @@ async function required() {
   const config = await readConfig();
   if (!config)
     throw new CliError(
-      "This machine is not registered. Run `lictory-runner register --url <server> --token <token>` first.",
+      "Not registered. Run `lictory-runner register --url <server> --token <token>` first.",
       EXIT.needsPerson,
     );
   return config;
@@ -379,9 +364,7 @@ async function start(args: string[]) {
     text(values["test-harness"]) ?? process.env.LICTORY_RUNNER_TEST_HARNESS;
   let available = harnesses;
   if (testScript) {
-    say(
-      "Using the scripted test harness for every agent: nothing real will run.",
-    );
+    say("Scripted test harness: no real agent runs.");
     available = fakeHarnesses(await loadScript(testScript));
   }
   await mkdir(workDirectory(config), { recursive: true });
@@ -415,9 +398,7 @@ async function status(args: string[]) {
     return;
   }
   if (!state || liveness === "stopped") {
-    say(
-      "Not running. Start it with `lictory-runner start` (or start its service).",
-    );
+    say("Not running. Start it with `lictory-runner start` or its service.");
     if (state?.lastError) say(`Last error: ${state.lastError}`);
     process.exitCode = EXIT.failed;
     return;
@@ -427,7 +408,7 @@ async function status(args: string[]) {
       `Not responding: pid ${state.pid} last wrote its state ${when(state.updatedAt ?? state.startedAt)}.`,
     );
     say(
-      "It may be stuck. Check its log (`lictory-runner logs` for the service), or stop that process and start the runner again.",
+      "It may be stuck. Check `lictory-runner logs`, or stop that process and start again.",
     );
     process.exitCode = EXIT.failed;
     return;
@@ -551,7 +532,7 @@ async function doctor(args: string[]) {
     // In a container the harness signs in inside the image, not here.
     if (!found.harness.ready || config.isolation === "container") {
       say(
-        `✓ ok   ${name}${found.harness.ready ? " (sign-in is not checked here: sessions run in the container image)" : ""}`,
+        `✓ ok   ${name}${found.harness.ready ? " (sign-in not checked: sessions run in the container image)" : ""}`,
       );
       continue;
     }
@@ -567,7 +548,7 @@ async function doctor(args: string[]) {
   }
   if (!detected.some((d) => d.id !== "lictory"))
     say(
-      "  → Install Claude Code or Codex to run those agents; the built-in harness needs Lictory Intelligence on the server.",
+      "  → Install Claude Code or Codex for those agents; the built-in harness needs Lictory Intelligence.",
     );
   for (const line of posture(config)) say(`· info ${line}`);
   const work = workDirectory(config);
@@ -587,7 +568,7 @@ async function doctor(args: string[]) {
       check(true, `Container image ${config.containerImage}`);
     else
       say(
-        `! warn Container image ${config.containerImage} is not pinned by digest: pin it (image@sha256:…) in config.json so a moved tag cannot change what sessions run in.`,
+        `! warn Container image ${config.containerImage} is not pinned: use image@sha256:… in config.json.`,
       );
     const docker = await run("docker", [
       "version",
@@ -657,7 +638,7 @@ async function main() {
       if (topic === undefined) return say(overview());
       if (isCommand(topic)) return say(commandHelp(topic));
       throw new CliError(
-        `There is no command ${topic}. Commands: ${Object.keys(commands).join(", ")}.`,
+        `No command ${topic}. Commands: ${Object.keys(commands).join(", ")}.`,
         EXIT.usage,
       );
     }

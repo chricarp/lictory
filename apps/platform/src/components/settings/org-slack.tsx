@@ -141,9 +141,8 @@ export function SlackConnection() {
       id="slack"
       icon={<MessagesSquare />}
       title="Slack"
-      description="Link Lictory channels to Slack channels so both sides see one conversation."
+      description="Link Lictory channels to Slack channels."
       learnMore="slack"
-      footer="Lictory works only in Slack channels its app was invited to, matches people by confirmed email and imports no history unless asked."
     >
       <SettingsBody className="space-y-3 text-[13px]">
         {!connection ? (
@@ -280,9 +279,8 @@ export function SlackConnection() {
         )}
         {confirming && (
           <p className="text-xs text-muted-foreground">
-            Lictory&apos;s token is revoked and every channel is unlinked.
-            Messages stay on both sides; installing again later needs no new
-            app.
+            Revokes Lictory&apos;s token and unlinks every channel. Messages
+            stay on both sides.
           </p>
         )}
         {connection?.lastError && (
@@ -315,8 +313,8 @@ export function SlackConnection() {
         )}
         {status === "connected" && (
           <p className="text-xs text-muted-foreground">
-            Link a channel from its menu (⋯ → Link to Slack channel) after
-            inviting the Lictory app to the Slack channel with /invite @Lictory.
+            Run /invite @Lictory in Slack, then link from the channel&apos;s
+            menu (⋯ → Link to Slack channel).
           </p>
         )}
         <InlineError>{error}</InlineError>
@@ -393,13 +391,12 @@ function AppSetup({
           />
         </li>
         <li>
-          Copy the App ID, Client ID, Client Secret and Signing Secret from the
-          new app&apos;s <em>Basic Information</em> page below, and save.
+          Paste the App ID, Client ID, Client Secret and Signing Secret from its{" "}
+          <em>Basic Information</em> page below, and save.
         </li>
         <li>
           Install the app. If Slack says the events URL is not verified, open{" "}
-          <em>Event Subscriptions</em> and choose Retry: Slack can verify it
-          once the signing secret is saved.
+          <em>Event Subscriptions</em> and choose Retry.
         </li>
       </ol>
       {unreachable && (
@@ -415,10 +412,8 @@ function AppSetup({
           <div className="flex flex-col gap-1 text-xs leading-5">
             <p className="font-medium">Slack cannot reach {unreachable}</p>
             <p className="text-muted-foreground">
-              Slack sends events and sign-ins only to a public HTTPS address,
-              and this manifest uses the server&apos;s own address. Whoever runs
-              this server sets a public HTTPS address for it first (on a laptop
-              trial, Slack sync cannot work).
+              Slack needs a public HTTPS address; the server&apos;s operator
+              sets one first. A laptop trial cannot sync with Slack.
             </p>
           </div>
         </div>

@@ -24,13 +24,12 @@ export const autonomyLevelMeta: Record<
   },
   build: {
     label: "Build",
-    summary:
-      "Ready work is dispatched to implementer agents in rank order; people merge their pull requests.",
+    summary: "Ready work is dispatched to agents; people merge.",
   },
   autopilot: {
     label: "Autopilot",
     summary:
-      "As Build, and Lictory merges an agent's code pull request once every required check passed, attributed to this policy.",
+      "As Build, and Lictory merges agent pull requests once required checks pass.",
   },
 };
 
@@ -99,8 +98,7 @@ export const autonomyPolicyInputSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["implementerAgentIds"],
-        message:
-          "Choose at least one implementer agent: Build and Autopilot dispatch work to them.",
+        message: "Choose at least one implementer agent.",
       });
     if (
       policy.level === "autopilot" &&

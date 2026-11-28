@@ -5,15 +5,15 @@ description: Create a work item, capture a rough idea with its files and links, 
 
 A **proposal** is the first expression of a change someone wants: the
 problem, who has it, what should happen instead, and whatever notes,
-screenshots and links you already have. It is expected to be incomplete.
-Creating one commits nobody to building it; refinement decides that.
+screenshots and links you have. It is expected to be incomplete and commits
+nobody to building it; refinement decides that.
 
 ## When to use it
 
-Write a proposal whenever an idea needs the team's agreement before anyone
-builds it: a new behavior, a change to an existing one, a customer request
-that needs shaping. Work that only needs doing (a chore, a known bug fix)
-can be plain work instead, a Task or a Bug without a specification.
+When an idea needs the team's agreement before anyone builds it: a new
+behavior, a change to an existing one, a customer request that needs shaping.
+Work that only needs doing (a chore, a known bug fix) can be plain work, a
+Task or a Bug without a specification.
 
 ## Create a work item
 
@@ -33,7 +33,7 @@ can be plain work instead, a Task or a Bug without a specification.
 
 ### Choose the type, project and team
 
-The dialog starts with a sensible type for where you opened it:
+The starting type depends on where you opened it:
 
 - from **Proposals** or **Refinement**, only types with a specification are
   offered (Story by default);
@@ -42,8 +42,8 @@ The dialog starts with a sensible type for where you opened it:
 - elsewhere, the dialog starts with Story and offers every type you may
   create.
 
-Change the type, the project (when you are in several) and the team (when
-the project has teams) with the buttons at the top.
+The buttons at the top change the type, the project (when you are in
+several) and the team (when the project has teams).
 
 </Step>
 <Step>
@@ -51,35 +51,33 @@ the project has teams) with the buttons at the top.
 ### Give it a title, and optionally a parent and a description
 
 Only the title is required. **Parent** links the item to the larger piece
-of work it contributes to, such as a Story under an Epic; it is offered when
-the project has a type one level above. The **Description** is the first
-revision of the specification, written in the [editor](/specifications/editor).
+of work it contributes to, such as a Story under an Epic, when the project has
+a type one level above. The **Description** is the first revision of the
+specification, written in the [editor](/specifications/editor).
 
 </Step>
 <Step>
 
 ### Create it
 
-- **Create & open** (`Enter`) creates the item and opens it, so you see the
-  next step.
-- **Create another** creates it and keeps the dialog open for the next one.
-  The dialog counts what you created, and a notice with **Open** lets you
-  jump to each.
+- **Create & open** (`Enter`) creates the item and opens it.
+- **Create another** creates it and keeps the dialog open. The dialog counts
+  what you created; a notice with **Open** jumps to each.
 
 </Step>
 </Steps>
 
-A spec-backed item starts in **Draft** and appears in **Proposals**. When it
-is worth the team's time, open it and choose **Start refinement**: it moves
-to **In refinement** and into the Refinement view. Requesting a review moves
-it to **In review** even if nobody started refinement explicitly. See
+A spec-backed item starts in **Draft**, in **Proposals**. When it is worth
+the team's time, choose **Start refinement** on it: it moves to **In
+refinement** and into the Refinement view. Requesting a review moves it to
+**In review** even if nobody started refinement. See
 [from proposal to ready](/specifications).
 
 <Callout title="Who can create work items">
   Creating a spec-backed item needs a discipline that _edits specifications_ in
   the project; plain work also accepts a discipline that _changes properties_.
-  Without either, Lictory says so and names who can help: a project
-  administrator. See [disciplines](/organization/disciplines).
+  Without either, Lictory says so and points you to a project administrator. See
+  [disciplines](/organization/disciplines).
 </Callout>
 
 ## What to put in a proposal
@@ -93,16 +91,16 @@ Start with what you know and say what you don't:
 - **Open questions** you already see.
 - **What is out of scope**, when it is likely to come up.
 
-Reviewers from Engineering, QA and other disciplines add what they know:
-feasibility, failure behavior, test scenarios. The proposal does not need to
-answer everything before refinement starts.
+Reviewers from Engineering, QA and other disciplines add feasibility,
+failure behavior and test scenarios; the proposal need not answer everything
+first.
 
 ### Files and screenshots
 
-Every work item has **Attachments** under its text. Choose **Add files**, or
-drop files onto the section. In the editor, paste or drop an image to place
-it in the text, or choose **Insert → File or image**: images appear inline,
-other files as a link, and both are kept with the item's attachments.
+Every work item has **Attachments** under its text: choose **Add files** or
+drop files onto the section. In the editor, paste or drop an image, or choose
+**Insert → File or image**: images appear inline, other files as a link, both
+kept with the item's attachments.
 
 - Files can be up to 25 MB: images, PDF, text and Markdown, CSV, Word,
   Excel, PowerPoint, ZIP, MP4, MOV and MP3.
@@ -115,20 +113,19 @@ other files as a link, and both are kept with the item's attachments.
 
 ### Links and references
 
-Paste ordinary links to anything outside Lictory. To refer to something in
-Lictory, use a reference instead: type `#` for a work item, `[[` for a page
-in Spaces, or **/ → Decision** for a recorded decision. References stay
-correct when the target is renamed and show its current state. See
+Paste ordinary links to anything outside Lictory. Inside Lictory, use a
+reference: `#` for a work item, `[[` for a page in Spaces, **/ → Decision**
+for a recorded decision. References survive renames and show the target's
+current state. See
 [references](/specifications/editor#work-items-pages-and-decisions).
 
 For background that should travel with the item without being part of its
-text, attach a page to the item instead; see
-[knowledge on a work item](/knowledge/in-work).
+text, attach a page instead ([knowledge on a work item](/knowledge/in-work)).
 
 ## Draft proposals with Litto
 
-When you have rough material (meeting notes, a customer request, a support
-ticket), Litto can turn it into draft proposals for you to choose from:
+Litto can turn rough material (meeting notes, a customer request, a support
+ticket) into draft proposals to choose from:
 
 - In a [Litto chat](/ai/litto), paste the material, say which project it is
   for and ask for proposals.
@@ -142,8 +139,8 @@ specifications. It quotes the exact excerpts of your material it relies on
 and lists what it inferred rather than read. Citations Lictory could not
 verify are removed.
 
-Nothing is created until you choose. You pick the drafts you want, adjust
-them, and only those become proposals, with you as their author.
+Nothing is created until you choose: only the drafts you pick and adjust
+become proposals, with you as their author.
 
 <Callout title="What Litto needs">
   Drafting needs [Lictory Intelligence](/ai) enabled for your organization and a
@@ -153,31 +150,30 @@ them, and only those become proposals, with you as their author.
 </Callout>
 
 **Without Lictory Intelligence**, you write proposals yourself; nothing else
-changes. If Litto cannot draft right now, the page says _Litto could not
-draft proposals right now. You can write the work item yourself instead._
+changes. If Litto cannot draft, the page says _Litto could not draft
+proposals right now. You can write the work item yourself instead._
 
 ## What to watch for
 
-- **Creating is not committing.** A proposal is a captured idea. Delivery
-  starts only when someone accepts a ready revision or hands it off.
+- **Creating is not committing.** Delivery starts only when someone accepts
+  a ready revision or hands it off.
 - **Plain work skips refinement.** A Task or Bug goes straight to delivery.
   If it sits under a spec-backed parent, that parent's readiness still
   applies.
 - **The title is part of the specification.** Renaming a spec-backed item
-  saves a new revision, just like changing its text.
+  saves a new revision.
 
 ## Tips
 
-- **Start rough, early.** A title and three sentences are enough to let
-  Engineering and QA see it coming. Polishing alone delays the questions that
-  matter.
+- **Start rough, early.** A title and three sentences let Engineering and QA
+  see it coming; polishing alone delays the questions that matter.
 - **Write the headings readiness looks for.** If your project requires
   sections such as _Acceptance criteria_ or _Failure behavior_, add them as
-  headings from the start, even if they are empty. Readiness checks find a
-  section by its heading name, at any level, so the proposal shows what is
-  still missing. See [readiness](/review/readiness).
-- **Cite what you rely on.** When a proposal depends on how something works
-  today, link the page that describes it and pin the version you read
-  (`[[`, then **Pin this version**). Reviewers then see exactly what you saw.
+  headings from the start, even empty. Readiness checks find a section by its
+  heading name, at any level, so the proposal shows what is missing. See
+  [readiness](/review/readiness).
+- **Cite what you rely on.** Link the page that describes how something works
+  today and pin the version you read (`[[`, then **Pin this version**), so
+  reviewers see what you saw.
 - **Capture in batches.** After a planning session, use **Create another**
   to record every idea in one go, then refine them one at a time.

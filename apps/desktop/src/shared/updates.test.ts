@@ -52,15 +52,15 @@ void test("a release without this system's update reads as that, not a failure",
       message: "Cannot find latest-linux.yml in the latest release artifacts",
       code: "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND",
     }),
-    "The newest release has no update for this system yet. Lictory checks again later.",
+    "The newest release has no update for this system yet.",
   );
   // A network failure is said in words, never as Chromium's code.
   assert.equal(
     updateErrorMessage({ message: "net::ERR_INTERNET_DISCONNECTED\nstack" }),
-    "Lictory could not check for updates. This computer is offline. It checks again later.",
+    "Could not check for updates. This computer is offline.",
   );
   assert.equal(
     updateErrorMessage({ message: "net::ERR_CONNECTION_TIMED_OUT" }),
-    "Lictory could not check for updates. The update server did not answer. It checks again later.",
+    "Could not check for updates. The update server did not answer.",
   );
 });

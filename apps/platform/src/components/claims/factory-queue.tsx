@@ -34,7 +34,6 @@ import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
-import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
@@ -69,19 +68,14 @@ type Dispatch = {
 // rule, so the queue never promises what a claim would refuse.
 export function FactoryQueue() {
   const project = useProject();
-  const { directory } = useWorkspace();
-  const tool = projectDeliveryTool(directory, project.id);
   if (project.deliveryMode !== "native")
     return (
       <ExternalProjectNotice
         project={project}
-        surface="factory queue"
         title="Factory queue"
         icon={<ListChecks />}
       >
-        {tool.Name} owns delivery in this project, so agents never claim or get
-        dispatched its work: claims, Build and Autopilot need a project that
-        delivers in Lictory. Refinement, reviews and the hand-off work as usual.
+        Claims, Build and Autopilot need delivery in Lictory.
       </ExternalProjectNotice>
     );
   return <Queue project={project} />;
@@ -175,7 +169,7 @@ function Queue({ project }: { project: Project }) {
     policy.level !== "assist" &&
     item.assigneeId &&
     !implementerOwners.has(item.assigneeId)
-      ? `Assigned to ${memberName(item.assigneeId)}: the ${autonomyLevelMeta[policy.level].label} policy leaves it to them.`
+      ? `Assigned to ${memberName(item.assigneeId)}`
       : undefined;
   // Work people already do, apart from what is blocked: an item the
   // policy leaves to its assignee, or one a person's pull request covers.
@@ -304,11 +298,7 @@ function Queue({ project }: { project: Project }) {
                 </Button>
               }
             >
-              {project.name} is on Assist: agents claim work only when a person
-              asks them. With Build, Lictory dispatches ready work to
-              implementer agents in rank order and people merge their pull
-              requests; Autopilot also merges them when every required check
-              passes.
+              Build dispatches ready work to agents; Autopilot also merges it.
             </MissingState>
           ) : (
             <MissingState
@@ -329,12 +319,7 @@ function Queue({ project }: { project: Project }) {
                 </Button>
               }
             >
-              Work appears here once its specification is ready and its scope is
-              accepted; {level.label} then dispatches it to{" "}
-              {policy.implementerAgentIds.length === 1
-                ? "the implementer agent"
-                : "implementer agents"}{" "}
-              in rank order.
+              Ready work with accepted scope appears here.
             </MissingState>
           )}
         </div>
@@ -385,8 +370,8 @@ function Queue({ project }: { project: Project }) {
                   title={item.title}
                   meta={
                     claim.state === "waiting" || claim.waitingThreadIds.length
-                      ? `${claim.agentName} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification. Resolve ${claim.waitingThreadIds.length === 1 ? "it" : "them"} to resume.`
-                      : `${claim.agentName} waits on ${firstName(memberName(claim.ownerId))}'s answer since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}.`
+                      ? `${claim.agentName} asked ${claim.waitingThreadIds.length === 1 ? "a question" : `${claim.waitingThreadIds.length} questions`} about the specification`
+                      : `${claim.agentName} waits on ${firstName(memberName(claim.ownerId))}'s answer since ${relativeTime(claim.sessionWaitingSince ?? claim.claimedAt)}`
                   }
                   chips={
                     <ClaimBadge claim={claim} assigneeId={item.assigneeId} />

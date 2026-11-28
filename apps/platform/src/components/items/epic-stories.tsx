@@ -136,7 +136,7 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         {stale > 0 && (
           <span
             className="text-xs text-warning"
-            title="These children were derived from an earlier revision of this specification. Review whether they still match."
+            title="Check whether they still match the current revision"
           >
             {stale} from an earlier revision
           </span>
@@ -160,18 +160,10 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
           )}
         </div>
       </div>
-      {/* Said once, before the first breakdown: what happens to one. */}
-      {parentType.hasSpecification && onPropose && stories.length === 0 && (
-        <p className="mb-2 text-xs text-muted-foreground">
-          A proposed breakdown is reviewed by this specification&rsquo;s
-          reviewers before its items are created.
-        </p>
-      )}
       <div className="overflow-hidden rounded-md border">
         {stories.length === 0 && !composing && (
           <p className="px-3 py-4 text-[13px] text-muted-foreground">
-            Nothing here yet. Break this {parentType.name.toLowerCase()} into
-            concrete work the team can implement.
+            No children yet
           </p>
         )}
         <ul className="divide-y">

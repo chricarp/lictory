@@ -48,7 +48,7 @@ export const notificationKinds = {
   review_requested: {
     category: "review",
     label: "Review requested",
-    description: "You or one of your roles is asked to review a specification.",
+    description: "You or one of your disciplines is asked to review.",
     inApp: true,
     email: true,
   },
@@ -62,16 +62,14 @@ export const notificationKinds = {
   review_decided: {
     category: "review",
     label: "Review decision",
-    description:
-      "A reviewer approved, requested changes on, or revoked approval of an item you own or requested review for.",
+    description: "A reviewer decided on an item you own or sent for review.",
     inApp: true,
     email: true,
   },
   approval_invalidated: {
     category: "review",
     label: "Your approval went stale",
-    description:
-      "The specification changed after you approved it and needs your review again.",
+    description: "The specification changed after you approved it.",
     inApp: true,
     email: true,
   },
@@ -92,7 +90,7 @@ export const notificationKinds = {
   item_unready: {
     category: "review",
     label: "No longer ready",
-    description: "A ready item failed a readiness check again.",
+    description: "A ready item failed a readiness check.",
     inApp: true,
     email: false,
   },
@@ -106,16 +104,14 @@ export const notificationKinds = {
   blocking_thread: {
     category: "discussion",
     label: "Blocking discussion",
-    description:
-      "A blocking discussion was opened (or a discussion was marked blocking) on an item you are involved in.",
+    description: "A discussion on an item you are involved in became blocking.",
     inApp: true,
     email: true,
   },
   thread_opened: {
     category: "discussion",
     label: "New discussion",
-    description:
-      "A non-blocking discussion was opened on an item you are involved in.",
+    description: "A non-blocking discussion on an item you are involved in.",
     inApp: true,
     email: false,
   },
@@ -137,30 +133,28 @@ export const notificationKinds = {
     category: "suggestions",
     label: "Proposed change review requested",
     description:
-      "You or one of your disciplines is asked to review a proposed change to a specification.",
+      "You or one of your disciplines is asked to review a proposed change.",
     inApp: true,
     email: true,
   },
   pull_request_decided: {
     category: "suggestions",
     label: "Proposed change decision",
-    description: "A reviewer decides on your proposed change.",
+    description: "A reviewer decided on your proposed change.",
     inApp: true,
     email: true,
   },
   pull_request_mergeable: {
     category: "suggestions",
     label: "Proposed change ready to apply",
-    description:
-      "Every requirement to apply your proposed change is met: required approvals, no blocking discussions, no conflicts and passing actions.",
+    description: "Your proposed change meets every requirement to apply.",
     inApp: true,
     email: true,
   },
   pull_request_merged: {
     category: "suggestions",
     label: "Proposed change applied",
-    description:
-      "A proposed change you contribute to or review was applied to the specification.",
+    description: "A proposed change you contribute to or review was applied.",
     inApp: true,
     email: false,
   },
@@ -181,7 +175,7 @@ export const notificationKinds = {
   suggestion_updated: {
     category: "suggestions",
     label: "Suggestion updated",
-    description: "A suggestion you review has a new version to look at.",
+    description: "A suggestion you review has a new version.",
     inApp: true,
     email: false,
   },
@@ -238,15 +232,14 @@ export const notificationKinds = {
   export_failed: {
     category: "export",
     label: "Hand-off failed",
-    description:
-      "A hand-off you started finished with failures or conflicts that need attention.",
+    description: "A hand-off you started had failures or conflicts.",
     inApp: true,
     email: true,
   },
   export_completed: {
     category: "export",
     label: "Hand-off completed",
-    description: "A hand-off you started finished successfully.",
+    description: "A hand-off you started succeeded.",
     inApp: true,
     email: false,
   },
@@ -262,8 +255,7 @@ export const notificationKinds = {
   page_approval_invalidated: {
     category: "pages",
     label: "Your page approval went stale",
-    description:
-      "A proposed page change you approved changed and needs your review again.",
+    description: "A page change you approved changed.",
     inApp: true,
     email: true,
   },
@@ -277,8 +269,7 @@ export const notificationKinds = {
   page_blocking_thread: {
     category: "pages",
     label: "Blocking page discussion",
-    description:
-      "A blocking discussion was opened (or a discussion was marked blocking) on a page you wrote.",
+    description: "A discussion on a page you wrote became blocking.",
     inApp: true,
     email: true,
   },
@@ -295,7 +286,7 @@ export const notificationKinds = {
     category: "agents",
     label: "An agent asks for your decision",
     description:
-      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something, or to answer its question. The request waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
+      "An agent session you started, or whose agent you own, waits for your approval or answer. It always appears in To do.",
     inApp: true,
     email: true,
   },
@@ -333,8 +324,7 @@ export const notificationKinds = {
   channel_message: {
     category: "channels",
     label: "Channel message",
-    description:
-      "A new message in a channel you set to notify you about all messages.",
+    description: "A new message in a channel set to all messages.",
     inApp: true,
     email: false,
   },
@@ -361,7 +351,7 @@ export const notificationKinds = {
     category: "delivery",
     label: "Code host change failed",
     description:
-      "A branch, pull request, comment or merge you asked for was refused by the code host or could not be sent.",
+      "The code host refused or never received a branch, pull request, comment or merge you asked for.",
     inApp: true,
     email: true,
   },

@@ -33,8 +33,7 @@ export function ArchivedSpaceNotice({ space }: { space: Space }) {
         <p className="min-w-0 flex-1 basis-56">
           <span className="font-medium">This space is archived.</span>{" "}
           <span className="text-muted-foreground">
-            Its pages can be read but not changed, and it is hidden from
-            navigation.
+            Read-only and hidden from navigation.
           </span>
         </p>
         {canManageSpace(space) && (

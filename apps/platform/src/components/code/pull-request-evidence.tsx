@@ -65,7 +65,7 @@ export function PullRequestEvidence({ pr }: { pr: CodePullRequestEntity }) {
         title="Delivers"
         icon={<FileCheck2 />}
         count={linked.length}
-        empty="Not linked to a work item. Name its key (PAY-142) in the title, description or branch, or link it from the item."
+        empty="Not linked to a work item. Name its key in the title, description or branch."
       >
         {linked.map(({ item, project }) => (
           <LinkedItem key={item.id} item={item} project={project} />
@@ -157,7 +157,7 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
             <StatusChip
               tone={ready ? "success" : "attention"}
               icon={<ClipboardCheck />}
-              title={`${spec.readinessPassed} of ${spec.readinessTotal} readiness checks pass${specKey ? ` on ${specKey}, which this item belongs to` : ""}`}
+              title={`${spec.readinessPassed} of ${spec.readinessTotal} readiness checks pass${specKey ? ` on ${specKey}` : ""}`}
             >
               {specKey ? `${specKey} · ` : ""}
               {refinementMeta[spec.refinementState].label} ·{" "}

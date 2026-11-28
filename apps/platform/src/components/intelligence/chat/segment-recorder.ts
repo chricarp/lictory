@@ -133,7 +133,7 @@ export function recordSegments(
       failed = true;
       handlers.onError(
         new Error(
-          "Voice input stopped: the speech-to-text service is falling behind. What was transcribed is kept.",
+          "Voice input stopped: transcription fell behind. What was transcribed is kept.",
         ),
       );
       return;

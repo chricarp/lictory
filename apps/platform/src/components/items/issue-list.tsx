@@ -960,9 +960,7 @@ export function IssueList({
               ) : undefined
             }
           >
-            {activeFilterCount || filters.search
-              ? "Adjust the filters to see more."
-              : emptyBody}
+            {activeFilterCount || filters.search ? null : emptyBody}
             {!activeFilterCount &&
               !filters.search &&
               !compact &&
@@ -976,10 +974,6 @@ export function IssueList({
                   <span className="block font-medium text-foreground">
                     Your next steps
                   </span>
-                  <span className="mt-2 block">
-                    Start with a rough proposal. It doesn’t need to be complete;
-                    review is where it gets sharp.
-                  </span>
                   {canManage(project.id) &&
                     directory.projectMembers.filter(
                       (m) => m.projectId === project.id,
@@ -992,7 +986,7 @@ export function IssueList({
                         )}
                         className="mt-3 block text-primary hover:underline"
                       >
-                        Add people and their disciplines →
+                        Add people →
                       </Link>
                     )}
                   {project.deliveryMode === "external" &&
@@ -1007,7 +1001,7 @@ export function IssueList({
                         )}
                         className="mt-3 block text-primary hover:underline"
                       >
-                        Choose where to hand ready work off to →
+                        Choose a delivery tool →
                       </Link>
                     )}
                   {canManage(project.id) && (
@@ -1018,7 +1012,7 @@ export function IssueList({
                       )}
                       className="mt-3 block text-primary hover:underline"
                     >
-                      Revisit this project’s delivery choices →
+                      Project settings →
                     </Link>
                   )}
                 </span>
@@ -1050,7 +1044,7 @@ export function IssueList({
                           )}
                           <span
                             className="mr-3 w-36 @min-[65rem]/frame:w-52"
-                            title="Reviews and discussions of the current revision; — when there are none"
+                            title="Reviews and discussions of the current revision"
                           >
                             Review
                           </span>
@@ -1304,7 +1298,7 @@ function FilterPanel({
         }))}
         value={filters.label ?? []}
         onSelect={(v) => toggle("label", v)}
-        emptyText="No labels in this project."
+        emptyText="No labels"
       />
     );
   if (section === "milestone")

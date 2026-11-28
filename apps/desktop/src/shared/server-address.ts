@@ -19,8 +19,7 @@ export function parseServerAddress(input: string): AddressResult {
   if (!value)
     return {
       ok: false,
-      error:
-        "Enter your Lictory server's address, for example lictory.example.com.",
+      error: "Enter your Lictory server's address.",
     };
   if (/\s/.test(value))
     return { ok: false, error: "A server address cannot contain spaces." };
@@ -46,8 +45,7 @@ export function parseServerAddress(input: string): AddressResult {
   if (url.username || url.password)
     return {
       ok: false,
-      error:
-        "Remove the user name and password from the address. You sign in on the server's own page.",
+      error: "Remove the user name and password from the address.",
     };
   if (!url.hostname)
     return { ok: false, error: `“${value}” is not a valid server address.` };

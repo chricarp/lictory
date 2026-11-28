@@ -72,17 +72,11 @@ export function DeliveryScope({
       </p>
     )
   ) : closed ? (
-    <p className="text-muted-foreground">
-      No delivery scope was recorded for this historical item.
-    </p>
+    <p className="text-muted-foreground">No delivery scope recorded</p>
   ) : embedded && !early ? null : (
     // Embedded beside a ready revision, the card above already says that
     // delivery starts when a person accepts it; elsewhere say it once.
-    <p className="text-muted-foreground">
-      {early
-        ? "Not accepted for delivery. Plans for it stay tentative until a revision is accepted."
-        : `Delivery starts when a person accepts revision ${current.number}.`}
-    </p>
+    <p className="text-muted-foreground">Not accepted for delivery</p>
   );
   // Accepting before the checks pass is allowed by policy, but it is an
   // exception and must look like one.
@@ -148,7 +142,7 @@ export function DeliveryScope({
                 <span>
                   Revision {current.number} changes the accepted specification.
                   {closed
-                    ? " A new amendment does not change what was delivered."
+                    ? " It does not change what was delivered."
                     : " Accept it to change what the team delivers."}
                 </span>
               </p>
@@ -163,11 +157,6 @@ export function DeliveryScope({
               "text-xs leading-relaxed",
               blocked ? "text-muted-foreground" : "text-warning",
             )}
-            title={
-              blocked
-                ? undefined
-                : "The project's readiness policy allows accepting before every check passes; the exception is recorded with the decision."
-            }
           >
             {blocked
               ? "Complete the readiness checks before accepting this revision."

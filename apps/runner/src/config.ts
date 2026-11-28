@@ -162,7 +162,7 @@ export function containerImageProblem(config: {
 }): string | null {
   if (config.isolation !== "container") return null;
   if (!config.containerImage)
-    return "Container isolation needs an image that contains git and the harnesses: set containerImage in config.json, or register with --container-image <image@sha256:digest>.";
+    return "Container isolation needs an image with git and the harnesses: set containerImage in config.json, or register with --container-image <image@sha256:digest>.";
   return null;
 }
 

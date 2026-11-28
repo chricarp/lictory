@@ -178,11 +178,9 @@ function SuggestionBody({
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
           <CircleAlert className="size-4 shrink-0 text-warning" />
           <span>
-            The specification moved to revision {current?.number} since this was
-            written against revision {target?.number}.{" "}
-            {isAuthor
-              ? "Update the suggestion against the current text before it can be accepted."
-              : "The author must update it before it can be accepted."}
+            Written against revision {target?.number}; revision{" "}
+            {current?.number} is current.
+            {!isAuthor && " The author must update it."}
           </span>
           {isAuthor && !readOnly && !editing && (
             <Button
@@ -336,8 +334,7 @@ function SuggestionBody({
         <div className="space-y-3">
           {openThreads.length === 0 && (
             <p className="text-[13px] text-muted-foreground">
-              No open discussion about this proposal. A blocking discussion
-              prevents merging until it is resolved.
+              No open discussions.
             </p>
           )}
           {openThreads.map((t) => (
@@ -445,8 +442,8 @@ function Reviewers({
             {(close) =>
               eligible.length === 0 ? (
                 <p className="p-3 text-xs text-muted-foreground">
-                  Nobody else is eligible. Reviewers need a discipline that can
-                  both edit specifications and be asked to review.
+                  Nobody else is eligible. Reviewers need a discipline that
+                  edits and reviews specifications.
                 </p>
               ) : (
                 <Picker
@@ -489,11 +486,7 @@ function Reviewers({
         )}
       </div>
       {state.reviewers.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
-          {isAuthor
-            ? "Nobody has been asked yet. Add a reviewer who can edit specifications; once they approve, they can accept it into the specification."
-            : "No reviewer assigned yet. Only an assigned reviewer can approve and accept this suggestion."}
-        </p>
+        <p className="text-[13px] text-muted-foreground">No reviewers yet.</p>
       ) : (
         <ul className="space-y-1">
           {state.reviewers.map((r) => {
@@ -667,9 +660,8 @@ function SuggestionEditor({
               className="mt-0.5 size-3.5 shrink-0 transition-transform group-data-open/since:rotate-90"
             />
             <span>
-              What changed in the specification since revision {target.number}{" "}
-              (now revision {current.number}) — fold these changes into your
-              proposal.
+              Changes since revision {target.number} (now revision{" "}
+              {current.number})
             </span>
           </CollapsibleTrigger>
           <CollapsiblePanel className="mt-2">
@@ -715,8 +707,8 @@ function SuggestionEditor({
       )}
       <p className="text-xs text-muted-foreground">
         {changed
-          ? "A new version asks reviewers to approve again; their earlier decisions are kept as history."
-          : "Re-basing onto the current revision keeps existing approvals when the proposed text is unchanged."}
+          ? "A new version asks reviewers to approve again."
+          : "Unchanged text keeps existing approvals."}
       </p>
       {!changed && <Badge>No text change yet</Badge>}
     </div>

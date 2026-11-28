@@ -28,15 +28,14 @@ export function placeInProject(
     .map((d) => d.name);
   const does = [
     can.editSpecifications && "write proposals and specifications",
-    can.review && "review specifications when your discipline is asked",
+    can.review && "review specifications",
     can.requestReviews && "request reviews",
     can.changeProperties && "plan and move work",
   ].filter((part): part is string => Boolean(part));
   return {
     disciplines: mine,
     canPropose: can.editSpecifications,
-    // "As Engineering you review specifications when your discipline is
-    // asked and plan and move work."
+    // "As Engineering you review specifications and plan and move work."
     sentence: mine.length
       ? `As ${list(mine, "and")} you ${does.length ? list(does, "and") : "read and discuss the work"}.`
       : "",
@@ -44,7 +43,7 @@ export function placeInProject(
     whyNoProposal: can.editSpecifications
       ? ""
       : writers.length
-        ? `Proposals are written by people in ${list(writers, "or")}${can.review ? "; you are asked to review them" : ""}.`
-        : "Nobody’s discipline in this project edits specifications yet; a project administrator sets that in the project’s settings → Disciplines.",
+        ? `${list(writers, "or")} writes proposals.`
+        : "No discipline here edits specifications yet. A project administrator sets that in Settings → Disciplines.",
   };
 }

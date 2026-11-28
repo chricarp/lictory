@@ -178,7 +178,7 @@ function checkResult(report: AiCheckReport) {
   }
   lines.push(
     report.ok
-      ? "Lictory Intelligence can use these providers. The check uses synthetic content; it does not measure quality."
+      ? "Lictory Intelligence can use these providers (synthetic check; quality not measured)."
       : report.text.state === "configured"
         ? "Some features will fail with these settings. See docs/operations/ai-providers.md."
         : "No text provider is configured: Lictory Intelligence is off.",
@@ -396,7 +396,7 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
           text: describeAiProvider(),
           dictation: describeTranscription(),
         },
-        text: `Saved. ${describeLine("Text", describeAiProvider())}; ${describeLine("Dictation", describeTranscription())}. Running API and worker processes pick it up within ten seconds.`,
+        text: `Saved. ${describeLine("Text", describeAiProvider())}; ${describeLine("Dictation", describeTranscription())}. The API and worker pick it up within ten seconds.`,
       };
     }
     case "ai-off": {
@@ -404,7 +404,7 @@ async function run(command: string, parsed: Parsed): Promise<Result> {
       await saveAiSettings(db, cli, { text: null, transcription: null });
       return {
         json: { off: true },
-        text: "Lictory Intelligence is off: no provider is configured. Stored keys were removed.",
+        text: "Lictory Intelligence is off. Stored keys were removed.",
       };
     }
     default:

@@ -184,7 +184,7 @@ export const specificationPullRequest = stateMachine({
       to: "closed",
       refused: (state) =>
         state === "merged"
-          ? "This review is applied: it records who approved which result, so it stays on the item."
+          ? "This review is applied, so it stays on the item."
           : "This proposed change or its review is unavailable.",
     },
   },
@@ -313,7 +313,7 @@ export const refinement = stateMachine({
       from: chosenRefinementStates,
       to: chosenRefinementStates,
       refused:
-        "This item still meets its readiness checks, so it stays ready. Change the specification or the checks before moving it back.",
+        "This item passes its readiness checks, so it stays ready. Change the specification or the checks first.",
     },
     reviewRequested: {
       does: "Enter review when the first review is requested",

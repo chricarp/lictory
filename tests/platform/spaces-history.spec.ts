@@ -589,13 +589,7 @@ test("discussions end with their line: merging and deleting a branch warn first 
     "Branch client-timeouts will be deleted after the merge.",
   );
   await expect(confirm).toContainText(
-    "This permanently deletes 3 discussions (1 open; 2 resolved, 1 of them blocking) on client-timeouts and this pull request, with all their replies.",
-  );
-  await expect(confirm).toContainText(
-    "Open and resolved, blocking and non-blocking discussions are all deleted. This cannot be undone.",
-  );
-  await expect(confirm).toContainText(
-    "Discussions on main and on other branches are kept.",
+    "This permanently deletes 3 discussions (1 open; 2 resolved, 1 of them blocking) on client-timeouts and this pull request, with all their replies. This cannot be undone.",
   );
   await expectNoAccessibilityViolations(page, "page merge confirmation");
   // Cancelling changes nothing.

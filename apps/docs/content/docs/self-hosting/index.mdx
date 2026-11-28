@@ -26,10 +26,9 @@ https://lictory.example.com ──▶ proxy (Caddy: TLS, routing, security heade
 | `migrate`       | One-shot: applies database migrations before a release is activated                                                                                                                   |
 | `ops`           | One-shot: backups, restores and monitoring checks                                                                                                                                     |
 
-PostgreSQL, zero-cache and the collaboration service are on an internal
-network with no route to or from the internet; with an external database,
-zero-cache, the collaboration service and migrations reach it over TLS
-instead. Only the proxy publishes ports (80 and 443).
+PostgreSQL, zero-cache and the collaboration service sit on an internal
+network with no route to or from the internet; they and migrations reach
+an external database over TLS instead. Only the proxy publishes ports (80 and 443).
 
 ## Requirements
 
@@ -43,13 +42,10 @@ instead. Only the proxy publishes ports (80 and 443).
 - Memory for the default service limits: about 4.5 GB in total (PostgreSQL
   1.5 GB, zero-cache 1 GB, API 768 MB, worker 512 MB, collaboration
   384 MB), adjustable in the configuration. These are ceilings: a running
-  installation measures about 1 GB, so 2 GB is the minimum and 4 GB
+  installation uses about 1 GB, so 2 GB is the minimum and 4 GB
   recommended.
-- An email service (SMTP or Resend) so people can verify addresses and
-  receive invitations.
-
-PostgreSQL runs on the server unless you choose your own server or a managed
-service that meets [Lictory's requirements](/self-hosting/database).
+- An email service (SMTP or Resend) for address verification and
+  invitations.
 
 Optional: an S3-compatible bucket for attachments, an OpenAI API key for
 Lictory Intelligence, your company identity provider for single sign-on,
@@ -57,14 +53,13 @@ and storage for off-server backups.
 
 ## Operating the server
 
-The [terminal guide](/self-hosting/terminal) walks through interactive setup,
+The [terminal guide](/self-hosting/terminal) covers interactive setup,
 health and logs, unattended installation and account recovery.
 
 <CliNotice />
 
 <CliReference />
 
-Evaluating Lictory? [Try it on your computer](/self-hosting/try) with one
-command first. Then start with [installation](/self-hosting/install). When something does not
-work, [troubleshooting](/self-hosting/troubleshooting) lists the common
-problems and their fixes.
+Evaluating Lictory? [Try it on your computer](/self-hosting/try) first, then
+[install a server](/self-hosting/install). Common problems and their fixes are
+in [troubleshooting](/self-hosting/troubleshooting).

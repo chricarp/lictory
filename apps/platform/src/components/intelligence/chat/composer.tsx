@@ -317,7 +317,7 @@ export const Composer = forwardRef<
           }}
           submitShortcut="enter"
           onSubmit={send}
-          placeholder={placeholder ?? "Ask Litto or describe what to do…"}
+          placeholder={placeholder ?? "Ask Litto…"}
           aria-label="Message Litto"
         />
         <InputGroupAddon align="block-end">
@@ -349,7 +349,7 @@ export const Composer = forwardRef<
           ) : (
             context && (
               <span
-                title="Litto uses your permissions and asks before decisions such as approvals and merges."
+                title="Uses your permissions; asks before approvals and merges"
                 className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full bg-muted px-2 text-[11px] text-muted-foreground max-sm:hidden"
               >
                 <ShieldCheck className="size-3 shrink-0" aria-hidden />

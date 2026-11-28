@@ -1,13 +1,12 @@
 ---
 title: Intelligence context
-description: Give Lictory Intelligence the vocabulary, rules and conventions of your organization, keep every version, and know exactly what content reaches the AI provider.
+description: Give Lictory Intelligence your organization's vocabulary, rules and conventions, keep every version, and know what reaches the AI provider.
 ---
 
 **Lictory Intelligence Context** is what your organization tells Lictory
-Intelligence once, so people do not have to repeat it in every discussion:
-product vocabulary, rules, conventions and constraints. Entries are written
-notes or uploaded documents. They can apply to the organization, a project
-or a team.
+Intelligence once, so nobody repeats it in every discussion: product
+vocabulary, rules, conventions and constraints. Entries are written notes or
+uploaded documents, applying to the organization, a project or a team.
 
 Context grounds [AI reviews](/ai/reviews). It does not change their rules or
 how they report, and it is never quoted as evidence.
@@ -35,12 +34,12 @@ For documentation people read and edit together, use
 | **Project**      | Reviews of the project's work    | **Project settings → Intelligence context**, or the organization settings | The project's administrators and organization administrators |
 | **Team**         | Reviews of the team's work       | Same as its project                                                       | Same as its project                                          |
 
-Every member can read the context. The server checks who may change it.
+Every member can read the context; the server checks who may change it.
 
-A review of work in a project and team receives the organization's active
-entries, the project's and the team's. When they conflict, the narrower
+A review of work in a project and team receives the active entries of the
+organization, the project and the team. When they conflict, the narrower
 scope wins: team over project, project over organization. Project settings
-say how many organization entries also apply (**Also applies: N
+show how many organization entries also apply (**Also applies: N
 organization entries**).
 
 ## Add an entry
@@ -59,19 +58,18 @@ settings, choose the project or one of its teams.
 
 ### Write a note or upload a document
 
-- **Write note**: give it a **Title** and the **Content (Markdown)**, then
-  choose **Add note**. State facts and rules plainly.
-- **Upload document**: give it a **Title**, choose the **Document** and
-  choose **Upload**. PDF, Word, PowerPoint, Excel, OpenDocument, RTF, EPUB,
-  CSV, Markdown and text files up to 4 MB are converted to text on your
-  server.
+- **Write note**: a **Title** and the **Content (Markdown)**, then **Add
+  note**. State facts and rules plainly.
+- **Upload document**: a **Title** and the **Document**, then **Upload**.
+  PDF, Word, PowerPoint, Excel, OpenDocument, RTF, EPUB, CSV, Markdown and
+  text files up to 4 MB are converted to text.
 
 </Step>
 </Steps>
 
 Conversion happens on your server; documents are not sent anywhere to be
-read. Scanned PDFs without text are rejected, because reading them would
-need an outside OCR service: upload a text-based version. Lictory keeps the
+read. Scanned PDFs without text are rejected, because reading them would need
+an outside OCR service: upload a text-based version. Lictory keeps the
 converted text with the file's name, format, size and checksum, not the
 uploaded file.
 
@@ -80,30 +78,30 @@ characters.
 
 ## Revise an entry
 
-Open an entry and choose **Edit**, then **Save new version**. For a
-document, choose **Replace file**. Every change adds a version; earlier
-versions are kept unchanged.
+Open an entry and choose **Edit**, then **Save new version**; for a document,
+**Replace file**. Every change adds a version; earlier versions stay
+unchanged.
 
-**History (N)** lists the versions with who saved them and when. Opening an
-earlier one says **Viewing version 2. Lictory Intelligence uses version 3.**
+**History (N)** lists the versions with who saved them and when. An earlier
+one says **Viewing version 2. Lictory Intelligence uses version 3.**
 
 ## Archive and restore
 
-Choose **Archive** to stop an entry from reaching Lictory Intelligence. Its
-versions stay. **Show archived (N)** lists archived entries; **Restore**
-brings one back.
+**Archive** stops an entry from reaching Lictory Intelligence; its versions
+stay. **Show archived (N)** lists archived entries; **Restore** brings one
+back.
 
 ## How reviews use context
 
 - **Budget.** A review receives at most 40,000 characters of context across
-  all scopes. Narrower scopes are kept first. An entry that does not fit is
-  shortened or left out, and the review records that. The meter beside the
-  scope shows how much of the budget its active entries use.
-- **Citations.** A finding names the entries it relied on (**Based on**).
-  A review lists every entry it received and its version (**Grounded in N
-  Lictory Intelligence Context entries**), marked **partly included** when
-  shortened. So "what was Lictory Intelligence told?" stays answerable after
-  the context changes.
+  all scopes, narrower scopes first. An entry that does not fit is shortened
+  or left out, and the review records that. The meter beside the scope shows
+  how much of the budget its active entries use.
+- **Citations.** A finding names the entries it relied on (**Based on**). A
+  review lists every entry and version it received (**Grounded in N Lictory
+  Intelligence Context entries**), marked **partly included** when shortened,
+  so "what was Lictory Intelligence told?" stays answerable after the context
+  changes.
 - **Proposals.** Drafting proposals with Litto uses the same organization and
   project context.
 
@@ -111,8 +109,8 @@ Lictory Intelligence never proposes edits to context entries.
 
 ## What reaches the AI provider
 
-Nothing is sent while Lictory Intelligence is off for your organization.
-When it is on, Lictory sends the provider only what each activity needs:
+Nothing is sent while Lictory Intelligence is off for your organization. When
+it is on, Lictory sends only what each activity needs:
 
 | Activity                                        | What is sent                                                                                                                                                                                 |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -122,16 +120,15 @@ When it is on, Lictory sends the provider only what each activity needs:
 | [Drafting proposals](/ai/litto#draft-proposals) | The material you provide, the project's discipline names and descriptions, excerpts of recent decisions and approved or delivered revisions, and the applicable context.                     |
 | [Dictation](/ai/litto#dictate)                  | Your voice, streamed from your browser straight to the provider. Lictory neither records nor stores it.                                                                                      |
 
-What is never sent:
+Never sent:
 
-- content you cannot read. A page you lost access to is withheld from Litto,
-  including from earlier turns of a conversation;
+- content you cannot read (a page you lost access to is withheld from Litto,
+  including from earlier turns of a conversation);
 - live drafts, which are not history yet;
 - credentials, sessions and tokens.
 
-Requests ask the provider not to store the content. Which provider is used,
-and its terms, is set by whoever runs your server: see
-[privacy](/self-hosting/privacy) and
+Requests ask the provider not to store the content. Whoever runs your server
+sets the provider and its terms: see [privacy](/self-hosting/privacy) and
 [configuration](/self-hosting/configuration#lictory-intelligence).
 
 ## What to watch for
@@ -141,14 +138,13 @@ and its terms, is set by whoever runs your server: see
 - **Keep it short and current.** Long entries crowd out narrower ones within
   the budget, and outdated rules produce outdated findings. Archive what no
   longer applies.
-- **Everyone can read it.** Do not put anything in context that some members
-  must not see.
+- **Everyone can read it.** Leave out anything some members must not see.
 
 ## Tips
 
-- Start with five or six notes: the product's key terms and the rules people
-  restate most often in discussions.
-- Put team conventions on the team, not the organization. They then win
-  where they apply and stay out of other teams' reviews.
-- When a finding cites an entry that is wrong, fix the entry: the next
-  review uses the new version.
+- Start with five or six notes: the key product terms and the rules people
+  restate most often.
+- Put team conventions on the team, not the organization, so they win where
+  they apply and stay out of other teams' reviews.
+- When a finding cites a wrong entry, fix the entry: the next review uses the
+  new version.

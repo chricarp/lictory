@@ -79,8 +79,6 @@ export function FactoryOverview() {
   const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;
   const active = runners.filter((r) => !r.revokedAt).length;
   const runnable = agents.filter((a) => a.kind === "runner" && !a.archivedAt);
-  const description =
-    "Agents working on your team’s tasks, on runners you control. People start, steer and approve; agents do the work in between.";
   const start = (
     <Button onClick={() => setStarting(true)} disabled={!runnable.length}>
       <Play className="size-3.5" aria-hidden />
@@ -90,14 +88,14 @@ export function FactoryOverview() {
 
   if (!complete && !sessions.length && !agents.length)
     return (
-      <FactoryPage description={description}>
+      <FactoryPage>
         <LoadingState label="Loading the factory" />
       </FactoryPage>
     );
   // A factory needs a runner and an agent before anything can happen.
   if (!sessions.length && (!runnable.length || !active))
     return (
-      <FactoryPage description={description}>
+      <FactoryPage>
         <Setup hasAgents={runnable.length > 0} hasRunners={active > 0} />
       </FactoryPage>
     );
@@ -129,7 +127,6 @@ export function FactoryOverview() {
   ];
   return (
     <FactoryPage
-      description={description}
       meta={<span data-factory-counts>{counts.join(" · ")}</span>}
       actions={start}
     >
@@ -147,8 +144,7 @@ export function FactoryOverview() {
             {stranded.length === 1
               ? "1 queued session waits for a runner"
               : `${stranded.length} queued sessions wait for a runner`}
-            : no online runner can run {strandedAgents.join(", ")}. Start one,
-            or add a runner that has the harness.
+            : none online can run {strandedAgents.join(", ")}.
           </span>
           <Button
             size="sm"
@@ -173,7 +169,7 @@ export function FactoryOverview() {
               : "Inbox",
           href: paths.inbox(org, "todo"),
         }}
-        empty="Nothing waits on you. When an agent needs a decision or your next message, it appears here and in your Inbox."
+        empty="Nothing waits on you"
       >
         {asks.map((row) => (
           <WaitingRowView key={row.key} row={row} />
@@ -200,9 +196,9 @@ export function FactoryOverview() {
         empty={
           blocks.queued
             ? online
-              ? "Sessions are queued; a runner will claim them shortly."
-              : "Sessions are queued, but no runner is online to claim them."
-            : "No agent is working right now."
+              ? "Queued"
+              : "Queued, no runner online"
+            : "Nothing running"
         }
       >
         {blocks.running.map((session) => (
@@ -217,7 +213,7 @@ export function FactoryOverview() {
         title="Recent"
         icon={<History />}
         count={blocks.recent.length}
-        empty="Finished sessions appear here, with what they changed."
+        empty="No finished sessions"
       >
         {recent.map((session) => (
           <SessionRow
@@ -270,15 +266,13 @@ function Setup({
     >
       <ol className="mt-2 space-y-2 text-left">
         <SetupStep n={1} done={hasRunners}>
-          Add a runner: a machine you control (a server, a laptop, a Mac mini)
-          that runs coding agents such as Claude Code or Codex.
+          Add a runner, a machine that runs coding agents
         </SetupStep>
         <SetupStep n={2} done={hasAgents}>
-          Create an agent: a named member with an owner who is accountable for
-          it.
+          Create an agent
         </SetupStep>
         <SetupStep n={3} done={false}>
-          Start a session, or mention the agent in a channel.
+          Start a session or mention the agent in a channel
         </SetupStep>
       </ol>
     </MissingState>

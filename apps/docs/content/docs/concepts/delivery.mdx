@@ -4,8 +4,8 @@ description: How agreed specifications become delivered work, natively in Lictor
 ---
 
 Delivery mode is a per-project setting (**Project settings → Delivery**).
-Refinement works the same in both modes. For the same piece of work,
-exactly one system owns delivery state.
+Refinement is the same in both. For any piece of work, exactly one system owns
+delivery state.
 
 | Native (Deliver in Lictory)                         | External (Hand off to Jira)                 |
 | --------------------------------------------------- | ------------------------------------------- |
@@ -17,10 +17,10 @@ exactly one system owns delivery state.
 ## Eligibility and commitment
 
 **Ready for delivery** means the readiness checks pass for the current
-revision: the work can be selected. It is not a commitment. **Accept for
-delivery** is the accountable decision that the team will build a revision,
-and records it. Starting work records it automatically when nobody accepted
-yet. Moving to done records the accepted revision as **Delivered**.
+revision: the work can be selected, not that anyone committed to it. **Accept
+for delivery** records the accountable decision that the team will build a
+revision; starting work records it automatically when nobody accepted yet.
+Moving to done records the accepted revision as **Delivered**.
 
 A later revision never replaces the agreement silently. The item shows the
 difference until someone accepts the new revision (native) or hands it off
@@ -29,19 +29,18 @@ difference until someone accepts the new revision (native) or hands it off
 ## Delivery items
 
 An approved specification is decomposed into child work items (Stories,
-Tasks, Subtasks). Children can be added directly or proposed as a reviewed
-breakdown on a branch, approved with the specification and created at
-merge. Each child records the revision of the parent it was derived from.
-Plain items under a specification follow its readiness, so splitting
-unsettled behavior into Tasks does not bypass the gate. See
+Tasks, Subtasks), added directly or proposed as a reviewed breakdown on a
+branch and created at merge. Each child records the parent revision it was
+derived from. Plain items under a specification follow its readiness, so
+splitting unsettled behavior into Tasks does not bypass the gate. See
 [break down a specification](/delivery/breakdown).
 
 ## Native delivery
 
 - **Types** are an organization-wide registry that projects opt into. A type
   has a hierarchy level (Epic above Story, Story above Task and Bug, those
-  above Subtask) and says whether it carries a specification. Epics are delivered through their
-  children.
+  above Subtask) and says whether it carries a specification. Epics are
+  delivered through their children.
 - **Workflows** are per project: statuses you name, each in a fixed category
   (`backlog`, `unstarted`, `started`, `done`, `canceled`). Any transition is
   allowed. See [the board](/delivery/board).

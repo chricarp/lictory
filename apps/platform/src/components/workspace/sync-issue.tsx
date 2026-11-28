@@ -48,7 +48,7 @@ export function SyncIssue({
         (needsAuth
           ? "Your session expired or your access changed. Sign in again to continue."
           : offline
-            ? "Reconnect to the internet. The workspace opens as soon as the connection is back."
+            ? "The workspace opens when the connection is back."
             : "Check your connection and try again.")}
     </MissingState>
   );

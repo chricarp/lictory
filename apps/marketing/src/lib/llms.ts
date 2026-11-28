@@ -54,7 +54,7 @@ const overview = `# ${siteName}
 
 > ${siteSummary}
 
-${siteName}: ${siteTagline} It brings together team chat with agents as members, review-driven specifications, delivery, coding agents on runners the team controls, code host integration and knowledge pages, so a team does not need to stitch five tools together. Its distinguishing feature remains collaborative, review-driven requirements refinement: an approved specification is the contract agents and people work against.`;
+${siteName}: ${siteTagline} Team chat with agents as members, review-driven specifications, delivery, coding agents on runners the team controls, code host integration and knowledge pages, in one product. An approved specification is the contract agents and people work against.`;
 
 const concepts = `## How ${siteName} works
 
@@ -78,11 +78,11 @@ ${modules
 
 ## Specifications reviewed like code
 
-1. **Draft and branch.** Start from a problem statement, notes or a message in a channel. Proposals may begin incomplete. Explore changes on specification branches so people and agents can contribute concurrently without silently overwriting the agreed specification.
-2. **Review.** Open a pull request to bring proposed changes back for review. Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
-3. **Readiness.** Readiness is evidence, not a status label: checks such as “acceptance criteria present”, “failure behavior addressed” and “no blocking threads” pass as answers arrive. Think of it as CI for requirements.
-4. **Approval.** Approvals belong to the revision that was reviewed. When approved content changes materially, the affected approvals go stale and need another review.
-5. **Delivery.** Each project chooses where delivery happens: natively in ${siteName} (configurable work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or by publishing approved work to Jira (Linear support is coming) with a link back to the revision it came from. Publishing is an explicit, permission-checked action.
+1. **Draft and branch.** Start from a problem statement, notes or a channel message; proposals may begin incomplete. People and agents explore changes on branches without overwriting the agreed specification.
+2. **Review.** A pull request brings changes back for review. Threads attach to the exact text they discuss. Suggestions are text changes reviewers accept or reject; each accepted suggestion creates a revision. Product, engineering, QA, security and operations review the same specification.
+3. **Readiness.** Readiness is evidence, not a status label: checks such as “acceptance criteria present”, “failure behavior addressed” and “no blocking threads”. CI for requirements.
+4. **Approval.** Approvals belong to the reviewed revision. A material change makes the affected approvals stale.
+5. **Delivery.** Each project delivers natively in ${siteName} (work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or publishes approved work to Jira (Linear is coming) with a link back to its revision.
 
 ## Key concepts
 
@@ -102,27 +102,27 @@ ${modules
 
 ## The factory
 
-A runner is a Linux, macOS or Windows machine (x64 or arm64) running lictory-runner: a server, a VPS, a laptop or a Mac. It connects out to the Lictory server over HTTPS and needs no open port. It executes ${harnesses.slice(0, -1).join(", ")} or ${harnesses.at(-1)}, each session in its own git worktree, with short-lived, repository-scoped credentials issued for that session. Agents claim only native delivery items the readiness policy allows to start. When an agent needs an answer or a permission, it asks a person in the session's thread and waits.
+A runner is a Linux, macOS or Windows machine (x64 or arm64) running lictory-runner. It connects out over HTTPS and needs no open port. It executes ${harnesses.slice(0, -1).join(", ")} or ${harnesses.at(-1)}, each session in its own git worktree with short-lived, repository-scoped credentials. Agents claim only items the readiness policy allows to start, and ask a person in the session's thread when they need an answer or a permission.
 
 Each project chooses an autonomy policy:
 
 ${autonomyLevels.map((level) => `- **${level.name}**${level.isDefault ? " (default)" : ""}: ${level.body}`).join("\n")}
 
-Code hosts (GitHub, GitLab, Bitbucket; cloud or self-managed) own every mirrored field. Lictory links branches, pull requests, issues and commits to work items, verifies webhooks and writes to the host only through explicit commands.
+Code hosts (GitHub, GitLab, Bitbucket; cloud or self-managed) own every mirrored field. Lictory links branches, pull requests, issues and commits to work items and writes to the host only through explicit commands.
 
 ## Agents you can trust
 
 ${trustPrinciples.map((principle) => `- **${principle.title}.** ${principle.body}`).join("\n")}
 
-Work in the UI, delegate to Litto, or connect your own agent through MCP. The same capabilities and server-side permissions apply across surfaces. Account security and credentials remain with the person.
+Work in the UI, delegate to Litto, or connect your own agent through MCP: the same capabilities and permission checks apply everywhere.
 
 ## Lictory Spaces
 
-Lictory Spaces keeps what a team knows (runbooks, architecture notes, handbooks) in spaces of nested pages. A space belongs to the organization, a project or a team: members of that home edit it and other organization members read it, or the space is Restricted to named people. Several people edit a page's live draft at once; the editor says "Saved" only once the server has stored every edit. Pages change through the same reviewed history as specifications: in a Direct space editors publish the draft as a new version, in a Reviewed space changes arrive as pull requests that merge only after the required reviewers approve the exact result. Published versions never change and can be compared word by word. Comments stay anchored to the text they quote, pages mention work items with their live status, and agents connected over MCP propose page changes as pull requests rather than typing into live drafts.
+Lictory Spaces keeps runbooks, architecture notes and handbooks in spaces of nested pages. A space belongs to the organization, a project or a team, or is Restricted to named people. Several people edit a page's live draft at once. In a Direct space editors publish the draft as a new version; in a Reviewed space changes arrive as pull requests that merge after the required approvals. Published versions never change and can be compared word by word. Comments stay anchored to the text they quote, pages mention work items with their live status, and agents propose page changes as pull requests, never in live drafts.
 
 ## Lictory Intelligence
 
-Lictory Intelligence is the umbrella for AI-assisted features, including automated reviews and shared context. Litto is the conversational assistant, powered by Lictory Intelligence and its context. Lictory Intelligence finds missing information, contradictions, ambiguity and edge cases, and proposes acceptance criteria, rewrites and delivery decomposition. Its output is always a proposal: people decide what becomes part of the specification, and it never silently rewrites, resolves, approves or publishes. All core collaboration keeps working when it is disabled.`;
+Lictory Intelligence covers the AI-assisted features; Litto is its conversational assistant. It finds missing information, contradictions, ambiguity and edge cases, and proposes acceptance criteria, rewrites and delivery decomposition. Its output is always a proposal: people decide, and it never silently rewrites, resolves, approves or publishes. Core collaboration works with it disabled.`;
 
 function comparison() {
   const header = `| Capability | ${comparisonProducts.map((p) => p.label).join(" | ")} |`;
@@ -135,7 +135,7 @@ function comparison() {
   );
   return `## ${siteName} compared with Jira and Linear
 
-Built-in capabilities as we understand them; marketplace add-ons and integrations may change the picture.
+Built-in capabilities as we understand them. Add-ons may change the picture.
 
 ${[header, divider, ...rows].join("\n")}`;
 }
@@ -168,11 +168,11 @@ ${roundups.map((item) => demoteHeadings(roundupMarkdown(item), 2)).join("\n\n")}
 
 const projectLinks = `## Project
 
-- [Source code on GitHub](${repositoryUrl}): the MIT-licensed repository, with releases, issues and the contribution guide.
-- [Documentation](https://docs.lictory.com): how to use Lictory, self-host it and connect agents.
-- [Try Lictory in 5 minutes](${tryUrl}): run it on your own computer with one command and Docker, for evaluation.
-- [Installation guide](${installUrl}): install Lictory on your own Linux server.
-- [Download](${absoluteUrl(downloadPath)}): the desktop app for macOS, Windows and Linux and lictory-runner, always the newest stable release.`;
+- [Source code on GitHub](${repositoryUrl}): the MIT-licensed repository, releases and issues.
+- [Documentation](https://docs.lictory.com): using, self-hosting and connecting agents.
+- [Try Lictory in 5 minutes](${tryUrl}): one command and Docker on your own computer.
+- [Installation guide](${installUrl}): install Lictory on a Linux server.
+- [Download](${absoluteUrl(downloadPath)}): the desktop app and lictory-runner, newest stable release.`;
 
 function faq() {
   return `## Frequently asked questions
@@ -192,7 +192,7 @@ ${projectLinks}
 
 ## Optional
 
-- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, its modules, runners and autonomy levels, key concepts, comparison with a tool stack and with Jira and Linear, frequently asked questions and the full text of the comparisons, alternatives, roundups and guides.
+- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparisons, frequently asked questions and the full text of every comparison, roundup and guide.
 - [Guides feed](${absoluteUrl(guidesFeedPath)}): RSS feed of new and updated guides.
 `;
 }

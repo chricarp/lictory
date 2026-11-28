@@ -143,7 +143,7 @@ export function DesignGallery() {
       <PageHeader
         title="Design system"
         icon={<Palette />}
-        description="Lictory's shared building blocks, in light and dark. Not linked from the navigation."
+        description="Shared building blocks, in light and dark. Not linked from the navigation."
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1280px] space-y-10 px-4 py-8 sm:px-8">
@@ -275,7 +275,7 @@ function HeaderExamples() {
         <PageHeader
           title="Factory"
           icon={<Bot />}
-          description="Agents working on your team's tasks, on runners you control."
+          description="Agents on runners you control."
           meta={<span>3 running · 1 queued</span>}
           tabs={
             <PageLinkTabs
@@ -479,7 +479,7 @@ function RowExamples() {
         title="Waiting on you"
         icon={<Inbox />}
         count={0}
-        empty="Nothing waits on you. Review requests, approvals and pull requests to merge appear here."
+        empty="Nothing waits on you"
       />
       <div className="rounded-xl bg-card p-3 shadow-(--shadow-border)">
         <SectionCaption count={3} action={<Search className="size-3.5" />}>
@@ -590,10 +590,7 @@ function EmptyExamples() {
             icon={Bot}
             title="No agents yet"
             action={<Button size="sm">Create agent</Button>}
-          >
-            Agents work on your team’s tasks on runners you control. Create one,
-            then mention it in a channel.
-          </MissingState>
+          />
         </div>
       </Frame>
     </>

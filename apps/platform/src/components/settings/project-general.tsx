@@ -24,12 +24,7 @@ export function ProjectGeneral({
   const { run, error } = useCommand();
   return (
     <>
-      <SettingsSection
-        id="general"
-        icon={<FolderKanban />}
-        title="General"
-        description="How this project is named across Lictory."
-      >
+      <SettingsSection id="general" icon={<FolderKanban />} title="General">
         <SettingsBody className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-[13px]">
             <span className="font-medium">Name</span>
@@ -65,7 +60,7 @@ export function ProjectGeneral({
               maxLength={2000}
               defaultValue={project.description ?? ""}
               disabled={!canEdit}
-              placeholder="What this product area covers, e.g. checkout, payments and refunds."
+              placeholder="e.g. Checkout, payments and refunds"
               className="w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-[13px] shadow-xs outline-none placeholder:text-placeholder focus:border-primary/60 focus:ring-3 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-60 touch:text-base"
               onBlur={(e) => {
                 const description = e.currentTarget.value.trim() || null;
@@ -85,8 +80,8 @@ export function ProjectGeneral({
                 {project.key}
               </span>
               <span className="text-xs text-muted-foreground">
-                Items are numbered {project.key}-1, {project.key}-2… The key
-                never changes, so links and references stay valid.
+                Items are numbered {project.key}-1, {project.key}-2… Cannot be
+                changed.
               </span>
             </span>
           </div>
@@ -111,8 +106,8 @@ function ArchiveProject({ project }: { project: Project }) {
       title={archived ? "Restore project" : "Archive project"}
       description={
         archived
-          ? "This project is archived. Restoring it brings back its board, backlog and work items for everyone."
-          : "Archiving removes the project from everyone's navigation and stops new work in it. Items, specifications, reviews and history are kept, and an organization administrator can restore it later."
+          ? "This project is archived."
+          : "Hides the project and stops new work. Everything is kept and can be restored."
       }
       action={
         !isAdmin ? undefined : archived ? (

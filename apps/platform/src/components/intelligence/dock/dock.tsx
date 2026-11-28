@@ -912,12 +912,12 @@ function Footer({
         }
         placeholder={
           thread?.pendingQuestion
-            ? "Respond to Litto above to continue"
+            ? "Answer above to continue"
             : attached
               ? "Ask about the selection…"
               : item
-                ? `Ask about ${item.key}, or what to change…`
-                : "Ask Litto or describe what to do…"
+                ? `Ask about ${item.key}…`
+                : "Ask Litto…"
         }
         onSend={(text) => onSend(text)}
         onStop={() => {
@@ -986,10 +986,7 @@ function ReviewCard({
             <div className="min-w-0">
               <p className="font-medium">
                 {latest?.status === "running" ? "Assessing" : "Queued:"}{" "}
-                {item.key} with its parent and child items…
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Keep working; the result appears here and in the bar below.
+                {item.key}…
               </p>
             </div>
           </motion.div>
@@ -1011,8 +1008,8 @@ function ReviewCard({
                 </p>
                 <p className="text-[13px] font-medium">
                   {shown.findings.length
-                    ? `${shown.findings.length} proposed ${shown.findings.length === 1 ? "concern" : "concerns"} in ${item.key}`
-                    : `No proposed concerns in ${item.key}`}
+                    ? `${shown.findings.length} proposed ${shown.findings.length === 1 ? "concern" : "concerns"}`
+                    : "No proposed concerns"}
                 </p>
                 <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                   <span
@@ -1109,10 +1106,11 @@ function ReviewCard({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium">Assess {item.key}</p>
-              <p className="text-xs text-muted-foreground">
-                {review.blocked ??
-                  "Finds missing information, ambiguity and gaps across this item and its child items, like a refinement session would."}
-              </p>
+              {review.blocked && (
+                <p className="text-xs text-muted-foreground">
+                  {review.blocked}
+                </p>
+              )}
             </div>
             <Button size="sm" disabled={!!review.blocked} onClick={onAssess}>
               Assess

@@ -146,8 +146,8 @@ export function ItemCode({
       {sorted.length === 0 && pending.length === 0 && (
         <p className="text-[13px] leading-5 text-muted-foreground">
           {serving.length
-            ? `Branches, pull requests and commits that mention ${key} appear here.`
-            : `${project?.name ?? "This project"} has no repository yet. A project administrator links one in organization settings → Code hosts.`}
+            ? `No code mentions ${key} yet.`
+            : `${project?.name ?? "This project"} has no repository. An administrator links one in Organization settings → Code hosts.`}
         </p>
       )}
       {linking && repository && (

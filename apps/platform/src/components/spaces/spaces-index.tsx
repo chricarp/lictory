@@ -85,7 +85,6 @@ export function SpacesIndex() {
       <PageHeader
         title="Spaces"
         icon={<Library />}
-        description="Pages your teams write and review together."
         meta={
           active.length > 0 &&
           `${active.length} space${active.length === 1 ? "" : "s"}`
@@ -120,10 +119,7 @@ export function SpacesIndex() {
                   <Plus className="size-3.5" aria-hidden /> New space
                 </Button>
               }
-            >
-              Create a space for a handbook, a project’s decisions or a team’s
-              runbooks. You choose who can read and edit it.
-            </EmptyState>
+            />
           ) : (
             <div className="space-y-6">
               {groups.length > 0 ? (
@@ -388,14 +384,10 @@ function ManagedWithoutAccess() {
     <section aria-labelledby="managed-without-access" className="mt-10">
       <h2
         id="managed-without-access"
-        className="mb-1 px-1 text-sm font-semibold"
+        className="mb-3 px-1 text-sm font-semibold"
       >
         Restricted spaces you administer
       </h2>
-      <p className="mb-3 px-1 text-xs text-muted-foreground">
-        You manage these spaces but are not on their access list, so their pages
-        stay closed to you.
-      </p>
       <ul className="divide-y rounded-xl border border-transparent bg-card shadow-(--shadow-border)">
         {shown.map((space) => (
           <li
@@ -461,7 +453,7 @@ function SelfGrantDialog({
   return (
     <Dialog
       title={`Grant yourself access to ${name}`}
-      description="As an administrator you can add yourself to this restricted space. The grant is recorded in the audit log with your name, and other administrators can see and remove it."
+      description="Recorded in the audit log with your name."
       onClose={onClose}
       onSubmit={() => void submit()}
       width="max-w-md"

@@ -69,12 +69,7 @@ function StatusesSection({
   const [adding, setAdding] = useState<StatusCategory>();
   const [name, setName] = useState("");
   return (
-    <SettingsSection
-      id="workflow"
-      icon={<Workflow />}
-      title="Workflow"
-      description="Statuses every item moves through, in any order. Fixed categories keep boards and reports consistent."
-    >
+    <SettingsSection id="workflow" icon={<Workflow />} title="Workflow">
       <div className="divide-y">
         {categoryOrder.map((category) => {
           const rows = statuses.filter((s) => s.category === category);
@@ -98,9 +93,7 @@ function StatusesSection({
                 )}
               </div>
               {rows.length === 0 && adding !== category && (
-                <p className="text-xs text-muted-foreground">
-                  No statuses in this category.
-                </p>
+                <p className="text-xs text-muted-foreground">None</p>
               )}
               <ul className="space-y-1">
                 {rows.map((s) => (
@@ -352,12 +345,6 @@ function StatusRow({
                   });
                   close();
                 }}
-                footer={
-                  <p className="px-3 py-2 text-xs text-muted-foreground">
-                    Items move explicitly and the change is recorded in their
-                    activity.
-                  </p>
-                }
               />
             )}
           </Popover>
@@ -386,29 +373,21 @@ function TypesSection({
       icon={<Shapes />}
       title="Work item types"
       description={
-        <>
-          The kinds of work this project uses. Types with a specification are
-          refined, reviewed and checked for readiness; the others are plain
-          work. The type list is shared by the organization
-          {isAdmin ? (
-            <>
-              {" "}
-              and managed in{" "}
-              <Link
-                href={paths.settings(organization.slug, "types")}
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                organization settings
-              </Link>
-            </>
-          ) : (
-            " and managed by organization administrators"
-          )}
-          .
-        </>
+        isAdmin ? (
+          <>
+            Managed in{" "}
+            <Link
+              href={paths.settings(organization.slug, "types")}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              organization settings
+            </Link>
+            .
+          </>
+        ) : undefined
       }
     >
-      <SettingsList isEmpty={types.length === 0} empty="No types.">
+      <SettingsList isEmpty={types.length === 0} empty="No types">
         {types.map((t) => (
           <label
             key={t.id}

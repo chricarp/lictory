@@ -116,9 +116,7 @@ export function PullRequestPage() {
                 Back to Code
               </Button>
             }
-          >
-            It may belong to a code host that was disconnected.
-          </MissingState>
+          />
         ) : (
           <LoadingState label="Loading the pull request" />
         )}
@@ -248,7 +246,7 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
               <Discussion pr={pr} />
             </TabsPanel>
             <TabsPanel value="files">
-              <FilesChanged pr={pr} noun={noun} />
+              <FilesChanged pr={pr} />
             </TabsPanel>
           </div>
           <aside
@@ -338,15 +336,13 @@ function requirements(
                 key: "checks",
                 state: "pending",
                 text: `Waiting for CI: the code host has reported no checks for ${shortSha(pr.headSha)}.`,
-                detail:
-                  "The Definition of Done of the work it delivers requires CI to pass.",
+                detail: "The Definition of Done requires CI to pass.",
               }
             : {
                 key: "checks",
                 state: "neutral",
                 text: `The code host has reported no checks for ${shortSha(pr.headSha)}.`,
-                detail:
-                  "No check is no evidence that CI passed. If this repository runs CI, wait for it to report.",
+                detail: "If this repository runs CI, wait for it to report.",
               },
   );
   const reviewer = (r: CodePullRequestEntity["reviews"][number]) =>
@@ -408,7 +404,7 @@ function requirements(
               // Informative: nothing makes the merge wait for a review.
               key: "reviews",
               state: "neutral",
-              text: "Nobody has reviewed this commit. Merging does not wait for a review.",
+              text: "Nobody has reviewed this commit.",
               detail: asked || undefined,
             },
   );
@@ -695,14 +691,11 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
               <span className="font-medium text-foreground">
                 Merge exactly {shortSha(pr.headSha)}?
               </span>{" "}
-              New commits arriving first refuse the merge; the code host’s
-              branch protection still applies.
+              A newer commit refuses the merge.
             </>
           ) : blockers.length > 0 ? (
             "Merge once every requirement above is met."
-          ) : (
-            "The code host’s branch protection still applies."
-          )
+          ) : undefined
         }
         action={
           canWork && (
@@ -816,7 +809,7 @@ function AutopilotWaits({ pr }: { pr: CodePullRequestEntity }) {
       : pr.checks.state === "pending"
         ? "Waiting: checks are still running."
         : pr.checks.state === "failure"
-          ? "Checks are failing, so Autopilot will not merge this commit."
+          ? "Checks are failing."
           : null;
   return (
     <div className="flex items-start gap-2 text-xs" data-autopilot-waits>
@@ -902,7 +895,7 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
       <p id="code-comment-hint" className="px-1 text-xs text-muted-foreground">
         {`Posted on ${host}${account ? ` as ${account}` : ""}, signed with your name.`}
         {canReview &&
-          ` Approve or Request changes records one review of ${shortSha(pr.headSha)} in Lictory, which the merge box counts, and posts it there too; say what must change to request changes.`}
+          ` Reviews apply to ${shortSha(pr.headSha)}. Request changes needs a comment.`}
       </p>
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {codePullRequest.allows(pr.state, "close") && (
@@ -964,13 +957,7 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
   );
 }
 
-function FilesChanged({
-  pr,
-  noun,
-}: {
-  pr: CodePullRequestEntity;
-  noun: string;
-}) {
+function FilesChanged({ pr }: { pr: CodePullRequestEntity }) {
   const { organization } = useWorkspace();
   const [files, setFiles] = useState<Files | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1021,12 +1008,6 @@ function FilesChanged({
           </Button>
         )}
       </div>
-      {!files && !busy && !error && (
-        <p className="text-[13px] text-muted-foreground">
-          Read from the code host when you ask; Lictory does not keep a copy of
-          the {noun}’s diff.
-        </p>
-      )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
@@ -1106,7 +1087,7 @@ function FilesChanged({
                     <p className="border-t px-3 py-2 text-xs text-muted-foreground">
                       {f.truncated
                         ? "Too large to show here. Open it on the code host."
-                        : "No text diff (binary, or the host left it out)."}
+                        : "No text diff"}
                     </p>
                   )}
                 </CollapsiblePanel>

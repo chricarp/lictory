@@ -27,7 +27,7 @@ export function createAuthEmail(message: AuthEmailMessage): RenderedAuthEmail {
   if (message.type === "verification") {
     return {
       subject: "Verify your Lictory email",
-      text: `Hi ${message.name},\n\nConfirm this email address to finish securing your Lictory account. This link expires in one hour.\n\nVerify email: ${message.actionUrl}\n\nIf you did not request this, you can safely ignore this email.`,
+      text: `Hi ${message.name},\n\nConfirm your email address for Lictory. This link expires in one hour.\n\nVerify email: ${message.actionUrl}\n\nIf you did not request this, ignore this email.`,
       react: (
         <VerifyEmail name={message.name} verificationUrl={message.actionUrl} />
       ),
@@ -36,7 +36,7 @@ export function createAuthEmail(message: AuthEmailMessage): RenderedAuthEmail {
 
   return {
     subject: "Reset your Lictory password",
-    text: `Hi ${message.name},\n\nSomeone requested a password reset for your Lictory account. This link expires in one hour.\n\nReset password: ${message.actionUrl}\n\nIf you did not request this, you can safely ignore this email.`,
+    text: `Hi ${message.name},\n\nSomeone requested a password reset for your Lictory account. This link expires in one hour.\n\nReset password: ${message.actionUrl}\n\nIf you did not request this, ignore this email.`,
     react: (
       <ResetPasswordEmail name={message.name} resetUrl={message.actionUrl} />
     ),

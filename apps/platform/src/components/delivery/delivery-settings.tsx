@@ -24,6 +24,7 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
+  LearnMore,
   SettingsBody,
   SettingsList,
   SettingsSection,
@@ -72,7 +73,7 @@ export function JiraConnections() {
       id="jira"
       icon={<PlugZap />}
       title="Jira"
-      description="Connect a Jira Cloud site once; projects pick their Jira project in their own delivery settings."
+      description="Projects choose their Jira project in their own settings."
       learnMore="jira"
       action={
         isAdmin && !connecting ? (
@@ -85,7 +86,7 @@ export function JiraConnections() {
           </Button>
         ) : undefined
       }
-      footer="Lictory writes the summary, description (latest revision with acceptance criteria) and labels of handed-off issues. Status, assignee, sprint and comments stay owned by Jira."
+      footer="Lictory writes summary, description and labels. Status, assignee, sprint and comments stay with Jira."
     >
       {connecting && (
         <ConnectForm
@@ -97,7 +98,7 @@ export function JiraConnections() {
         isEmpty={connections.length === 0}
         empty={
           isAdmin
-            ? "Jira is not connected. Connect a site to let projects hand work off to it."
+            ? "Jira is not connected."
             : "Jira is not connected. Organization administrators can connect it."
         }
       >
@@ -205,15 +206,14 @@ function ConnectionRow({
       <p className="text-xs text-muted-foreground">
         {usedBy.length
           ? `Used by ${usedBy.join(", ")}.`
-          : "No project hands work off here yet."}
+          : "Not used by any project."}
       </p>
       {confirming && (
         <p className="text-xs text-muted-foreground">
           {usedBy.length
             ? `${usedBy.join(", ")} will stop handing work off until a project administrator chooses another Jira project. `
             : ""}
-          Existing links keep their history; reconnecting the same site restores
-          them.
+          Reconnecting the same site restores existing links.
         </p>
       )}
       {connection.lastError && (
@@ -365,14 +365,13 @@ export function ProjectHandoffTarget({
       id="handoff"
       icon={<PlugZap />}
       title="Jira hand-off"
-      description="Where ready work is handed off, and the Jira issue type each work item type becomes."
-      learnMore="jiraTypes"
-      footer="Lictory writes the summary, description and labels. Status, assignee, sprint and comments stay owned by Jira and are read back on the hand-off view."
+      description={<LearnMore page="jiraTypes" />}
+      footer="Lictory writes summary, description and labels. Status, assignee, sprint and comments stay with Jira."
     >
       {connections.length === 0 ? (
         <SettingsBody>
           <p className="text-[13px] text-muted-foreground">
-            Jira is not connected to this organization yet.{" "}
+            Jira is not connected.{" "}
             {isAdmin ? (
               <Link
                 href={paths.settings(organization.slug, "integrations")}
@@ -425,7 +424,7 @@ function TargetSummary({
     return (
       <SettingsBody className="flex flex-wrap items-center gap-3">
         <p className="flex-1 text-[13px] text-muted-foreground">
-          No Jira project chosen yet. Nothing can be handed off until one is.
+          No Jira project chosen.
         </p>
         {canEdit && (
           <Button size="sm" onClick={onEdit}>
@@ -434,7 +433,6 @@ function TargetSummary({
         )}
       </SettingsBody>
     );
-  const unmapped = types.filter((t) => !target.typeMapping[t.id]);
   return (
     <SettingsBody className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-[13px]">
@@ -490,14 +488,6 @@ function TargetSummary({
           </li>
         ))}
       </ul>
-      {unmapped.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {unmapped.map((t) => t.name).join(", ")}{" "}
-          {unmapped.length === 1 ? "is" : "are"} not handed off. Map{" "}
-          {unmapped.length === 1 ? "it" : "them"} to a Jira issue type to hand
-          {unmapped.length === 1 ? " it" : " them"} off.
-        </p>
-      )}
       <InlineError>{error}</InlineError>
     </SettingsBody>
   );
@@ -552,7 +542,7 @@ function MappingNote({
           .map((p) => `${article(p.name)} ${p.name}`)
           .join(
             " or ",
-          )} go under the nearest issue Jira accepts above them, or without a parent. In Lictory they stay where they are.`}
+          )} go under the nearest issue Jira accepts above them, or without a parent.`}
     </p>
   );
 }
@@ -784,7 +774,7 @@ function TargetEditor({
           <div className="flex gap-2 pt-1">
             <Button type="submit" size="sm" disabled={busy}>
               {busy && <Loader2 className="size-3.5 animate-spin" />}
-              Save hand-off target
+              Save
             </Button>
             <Button type="button" size="sm" variant="ghost" onClick={onDone}>
               Cancel

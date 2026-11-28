@@ -107,9 +107,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     };
     expect(existingInvite.email).toBeUndefined();
     const existingMail = await invitationMail(request, existing.email);
-    expect(existingMail.Text).toContain(
-      "Your Lictory account is ready to join.",
-    );
+    expect(existingMail.Text).toContain("Sign in with ");
     const existingUrl = /Review invitation: (https?:\/\/\S+)/.exec(
       existingMail.Text,
     )![1]!;
@@ -134,9 +132,7 @@ test("email and username invitations deliver tailored emails and preserve joinin
     const newInvite = (await newResponse.json()) as { id: string };
     const newMail = await invitationMail(request, newEmail);
     expect(newMail.Text).toContain("verify your email");
-    expect(newMail.Text).not.toContain(
-      "Your Lictory account is ready to join.",
-    );
+    expect(newMail.Text).not.toContain("Sign in with ");
     const signupUrl = /Create account and join: (https?:\/\/\S+)/.exec(
       newMail.Text,
     )![1]!;
@@ -154,7 +150,9 @@ test("email and username invitations deliver tailored emails and preserve joinin
       // The link keeps the invitation's context: the page says why the
       // account is being created and starts with the invited address.
       await expect(
-        teammate.getByText("Create your account to accept your invitation."),
+        teammate.getByText(
+          "Use the email address your invitation was sent to.",
+        ),
       ).toBeVisible();
       await expect(teammate.getByLabel("Work email")).toHaveValue(newEmail);
       await teammate.getByLabel("Full name").fill("New Teammate");

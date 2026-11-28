@@ -141,8 +141,8 @@ export function LittoConcerns({ className }: { className?: string }) {
       onClick={show}
       title={
         stale
-          ? "Litto assessed an earlier revision. Open it to assess this one."
-          : "Concerns Litto proposed for this revision. People decide."
+          ? "Assessed an earlier revision"
+          : "Proposed by Litto. People decide."
       }
       className={base}
     >

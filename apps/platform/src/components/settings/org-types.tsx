@@ -84,7 +84,7 @@ export function OrganizationTypes() {
         id="types"
         icon={<Shapes />}
         title="Work item types"
-        description="A parent sits a level above its children. Types with a specification are refined and reviewed; each project picks the types it uses."
+        description="Types with a specification are refined and reviewed."
         action={
           isAdmin && !creating ? (
             <Button
@@ -97,7 +97,7 @@ export function OrganizationTypes() {
           ) : undefined
         }
       >
-        <SettingsList isEmpty={types.length === 0} empty="No types.">
+        <SettingsList isEmpty={types.length === 0} empty="No types">
           {types.map((t) => {
             const projects = usedBy(t.id);
             return (
@@ -303,7 +303,7 @@ export function OrganizationTypes() {
       </SettingsSection>
       {!isAdmin && (
         <ReadOnlyNotice>
-          Only organization administrators change the type registry.
+          Only organization administrators can change types.
         </ReadOnlyNotice>
       )}
     </>

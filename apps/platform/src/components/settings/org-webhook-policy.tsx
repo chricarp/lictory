@@ -71,8 +71,7 @@ export function OrganizationWebhookPolicy() {
       id="webhooks"
       icon={<Webhook />}
       title="Agent event webhooks"
-      description="Whether members' webhooks may wake their agents outside Lictory, and on which hosts."
-      footer="Events carry identifiers and short titles (an item's key and title, a channel's name), never specification text or messages. Changes are recorded in the organization's configuration history. Destinations that no longer qualify stop receiving this organization's events at once; agents can still read events over MCP."
+      footer="Events carry identifiers and short titles, never specification text or messages. Changes apply to existing destinations at once."
     >
       <SettingsBody>
         <form
@@ -108,7 +107,7 @@ export function OrganizationWebhookPolicy() {
                     className="mt-1.5 h-8 rounded-md font-mono text-xs"
                   />
                   <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                    Exact names, or *.example.com for every subdomain.
+                    Exact names, or *.example.com for subdomains
                   </span>
                 </label>
               )}

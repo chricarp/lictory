@@ -171,7 +171,6 @@ export function Board() {
     return (
       <ExternalProjectNotice
         project={project}
-        surface="board"
         title="Board"
         icon={<KanbanSquare />}
       />
@@ -698,9 +697,8 @@ function ProjectBoard({ project }: { project: Project }) {
             </Button>
           }
         >
-          {project.iterationMode === "automatic"
-            ? "The next cycle starts automatically. Plan work in the backlog, or view all work on the board."
-            : "Start a sprint from the backlog, or view all work on the board."}
+          {project.iterationMode === "automatic" &&
+            "The next cycle starts automatically."}
         </EmptyState>
       ) : (
         <BoardScroller
@@ -900,12 +898,10 @@ function ProjectBoard({ project }: { project: Project }) {
               }
             >
               {teamFilter.team && !assignees.length && !typeFilter.length
-                ? teamless > 0
-                  ? `No work on this board belongs to ${teamFilter.team.name}. ${teamless} ${teamless === 1 ? "item has" : "items have"} no team yet: choose “No team” to see ${teamless === 1 ? "it" : "them"}, and set the team on the item.`
-                  : `No work on this board belongs to ${teamFilter.team.name} yet.`
-                : filtered
-                  ? "Adjust the filters to see more work."
-                  : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
+                ? teamless > 0 &&
+                  `${teamless} ${teamless === 1 ? "item has" : "items have"} no team: choose “No team” to see ${teamless === 1 ? "it" : "them"}.`
+                : !filtered &&
+                  "Accept a ready specification, or create a task."}
             </EmptyState>
           )}
         </BoardScroller>

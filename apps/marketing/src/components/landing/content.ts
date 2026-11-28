@@ -14,46 +14,46 @@ export const loopStages: ReadonlyArray<{
   {
     name: "Conversation",
     title: "Talk where the work starts",
-    body: "Channels, threads and direct messages, with agents as members. A request usually starts as a message.",
+    body: "Channels, threads and direct messages, with agents as members.",
     gate: {
       by: "person",
-      text: "A person promotes the message into a proposal, a decision or a discussion on the specification.",
+      text: "A person promotes a message into a proposal, a decision or a discussion.",
     },
   },
   {
     name: "Specification",
     title: "Agree on what to build",
-    body: "Product, engineering, QA and their agents refine one specification on branches until its readiness checks pass.",
+    body: "Product, engineering, QA and agents refine one specification until its readiness checks pass.",
     gate: {
       by: "person",
-      text: "People approve a revision and merge the breakdown into delivery items. Agents never approve.",
+      text: "People approve a revision and merge the breakdown. Agents never approve.",
     },
   },
   {
     name: "Agents",
     title: "Hand ready work to agents",
-    body: "Agents claim only items the readiness policy lets start, and work on runners your team controls.",
+    body: "Agents claim ready items and work on runners your team controls.",
     gate: {
       by: "person",
-      text: "When an agent needs an answer or a permission, it asks a person and waits.",
+      text: "An agent that needs an answer or a permission asks a person and waits.",
     },
   },
   {
     name: "Code",
     title: "Review the code",
-    body: "Branches, pull requests and checks from GitHub, GitLab or Bitbucket link to the item. CI and a reviewer agent check every commit.",
+    body: "Pull requests from GitHub, GitLab or Bitbucket link to the item. CI and a reviewer agent check every commit.",
     gate: {
       by: "person",
-      text: "A person merges, or Autopilot does once every required check passes.",
+      text: "A person merges, or Autopilot does when every required check passes.",
     },
   },
   {
     name: "Shipped",
     title: "Ship with evidence",
-    body: "The item is done when its Definition of Done passes, and it records the revision it delivered.",
+    body: "Done when the Definition of Done passes, with the revision it delivered.",
     gate: {
       by: "evidence",
-      text: "Done is evidence: merged pull requests and green checks, never an agent’s report.",
+      text: "Merged pull requests and green checks, never an agent’s report.",
     },
   },
 ];
@@ -73,67 +73,63 @@ export const modules: ReadonlyArray<{
   {
     id: "channels",
     name: "Channels",
-    summary:
-      "Team chat for people and agents: channels, one-level threads and direct messages.",
+    summary: "Team chat for people and agents.",
     features: [
-      "Agents are members you mention by handle",
-      "Promote a message into a proposal, a decision or an anchored discussion",
-      "Live cards for work items, pull requests and agent sessions",
+      "Mention agents by handle",
+      "Promote a message into a proposal or a decision",
+      "Live cards for items, pull requests and sessions",
     ],
   },
   {
     id: "work",
     name: "Work",
     summary:
-      "Specifications reviewed like code, readiness checks, and delivery in Lictory or in Jira.",
+      "Specifications reviewed like code, and delivery in Lictory or Jira.",
     features: [
-      "Revisions, diffs, anchored discussions and revision-bound approvals",
-      "Boards, a ranked backlog, sprints or cycles, estimates and relations",
-      "Publish approved work to Jira Cloud instead",
+      "Revisions, diffs and revision-bound approvals",
+      "Boards, backlog, sprints, cycles and estimates",
+      "Or publish approved work to Jira Cloud",
     ],
   },
   {
     id: "factory",
     name: "Factory",
-    summary:
-      "Agents, their sessions and the runners they work on, with the project’s autonomy policy.",
+    summary: "Agents, their sessions and their runners.",
     features: [
-      "Each session has a thread to steer it and an event log",
-      "Send a message, interrupt, cancel or retry",
-      "Approval requests for permissions an agent lacks",
+      "A thread to steer each session, and its event log",
+      "Message, interrupt, cancel or retry",
+      "Approval requests for missing permissions",
     ],
   },
   {
     id: "code",
     name: "Code",
-    summary:
-      "Repositories, branches, pull requests, issues and checks from your code host, linked to work items.",
+    summary: "Pull requests, issues and checks, linked to work items.",
     features: [
       "GitHub, GitLab and Bitbucket, cloud or self-managed",
-      "Linked automatically when a branch or pull request names PAY-142",
-      "The code host keeps every mirrored field",
+      "Linked when a branch or pull request names PAY-142",
+      "The code host owns every mirrored field",
     ],
   },
   {
     id: "spaces",
     name: "Spaces",
-    summary:
-      "Runbooks, architecture notes and handbooks as pages that people write together.",
+    summary: "Runbooks, architecture notes and handbooks, written together.",
     features: [
-      "Several people edit one live draft at once",
-      "Publish directly, or review every change as a pull request",
-      "Pages mention work items with their live status",
+      "Edit one live draft together",
+      "Publish directly, or review changes as pull requests",
+      "Mention work items with their live status",
     ],
   },
   {
     id: "desktop",
     name: "Desktop",
     summary:
-      "An app for macOS, Windows and Linux that keeps every Lictory server you use in one window.",
+      "Every Lictory server you use, in one window. macOS, Windows and Linux.",
     features: [
-      "Native notifications and a badge for mentions and direct messages",
-      "lictory:// links, a tray icon and keyboard shortcuts",
-      "A personal runner on the same machine is in preparation",
+      "Notifications and a badge for mentions",
+      "lictory:// links, tray icon, keyboard shortcuts",
+      "Coming: a personal runner on the same machine",
     ],
     link: { label: "Download the desktop app", href: "/download" },
   },
@@ -157,15 +153,15 @@ export const autonomyLevels: ReadonlyArray<{
   {
     name: "Assist",
     isDefault: true,
-    body: "Agents help when asked: refine, propose, review, implement on request. People start every session.",
+    body: "Agents help when asked. People start every session.",
   },
   {
     name: "Build",
-    body: "Ready items are dispatched to the project’s agents automatically, up to a concurrency limit. Agents open pull requests; people merge them.",
+    body: "Ready items go to agents automatically. People merge.",
   },
   {
     name: "Autopilot",
-    body: "As Build, and Lictory merges an agent’s code pull request when every required check passes: CI green, the reviewer agent approves, the Definition of Done passes.",
+    body: "As Build, and Lictory merges an agent’s code pull request when every required check passes.",
   },
 ];
 
@@ -173,23 +169,23 @@ export const autonomyLevels: ReadonlyArray<{
 export const trustPrinciples: ReadonlyArray<{ title: string; body: string }> = [
   {
     title: "An accountable person",
-    body: "Every agent has a name, an owner and a scope. It acts with its owner’s permissions, never more, and is shown as Forge via Priya.",
+    body: "Every agent has an owner and a scope, and never more than its owner’s permissions.",
   },
   {
     title: "Text is never permission",
-    body: "A message, issue, comment or model output cannot authorize anything. Authority comes from a signed-in person or an agent acting within its owner’s permissions.",
+    body: "A message, issue, comment or model output authorizes nothing.",
   },
   {
     title: "Approvals belong to revisions",
-    body: "Approving a specification, accepting scope and recording decisions stay a person’s act. An approval names the revision it covers and goes stale when that text changes.",
+    body: "Only people approve. An approval names its revision and goes stale when the text changes.",
   },
   {
     title: "Done is evidence",
-    body: "An agent saying it is finished changes nothing. Items reach done through merged pull requests, green checks and the Definition of Done.",
+    body: "Merged pull requests and green checks move items to done, not an agent’s report.",
   },
   {
     title: "Every action on the record",
-    body: "History shows who did what, on which revision, and through which agent. Autopilot merges are attributed to the policy and the admin who set it.",
+    body: "Who did what, on which revision, through which agent. Autopilot merges name the admin who set the policy.",
   },
 ];
 
@@ -201,36 +197,34 @@ export const stackRows: ReadonlyArray<{
 }> = [
   {
     need: "Talk about the work",
-    stack:
-      "A chat app. Decisions stay in scrollback unless someone copies them out.",
+    stack: "A chat app. Decisions get lost in scrollback.",
     lictory:
-      "Channels, threads and direct messages. What matters is promoted into a proposal, a decision or an anchored discussion that links back.",
+      "Channels, where what matters becomes a proposal, a decision or an anchored discussion.",
   },
   {
     need: "Agree on what to build",
-    stack:
-      "A wiki page or an issue description that anyone can change after it was reviewed.",
+    stack: "A wiki page or issue that anyone can edit after review.",
     lictory:
-      "Specifications with revisions, diffs, anchored discussions and approvals that belong to the revision they cover.",
+      "Specifications with revisions, diffs and revision-bound approvals.",
   },
   {
     need: "Plan and track delivery",
     stack: "An issue tracker, linked to the documents by hand.",
     lictory:
-      "Delivery items that record the revision they came from, on native boards and sprints, or published to Jira.",
+      "Delivery items that record their source revision, on native boards or in Jira.",
   },
   {
     need: "Write and review code",
-    stack: "A code host, connected to the tracker through apps and webhooks.",
+    stack: "A code host, wired to the tracker with apps and webhooks.",
     lictory:
-      "Your code host stays. Branches, pull requests and checks link to work items, and the Definition of Done reads them.",
+      "Your code host stays. Pull requests and checks link to work items.",
   },
   {
     need: "Run coding agents",
     stack:
-      "Agent tools set up per developer, each with their own credentials and no shared record.",
+      "Agent tools per developer, with personal credentials and no record.",
     lictory:
-      "Agents with an owner and a scope, on runners you register, with short-lived credentials issued per session.",
+      "Agents with an owner and a scope, on your runners, with per-session credentials.",
   },
   {
     need: "Keep what the team knows",
@@ -240,8 +234,7 @@ export const stackRows: ReadonlyArray<{
   {
     need: "Permissions and audit",
     stack: "One set per tool, reconciled by an administrator.",
-    lictory:
-      "One permission check for people and agents, and one history of who did what.",
+    lictory: "One permission check for people and agents, one history.",
   },
 ];
 
@@ -255,7 +248,7 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "What is Lictory?",
     answer:
-      "Lictory is the control plane of a software factory. A software team and its agents talk in channels, agree on what to build through specifications reviewed like code, plan the work, let coding agents implement it on runners the team controls, and ship it with evidence. People make the decisions; agents do most of the work in between.",
+      "The control plane of a software factory. Your team and its agents talk, agree on a specification reviewed like code, and ship it: agents write the code on runners you control, people make the decisions.",
   },
   {
     question: "Is Lictory open source?",
@@ -264,47 +257,47 @@ export const faqs: ReadonlyArray<{ question: string; answer: string }> = [
   {
     question: "Which coding agents can run in Lictory?",
     answer:
-      "A runner can execute Claude Code, Codex, OpenCode, Gemini CLI or Lictory’s built-in agent. Runners are machines you control: a server, a VPS, a laptop or a Mac. Other agents can connect over MCP with an access token bound to their own agent identity.",
+      "Claude Code, Codex, OpenCode, Gemini CLI or Lictory’s built-in agent, on runners you control. Other agents connect over MCP with their own agent token.",
   },
   {
     question: "Can an agent approve a specification or merge code?",
     answer:
-      "An agent can never approve a specification revision, accept scope, merge a specification or breakdown, resolve a discussion or record a decision on its own; those stay a person’s act. Code is different: a project admin can choose Autopilot, and Lictory then merges an agent’s code pull request only when every required check passes. The policy is audited, shown on every pull request it governs and can be turned off.",
+      "Never a specification: approvals, accepted scope, resolved discussions and decisions are always a person’s act. Code can be: under Autopilot, which a project admin turns on, Lictory merges an agent’s pull request when every required check passes.",
   },
   {
     question: "What does a runner need?",
     answer:
-      "A Linux, macOS or Windows machine (x64 or arm64) running lictory-runner. It connects out to your Lictory server over HTTPS, so it needs no open port. Each session works in its own git worktree with a short-lived, repository-scoped code host token; model keys for the built-in agent stay on the server.",
+      "A Linux, macOS or Windows machine (x64 or arm64) running lictory-runner. It connects out over HTTPS and needs no open port. Each session gets its own git worktree and a short-lived, repository-scoped token.",
   },
   {
     question: "Do we have to leave Slack, Jira or GitHub?",
     answer:
-      "No. Your code host (GitHub, GitLab or Bitbucket) stays the home of your code; Lictory links branches, pull requests and checks to work items. A project can keep Jira Cloud for delivery and publish approved work to it. A Lictory channel can be linked to a Slack channel, and each message stays owned by the system it was written in.",
+      "No. Your code stays on GitHub, GitLab or Bitbucket. A project can publish approved work to Jira Cloud, and a channel can be linked to a Slack channel.",
   },
   {
     question: "Do product people need to understand Git?",
     answer:
-      "No. A branch is a place to explore a proposed change without altering the agreed specification. A pull request brings that change back for review. You work with requirements, discussions and approvals, not a code repository.",
+      "No. You work with requirements, discussions and approvals. A branch is a proposed change; a pull request brings it back for review.",
   },
   {
     question: "What happens to approvals when the spec changes?",
     answer:
-      "Approvals reference the revision that was reviewed. Material changes mark relevant approvals as stale, so reviewers see exactly what changed since they approved.",
+      "Approvals name the revision that was reviewed. A material change makes them stale, and reviewers see what changed since.",
   },
   {
     question: "Can we use Lictory without AI or agents?",
     answer:
-      "Yes. Channels, specifications, reviews, delivery and Spaces work with no agent, runner, model or code host configured. AI findings and agents assist when you enable them; they never silently rewrite, resolve, approve or publish your work.",
+      "Yes. Channels, specifications, reviews, delivery and Spaces work with no agent, runner, model or code host configured.",
   },
   {
     question: "Which AI models can we use? Can they run on our own servers?",
     answer:
-      "Your installation chooses one language model and, for dictation, one speech-to-text model. Cloud: OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI, Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter. Self-hosted: open-weight models on Ollama, vLLM, LM Studio, llama.cpp or any OpenAI-compatible server, and Whisper servers such as Speaches or whisper.cpp for dictation. An instance administrator sets it up in the admin console or with lictory ai setup, and tests it before saving. Requests go only to the provider you chose.",
+      "Cloud: OpenAI, Anthropic, Google Gemini and Vertex AI, Azure OpenAI, Amazon Bedrock, Mistral, xAI, Groq, DeepSeek or OpenRouter. Self-hosted: Ollama, vLLM, LM Studio, llama.cpp or any OpenAI-compatible server, plus Whisper servers such as Speaches or whisper.cpp for dictation. Requests go only to the provider you chose.",
   },
   {
     question: "How long does setup take?",
     answer:
-      "Install Lictory on your own server with the lictory command, then create an organization, a project and a team; defaults for work item types, workflow and readiness are ready to use. Connect a code host and register a runner with a one-time token when you want agents to write code.",
+      "Install on your server with the lictory command, create an organization and a project, and start with the defaults. Connect a code host and register a runner when you want agents to write code.",
   },
 ];
 

@@ -135,28 +135,16 @@ export function ItemWorkflow({
     ? item.committedRevisionNumber
     : link?.publishedRevisionNumber;
   const description = amendment
-    ? `Revision ${item.revisionNumber} changes the ${native ? "accepted" : "handed-off"} scope and needs agreement. Delivery continues with revision ${agreed ?? "—"} until the change is ${native ? "accepted" : "handed off"}.`
-    : !type.hasSpecification
-      ? `This ${type.name.toLowerCase()} is implementation work. Plan and track it in ${native ? "Lictory" : "your delivery tool"}.`
-      : stage === "proposal"
-        ? "Capture the problem and expected outcome. Start refinement when it is worth exploring with the team."
-        : stage === "ready"
-          ? native
-            ? container
-              ? `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it; then break it down into work the team can pick up.`
-              : `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it: the board, iterations and agents work from the accepted revision.`
-            : "The checks pass. Hand off this revision to your delivery tool."
-          : stage === "completed"
-            ? "The delivered revision and its history stay here. Later changes are refined as a new revision."
-            : stage === "committed" || stage === "underway"
-              ? !native
-                ? `${tool.Name} owns its delivery status and assignee; Lictory reads them back. Changes to the specification stay reviewable here.`
-                : container
-                  ? "Delivery happens through the work below. Changes to the specification stay reviewable here."
-                  : "Track the work in Delivery. Changes to the specification stay reviewable here."
-              : stage === "canceled"
-                ? "The specification, reviews and decisions remain available for reference."
-                : nextRefinementAction(item);
+    ? `Delivery continues with revision ${agreed ?? "—"} until this change is ${native ? "accepted" : "handed off"}.`
+    : !native && (stage === "committed" || stage === "underway")
+      ? `${tool.Name} owns delivery status and assignee.`
+      : !type.hasSpecification
+        ? null
+        : stage === "ready" && native
+          ? "Delivery starts when a person accepts it."
+          : stage === "refinement" || stage === "review"
+            ? nextRefinementAction(item)
+            : null;
   const destination = !native
     ? paths.handoff(organization.slug, project.key)
     : delivering
@@ -197,7 +185,7 @@ export function ItemWorkflow({
       <Button
         size="sm"
         variant="secondary"
-        title="Optional: tells the team the proposal is being explored before anyone reviews it."
+        title="Optional: explore with the team before review"
         onClick={onStartRefinement}
       >
         <FilePenLine className="size-3.5" /> Start refinement
@@ -285,10 +273,10 @@ export function ItemWorkflow({
     refinement &&
     refinement !== "ready"
       ? stage === "proposal" && empty && noReviewYet
-        ? "Describe the intent and the expected behavior in the specification, then request the required reviews."
+        ? "Describe the intent and expected behavior, then request reviews."
         : // Two buttons for one draft: say what the quieter one is for.
           stage === "proposal" && noReviewYet && !readOnly && onStartRefinement
-          ? "Request the required reviews when the intent is clear. To explore it with the team before anyone is asked to decide, start refinement first."
+          ? "Request reviews when the intent is clear, or start refinement to explore it first."
           : nextRefinementAction(item)
       : null;
   // One dominant statement, then the evidence behind it. An amendment names
@@ -302,12 +290,8 @@ export function ItemWorkflow({
   // When a NEXT line names the step, the general guidance would repeat it.
   const subline = mine.review
     ? mine.staleRevision && current
-      ? `You approved revision ${mine.staleRevision.number}. It changed since, so that approval no longer applies to revision ${current.number}.`
-      : `Read revision ${current?.number ?? ""}, then approve it or request changes. Your decision applies to this revision only.${
-          item.blockingThreads > 0
-            ? ` Ready also needs the ${item.blockingThreads === 1 ? "blocking discussion" : `${item.blockingThreads} blocking discussions`} resolved.`
-            : ""
-        }`
+      ? `You approved revision ${mine.staleRevision.number}. Revision ${current.number} needs your review again.`
+      : null
     : amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
       : next

@@ -6,18 +6,17 @@ description: Ask the disciplines that must agree to review a specification, choo
 A **review** asks a discipline of the project (Product, Engineering, QA,
 Security…) to evaluate the specification, optionally naming one person in it.
 The discipline's name is the review responsibility: _Engineering_ reviews
-feasibility and failure behavior, _QA_ testability and edge cases, and so on.
-Each discipline decides only for itself, and holding a discipline never
-approves anything by itself.
+feasibility and failure behavior, _QA_ testability and edge cases. Each
+discipline decides only for itself; holding a discipline approves nothing by
+itself.
 
 ![The review rail of PAY-7: 2 of 2 approved, QA by Sam Rivera and Engineering by Dev Patel, both on revision 1, with Request](/screenshots/detail-review-rail.webp)
 
 ## When to request a review
 
-Request reviews once the intent is clear enough for others to react to: the
-problem, the expected behavior and the cases you already know about. A rough
-specification is fine; reviewers' discussions are how it gets better. You
-do not need to wait until it is finished, and you should not wait for a
+Once the intent is clear enough to react to: the problem, the expected
+behavior and the cases you already know about. A rough specification is fine;
+reviewers' discussions improve it. Don't wait until it is finished, or for a
 meeting.
 
 Requesting the first review moves a draft or refining specification to _in
@@ -30,9 +29,8 @@ review_.
 
 ### Open the review rail
 
-On the item, the **Review** section of the rail lists the reviews of the
-current revision (_1 / 2 approved_). On a narrow screen, open it with
-**Review & details**.
+The rail's **Review** section lists the current revision's reviews (_1 / 2
+approved_). On a narrow screen, open it with **Review & details**.
 
 </Step>
 <Step>
@@ -40,9 +38,9 @@ current revision (_1 / 2 approved_). On a narrow screen, open it with
 ### Choose Request
 
 **Request** opens _Request review of revision N_. When several reviewing
-disciplines have not been asked yet, a shortcut requests them all at once
-(for example **Request Engineering and QA reviews**): required, from anyone in
-each discipline.
+disciplines have not been asked yet, a shortcut requests them all at once as
+required reviews from anyone in each (for example **Request Engineering and QA
+reviews**).
 
 </Step>
 <Step>
@@ -60,21 +58,21 @@ ticked unless the review is only for information.
 
 ### Request review
 
-Choose **Request review**. The people asked are notified.
+Choose **Request review**; the people asked are notified.
 
 </Step>
 </Steps>
 
 Requesting the same discipline again on the same revision adds another
-reviewer to it (_A QA review already exists on this revision; another
-reviewer will be added._).
+reviewer to it (_A QA review already exists on this revision; this adds a
+reviewer._).
 
 ### Required and optional reviews
 
 - A **required** review counts for readiness: by default a specification is
   ready only when at least one required review was requested and every
   required review approved the current revision.
-- An **optional** review (shown as **Optional**) is informative. Its decision
+- An **optional** review (shown as **Optional**) is informative: its decision
   is recorded but does not hold back readiness.
 
 The project's [Definition of Ready](/review/readiness) can also require
@@ -92,19 +90,18 @@ specific disciplines to approve, whether or not anyone requested them.
 
 ## Reviews follow the specification
 
-A review belongs to a revision, but the responsibility persists. When the
-specification is revised, every active review is requested again on the new
-revision with the same discipline and reviewer, and the old decisions stay in
-history. Nobody has to request Engineering again after each edit.
+A review belongs to a revision, but the responsibility persists. Each new
+revision re-requests every active review with the same discipline and
+reviewer; the old decisions stay in history.
 
 When someone sends a [proposed change](/specifications/branches) for review, the
 required reviews of the current revision are copied onto it.
 
 ## Cancel a review
 
-When a review is no longer needed, choose the **×** on its row (_Cancel this
-review request_). Its reviewers are told in the app. An approved review has
-no **×**: it stays as the record of that decision.
+Choose the **×** on its row (_Cancel this review request_); its reviewers are
+told in the app. An approved review has no **×**: it stays as the record of
+that decision.
 
 ## Find the reviews waiting for you
 
@@ -113,8 +110,7 @@ no **×**: it stays as the record of that decision.
   on revision 2 · 1 blocking discussion_), and items with a pull request
   waiting for your approval.
 - **Inbox → To do** lists every review asked of you across projects, page
-  reviews included, and leaves the list when you decide. See
-  [the inbox](/inbox).
+  reviews included, until you decide. See [the inbox](/inbox).
 - On an item, the rail says _A pull request waits for your review_ when one of
   its pull requests needs your decision.
 
@@ -145,8 +141,8 @@ people asked by name count as involved in the item afterwards. See
 
 ## Tips
 
-- Ask whole disciplines by default and name a person only when one specific
-  expert must decide. Anyone in the discipline can then pick it up.
+- Ask whole disciplines by default, so anyone in them can pick it up; name a
+  person only when one specific expert must decide.
 - Request reviews early and let reviewers comment on the exact text. Each
   revision keeps the same reviewers, so early requests cost nothing later.
 - Use optional reviews for people who should know about a change but do not

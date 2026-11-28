@@ -45,18 +45,12 @@ export function ProjectPlanning({
   const update = (patch: UpdateProject) =>
     void run({ type: "updateProject", projectId: project.id, ...patch });
   return (
-    <SettingsSection
-      id="planning"
-      icon={<CalendarRange />}
-      title="Planning"
-      description="Sprints start by hand; cycles start on a schedule and roll unfinished work forward."
-    >
+    <SettingsSection id="planning" icon={<CalendarRange />} title="Planning">
       <SettingsBody className="space-y-5">
         {external && (
           <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
-            This project hands work off to{" "}
-            {projectDeliveryTool(directory, project.id).name}, so iterations and
-            estimates are planned there.{" "}
+            Iterations and estimates are planned in{" "}
+            {projectDeliveryTool(directory, project.id).name}.{" "}
             <Link
               href={paths.projectSettings(
                 organization.slug,

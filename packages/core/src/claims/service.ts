@@ -899,7 +899,7 @@ export async function releaseClaim(
         )
           throw new DomainError(
             "forbidden",
-            `Only ${claim.agentName} (the agent holding it), the person it acts for, project administrators and people who change properties in this project can release this claim.`,
+            `Only ${claim.agentName}, its owner, project administrators and people who change properties here can release this claim.`,
           );
       }
       const before = await claimOrganizationEntities(
@@ -1357,7 +1357,7 @@ export async function setAutonomyPolicy(
       if (policy.level !== "assist" && project.deliveryMode !== "native")
         throw new DomainError(
           "validation",
-          `${project.key} hands delivery to an external tool, which owns execution. Build and Autopilot need native delivery.`,
+          `${project.key} hands delivery to an external tool. Build and Autopilot need native delivery.`,
         );
       const agents = await claimPorts().agents.agents(tx, organizationId);
       for (const agentId of policy.implementerAgentIds) {

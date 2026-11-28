@@ -113,7 +113,7 @@ function checkEvidence(
 // (agents and people) and from the host's approving logins, mapped to the
 // people who set them as their login (`code_host_identity`).
 const noConnection =
-  "No code host is connected, so Lictory cannot see this item's pull requests or checks. An organization administrator connects GitHub, GitLab or Bitbucket under Code.";
+  "No code host is connected. An organization administrator connects GitHub, GitLab or Bitbucket under Code.";
 
 function claimsEvidence(
   pr: PullRequestEvidence,

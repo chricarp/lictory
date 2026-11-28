@@ -99,12 +99,12 @@ function Health() {
             started && runner.lastSeenAt
               ? `Last seen ${relativeTime(runner.lastSeenAt)}. ${
                   held === 0
-                    ? "No session needs it now; start it again, or revoke it if it is retired."
+                    ? "No session needs it. Restart or revoke it."
                     : held === 1
                       ? "1 session waits until it is back."
                       : `${held} sessions wait until it is back.`
                 }`
-              : "Registered, but it has not connected since. Start lictory-runner on the machine."
+              : "Start lictory-runner on the machine."
           }
         />
       );
@@ -119,7 +119,7 @@ function Health() {
             ? "1 queued session waits for a runner"
             : `${stranded.length} queued sessions wait for a runner`
         }
-        meta="No online runner has the agent's harness. Start a runner, or add one that has it."
+        meta="No online runner has the agent's harness. Start or add one."
       />
     ),
     ...brokenHosts.map((connection) => (
@@ -130,7 +130,7 @@ function Health() {
         title={`${connection.name} needs attention`}
         meta={
           connection.lastError ??
-          "Its credential stopped working: pull requests, checks and agents' pushes stop until it is replaced."
+          "Its credential stopped working. Replace it to resume pull requests and checks."
         }
       />
     )),
@@ -142,7 +142,7 @@ function Health() {
         title="Slack needs attention"
         meta={
           slack.lastError ??
-          "Slack refused the app's token: linked channels stop mirroring until it is reinstalled."
+          "Slack refused the app's token. Reinstall it to resume mirroring."
         }
       />
     ),

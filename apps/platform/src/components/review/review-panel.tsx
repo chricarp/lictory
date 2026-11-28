@@ -191,8 +191,7 @@ export function ReviewPanel() {
       </div>
       {active.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
-          No review requested for revision {current?.number ?? ""}. Ask
-          Engineering, QA or others to review when the intent is clear enough.
+          No review requested for revision {current?.number ?? ""}.
         </p>
       ) : (
         <ul aria-label="Requested reviews" className="space-y-2">
@@ -506,16 +505,14 @@ export function RequestReview({
                   : `Request ${listNames(missing.map((r) => r.name))} reviews`}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Required, from anyone in each discipline. Or choose one
-                discipline and reviewer below.
+                Required, from anyone in each discipline.
               </p>
             </div>
           )}
           {reviewerRoles.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No discipline of this project can be asked to review yet. A
-              project administrator can enable “Can be asked to review” on a
-              discipline in project settings.
+              No discipline can be asked to review yet. A project administrator
+              can enable “Can be asked to review” in project settings.
             </p>
           ) : (
             <>
@@ -559,8 +556,8 @@ export function RequestReview({
                 </Popover>
                 {role && used.has(role.name) && (
                   <span className="mt-1 block text-xs text-warning">
-                    A {role.name} review already exists on this revision;
-                    another reviewer will be added.
+                    A {role.name} review already exists on this revision; this
+                    adds a reviewer.
                   </span>
                 )}
               </div>

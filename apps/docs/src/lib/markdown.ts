@@ -56,7 +56,7 @@ const renderers = {
     ),
   CliNotice: () =>
     block(
-      "> **The lictory CLI:** commands marked _lictory CLI_ belong to the `lictory` command, which installs and operates a server. Every command takes `--env` for a second environment on the same server; run `lictory <command> --help` for its options, or see the [command reference](/self-hosting/commands).",
+      "> **The lictory CLI:** commands marked _lictory CLI_ run the `lictory` command on the server. Each takes `--env` for another environment on the same server; `lictory <command> --help` lists its options. See the [command reference](/self-hosting/commands).",
     ),
   CliReference: () =>
     block(

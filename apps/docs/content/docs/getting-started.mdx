@@ -3,10 +3,12 @@ title: Getting started
 description: Set up a team in Lictory, connect your code host and a first agent, and take a specification from proposal through review and approval to delivery.
 ---
 
-**Joining a team that already uses Lictory?** [Sign in](#sign-in), then go
-straight to [Write a first proposal](#write-a-first-proposal); the steps in
-between are for whoever sets the team up. Setting it up for your team? Lictory runs on your own server: the first step
-installs it, and the rest happen at your installation's address (for example
+**Joining a team that already uses Lictory?** [Sign in](#sign-in), then skip
+to [Write a first proposal](#write-a-first-proposal). The steps in between are
+for whoever sets the team up.
+
+**Setting it up?** Lictory runs on your own server: the first step installs
+it, the rest happen at your installation's address (for example
 `https://lictory.example.com`).
 
 ## From an empty server to delivered work
@@ -26,10 +28,10 @@ command, then open its address in your browser. The
 
 ### Sign in
 
-Open your installation's address and sign in the way your team was invited:
-accept the invitation email, use your company's single sign-on, or sign in
-with an account you already have. Then choose a handle: it is how teammates
-mention you, and you can change it later in account settings.
+Open your installation's address and sign in the way you were invited: the
+invitation email, your company's single sign-on, or an account you already
+have. Then choose a handle, which teammates use to mention you (changeable
+later in account settings).
 
 <Callout title="For administrators">
   Sign in first with the administrator the installer created (`sudo lictory
@@ -43,34 +45,31 @@ mention you, and you can change it later in account settings.
 ### Create your first project
 
 Open your organization and name its first project. The project **key**
-becomes part of every identifier (`PAY-142`) and does not change, so pick it
-with care; the name can change later.
+becomes part of every identifier (`PAY-142`) and never changes; the name can.
 
-Guided setup then asks only what a team must decide before its first day:
+Guided setup asks only what a team must decide before its first day:
 
 - **Where does delivery happen?** _In Lictory_ (boards, backlog and
   iterations next to the specifications) or _In Jira_ (export ready work;
   Jira owns status and sprints). See [delivery](/concepts/delivery).
 - **Lictory Intelligence**: whether AI may review specifications, chat and
-  propose fixes. Everything works without it. On a server without an AI
+  propose fixes. Everything works without it; on a server without an AI
   provider it starts off.
-- **Invite people**: optional, you can do it later. People you invite here
-  join the new project in the discipline you choose for each of them
-  (Engineering unless you change it), so reviews can be asked of them on
-  their first day.
+- **Invite people** (optional): invitees join the new project in the
+  discipline you choose for each (Engineering by default), so reviews can be
+  asked of them on day one.
 
-Everything else starts from defaults: work item types, the workflow and the
-Product, Engineering and QA disciplines are created for you, and you become
-a project administrator in Product. A project delivered in Lictory plans
+Everything else starts from defaults. Work item types, the workflow and the
+Product, Engineering and QA disciplines are created for you, and you become a
+project administrator in Product. A project delivered in Lictory plans
 continuously (a board and a ranked backlog) with story points, and work may
 start before its specification is ready while Lictory records what was
-missing ([readiness policy](/concepts/readiness#readiness-policy)). Change
-any of it in **Project settings** (**Planning**, **Definition of Ready**).
+missing ([readiness policy](/concepts/readiness#readiness-policy)). Change any
+of it in **Project settings** (**Planning**, **Definition of Ready**).
 
-Setup ends on **Home**, whose checklist continues where setup stops: write
-a first proposal and invite your team, then connect a code host, a runner
-and an agent and start a channel ([the Factory](/factory)). Only
-administrators see the checklist.
+Setup ends on **Home**, where a checklist (visible to administrators) carries
+on: write a first proposal and invite your team, then connect a code host, a
+runner and an agent and start a channel ([the Factory](/factory)).
 
 <Callout title="More than one organization">
   Where the access policy lets everyone create organizations, people without one
@@ -82,25 +81,25 @@ administrators see the checklist.
 
 ### Invite your team
 
-In **Organization settings → Members**, invite people by email or by their
-Lictory username. They join as organization members when they accept. Then,
-in **Project settings → Members** and **Disciplines**, add them to the project
-and to the disciplines they work in: an engineer to Engineering, a tester to
-QA. Disciplines decide who can be asked to review and what each person may do
-with work items ([disciplines](/organization/disciplines)). You can also
-choose the project and disciplines in the invitation itself
-([members](/organization/members)). People invited during setup are already
-members of the first project, in the discipline chosen for them. Someone who
-joins without a discipline sees on Home that an administrator still has to
-give them one.
+1. In **Organization settings → Members**, invite people by email or Lictory
+   username. They join the organization when they accept.
+2. In **Project settings → Members** and **Disciplines**, add them to the
+   project and the disciplines they work in: an engineer to Engineering, a
+   tester to QA. Disciplines decide who can be asked to review and what each
+   person may do with work items ([disciplines](/organization/disciplines)).
+
+The invitation can also set the project and disciplines
+([members](/organization/members)). People invited during setup are already in
+the first project, in their chosen discipline. Someone who joins without a
+discipline sees on Home that an administrator still has to give them one.
 
 </Step>
 <Step>
 
 ### Connect your code and a first agent (optional)
 
-Home's checklist starts here. Each step works on its own; specifications,
-reviews and delivery work without any of them.
+Each step stands alone; specifications, reviews and delivery work without
+any of them.
 
 1. **Connect a code host** (organization administrators): in **Organization
    settings → Code hosts**, connect GitHub, GitLab or Bitbucket, add the
@@ -116,8 +115,7 @@ reviews and delivery work without any of them.
    channel.
 
 How much agents do by themselves is the project's
-[autonomy policy](/factory/autonomy): **Assist** (the default) until you
-choose more.
+[autonomy policy](/factory/autonomy), **Assist** by default.
 
 </Step>
 <Step>
@@ -125,14 +123,12 @@ choose more.
 ### Write a first proposal
 
 Open the project's **Proposals** and choose **New proposal**. Describe the
-problem and the intended behavior; it is fine to start rough. Add the
-sections your reviewers will look for, such as _Acceptance criteria_ and
-_Failure behavior_. Type `#` to mention another work item and `[[` to cite a
-page.
+problem and the intended behavior; rough is fine. Add the sections reviewers
+look for, such as _Acceptance criteria_ and _Failure behavior_. Type `#` to
+mention another work item and `[[` to cite a page.
 
-Teammates can edit the specification with you at the same time: the text is
-a shared [live draft](/specifications/live-drafts), saved as you type.
-**Save revision N** turns what is written into a
+The text is a shared [live draft](/specifications/live-drafts): teammates edit
+with you, and it saves as you type. **Save revision N** turns it into a
 [revision](/specifications/history), the version people review.
 
 </Step>
@@ -142,15 +138,14 @@ a shared [live draft](/specifications/live-drafts), saved as you type.
 
 From the item's review rail (**Review & details** on a narrow screen),
 **Request review** from the disciplines that need to agree, for example
-Engineering and QA. Reviewers comment on the exact text they are concerned
-about, mark a discussion **blocking** when it must be settled first, and
-**Approve** or **Request changes** ([reviews](/review/requests)).
+Engineering and QA. Reviewers comment on the exact text, mark a discussion
+**blocking** when it must be settled first, and **Approve** or **Request
+changes** ([reviews](/review/requests)).
 
-Revise the specification until the open questions are settled, and record
-what you agreed as a [decision](/specifications/decisions). Each material
-revision makes earlier approvals stale and asks the same reviewers again, so
-an approval always refers to the text that was actually reviewed
-([approvals](/review/approvals)).
+Revise until the open questions are settled, and record what you agreed as a
+[decision](/specifications/decisions). Each material revision makes earlier
+approvals stale and asks the same reviewers again, so an approval always
+refers to the text actually reviewed ([approvals](/review/approvals)).
 
 </Step>
 <Step>
@@ -159,8 +154,8 @@ an approval always refers to the text that was actually reviewed
 
 When every [readiness check](/review/readiness) passes (by default: the
 specification is written, no blocking discussion is open, and every required
-review approved the current revision), the item becomes **ready**. From then
-on its main text is protected: further changes are
+review approved the current revision), the item becomes **ready**. Its main
+text is then protected: further changes are
 [proposed changes](/specifications/branches), drafted apart, reviewed and
 applied as a new revision. A proposed change can also carry the
 [breakdown](/delivery/breakdown) into Stories and Tasks.
@@ -187,15 +182,19 @@ applied as a new revision. A proposed change can also carry the
 ## Write it down in Spaces
 
 Knowledge that is not a work item (a runbook, how the team works, an
-architecture note) belongs in a **space**. Choose **New space** under
-**Spaces** in the sidebar, pick its location (the organization, a project or
-a team, whose members can then edit it), and add a first page with **New
-page**. Teammates can edit it with you at the same time; **Publish** makes
-what you wrote the version everyone reads, and every version stays in the
-page's history. Type `#` to mention a work item: the item then lists the
-page in its **Knowledge**, and a specification can cite the page in turn
-([knowledge](/knowledge)). The [Spaces guide](/spaces) covers everything
-else, from comments to reviewed publishing.
+architecture note) belongs in a **space**.
+
+1. Choose **New space** under **Spaces** in the sidebar and pick its location:
+   the organization, a project or a team, whose members can then edit it.
+2. Add a first page with **New page**. Teammates can edit it with you at the
+   same time.
+3. **Publish** makes it the version everyone reads; every version stays in the
+   page's history.
+
+Type `#` to mention a work item: the item then lists the page in its
+**Knowledge**, and a specification can cite the page in turn
+([knowledge](/knowledge)). The [Spaces guide](/spaces) covers the rest, from
+comments to reviewed publishing.
 
 ## Where to go next
 

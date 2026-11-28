@@ -95,7 +95,6 @@ export function FactoryRunners() {
   );
   return (
     <FactoryPage
-      description="Machines you control that run agent sessions, each in its own git worktree. Organization runners run anyone’s agents; personal runners only their owner’s."
       meta={
         active.length > 0 && (
           <span>
@@ -122,11 +121,7 @@ export function FactoryRunners() {
               <Plus className="size-3.5" aria-hidden /> Add runner
             </Button>
           }
-        >
-          Install <code className="font-mono text-xs">lictory-runner</code> on a
-          server, a VPS, a laptop or a Mac and register it with a one-time
-          token. It connects out over HTTPS and works behind NAT.
-        </MissingState>
+        />
       ) : (
         <>
           {behind.length > 0 && (
@@ -143,16 +138,15 @@ export function FactoryRunners() {
                 {behind.length === 1
                   ? `${behind[0]!.name} runs`
                   : `${behind.length} runners run`}{" "}
-                an older release than this server (v{APP_VERSION}). Update{" "}
-                {behind.length === 1 ? "it" : "them"}: rerun the installer on
-                the machine, then restart its service.
+                an older release than this server (v{APP_VERSION}). Rerun the
+                installer, then restart the service.
               </span>
             </div>
           )}
           <Panel
             title="Organization runners"
             count={organization.length}
-            empty="None. An administrator adds runners everyone’s agents can use."
+            empty="None"
           >
             {organization.map(row)}
           </Panel>
@@ -317,10 +311,10 @@ function RunnerRow({
                 }
                 title={
                   !started
-                    ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
+                    ? "Never connected. Run lictory-runner start on the machine."
                     : runner.lastSeenAt
                       ? `Last seen ${relativeTime(runner.lastSeenAt)}`
-                      : "It has never connected."
+                      : "Never connected"
                 }
               >
                 {online ? "Online" : started ? "Offline" : "Not started"}
@@ -366,10 +360,10 @@ function RunnerRow({
               {online
                 ? `Online, seen ${relativeTime(runner.lastSeenAt!)}`
                 : !started
-                  ? "Registered, but it has not connected since. Run lictory-runner start (or its service) on the machine."
+                  ? "Never connected. Run lictory-runner start on the machine."
                   : runner.lastSeenAt
-                    ? `Offline since ${absoluteTime(runner.lastSeenAt)} (${relativeTime(runner.lastSeenAt)}). Check the machine and its lictory-runner service; lictory-runner doctor checks the setup.`
-                    : "It has never connected."}
+                    ? `Offline since ${absoluteTime(runner.lastSeenAt)} (${relativeTime(runner.lastSeenAt)}). Run lictory-runner doctor on the machine.`
+                    : "Never connected"}
             </Fact>
             {/* What the runner last reported failing (the server out of
                 reach, asking for work refused), so an offline runner can be
@@ -397,7 +391,7 @@ function RunnerRow({
                 {runner.version ? `v${runner.version}` : "Unknown"}
               </span>
               {behind
-                ? `: older than this server (v${APP_VERSION}). Rerun the installer on the machine, then restart its service.`
+                ? `: older than this server (v${APP_VERSION}). Rerun the installer, then restart the service.`
                 : ""}
             </Fact>
             <Fact label="Harnesses">
@@ -408,12 +402,12 @@ function RunnerRow({
                         `${harnessLabels[h.id as HarnessId] ?? h.id}${h.version ? ` ${h.version}` : ""}`,
                     )
                     .join(", ")
-                : "None found on the machine: install Claude Code or Codex there, then restart the runner."}
+                : "None found. Install Claude Code or Codex, then restart the runner."}
             </Fact>
             <Fact label="Isolation">
               {runner.isolation === "container"
-                ? "Each session runs in a container, in its own git worktree."
-                : "Each session runs on the machine as the runner’s account, in its own git worktree."}
+                ? "Container; each session in its own git worktree"
+                : "The runner’s account; each session in its own git worktree"}
             </Fact>
             <Fact label="Labels">
               {runner.labels.length ? (
@@ -433,8 +427,7 @@ function RunnerRow({
             </Fact>
             <Fact label="Capacity">
               {sessions} of {runner.maxSessions} sessions running
-              {waiting > 0 &&
-                ` · ${waiting} waiting on a person (they take no slot)`}
+              {waiting > 0 && ` · ${waiting} waiting on a person`}
             </Fact>
             {/* Relative like every other time in the product; the exact
                 time is one hover away. */}
@@ -482,8 +475,7 @@ function RunnerRow({
         >
           <span className="mr-auto">
             Remove <span className="font-medium">{runner.name}</span>? Its
-            credential stops working and its sessions return to the queue. The
-            organization’s audit log keeps who removed it.
+            credential stops working and its sessions return to the queue.
           </span>
           <Button variant="ghost" onClick={() => setConfirming(false)}>
             Keep
@@ -552,7 +544,6 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog
       title="Add a runner"
-      description="A runner connects out to Lictory over HTTPS and runs agent sessions in isolated git worktrees on that machine."
       onClose={onClose}
       width="max-w-2xl"
       footer={
@@ -570,23 +561,18 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
               onSelect={() => setPersonal(false)}
               icon={<Server className="size-4" aria-hidden />}
               title="Organization runner"
-              detail={
-                isAdmin
-                  ? "Runs any agent of the organization."
-                  : "Only an organization administrator can add one."
-              }
+              detail={isAdmin ? "Runs anyone’s agents" : "Administrators only"}
             />
             <Choice
               selected={personal}
               onSelect={() => setPersonal(true)}
               icon={<Laptop className="size-4" aria-hidden />}
               title="Personal runner"
-              detail="Runs only your own agents, for example on your laptop."
+              detail="Runs only your agents"
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            You get a one-time registration token, valid for an hour. The runner
-            exchanges it for its own credential, which you can revoke here.
+            One-time token, valid for an hour.
           </p>
           {error && (
             <p role="alert" className="text-[13px] text-destructive">
@@ -617,11 +603,7 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-muted-foreground">
             The token works once and expires{" "}
             <time dateTime={token.expiresAt}>{expiresIn(token.expiresAt)}</time>
-            . The installer checks the download against the release&apos;s
-            checksums, registers the runner and keeps it running as a service.
-            Install Claude Code or Codex on the machine for those agents;{" "}
-            <code className="font-mono">lictory-runner doctor</code> checks the
-            setup. The runner appears here as soon as it registers.
+            . Agents also need Claude Code or Codex on the machine.
           </p>
           {/* A release published before runner downloads existed has no
               installer, so curl answers 404: the same runner from source. */}
@@ -636,16 +618,16 @@ function AddRunnerDialog({ onClose }: { onClose: () => void }) {
             <CollapsiblePanel className="mt-2 space-y-2">
               <p>
                 {APP_VERSION && /^\d+\.\d+\.\d+/.test(APP_VERSION)
-                  ? `This server's release (${APP_VERSION}) has no runner files yet.`
-                  : "The newest release has no runner files yet."}{" "}
-                Build the same runner from source with{" "}
+                  ? `Release ${APP_VERSION} has no runner files.`
+                  : "The newest release has no runner files."}{" "}
+                Build from source with{" "}
                 <a
                   href="https://bun.sh"
                   className="underline underline-offset-2 hover:text-foreground"
                 >
                   Bun
                 </a>{" "}
-                and git, then register it with the same token:
+                and git:
               </p>
               <CommandBlock
                 label="Build from source and register"

@@ -30,14 +30,6 @@ const titles: Record<PromotionChoice, string> = {
   decision: "Record a decision",
   discussion: "Discuss on a specification",
 };
-const descriptions: Record<PromotionChoice, string> = {
-  proposal:
-    "Creates a work item whose description quotes this message and links back to the conversation.",
-  decision:
-    "Records a decision on a specification's current revision, quoting this message. Decisions are kept as product knowledge.",
-  discussion:
-    "Opens a discussion on a specification quoting this message, so it is answered next to the text it is about.",
-};
 
 export function PromoteDialog({
   kind,
@@ -132,7 +124,6 @@ export function PromoteDialog({
               ? "Decision recorded"
               : "Discussion opened",
         type: "success",
-        description: "A card linking it was added to the thread.",
         ...(key
           ? {
               action: {
@@ -158,7 +149,11 @@ export function PromoteDialog({
   return (
     <Dialog
       title={titles[kind]}
-      description={descriptions[kind]}
+      description={
+        kind === "decision"
+          ? "Recorded on the specification's current revision."
+          : undefined
+      }
       onClose={onClose}
       onSubmit={() => {
         if (ready) void submit();
@@ -199,9 +194,8 @@ export function PromoteDialog({
               </Select>
             ) : (
               <p className="text-[13px] text-muted-foreground">
-                You cannot create proposals in any project. Ask a project
-                administrator to add you to a discipline that edits
-                specifications.
+                No project lets you create proposals. Ask a project
+                administrator for a discipline that edits specifications.
               </p>
             )}
           </Field>

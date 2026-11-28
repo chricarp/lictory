@@ -161,14 +161,14 @@ export async function showLogs(options: {
   if (!command) {
     options.log(
       [
-        "No runner service is installed on this machine, so there is no log file to show.",
-        "A runner started with `lictory-runner start` writes its log to that terminal; `lictory-runner status` shows its state and last error.",
-        "To keep a log, run it as a service: lictory-runner install-service --enable.",
+        "No runner service is installed, so there is no log to show.",
+        "A runner started with `lictory-runner start` logs to its terminal; `lictory-runner status` shows its state.",
+        "To keep a log: lictory-runner install-service --enable.",
       ].join("\n"),
     );
     return EXIT.failed;
   }
-  options.log(`Showing the runner service's log: ${command.join(" ")}`);
+  options.log(`Running: ${command.join(" ")}`);
   return new Promise<number>((resolve) => {
     const child = spawn(command[0]!, command.slice(1), { stdio: "inherit" });
     child.on("error", (error) => {
@@ -221,14 +221,12 @@ export async function installService(options: ServiceOptions) {
         ]);
         if (linger.stdout.trim() !== "Linger=yes")
           log(
-            "Warning: this user service stops when you log out. Keep it running with `loginctl enable-linger $USER`, or install a system service instead (`install-service --system`; see the runner documentation).",
+            "Warning: this user service stops when you log out. Run `loginctl enable-linger $USER`, or use `install-service --system`.",
           );
         else
-          log(
-            "Lingering is on for this user, so the service keeps running after you log out.",
-          );
+          log("Lingering is on: the service keeps running after you log out.");
       }
-      log("Read its log with `lictory-runner logs` (add --follow to watch).");
+      log("Log: `lictory-runner logs` (--follow to watch).");
       return;
     }
     case "darwin": {
@@ -237,9 +235,7 @@ export async function installService(options: ServiceOptions) {
       await mkdir(logs, { recursive: true });
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, launchdPlist({ home, logs }));
-      log(
-        `Wrote ${path}. Logs go to ${logs}/runner.log (\`lictory-runner logs\` shows them).`,
-      );
+      log(`Wrote ${path}. Log: ${logs}/runner.log (\`lictory-runner logs\`).`);
       const load = ["launchctl", "load", "-w", path];
       if (options.enable) {
         const result = await run(load[0]!, load.slice(1));
@@ -253,16 +249,16 @@ export async function installService(options: ServiceOptions) {
       const [exe] = command();
       log(
         [
-          "Windows has no service installer built in. Run the runner at sign-in with Task Scheduler (from an elevated PowerShell):",
+          "No built-in service installer on Windows. Run the runner at sign-in with Task Scheduler (elevated PowerShell):",
           "",
           `  $action = New-ScheduledTaskAction -Execute "${exe}" -Argument "start"`,
           "  $trigger = New-ScheduledTaskTrigger -AtLogOn",
           "  $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)",
           '  Register-ScheduledTask -TaskName "Lictory runner" -Action $action -Trigger $trigger -Settings $settings',
           "",
-          "Or install it as a service with NSSM: nssm install LictoryRunner " +
+          "Or as a service with NSSM: nssm install LictoryRunner " +
             `"${exe}" start`,
-          `Set LICTORY_RUNNER_HOME=${home} for the service account if it differs from yours.`,
+          `Set LICTORY_RUNNER_HOME=${home} if the service account differs from yours.`,
         ].join("\n"),
       );
       return;

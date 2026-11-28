@@ -234,7 +234,6 @@ test("a person starts an agent from an item, told what it works from and that th
   await expect(worksFrom).toContainText(
     "Agents would not take it on their own",
   );
-  await expect(worksFrom).toContainText("You can still start one yourself.");
   await start.getByLabel("What should it do?").fill("Sketch the endpoint.");
   await start.getByRole("button", { name: "Start session" }).click();
   await expect(page).toHaveURL(/\/factory\/sessions\//);

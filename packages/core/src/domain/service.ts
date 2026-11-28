@@ -3612,7 +3612,7 @@ export async function applyMutation(
         if (category === "done" || category === "canceled")
           throw new DomainError(
             "conflict",
-            "Reopen this item before accepting a new delivery scope. Its delivered revision remains history.",
+            "Reopen this item before accepting a new delivery scope.",
           );
         if (item!.committedRevisionId === latest!.id) break;
         const failingChecks = deliveryScopeChecks(

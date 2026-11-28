@@ -1,7 +1,5 @@
 import { Toggle } from "@ui-sdk/react/toggle";
-import { Link } from "@lictory/platform/lib/navigation";
 import { Plus, Users } from "lucide-react";
-import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import type { ProjectRole } from "@lictory/core/contracts/protocol";
 import { Button } from "@lictory/ui/button";
@@ -30,7 +28,7 @@ export function ProjectMembers({
   project: Project;
   canEdit: boolean;
 }) {
-  const { directory, userId, organization } = useWorkspace();
+  const { directory, userId } = useWorkspace();
   const { run, error } = useCommand();
   const roles = new Map(
     directory.projectMembers
@@ -59,22 +57,6 @@ export function ProjectMembers({
       id="members"
       icon={<Users />}
       title="Members"
-      description={
-        <>
-          Project admins configure this project. Disciplines decide what people
-          can do with work items.{" "}
-          <Link
-            href={paths.projectSettings(
-              organization.slug,
-              project.key,
-              "disciplines",
-            )}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Edit disciplines
-          </Link>
-        </>
-      }
       action={
         canEdit ? (
           <Popover
@@ -98,9 +80,9 @@ export function ProjectMembers({
           </span>
         )
       }
-      footer="Organization administrators manage every project without being listed. Removing someone also removes their disciplines and teams here."
+      footer="Removing someone also removes their disciplines and teams here."
     >
-      <SettingsList isEmpty={people.length === 0} empty="No members yet.">
+      <SettingsList isEmpty={people.length === 0} empty="No members">
         {people.map((m) => {
           const role = roles.get(m.id);
           return (

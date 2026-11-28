@@ -1,29 +1,27 @@
 ---
 title: Work in your pages
-description: See the live state of work items on a page, find the work a page is linked to, and create work items from page text without losing where they came from.
+description: See the live state of work items on a page, find the work a page is linked to, and create work items from page text.
 ---
 
-Pages show work and start work, but never hold its state. A chip, a card or
-a list on a page is read from Lictory Work when someone opens it, with that
-reader's access. Delivery stays with its owner: Lictory in a project that
-delivers natively, the delivery tool (such as Jira) in one that hands work
-off.
+Pages show and start work but never hold its state. A chip, card or list on
+a page is read when someone opens it, with that reader's access. Delivery
+stays with its owner: Lictory, or the delivery tool (such as Jira) in a
+project that hands work off.
 
 ## When to use it
 
 - **Mention work where you explain it**: a runbook names the bug it
   prevents, a design names the stories that build it.
-- **Turn page text into work**: a requirement, an open question or an action
-  from a retrospective becomes a work item that remembers the exact words it
-  came from.
+- **Turn page text into work**: a requirement, an open question or a
+  retrospective action becomes a work item that keeps the exact words.
 - **See what a page led to**: the items created from it, the items that cite
   it and the page updates proposed from them.
 
 ## Item chips and cards
 
 Type `#` in a page to mention an item ([blocks and chips](/spaces/blocks)).
-Readers see the item's status, key and title; pointing at the chip or
-focusing it shows its card:
+The chip shows its status, key and title; pointing at or focusing it shows
+its card:
 
 ![The card of the PAY-2 chip: Story, Retry failed card captures, In Progress, In review, 2 of 4 checks with what is still missing (a blocking discussion, and Engineering and QA reviews of revision 2), owner Dev Patel, Sprint 1 and Open PAY-2](/screenshots/detail-item-chip-card.webp)
 
@@ -36,13 +34,13 @@ focusing it shows its card:
   projects), or _Unassigned_.
 - **Iteration**: the sprint or cycle it is planned in.
 
-What you see is what you can see now. Nothing on the page changes the item:
+The card reflects your access now. Nothing on the page changes the item;
 **Open PAY-2** opens it.
 
 ## Work linked to this page
 
-Under a published page, **Work linked to this page** lists every item the
-page is connected to, each once, with how it is linked:
+Under a published page, **Work linked to this page** lists each connected
+item once, with how it is linked:
 
 | Shown as                                      | Because                                            |
 | --------------------------------------------- | -------------------------------------------------- |
@@ -54,15 +52,13 @@ page is connected to, each once, with how it is linked:
 
 ![Work linked to this page under the Payments service page: PAY-1, PAY-2, PAY-3 and PAY-5 with how each is linked (Mentioned, Cited in its spec), their delivery status and refinement, “1 of 4 done” and Context for Payments](/screenshots/spaces-page-work.webp)
 
-The header counts _N of M done_ and, when projects, teams or iterations keep
-the page as context, says so (_Context for PAY Sprint 1_). Below,
-**Page updates proposed from work** lists branches opened from work items
-with **Propose page update**, named by the item, with their state: _Branch_,
-_Draft pull request_, _In review_, _Merged_ or _Closed_.
+The header counts _N of M done_ and names what keeps the page as context
+(_Context for PAY Sprint 1_). Below, **Page updates proposed from work** lists
+branches opened with **Propose page update**, named by the item, with their
+state: _Branch_, _Draft pull request_, _In review_, _Merged_ or _Closed_.
 
-The list shows a few rows at first; **Show N more** adds more. Items you
-cannot see are left out without a trace. The page's readers see the list,
-whatever their disciplines.
+**Show N more** extends the list. Items you cannot see are left out without
+a trace. Every reader of the page sees the list, whatever their disciplines.
 
 ### Linked work on a space's home
 
@@ -73,19 +69,17 @@ done. Organization spaces have no such list.
 
 ## Create work from page text
 
-Turn a sentence of a page into a work item. The item keeps a link to the
-exact version you were reading and a quote of the words it came from. This
-works on any committed version: the published page, an earlier version from
-its history, or a branch's latest commit.
+The item keeps a link to the exact version you were reading and a quote of
+the words. This works on any committed version: the published page, an
+earlier version, or a branch's latest commit.
 
 ![The selection toolbar over selected text on a published page: Comment, Create work item and Ask Litto](/screenshots/spaces-selection-actions.webp)
 
 <Steps>
 <Step>
 
-**Select the text** on the page you are reading. The bar above the selection
-offers **Comment**, **Create work item** and, when Lictory Intelligence is
-on, **Ask Litto**. Choose **Create work item**.
+**Select the text** and choose **Create work item** in the bar above the
+selection.
 
 </Step>
 <Step>
@@ -99,16 +93,15 @@ description that quotes the text and ends with a link to the page version
 </Step>
 <Step>
 
-**Read where the quote goes.** The dialog says that the quoted text is
-copied into the project, where everyone in the organization can read it,
-and that later edits to the page do not change the item. In a Restricted
-space it warns that people who cannot read the page will see the quote.
+**Read where the quote goes.** The quote is copied into the project, where
+everyone in the organization can read it; later page edits do not change the
+item. In a Restricted space the dialog warns that people who cannot read the
+page will see the quote.
 
 </Step>
 <Step>
 
-**Create work item.** The confirmation (_PAY-6 created_) says the item
-records where it came from. **Done** closes it.
+**Create work item.** The confirmation (_PAY-6 created_) offers **Done**.
 
 </Step>
 </Steps>
@@ -123,28 +116,24 @@ the quote and **Open source**
 
 ### From an open task
 
-Every open task on a page you are reading that does not mention a work item yet
-shows **Create work item** (on hover or keyboard focus, always on touch
-screens). The dialog takes the task's text as the title and suggests a type
-without a specification, such as a task.
+An open task that mentions no work item yet shows **Create work item** (on
+hover or keyboard focus, always on touch screens). The dialog takes the
+task's text as the title and suggests a type without a specification.
 
 ### Mention the new item on the page
 
-If you can edit the page's published line (a Direct space) and were reading
-its latest version, the confirmation offers **Add to the page**. It
-opens the live draft and mentions the new items right after the text or the
-task they came from. This is an ordinary draft edit: nothing is published
-until you **Publish**, and if the text is gone from the draft, the mention
-goes at the end of the page for you to move.
+In a Direct space you can edit, if you were reading the latest version, the
+confirmation offers **Add to the page**. It mentions the new items in the
+live draft right after their text or task (or at the end of the page if that
+text is gone). Nothing is published until you **Publish**.
 
 ### Draft proposals with Litto
 
 With Lictory Intelligence on, the dialog's **How** choice offers **Write it**
-or **Draft with Litto**. **Draft proposals** sends the selected text to the
-AI provider your organization configured (the dialog says so; it is not
-stored) and returns draft proposals that cite the text. Tick the ones you
-want and choose **Create N proposals**: only those are created, each with
-its source. Drafts that cite nothing from the text are left out. See
+or **Draft with Litto**. **Draft proposals** sends the selected text to your
+organization's AI provider (not stored) and returns draft proposals that cite
+it; drafts that cite nothing are left out. Tick the ones you want and choose
+**Create N proposals**; each keeps its source. See
 [Lictory Intelligence](/ai).
 
 ## Who can do what
@@ -161,14 +150,12 @@ People without a discipline that creates work see no **Create work item**.
 ## What to watch for
 
 - **A live draft is never a source.** While you edit, the selection offers
-  no **Create work item**: an item always comes from a committed version, so
-  its quote is text that exists in the page's history.
+  no **Create work item**; a quote is always text in the page's history.
 - **The quote leaves the page.** A work item is read by everyone in the
-  organization. The quote stays exactly as the page said it; the item's
-  title and description are yours to change.
-- **Quotes are checked.** Lictory refuses a quote that is not the page's
-  text in that version, so a source always shows what the page said. A long
-  selection is cut to 2000 characters.
+  organization. The quote stays as the page said it; the item's title and
+  description are yours to change.
+- **Quotes are checked.** A quote that is not the page's text in that version
+  is refused. A long selection is cut to 2000 characters.
 - **No duplicates on retry.** If the connection drops while items are
   created, trying again creates only what is missing.
 - **Restricted spaces** keep their links private: only readers of the page
@@ -176,10 +163,7 @@ People without a discipline that creates work see no **Create work item**.
 
 ## Tips
 
-- Create items from a published requirements page, one requirement at a
-  time, then **Add to the page**: the page shows each item's status beside
-  the requirement it implements.
-- Turn retrospective actions into work items from their tasks, so the
-  follow-ups land on the backlog.
-- Read **Work linked to this page** before you change a page: it tells you
-  whose work relies on it.
+- Create items from a requirements page one requirement at a time, then
+  **Add to the page**, so each requirement shows its item's status.
+- Turn retrospective tasks into work items.
+- Read **Work linked to this page** before you change a page.

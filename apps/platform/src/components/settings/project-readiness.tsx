@@ -177,8 +177,8 @@ function DefinitionOfReady({
       title="Definition of Ready"
       description={
         latest.number === 0
-          ? "Lictory’s defaults · not edited yet. A specification becomes Ready automatically when every rule of its type passes."
-          : `${versionName(latest.number)} · ${latest.authorId ? memberName(latest.authorId) : "Lictory"}${latest.createdAt ? ` · ${relativeTime(latest.createdAt)}` : ""}. A specification becomes Ready automatically when every rule of its type passes.`
+          ? "Lictory’s defaults · not edited yet"
+          : `${versionName(latest.number)} · ${latest.authorId ? memberName(latest.authorId) : "Lictory"}${latest.createdAt ? ` · ${relativeTime(latest.createdAt)}` : ""}`
       }
       action={
         <a
@@ -192,8 +192,7 @@ function DefinitionOfReady({
       {types.length === 0 ? (
         <SettingsBody>
           <p className="text-[13px] text-muted-foreground">
-            This project uses no work item type with a specification, so nothing
-            is checked for readiness.
+            No work item type here has a specification.
           </p>
         </SettingsBody>
       ) : reviewing && dirty ? (
@@ -273,8 +272,8 @@ function DefinitionOfReady({
             <div className="space-y-2 border-t px-5 py-3">
               {outdated && (
                 <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
-                  {versionName(latest.number)} was published while you were
-                  editing. Discard your changes to start from it.
+                  {versionName(latest.number)} was published meanwhile. Discard
+                  to start from it.
                 </p>
               )}
               <div className="flex items-center gap-2">
@@ -434,8 +433,7 @@ function TypeRules({
               custom.length > 0 &&
               !(directory.ai.enabled && directory.ai.available) && (
                 <p className="py-1 text-xs text-muted-foreground">
-                  Lictory Intelligence is off for this organization, so items
-                  pass this check only when a person overrides it.
+                  Lictory Intelligence is off; items pass only by override.
                 </p>
               )}
             {canEdit &&
@@ -701,9 +699,7 @@ function CustomSentence({
           )}{" "}
           in the current revision
           <span className="block text-xs text-muted-foreground">
-            An automated check, never an approval. It needs a person’s decision
-            beside it, and anyone with a discipline can override it for one
-            revision.
+            Anyone with a discipline can override it for one revision.
           </span>
         </span>
       );
@@ -1022,9 +1018,7 @@ function Review({
             <Impact
               count={impact.kept}
               title={`ready or done ${impact.kept === 1 ? "item keeps" : "items keep"} version ${current}`}
-            >
-              Finished work never loses readiness because the rules changed.
-            </Impact>
+            />
             <Impact
               count={impact.becomeReady.length}
               tone="text-success"
@@ -1048,9 +1042,7 @@ function Review({
               )}
               {impact.needMoreWork.length > 0 && itemLinks(impact.needMoreWork)}
             </Impact>
-            <Impact count={impact.unaffected} title="are unaffected">
-              Their outcome does not change.
-            </Impact>
+            <Impact count={impact.unaffected} title="are unaffected" />
           </>
         )}
       </div>
@@ -1058,7 +1050,7 @@ function Review({
         {outdated && (
           <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]">
             {versionName(latest.number)} was published meanwhile. Go back and
-            discard your changes to start from it.
+            discard to start from it.
           </p>
         )}
         <div className="flex items-center gap-2">
@@ -1066,7 +1058,7 @@ function Review({
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             maxLength={500}
-            placeholder="Why is this changing? (shown in history)"
+            placeholder="Why is this changing?"
             aria-label="Change summary"
             className="h-8 min-w-48 flex-1 rounded-md border border-input bg-card px-2.5 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
@@ -1110,11 +1102,7 @@ function Impact({
       </span>
       <div className="min-w-0 space-y-0.5 text-[13px]">
         <p className="font-medium">{title}</p>
-        {typeof children === "string" ? (
-          <p className="text-xs text-muted-foreground">{children}</p>
-        ) : (
-          children
-        )}
+        {children}
       </div>
     </div>
   );
@@ -1151,12 +1139,7 @@ function VersionHistory({
   const typeName = (id: string) =>
     types.find((t) => t.id === id)?.name ?? "A former type";
   return (
-    <SettingsSection
-      id="history"
-      icon={<History />}
-      title="History"
-      description="Versions are never changed. Items that were ready or done when a version was published keep the rules they met."
-    >
+    <SettingsSection id="history" icon={<History />} title="History">
       {error ? (
         <SettingsBody>
           <InlineError>{error}</InlineError>

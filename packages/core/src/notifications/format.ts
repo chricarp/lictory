@@ -132,7 +132,7 @@ export function describeNotification(
     case "pull_request_mergeable":
       return {
         headline: `The proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item} is ready to apply`,
-        body: "Every requirement to apply it is met.",
+        body: null,
       };
     case "pull_request_merged":
       return {
@@ -291,12 +291,12 @@ export function describeNotification(
     case "organization_deletion_scheduled":
       return {
         headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
-        body: "Its projects, work items, specifications, reviews, discussions and files will then be permanently deleted. Until then the organization is locked. If this is a mistake, ask an owner to cancel the deletion.",
+        body: "Its projects, work items, specifications, discussions and files will then be permanently deleted. It is locked until then; an owner can cancel.",
       };
     case "organization_deletion_cancelled":
       return {
         headline: `${actor} cancelled the deletion of ${str(d.organizationName) ?? "the organization"}`,
-        body: "The organization is open again; nothing was deleted.",
+        body: "Nothing was deleted.",
       };
   }
   return {

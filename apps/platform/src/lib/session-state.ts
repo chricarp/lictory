@@ -102,15 +102,14 @@ const claimLabels: Record<ClaimEntity["state"], string> = {
 };
 
 const claimMeanings: Record<ClaimEntity["state"], string> = {
-  starting: "The agent claimed the item and its session is starting.",
-  active: "The agent is working on the item.",
-  waiting:
-    "The agent asked questions on the item's discussions that people have not resolved yet.",
+  starting: "Claimed; the session is starting.",
+  active: "Working on the item.",
+  waiting: "Waiting on answers in the item's discussions.",
 };
 
 // Why a queued session does not start, and what starts it.
 export const noRunnerMeaning =
-  "Queued, but no online runner can run this agent. Start a runner that has its harness, or add one.";
+  "No online runner can run this agent. Start or add one with its harness.";
 
 export const firstName = (name: string) => {
   return name.trim().split(/\s+/)[0] ?? name;
@@ -126,7 +125,7 @@ export function workNotKept(session: SessionLike | null | undefined) {
 }
 
 export const notKeptMeaning = (files: number) =>
-  `It finished, but no repository is linked to it: the ${files === 1 ? "file" : `${files} files`} it changed ${files === 1 ? "was" : "were"} discarded with its scratch workspace. Link a repository and start it again to keep the work.`;
+  `No repository was linked, so the ${files === 1 ? "file" : `${files} files`} it changed ${files === 1 ? "was" : "were"} discarded. Link one and start again to keep the work.`;
 type ClaimLike = Pick<ClaimEntity, "state" | "waitingThreadIds">;
 
 // Where a session (and the claim it works for, when there is one) stands.

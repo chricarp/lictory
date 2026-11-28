@@ -3,9 +3,8 @@ title: The desktop app
 description: Install Lictory for macOS, Windows or Linux, connect it to your team's servers, and get native notifications, a badge and lictory:// links.
 ---
 
-The Lictory desktop app keeps your team's Lictory in its own window, next to
-your other tools. It is the same Lictory you use in the browser, with what a
-browser tab does not do well:
+The desktop app is the Lictory you use in the browser, in its own window,
+plus what a browser tab does not do well:
 
 - **Notifications** from your computer when something needs you: a review
   is requested, you are mentioned or assigned, a blocking discussion opens.
@@ -18,9 +17,9 @@ browser tab does not do well:
 
 ## Install it
 
-Download the app at [lictory.com/download](https://lictory.com/download): it
-offers the file for your computer first, lists every other one, and always
-serves the newest stable release. The same files are in the
+Download it at [lictory.com/download](https://lictory.com/download), which
+offers the file for your computer first, lists the others, and always serves
+the newest stable release. The same files are in the
 [latest Lictory release](https://github.com/chricarp/lictory/releases/latest):
 
 - **macOS:** `Lictory-mac-universal.dmg` (one download for Intel and Apple
@@ -34,14 +33,11 @@ serves the newest stable release. The same files are in the
 
 If the download page says a file is not in the newest release, that
 release was published without it: use an earlier release that has it, or
-build the app from source (`bun run --cwd apps/desktop package`).
+build from source (`bun run --cwd apps/desktop package`).
 
-Each release also carries the same installers with its version in the name
-(`Lictory-<version>-mac-universal.dmg`, …), for when you need a specific
-one.
-
-`SHA256SUMS` in the same release lists the checksum of every file
-(`sha256sum --check --ignore-missing SHA256SUMS`).
+Each release also carries the installers with its version in the name
+(`Lictory-<version>-mac-universal.dmg`, …). `SHA256SUMS` lists every file's
+checksum (`sha256sum --check --ignore-missing SHA256SUMS`).
 
 If a release was built without the project's signing certificates, macOS
 says the app is from an unidentified developer (Control-click the app, then
@@ -51,17 +47,14 @@ so and links to the download page.
 
 ## Connect to your server
 
-Lictory runs on your team's own server, so the first thing the app asks for
-is its address: the one you open Lictory at in your browser, for example
-`lictory.example.com`. Ask your administrator if you do not know it.
+The app first asks for your server's address: the one you open Lictory at
+in the browser, for example `lictory.example.com` (ask your administrator if
+you do not know it). It checks that the address is a Lictory server, then
+shows its sign-in page. Sign in as in the browser, including with your
+company's single sign-on.
 
-The app checks that the address is a Lictory server, then shows its sign-in
-page. Sign in as you do in the browser, including with your company's single
-sign-on.
-
-Once you are signed in, the server is shown by your organization's name
-and initials in the bar on the left (if you belong to several organizations
-there, by its address).
+The bar on the left then shows the server by your organization's name and
+initials (by its address if you belong to several organizations there).
 
 To add another server, choose **+** at the bottom of the bar on the left
 (or **File › Add Server…**). Each server keeps its own sign-in. Right-click a
@@ -70,19 +63,18 @@ Removing a server signs you out of it on this computer.
 
 ## Notifications and the badge
 
-The app shows a notification for each new notification that asks something
-of you, the ones Lictory also emails by default (see
+The app shows a system notification for each new notification that asks
+something of you: the ones Lictory also emails by default (see
 [Notifications](/inbox/notifications)). Updates that only inform you stay in
-your Inbox. Click a notification to open what it is about.
+your Inbox. Click a notification to open what it is about. They also appear
+while you work in the app, except for the page you are looking at.
 
-You get them while you work in the app too; only a notification about the
-page you are looking at is not repeated. The badge counts what waits on you: in the
-organization you have open, the numbers its sidebar shows (your Inbox's
-to-dos, unread mentions and direct messages; reading a conversation clears
-its count, answering a request clears it from your to-dos), plus unread
-requests from your other organizations. Updates that only inform you, such as
-an assignment, notify you but do not count. Each server's button shows its
-own count.
+The badge counts what waits on you: in the open organization, the numbers
+its sidebar shows (your Inbox's to-dos, unread mentions and direct messages;
+reading a conversation clears its count, answering a request clears it from
+your to-dos), plus unread requests from your other organizations. Updates
+that only inform you, such as an assignment, notify you but do not count.
+Each server's button shows its own count.
 
 Turn notifications or their sound off in **Settings** (⌘, or Ctrl+,). Your
 notification preferences in Lictory still decide what reaches you at all.
@@ -92,11 +84,10 @@ you if they are missing.
 
 ## When the connection drops
 
-If your computer loses its network, the top bar shows **Offline** until it
-is back; Lictory reconnects by itself. If a server cannot be loaded, the app
-says why in plain words (for example, that the server refused the
-connection or that no server has that name) and what to try, and keeps
-trying in the background.
+Without a network, the top bar shows **Offline** until Lictory reconnects
+by itself. If a server cannot be loaded, the app says why (for example, the
+server refused the connection, or no server has that name) and what to try,
+and keeps trying in the background.
 
 ## Shortcuts
 
@@ -120,17 +111,16 @@ asks before adding it; add only servers you trust.
 
 ## Links to other sites
 
-The app shows only your Lictory servers. Links to other sites (a pull
-request, documentation) open in your browser. Signing in with your
-company's identity provider is the exception: it happens in the app, so you
-stay signed in there.
+Links to other sites (a pull request, documentation) open in your browser.
+Signing in with your company's identity provider is the exception: it
+happens in the app, so you stay signed in there.
 
 ## Updates
 
-Where the app can update itself, it checks for a new version in the
-background and installs it the next time it starts; **Settings › Updates**
-shows the state and lets you check now. Whether it can depends on how it was
-built and installed:
+Where the app can update itself, it checks in the background and installs
+a new version the next time it starts; **Settings › Updates** shows the
+state and checks now. Whether it can depends on how it was built and
+installed:
 
 | You installed                | Updates                                                                                   |
 | ---------------------------- | ----------------------------------------------------------------------------------------- |
@@ -142,15 +132,14 @@ When the app does not update itself, **Settings › Updates** says why and
 links to [lictory.com/download](https://lictory.com/download); installing
 the new version over the old one keeps your servers and sign-ins. If the
 newest release has no update for your system yet, Settings says so and the
-app checks again later. If your computer is managed, your administrator can
-turn self-updating off with `LICTORY_DESKTOP_UPDATES=off`.
+app checks again later. Managed computers can turn self-updating off
+([for administrators](#for-administrators)).
 
 ## For administrators
 
-To spare people typing the address, send them a link such as
-`lictory://lictory.example.com/`: the app asks once and adds the server. On
-managed computers, your tooling can instead write `servers.json` into the
-app's data folder (`~/Library/Application Support/Lictory` on macOS,
+Send people a link such as `lictory://lictory.example.com/`: the app asks
+once and adds the server. On managed computers, your tooling can instead
+write `servers.json` into the app's data folder (`~/Library/Application Support/Lictory` on macOS,
 `%APPDATA%\Lictory` on Windows, `~/.config/Lictory` on Linux) before the
 first launch:
 

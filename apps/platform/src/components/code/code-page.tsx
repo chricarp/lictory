@@ -134,9 +134,7 @@ export function CodePage() {
               ) : undefined
             }
           >
-            Lictory shows your pull requests, checks and issues next to the work
-            they deliver once a code host is connected.
-            {!isAdmin && " Ask an organization administrator to connect one."}
+            {!isAdmin && "Ask an organization administrator to connect one."}
           </EmptyState>
         </div>
       </div>
@@ -339,9 +337,8 @@ function PullRequests() {
           <LoadingState label="Loading pull requests" />
         ) : shown.length === 0 ? (
           <EmptyState title={`No ${state} pull requests`}>
-            {who === "mine" || who === "review"
-              ? "Set your code host login in organization settings → Code hosts so Lictory knows which are yours."
-              : "Pull requests of linked repositories appear here as soon as the host reports them."}
+            {(who === "mine" || who === "review") &&
+              "Set your code host login in Organization settings → Code hosts."}
           </EmptyState>
         ) : (
           <ul
@@ -445,18 +442,12 @@ function Issues() {
           <SegmentedItem value="open">Open</SegmentedItem>
           <SegmentedItem value="closed">Closed</SegmentedItem>
         </Segmented>
-        <p className="text-xs text-muted-foreground">
-          Issues stay the host’s until someone imports one; the work item is
-          then Lictory’s and the issue stays linked.
-        </p>
       </Toolbar>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!complete && rows.length === 0 ? (
           <LoadingState label="Loading issues" />
         ) : shown.length === 0 ? (
-          <EmptyState title={`No ${state} issues`}>
-            Issues of linked repositories appear here.
-          </EmptyState>
+          <EmptyState title={`No ${state} issues`} />
         ) : (
           <ul aria-label="Issues" className={cn(column, "divide-y")}>
             {shown.map((i) => (
@@ -591,10 +582,7 @@ function Repositories() {
             <FolderGit2 className="size-3.5" /> Link a repository
           </Button>
         }
-      >
-        Project administrators link repositories to their projects in
-        organization settings → Code hosts.
-      </EmptyState>
+      />
     );
   return (
     <div className="h-full overflow-y-auto">
@@ -701,7 +689,7 @@ function RepositoryRow({
         </RepositoryFact>
         <RepositoryFact label="Read">
           {r.lastSyncedAt
-            ? `${relativeTime(r.lastSyncedAt)}; again within ten minutes`
+            ? relativeTime(r.lastSyncedAt)
             : "Reading its history…"}
         </RepositoryFact>
         <RepositoryFact label="Webhooks">
@@ -718,8 +706,7 @@ function RepositoryRow({
             `last received ${relativeTime(connection.lastWebhookAt)}`
           ) : (
             <span className={attention}>
-              None received yet: changes arrive with the ten-minute read until
-              {` ${host}`} sends them.
+              None received yet; changes arrive every ten minutes
             </span>
           )}
         </RepositoryFact>

@@ -9,7 +9,7 @@ const usage = `Usage: bun run admin <command> [options] [--json]
        (on a server: lictory admin <command>, which runs this inside the API container)
 
   status                       Access policy and counts
-  setup                        The first administrator and their organization:
+  setup                        First administrator and organization:
                                --organization <name> [--organization-handle <handle>]
                                --admin-name <full name> --admin-email <email>
                                (--name and --email work too); password from
@@ -33,9 +33,8 @@ const usage = `Usage: bun run admin <command> [options] [--json]
   ai-off                       No AI provider; removes stored keys
 
 Passwords come from the first line of stdin (--password-stdin) or the
-variables lictory admin reads, never from arguments. With
---json exactly one JSON object goes to stdout. The database is DATABASE_URL
-(a checkout's .env counts).
+variables above, never from arguments. --json writes exactly one JSON object
+to stdout. Database: DATABASE_URL (a checkout's .env counts).
 
 Exit codes: 0 done, 1 refused or failed, 3 already set up, 64 usage.`;
 
@@ -52,7 +51,7 @@ if (
 }
 if (!process.env.DATABASE_URL) {
   process.stderr.write(
-    "DATABASE_URL is not set. Point it at the database to administer: in a checkout, the one in .env (docs/operations/development.md); on a server, use lictory admin.\n",
+    "DATABASE_URL is not set. In a checkout, use the one in .env (docs/operations/development.md); on a server, use lictory admin.\n",
   );
   process.exit(1);
 }

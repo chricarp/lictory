@@ -153,9 +153,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   // It reads the task and waits for Ada's answer: the card says it waits on
   // her, not that it is running, and the Factory counts it as hers.
   await expect(card.getByText("Waiting on you")).toBeVisible();
-  await expect(
-    card.getByText("Forge waits for your next message: reply in this thread."),
-  ).toBeVisible();
+  await expect(card.getByText("Forge waits for your reply.")).toBeVisible();
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
@@ -184,7 +182,7 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
   await expect(
-    asked.getByText("Waiting on you: answer it on Forge’s session card above."),
+    asked.getByText("Waiting on you. Answer on the session card above."),
   ).toBeVisible();
   await expect(asked.getByRole("button", { name: "Approve" })).toHaveCount(0);
   // Anyone else in the channel is told who decides, and is not offered
@@ -202,12 +200,10 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await expect(
     boThread
       .getByRole("article", { name: /^Forge session/ })
-      .getByText(
-        "Ada decides: the agent’s owner or the person who started the session.",
-      ),
+      .getByText("Ada decides", { exact: true }),
   ).toBeVisible();
   await expect(
-    boThread.getByText("Ada decides, on Forge’s session card above."),
+    boThread.getByText("Ada decides on the session card above."),
   ).toBeVisible();
   await expect(boThread.getByRole("button", { name: "Approve" })).toHaveCount(
     0,

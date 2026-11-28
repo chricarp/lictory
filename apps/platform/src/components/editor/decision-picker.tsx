@@ -206,9 +206,7 @@ export function DecisionPicker({
           </CommandList>
           <CommandEmpty className="text-[13px] text-muted-foreground data-empty:px-3 data-empty:pb-2.5">
             {error ||
-              (loading
-                ? "Searching decisions…"
-                : "No recorded decisions match.")}
+              (loading ? "Searching decisions…" : "No matching decisions")}
           </CommandEmpty>
         </Command>
       </PopoverContent>

@@ -123,7 +123,7 @@ void test("probing reports unreachable and silent servers", async () => {
   // Plain words with the next step; the code is a detail, not the message.
   assert.equal(
     !result.ok ? result.error : "",
-    "No server named nowhere.example could be found. Check the address for typos. If the server is on your company's network, connect to that network or its VPN.",
+    "No server named nowhere.example could be found. Check the address. On a company network, connect to it or its VPN.",
   );
   assert.equal(!result.ok ? result.detail : "", "ERR_NAME_NOT_RESOLVED");
 

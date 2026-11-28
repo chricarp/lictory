@@ -294,9 +294,7 @@ export function UnknownProjectRoute() {
           Back to {project.name}
         </Button>
       }
-    >
-      {project.name} has no page at this address.
-    </MissingState>
+    />
   );
 }
 
@@ -317,7 +315,7 @@ export function OrganizationNotFound() {
         </Button>
       }
     >
-      Check the address, or choose a page from the sidebar.
+      Check the address.
     </MissingState>
   );
 }
@@ -339,8 +337,7 @@ function TwoFactorRequired({ organizationName }: { organizationName: string }) {
           </Link>
         }
       >
-        {organizationName} requires two-factor authentication for its members.
-        Set it up in your account settings, then come back here.
+        {organizationName} requires it for its members.
       </MissingState>
     </main>
   );

@@ -90,14 +90,11 @@ function Integrations() {
   const { isAdmin } = useWorkspace();
   return (
     <>
-      <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        How Lictory reaches Jira and Slack for this organization.
-      </p>
       <JiraConnections />
       <SlackConnection />
       {!isAdmin && (
         <ReadOnlyNotice>
-          Only organization administrators connect and update Jira and Slack.
+          Only administrators can change integrations.
         </ReadOnlyNotice>
       )}
     </>

@@ -214,7 +214,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
     )
       throw new DomainError(
         "forbidden",
-        "Only administrators of a project, or people who can hand its work off, can browse Jira projects for it.",
+        "Only project administrators or people who can hand off its work can browse Jira projects for it.",
       );
   };
 
@@ -622,7 +622,7 @@ export function createDeliveryService(db: Database, options: Options = {}) {
         if (stored.length === 0)
           throw new DomainError(
             "unavailable",
-            "Jira cannot be connected yet: this Lictory installation has no DELIVERY_CREDENTIALS_KEY. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
+            "Jira cannot be connected: DELIVERY_CREDENTIALS_KEY is not set. An operator must set it and restart Lictory (see docs/operations/configuration.md).",
           );
       });
       const provider = providers().jira_cloud;

@@ -91,8 +91,8 @@ export function ProjectSettingsSection({ section }: { section: string }) {
       {readOnly && (
         <ReadOnlyNotice>
           {active === "labels"
-            ? "You can view this project's labels and milestones. Project administrators and people whose discipline changes properties can edit them."
-            : "You can view this project's settings. Project administrators and organization administrators can change them."}
+            ? "Only project administrators and people who change properties can edit labels."
+            : "Only project and organization administrators can change these settings."}
         </ReadOnlyNotice>
       )}
       {active === "general" && (

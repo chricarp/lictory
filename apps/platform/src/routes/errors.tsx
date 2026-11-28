@@ -26,7 +26,7 @@ function describeWorkspaceError(error: unknown) {
       icon: CloudOff,
       tone: "warning" as const,
       title: "Couldn’t reach the server",
-      body: "Lictory didn’t answer in time. Check your connection and retry.",
+      body: "Check your connection and retry.",
       retry: "Retry",
     };
 
@@ -43,7 +43,7 @@ function describeWorkspaceError(error: unknown) {
       icon: HardDrive,
       tone: "warning" as const,
       title: "This browser cannot save work",
-      body: "Enable IndexedDB, or try a different browser. Without local storage, the workspace cannot be kept on this device.",
+      body: "Enable IndexedDB, or try a different browser.",
     };
 
   if (
@@ -153,8 +153,7 @@ export function RootError({ error, reset }: ErrorComponentProps) {
           <StateIllustration kind="recovery" />
           <h1 style={{ fontSize: 24 }}>Lictory could not open this page</h1>
           <p style={{ fontSize: 14, lineHeight: 1.7 }}>
-            An unexpected error interrupted the page. Try again, or return to
-            your workspace.
+            An unexpected error interrupted the page.
           </p>
           <div className="recovery-actions">
             <button onClick={reset}>Try again</button>

@@ -120,7 +120,6 @@ export function CreateSpaceDialog({
   return (
     <Dialog
       title="New space"
-      description="Pages your team writes and reviews together: handbooks, decisions, runbooks."
       onClose={onClose}
       onSubmit={() => void submit()}
       footer={
@@ -195,7 +194,7 @@ export function CreateSpaceDialog({
               >
                 {handle && !handleValid
                   ? "Use lowercase letters, digits and single hyphens."
-                  : "Links to the space keep working only while its address stays the same."}
+                  : "Changing it later breaks links to the space."}
               </p>
             </div>
           ) : (
@@ -259,11 +258,7 @@ export function CreateSpaceDialog({
             keepMounted
             className="space-y-4 border-t bg-muted/30 px-3.5 py-3.5 text-[length:inherit] leading-[inherit] text-inherit"
           >
-            <HomeFields
-              value={home}
-              onChange={setHome}
-              hint="Where the space appears in navigation."
-            />
+            <HomeFields value={home} onChange={setHome} />
             <SegmentedChoice
               label="Access"
               name="space-access"
@@ -278,8 +273,7 @@ export function CreateSpaceDialog({
                 {
                   value: "restricted",
                   label: "Restricted",
-                  description:
-                    "Only people you add can open it. You get edit access.",
+                  description: "Only people you add. You get edit access.",
                 },
               ]}
             />

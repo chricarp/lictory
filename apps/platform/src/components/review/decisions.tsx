@@ -191,9 +191,7 @@ export function Decisions() {
       const reason =
         e instanceof Error ? e.message : "The decision was not saved.";
       setError(
-        context
-          ? `${context}: ${reason} Save again to record it; the discussion stays resolved.`
-          : reason,
+        context ? `${context}: ${reason} Save again to record it.` : reason,
       );
       return false;
     } finally {
@@ -216,10 +214,6 @@ export function Decisions() {
           </Button>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Keep agreed conclusions with their original revision. Recording a
-        decision does not approve the specification.
-      </p>
       {decisions
         .filter((d) => showArchived || !d.archivedAt)
         .map((d) => (
@@ -488,9 +482,7 @@ function RelatedKnowledge() {
           </Button>
         </form>
         {results?.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            No recorded decisions or approved or delivered specifications match.
-          </p>
+          <p className="text-xs text-muted-foreground">No matches.</p>
         )}
         {results?.map((r) => (
           <div key={`${r.kind}:${r.id}`} className="rounded-md border p-3">

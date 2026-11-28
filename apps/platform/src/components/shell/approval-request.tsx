@@ -438,8 +438,8 @@ function Context({
         >
           <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
           {action.kind === "file"
-            ? "No repository is linked to this session: the file is written in a scratch workspace and discarded when the session ends."
-            : "No repository is linked to this session: the command runs in a scratch workspace, and files it changes there are discarded when the session ends. What it changes elsewhere, such as a database, stays changed."}
+            ? "No repository linked: the file is discarded when the session ends."
+            : "No repository linked: files it changes are discarded when the session ends. Changes elsewhere, such as a database, stay."}
         </p>
       )}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-xs">
@@ -584,9 +584,7 @@ function Context({
       )}
       {question && (
         <p className="text-[13px] leading-5">
-          {agent?.name ?? "The agent"} asks this as a question: it names no
-          command or file, so there is nothing to approve. Answer it in words,
-          or deny it.
+          Nothing to approve: it names no command or file. Answer or deny it.
         </p>
       )}
       {(session.pullRequestId ?? session.pullRequestUrl) && (
@@ -622,7 +620,7 @@ function Context({
       ) : (
         <p className="text-xs text-muted-foreground">
           {deciders.length
-            ? `${deciders.map((id) => firstName(memberName(id))).join(" or ")} decides: the agent’s owner or the person who started the session.`
+            ? `${deciders.map((id) => firstName(memberName(id))).join(" or ")} decides`
             : "The agent’s owner or the person who started the session decides."}
         </p>
       )}

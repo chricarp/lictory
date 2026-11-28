@@ -1,117 +1,114 @@
 ---
 title: The Factory
-description: Start coding agents on runners you control, follow their work live, steer them, answer what they ask and read what they changed.
+description: Start coding agents on runners you control, follow and steer their work, and answer what they ask.
 ---
 
 The **Factory** is where your team's coding agents work. An agent such as
 Claude Code, Codex or Lictory's built-in harness runs on a **runner**, a
-machine you control, in its own git branch. People start sessions, steer
-them and make the decisions; agents do the work in between.
+machine you control, in its own git branch. People start, steer and decide;
+agents do the work in between.
 
-Open it from **Factory** in the sidebar. The overview lists the agent
-requests that wait on you (the same rows as your [Inbox](/inbox)'s **To
-do** and Home, answered right there), the sessions waiting on a teammate and
-on whom, what agents are working on now, what is queued and what finished
-recently. Its tabs lead to **Sessions**, **Agents** and **Runners**;
-**Sessions** lists the recent sessions of the organization, newest started
-first, with who ran and started each, how long it ran and what came of it.
-Narrow it by state, by agent or by who started it to find yesterday's run or
-the ones that failed.
+Open it from **Factory** in the sidebar. The overview shows:
+
+- agent requests waiting on you, answered in place (the same rows as your
+  [Inbox](/inbox)'s **To do** and Home)
+- sessions waiting on a teammate, and on whom
+- what agents are working on, what is queued and what finished recently
+
+Its tabs lead to **Sessions**, **Agents** and **Runners**. **Sessions** lists
+the organization's recent sessions, newest first, with who ran and started
+each, how long it ran and how it ended. Filter by state, agent or who started
+it.
 
 ## Before you start
 
 1. [Add a runner](/factory/runners): a server, a VPS, a laptop or a Mac with
    `lictory-runner` installed.
-2. [Create an agent](/factory/agents) you own, and choose the harness it
-   runs.
+2. [Create an agent](/factory/agents) you own, and choose its harness.
 
 ## Start a session
 
-Choose **Start session**, pick the agent and say what it should do. You can
-name a work item (its key becomes part of the branch name and of the commit
+Choose **Start session**, pick the agent and say what it should do.
+Optionally name a work item (its key goes into the branch name and commit
 message, so the code links back to it) and a repository with its base
-branch. The session is **queued** until a runner that may run the agent
-claims it. When no online runner can run it (none is online, none has the
-agent's harness, or the only ones are other people's personal runners), the
-session, its card and its item say **No runner** and the overview points
-you to **Runners**.
+branch.
 
-The repository starts at the work item's project default. With no work item
-and exactly one repository linked in the organization, it starts at that
-one; you can still choose **None**. Without a repository the agent works in
-a scratch workspace that is discarded when the session ends: the dialog says
-so before you start, and a request to write a file or run a command says so
-before you approve it (a command's effects outside the workspace, such as a
-database migration, are not undone). A session that changed files there ends
-as **Work not kept**, with how many files were discarded, instead of
-**Completed**; **Start again with a repository…** opens Start session with
-the same agent, task and work item.
+The session is **queued** until a runner that may run the agent claims it.
+When no online runner can (none is online, none has the agent's harness, or
+the only ones are other people's personal runners), the session, its card and
+its item say **No runner** and the overview points you to **Runners**.
 
-You can start sessions with agents you own, and with agents their owners
-share with the organization. A shared agent still acts as its owner.
+The repository defaults to the work item's project default. With no work item
+and exactly one repository linked in the organization, it defaults to that
+one; you can still choose **None**.
 
-You can also start one from a conversation: mention the agent in a channel
-or a direct message and the message's thread becomes the session's thread,
-with a live card, the agent's answers and its approval requests. See
-[ask an agent](/channels#ask-an-agent).
+Without a repository the agent works in a scratch workspace discarded when
+the session ends. The dialog says so before you start, and so does any
+request to write a file or run a command. A command's effects outside the
+workspace, such as a database migration, are not undone. A session that
+changed files there ends as **Work not kept**, with the number of files
+discarded, instead of **Completed**; **Start again with a repository…** opens
+Start session with the same agent, task and work item.
+
+You can start sessions with agents you own and with agents their owners share
+with the organization. A shared agent still acts as its owner.
+
+You can also mention the agent in a channel or direct message: the message's
+thread becomes the session's thread, with a live card, the agent's answers
+and its approval requests. See [ask an agent](/channels#ask-an-agent).
 
 ## Follow and steer
 
-The session page shows the transcript as it happens: the agent's messages,
-tool calls and commands (folded to one line; open them for the details),
-files it changed and status changes. Below it:
+The session page shows the transcript live: messages, tool calls and commands
+(folded to one line), changed files and status changes. Below it:
 
-- **Message the agent** to steer it. A message sent while it works reaches
-  it when its current step ends.
+- **Message the agent** to steer it. A message sent while it works arrives
+  when its current step ends.
 - **Interrupt** stops the current turn; the agent keeps its work and waits
-  for your next message (the session shows **Waiting on you**). It is offered
-  only while the agent works: a session already waiting on you has nothing
-  to interrupt.
-- **Cancel…** stops the session for good, after you confirm. **Retry** runs a failed or canceled
-  session again from its original instructions and sends it the messages you
-  sent before, so you do not repeat them; its history stays.
+  for your next message (**Waiting on you**). Offered only while the agent
+  works.
+- **Cancel…** stops the session for good, after you confirm.
+- **Retry** reruns a failed or canceled session from its original
+  instructions, with the messages you sent before; its history stays.
 
 Only the person who started the session and the agent's owner can steer it.
 An organization administrator can also cancel it. In a session's channel
-thread, their replies are messages to the agent too, and **Interrupt** and
-**Cancel…** are on the session's card there.
+thread, their replies are messages to the agent, and **Interrupt** and
+**Cancel…** are on the session's card.
 
 ## Answer what the agent asks
 
-When an agent needs a decision (for example a command its harness may not
-run without permission) the session is **Waiting on you** and an approval
-request appears in the session, on the Factory overview, on Home and in your
-Inbox's To do. It names the item, the agent and the exact action (the
-command it would run or the file it would write). Open **Review** to see the
-evidence, then choose **Approve** or **Deny**.
+When an agent needs a decision, such as a command its harness may not run
+without permission, the session is **Waiting on you**. The approval request
+appears in the session, on the Factory overview, on Home and in your Inbox's
+To do. It names the item, the agent and the exact action (the command or the
+file). Open **Review** to see the evidence, then choose **Approve** or
+**Deny**.
 
-A request that names no command or file is a **Question**: there is nothing
-to approve, so you answer it in words (**Answer**, then **Send answer**) or
-deny it. Lictory never approves an action on its title alone. Only the
-person who started the session and the agent's owner can answer, and an
-agent can never answer for them.
+A request that names no command or file is a **Question**: answer it in words
+(**Answer**, then **Send answer**) or deny it. Lictory never approves an
+action on its title alone. Only the person who started the session and the
+agent's owner can answer; an agent never answers for them.
 
-When the agent asks something in its own words and waits for your answer,
-the session is **Waiting on you** too: reply in the session or in its
-thread.
+When the agent asks something in its own words and waits, the session is
+**Waiting on you** too: reply in the session or its thread.
 
-A session you started that fails is in your To do and on Home until you
-retry it (or for a week). Retry runs the same task again; to change what it
-is asked, update its work item or reply in its thread and start a new
-session (the failed session's page links both).
+A session you started that fails stays in your To do and on Home until you
+retry it (or for a week). Retry runs the same task; to change the task,
+update its work item or reply in its thread and start a new session (the
+failed session's page links both).
 
 ## When it finishes
 
 The runner commits what the agent left uncommitted, pushes the session's
-branch and shows the agent's summary. **Completed** is the agent's claim,
-not proof: work items reach done through merged pull requests, passing
-checks and your Definition of Done.
+branch and shows the agent's summary. **Completed** is the agent's claim, not
+proof: work items reach done through merged pull requests, passing checks and
+your Definition of Done.
 
-If the runner stops responding, the session returns to the queue and
-another runner takes it (up to three attempts).
+If the runner stops responding, the session returns to the queue for another
+runner (up to three attempts).
 
-When the session works on a claimed item, the claim follows it: the runner
-keeps the claim while the session runs, a failed or canceled session gives
-the item back, and a completed one keeps the claim until the item's
-Definition of Done moves it to Done (for up to seven days; release it sooner
-if the work is abandoned).
+On a claimed item, the claim follows the session: the runner keeps it while
+the session runs, a failed or canceled session gives the item back, and a
+completed one keeps it until the Definition of Done moves the item to Done
+(up to seven days; release it sooner if the work is abandoned).

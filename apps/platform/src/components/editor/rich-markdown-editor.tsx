@@ -367,7 +367,7 @@ const RichMarkdownEditor = forwardRef<
               suggestionExtension("workItemMenu", {
                 char: "#",
                 title: "Work items",
-                empty: "No matching work items you can see",
+                empty: "No matching work items",
                 store: menus.items,
                 items: (query) =>
                   workItemItems(query, latest.current.resolver.items()),
@@ -376,7 +376,7 @@ const RichMarkdownEditor = forwardRef<
                 char: "[[",
                 allowSpaces: true,
                 title: "Pages",
-                empty: "No matching pages you can read",
+                empty: "No matching pages",
                 store: menus.pages,
                 items: (query) =>
                   pageItems(query, latest.current.resolver.pages()),

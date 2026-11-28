@@ -140,7 +140,7 @@ export function ReviewedNotice({
         aria-hidden
       />
       <p className="min-w-0 flex-1 basis-56">
-        Changes to this page are reviewed. Start a branch to propose changes.
+        Changes to this page are reviewed.
       </p>
       <StartBranch page={page} branches={branches} />
     </div>
@@ -247,9 +247,6 @@ function StartBranchForm({
       <h2 id={labelId} className="text-sm font-semibold">
         Start a branch
       </h2>
-      <p className="text-xs text-muted-foreground">
-        A branch has its own live draft. Propose it for review when it is ready.
-      </p>
       <label htmlFor={inputId} className="text-xs font-medium">
         Branch name
       </label>

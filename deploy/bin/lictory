@@ -209,11 +209,11 @@ command_usage() {
       cat <<'USAGE'
 Usage: lictory install [options]
 
-Installs Lictory, or changes the settings of an installed environment. On a
-terminal it asks for every answer; with --yes it takes the options below and
-keeps current values for the rest. Every option can also be set as a
-LICTORY_<OPTION> variable (hyphens as underscores), which keeps secrets out
-of the process list and shell history.
+Installs Lictory, or changes an installed environment's settings. On a
+terminal it asks; with --yes it takes the options below and keeps current
+values for the rest. Every option can also be a LICTORY_<OPTION> variable
+(hyphens as underscores), which keeps secrets out of the process list and
+shell history.
 
 Address and certificates
   --tls acme|proxy|internal|http   How browsers reach Lictory securely
@@ -278,47 +278,42 @@ USAGE
       cat <<'USAGE'
 Usage: lictory status [--json] [--env <name>]
 
-The address, the active release and when it was activated, the state of
-every service, the backup timer's last and next run, and the access policy.
-Piped, it prints the same facts as plain lines. --json prints the release,
-services, address, channel, activation time, backup target and timer, and
-access policy for scripts (access is null when the api does not answer; exit
-status 0 even when a service is unhealthy: check "healthy").
+Address, active release and activation time, service states, the backup
+timer's last and next run, and the access policy. --json for scripts (access
+is null when the api does not answer; exits 0 even when a service is
+unhealthy: check "healthy").
 USAGE
       ;;
     doctor)
       cat <<'USAGE'
 Usage: lictory doctor [--json] [--env <name>]
 
-Checks the host (Docker, memory, disk), the configuration, DNS and
-certificates, the services, the database and replication, backups, the access
-policy and the scheduled jobs, and says how to fix each problem. Exits 1 when
-a check fails; warnings do not change the exit status. --json prints
-{environment, healthy, failures, warnings, checks: [{status, section,
-message}]} for monitoring, with the same exit status.
+Checks the host (Docker, memory, disk), configuration, DNS and certificates,
+services, database and replication, backups, access policy and scheduled
+jobs, with a fix for each problem. Exits 1 when a check fails; warnings do
+not. --json prints {environment, healthy, failures, warnings, checks:
+[{status, section, message}]}, with the same exit status.
 USAGE
       ;;
     upgrade)
       cat <<'USAGE'
 Usage: lictory upgrade [version] [--check [--json]] [--yes] [--env <name>]
 
-Moves to the newest release of the environment's channel, or to <version>:
-verifies the release's digest, takes a backup before migrations (of the
-bundled database; an external one relies on its provider's), migrates and
-activates it. If activation fails the previous release keeps serving.
-Upgrades only move forward; see lictory rollback.
+Moves to the newest release of the channel, or to <version>: verifies its
+digest, backs up the bundled database, migrates and activates it. If
+activation fails, the previous release keeps serving. Upgrades only move
+forward; see lictory rollback.
 
-  --check   Only say whether a newer release exists; exit 10 when it does,
-            0 when the environment runs the newest one
+  --check   Only check for a newer release; exit 10 when there is one,
+            0 when the environment runs the newest
 USAGE
       ;;
     rollback)
       cat <<'USAGE'
 Usage: lictory rollback [--yes] [--env <name>]
 
-Re-activates the images of the previously activated release. Database
-migrations stay applied (every migration is compatible with the release
-before it).
+Re-activates the previous release's images. Database migrations stay
+applied (each is compatible with the release before it).
 USAGE
       ;;
     backup)
@@ -326,9 +321,8 @@ USAGE
 Usage: lictory backup [list [--json]] [--env <name>]
 
 Without a command, takes an encrypted database backup now and sends it to
-the configured target (BACKUP_TARGET). Nightly backups run from a systemd
-timer. An external database (LICTORY_DATABASE=external) is backed up by its
-provider; Lictory takes no backups of it.
+BACKUP_TARGET. Nightly backups run from a systemd timer. An external database
+(LICTORY_DATABASE=external) is backed up by its provider, not by Lictory.
 
   list   The stored backups, newest first: kind (daily, weekly, monthly,
          manual, pre-deploy), time, size and the key lictory restore takes
@@ -338,25 +332,23 @@ USAGE
       cat <<'USAGE'
 Usage: lictory restore <identity-file|none> [latest|<key>|<file>] [--drill] [--yes]
 
-Replaces the environment's database with a backup (the newest by default),
-keeping the current data in a Docker volume. <identity-file> is the age
-private key the backup was encrypted for (none for unencrypted backups).
+Replaces the database with a backup (the newest by default), keeping the
+current data in a Docker volume. <identity-file> is the backup's age private
+key (none for unencrypted backups).
 
   --drill   Restore into a scratch database and verify it; the live
             database is not touched
-  --yes     Do not ask to type the environment name
+  --yes     Skip typing the environment name
 
-An external database is restored with its provider's point-in-time recovery
-or snapshots, not with this command.
+An external database is restored with its provider's tools, not this command.
 USAGE
       ;;
     logs)
       cat <<'USAGE'
 Usage: lictory logs [service] [-f|--follow] [--tail N] [--since <when>] [--timestamps] [--env <name>]
 
-Logs of every service, or of one: proxy, api, worker, collaboration,
-zero-cache, postgres (the bundled database only). The last 200 lines by
-default.
+Logs of every service, or one: proxy, api, worker, collaboration,
+zero-cache, postgres (bundled database only). Last 200 lines by default.
 
   --since <when>   Everything since then: a duration (30m, 2h) or a time
                    (2026-11-05, 2026-11-05T14:00Z); with --tail, at most N lines
@@ -367,23 +359,21 @@ USAGE
       cat <<'USAGE'
 Usage: lictory registry-login [--username <user>] [--env <name>]
 
-Stores a registry token (read from standard input, or asked for on a
-terminal) so the server can pull private release images. For GHCR, use a
-GitHub token with read:packages.
+Stores a registry token (from standard input, or prompted on a terminal) to
+pull private release images. GHCR: a GitHub token with read:packages.
 USAGE
       ;;
     support-bundle)
       cat <<'USAGE'
 Usage: lictory support-bundle [--output <file.tar.gz>] [--since <duration>] [--env <name>]
 
-Writes one archive (mode 0600) for a bug report or a support request: host
-and Docker versions, status, doctor, the settings with secrets masked, the
-containers, the deploy log and release history, the timers, and each
-service's logs since <duration> (default 24h; for example 30m or 72h).
+Writes one archive (mode 0600) for a bug report: host and Docker versions,
+status, doctor, settings with secrets masked, containers, deploy log, release
+history, timers and each service's logs since <duration> (default 24h).
 
-Every secret value of .env, email addresses and bearer tokens are replaced.
-Logs can still contain your organization's content: review the archive
-before sharing it. Default file: ./lictory-support-<env>-<time>.tar.gz
+Secrets in .env, email addresses and bearer tokens are replaced. Logs can
+still contain your organization's content: review the archive before sharing
+it. Default file: ./lictory-support-<env>-<time>.tar.gz
 USAGE
       ;;
     uninstall)
@@ -391,14 +381,14 @@ USAGE
 Usage: sudo lictory uninstall [--purge [--no-backup]] [--yes] [--env <name>]
 
 Stops the environment and removes its containers and scheduled jobs. The
-database, settings (.env), releases and backups stay: start it again with
+database, settings (.env), releases and backups stay; start it again with
 lictory config apply.
 
-  --purge       Also delete the database and every other volume of the
-                environment, and its directory with the settings and secrets.
-                A final backup is taken first when backups go off this
-                server; you type the environment name to confirm. An external
-                database is never touched: drop it with your provider.
+  --purge       Also delete the database, every other volume and the
+                environment's directory with its settings and secrets. A
+                final backup is taken first when backups go off this server;
+                you type the environment name to confirm. An external
+                database is never touched.
   --no-backup   With --purge: skip the final backup
   --yes         No questions (for --purge, no typed confirmation)
 
@@ -411,12 +401,12 @@ USAGE
 Usage: lictory database check [--json] [--env <name>]
        sudo lictory database setup [--env <name>]
 
-  check   Checks the database against Lictory's requirements and names the
-          fix for each failed one. --json for scripts.
-  setup   An external database only: creates or repairs Lictory's four roles
-          and two databases, with the passwords in .env, through an
-          administrator connection from LICTORY_DATABASE_ADMIN_URL or a
-          prompt. The connection is used once and never stored.
+  check   Checks the database against Lictory's requirements, with the fix
+          for each failure. --json for scripts.
+  setup   External database only: creates or repairs Lictory's four roles
+          and two databases (passwords from .env) through an administrator
+          connection from LICTORY_DATABASE_ADMIN_URL or a prompt, used once
+          and never stored.
 
 Guide: https://docs.lictory.com/self-hosting/database
 USAGE
@@ -425,9 +415,9 @@ USAGE
       cat <<'USAGE'
 Usage: lictory version [--json]
 
-The release of the lictory tools on this server and the active release and
-channel of each environment, read from disk (no container or network needed).
---json prints {tools, environments: [{name, version, channel}]}.
+The lictory tools' release and each environment's active release and
+channel, read from disk. --json prints {tools, environments: [{name,
+version, channel}]}.
 USAGE
       ;;
     config) config_usage ;;
@@ -455,10 +445,9 @@ Usage: lictory config <command> [options]
   --no-apply   set, unset, edit: write the settings only
   --force      Also change generated secrets, or keys Lictory does not know
 
-Settings live in <root>/<env>/.env (mode 0600). Every change keeps a copy of
-the previous file next to it (.env.backup-<time>.<id>). If applying fails, the
-previous settings are restored and applied again. Settings the installer asks
-for can also change with: lictory install
+Settings live in <root>/<env>/.env (mode 0600). Each change keeps a copy of
+the previous file (.env.backup-<time>.<id>); if applying fails, the previous
+settings are restored. Installer settings can also change with: lictory install
 USAGE
 }
 
@@ -482,9 +471,8 @@ Usage: lictory admin <command> [options]
   reactivate <email>       Allow a deactivated account to sign in again
   ai-check [--json]        Same as lictory ai check
 
-Instance administrators manage accounts and organizations in the admin
-console at <your address>/admin. These commands work from the server even
-when nobody can sign in, for example to recover the only administrator.
+These commands work even when nobody can sign in. The admin console is at
+<your address>/admin.
 USAGE
 }
 
@@ -2996,8 +2984,8 @@ ai_usage() {
   cat <<'USAGE'
 Usage: lictory ai <command> [options]
 
-  status [--json]   The language model and dictation providers in use,
-                    and where their settings come from
+  status [--json]   Language model and dictation providers in use, and
+                    where their settings come from
   providers         Every supported provider (cloud and self-hosted)
   setup             Choose providers, models and keys, test them, save them
                     (guided; or with --yes: --provider, --model, --base-url,
@@ -3013,13 +3001,12 @@ Usage: lictory ai <command> [options]
                     LICTORY_TRANSCRIPTION_API_KEY,
                     LICTORY_TRANSCRIPTION_AZURE_CLIENT_SECRET; never from
                     arguments)
-  check [--json]    Send synthetic content through every configured feature
-                    and report what works
+  check [--json]    Test every configured feature with synthetic content
   off               No AI provider (removes stored keys)
 
 The admin console (<your address>/admin/ai) edits the same settings. When
 .env sets LICTORY_AI_* or OPENAI_API_KEY, those win and setup refuses:
-change them with lictory config set, or unset them to manage AI here.
+change or unset them with lictory config.
 Guide: https://docs.lictory.com/self-hosting/ai-providers
 USAGE
 }

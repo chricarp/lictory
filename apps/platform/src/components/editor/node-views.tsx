@@ -106,7 +106,7 @@ function RawBlockView({ node }: ReactNodeViewProps) {
     >
       <p className="editor-raw-label">
         <FileCode2 className="size-3.5" aria-hidden />
-        Markdown kept as written. Edit it as Markdown to change it.
+        Raw Markdown. Edit as Markdown to change it.
       </p>
       <pre>{text(node.attrs.source)}</pre>
     </NodeViewWrapper>

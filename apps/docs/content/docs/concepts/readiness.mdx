@@ -3,27 +3,27 @@ title: Readiness
 description: Readiness is evidence, not a status label. Each project defines the checks that make a specification ready, and how strictly delivery waits for them.
 ---
 
-A specification is not ready because someone chose _Ready_ from a menu.
-Lictory computes readiness from facts, like CI for requirements. Each check
-states what it verified and, when it fails, what would make it pass.
+Nobody picks _Ready_ from a menu. Lictory computes readiness from facts,
+like CI for requirements. Each check states what it verified and, when it
+fails, what would make it pass.
 
 ## Refinement state
 
 Spec-backed items have a refinement state next to their delivery status:
-`draft`, `refinement`, `in review` and `ready`. The two are never merged into
-one field. Lictory sets `ready` itself when every readiness check passes, and
-takes it away when one stops passing (a new revision, a blocking thread, a
-stale approval). The first time a specification becomes ready, its main is
-protected: later changes go through reviewed pull requests.
+`draft`, `refinement`, `in review` and `ready`, never merged into one field.
+Lictory sets `ready` when every readiness check passes and takes it away when
+one stops passing (a new revision, a blocking thread, a stale approval). The
+first time a specification becomes ready, its main is protected: later changes
+go through reviewed pull requests.
 
-Ready means eligible for delivery. It does not accept, schedule or start the
-work; that is a separate decision.
+Ready means eligible for delivery. Accepting, scheduling or starting the work
+is a separate decision.
 
 ## Definition of Ready
 
 Project administrators define, per work item type, which evidence makes a
-specification ready (**Project settings → Definition of Ready**). A type without its own
-list uses Lictory's defaults, so a new project needs no configuration:
+specification ready (**Project settings → Definition of Ready**). A type
+without its own list uses the defaults:
 
 - the specification is written;
 - no blocking discussion is open;
@@ -44,11 +44,11 @@ A project can add:
   required next to a person's decision, and anyone holding a discipline can
   override it for one revision.
 
-The Definition of Ready is versioned. Before publishing a change, a preview
+The Definition of Ready is versioned. Before you publish a change, a preview
 shows which items keep their version, which become ready and which would need
-more work. Items that are already ready, done or canceled keep the version
-they were evaluated under, so finished work never loses readiness because the
-rules changed.
+more work. Items already ready, done or canceled keep the version they were
+evaluated under, so finished work never loses readiness when the rules
+change.
 
 ## Readiness policy
 

@@ -3,9 +3,8 @@ title: Agents and MCP
 description: What an agent connected through MCP can read and propose in Spaces, and the decisions that stay with people.
 ---
 
-Agents connected through [MCP](/integrations/agents) work in Spaces as the
-person whose token they use, with exactly that person's space access. A space
-you cannot read does not exist for your agent either.
+Agents connected through [MCP](/integrations/agents) work in Spaces with
+exactly the space access of the person whose token they use.
 
 ## What an agent can read
 
@@ -26,31 +25,30 @@ you cannot read does not exist for your agent either.
   pages among the agreements and decisions that answer a question
   (`searchProductKnowledge`), each with the exact version to cite.
 
-The complete list of capabilities is in
-[AI agents and MCP](/integrations/agents#spaces); the links between pages and
-work are in [find and cite knowledge](/integrations/agents#find-and-cite-knowledge).
+See the full list in [AI agents and MCP](/integrations/agents#spaces), and
+links between pages and work in
+[find and cite knowledge](/integrations/agents#find-and-cite-knowledge).
 
 ## How an agent changes a page
 
-Agents cannot type into live drafts, so what people are writing stays
-theirs. An agent changes a page by **proposing** a new version:
-`proposePageChange` takes the new page as Markdown and, in one step, creates
-a branch from the published version, commits the new content to it and opens
-a pull request into main. People then review it like any other pull request
+Agents cannot type into live drafts. They **propose** a new version:
+`proposePageChange` takes the page as Markdown and, in one step, branches
+from the published version, commits the content and opens a pull request
+into main for people to review
 ([branches and pull requests](/spaces/branches)).
 
-When the change documents a work item, the agent passes the item's revision
-as the proposal's `origin`, like **Propose page update** on an item: the
-item then lists the proposal in its Knowledge section
-([knowledge in work items](/knowledge/in-work)).
+To document a work item, the agent passes the item's revision as `origin`,
+like **Propose page update**; the item then lists the proposal in its
+Knowledge section ([knowledge in work items](/knowledge/in-work)).
 
-An agent can also start discussions on a page or a quoted passage and reply
-to them, organize spaces and pages as your access allows (create a space or
-a page, move or archive pages), and work with branches: start one, open a
-pull request, request a review or resolve conflicts on a branch. With your
-access it can attach a page to a work item, keep a page as context of a
-project, team or iteration, and create a work item from a passage of a
-published page.
+As your access allows, an agent can also:
+
+- start and reply to discussions on a page or a quoted passage;
+- create spaces and pages, move or archive pages;
+- start branches, open pull requests, request reviews and resolve conflicts
+  on a branch;
+- attach a page to a work item, keep it as context of a project, team or
+  iteration, and create a work item from a passage of a published page.
 
 Ask, for example:
 
@@ -60,18 +58,17 @@ Ask, for example:
 
 ## What stays with people
 
-These are human decisions. Lictory refuses them to an agent's token on the
-server (a personal access token can make them when you explicitly ask), and
-Litto asks you to confirm first:
+The server refuses these to an agent's token (a personal access token can
+make them when you explicitly ask), and Litto asks you to confirm first:
 
 - publishing a live draft (agents never type into one);
 - approving or requesting changes on a pull request, and merging it;
 - resolving, reopening or marking a discussion blocking.
 
-An agent acting for you counts as you: nobody can approve a page change they
-contributed to, and that includes a change their agent proposed. Several
-agents using one person's token do not count as independent reviewers.
+An agent acting for you counts as you: you cannot approve a change your agent
+proposed, and several agents on one person's token are not independent
+reviewers.
 
-The MCP instruction is guidance for the agent, not a lock: a read/write token
-can perform anything your access allows. Use a read-only token when an agent
+The MCP instruction guides the agent but is not a lock: a read/write token
+can do anything your access allows. Use a read-only token for an agent that
 should only read.

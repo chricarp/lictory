@@ -73,8 +73,7 @@ function BackupCodes({ codes }: { codes: string[] }) {
   return (
     <div className="space-y-3">
       <p className="text-[13px] leading-5">
-        Save these backup codes somewhere safe, like a password manager. Each
-        code signs you in once if you lose your authenticator app.{" "}
+        Save these backup codes somewhere safe. Each signs you in once.{" "}
         <strong className="font-medium">They are shown only now.</strong>
       </p>
       <ul
@@ -240,11 +239,11 @@ export function TwoFactorSection({
       id="two-factor"
       icon={<ShieldCheck />}
       title="Two-factor authentication"
-      description="After your password, sign-in asks for a code from an authenticator app such as 1Password, Google Authenticator or Microsoft Authenticator."
+      description="A code from an authenticator app after your password."
       action={enabled ? <Badge tone="good">On</Badge> : <Badge>Off</Badge>}
       footer={
         enabled
-          ? "Lost your device and your backup codes? An administrator of an organization you belong to can reset your two-factor authentication."
+          ? "Lost your device and backup codes? An administrator of your organization can reset it."
           : undefined
       }
     >
@@ -296,9 +295,8 @@ export function TwoFactorSection({
           >
             {step.action === "disable" && (
               <p className="text-[13px] leading-5">
-                Without it, your password alone signs you in. Organizations that
-                require two-factor authentication stay closed to you until you
-                turn it on again.
+                Organizations that require two-factor authentication stay closed
+                to you until you turn it on again.
               </p>
             )}
             <label
@@ -485,12 +483,9 @@ export function PasskeysSection() {
       id="passkeys"
       icon={<Fingerprint />}
       title="Passkeys"
-      description="Sign in with your device's fingerprint, face or screen lock, or a security key, instead of your password."
+      description="Fingerprint, face, screen lock or a security key."
       footer={
-        <>
-          Passkeys are another way to sign in. They do not replace two-factor
-          authentication for password sign-ins.
-        </>
+        <>They don’t replace two-factor authentication for password sign-ins.</>
       }
     >
       <SettingsList isEmpty={passkeys?.length === 0} empty="No passkeys yet.">

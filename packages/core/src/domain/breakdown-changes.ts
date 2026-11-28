@@ -104,7 +104,7 @@ export async function inspectChildChange(
   )
     throw new DomainError(
       "validation",
-      `${label} has its own specification. Propose its text changes there, where its reviewers approve them.`,
+      `${label} has its own specification. Propose its text changes there.`,
     );
   const latest = await latestRevision(tx, organizationId, child.id);
   if (latest?.id !== change.base.revisionId)

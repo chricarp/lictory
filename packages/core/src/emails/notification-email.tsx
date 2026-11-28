@@ -35,10 +35,9 @@ export function NotificationEmail({
       brand={brand}
       footerText={
         <>
-          You receive this because of your notification settings in{" "}
-          {organizationName}.{" "}
+          Sent because of your notification settings in {organizationName}.{" "}
           <Link href={preferencesUrl} style={{ color: emailLinkColor(brand) }}>
-            Change what you are emailed about
+            Change settings
           </Link>
           .
         </>

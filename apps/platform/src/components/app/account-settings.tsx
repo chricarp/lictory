@@ -199,27 +199,18 @@ export function AccountSettings(props: AccountSettingsProps) {
       </nav>
 
       <div className="space-y-10">
-        <SettingsGroup
-          title="Identity"
-          description="How collaborators see you and where we reach you."
-        >
+        <SettingsGroup title="Identity">
           <ProfileSection user={props.user} />
           <HandleSection handle={props.user.handle} />
           <EmailSection user={props.user} />
         </SettingsGroup>
 
-        <SettingsGroup
-          title="Preferences"
-          description="How Lictory looks and responds to you, on every device you sign in to."
-        >
+        <SettingsGroup title="Preferences">
           <AppearanceSection />
           <KeyboardSection />
         </SettingsGroup>
 
-        <SettingsGroup
-          title="Sign-in & security"
-          description="The ways you sign in and the devices currently signed in."
-        >
+        <SettingsGroup title="Sign-in & security">
           {!props.signIn.password ? null : hasPassword ? (
             <PasswordSection />
           ) : (
@@ -244,16 +235,13 @@ export function AccountSettings(props: AccountSettingsProps) {
 
         <SettingsGroup
           title="Integrations"
-          description="Scripts and tools that work in Lictory as you. AI agents with a name and scope of their own are connected in each organization's Factory › Agents."
+          description="Scripts and tools that act as you. Agents with their own name and scope live in each organization's Factory › Agents."
         >
           <AgentAccessSection />
           <EventWebhooksSection />
         </SettingsGroup>
 
-        <SettingsGroup
-          title="Danger zone"
-          description="Irreversible actions on this account."
-        >
+        <SettingsGroup title="Danger zone">
           <DeleteSection hasPassword={hasPassword} />
         </SettingsGroup>
       </div>
@@ -328,12 +316,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
   }
 
   return (
-    <SettingsSection
-      id="profile"
-      icon={<UserRound />}
-      title="Profile"
-      description="Your name and photo, as shown to collaborators on threads and reviews."
-    >
+    <SettingsSection id="profile" icon={<UserRound />} title="Profile">
       <SettingsBody>
         <div className="mb-6">
           <ProfilePhoto name={user.name} image={user.image} />
@@ -371,7 +354,7 @@ function HandleSection({ handle }: { handle: string }) {
       id="handle"
       icon={<AtSign />}
       title="Handle"
-      description="Unique across Lictory. People type it to mention and find you; existing mentions keep pointing to you when it changes."
+      description="Unique across Lictory. Used to mention you."
     >
       <SettingsBody>
         <div className="max-w-sm space-y-2">
@@ -417,7 +400,7 @@ function EmailSection({ user }: Pick<AccountSettingsProps, "user">) {
       id="email"
       icon={<Mail />}
       title="Email"
-      description="Sign-in address and where notifications are sent. A change takes effect once the new address is confirmed."
+      description="A change takes effect once the new address is confirmed."
       action={
         user.emailVerified ? (
           <Badge tone="good">Verified</Badge>
@@ -553,13 +536,12 @@ function SetPasswordSection({ email }: { email: string }) {
       id="password"
       icon={<KeyRound />}
       title="Password"
-      description="You sign in through a connected account. Add a password to also sign in with your email address."
+      description="Add one to also sign in with your email address."
       action={<Badge>Not set</Badge>}
     >
       <SettingsBody className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-md text-[13px] leading-5 text-muted-foreground">
-          We email you a link to choose one. Setting it signs out every session,
-          then you can sign in either way.
+          We email you a link to choose one. Setting it signs out every session.
         </p>
         <div className="flex items-center gap-3">
           <Status tone={sent ? "success" : "error"}>{message}</Status>
@@ -676,7 +658,7 @@ function ConnectionsSection({
       id="connections"
       icon={<Link2 />}
       title="Connected accounts"
-      description="Sign in with an identity provider instead of, or alongside, a password. Only an account with the same email address can be connected."
+      description="Only an account with the same email address can be connected."
       footer={
         message ? (
           <Status tone={message.tone}>{message.text}</Status>
@@ -706,7 +688,7 @@ function ConnectionsSection({
                   {!account
                     ? "Not connected."
                     : canDisconnect
-                      ? "You can sign in with this account."
+                      ? "Used to sign in."
                       : "Your only way to sign in. Set a password before disconnecting it."}
                 </p>
               </div>
@@ -783,7 +765,7 @@ function AppearanceSection() {
       id="appearance"
       icon={<Palette />}
       title="Appearance"
-      description="Every theme has a light and a dark variant. System follows your device and switches automatically when it does."
+      description="System follows your device."
     >
       <SettingsBody className="space-y-5">
         <div className="space-y-2">
@@ -885,7 +867,7 @@ function KeyboardSection() {
       id="keyboard"
       icon={<Keyboard />}
       title="Keyboard"
-      description="Shortcuts with Ctrl, ⌘ or Alt always work. Arrow keys, Enter and Esc work either way."
+      description="Shortcuts with Ctrl, ⌘ or Alt always work."
       learnMore="shortcuts"
     >
       <SettingsBody className="space-y-3">
@@ -901,9 +883,8 @@ function KeyboardSection() {
               id="single-key-shortcuts-hint"
               className="block text-[13px] leading-5 text-muted-foreground"
             >
-              C creates an item, / searches, [ folds the sidebar, G then a
-              letter goes to a page, J, K and O move through lists. Turn them
-              off if you use speech input or press keys by accident.
+              C, /, [, G then a letter, J, K and O. Turn them off if you use
+              speech input.
             </span>
           </span>
           <Switch
@@ -973,7 +954,6 @@ function SessionsSection({
       id="sessions"
       icon={<MonitorSmartphone />}
       title="Sessions"
-      description="Browsers and devices currently signed in to this account, including this one."
       action={
         <span className="text-xs text-muted-foreground tabular-nums">
           {active} active {active === 1 ? "session" : "sessions"}
@@ -983,7 +963,7 @@ function SessionsSection({
       <SettingsBody className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-md text-[13px] leading-5 text-muted-foreground">
           {others > 0
-            ? `Signs out ${others} other ${others === 1 ? "session" : "sessions"} and keeps this browser signed in. Change your password too if you do not recognize the activity.`
+            ? `Signs out ${others} other ${others === 1 ? "session" : "sessions"}; this browser stays signed in.`
             : "This browser is the only active session."}
         </p>
         <div className="flex items-center gap-3">
@@ -1085,16 +1065,10 @@ function DeleteSection({ hasPassword }: { hasPassword: boolean }) {
       ) : (
         <SettingsBody>
           <p className="text-[13px] text-muted-foreground">
-            You will lose access to every organization you belong to. Your name
-            stays on the revisions, comments and approvals you contributed,
-            shown as a former member; what you wrote is not changed. If you are
-            the only owner of an organization, make another member an owner or
-            delete the organization first. An organization scheduled for
-            deletion is still deleted on its date; if you are its only owner,
-            nobody can cancel the deletion once your account is gone.
-            {hasPassword
-              ? " You will be asked for your password to confirm."
-              : ""}
+            You lose access to every organization. Your name stays on what you
+            contributed, shown as a former member. If you are an organization’s
+            only owner, make another member an owner or delete it first; once
+            your account is gone, nobody can cancel its scheduled deletion.
           </p>
         </SettingsBody>
       )}

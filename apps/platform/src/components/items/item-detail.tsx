@@ -635,9 +635,9 @@ export function ItemDetail({
             }
             readyHint={
               item.refinementState === "ready"
-                ? "Every readiness check passes."
+                ? "Every readiness check passes"
                 : failing.length
-                  ? `${failing.length} readiness check${failing.length > 1 ? "s" : ""} failing. ${refinementMeta.ready.label} is set automatically when they pass.`
+                  ? `${refinementMeta.ready.label} when ${failing.length} failing check${failing.length > 1 ? "s pass" : " passes"}`
                   : undefined
             }
           />
@@ -784,8 +784,7 @@ export function ItemDetail({
         <RevisionPanel onHistory={showHistory} />
       ) : (
         <p className="text-xs text-muted-foreground">
-          {type.name} items are plain work: no reviews or readiness checks.
-          Change the type to one with a specification to refine it.
+          {type.name} items have no reviews or readiness checks.
         </p>
       )}
     </div>

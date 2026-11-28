@@ -90,7 +90,7 @@ export function FactorySessions() {
   const narrowed = agentId !== ANY || starterId !== ANY;
   const label = filters.find((f) => f.value === filter)?.label ?? "All";
   return (
-    <FactoryPage description="The organization’s 200 most recent agent sessions, newest started first: which agent ran each, who started it, how long it ran, where it stands and what came of it. Open one for its full log.">
+    <FactoryPage>
       <div className="flex flex-wrap items-center gap-2">
         <div className="-mx-1 max-w-full overflow-x-auto px-1 pb-0.5">
           <Segmented
@@ -165,10 +165,10 @@ export function FactorySessions() {
           count={listed.length}
           empty={
             narrowed
-              ? "No session among the recent ones matches these filters."
+              ? "No matching sessions"
               : filter === "all"
-                ? "No agent sessions yet. Start one from the overview, or mention an agent in a channel."
-                : `No ${label.toLowerCase()} sessions among the recent ones.`
+                ? "No sessions yet"
+                : `No ${label.toLowerCase()} sessions`
           }
         >
           {listed.slice(0, shown).map((session) => (

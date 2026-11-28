@@ -59,12 +59,7 @@ export function LabelsAndMilestones({
     }
   };
   return (
-    <SettingsSection
-      id="labels"
-      icon={<Tags />}
-      title="Labels & milestones"
-      description={`Used to group and plan work in ${project.name}. Archiving keeps every historical assignment; nothing here deletes.`}
-    >
+    <SettingsSection id="labels" icon={<Tags />} title="Labels & milestones">
       <SettingsSubheading>Labels</SettingsSubheading>
       <SettingsList isEmpty={projectLabels.length === 0} empty="No labels yet.">
         {projectLabels.map((l) => (

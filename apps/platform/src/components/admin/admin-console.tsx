@@ -91,8 +91,7 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
         title="The admin console is for instance administrators"
         action={<Button render={<Link href="/" />}>Back to Lictory</Button>}
       >
-        Ask your Lictory administrator if you need to manage accounts or
-        organizations on this installation.
+        Ask an instance administrator for access.
       </MissingState>
     );
   const nav: SettingsNavItem[] = sections.map((s) => ({
@@ -104,7 +103,7 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
     <div className="h-dvh">
       <SettingsLayout
         title="Admin console"
-        subtitle={`${window.location.host} · accounts, organizations and access for this installation`}
+        subtitle={window.location.host}
         nav={nav}
       >
         <Link
@@ -200,15 +199,15 @@ function AdminOverview() {
   const notices: ReactNode[] = [];
   if (data.policy.signUpMode === "open")
     notices.push(
-      "Anyone who can reach this installation can create an account. Switch to invitations unless it is on a private network: sudo lictory install --signup-mode invite",
+      "Anyone who can reach this server can create an account. Unless it is private, switch to invitations: sudo lictory install --signup-mode invite",
     );
   if (!data.email)
     notices.push(
-      "This installation sends no email: invitations, verification and password reset links are not delivered. Create accounts with a password here, or configure outbound email: sudo lictory install --email smtp",
+      "No outbound email: invitations, verification and password reset links are not delivered. Create accounts with a password here, or configure email: sudo lictory install --email smtp",
     );
   if (data.counts.administrators < 2)
     notices.push(
-      "Only one person administers this installation. Make a second administrator so access never depends on one account.",
+      "Only one instance administrator. Make a second one as a fallback.",
     );
   return (
     <>
@@ -252,12 +251,11 @@ function AdminOverview() {
         id="policy"
         icon={<KeyRound />}
         title="Access policy"
-        description="Who can get an account and who can create organizations. The server enforces it for every sign-in method."
         footer={
           <>
-            Set by the server operator in the installation’s configuration
-            (LICTORY_SIGNUP_MODE, LICTORY_ALLOWED_EMAIL_DOMAINS,
-            LICTORY_ORGANIZATION_CREATION). Change it on the server with{" "}
+            Set by the server operator (LICTORY_SIGNUP_MODE,
+            LICTORY_ALLOWED_EMAIL_DOMAINS, LICTORY_ORGANIZATION_CREATION).
+            Change it with{" "}
             <code className="font-mono">sudo lictory install</code>.
           </>
         }
@@ -277,7 +275,7 @@ function AdminOverview() {
             }
             detail={
               data.policy.allowedEmailDomains.length
-                ? "Self-service and single sign-on accounts must use one of these. You can create accounts for any address."
+                ? "Required for self-service and single sign-on accounts."
                 : undefined
             }
           />
@@ -292,7 +290,7 @@ function AdminOverview() {
           <PolicyRow
             label="Organization deletion"
             value={`${data.policy.organizationDeletionGraceDays} days after an owner schedules it`}
-            detail="The organization is locked meanwhile, and its owners can cancel."
+            detail="Locked meanwhile; owners can cancel."
           />
           <PolicyRow
             label="Sign-in"
@@ -304,7 +302,7 @@ function AdminOverview() {
               .join(" · ")}
             detail={
               data.signIn.sso
-                ? "Your identity provider decides who may sign in with single sign-on; its people get an account on first sign-in when OIDC_AUTO_CREATE_USERS allows it."
+                ? "Accounts are created on first sign-in when OIDC_AUTO_CREATE_USERS allows it."
                 : undefined
             }
           />
@@ -314,7 +312,7 @@ function AdminOverview() {
             detail={
               data.email
                 ? undefined
-                : "Invitations, sign-up verification, password reset and notification email are not sent, so new people cannot finish a password sign-up. Create their accounts with a password here, or have an operator configure SMTP or Resend (sudo lictory install --email smtp)."
+                : "New people cannot finish a password sign-up. Create their accounts with a password here, or configure SMTP or Resend."
             }
           />
         </div>
@@ -337,7 +335,6 @@ function AiProviderSection({ ai }: { ai: Overview["ai"] }) {
       id="ai-provider"
       icon={<Sparkles />}
       title="AI providers"
-      description="Where Lictory Intelligence sends content when an organization turns it on."
       action={
         <Button
           variant="outline"
@@ -423,7 +420,7 @@ function People() {
       id="people"
       icon={<Users />}
       title="People"
-      description="Every account on this installation. Deactivating signs a person out everywhere and keeps their history; reactivating restores access."
+      description="Deactivating signs a person out and keeps their history."
       action={
         <Button size="sm" onClick={() => setCreating((c) => !c)}>
           <UserPlus className="size-3.5" /> New account
@@ -488,7 +485,7 @@ function People() {
         ) : (
           <SettingsList
             isEmpty={users.length === 0}
-            empty={search ? "Nobody matches this search." : "No accounts yet."}
+            empty={search ? "No matches" : "No accounts"}
           >
             {users.map((user) => (
               <PersonRow
@@ -630,8 +627,8 @@ function CreateAccount({
       onCreated(
         `Created ${result.user.email}${result.organization ? ` in ${result.organization.name}` : ""}. ${
           password
-            ? "Share the password with them privately; they can change it in Account settings."
-            : "They sign in with single sign-on, or choose a password with “Forgot password”."
+            ? "Share the password privately."
+            : "They sign in with single sign-on or “Forgot password”."
         }`,
       );
     } catch (e) {
@@ -677,8 +674,8 @@ function CreateAccount({
             className={fieldClass}
           />
           <span className="mt-1 block text-xs font-normal text-muted-foreground">
-            At least 10 characters, no spaces. Leave empty for people who sign
-            in with single sign-on or will use “Forgot password”.
+            At least 10 characters, no spaces. Leave empty for single sign-on or
+            “Forgot password”.
           </span>
         </label>
       </div>
@@ -755,8 +752,7 @@ function PersonRow({
           </p>
           {user.deletedAt ? (
             <p className="truncate text-xs text-muted-foreground">
-              Deleted by its owner {date(user.deletedAt)}. Only the name is
-              kept, for history.
+              Deleted by its owner {date(user.deletedAt)}.
             </p>
           ) : (
             <p className="truncate text-xs text-muted-foreground">
@@ -1035,7 +1031,6 @@ function Organizations() {
       id="organizations"
       icon={<Building2 />}
       title="Organizations"
-      description="Each organization owns its projects, members and settings. Its owners and administrators run it from Organization settings; you create it and choose its first owner."
       action={
         <Button size="sm" onClick={() => setCreating((c) => !c)}>
           <Building2 className="size-3.5" /> New organization
@@ -1067,7 +1062,7 @@ function Organizations() {
         ) : (
           <SettingsList
             isEmpty={data.organizations.length === 0}
-            empty="No organizations yet. Create the first one and choose its owner."
+            empty="No organizations"
           >
             {data.organizations.map((o) => (
               <OrganizationRow key={o.id} organization={o} onChanged={reload} />
@@ -1109,7 +1104,7 @@ function CreateOrganization({
         },
       });
       onCreated(
-        `Created ${result.organization.name} (/${result.organization.slug}) owned by ${owner}. Its owner sets up the first project and invites the team.`,
+        `Created ${result.organization.name} (/${result.organization.slug}) owned by ${owner}.`,
       );
     } catch (e) {
       setError(message(e));
@@ -1157,7 +1152,7 @@ function CreateOrganization({
             className={fieldClass}
           />
           <span className="mt-1 block text-xs font-normal text-muted-foreground">
-            An existing account. Create it under People first if needed.
+            Must be an existing account.
           </span>
         </label>
       </div>
@@ -1312,21 +1307,13 @@ function ActivityLog() {
   if (error && !data) return <LoadFailure error={error} retry={reload} />;
   const events = [...(data?.events ?? []), ...older];
   return (
-    <SettingsSection
-      id="activity"
-      icon={<Activity />}
-      title="Activity"
-      description="Accounts created, deactivated and reactivated, administrators granted and removed, and organizations created, in this console or on the server. Entries cannot be edited or deleted."
-    >
+    <SettingsSection id="activity" icon={<Activity />} title="Activity">
       {!data ? (
         <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
           Loading…
         </p>
       ) : (
-        <SettingsList
-          isEmpty={events.length === 0}
-          empty="Nothing recorded yet."
-        >
+        <SettingsList isEmpty={events.length === 0} empty="No activity">
           {events.map((event) => (
             <div
               key={event.id}

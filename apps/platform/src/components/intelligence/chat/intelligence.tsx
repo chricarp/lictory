@@ -214,8 +214,7 @@ function useAiState() {
     return {
       ok: false as const,
       title: "Litto isn't available yet",
-      message:
-        "This server has no AI provider connected. An administrator can connect one; everything else in Lictory works without it.",
+      message: "No AI provider is connected.",
       action: isAdmin
         ? {
             label: "Open Lictory Intelligence settings",
@@ -228,8 +227,8 @@ function useAiState() {
       ok: false as const,
       title: "Litto is turned off",
       message: isAdmin
-        ? "Lictory Intelligence is turned off for this organization. Turn it on to start chatting; organization content is sent to the configured AI provider only after you opt in."
-        : "Lictory Intelligence is turned off for this organization. Ask an administrator to enable it in Settings.",
+        ? "Organization content is sent to the AI provider only after you turn it on."
+        : "Ask an administrator to turn it on.",
       action: isAdmin
         ? {
             label: "Open Lictory Intelligence settings",
@@ -350,17 +349,6 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
             <h2 className="text-2xl font-semibold tracking-tight">
               {ai.ok ? greeting(me?.name ?? "") : ai.title}
             </h2>
-            {ai.ok && (
-              <>
-                <p className="mt-1.5 text-[14px] text-muted-foreground">
-                  Ask Litto about your work, or say what to create, refine or
-                  update.
-                </p>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Powered by Lictory Intelligence and your workspace context.
-                </p>
-              </>
-            )}
           </motion.div>
           {ai.ok ? (
             <motion.div
@@ -529,9 +517,7 @@ function ChatThread({ chat }: { chat: LittoChat }) {
               busy={busy}
               disabled={pendingQuestion}
               placeholder={
-                pendingQuestion
-                  ? "Respond to Litto above to continue"
-                  : "Reply to Litto…"
+                pendingQuestion ? "Answer above to continue" : "Reply to Litto…"
               }
               onSend={(text) => void sendMessage({ text })}
               onStop={() => {
@@ -549,13 +535,7 @@ function ChatThread({ chat }: { chat: LittoChat }) {
             <AiUnavailable message={ai.message} action={ai.action} />
           )}
           <p className="mt-2 text-center text-[11px] text-muted-foreground/80">
-            <span className="max-sm:hidden">
-              Litto can be wrong. Decisions, approvals and publishing always
-              stay with people.
-            </span>
-            <span className="sm:hidden">
-              Litto can be wrong; people decide.
-            </span>
+            Litto can be wrong; people decide.
           </p>
         </motion.div>
       </div>

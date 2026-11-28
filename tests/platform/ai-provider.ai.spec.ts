@@ -46,7 +46,7 @@ test("members see where content goes and an instance administrator checks the pr
   await page.goto(`/${seeded.slug}/settings/intelligence`);
   const settings = page.locator("#ai");
   await expect(
-    settings.getByText(/OpenAI models through an endpoint chosen by/),
+    settings.getByText(/OpenAI models through the operator's gateway/),
   ).toBeVisible();
   await expect(settings.getByText("e2e-scripted")).toBeVisible();
   await expect(settings.getByText("Not offered on this server.")).toBeVisible();

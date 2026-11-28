@@ -291,19 +291,14 @@ function SyncPanel({
       ? "1 change is waiting to be saved."
       : `${count} changes are waiting to be saved.`;
   const descriptions: Record<Presentation, string> = {
-    idle: "Your workspace is up to date. Changes are shared automatically.",
-    busy: count
-      ? "We’re sending your changes to the workspace."
-      : "We’re checking for the latest workspace updates.",
-    offline:
-      "Reconnect to the internet. Changes can’t be saved until the connection is back; we’ll reconnect automatically.",
-    recovering:
-      "The connection was interrupted. We’re trying again automatically; changes you make now are sent when it’s back.",
+    idle: "Your workspace is up to date.",
+    busy: count ? "Sending your changes." : "Checking for updates.",
+    offline: "Changes can’t be saved until the connection is back.",
+    recovering: "Changes you make now are sent when it’s back.",
     attention: recoverable.length
       ? "Some changes were not applied. Their text is kept on this device."
-      : "We couldn’t update this workspace. Try again to check the connection.",
-    access:
-      "Your session expired or your access changed. Sign in again to keep saving changes.",
+      : "We couldn’t update this workspace.",
+    access: "Your session expired or your access changed.",
   };
   return (
     <div className="flex flex-col gap-4 overflow-y-auto p-4 text-[13px]">

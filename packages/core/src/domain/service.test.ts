@@ -4014,7 +4014,7 @@ void test("delivery mode decides who owns delivery: external projects never plan
       projectId: f.projectId,
       iterationMode: "manual",
     }),
-    /plans and estimates it/,
+    /to use sprints or estimates/,
   );
   await assert.rejects(
     f.command({

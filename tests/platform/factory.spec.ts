@@ -144,7 +144,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
   // what the agent changes will not be kept.
   await expect(
     start.getByText(
-      "No repository: it works in a scratch workspace, and files it changes are discarded when the session ends.",
+      "No repository: changed files are discarded when the session ends.",
     ),
   ).toBeVisible();
   await start.getByRole("button", { name: "Start session" }).click();
@@ -207,7 +207,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
   // No repository: before approving a command, it says the work is
   // thrown away and what the command changes elsewhere stays changed.
   await expect(
-    asks.getByText(/the command runs in a scratch workspace/),
+    asks.getByText(/Changes elsewhere, such as a database, stay/),
   ).toBeVisible();
   await asks
     .getByRole("link", { name: "Add a changelog for refunds." })
@@ -238,7 +238,7 @@ test("a person runs an agent on their own runner, steers it and approves what it
     page.getByText("The agent reports it is done, but its work was not kept"),
   ).toBeVisible();
   await expect(
-    page.getByText(/the file it changed was discarded with its scratch/),
+    page.getByText(/the file it changed was discarded/),
   ).toBeVisible();
   await expect(
     page.getByText("Added CHANGES.md describing refunds over the API.").first(),

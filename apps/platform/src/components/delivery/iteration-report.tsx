@@ -46,8 +46,7 @@ export function IterationReportPage() {
         icon={BarChart3}
         title="Report unavailable"
       >
-        {error} The iteration may belong to another project or be older than the
-        synchronized history.
+        {error}
       </MissingState>
     );
   return (
@@ -115,13 +114,10 @@ export function IterationReportPage() {
                   iteration={iteration}
                 />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Remaining {usePoints ? "points" : "items"} per day, replayed
-                  from recorded changes.
+                  Remaining {usePoints ? "points" : "items"} per day.
                   {report.totals.atStart.count === 0 &&
-                    " Nothing was committed when it started, so the ideal pace starts from the first work added."}
-                  {scaled &&
-                    !usePoints &&
-                    " Nothing in this iteration is estimated yet, so it burns down in items."}
+                    " Nothing was committed at start: the ideal pace starts at the first work added."}
+                  {scaled && !usePoints && " Nothing is estimated yet."}
                 </p>
               </section>
               {iteration && <IterationItems iterationId={iteration.id} />}
@@ -394,7 +390,7 @@ function IterationItems({ iterationId }: { iterationId: string }) {
       </h2>
       {planned.length === 0 ? (
         <p className="px-4 pb-4 text-[13px] text-muted-foreground">
-          Nothing is planned in this iteration.
+          Nothing planned
         </p>
       ) : (
         <ul className="divide-y border-t">
