@@ -3,7 +3,6 @@ import {
   ArrowUpRight,
   ChevronRight,
   Loader2,
-  MessagesSquare,
   MoreHorizontal,
   TriangleAlert,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { Switch } from "@lictory/ui/switch";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { Badge } from "@lictory/ui/primitives";
 import { toast } from "@lictory/ui/toast";
+import { SlackMark } from "@lictory/platform/components/identity/slack-mark";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import {
@@ -139,7 +139,7 @@ export function SlackConnection() {
   return (
     <SettingsSection
       id="slack"
-      icon={<MessagesSquare />}
+      icon={<SlackMark />}
       title="Slack"
       description="Link Lictory channels to Slack channels."
       learnMore="slack"

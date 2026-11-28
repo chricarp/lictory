@@ -122,7 +122,7 @@ export function PersonAvatar({
       </span>
       {person.external === "slack" && size >= 20 && (
         <CornerBadge size={size} label="Slack">
-          <SlackMark className="size-[70%] text-foreground" />
+          <SlackMark className="size-[70%]" />
         </CornerBadge>
       )}
     </span>

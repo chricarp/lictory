@@ -1,12 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import {
-  CircleOff,
-  Cog,
-  GitBranch,
-  MessageSquare,
-  Server,
-  Wrench,
-} from "lucide-react";
+import { CircleOff, Cog, GitBranch, Server, Wrench } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
 import { agentSession } from "@lictory/core/contracts/state-machines";
@@ -18,6 +11,7 @@ import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useCodeHosts } from "@lictory/platform/components/code/store";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { SlackMark } from "@lictory/platform/components/identity/slack-mark";
 
 // What the organization's administrators must fix for the factory to keep
 // working, on their Home: organization runners that are offline or were
@@ -138,7 +132,7 @@ function Health() {
       <ListRow
         key="slack"
         href={paths.settings(org, "integrations")}
-        leading={<MessageSquare aria-hidden className="text-destructive" />}
+        leading={<SlackMark />}
         title="Slack needs attention"
         meta={
           slack.lastError ??

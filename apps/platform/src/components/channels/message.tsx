@@ -542,7 +542,7 @@ function ExternalFiles({ message }: { message: MessageRow }) {
           rel="noreferrer noopener"
           className="flex max-w-64 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-[13px] hover:bg-muted"
         >
-          <SlackMark className="text-muted-foreground" />
+          <SlackMark />
           <span className="truncate">{file.name}</span>
           {file.size > 0 && (
             <span className="shrink-0 text-xs text-muted-foreground">
